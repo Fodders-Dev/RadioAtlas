@@ -12,6 +12,9 @@
   --accent-2: #f28f3b;
   --danger: #ff6f59;
   --player-gap: 16px;
+  --nav-height: 64px;
+  --nav-gap: 12px;
+  --stack-padding: 360px;
 }
 
 * {
@@ -74,7 +77,8 @@ input {
 
 main {
   flex: 1;
-  padding: 12px 16px calc(360px + env(safe-area-inset-bottom));
+  padding: 12px 16px
+    calc(var(--stack-padding) + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
 }
 
 .screen {
@@ -481,7 +485,7 @@ main {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(112px + env(safe-area-inset-bottom));
+  bottom: calc(12px + env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
@@ -489,6 +493,8 @@ main {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 8px;
+  height: var(--nav-height);
+  align-items: center;
   backdrop-filter: blur(10px);
   z-index: 10;
 }
@@ -526,7 +532,7 @@ main {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   background: rgba(16, 28, 27, 0.95);
   border: 1px solid rgba(246, 201, 69, 0.25);
   border-radius: 20px;
@@ -770,8 +776,9 @@ main {
 }
 
 @media (max-width: 600px) {
-  main {
-    padding-bottom: calc(440px + env(safe-area-inset-bottom));
+  :root {
+    --stack-padding: 440px;
+    --nav-height: 72px;
   }
 
   .hero {
@@ -780,7 +787,7 @@ main {
   }
 
   .bottom-nav {
-    bottom: calc(118px + env(safe-area-inset-bottom));
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .mini-player {

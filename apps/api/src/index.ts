@@ -45,6 +45,10 @@ const corsHeaders = (res: express.Response) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Content-Length, Content-Range, Accept-Ranges, Content-Type'
+  );
 };
 
 app.use((req, res, next) => {
@@ -202,12 +206,16 @@ app.get('/stream', async (req, res) => {
   }
 
   try {
-    const upstream = await fetch(target.toString(), {
-      headers: {
-        'User-Agent': USER_AGENT,
-        'Icy-MetaData': '1'
-      }
-    });
+    const range = req.headers.range;
+    const headers: Record<string, string> = {
+      'User-Agent': USER_AGENT,
+      'Icy-MetaData': '1'
+    };
+    if (range) {
+      headers.Range = range;
+    }
+
+    const upstream = await fetch(target.toString(), { headers });
 
     if (!upstream.ok) {
       res.status(upstream.status).end();
@@ -228,9 +236,13 @@ app.get('/stream', async (req, res) => {
     }
 
     const length = upstream.headers.get('content-length');
-    if (length) {
-      res.setHeader('content-length', length);
-    }
+    const contentRange = upstream.headers.get('content-range');
+    const acceptRanges = upstream.headers.get('accept-ranges');
+
+    res.status(upstream.status);
+    if (length) res.setHeader('content-length', length);
+    if (contentRange) res.setHeader('content-range', contentRange);
+    if (acceptRanges) res.setHeader('accept-ranges', acceptRanges);
     res.setHeader('content-type', contentType || 'application/octet-stream');
     res.setHeader('cache-control', 'no-store');
 
