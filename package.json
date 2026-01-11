@@ -1,0 +1,13 @@
+{
+  "name": "radio-plusplus-tg",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:webapp": "npm --workspace apps/webapp run dev",
+    "dev:bot": "npm --workspace apps/bot run dev",
+    "build": "npm run build --workspaces",
+    "test:webapp": "npm --workspace apps/webapp run test:e2e"
+  }
+}

@@ -1,0 +1,49 @@
+# RadioAtlas (Telegram Mini App)
+
+Monorepo with Telegram bot + webapp MVP.
+
+## Structure
+- `apps/webapp` - Telegram Mini App (React + Vite)
+- `apps/bot` - Telegram bot (grammY)
+
+## Requirements
+- Node.js 18+
+- npm 9+
+
+## Quick start
+```bash
+npm install
+npm run dev:webapp
+npm run dev:bot
+```
+
+## Tests
+```bash
+npm run test:webapp
+```
+
+## Deploy mini app
+1. Create bot via BotFather and grab `BOT_TOKEN`.
+2. Deploy `apps/webapp` to Vercel (or any https host).
+3. Set bot WebApp URL in BotFather (Menu Button -> Web App).
+4. Configure envs and redeploy:
+   - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL`, optional `WEBAPP_DEEPLINK`
+   - `apps/webapp/.env`: `VITE_TG_BOT=your_bot_username`
+
+### Env
+`apps/bot/.env`:
+```
+BOT_TOKEN=...
+WEBAPP_URL=https://your-webapp-url
+WEBAPP_DEEPLINK=https://t.me/your_bot?startapp=radio
+```
+
+`apps/webapp/.env`:
+```
+VITE_TG_BOT=your_bot_username
+```
+
+## Notes
+- Webapp pulls stations from Radio Browser and filters https streams.
+- Favorites and recently played are stored locally in the browser.
+- Station catalog source: https://docs.radio-browser.info/ (community-maintained).
