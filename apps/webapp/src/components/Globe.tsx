@@ -51,6 +51,8 @@ export const Globe = ({
   const dragDistanceRef = useRef(0);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const pointerIdRef = useRef<number | null>(null);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
   const projectionRef = useRef<ReturnType<typeof geoOrthographic> | null>(null);
 
   const [size, setSize] = useState({ width: 320, height: 320 });
@@ -288,11 +290,42 @@ export const Globe = ({
     dragDistanceRef.current = 0;
     lastPointerRef.current = { x: event.clientX, y: event.clientY };
     pointerIdRef.current = event.pointerId;
+    pointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY
+    });
+    if (pointersRef.current.size >= 2) {
+      const points = Array.from(pointersRef.current.values());
+      const dx = points[0].x - points[1].x;
+      const dy = points[0].y - points[1].y;
+      pinchRef.current = { distance: Math.hypot(dx, dy), scale };
+      dragMovedRef.current = true;
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
-    setAutoRotate(false);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (pointersRef.current.has(event.pointerId)) {
+      pointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY
+      });
+    }
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      event.preventDefault();
+      const points = Array.from(pointersRef.current.values());
+      const dx = points[0].x - points[1].x;
+      const dy = points[0].y - points[1].y;
+      const distance = Math.hypot(dx, dy);
+      if (pinchRef.current.distance > 0) {
+        const factor = distance / pinchRef.current.distance;
+        const next = clamp(pinchRef.current.scale * factor, MIN_ZOOM, MAX_ZOOM);
+        setScale(next);
+        onZoomChange?.(next);
+      }
+      dragMovedRef.current = true;
+      return;
+    }
     if (!draggingRef.current || !lastPointerRef.current) return;
     const dx = event.clientX - lastPointerRef.current.x;
     const dy = event.clientY - lastPointerRef.current.y;
@@ -312,8 +345,12 @@ export const Globe = ({
   const handlePointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
     draggingRef.current = false;
     lastPointerRef.current = null;
-    if (pointerIdRef.current !== null) {
-      event.currentTarget.releasePointerCapture(pointerIdRef.current);
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (pointerIdRef.current === event.pointerId) {
       pointerIdRef.current = null;
     }
   };
@@ -391,6 +428,7 @@ export const Globe = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onClick={pickStation}
         aria-label="Interactive globe"
       />

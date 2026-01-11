@@ -1,4 +1,5 @@
 import type { Station } from '../types';
+import { getApiBase } from './apiBase';
 
 const API_URLS = [
   'https://de1.api.radio-browser.info/json/stations/search',
@@ -6,7 +7,6 @@ const API_URLS = [
   'https://fr1.api.radio-browser.info/json/stations/search',
   'https://all.api.radio-browser.info/json/stations/search'
 ];
-const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
 const CACHE_KEY = 'radio-cache:stations:v4';
 const FAST_CACHE_KEY = 'radio-cache:stations:fast:v1';
 const CACHE_TTL_MS = 1000 * 60 * 30;
@@ -113,7 +113,7 @@ export const fetchStations = async ({
   let lastError: Error | null = null;
 
   const fetchFromApi = async () => {
-    const base = normalizeBase(API_BASE);
+    const base = normalizeBase(getApiBase());
     if (!base) return [];
     const url = new URL(`${base}/catalog`);
     url.searchParams.set('mode', mode);
@@ -149,7 +149,7 @@ export const fetchStations = async ({
   };
 
   let raw: Station[] = [];
-  if (API_BASE) {
+  if (getApiBase()) {
     try {
       raw = await fetchFromApi();
     } catch (err) {

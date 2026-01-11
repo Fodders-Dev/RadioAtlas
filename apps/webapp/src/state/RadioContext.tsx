@@ -7,6 +7,7 @@ import { useLocalStorage } from '../lib/useLocalStorage';
 import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
+import { getApiBase } from '../lib/apiBase';
 
 type TrackHistoryItem = {
   id: string;
@@ -229,7 +230,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify('Missing stream URL');
       return;
     }
-    const proxyBase = import.meta.env.VITE_API_URL as string | undefined;
+    const proxyBase = getApiBase();
     const hasProxy = Boolean(proxyBase);
     const isHttps = url.startsWith('https://');
     const isLocal = window.location.protocol === 'http:';

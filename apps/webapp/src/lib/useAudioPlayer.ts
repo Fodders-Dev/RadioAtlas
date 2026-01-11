@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
+import { getApiBase } from './apiBase';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
 
@@ -9,24 +10,24 @@ type ReconnectState = {
 };
 
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
-const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 
 const buildProxyUrl = (url: string) => {
-  const base = normalizeBase(API_BASE);
+  const base = normalizeBase(getApiBase());
   if (!base) return url;
   return `${base}/stream?url=${encodeURIComponent(url)}`;
 };
 
 const buildCandidates = (url: string) => {
   const candidates: string[] = [];
+  const apiBase = getApiBase();
   const isLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
   if (url.startsWith('http://')) {
     const httpsUrl = url.replace(/^http:\/\//, 'https://');
     if (httpsUrl !== url) {
       candidates.push(httpsUrl);
     }
-    if (API_BASE) {
+    if (apiBase) {
       candidates.push(buildProxyUrl(url));
     } else if (isLocal) {
       candidates.push(url);
