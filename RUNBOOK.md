@@ -37,3 +37,16 @@ npm run dev:bot
 2. Create a bot via BotFather and set Web App URL (Menu Button).
 3. Set `BOT_TOKEN` + `WEBAPP_URL` in `apps/bot/.env`.
 4. Set `VITE_TG_BOT` in `apps/webapp/.env` and redeploy.
+
+## Deploy (VPS)
+1. Install Node 18+, Nginx, and certbot.
+2. Build webapp:
+   ```bash
+   npm install
+   npm --workspace apps/webapp run build
+   ```
+3. Serve `apps/webapp/dist` via Nginx (HTTPS required).
+4. Run bot:
+   - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`
+   - use systemd or pm2 to keep it alive.
+5. BotFather: set Web App URL to `https://your-domain`.

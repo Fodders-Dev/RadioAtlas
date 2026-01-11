@@ -30,6 +30,18 @@ npm run test:webapp
    - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL`, optional `WEBAPP_DEEPLINK`
    - `apps/webapp/.env`: `VITE_TG_BOT=your_bot_username`
 
+## Deploy mini app (VPS)
+1. Requirements: domain + HTTPS (Telegram WebApp requires HTTPS).
+2. Build webapp:
+   ```bash
+   npm install
+   npm --workspace apps/webapp run build
+   ```
+3. Serve `apps/webapp/dist` with Nginx or Caddy.
+4. Run bot with systemd or pm2 using `.env`:
+   - `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`, optional `WEBAPP_DEEPLINK`
+5. Set BotFather WebApp URL to `https://your-domain`.
+
 ### Env
 `apps/bot/.env`:
 ```
