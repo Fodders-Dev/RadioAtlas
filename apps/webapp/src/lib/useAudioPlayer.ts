@@ -9,6 +9,16 @@ type ReconnectState = {
 };
 
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
+const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
+const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
+
+const resolveStreamUrl = (url: string) => {
+  if (!API_BASE) return url;
+  if (url.startsWith('https://')) return url;
+  const base = normalizeBase(API_BASE);
+  if (!base) return url;
+  return `${base}/stream?url=${encodeURIComponent(url)}`;
+};
 
 export const useAudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -40,18 +50,19 @@ export const useAudioPlayer = () => {
     if (!audio) return;
 
     cleanupHls();
+    const resolvedUrl = resolveStreamUrl(url);
 
-    if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
+    if (isHls(resolvedUrl) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
       const mod = await import('hls.js');
       const hls = new mod.default({
         enableWorker: true,
         lowLatencyMode: true
       });
-      hls.loadSource(url);
+      hls.loadSource(resolvedUrl);
       hls.attachMedia(audio);
       hlsRef.current = hls;
     } else {
-      audio.src = url;
+      audio.src = resolvedUrl;
     }
   };
 

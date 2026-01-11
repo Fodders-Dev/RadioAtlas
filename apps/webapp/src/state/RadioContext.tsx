@@ -229,9 +229,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify('Missing stream URL');
       return;
     }
+    const proxyBase = import.meta.env.VITE_API_URL as string | undefined;
+    const hasProxy = Boolean(proxyBase);
     const isHttps = url.startsWith('https://');
     const isLocal = window.location.protocol === 'http:';
-    if (!isHttps && !isLocal) {
+    if (!isHttps && !isLocal && !hasProxy) {
       notify('HTTP stream: open externally');
       openExternal(lite);
       return;

@@ -770,6 +770,10 @@ main {
 }
 
 @media (max-width: 600px) {
+  main {
+    padding-bottom: calc(440px + env(safe-area-inset-bottom));
+  }
+
   .hero {
     flex-direction: column;
     align-items: flex-start;

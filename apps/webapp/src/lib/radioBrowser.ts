@@ -6,6 +6,7 @@ const API_URLS = [
   'https://fr1.api.radio-browser.info/json/stations/search',
   'https://all.api.radio-browser.info/json/stations/search'
 ];
+const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
 const CACHE_KEY = 'radio-cache:stations:v4';
 const FAST_CACHE_KEY = 'radio-cache:stations:fast:v1';
 const CACHE_TTL_MS = 1000 * 60 * 30;
@@ -18,6 +19,9 @@ let fastMemoryCache: { ts: number; data: Station[] } | null = null;
 
 const USER_AGENT = 'FodderRadio/0.1';
 const isBrowser = typeof window !== 'undefined';
+
+const normalizeBase = (value?: string) =>
+  value ? value.replace(/\/+$/, '') : '';
 
 const asNumber = (value: unknown): number | null => {
   const num = typeof value === 'number' ? value : Number(value);
@@ -108,6 +112,18 @@ export const fetchStations = async ({
 
   let lastError: Error | null = null;
 
+  const fetchFromApi = async () => {
+    const base = normalizeBase(API_BASE);
+    if (!base) return [];
+    const url = new URL(`${base}/catalog`);
+    url.searchParams.set('mode', mode);
+    const response = await fetchWithTimeout(url.toString(), headers, 8000);
+    if (!response.ok) {
+      throw new Error(`Catalog proxy error: ${response.status}`);
+    }
+    return (await response.json()) as Station[];
+  };
+
   const fetchFromEndpoint = async (endpoint: string) => {
     const collected: Station[] = [];
     const maxPages = mode === 'full' ? MAX_PAGES : 1;
@@ -133,18 +149,28 @@ export const fetchStations = async ({
   };
 
   let raw: Station[] = [];
-  try {
-    const tasks = API_URLS.map((endpoint) =>
-      fetchFromEndpoint(endpoint).then((data) => {
-        if (!data.length) {
-          throw new Error('Empty response');
-        }
-        return data;
-      })
-    );
-    raw = await Promise.any(tasks);
-  } catch (err) {
-    lastError = err instanceof Error ? err : new Error('Failed to fetch');
+  if (API_BASE) {
+    try {
+      raw = await fetchFromApi();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error('Failed to fetch');
+    }
+  }
+
+  if (!raw.length) {
+    try {
+      const tasks = API_URLS.map((endpoint) =>
+        fetchFromEndpoint(endpoint).then((data) => {
+          if (!data.length) {
+            throw new Error('Empty response');
+          }
+          return data;
+        })
+      );
+      raw = await Promise.any(tasks);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error('Failed to fetch');
+    }
   }
 
   if (!raw.length) {

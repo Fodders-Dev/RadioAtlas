@@ -7,6 +7,7 @@
   "scripts": {
     "dev:webapp": "npm --workspace apps/webapp run dev",
     "dev:bot": "npm --workspace apps/bot run dev",
+    "dev:api": "npm --workspace apps/api run dev",
     "build": "npm run build --workspaces",
     "test:webapp": "npm --workspace apps/webapp run test:e2e"
   }

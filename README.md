@@ -42,6 +42,13 @@ npm run test:webapp
    - `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`, optional `WEBAPP_DEEPLINK`
 5. Set BotFather WebApp URL to `https://your-domain`.
 
+## Optional API proxy
+Run `apps/api` on VPS and set:
+```
+VITE_API_URL=https://your-domain/api
+```
+This enables catalog proxying and http stream playback via `/api/stream`.
+
 ### Env
 `apps/bot/.env`:
 ```
@@ -53,6 +60,7 @@ WEBAPP_DEEPLINK=https://t.me/your_bot?startapp=radio
 `apps/webapp/.env`:
 ```
 VITE_TG_BOT=your_bot_username
+VITE_API_URL=https://your-domain/api
 ```
 
 ## Notes

@@ -50,3 +50,13 @@ npm run dev:bot
    - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`
    - use systemd or pm2 to keep it alive.
 5. BotFather: set Web App URL to `https://your-domain`.
+
+## API proxy (http streams + catalog)
+1. Build and run:
+   ```bash
+   npm --workspace apps/api run build
+   pm2 start /opt/RadioAtlas/apps/api/dist/index.js --name radioatlas-api --cwd /opt/RadioAtlas/apps/api
+   ```
+2. Nginx: proxy `/api` to `http://127.0.0.1:3001`.
+3. Webapp env:
+   - `VITE_API_URL=https://your-domain/api`
