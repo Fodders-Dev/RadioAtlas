@@ -14,7 +14,7 @@
   --player-gap: 16px;
   --nav-height: 64px;
   --nav-gap: 12px;
-  --stack-padding: 360px;
+  --stack-padding: 420px;
 }
 
 * {
@@ -777,7 +777,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 440px;
+    --stack-padding: 520px;
     --nav-height: 72px;
   }
 

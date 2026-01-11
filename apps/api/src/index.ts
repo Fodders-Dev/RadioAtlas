@@ -214,11 +214,32 @@ app.get('/stream', async (req, res) => {
     if (range) {
       headers.Range = range;
     }
+    const candidates: URL[] = [];
+    if (target.protocol === 'http:') {
+      const upgraded = new URL(target.toString());
+      upgraded.protocol = 'https:';
+      candidates.push(upgraded);
+    }
+    candidates.push(target);
 
-    const upstream = await fetch(target.toString(), { headers });
+    let upstream: Response | null = null;
+    let lastError: Error | null = null;
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(candidate.toString(), { headers });
+        if (!response.ok) {
+          lastError = new Error(`Upstream ${response.status}`);
+          continue;
+        }
+        upstream = response;
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error('Upstream failed');
+      }
+    }
 
-    if (!upstream.ok) {
-      res.status(upstream.status).end();
+    if (!upstream) {
+      res.status(502).json({ error: lastError?.message || 'Upstream failed' });
       return;
     }
 
