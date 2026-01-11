@@ -12,12 +12,29 @@ const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 
-const resolveStreamUrl = (url: string) => {
-  if (!API_BASE) return url;
-  if (url.startsWith('https://')) return url;
+const buildProxyUrl = (url: string) => {
   const base = normalizeBase(API_BASE);
   if (!base) return url;
   return `${base}/stream?url=${encodeURIComponent(url)}`;
+};
+
+const buildCandidates = (url: string) => {
+  const candidates: string[] = [];
+  const isLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
+  if (url.startsWith('http://')) {
+    const httpsUrl = url.replace(/^http:\/\//, 'https://');
+    if (httpsUrl !== url) {
+      candidates.push(httpsUrl);
+    }
+    if (API_BASE) {
+      candidates.push(buildProxyUrl(url));
+    } else if (isLocal) {
+      candidates.push(url);
+    }
+  } else {
+    candidates.push(url);
+  }
+  return Array.from(new Set(candidates));
 };
 
 export const useAudioPlayer = () => {
@@ -25,6 +42,9 @@ export const useAudioPlayer = () => {
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
   const currentRef = useRef<StationLite | null>(null);
+  const candidatesRef = useRef<string[]>([]);
+  const candidateIndexRef = useRef(0);
+  const activeUrlRef = useRef<string | null>(null);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
@@ -50,33 +70,52 @@ export const useAudioPlayer = () => {
     if (!audio) return;
 
     cleanupHls();
-    const resolvedUrl = resolveStreamUrl(url);
+    activeUrlRef.current = url;
 
-    if (isHls(resolvedUrl) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
+    if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
       const mod = await import('hls.js');
       const hls = new mod.default({
         enableWorker: true,
         lowLatencyMode: true
       });
-      hls.loadSource(resolvedUrl);
+      hls.loadSource(url);
       hls.attachMedia(audio);
       hlsRef.current = hls;
     } else {
-      audio.src = resolvedUrl;
+      audio.src = url;
+    }
+  };
+
+  const tryNextCandidate = async () => {
+    const audio = audioRef.current;
+    if (!audio) return false;
+    const list = candidatesRef.current;
+    if (candidateIndexRef.current >= list.length - 1) {
+      return false;
+    }
+    candidateIndexRef.current += 1;
+    const nextUrl = list[candidateIndexRef.current];
+    try {
+      await attachSource(nextUrl);
+      await audio.play();
+      return true;
+    } catch {
+      return false;
     }
   };
 
   const scheduleReconnect = () => {
     const audio = audioRef.current;
-    const station = currentRef.current;
-    if (!audio || !station || reconnectRef.current.timer !== null) return;
+    if (!audio || !currentRef.current || reconnectRef.current.timer !== null) return;
 
     reconnectRef.current.attempts += 1;
     const delay = Math.min(15000, 2000 * reconnectRef.current.attempts);
     reconnectRef.current.timer = window.setTimeout(async () => {
       reconnectRef.current.timer = null;
       try {
-        await attachSource(station.url_resolved);
+        const url = activeUrlRef.current || currentRef.current?.url_resolved;
+        if (!url) return;
+        await attachSource(url);
         await audio.play();
       } catch {
         scheduleReconnect();
@@ -113,8 +152,12 @@ export const useAudioPlayer = () => {
     };
     const handleError = () => {
       if (currentRef.current) {
-        setStatus('error');
-        scheduleReconnect();
+        tryNextCandidate().then((switched) => {
+          if (!switched) {
+            setStatus('error');
+            scheduleReconnect();
+          }
+        });
       }
     };
     const handleEnded = () => {
@@ -157,13 +200,19 @@ export const useAudioPlayer = () => {
     clearReconnect();
     setCurrent(station);
     setStatus('buffering');
+    candidatesRef.current = buildCandidates(station.url_resolved);
+    candidateIndexRef.current = 0;
 
     try {
-      await attachSource(station.url_resolved);
+      const url = candidatesRef.current[0];
+      await attachSource(url);
       await audio.play();
     } catch {
-      setStatus('error');
-      scheduleReconnect();
+      const switched = await tryNextCandidate();
+      if (!switched) {
+        setStatus('error');
+        scheduleReconnect();
+      }
     }
   };
 
