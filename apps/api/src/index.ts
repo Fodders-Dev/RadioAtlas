@@ -12,7 +12,7 @@ const API_URLS = [
 const USER_AGENT = 'RadioAtlas/1.0';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 10000;
-const FAST_LIMIT = 2000;
+const FAST_LIMIT = 5000;
 const MAX_PAGES = 5;
 
 type Station = {

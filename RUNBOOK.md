@@ -31,6 +31,8 @@ npm run dev:bot
 ## Cache
 - Catalog cached for 30 minutes in localStorage.
 - Clear cache via Settings screen.
+- Local fallback catalog lives at `apps/webapp/public/catalog-fast.json`.
+- Update fallback catalog with `npm run catalog:update`.
 
 ## Deploy (Telegram Mini App)
 1. Host `apps/webapp` on HTTPS (Vercel recommended).
@@ -60,3 +62,5 @@ npm run dev:bot
 2. Nginx: proxy `/api` to `http://127.0.0.1:3001`.
 3. Webapp env:
    - `VITE_API_URL=https://your-domain/api`
+4. Runtime override:
+   - Settings screen can override API base (saved to localStorage).

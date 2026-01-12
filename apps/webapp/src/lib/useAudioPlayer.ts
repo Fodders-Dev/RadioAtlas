@@ -129,9 +129,17 @@ export const useAudioPlayer = () => {
   }, [current]);
 
   useEffect(() => {
-    const audio = new Audio();
+    const audio =
+      typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     audio.preload = 'none';
     audio.crossOrigin = 'anonymous';
+    audio.controls = true;
+    audio.setAttribute('playsinline', 'true');
+    audio.setAttribute('webkit-playsinline', 'true');
+    if (audio instanceof HTMLAudioElement) {
+      audio.className = 'audio-hidden';
+      document.body.appendChild(audio);
+    }
     audioRef.current = audio;
 
     const handlePlaying = () => {
@@ -185,6 +193,9 @@ export const useAudioPlayer = () => {
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleEnded);
       cleanupHls();
+      if (audio instanceof HTMLAudioElement) {
+        audio.remove();
+      }
     };
   }, []);
 

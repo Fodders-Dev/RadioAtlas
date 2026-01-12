@@ -128,26 +128,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [stations]);
 
   useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-    const station = player.current;
-    if (!station) {
-      navigator.mediaSession.metadata = null;
-      navigator.mediaSession.playbackState = 'none';
-      return;
-    }
-
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: station.name,
-      artist: station.country || 'Live Radio',
-      album: station.state || ''
-    });
-    navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
-
-    navigator.mediaSession.setActionHandler('play', () => player.toggle());
-    navigator.mediaSession.setActionHandler('pause', () => player.toggle());
-  }, [player.current, player.isPlaying, player]);
-
-  useEffect(() => {
     const station = player.current;
     if (!station || !player.isPlaying) {
       setNowPlaying(null);
@@ -267,6 +247,28 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playStationInternal(next, false);
     }
   };
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    const station = player.current;
+    if (!station) {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+      return;
+    }
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: station.name,
+      artist: station.country || 'Live Radio',
+      album: station.state || ''
+    });
+    navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
+
+    navigator.mediaSession.setActionHandler('play', () => player.toggle());
+    navigator.mediaSession.setActionHandler('pause', () => player.toggle());
+    navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
+    navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
+  }, [player.current, player.isPlaying, playPrevious, playNext, player]);
 
   const openExternal = (station: Station | StationLite) => {
     const url = station.url_resolved;

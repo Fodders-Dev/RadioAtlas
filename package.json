@@ -8,6 +8,7 @@
     "dev:webapp": "npm --workspace apps/webapp run dev",
     "dev:bot": "npm --workspace apps/bot run dev",
     "dev:api": "npm --workspace apps/api run dev",
+    "catalog:update": "node scripts/updateCatalog.mjs",
     "build": "npm run build --workspaces",
     "test:webapp": "npm --workspace apps/webapp run test:e2e"
   }

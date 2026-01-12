@@ -12,7 +12,7 @@ const FAST_CACHE_KEY = 'radio-cache:stations:fast:v1';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 10000;
 const MAX_PAGES = 5;
-const FAST_LIMIT = 2000;
+const FAST_LIMIT = 5000;
 
 let memoryCache: { ts: number; data: Station[] } | null = null;
 let fastMemoryCache: { ts: number; data: Station[] } | null = null;
@@ -74,6 +74,29 @@ const fetchWithTimeout = async (url: string, headers: HeadersInit, ms: number) =
   } finally {
     clearTimeout(timeout);
   }
+};
+
+const fetchLocalCatalog = async (mode: FetchMode): Promise<Station[]> => {
+  if (!isBrowser) return [];
+  const primary = mode === 'fast' ? '/catalog-fast.json' : '/catalog-full.json';
+  const fallback = mode === 'full' ? '/catalog-fast.json' : null;
+
+  const attempt = async (path: string) => {
+    try {
+      const response = await fetch(path, { cache: 'no-store' });
+      if (!response.ok) return [];
+      return (await response.json()) as Station[];
+    } catch {
+      return [];
+    }
+  };
+
+  const primaryData = await attempt(primary);
+  if (primaryData.length) return primaryData;
+  if (fallback) {
+    return await attempt(fallback);
+  }
+  return [];
 };
 
 export const fetchStations = async ({
@@ -149,12 +172,15 @@ export const fetchStations = async ({
   };
 
   let raw: Station[] = [];
-  if (getApiBase()) {
+  const apiBase = getApiBase();
+  if (apiBase) {
     try {
       raw = await fetchFromApi();
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Failed to fetch');
     }
+  } else if (mode === 'fast') {
+    raw = await fetchLocalCatalog(mode);
   }
 
   if (!raw.length) {
@@ -171,6 +197,10 @@ export const fetchStations = async ({
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Failed to fetch');
     }
+  }
+
+  if (!raw.length) {
+    raw = await fetchLocalCatalog(mode);
   }
 
   if (!raw.length) {
