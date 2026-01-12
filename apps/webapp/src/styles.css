@@ -240,17 +240,20 @@ main {
   flex-direction: column;
   gap: 6px;
   font-weight: 600;
+  min-width: 0;
 }
 
 .station-title {
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .marquee {
   white-space: nowrap;
   overflow: hidden;
   position: relative;
+  text-overflow: clip;
 }
 
 .marquee-text {
