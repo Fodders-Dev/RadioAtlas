@@ -1,4 +1,5 @@
 import type { StationLite } from '../types';
+import { getApiBase } from './apiBase';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
 const textDecoder = new TextDecoder('utf-8');
@@ -195,51 +196,77 @@ const fetchWithTimeout = async (url: string, ms = 4000) => {
 };
 
 const fetchIcecastCORS = async (origin: string, path: string): Promise<string | null> => {
+  const target = `${origin}/status-json.xsl`;
+  let data: any = null;
+
   try {
-    // Try standard Icecast status-json.xsl
-    const res = await fetchWithTimeout(`${origin}/status-json.xsl`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const source = data?.icestats?.source;
-    if (!source) return null;
-
-    const sources = Array.isArray(source) ? source : [source];
-    // Try to match the specific mount point we are playing
-    const match = sources.find((s: any) =>
-      s.listenurl?.endsWith(path) ||
-      s.listenurl?.includes(path)
-    );
-    const best = match || sources[0];
-
-    if (best) {
-      // specific 'title' often contains "Artist - Title" or just "Title"
-      // sometimes 'artist' and 'title' are separate
-      if (best.artist && best.title) return buildTrack(best.artist, best.title);
-      if (best.title) return best.title;
-    }
+    const res = await fetchWithTimeout(target);
+    if (res.ok) data = await res.json();
   } catch {
-    // ignore
+    // ignore direct failure
   }
+
+  if (!data) {
+    const api = getApiBase();
+    if (api) {
+      try {
+        const res = await fetchWithTimeout(`${api}/fetch?url=${encodeURIComponent(target)}`);
+        if (res.ok) data = await res.json();
+      } catch {
+        // ignore proxy failure
+      }
+    }
+  }
+
+  if (!data?.icestats?.source) return null;
+
+  const source = data.icestats.source;
+  const sources = Array.isArray(source) ? source : [source];
+  const match = sources.find((s: any) =>
+    s.listenurl?.endsWith(path) ||
+    s.listenurl?.includes(path)
+  );
+  const best = match || sources[0];
+
+  if (best) {
+    if (best.artist && best.title) return buildTrack(best.artist, best.title);
+    if (best.title) return best.title;
+  }
+
   return null;
 };
 
 const fetchShoutcastCORS = async (origin: string): Promise<string | null> => {
-  try {
-    // Try Shoutcast v1 /7.html
-    const res = await fetchWithTimeout(`${origin}/7.html`);
-    if (!res.ok) return null;
-    const text = await res.text();
-    // 7.html body is like: 123,1,385,4000,20,1024,The Current Song Title
-    const bodyMatch = text.match(/<body[^>]*>(.*?)<\/body>/i);
-    const content = bodyMatch ? bodyMatch[1] : text;
+  const target = `${origin}/7.html`;
+  let text: string | null = null;
 
-    const parts = content.split(',');
-    if (parts.length >= 7) {
-      // The title is the 7th field (index 6)
-      return parts[6] || null;
-    }
+  try {
+    const res = await fetchWithTimeout(target);
+    if (res.ok) text = await res.text();
   } catch {
     // ignore
+  }
+
+  if (!text) {
+    const api = getApiBase();
+    if (api) {
+      try {
+        const res = await fetchWithTimeout(`${api}/fetch?url=${encodeURIComponent(target)}`);
+        if (res.ok) text = await res.text();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  if (!text) return null;
+
+  const bodyMatch = text.match(/<body[^>]*>(.*?)<\/body>/i);
+  const content = bodyMatch ? bodyMatch[1] : text;
+
+  const parts = content.split(',');
+  if (parts.length >= 7) {
+    return parts[6] || null;
   }
   return null;
 };

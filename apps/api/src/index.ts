@@ -278,6 +278,38 @@ app.get('/stream', async (req, res) => {
   }
 });
 
+app.get('/fetch', async (req, res) => {
+  const url = req.query.url;
+  if (!url || typeof url !== 'string') {
+    res.status(400).json({ error: 'url is required' });
+    return;
+  }
+
+  try {
+    const target = new URL(url);
+    if (!['http:', 'https:'].includes(target.protocol)) {
+      res.status(400).json({ error: 'invalid protocol' });
+      return;
+    }
+
+    const response = await fetch(target.toString(), {
+      headers: { 'User-Agent': USER_AGENT }
+    });
+
+    // Forward status code
+    res.status(response.status);
+
+    // Forward content-type if present
+    const type = response.headers.get('content-type');
+    if (type) res.setHeader('content-type', type);
+
+    const text = await response.text();
+    res.send(text);
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
   console.log(`RadioAtlas API on ${port}`);
