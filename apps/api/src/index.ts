@@ -278,6 +278,87 @@ app.get('/stream', async (req, res) => {
   }
 });
 
+const fetchStreamMetadata = async (url: string): Promise<string | null> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Icy-MetaData': '1',
+        'User-Agent': USER_AGENT
+      },
+      signal: controller.signal
+    });
+
+    const metaintHeader = response.headers.get('icy-metaint');
+    if (!metaintHeader) return null;
+
+    const metaint = Number(metaintHeader);
+    if (isNaN(metaint) || metaint <= 0) return null;
+
+    const body = response.body;
+    if (!body) return null;
+
+    // Check if we are in Node stream or Web stream.
+    // In newer Node, fetch returns Web Stream mostly.
+    const reader = body.getReader ? body.getReader() : null;
+    if (!reader) return null;
+
+    let buffer = new Uint8Array(0);
+    const maxBytes = metaint + 4096;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      const next = new Uint8Array(buffer.length + value.length);
+      next.set(buffer);
+      next.set(value, buffer.length);
+      buffer = next;
+
+      // We need at least metaint + 1 byte (length byte)
+      if (buffer.length >= metaint + 1) {
+        const lengthByte = buffer[metaint] || 0;
+        const metaLen = lengthByte * 16;
+        if (metaLen === 0) return null; // Empty metadata
+
+        if (buffer.length >= metaint + 1 + metaLen) {
+          const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
+          const text = new TextDecoder('utf-8').decode(metaBytes);
+          const match = text.match(/StreamTitle='([^']*)'/);
+          return match?.[1] || null;
+        }
+      }
+
+      if (buffer.length > maxBytes) break;
+    }
+
+  } catch (e) {
+    // ignore
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
+  return null;
+};
+
+app.get('/metadata', async (req, res) => {
+  const url = req.query.url;
+  if (!url || typeof url !== 'string') {
+    res.status(400).json({ error: 'url is required' });
+    return;
+  }
+
+  const title = await fetchStreamMetadata(url);
+  if (title) {
+    res.json({ title });
+  } else {
+    res.status(404).json({ error: 'No metadata found' });
+  }
+});
+
 app.get('/fetch', async (req, res) => {
   const url = req.query.url;
   if (!url || typeof url !== 'string') {

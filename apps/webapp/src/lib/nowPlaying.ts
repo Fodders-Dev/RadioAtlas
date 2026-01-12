@@ -297,6 +297,24 @@ export const fetchNowPlaying = async (station: StationLite) => {
   }
 
   // 4. Fallback: Try reading Icy Metadata from the stream itself
-  // This downloads chunks of audio, so usually slower/heavier.
-  return fetchIcy(url);
+  // First, try client-side (unlikely to work without CORS)
+  const icy = await fetchIcy(url);
+  if (icy) return icy;
+
+  // 5. Final Resort: Server-side Metadata Proxy
+  // Ask our own API server to connect and parse the metadata for us
+  const api = getApiBase();
+  if (api) {
+    try {
+      const res = await fetch(`${api}/metadata?url=${encodeURIComponent(url)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.title) return data.title;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
 };
