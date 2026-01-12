@@ -288,6 +288,7 @@ const fetchStreamMetadata = async (url: string): Promise<string | null> => {
         'Icy-MetaData': '1',
         'User-Agent': USER_AGENT
       },
+      redirect: 'follow',
       signal: controller.signal
     });
 
