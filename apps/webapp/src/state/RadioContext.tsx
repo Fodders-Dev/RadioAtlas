@@ -179,7 +179,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     };
 
     update();
-    const interval = window.setInterval(update, 60000);
+    const interval = window.setInterval(update, 15000);
     const timeout = window.setTimeout(() => {
       if (!lastUpdate) {
         setNowPlayingStatus('unavailable');
