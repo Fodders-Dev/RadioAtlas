@@ -366,21 +366,34 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       : `${window.location.origin}?station=station_${station.stationuuid}`;
     const title = station.name;
     const text = `Listen live: ${station.name}`;
+    // 1. Try Native Share (Mobile)
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
         return;
       } catch {
-        // ignore share aborts
+        // ignore share aborts/errors, fall through
       }
     }
 
+    // 2. Try Clipboard
     try {
       await navigator.clipboard.writeText(`${title} ${url}`);
       notify('Link copied');
+      return;
     } catch {
-      notify('Copy failed');
+      // ignore
     }
+
+    // 3. Fallback: Telegram Share Link
+    const tg = window.Telegram?.WebApp;
+    if (tg?.openLink) {
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+      tg.openLink(shareUrl);
+      return;
+    }
+
+    notify('Share failed');
   };
 
   const clearFavorites = () => setFavorites([]);
