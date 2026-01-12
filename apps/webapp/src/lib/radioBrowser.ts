@@ -7,7 +7,7 @@ const API_URLS = [
   'https://fr1.api.radio-browser.info/json/stations/search',
   'https://all.api.radio-browser.info/json/stations/search'
 ];
-const CACHE_KEY = 'radio-cache:stations:v4';
+const CACHE_KEY = 'radio-cache:stations:v5';
 const FAST_CACHE_KEY = 'radio-cache:stations:fast:v1';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 20000;
