@@ -136,6 +136,7 @@ export const useAudioPlayer = () => {
     audio.controls = true;
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
+    audio.setAttribute('autoplay', 'false');
     if (audio instanceof HTMLAudioElement) {
       audio.className = 'audio-hidden';
       document.body.appendChild(audio);
@@ -183,6 +184,14 @@ export const useAudioPlayer = () => {
     audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleEnded);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && !audio.paused) {
+        audio.play().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       audio.pause();
       audio.src = '';
@@ -192,6 +201,7 @@ export const useAudioPlayer = () => {
       audio.removeEventListener('stalled', handleWaiting);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleEnded);
+      document.removeEventListener('visibilitychange', handleVisibility);
       cleanupHls();
       if (audio instanceof HTMLAudioElement) {
         audio.remove();

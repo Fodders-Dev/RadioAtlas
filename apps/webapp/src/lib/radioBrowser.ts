@@ -173,14 +173,17 @@ export const fetchStations = async ({
 
   let raw: Station[] = [];
   const apiBase = getApiBase();
-  if (apiBase) {
+
+  if (mode === 'fast') {
+    raw = await fetchLocalCatalog(mode);
+  }
+
+  if (!raw.length && apiBase) {
     try {
       raw = await fetchFromApi();
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Failed to fetch');
     }
-  } else if (mode === 'fast') {
-    raw = await fetchLocalCatalog(mode);
   }
 
   if (!raw.length) {

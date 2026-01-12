@@ -11,6 +11,7 @@ export const MiniPlayer = ({
     player,
     nowPlaying,
     nowPlayingStatus,
+    stations,
     recent,
     playPrevious,
     playNext,
@@ -44,6 +45,8 @@ export const MiniPlayer = ({
 
   const canPrev = historyIndex >= 0 && historyIndex < recent.length - 1;
   const canNext = historyIndex > 0;
+  const showRandom = !canNext;
+  const canRandom = stations.length > 0;
   const liked = current ? isFavorite(current.stationuuid) : false;
 
   return (
@@ -95,12 +98,18 @@ export const MiniPlayer = ({
           className="icon-btn"
           onClick={playNext}
           type="button"
-          disabled={!canNext}
-          aria-label="Next station"
+          disabled={!canNext && !canRandom}
+          aria-label={showRandom ? 'Random station' : 'Next station'}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M16 6h2v12h-2V6zM6 18l9-6-9-6v12z" />
-          </svg>
+          {showRandom ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 4h4v4h-2V6.4l-3.8 3.8-1.4-1.4 3.8-3.8H16V4zM4 6h4c1.1 0 2.2.4 3 1.2l1 1-1.4 1.4-1-1C9 8.2 8.5 8 8 8H4V6zm12.2 8.2 1.4-1.4L20 15.2V14h2v4h-4v-2h1.2l-2.8-2.8zM4 16h4c.5 0 1-.2 1.4-.6l5.2-5.2 1.4 1.4-5.2 5.2c-.8.8-1.9 1.2-3 1.2H4v-2z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 6h2v12h-2V6zM6 18l9-6-9-6v12z" />
+            </svg>
+          )}
         </button>
         {onDetails && (
           <button

@@ -238,13 +238,31 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const pickRandomStation = () => {
+    if (!stations.length) return null;
+    const currentId = player.current?.stationuuid;
+    if (stations.length === 1) return stations[0];
+    for (let i = 0; i < 6; i += 1) {
+      const candidate = stations[Math.floor(Math.random() * stations.length)];
+      if (!candidate || candidate.stationuuid === currentId) continue;
+      return candidate;
+    }
+    return stations.find((item) => item.stationuuid !== currentId) ?? stations[0];
+  };
+
   const playNext = () => {
     const currentId = player.current?.stationuuid;
-    if (!currentId || recent.length < 2) return;
-    const index = recent.findIndex((item) => item.stationuuid === currentId);
-    const next = index > 0 ? recent[index - 1] : null;
-    if (next) {
-      playStationInternal(next, false);
+    if (currentId && recent.length >= 2) {
+      const index = recent.findIndex((item) => item.stationuuid === currentId);
+      const next = index > 0 ? recent[index - 1] : null;
+      if (next) {
+        playStationInternal(next, false);
+        return;
+      }
+    }
+    const randomStation = pickRandomStation();
+    if (randomStation) {
+      playStationInternal(randomStation, true);
     }
   };
 
@@ -257,10 +275,21 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    const artwork = station.favicon
+      ? [
+          {
+            src: station.favicon,
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      : undefined;
+
     navigator.mediaSession.metadata = new MediaMetadata({
       title: station.name,
       artist: station.country || 'Live Radio',
-      album: station.state || ''
+      album: station.state || '',
+      artwork
     });
     navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
 
