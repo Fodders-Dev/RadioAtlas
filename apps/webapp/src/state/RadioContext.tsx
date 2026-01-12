@@ -31,6 +31,7 @@ type RadioContextValue = {
   playStation: (station: Station | StationLite) => void;
   playPrevious: () => void;
   playNext: () => void;
+  playLast: () => void;
   copyTrack: () => void;
   toggleFavorite: (station: Station | StationLite) => void;
   isFavorite: (stationId: string) => boolean;
@@ -266,6 +267,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const playLast = () => {
+    if (recent.length) {
+      playStationInternal(recent[0], true);
+      return;
+    }
+    if (stations.length) {
+      playStationInternal(stations[0], true);
+    }
+  };
+
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     const station = player.current;
@@ -376,6 +387,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     playStation,
     playPrevious,
     playNext,
+    playLast,
     copyTrack,
     toggleFavorite,
     isFavorite,

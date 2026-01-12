@@ -242,6 +242,35 @@ main {
   font-weight: 600;
 }
 
+.station-title {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.marquee {
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+}
+
+.marquee-text {
+  display: inline-block;
+  padding-right: 24px;
+}
+
+.marquee .marquee-text {
+  animation: marquee 12s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
 .station-fav {
   display: flex;
   gap: 6px;

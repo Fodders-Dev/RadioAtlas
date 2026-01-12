@@ -8,10 +8,17 @@ const VIBES = [
   { id: 'all', label: 'All', keywords: [] },
   { id: 'chill', label: 'Chill', keywords: ['chill', 'ambient', 'lofi', 'downtempo'] },
   { id: 'electro', label: 'Electronic', keywords: ['electronic', 'house', 'techno', 'edm'] },
+  { id: 'dance', label: 'Dance', keywords: ['dance', 'club', 'trance', 'dnb'] },
+  { id: 'pop', label: 'Pop', keywords: ['pop', 'top', 'chart', 'hits'] },
+  { id: 'hiphop', label: 'Hip-Hop', keywords: ['hip', 'rap', 'hip-hop', 'trap'] },
   { id: 'rock', label: 'Rock', keywords: ['rock', 'metal', 'indie', 'alternative'] },
+  { id: 'indie', label: 'Indie', keywords: ['indie', 'alternative', 'shoegaze'] },
+  { id: 'retro', label: 'Retro', keywords: ['80s', '90s', 'retro', 'oldies'] },
   { id: 'jazz', label: 'Jazz', keywords: ['jazz', 'blues', 'swing', 'soul'] },
   { id: 'classical', label: 'Classical', keywords: ['classical', 'orchestra', 'piano'] },
+  { id: 'cinema', label: 'Cinematic', keywords: ['soundtrack', 'cinema', 'score'] },
   { id: 'news', label: 'News', keywords: ['news', 'talk', 'public', 'politics'] },
+  { id: 'sports', label: 'Sports', keywords: ['sports', 'football', 'soccer', 'nba'] },
   { id: 'world', label: 'World', keywords: ['world', 'latin', 'reggae', 'afro'] }
 ];
 

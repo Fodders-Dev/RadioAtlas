@@ -28,6 +28,7 @@ export const StationTable = ({ stations, compact }: StationTableProps) => {
       {stations.map((station) => {
         const active = player.current?.stationuuid === station.stationuuid;
         const liked = isFavorite(station.stationuuid);
+        const isLong = station.name.length > 26;
         return (
           <div
             key={station.stationuuid}
@@ -41,7 +42,9 @@ export const StationTable = ({ stations, compact }: StationTableProps) => {
               {active && player.isPlaying ? 'Pause' : 'Play'}
             </button>
             <div className="station-name">
-              <div>{station.name}</div>
+              <div className={`station-title ${isLong ? 'marquee' : ''}`}>
+                <span className="marquee-text">{station.name}</span>
+              </div>
               {compact && (
                 <div className="station-fav">
                   <button

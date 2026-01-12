@@ -15,6 +15,7 @@ export const MiniPlayer = ({
     recent,
     playPrevious,
     playNext,
+    playLast,
     copyTrack,
     toggleFavorite,
     isFavorite,
@@ -48,6 +49,16 @@ export const MiniPlayer = ({
   const showRandom = !canNext;
   const canRandom = stations.length > 0;
   const liked = current ? isFavorite(current.stationuuid) : false;
+  const canResume = Boolean(recent.length);
+  const handlePrimary = () => {
+    if (current) {
+      player.toggle();
+      return;
+    }
+    if (canResume) {
+      playLast();
+    }
+  };
 
   return (
     <div className="mini-player">
@@ -59,7 +70,9 @@ export const MiniPlayer = ({
         )}
       </div>
       <div className="player-meta">
-        <div className="player-title">{current?.name ?? 'RadioAtlas'}</div>
+        <div className={`player-title ${current?.name && current.name.length > 24 ? 'marquee' : ''}`}>
+          <span className="marquee-text">{current?.name ?? 'RadioAtlas'}</span>
+        </div>
         <div className="player-sub">{current ? stationLocation(current) : statusLabel}</div>
         {trackLabel && (
           <button
@@ -88,9 +101,9 @@ export const MiniPlayer = ({
         </button>
         <button
           className="player-btn primary"
-          onClick={() => player.toggle()}
+          onClick={handlePrimary}
           type="button"
-          disabled={!current}
+          disabled={!current && !canResume}
         >
           {player.isPlaying ? 'Pause' : 'Play'}
         </button>

@@ -12,7 +12,7 @@ const FAST_CACHE_KEY = 'radio-cache:stations:fast:v1';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 10000;
 const MAX_PAGES = 5;
-const FAST_LIMIT = 5000;
+const FAST_LIMIT = 10000;
 
 let memoryCache: { ts: number; data: Station[] } | null = null;
 let fastMemoryCache: { ts: number; data: Station[] } | null = null;
@@ -174,9 +174,7 @@ export const fetchStations = async ({
   let raw: Station[] = [];
   const apiBase = getApiBase();
 
-  if (mode === 'fast') {
-    raw = await fetchLocalCatalog(mode);
-  }
+  raw = await fetchLocalCatalog(mode);
 
   if (!raw.length && apiBase) {
     try {

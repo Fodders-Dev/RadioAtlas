@@ -147,6 +147,17 @@ export const useAudioPlayer = () => {
       setStatus('playing');
       setIsPlaying(true);
       clearReconnect();
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: 0,
+            playbackRate: 1,
+            position: 0
+          });
+        } catch {
+          // ignore
+        }
+      }
     };
     const handlePause = () => {
       setIsPlaying(false);
