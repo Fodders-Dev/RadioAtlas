@@ -174,8 +174,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = subscribeNowPlaying(station, applyTrack);
 
     const update = async () => {
-      const track = await fetchNowPlaying(station);
-      applyTrack(track);
+      try {
+        const track = await fetchNowPlaying(station);
+        if (track) {
+          logDebug(`Metadata: ${track}`);
+        } else {
+          // Only log failure if we haven't seen a track in a while
+          if (Date.now() - lastUpdate > 20000) {
+            logDebug(`Metadata: null (API: ${getApiBase() || 'default'})`);
+          }
+        }
+        applyTrack(track);
+      } catch (e) {
+        logDebug(`Metadata Err: ${e instanceof Error ? e.message : String(e)}`);
+      }
     };
 
     update();
