@@ -19,8 +19,9 @@ export const MiniPlayer = ({
     copyTrack,
     toggleFavorite,
     isFavorite,
-    shareStation
-  } = useRadio();
+    shareStation,
+    openWebAppExternally
+  } = useRadio() as any;
 
   const current = player.current;
   const statusLabel = useMemo(() => {
@@ -41,7 +42,7 @@ export const MiniPlayer = ({
 
   const historyIndex = useMemo(() => {
     if (!current) return -1;
-    return recent.findIndex((item) => item.stationuuid === current.stationuuid);
+    return recent.findIndex((item: any) => item.stationuuid === current.stationuuid);
   }, [current, recent]);
 
   const canPrev = historyIndex >= 0 && historyIndex < recent.length - 1;
@@ -124,6 +125,18 @@ export const MiniPlayer = ({
             </svg>
           )}
         </button>
+
+        <button
+          className="icon-btn"
+          onClick={openWebAppExternally}
+          type="button"
+          title="Open in Browser (background play)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7z" />
+          </svg>
+        </button>
+
         {onDetails && (
           <button
             className="player-btn"
@@ -132,11 +145,6 @@ export const MiniPlayer = ({
             disabled={!current}
           >
             Info
-          </button>
-        )}
-        {nowPlaying && (
-          <button className="player-btn" onClick={copyTrack} type="button">
-            Copy
           </button>
         )}
         <button
@@ -165,7 +173,7 @@ export const MiniPlayer = ({
             max={1}
             step={0.01}
             value={player.volume}
-            onChange={(event) => player.setVolume(Number(event.target.value))}
+            onChange={(event: any) => player.setVolume(Number(event.target.value))}
           />
         </div>
       </div>

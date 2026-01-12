@@ -130,14 +130,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (startHandledRef.current || !stations.length) return;
+    if (startHandledRef.current) return;
+    if (!stations.length) return;
+
     const startParam = getStartParam();
-    startHandledRef.current = true;
-    if (!startParam) return;
+    if (!startParam) {
+      startHandledRef.current = true;
+      return;
+    }
+
     const stationId = parseStationParam(startParam);
     const station = stations.find((item) => item.stationuuid === stationId);
     if (station) {
       playStation(station);
+      startHandledRef.current = true;
     }
   }, [stations]);
 
@@ -339,7 +345,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const openWebAppExternally = () => {
-    const url = window.location.href;
+    let url = window.location.origin;
+    if (player.current) {
+      url += `?station=station_${player.current.stationuuid}`;
+    }
+
     const tg = window.Telegram?.WebApp;
     if (tg?.openLink) {
       // Using openLink to break out of WebView
