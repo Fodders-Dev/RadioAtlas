@@ -4,6 +4,11 @@ const normalizeBase = (value?: string | null) => {
   if (!value) return '';
   const trimmed = value.trim();
   if (!trimmed) return '';
+
+  if (trimmed.startsWith('/')) {
+    return trimmed.replace(/\/+$/, '');
+  }
+
   try {
     const url = new URL(trimmed);
     if (!['http:', 'https:'].includes(url.protocol)) return '';
@@ -36,7 +41,7 @@ export const getApiBase = () => {
     }
   }
 
-  return normalizeBase(import.meta.env.VITE_API_URL as string | undefined);
+  return normalizeBase(import.meta.env.VITE_API_URL || '/api');
 };
 
 export const setApiBase = (value: string) => {
