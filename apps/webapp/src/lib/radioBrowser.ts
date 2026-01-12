@@ -79,7 +79,6 @@ const fetchWithTimeout = async (url: string, headers: HeadersInit, ms: number) =
 const fetchLocalCatalog = async (mode: FetchMode): Promise<Station[]> => {
   if (!isBrowser) return [];
   const primary = mode === 'fast' ? '/catalog-fast.json' : '/catalog-full.json';
-  const fallback = mode === 'full' ? '/catalog-fast.json' : null;
 
   const attempt = async (path: string) => {
     try {
@@ -93,9 +92,6 @@ const fetchLocalCatalog = async (mode: FetchMode): Promise<Station[]> => {
 
   const primaryData = await attempt(primary);
   if (primaryData.length) return primaryData;
-  if (fallback) {
-    return await attempt(fallback);
-  }
   return [];
 };
 
