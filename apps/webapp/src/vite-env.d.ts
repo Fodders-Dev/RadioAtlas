@@ -6,9 +6,15 @@ declare global {
       WebApp?: {
         ready?: () => void;
         expand?: () => void;
-        openLink?: (url: string) => void;
+        openLink?: (
+          url: string,
+          options?: { try_instant_view?: boolean }
+        ) => void;
         setHeaderColor?: (color: string) => void;
         setBackgroundColor?: (color: string) => void;
+        platform?: string;
+        version?: string;
+        isActive?: boolean;
         initDataUnsafe?: {
           start_param?: string;
         };
@@ -25,4 +31,4 @@ declare global {
   }
 }
 
-export {};
+export { };

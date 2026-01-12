@@ -38,7 +38,11 @@ const buildCandidates = (url: string) => {
   return Array.from(new Set(candidates));
 };
 
-export const useAudioPlayer = () => {
+export const useAudioPlayer = ({
+  onEvent
+}: {
+  onEvent?: (message: string) => void;
+} = {}) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
@@ -51,6 +55,10 @@ export const useAudioPlayer = () => {
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
+
+  const pushEvent = (message: string) => {
+    if (onEvent) onEvent(message);
+  };
 
   const clearReconnect = () => {
     if (reconnectRef.current.timer !== null) {
@@ -72,6 +80,7 @@ export const useAudioPlayer = () => {
 
     cleanupHls();
     activeUrlRef.current = url;
+    pushEvent(`source: ${url}`);
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
       const mod = await import('hls.js');
@@ -82,6 +91,7 @@ export const useAudioPlayer = () => {
       hls.loadSource(url);
       hls.attachMedia(audio);
       hlsRef.current = hls;
+      pushEvent('hls: attached');
     } else {
       audio.src = url;
     }
@@ -147,6 +157,7 @@ export const useAudioPlayer = () => {
       setStatus('playing');
       setIsPlaying(true);
       clearReconnect();
+      pushEvent('audio: playing');
       if ('mediaSession' in navigator) {
         try {
           navigator.mediaSession.setPositionState({
@@ -164,12 +175,14 @@ export const useAudioPlayer = () => {
       if (currentRef.current) {
         setStatus((prev) => (prev === 'error' ? prev : 'paused'));
       }
+      pushEvent('audio: pause');
     };
     const handleWaiting = () => {
       if (currentRef.current) {
         setStatus('buffering');
         scheduleReconnect();
       }
+      pushEvent('audio: waiting');
     };
     const handleError = () => {
       if (currentRef.current) {
@@ -180,12 +193,14 @@ export const useAudioPlayer = () => {
           }
         });
       }
+      pushEvent('audio: error');
     };
     const handleEnded = () => {
       if (currentRef.current) {
         setStatus('buffering');
         scheduleReconnect();
       }
+      pushEvent('audio: ended');
     };
 
     audio.addEventListener('playing', handlePlaying);
@@ -199,6 +214,7 @@ export const useAudioPlayer = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
         audio.play().catch(() => {});
       }
+      pushEvent(`visibility: ${document.visibilityState}`);
     };
 
     document.addEventListener('visibilitychange', handleVisibility);

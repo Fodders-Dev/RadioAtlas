@@ -69,7 +69,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
-  const player = useAudioPlayer();
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+  const logDebug = (msg: string) => {
+    setDebugLogs((prev) =>
+      [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50)
+    );
+  };
+
+  const player = useAudioPlayer({
+    onEvent: logDebug
+  });
   const startHandledRef = useRef(false);
 
   useEffect(() => {
@@ -114,6 +124,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     tg?.expand?.();
     tg?.setHeaderColor?.('#0b1514');
     tg?.setBackgroundColor?.('#0b1514');
+    if (tg?.isActive) {
+      logDebug(`WebApp active state: ${tg.isActive}`);
+    }
   }, []);
 
   useEffect(() => {
@@ -288,17 +301,21 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const artwork = station.favicon
       ? [
-          {
-            src: station.favicon,
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
+        {
+          src: station.favicon,
+          sizes: '512x512',
+          type: 'image/png'
+        }
+      ]
       : undefined;
 
+    // Use track title if available, otherwise station name
+    const title = nowPlaying || station.name;
+    const artist = nowPlaying ? station.name : (station.country || 'Live Radio');
+
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: station.name,
-      artist: station.country || 'Live Radio',
+      title,
+      artist,
       album: station.state || '',
       artwork
     });
@@ -306,15 +323,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     navigator.mediaSession.setActionHandler('play', () => player.toggle());
     navigator.mediaSession.setActionHandler('pause', () => player.toggle());
+    navigator.mediaSession.setActionHandler('stop', () => player.stop());
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-  }, [player.current, player.isPlaying, playPrevious, playNext, player]);
+  }, [player.current, player.isPlaying, nowPlaying, playPrevious, playNext, player]);
 
   const openExternal = (station: Station | StationLite) => {
     const url = station.url_resolved;
     const tg = window.Telegram?.WebApp;
     if (tg?.openLink) {
       tg.openLink(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const openWebAppExternally = () => {
+    const url = window.location.href;
+    const tg = window.Telegram?.WebApp;
+    if (tg?.openLink) {
+      // Using openLink to break out of WebView
+      tg.openLink(url, { try_instant_view: false });
       return;
     }
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -392,11 +421,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     toggleFavorite,
     isFavorite,
     openExternal,
+    openWebAppExternally,
     shareStation,
     clearFavorites,
     clearRecent,
-    clearCache
-  };
+    clearCache,
+    debugLogs
+  } as RadioContextValue & { openWebAppExternally: () => void; debugLogs: string[] };
 
   return <RadioContext.Provider value={value}>{children}</RadioContext.Provider>;
 };

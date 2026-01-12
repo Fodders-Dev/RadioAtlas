@@ -3,8 +3,9 @@ import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useRadio } from '../state/RadioContext';
 
 export const Settings = () => {
-  const { clearCache, clearFavorites, clearRecent } = useRadio();
+  const { clearCache, clearFavorites, clearRecent, openWebAppExternally, debugLogs } = useRadio() as any;
   const [apiUrl, setApiUrl] = useState('');
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     setApiUrl(getApiBase() || '');
@@ -33,6 +34,25 @@ export const Settings = () => {
 
   return (
     <section className="screen">
+      <div className="section">
+        <div className="section-title">Background Audio</div>
+        <div className="settings-card">
+          <div>
+            <div className="settings-label">Open in System Browser</div>
+            <div className="settings-desc">
+              Recommended for reliable background playback.
+            </div>
+          </div>
+          <button
+            className="chip active"
+            onClick={openWebAppExternally}
+            type="button"
+          >
+            Open App
+          </button>
+        </div>
+      </div>
+
       <div className="section">
         <div className="section-title">Settings</div>
         <div className="settings-card stack">
@@ -84,6 +104,70 @@ export const Settings = () => {
           <button className="chip" onClick={clearRecent} type="button">
             Clear recent
           </button>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">Diagnostics</div>
+        <div className="settings-card stack">
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div>
+              <div className="settings-label">Debug Mode</div>
+              <div className="settings-desc">View logs and system info.</div>
+            </div>
+            <button
+              className="chip"
+              onClick={() => setShowDebug(!showDebug)}
+              type="button"
+            >
+              {showDebug ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showDebug && (
+            <div
+              style={{
+                marginTop: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: 'var(--muted)'
+              }}
+            >
+              <div>
+                <strong>UA:</strong> {navigator.userAgent}
+              </div>
+              <div>
+                <strong>MediaSession:</strong>{' '}
+                {'mediaSession' in navigator ? 'Supported' : 'Not supported'}
+              </div>
+              <div>
+                <strong>TG Platform:</strong>{' '}
+                {window.Telegram?.WebApp?.platform || 'Unknown'}
+              </div>
+              <div>
+                <strong>TG Version:</strong>{' '}
+                {window.Telegram?.WebApp?.version || 'Unknown'}
+              </div>
+              <div
+                style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  padding: 8,
+                  borderRadius: 8,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap'
+                }}
+              >
+                {debugLogs?.length
+                  ? debugLogs.map((log: string, i: number) => (
+                    <div key={i}>{log}</div>
+                  ))
+                  : 'No logs yet...'}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
