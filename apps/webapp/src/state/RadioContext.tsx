@@ -386,11 +386,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // 3. Fallback: Telegram Share Link
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
     const tg = window.Telegram?.WebApp;
+
     if (tg?.openLink) {
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
       tg.openLink(shareUrl);
       return;
+    }
+
+    // 4. Last Resort: Window Open
+    try {
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
+      return;
+    } catch {
+      // ignore
     }
 
     notify('Share failed');
