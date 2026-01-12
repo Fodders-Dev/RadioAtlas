@@ -278,9 +278,16 @@ app.get('/stream', async (req, res) => {
   }
 });
 
-const fetchStreamMetadata = async (url: string): Promise<string | null> => {
+const fetchStreamMetadata = async (url: string): Promise<{ title: string | null; logs: string[] }> => {
+  const logs: string[] = [];
+  const log = (msg: string) => {
+    console.log(`[Metadata] ${msg}`);
+    logs.push(msg);
+  };
+
+  log(`Fetching: ${url}`);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
     const response = await fetch(url, {
@@ -292,22 +299,32 @@ const fetchStreamMetadata = async (url: string): Promise<string | null> => {
       signal: controller.signal
     });
 
+    log(`Status: ${response.status}`);
     const metaintHeader = response.headers.get('icy-metaint');
-    if (!metaintHeader) return null;
+    log(`MetaInt: ${metaintHeader}`);
+
+    if (!metaintHeader) return { title: null, logs };
 
     const metaint = Number(metaintHeader);
-    if (isNaN(metaint) || metaint <= 0) return null;
+    if (isNaN(metaint) || metaint <= 0) {
+      log('Invalid metaint');
+      return { title: null, logs };
+    }
 
     const body = response.body;
-    if (!body) return null;
+    if (!body) {
+      log('No body');
+      return { title: null, logs };
+    }
 
-    // Check if we are in Node stream or Web stream.
-    // In newer Node, fetch returns Web Stream mostly.
     const reader = body.getReader ? body.getReader() : null;
-    if (!reader) return null;
+    if (!reader) {
+      log('No reader');
+      return { title: null, logs };
+    }
 
     let buffer = new Uint8Array(0);
-    const maxBytes = metaint + 4096;
+    const maxBytes = metaint + 16384;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -323,26 +340,39 @@ const fetchStreamMetadata = async (url: string): Promise<string | null> => {
       if (buffer.length >= metaint + 1) {
         const lengthByte = buffer[metaint] || 0;
         const metaLen = lengthByte * 16;
-        if (metaLen === 0) return null; // Empty metadata
+
+        if (metaLen === 0) {
+          log('Empty metadata block found');
+          return { title: null, logs };
+        }
 
         if (buffer.length >= metaint + 1 + metaLen) {
           const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
           const text = new TextDecoder('utf-8').decode(metaBytes);
+          log(`Raw meta found`);
           const match = text.match(/StreamTitle='([^']*)'/);
-          return match?.[1] || null;
+          if (match?.[1]) {
+            return { title: match[1], logs };
+          } else {
+            log('StreamTitle not found in meta block');
+            return { title: null, logs };
+          }
         }
       }
 
-      if (buffer.length > maxBytes) break;
+      if (buffer.length > maxBytes) {
+        log('Max bytes reached');
+        break;
+      }
     }
 
   } catch (e) {
-    // ignore
+    log(`Error: ${e instanceof Error ? e.message : String(e)}`);
   } finally {
     clearTimeout(timeout);
     controller.abort();
   }
-  return null;
+  return { title: null, logs };
 };
 
 app.get('/metadata', async (req, res) => {
@@ -352,11 +382,11 @@ app.get('/metadata', async (req, res) => {
     return;
   }
 
-  const title = await fetchStreamMetadata(url);
+  const { title, logs } = await fetchStreamMetadata(url);
   if (title) {
-    res.json({ title });
+    res.json({ title, logs });
   } else {
-    res.status(404).json({ error: 'No metadata found' });
+    res.status(404).json({ error: 'No metadata found', logs });
   }
 });
 
