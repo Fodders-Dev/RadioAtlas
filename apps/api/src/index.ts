@@ -375,6 +375,53 @@ const fetchStreamMetadata = async (url: string): Promise<{ title: string | null;
   return { title: null, logs };
 };
 
+// Top-Radio.ru fallback for Russian stations
+const TOP_RADIO_MAPPING: Record<string, string> = {
+  'kazak.fm': 'kazak-fm',
+  'radio.kazak.fm': 'kazak-fm',
+  // Add more Russian stations as needed
+};
+
+const getTopRadioSlug = (streamUrl: string): string | null => {
+  try {
+    const host = new URL(streamUrl).host.toLowerCase();
+    for (const [key, slug] of Object.entries(TOP_RADIO_MAPPING)) {
+      if (host.includes(key)) {
+        return slug;
+      }
+    }
+  } catch { }
+  return null;
+};
+
+const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
+  try {
+    const res = await fetch(`https://top-radio.ru/playlist/${slug}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (!res.ok) return null;
+
+    const html = await res.text();
+
+    // Find the playList section
+    const playlistMatch = html.match(/id="playList"[^>]*>([\s\S]*?)<\/ul>/i);
+    if (!playlistMatch?.[1]) return null;
+
+    // Get the first track
+    const firstTrack = playlistMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/i);
+    if (!firstTrack?.[1]) return null;
+
+    // Extract artist and song
+    const artistMatch = firstTrack[1].match(/class="artist"[^>]*>([^<]+)/i);
+    const songMatch = firstTrack[1].match(/class="song"[^>]*>([^<]+)/i);
+
+    if (artistMatch?.[1] && songMatch?.[1]) {
+      return `${artistMatch[1].trim()} - ${songMatch[1].trim()}`;
+    }
+  } catch { }
+  return null;
+};
+
 app.get('/metadata', async (req, res) => {
   const url = req.query.url;
   if (!url || typeof url !== 'string') {
@@ -385,9 +432,22 @@ app.get('/metadata', async (req, res) => {
   const { title, logs } = await fetchStreamMetadata(url);
   if (title) {
     res.json({ title, logs });
-  } else {
-    res.status(404).json({ error: 'No metadata found', logs });
+    return;
   }
+
+  // Fallback: Try top-radio.ru for Russian stations
+  const slug = getTopRadioSlug(url);
+  if (slug) {
+    logs.push(`Trying top-radio.ru fallback for ${slug}`);
+    const topRadioTitle = await fetchFromTopRadio(slug);
+    if (topRadioTitle) {
+      logs.push(`Got from top-radio: ${topRadioTitle}`);
+      res.json({ title: topRadioTitle, logs, source: 'top-radio.ru' });
+      return;
+    }
+  }
+
+  res.status(404).json({ error: 'No metadata found', logs });
 });
 
 app.get('/fetch', async (req, res) => {
