@@ -271,7 +271,7 @@ const fetchShoutcastCORS = async (origin: string): Promise<string | null> => {
   return null;
 };
 
-export const fetchNowPlaying = async (station: StationLite) => {
+export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: string) => void) => {
   const url = station.url_resolved;
   if (!url) return null;
 
@@ -307,12 +307,29 @@ export const fetchNowPlaying = async (station: StationLite) => {
   if (api) {
     try {
       const res = await fetch(`${api}/metadata?url=${encodeURIComponent(url)}`);
+
+      let data: any = null;
       if (res.ok) {
-        const data = await res.json();
+        data = await res.json();
+
+        if (data.logs && logDebug && Array.isArray(data.logs)) {
+          data.logs.forEach((l: string) => logDebug(`[SSR] ${l}`));
+        }
+
         if (data.title) return data.title;
+      } else {
+        // try parsing error response
+        try {
+          const errorData = await res.json();
+          if (errorData.logs && logDebug && Array.isArray(errorData.logs)) {
+            errorData.logs.forEach((l: string) => logDebug(`[SSR FAIL] ${l}`));
+          }
+        } catch {
+          if (logDebug) logDebug(`[SSR] API Error ${res.status}`);
+        }
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      if (logDebug) logDebug(`[SSR] Fetch Fail: ${e}`);
     }
   }
 

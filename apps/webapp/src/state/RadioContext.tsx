@@ -175,7 +175,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const update = async () => {
       try {
-        const track = await fetchNowPlaying(station);
+        const track = await fetchNowPlaying(station, logDebug);
         if (track) {
           logDebug(`Metadata: ${track}`);
         } else {
