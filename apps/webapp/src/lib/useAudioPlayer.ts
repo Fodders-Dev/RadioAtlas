@@ -212,7 +212,7 @@ export const useAudioPlayer = ({
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
       }
       pushEvent(`visibility: ${document.visibilityState}`);
     };
@@ -246,7 +246,15 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Clean up previous state
     clearReconnect();
+    cleanupHls();
+
+    // Stop current playback and reset
+    audio.pause();
+    audio.src = '';
+    audio.load(); // Reset the audio element
+
     setCurrent(station);
     setStatus('buffering');
     candidatesRef.current = buildCandidates(station.url_resolved);
