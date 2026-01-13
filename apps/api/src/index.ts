@@ -350,11 +350,11 @@ const fetchStreamMetadata = async (url: string): Promise<{ title: string | null;
           const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
           const text = new TextDecoder('utf-8').decode(metaBytes);
           log(`Raw meta found`);
-          const match = text.match(/StreamTitle='([^']*)'/);
+          const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
           if (match?.[1]) {
-            return { title: match[1], logs };
+            return { title: match[1].trim(), logs };
           } else {
-            log('StreamTitle not found in meta block');
+            log(`StreamTitle not found in: ${text}`);
             return { title: null, logs };
           }
         }
