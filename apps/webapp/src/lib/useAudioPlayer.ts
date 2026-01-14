@@ -46,6 +46,7 @@ export const useAudioPlayer = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
+  const waitingTimeoutRef = useRef<number | null>(null);
   const currentRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<string[]>([]);
   const candidateIndexRef = useRef(0);
@@ -65,6 +66,13 @@ export const useAudioPlayer = ({
       window.clearTimeout(reconnectRef.current.timer);
     }
     reconnectRef.current = { timer: null, attempts: 0 };
+  };
+
+  const clearWaitingTimeout = () => {
+    if (waitingTimeoutRef.current !== null) {
+      window.clearTimeout(waitingTimeoutRef.current);
+      waitingTimeoutRef.current = null;
+    }
   };
 
   const cleanupHls = () => {
@@ -165,6 +173,7 @@ export const useAudioPlayer = ({
       setStatus('playing');
       setIsPlaying(true);
       clearReconnect();
+      clearWaitingTimeout(); // Clear any pending reconnect from buffering
       pushEvent('audio: playing');
       if ('mediaSession' in navigator) {
         try {
@@ -188,7 +197,16 @@ export const useAudioPlayer = ({
     const handleWaiting = () => {
       if (currentRef.current) {
         setStatus('buffering');
-        scheduleReconnect();
+        // Only schedule reconnect if buffering persists for more than 5 seconds
+        // Short buffering is normal and resolves itself
+        clearWaitingTimeout();
+        waitingTimeoutRef.current = window.setTimeout(() => {
+          waitingTimeoutRef.current = null;
+          if (currentRef.current) {
+            pushEvent('audio: prolonged buffering, reconnecting...');
+            scheduleReconnect();
+          }
+        }, 5000);
       }
       pushEvent('audio: waiting');
     };
