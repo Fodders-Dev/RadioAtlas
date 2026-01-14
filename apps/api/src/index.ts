@@ -400,29 +400,41 @@ const getTopRadioSlug = (streamUrl: string): string | null => {
 
 const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
   try {
+    // We try to fetch the main station page because it's often more up-to-date than the /playlist/ subpage
     const res = await fetch(`https://top-radio.ru/playlist/${slug}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+      }
     });
     if (!res.ok) return null;
 
     const html = await res.text();
 
-    // Find the playList section
-    const playlistMatch = html.match(/id="playList"[^>]*>([\s\S]*?)<\/ul>/i);
-    if (!playlistMatch?.[1]) return null;
+    // The playlist items are usually inside <li> tags with artist and song classes
+    // We'll look for all matches and take the first one (most recent)
+    const trackRegex = /<li[^>]*>[\s\S]*?class="artist"[^>]*>([^<]+)[\s\S]*?class="song"[^>]*>([^<]+)/gi;
+    const matches = [...html.matchAll(trackRegex)];
 
-    // Get the first track
-    const firstTrack = playlistMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/i);
-    if (!firstTrack?.[1]) return null;
+    if (matches.length > 0) {
+      // The first match is usually the most recent track
+      const artist = matches[0][1].trim();
+      const song = matches[0][2].trim();
 
-    // Extract artist and song
-    const artistMatch = firstTrack[1].match(/class="artist"[^>]*>([^<]+)/i);
-    const songMatch = firstTrack[1].match(/class="song"[^>]*>([^<]+)/i);
-
-    if (artistMatch?.[1] && songMatch?.[1]) {
-      return `${artistMatch[1].trim()} - ${songMatch[1].trim()}`;
+      if (artist && song) {
+        return `${artist} - ${song}`;
+      }
     }
-  } catch { }
+
+    // Fallback search if the previous regex failed (different structure)
+    const simpleMatch = html.match(/<span class="artist">([^<]+)<\/span>[\s\S]*?<span class="song">([^<]+)<\/span>/i);
+    if (simpleMatch) {
+      return `${simpleMatch[1].trim()} - ${simpleMatch[2].trim()}`;
+    }
+
+  } catch (e) {
+    console.error(`[TopRadio] Error for ${slug}:`, e);
+  }
   return null;
 };
 
