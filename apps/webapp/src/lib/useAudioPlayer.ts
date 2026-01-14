@@ -158,8 +158,8 @@ export const useAudioPlayer = ({
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     audio.preload = 'auto'; // Enable automatic buffering for smoother playback
-    audio.crossOrigin = 'anonymous';
-    audio.controls = true;
+    // Note: crossOrigin removed - some streams don't support CORS and it can cause issues
+    audio.controls = false; // Hidden element, no controls needed
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
     audio.setAttribute('autoplay', 'false');
