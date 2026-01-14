@@ -86,7 +86,15 @@ export const useAudioPlayer = ({
       const mod = await import('hls.js');
       const hls = new mod.default({
         enableWorker: true,
-        lowLatencyMode: true
+        lowLatencyMode: false, // Disabled for stable playback without stuttering
+        maxBufferLength: 30, // Buffer up to 30 seconds
+        maxMaxBufferLength: 60, // Max buffer 60 seconds
+        maxBufferSize: 60 * 1000 * 1000, // 60MB buffer
+        maxBufferHole: 0.5, // Allow small gaps
+        liveSyncDurationCount: 3, // Keep 3 segments behind live edge
+        liveMaxLatencyDurationCount: 10, // Max latency 10 segments
+        liveDurationInfinity: true,
+        highBufferWatchdogPeriod: 2 // Check buffer every 2 seconds
       });
       hls.loadSource(url);
       hls.attachMedia(audio);
@@ -141,7 +149,7 @@ export const useAudioPlayer = ({
   useEffect(() => {
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
-    audio.preload = 'none';
+    audio.preload = 'auto'; // Enable automatic buffering for smoother playback
     audio.crossOrigin = 'anonymous';
     audio.controls = true;
     audio.setAttribute('playsinline', 'true');
