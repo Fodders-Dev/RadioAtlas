@@ -208,8 +208,7 @@ app.get('/stream', async (req, res) => {
   try {
     const range = req.headers.range;
     const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
-      'Icy-MetaData': '1'
+      'User-Agent': USER_AGENT
     };
     if (range) {
       headers.Range = range;
@@ -272,7 +271,12 @@ app.get('/stream', async (req, res) => {
       return;
     }
 
-    Readable.fromWeb(upstream.body as any).pipe(res);
+    // Use a PassThrough stream with a buffer (highWaterMark) to smooth out network jitter
+    const bufferStream = new (await import('node:stream')).PassThrough({
+      highWaterMark: 512 * 1024 // 512KB buffer
+    });
+
+    Readable.fromWeb(upstream.body as any).pipe(bufferStream).pipe(res);
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
