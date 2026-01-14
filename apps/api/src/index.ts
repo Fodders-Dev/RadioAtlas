@@ -400,8 +400,8 @@ const getTopRadioSlug = (streamUrl: string): string | null => {
 
 const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
   try {
-    // We try to fetch the main station page because it's often more up-to-date than the /playlist/ subpage
-    const res = await fetch(`https://top-radio.ru/playlist/${slug}`, {
+    // '/web/' pages are more live than '/playlist/' pages which are often cached
+    const res = await fetch(`https://top-radio.ru/web/${slug}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
@@ -411,13 +411,16 @@ const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
 
     const html = await res.text();
 
-    // The playlist items are usually inside <li> tags with artist and song classes
-    // We'll look for all matches and take the first one (most recent)
-    const trackRegex = /<li[^>]*>[\s\S]*?class="artist"[^>]*>([^<]+)[\s\S]*?class="song"[^>]*>([^<]+)/gi;
-    const matches = [...html.matchAll(trackRegex)];
+    // Look for the "playlist" section which contains live track data
+    // Usually it has a label like "Что сейчас играет:" followed by track items
+    const playlistSection = html.match(/Плейлист радиостанции[\s\S]*?Что сейчас играет:([\s\S]*?)Весь плей-лист/i);
+    const contentToSearch = playlistSection ? playlistSection[1] : html;
+
+    // Structure is typically: <a class="artist">Artist</a> <span class="song">Song</span>
+    const trackRegex = /class="artist"[^>]*>([^<]+)[\s\S]*?class="song"[^>]*>([^<]+)/gi;
+    const matches = [...contentToSearch.matchAll(trackRegex)];
 
     if (matches.length > 0) {
-      // The first match is usually the most recent track
       const artist = matches[0][1].trim();
       const song = matches[0][2].trim();
 
@@ -426,10 +429,10 @@ const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
       }
     }
 
-    // Fallback search if the previous regex failed (different structure)
-    const simpleMatch = html.match(/<span class="artist">([^<]+)<\/span>[\s\S]*?<span class="song">([^<]+)<\/span>/i);
-    if (simpleMatch) {
-      return `${simpleMatch[1].trim()} - ${simpleMatch[2].trim()}`;
+    // Fallback if the specific section wasn't found or structure differs
+    const fallbackMatch = html.match(/class="artist">([^<]+)<\/span>[\s\S]*?class="song">([^<]+)<\/span>/i);
+    if (fallbackMatch) {
+      return `${fallbackMatch[1].trim()} - ${fallbackMatch[2].trim()}`;
     }
 
   } catch (e) {
