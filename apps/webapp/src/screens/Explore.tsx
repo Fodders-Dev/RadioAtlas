@@ -1,6 +1,6 @@
 import { geoBounds, geoCentroid } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Globe } from '../components/Globe';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
@@ -13,6 +13,10 @@ export const Explore = () => {
   const [query, setQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pickList, setPickList] = useState<ReturnType<typeof toLite>[]>([]);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+  const pickListRef = useRef<HTMLDivElement | null>(null);
   const debounced = useDebounce(query, 250);
 
   const normalizeName = useCallback(
@@ -60,6 +64,14 @@ export const Explore = () => {
       bounds
     });
   }, [normalizeName]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const aliases = useMemo(
     () => ({
@@ -157,8 +169,11 @@ export const Explore = () => {
   }, [stations, resolveCoords]);
 
   const visiblePoints = useMemo(() => {
-    const cap = 30000;
-    const computed = Math.round(6000 + Math.pow(zoomLevel, 1.8) * 1600);
+    const isMobile = viewportWidth < 720;
+    const cap = isMobile ? 12000 : 30000;
+    const base = isMobile ? 2200 : 6000;
+    const factor = isMobile ? 900 : 1600;
+    const computed = Math.round(base + Math.pow(zoomLevel, 1.8) * factor);
     const maxPoints = Math.min(globePoints.length, Math.min(cap, computed));
     let slice = globePoints.slice(0, maxPoints);
     const activeId = player.current?.stationuuid;
@@ -169,7 +184,7 @@ export const Explore = () => {
       }
     }
     return slice;
-  }, [globePoints, zoomLevel, player.current?.stationuuid]);
+  }, [globePoints, zoomLevel, player.current?.stationuuid, viewportWidth]);
 
   const focusPoint = useMemo(() => {
     const current = player.current;
@@ -194,6 +209,11 @@ export const Explore = () => {
     },
     [stations]
   );
+
+  useEffect(() => {
+    if (!pickList.length) return;
+    pickListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [pickList]);
 
   const searchResults = useMemo(() => {
     const q = debounced.trim().toLowerCase();
@@ -250,10 +270,13 @@ export const Explore = () => {
             }
           }}
         />
+        <div className="globe-scroll-hint">
+          {pickList.length ? 'Stations nearby ↓' : 'Scroll for stations ↓'}
+        </div>
       </div>
 
       {pickList.length > 1 && (
-        <div className="section">
+        <div className="section" ref={pickListRef}>
           <div className="section-title">Pick a station nearby</div>
           <div className="pick-panel">
             {pickList.map((station) => (

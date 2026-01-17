@@ -138,7 +138,7 @@ export const Globe = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = size.width * dpr;
       canvas.height = size.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

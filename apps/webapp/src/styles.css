@@ -161,6 +161,15 @@ main {
   padding: 14px;
 }
 
+.globe-scroll-hint {
+  margin-top: 10px;
+  text-align: center;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
 .globe {
   position: relative;
   width: 100%;
