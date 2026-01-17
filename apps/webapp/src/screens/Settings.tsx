@@ -3,7 +3,7 @@ import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useRadio } from '../state/RadioContext';
 
 export const Settings = () => {
-  const { clearCache, clearFavorites, clearRecent, openWebAppExternally, debugLogs } = useRadio() as any;
+  const { clearCache, clearFavorites, clearRecent, openWebAppExternally, debugLogs } = useRadio();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
 

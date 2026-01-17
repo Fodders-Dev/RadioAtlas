@@ -37,9 +37,11 @@ type RadioContextValue = {
   isFavorite: (stationId: string) => boolean;
   openExternal: (station: Station | StationLite) => void;
   shareStation: (station: Station | StationLite) => void;
+  openWebAppExternally: () => void;
   clearFavorites: () => void;
   clearRecent: () => void;
   clearCache: () => void;
+  debugLogs: string[];
 };
 
 const RadioContext = createContext<RadioContextValue | null>(null);
@@ -471,7 +473,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     clearRecent,
     clearCache,
     debugLogs
-  } as RadioContextValue & { openWebAppExternally: () => void; debugLogs: string[] };
+  };
 
   return <RadioContext.Provider value={value}>{children}</RadioContext.Provider>;
 };

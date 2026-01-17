@@ -275,10 +275,13 @@ export const useAudioPlayer = ({
     // Clean up previous state
     clearReconnect();
     cleanupHls();
+    clearWaitingTimeout();
+    activeUrlRef.current = null;
 
     // Stop current playback and reset
     audio.pause();
     audio.src = '';
+    audio.currentTime = 0;
     audio.load(); // Reset the audio element
 
     setCurrent(station);
@@ -320,8 +323,10 @@ export const useAudioPlayer = ({
     if (!audio) return;
     audio.pause();
     audio.src = '';
+    audio.currentTime = 0;
     cleanupHls();
     clearReconnect();
+    clearWaitingTimeout();
     setCurrent(null);
     setStatus('idle');
   };

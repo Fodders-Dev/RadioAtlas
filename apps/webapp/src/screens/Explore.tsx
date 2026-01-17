@@ -115,6 +115,13 @@ export const Explore = () => {
       const lonRange = max[0] - min[0];
       const latRange = max[1] - min[1];
       if (Number.isFinite(lonRange) && Number.isFinite(latRange)) {
+        if (lonRange > 140 || latRange > 70) {
+          const centroid = countryCenters.centers.get(alias);
+          if (centroid) {
+            return { lat: clampLat(centroid[0]), lon: clampLon(centroid[1]) };
+          }
+          return null;
+        }
         const pad = 0.08;
         const lon = min[0] + lonRange * (pad + rand1 * (1 - pad * 2));
         const lat = min[1] + latRange * (pad + rand2 * (1 - pad * 2));

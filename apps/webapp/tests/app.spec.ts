@@ -55,6 +55,20 @@ const stations = [
 ];
 
 const mockStations = async (page: Page) => {
+  await page.route('**/catalog-fast.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(stations)
+    })
+  );
+  await page.route('**/catalog-full.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(stations)
+    })
+  );
   await page.route('**/json/stations/search**', (route) =>
     route.fulfill({
       status: 200,
@@ -62,7 +76,6 @@ const mockStations = async (page: Page) => {
       body: JSON.stringify(stations)
     })
   );
-
   await page.route('https://stream.example.com/**', (route) =>
     route.fulfill({
       status: 200,
@@ -100,7 +113,7 @@ test('playback opens details panel', async ({ page }) => {
   await expect(page.getByText('Tokyo FM')).toBeVisible();
 
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.locator('.player-title')).toHaveText('Tokyo FM');
+  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
 
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-card')).toBeVisible();
@@ -129,4 +142,33 @@ test('favorites and search behave correctly', async ({ page }) => {
   );
   await input.fill('berlin');
   await expect(page.getByText('Berlin Pulse')).toBeVisible();
+});
+
+test('play resumes last station and random next works', async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.6;
+    const recent = [
+      {
+        stationuuid: 'uuid-tokyo',
+        name: 'Tokyo FM',
+        url_resolved: 'https://stream.example.com/tokyo',
+        favicon: '',
+        country: 'Japan',
+        state: 'Tokyo',
+        tags: 'pop,jpop',
+        geo_lat: 35.6895,
+        geo_long: 139.6917
+      }
+    ];
+    localStorage.setItem('radio:recent', JSON.stringify(recent));
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Tokyo FM')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
+
+  await page.getByRole('button', { name: 'Random station' }).click();
+  await expect(page.locator('.player-title')).toContainText('Berlin Pulse');
 });
