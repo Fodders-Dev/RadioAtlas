@@ -413,16 +413,18 @@ const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
 
     // Look for the "playlist" section which contains live track data
     // Usually it has a label like "Что сейчас играет:" followed by track items
-    const playlistSection = html.match(/Плейлист радиостанции[\s\S]*?Что сейчас играет:([\s\S]*?)Весь плей-лист/i);
-    const contentToSearch = playlistSection ? playlistSection[1] : html;
+    const playlistSection = html.match(
+      /Плейлист радиостанции[\s\S]*?Что сейчас играет:([\s\S]*?)Весь плей-лист/i
+    );
+    const contentToSearch = playlistSection?.[1] ?? html;
 
     // Structure is typically: <a class="artist">Artist</a> <span class="song">Song</span>
     const trackRegex = /class="artist"[^>]*>([^<]+)[\s\S]*?class="song"[^>]*>([^<]+)/gi;
     const matches = [...contentToSearch.matchAll(trackRegex)];
 
     if (matches.length > 0) {
-      const artist = matches[0][1].trim();
-      const song = matches[0][2].trim();
+      const artist = matches[0]?.[1]?.trim?.();
+      const song = matches[0]?.[2]?.trim?.();
 
       if (artist && song) {
         return `${artist} - ${song}`;
@@ -430,9 +432,13 @@ const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
     }
 
     // Fallback if the specific section wasn't found or structure differs
-    const fallbackMatch = html.match(/class="artist">([^<]+)<\/span>[\s\S]*?class="song">([^<]+)<\/span>/i);
-    if (fallbackMatch) {
-      return `${fallbackMatch[1].trim()} - ${fallbackMatch[2].trim()}`;
+    const fallbackMatch = html.match(
+      /class="artist">([^<]+)<\/span>[\s\S]*?class="song">([^<]+)<\/span>/i
+    );
+    const fallbackArtist = fallbackMatch?.[1]?.trim?.();
+    const fallbackSong = fallbackMatch?.[2]?.trim?.();
+    if (fallbackArtist && fallbackSong) {
+      return `${fallbackArtist} - ${fallbackSong}`;
     }
 
   } catch (e) {
