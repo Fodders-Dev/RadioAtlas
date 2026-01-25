@@ -55,28 +55,48 @@ const pickBestStream = (streams: ExtractAudioStream[]) => {
 
 const resolveExternalStream = async (
   url: string,
+  log: (message: string) => void,
   depth = 0
 ): Promise<string | null> => {
-  if (depth > 1) return null;
+  if (depth > 1) {
+    log('extract: depth limit reached');
+    return null;
+  }
   const base = normalizeBase(getApiBase());
-  if (!base) return null;
+  if (!base) {
+    log('extract: api base missing');
+    return null;
+  }
 
   try {
+    log(`extract: request ${url}`);
     const response = await fetch(
       `${base}/extract?url=${encodeURIComponent(url)}`
     );
     const data = (await response.json()) as ExtractResponse;
     if (!response.ok || data?.type === 'error') {
+      const errorMsg = data?.error ? ` (${data.error})` : '';
+      log(`extract: http ${response.status}${errorMsg}`);
       return null;
     }
     if (data.type === 'stream') {
       const best = pickBestStream(data.audioStreams || []);
-      return best?.url || null;
+      if (best?.url) {
+        log(`extract: stream ${best.url}`);
+        return best.url;
+      }
+      log('extract: no audio streams');
+      return null;
     }
     const nextUrl = data.items?.find((item) => item.url)?.url;
-    if (!nextUrl) return null;
-    return resolveExternalStream(nextUrl, depth + 1);
-  } catch {
+    if (!nextUrl) {
+      log('extract: playlist empty');
+      return null;
+    }
+    log(`extract: playlist -> ${nextUrl}`);
+    return resolveExternalStream(nextUrl, log, depth + 1);
+  } catch (err) {
+    log(`extract: failed (${err instanceof Error ? err.message : 'unknown'})`);
     return null;
   }
 };
@@ -350,7 +370,10 @@ export const useAudioPlayer = ({
     let resolvedStation = station;
     if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
       pushEvent('extract: resolving external link');
-      const extracted = await resolveExternalStream(station.url_resolved);
+      const extracted = await resolveExternalStream(
+        station.url_resolved,
+        pushEvent
+      );
       if (extracted) {
         resolvedStation = { ...station, url_resolved: extracted };
       } else {

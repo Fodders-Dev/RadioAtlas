@@ -6,6 +6,7 @@ export const Settings = () => {
   const { clearCache, clearFavorites, clearRecent, openWebAppExternally, debugLogs } = useRadio();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
+  const apiBase = getApiBase();
 
   useEffect(() => {
     setApiUrl(getApiBase() || '');
@@ -141,6 +142,9 @@ export const Settings = () => {
               <div>
                 <strong>MediaSession:</strong>{' '}
                 {'mediaSession' in navigator ? 'Supported' : 'Not supported'}
+              </div>
+              <div>
+                <strong>API Base:</strong> {apiBase || 'Not set'}
               </div>
               <div>
                 <strong>TG Platform:</strong>{' '}
