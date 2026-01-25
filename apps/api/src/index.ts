@@ -14,6 +14,13 @@ const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 10000;
 const FAST_LIMIT = 10000;
 const MAX_PAGES = 5;
+const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://127.0.0.1:4001';
+const BLOCKED_HOSTS = [
+  'youtube.com',
+  'youtu.be',
+  'music.youtube.com',
+  'youtube-nocookie.com'
+];
 
 type Station = {
   stationuuid: string;
@@ -70,6 +77,17 @@ const normalizeStation = (raw: Station): Station => ({
   geo_lat: raw.geo_lat === null ? null : Number(raw.geo_lat),
   geo_long: raw.geo_long === null ? null : Number(raw.geo_long)
 });
+
+const getHost = (value: string) => {
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isBlockedHost = (value: string) =>
+  BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
 
 const fetchWithTimeout = async (url: string, ms: number) => {
   const controller = new AbortController();
@@ -473,6 +491,37 @@ app.get('/metadata', async (req, res) => {
   }
 
   res.status(404).json({ error: 'No metadata found', logs });
+});
+
+app.get('/extract', async (req, res) => {
+  const url = req.query.url;
+  if (!url || typeof url !== 'string') {
+    res.status(400).json({ error: 'url is required' });
+    return;
+  }
+
+  if (isBlockedHost(url)) {
+    res.status(403).json({ error: 'blocked host' });
+    return;
+  }
+
+  try {
+    const base = EXTRACTOR_URL.replace(/\/+$/, '');
+    const upstream = await fetch(
+      `${base}/extract?url=${encodeURIComponent(url)}`,
+      {
+        headers: { 'User-Agent': USER_AGENT }
+      }
+    );
+    const body = await upstream.text();
+    const type = upstream.headers.get('content-type');
+    if (type) res.setHeader('content-type', type);
+    res.status(upstream.status).send(body);
+  } catch (err) {
+    res.status(502).json({
+      error: err instanceof Error ? err.message : 'Extractor failed'
+    });
+  }
 });
 
 app.get('/fetch', async (req, res) => {

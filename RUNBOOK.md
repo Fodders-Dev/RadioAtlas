@@ -14,6 +14,7 @@ npm run dev:bot
 
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links
+- `VITE_API_URL`: API base for catalog/proxy (defaults to `/api`)
 
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
@@ -64,3 +65,15 @@ npm run dev:bot
    - `VITE_API_URL=https://your-domain/api`
 4. Runtime override:
    - Settings screen can override API base (saved to localStorage).
+
+## Extractor service (NewPipe-style, YouTube blocked)
+1. Install Java 17 + Gradle.
+2. Run:
+   ```bash
+   cd apps/extractor
+   gradle run
+   ```
+3. API env:
+   - `EXTRACTOR_URL=http://127.0.0.1:4001`
+4. Webapp:
+   - Search → Links → "Extract streams".

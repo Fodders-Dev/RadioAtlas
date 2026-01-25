@@ -1,7 +1,10 @@
 node_modules/
 dist/
+apps/extractor/build/
+apps/extractor/.gradle/
 playwright-report/
 test-results/
+.tmp/
 .env
 .env.local
 .DS_Store

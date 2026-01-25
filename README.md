@@ -5,10 +5,13 @@ Monorepo with Telegram bot + webapp MVP.
 ## Structure
 - `apps/webapp` - Telegram Mini App (React + Vite)
 - `apps/bot` - Telegram bot (grammY)
+- `apps/api` - API proxy (catalog + stream proxy)
+- `apps/extractor` - NewPipe-style extractor service (YouTube blocked)
 
 ## Requirements
 - Node.js 18+
 - npm 9+
+- Java 17+ (optional, for extractor)
 
 ## Quick start
 ```bash
@@ -48,6 +51,22 @@ Run `apps/api` on VPS and set:
 VITE_API_URL=https://your-domain/api
 ```
 This enables catalog proxying and http stream playback via `/api/stream`.
+
+## Optional extractor (NewPipe-style, YouTube blocked)
+The extractor resolves non-direct URLs (SoundCloud, Bandcamp, PeerTube, MediaCCC)
+and returns audio stream URLs.
+
+Run locally:
+```bash
+cd apps/extractor
+gradle run
+```
+
+Wire API to extractor:
+```
+EXTRACTOR_URL=http://127.0.0.1:4001
+```
+Then use the "Extract streams" button in Search → Links.
 
 ### Env
 `apps/bot/.env`:

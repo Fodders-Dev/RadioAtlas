@@ -83,6 +83,26 @@ const mockStations = async (page: Page) => {
       body: ''
     })
   );
+  await page.route('**/extract?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        type: 'stream',
+        title: 'Extracted Demo',
+        audioStreams: [
+          {
+            url: 'https://stream.example.com/extracted',
+            bitrate: 128,
+            averageBitrate: 128,
+            format: 'MP3',
+            mimeType: 'audio/mpeg',
+            delivery: 'progressive'
+          }
+        ]
+      })
+    })
+  );
 };
 
 test.beforeEach(async ({ page }) => {
@@ -171,4 +191,32 @@ test('play resumes last station and random next works', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Random station' }).click();
   await expect(page.locator('.player-title')).toContainText('Berlin Pulse');
+});
+
+test('links mode saves and plays external audio', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Links' }).click();
+
+  const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
+  await input.fill('https://stream.example.com/external');
+  await page.getByRole('button', { name: 'Add link' }).click();
+
+  await expect(page.getByText('stream.example.com', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Play link' }).click();
+  await expect(page.locator('.player-title')).toContainText('stream.example.com');
+});
+
+test('links mode extracts audio streams', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Links' }).click();
+
+  const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
+  await input.fill('https://soundcloud.com/demo/track');
+  await page.getByRole('button', { name: 'Extract streams' }).click();
+
+  await expect(page.getByText('Extracted Demo')).toBeVisible();
+  await page.getByRole('button', { name: 'Play link' }).click();
+  await expect(page.locator('.player-title')).toContainText('Extracted Demo');
 });
