@@ -199,7 +199,7 @@ test('links mode saves and plays external audio', async ({ page }) => {
   await page.getByRole('button', { name: 'Links' }).click();
 
   const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
-  await input.fill('https://stream.example.com/external');
+  await input.fill('https://stream.example.com/external.mp3');
   await page.getByRole('button', { name: 'Add link' }).click();
 
   await expect(page.getByText('stream.example.com', { exact: true })).toBeVisible();
@@ -214,7 +214,7 @@ test('links mode extracts audio streams', async ({ page }) => {
 
   const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
   await input.fill('https://soundcloud.com/demo/track');
-  await page.getByRole('button', { name: 'Extract streams' }).click();
+  await page.getByRole('button', { name: 'Add link' }).click();
 
   await expect(page.getByText('Extracted Demo')).toBeVisible();
   await page.getByRole('button', { name: 'Play link' }).click();

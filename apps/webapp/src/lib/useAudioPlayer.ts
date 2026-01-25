@@ -9,13 +9,76 @@ type ReconnectState = {
   attempts: number;
 };
 
+type ExtractAudioStream = {
+  url: string;
+  bitrate?: number;
+  averageBitrate?: number;
+};
+
+type ExtractItem = {
+  url?: string;
+};
+
+type ExtractResponse = {
+  type: 'stream' | 'playlist' | 'error';
+  audioStreams?: ExtractAudioStream[];
+  items?: ExtractItem[];
+  error?: string;
+};
+
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
+const isDirectAudioUrl = (url: string) =>
+  /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(url);
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 
 const buildProxyUrl = (url: string) => {
   const base = normalizeBase(getApiBase());
   if (!base) return url;
   return `${base}/stream?url=${encodeURIComponent(url)}`;
+};
+
+const isExternalStation = (station: StationLite) =>
+  station.stationuuid.startsWith('ext_') ||
+  station.country === 'External' ||
+  station.tags?.includes('external');
+
+const pickBestStream = (streams: ExtractAudioStream[]) => {
+  if (!streams.length) return null;
+  return streams
+    .filter((stream) => Boolean(stream.url))
+    .sort((a, b) => {
+      const score = (item: ExtractAudioStream) =>
+        Math.max(item.averageBitrate || 0, item.bitrate || 0);
+      return score(b) - score(a);
+    })[0];
+};
+
+const resolveExternalStream = async (
+  url: string,
+  depth = 0
+): Promise<string | null> => {
+  if (depth > 1) return null;
+  const base = normalizeBase(getApiBase());
+  if (!base) return null;
+
+  try {
+    const response = await fetch(
+      `${base}/extract?url=${encodeURIComponent(url)}`
+    );
+    const data = (await response.json()) as ExtractResponse;
+    if (!response.ok || data?.type === 'error') {
+      return null;
+    }
+    if (data.type === 'stream') {
+      const best = pickBestStream(data.audioStreams || []);
+      return best?.url || null;
+    }
+    const nextUrl = data.items?.find((item) => item.url)?.url;
+    if (!nextUrl) return null;
+    return resolveExternalStream(nextUrl, depth + 1);
+  } catch {
+    return null;
+  }
 };
 
 const buildCandidates = (url: string) => {
@@ -284,9 +347,20 @@ export const useAudioPlayer = ({
     audio.currentTime = 0;
     audio.load(); // Reset the audio element
 
-    setCurrent(station);
+    let resolvedStation = station;
+    if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
+      pushEvent('extract: resolving external link');
+      const extracted = await resolveExternalStream(station.url_resolved);
+      if (extracted) {
+        resolvedStation = { ...station, url_resolved: extracted };
+      } else {
+        pushEvent('extract: failed, using original link');
+      }
+    }
+
+    setCurrent(resolvedStation);
     setStatus('buffering');
-    candidatesRef.current = buildCandidates(station.url_resolved);
+    candidatesRef.current = buildCandidates(resolvedStation.url_resolved);
     candidateIndexRef.current = 0;
 
     try {

@@ -62,9 +62,28 @@ const isBlocked = (value: string) =>
 const isPlaylistUrl = (value: string) =>
   /\.(m3u8?|pls)(\?|#|$)/i.test(value);
 
+const isDirectAudioUrl = (value: string) =>
+  /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(value);
+
+const stripTrackingParams = (value: string) => {
+  try {
+    const url = new URL(value);
+    const params = url.searchParams;
+    Array.from(params.keys()).forEach((key) => {
+      if (key.toLowerCase().startsWith('utm_')) {
+        params.delete(key);
+      }
+    });
+    url.search = params.toString();
+    return url.toString();
+  } catch {
+    return value;
+  }
+};
+
 const normalizeUrl = (value: string) => {
   try {
-    return new URL(value.trim()).toString();
+    return stripTrackingParams(new URL(value.trim()).toString());
   } catch {
     return '';
   }
@@ -306,10 +325,16 @@ export const Search = () => {
       void importPlaylist(normalized);
       return;
     }
+    if (!isDirectAudioUrl(normalized)) {
+      if (!apiBase) {
+        setLinkError('Not a direct audio URL. Configure API and extract.');
+        return;
+      }
+      void extractLinkFor(normalized, linkName.trim());
+      return;
+    }
     const name = linkName.trim() || deriveName(normalized);
-    addLinks([
-      { id: makeId(), name, url: normalized, addedAt: Date.now() }
-    ]);
+    addLinks([{ id: makeId(), name, url: normalized, addedAt: Date.now() }]);
     setLinkUrl('');
     setLinkName('');
   };
@@ -371,29 +396,15 @@ export const Search = () => {
     }
   };
 
-  const extractLink = async () => {
-    setLinkError(null);
-    const normalized = normalizeUrl(linkUrl);
-    if (!normalized) {
-      setLinkError('Enter a valid URL');
-      return;
-    }
-    if (isBlocked(normalized)) {
-      setLinkError('YouTube links are blocked in this mode');
-      return;
-    }
-    if (!apiBase) {
-      setLinkError('Extractor API not configured');
-      return;
-    }
-
+  const extractLinkFor = async (sourceUrl: string, nameOverride?: string) => {
+    const normalized = normalizeUrl(sourceUrl);
     setLinkLoading(true);
     try {
       const response = await fetch(
         `${apiBase}/extract?url=${encodeURIComponent(normalized)}`
       );
       const data = (await response.json()) as ExtractResponse;
-      if (!response.ok) {
+      if (!response.ok || data?.type === 'error') {
         throw new Error(data?.error || `Extractor error (${response.status})`);
       }
 
@@ -419,10 +430,8 @@ export const Search = () => {
           return;
         }
         const name =
-          linkName.trim() || data.title?.trim() || deriveName(normalized);
-        addLinks([
-          { id: makeId(), name, url: best.url, addedAt: Date.now() }
-        ]);
+          nameOverride?.trim() || data.title?.trim() || deriveName(normalized);
+        addLinks([{ id: makeId(), name, url: best.url, addedAt: Date.now() }]);
       }
 
       setLinkUrl('');
@@ -432,6 +441,24 @@ export const Search = () => {
     } finally {
       setLinkLoading(false);
     }
+  };
+
+  const extractLink = async () => {
+    setLinkError(null);
+    const normalized = normalizeUrl(linkUrl);
+    if (!normalized) {
+      setLinkError('Enter a valid URL');
+      return;
+    }
+    if (isBlocked(normalized)) {
+      setLinkError('YouTube links are blocked in this mode');
+      return;
+    }
+    if (!apiBase) {
+      setLinkError('Extractor API not configured');
+      return;
+    }
+    await extractLinkFor(normalized, linkName.trim());
   };
 
   const handlePaste = async () => {
@@ -462,7 +489,7 @@ export const Search = () => {
         <div className="section-subtitle">
           {showStations
             ? 'Full catalog with filters.'
-            : 'Save direct audio links or playlists. YouTube is blocked.'}
+            : 'Save audio links or playlists. Non-direct links are extracted. YouTube is blocked.'}
         </div>
         <div className="chip-row">
           <button
@@ -579,7 +606,7 @@ export const Search = () => {
                   className="chip"
                   type="button"
                   onClick={extractLink}
-                  disabled={linkLoading}
+                  disabled={linkLoading || !apiBase}
                 >
                   Extract streams
                 </button>
@@ -593,6 +620,11 @@ export const Search = () => {
                 </button>
               </div>
             </div>
+            {!apiBase && (
+              <div className="error">
+                Extractor is offline. Set API URL in Settings.
+              </div>
+            )}
             {linkError && <div className="error">{linkError}</div>}
           </div>
 
