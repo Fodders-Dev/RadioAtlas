@@ -204,7 +204,9 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) 
   mountNode.style.height = `${compactHeight}px`;
   const hostRect = mountNode.getBoundingClientRect();
   const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
-  const top = hostRect.top;
+  const actionsNode = document.querySelector('.winamp-actions.compact') as HTMLElement | null;
+  const actionsRect = actionsNode?.getBoundingClientRect();
+  const top = actionsRect ? Math.max(hostRect.top, actionsRect.bottom + 6) : hostRect.top;
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
