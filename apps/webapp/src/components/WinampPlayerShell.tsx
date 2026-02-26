@@ -89,8 +89,15 @@ const buildLayout = (expanded: boolean) => {
       main: {
         position: { top: 6, left: 6 }
       },
-      equalizer: { closed: true },
-      playlist: { closed: true }
+      equalizer: {
+        position: { top: 138, left: 6 },
+        closed: true
+      },
+      playlist: {
+        position: { top: 254, left: 6 },
+        size: { extraHeight: 12, extraWidth: 4 },
+        closed: true
+      }
     };
   }
 
