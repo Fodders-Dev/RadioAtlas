@@ -360,7 +360,12 @@ export const WinampPlayerShell = ({
     });
 
     const syncMediaState = () => {
-      const media = instance.__getSerializedState?.().media;
+      let media: WebampSerializedState['media'] | undefined;
+      try {
+        media = instance.__getSerializedState?.().media;
+      } catch {
+        return;
+      }
       if (!media) return;
       if (typeof media.volume === 'number') {
         const nextVolume = clamp(media.volume / 100, 0, 1);
