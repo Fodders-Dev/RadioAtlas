@@ -14,7 +14,7 @@
   --player-gap: 16px;
   --nav-height: 64px;
   --nav-gap: 12px;
-  --stack-padding: 560px;
+  --stack-padding: 340px;
 }
 
 * {
@@ -650,43 +650,52 @@ main {
   opacity: 1;
 }
 
-.winamp-shell {
+.winamp-compact {
   position: fixed;
-  left: 12px;
-  right: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 12px;
+  z-index: 18;
+  width: min(560px, calc(100vw - 20px));
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  backdrop-filter: blur(10px);
-  z-index: 18;
+  gap: 8px;
+  align-items: stretch;
+  pointer-events: none;
 }
 
-.winamp-shell-head {
+.winamp-compact-main {
+  min-height: 118px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  position: relative;
+  pointer-events: auto;
+}
+
+.winamp-compact-meta {
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
+  gap: 2px;
+  padding: 0 4px;
 }
 
 .player-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .player-sub,
 .player-status {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 .player-track {
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.25;
   color: var(--accent);
   background: transparent;
   border: none;
@@ -700,26 +709,11 @@ main {
   color: var(--muted);
 }
 
-.winamp-shell-main {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.12));
-  min-height: 272px;
-  padding: 10px;
-  overflow: hidden;
-}
-
-.winamp-shell-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .winamp-host {
-  min-height: 248px;
   display: flex;
   justify-content: center;
-  overflow: hidden;
+  align-items: flex-start;
+  overflow: visible;
   position: relative;
 }
 
@@ -727,11 +721,29 @@ main {
   margin: 0 auto;
 }
 
+.winamp-host.compact {
+  min-height: 116px;
+  width: 100%;
+}
+
 .winamp-loading {
   font-size: 12px;
   color: var(--muted);
   text-align: center;
-  padding: 8px 0 2px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -28px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.winamp-loading.overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
 }
 
 .winamp-actions {
@@ -739,10 +751,11 @@ main {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  pointer-events: auto;
 }
 
 .winamp-actions.compact {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .winamp-actions.overlay {
@@ -753,49 +766,46 @@ main {
   position: fixed;
   inset: 0;
   z-index: 38;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  overflow: hidden;
 }
 
 .winamp-overlay-backdrop {
   position: absolute;
   inset: 0;
   border: none;
-  background: rgba(0, 0, 0, 0.58);
-}
-
-.winamp-overlay-panel {
-  position: relative;
-  width: min(980px, calc(100% - 12px));
-  margin: 6px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  overflow: hidden;
+  background: rgba(0, 0, 0, 0.66);
 }
 
 .winamp-overlay-header {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 10px;
+  right: 10px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+  z-index: 2;
+}
+
+.winamp-overlay-title-wrap {
+  background: rgba(8, 10, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 6px 10px;
+  backdrop-filter: blur(8px);
+  max-width: calc(100% - 170px);
 }
 
 .winamp-overlay-title {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .winamp-overlay-subtitle {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .winamp-overlay-header-actions {
@@ -807,22 +817,28 @@ main {
 }
 
 .winamp-overlay-host {
-  flex: 1;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  padding: 8px;
+  position: absolute;
+  inset: 0;
+  padding: calc(44px + env(safe-area-inset-top)) 0 calc(78px + env(safe-area-inset-bottom));
   overflow: auto;
 }
 
 .winamp-host.overlay {
-  min-height: 680px;
-  justify-content: flex-start;
+  min-height: 720px;
+  width: 100%;
 }
 
 .winamp-overlay-footer {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 2;
+  background: rgba(8, 10, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px;
+  backdrop-filter: blur(8px);
 }
 
 .skin-picker {
@@ -863,7 +879,7 @@ main {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(340px + env(safe-area-inset-bottom));
+  bottom: calc(220px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   background: rgba(246, 201, 69, 0.9);
   color: #2b1a00;
@@ -1014,7 +1030,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 760px;
+    --stack-padding: 420px;
     --nav-height: 72px;
   }
 
@@ -1027,34 +1043,39 @@ main {
     bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
-  .winamp-shell {
-    left: 10px;
-    right: 10px;
-    padding: 10px;
+  .winamp-compact {
+    width: calc(100vw - 12px);
+    bottom: calc(8px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   }
 
-  .winamp-shell-main {
-    min-height: 246px;
-  }
-
-  .winamp-overlay-panel {
-    width: calc(100% - 8px);
-    margin: 4px;
-    border-radius: 12px;
-    padding: 10px;
-  }
-
-  .winamp-overlay-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .winamp-overlay-header-actions {
+  .winamp-actions.compact {
     justify-content: flex-start;
   }
 
+  .winamp-overlay-header {
+    left: 6px;
+    right: 6px;
+    top: calc(6px + env(safe-area-inset-top));
+  }
+
+  .winamp-overlay-title-wrap {
+    max-width: calc(100% - 128px);
+    padding: 5px 8px;
+  }
+
+  .winamp-overlay-header-actions {
+    gap: 6px;
+  }
+
   .winamp-host.overlay {
-    min-height: 520px;
+    min-height: 640px;
+  }
+
+  .winamp-overlay-footer {
+    left: 6px;
+    right: 6px;
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    padding: 6px;
   }
 
   .skin-picker-select {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StationLite } from '../types';
 import { stationLocation } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
-import { SkinPicker } from './SkinPicker';
 import { WinampOverlay } from './WinampOverlay';
 
 type WebampTrack = {
@@ -40,6 +39,20 @@ type WebampInstance = {
 
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
 
+let webampCtorPromise: Promise<WebampCtor> | null = null;
+
+const loadWebampCtor = async () => {
+  if (!webampCtorPromise) {
+    webampCtorPromise = import('webamp').then((mod) => mod.default as unknown as WebampCtor);
+  }
+  try {
+    return await webampCtorPromise;
+  } catch (error) {
+    webampCtorPromise = null;
+    throw error;
+  }
+};
+
 const SILENT_TRACK_BASE64 =
   'UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
 
@@ -74,7 +87,7 @@ const buildLayout = (expanded: boolean) => {
   if (!expanded) {
     return {
       main: {
-        position: { top: 0, left: 0 }
+        position: { top: 6, left: 6 }
       },
       equalizer: { closed: true },
       playlist: { closed: true }
@@ -83,14 +96,14 @@ const buildLayout = (expanded: boolean) => {
 
   return {
     main: {
-      position: { top: 10, left: 10 }
+      position: { top: 16, left: 16 }
     },
     equalizer: {
-      position: { top: 240, left: 10 },
+      position: { top: 136, left: 16 },
       closed: false
     },
     playlist: {
-      position: { top: 470, left: 10 },
+      position: { top: 252, left: 16 },
       size: { extraHeight: 12, extraWidth: 4 },
       closed: false
     }
@@ -206,9 +219,8 @@ export const WinampPlayerShell = ({
     setWebampFailed(false);
 
     const boot = async () => {
-      const mod = await import('webamp');
+      const Webamp = await loadWebampCtor();
       if (cancelled) return;
-      const Webamp = mod.default as unknown as WebampCtor;
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
@@ -241,7 +253,8 @@ export const WinampPlayerShell = ({
           setWebampFailed(false);
           retryCountRef.current = 0;
           return;
-        } catch {
+        } catch (error) {
+          console.error('Winamp init failed', error);
           if (attempt === 2 || cancelled) {
             break;
           }
@@ -264,7 +277,8 @@ export const WinampPlayerShell = ({
       }
     };
 
-    void boot().catch(() => {
+    void boot().catch((error) => {
+      console.error('Winamp boot failed', error);
       if (!cancelled) {
         setWebampFailed(true);
       }
@@ -495,8 +509,23 @@ export const WinampPlayerShell = ({
 
   return (
     <>
-      <div className="winamp-shell">
-        <div className="winamp-shell-head">
+      <div className="winamp-compact">
+        <div className="winamp-compact-main">
+          <div className="winamp-host compact" ref={compactHostRef} />
+          {!webampReady && (
+            <div className="winamp-loading">
+              {webampFailed ? (
+                <button className="chip" type="button" onClick={() => setBootCycle((value) => value + 1)}>
+                  Winamp load failed. Retry
+                </button>
+              ) : (
+                'Loading Winamp...'
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="winamp-compact-meta">
           <div className="player-title">{current?.name ?? 'RadioAtlas'}</div>
           <div className="player-sub">{current ? stationLocation(current) : statusLabel}</div>
           {trackLabel && (
@@ -510,22 +539,9 @@ export const WinampPlayerShell = ({
               {trackLabel}
             </button>
           )}
-          <div className="player-status">{statusLabel}</div>
+          {!trackLabel && <div className="player-status">{statusLabel}</div>}
         </div>
-
-        <div className="winamp-shell-main">
-          <div className="winamp-host compact" ref={compactHostRef} />
-          {!webampReady && (
-            <div className="winamp-loading">
-              {webampFailed ? 'Winamp failed to load (auto-retrying)...' : 'Loading Winamp...'}
-            </div>
-          )}
-        </div>
-
-        <div className="winamp-shell-footer">
-          <SkinPicker compact />
-          {actionStrip('compact')}
-        </div>
+        {actionStrip('compact')}
       </div>
 
       <WinampOverlay
@@ -533,10 +549,20 @@ export const WinampPlayerShell = ({
         title={current?.name || 'Winamp Player'}
         subtitle={current ? stationLocation(current) : 'Pick a station'}
         onCollapse={() => winamp.setExpanded(false)}
-        headerActions={<SkinPicker />}
         footerActions={actionStrip('overlay')}
       >
         <div className="winamp-host overlay" ref={overlayHostRef} />
+        {!webampReady && (
+          <div className="winamp-loading overlay">
+            {webampFailed ? (
+              <button className="chip" type="button" onClick={() => setBootCycle((value) => value + 1)}>
+                Winamp load failed. Retry
+              </button>
+            ) : (
+              'Loading Winamp...'
+            )}
+          </div>
+        )}
       </WinampOverlay>
     </>
   );

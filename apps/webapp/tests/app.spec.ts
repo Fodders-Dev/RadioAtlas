@@ -134,7 +134,7 @@ test('explore loads and compact winamp shell is visible', async ({ page }) => {
   await expect(page.locator('.app-title')).toHaveText('RadioAtlas');
   await expect(page.getByRole('heading', { name: 'Explore the airwaves' })).toBeVisible();
   await expect(page.getByText('Tokyo FM')).toBeVisible();
-  await expect(page.locator('.winamp-shell')).toBeVisible();
+  await expect(page.locator('.winamp-compact')).toBeVisible();
   await expect(page.locator('.winamp-host.compact')).toBeVisible();
 });
 

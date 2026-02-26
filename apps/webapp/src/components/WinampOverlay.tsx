@@ -29,24 +29,22 @@ export const WinampOverlay = ({
         onClick={onCollapse}
         aria-label="Collapse player"
       />
-      <div className="winamp-overlay-panel">
-        <div className="winamp-overlay-header">
-          <div>
-            <div className="winamp-overlay-title">{title}</div>
-            <div className="winamp-overlay-subtitle">{subtitle}</div>
-          </div>
-          <div className="winamp-overlay-header-actions">
-            {headerActions}
-            <button className="chip active" type="button" onClick={onCollapse}>
-              Collapse
-            </button>
-          </div>
+      <div className="winamp-overlay-header">
+        <div className="winamp-overlay-title-wrap">
+          <div className="winamp-overlay-title">{title}</div>
+          <div className="winamp-overlay-subtitle">{subtitle}</div>
         </div>
-
-        <div className="winamp-overlay-host">{children}</div>
-
-        {footerActions && <div className="winamp-overlay-footer">{footerActions}</div>}
+        <div className="winamp-overlay-header-actions">
+          {headerActions}
+          <button className="chip active" type="button" onClick={onCollapse}>
+            Collapse
+          </button>
+        </div>
       </div>
+
+      <div className="winamp-overlay-host">{children}</div>
+
+      {footerActions && <div className="winamp-overlay-footer">{footerActions}</div>}
     </div>
   );
 };
