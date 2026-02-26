@@ -118,11 +118,20 @@ const buildLayout = (expanded: boolean) => {
   };
 };
 
-const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
+const getMainWindowNode = () => {
+  const mainWindow =
+    (document.querySelector('#main-window')?.closest('.window') as HTMLElement | null) ?? null;
+  if (mainWindow) return mainWindow;
+
   const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
-  const windowNode =
+  return (
     (menu?.closest('.window') as HTMLElement | null) ??
-    (document.querySelector('.window') as HTMLElement | null);
+    (document.querySelector('#webamp .window') as HTMLElement | null)
+  );
+};
+
+const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
+  const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
@@ -131,8 +140,8 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   windowNode.style.transform = '';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
-  const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.48, 1.24);
-  const nextScale = Number(Math.min(scale, fitScale).toFixed(3));
+  const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.72, 3.6);
+  const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const compactHeight = Math.round(28 * nextScale);
   const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
@@ -145,6 +154,7 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   anchor.style.pointerEvents = 'none';
   anchor.style.height = `${compactHeight}px`;
   anchor.style.overflow = 'hidden';
+  anchor.dataset.raCompactAnchor = '1';
   windowNode.style.pointerEvents = 'auto';
   windowNode.style.transform = `scale(${nextScale})`;
 
@@ -152,12 +162,8 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
 };
 
 const resetWebampWindowPlacement = () => {
-  const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
-  const windowNode =
-    (menu?.closest('.window') as HTMLElement | null) ??
-    (document.querySelector('.window') as HTMLElement | null);
-  const anchor = windowNode?.parentElement as HTMLElement | null;
-  if (anchor) {
+  const anchors = document.querySelectorAll<HTMLElement>('[data-ra-compact-anchor="1"]');
+  anchors.forEach((anchor) => {
     anchor.style.position = '';
     anchor.style.inset = '';
     anchor.style.transform = '';
@@ -165,7 +171,10 @@ const resetWebampWindowPlacement = () => {
     anchor.style.pointerEvents = '';
     anchor.style.height = '';
     anchor.style.overflow = '';
-  }
+    delete anchor.dataset.raCompactAnchor;
+  });
+
+  const windowNode = getMainWindowNode();
   if (windowNode) {
     windowNode.style.transformOrigin = '';
     windowNode.style.transform = '';
@@ -210,7 +219,6 @@ export const WinampPlayerShell = ({
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
-  const [compactScale, setCompactScale] = useState(1);
 
   const current = player.current;
 
@@ -227,19 +235,6 @@ export const WinampPlayerShell = ({
 
   const liked = current ? isFavorite(current.stationuuid) : false;
   const canResume = Boolean(recent.length);
-
-  useEffect(() => {
-    const updateScale = () => {
-      const viewport = Math.max(window.innerWidth, 320);
-      const nextScale = clamp((viewport - 24) / 275, 0.64, 1.24);
-      setCompactScale(Number(nextScale.toFixed(3)));
-    };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => {
-      window.removeEventListener('resize', updateScale);
-    };
-  }, []);
 
   useEffect(() => {
     playablePlaylistRef.current = playablePlaylist;
@@ -308,7 +303,7 @@ export const WinampPlayerShell = ({
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const layoutModes = [false, true];
+        const layoutModes = winamp.expanded ? [true, false] : [true];
         for (const useLayout of layoutModes) {
           try {
             const instance = new Webamp({
@@ -348,7 +343,7 @@ export const WinampPlayerShell = ({
               let placementAttempt = 0;
               const ensureCompactPlacement = () => {
                 if (cancelled) return;
-                syncCompactWindowPlacement(mountNode, compactScale);
+                syncCompactWindowPlacement(mountNode);
                 placementAttempt += 1;
                 if (placementAttempt < 10) {
                   window.setTimeout(ensureCompactPlacement, 180);
@@ -436,16 +431,18 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
-      syncCompactWindowPlacement(mountNode, compactScale);
+      syncCompactWindowPlacement(mountNode);
     };
     sync();
     window.addEventListener('scroll', sync, { passive: true });
     window.addEventListener('resize', sync);
+    const interval = window.setInterval(sync, 300);
     return () => {
       window.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
+      window.clearInterval(interval);
     };
-  }, [winamp.expanded, webampReady, compactScale]);
+  }, [winamp.expanded, webampReady]);
 
   useEffect(() => {
     const instance = webampRef.current;
