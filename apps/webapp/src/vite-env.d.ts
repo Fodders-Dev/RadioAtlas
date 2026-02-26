@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
 declare global {
+  const __APP_VERSION__: string;
+  const __BUILD_TIME__: string;
+  const __APP_COMMIT__: string;
+
   interface Window {
     Telegram?: {
       WebApp?: {

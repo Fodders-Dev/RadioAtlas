@@ -9,6 +9,7 @@ import { Browse } from './screens/Browse';
 import { Search } from './screens/Search';
 import { Settings } from './screens/Settings';
 import { useRadio } from './state/RadioContext';
+import { buildLabel } from './lib/buildInfo';
 
 const TAB_COMPONENTS: Record<NavTab, JSX.Element> = {
   Explore: <Explore />,
@@ -22,6 +23,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('Explore');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { loading, error, toast, player } = useRadio();
+  const versionLabel = buildLabel();
 
   useEffect(() => {
     if (!player.current) {
@@ -38,7 +40,9 @@ const App = () => {
             Find, favorite, and travel the world by sound.
           </div>
         </div>
-        <div className="app-badge">Live</div>
+        <div className="app-badge" title={versionLabel}>
+          Live · {versionLabel}
+        </div>
       </header>
 
       <main>

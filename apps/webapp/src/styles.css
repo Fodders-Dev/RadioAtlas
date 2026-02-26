@@ -14,7 +14,7 @@
   --player-gap: 16px;
   --nav-height: 64px;
   --nav-gap: 12px;
-  --stack-padding: 440px;
+  --stack-padding: 560px;
 }
 
 * {
@@ -80,8 +80,12 @@ input {
   border: 1px solid rgba(246, 201, 69, 0.4);
   padding: 6px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  max-width: 48vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 main {
@@ -653,8 +657,8 @@ main {
   bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 10px;
+  border-radius: 18px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -665,7 +669,9 @@ main {
 .winamp-shell-head {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
 }
 
 .player-title {
@@ -697,20 +703,20 @@ main {
 .winamp-shell-main {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--bg);
-  min-height: 124px;
-  padding: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.12));
+  min-height: 272px;
+  padding: 10px;
   overflow: hidden;
 }
 
 .winamp-shell-footer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .winamp-host {
-  min-height: 112px;
+  min-height: 248px;
   display: flex;
   justify-content: center;
   overflow: hidden;
@@ -731,7 +737,7 @@ main {
 .winamp-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -810,7 +816,7 @@ main {
 }
 
 .winamp-host.overlay {
-  min-height: 420px;
+  min-height: 680px;
   justify-content: flex-start;
 }
 
@@ -845,10 +851,6 @@ main {
   min-width: 150px;
 }
 
-.player-volume input {
-  width: 94px;
-}
-
 .empty-state {
   background: var(--panel);
   border: 1px dashed var(--border);
@@ -861,7 +863,7 @@ main {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(260px + env(safe-area-inset-bottom));
+  bottom: calc(340px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   background: rgba(246, 201, 69, 0.9);
   color: #2b1a00;
@@ -1005,14 +1007,14 @@ main {
     justify-content: stretch;
   }
 
-  .winamp-actions .player-btn {
+  .winamp-actions .chip {
     width: auto;
   }
 }
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 620px;
+    --stack-padding: 760px;
     --nav-height: 72px;
   }
 
@@ -1028,7 +1030,11 @@ main {
   .winamp-shell {
     left: 10px;
     right: 10px;
-    padding: 8px;
+    padding: 10px;
+  }
+
+  .winamp-shell-main {
+    min-height: 246px;
   }
 
   .winamp-overlay-panel {
@@ -1048,15 +1054,11 @@ main {
   }
 
   .winamp-host.overlay {
-    min-height: 360px;
+    min-height: 520px;
   }
 
   .skin-picker-select {
     min-width: 140px;
-  }
-
-  .player-volume input {
-    width: 82px;
   }
 
   .details-card {

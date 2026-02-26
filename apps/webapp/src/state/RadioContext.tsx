@@ -41,6 +41,7 @@ type WinampState = {
   setExpanded: (value: boolean) => void;
   availableSkins: WinampSkinPreset[];
   activeSkin: ActiveWinampSkin;
+  playlist: StationLite[];
   setSkin: (skinId: string) => void;
   importSkin: (file: File) => Promise<boolean>;
 };
@@ -109,6 +110,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   );
   const [recent, setRecent] = useLocalStorage<StationLite[]>(
     'radio:recent',
+    []
+  );
+  const [winampPlaylist, setWinampPlaylist] = useLocalStorage<StationLite[]>(
+    'radio:winamp-playlist',
     []
   );
   const [storedSkin, setStoredSkin] = useLocalStorage<StoredSkin>(
@@ -253,6 +258,33 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const addToWinampPlaylist = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    setWinampPlaylist((prev) => {
+      if (prev.some((item) => item.stationuuid === lite.stationuuid)) {
+        return prev;
+      }
+      return [...prev, lite];
+    });
+  };
+
+  useEffect(() => {
+    if (!favorites.length) return;
+    setWinampPlaylist((prev) => {
+      const favIds = new Set(favorites.map((item) => item.stationuuid));
+      const withoutFavs = prev.filter((item) => !favIds.has(item.stationuuid));
+      return [...favorites, ...withoutFavs];
+    });
+  }, [favorites, setWinampPlaylist]);
+
+  useEffect(() => {
+    if (winampPlaylist.length) return;
+    const seed = [...favorites, ...recent].slice(0, 120);
+    if (seed.length) {
+      setWinampPlaylist(seed);
+    }
+  }, [favorites, recent, winampPlaylist.length, setWinampPlaylist]);
+
   const playStationInternal = (
     station: Station | StationLite,
     addToHistory: boolean
@@ -273,6 +305,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     player.playStation(lite);
+    addToWinampPlaylist(lite);
     if (addToHistory) {
       addRecent(lite);
     }
@@ -593,10 +626,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       setExpanded: setWinampExpanded,
       availableSkins: WINAMP_SKIN_PRESETS,
       activeSkin,
+      playlist: winampPlaylist,
       setSkin,
       importSkin
     }),
-    [winampExpanded, activeSkin]
+    [winampExpanded, activeSkin, winampPlaylist]
   );
 
   const value: RadioContextValue = {

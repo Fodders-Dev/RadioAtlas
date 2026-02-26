@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useRadio } from '../state/RadioContext';
 import { SkinPicker } from '../components/SkinPicker';
+import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 
 export const Settings = () => {
   const {
@@ -183,6 +184,15 @@ export const Settings = () => {
               <div>
                 <strong>TG Version:</strong>{' '}
                 {window.Telegram?.WebApp?.version || 'Unknown'}
+              </div>
+              <div>
+                <strong>Build:</strong> v{APP_VERSION}
+              </div>
+              <div>
+                <strong>Commit:</strong> {APP_COMMIT}
+              </div>
+              <div>
+                <strong>Built at:</strong> {new Date(BUILD_TIME).toLocaleString()}
               </div>
               <div
                 style={{
