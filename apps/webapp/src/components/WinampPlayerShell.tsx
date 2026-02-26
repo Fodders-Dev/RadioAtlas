@@ -81,8 +81,6 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-const isLayoutError = (error: unknown) =>
-  toErrorMessage(error).toLowerCase().includes("reading 'left'");
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
@@ -138,6 +136,24 @@ const applyCompactWindowshade = () => {
   return false;
 };
 
+const closeAuxWindow = (windowId: string, toggleTitle: string) => {
+  const windowNode = document.getElementById(windowId) as HTMLElement | null;
+  if (!windowNode) return true;
+  const rect = windowNode.getBoundingClientRect();
+  const isVisible = rect.width > 8 && rect.height > 8;
+  if (!isVisible) return true;
+  const toggle = document.querySelector(`[title="${toggleTitle}"]`) as HTMLElement | null;
+  if (!toggle) return false;
+  toggle.click();
+  return false;
+};
+
+const collapseCompactAuxWindows = () => {
+  const eqClosed = closeAuxWindow('equalizer-window', 'Toggle Graphical Equalizer');
+  const playlistClosed = closeAuxWindow('playlist-window', 'Toggle Playlist Editor');
+  return eqClosed && playlistClosed;
+};
+
 const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
   const windowNode =
@@ -147,17 +163,23 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   if (!windowNode || !anchor) return false;
 
   const mountRect = mountNode.getBoundingClientRect();
-  const baseWidth = 275;
+  windowNode.style.transformOrigin = 'top left';
+  windowNode.style.transform = '';
+  const rawRect = windowNode.getBoundingClientRect();
+  const baseWidth = rawRect.width || 275;
+  const baseHeight = rawRect.height || 116;
   const nextScale = Number(scale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
+  const nextHeight = baseHeight * nextScale;
   const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
-  const top = mountRect.top + 2;
+  const top = mountRect.top + Math.max(0, mountRect.height) - nextHeight;
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
   anchor.style.transform = `translate(${left}px, ${top}px)`;
   anchor.style.zIndex = '58';
-  windowNode.style.transformOrigin = 'top left';
+  anchor.style.pointerEvents = 'none';
+  windowNode.style.pointerEvents = windowNode.classList.contains('shade') ? 'auto' : 'none';
   windowNode.style.transform = `scale(${nextScale})`;
 
   return true;
@@ -174,10 +196,12 @@ const resetWebampWindowPlacement = () => {
     anchor.style.inset = '';
     anchor.style.transform = '';
     anchor.style.zIndex = '';
+    anchor.style.pointerEvents = '';
   }
   if (windowNode) {
     windowNode.style.transformOrigin = '';
     windowNode.style.transform = '';
+    windowNode.style.pointerEvents = '';
   }
 };
 
@@ -209,7 +233,6 @@ export const WinampPlayerShell = ({
   const retryDelayRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const syncingVolumeFromWebampRef = useRef(false);
-  const disableWindowLayoutRef = useRef(false);
   const playablePlaylistRef = useRef<StationLite[]>([]);
   const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
   const [webampReady, setWebampReady] = useState(false);
@@ -301,7 +324,7 @@ export const WinampPlayerShell = ({
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const layoutModes = disableWindowLayoutRef.current ? [false] : [true, false];
+        const layoutModes = [false];
         for (const useLayout of layoutModes) {
           try {
             const instance = new Webamp({
@@ -335,12 +358,13 @@ export const WinampPlayerShell = ({
                 if (cancelled) return;
                 shadeAttempt += 1;
                 const done = applyCompactWindowshade();
+                const auxClosed = collapseCompactAuxWindows();
                 syncCompactWindowPlacement(mountNode, compactScale);
-                if (!done && shadeAttempt < 12) {
-                  window.setTimeout(ensureShade, 70);
+                if ((!done || !auxClosed) && shadeAttempt < 90) {
+                  window.setTimeout(ensureShade, 180);
                 }
               };
-              window.setTimeout(ensureShade, 40);
+              window.setTimeout(ensureShade, 80);
             } else {
               resetWebampWindowPlacement();
             }
@@ -355,9 +379,6 @@ export const WinampPlayerShell = ({
               `Winamp init failed (attempt ${attempt + 1}, layout=${useLayout ? 'on' : 'off'})`,
               error
             );
-            if (useLayout && isLayoutError(error)) {
-              disableWindowLayoutRef.current = true;
-            }
             if (cancelled) {
               break;
             }

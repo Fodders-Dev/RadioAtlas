@@ -141,6 +141,7 @@ test('explore loads and compact winamp shell is visible', async ({ page }) => {
 test('playback from table updates winamp shell and info panel', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Expand' }).click();
 
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
@@ -213,6 +214,7 @@ test('skin upload applies uploaded mode', async ({ page }) => {
 test('share action always displays toast', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Expand' }).click();
   await page.getByRole('button', { name: 'Share' }).click();
   await expect(page.locator('.toast')).toBeVisible();
   await expect(page.locator('.toast')).toContainText(/Share|Link/);

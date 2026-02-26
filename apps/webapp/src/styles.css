@@ -727,6 +727,14 @@ main {
   margin: 0 auto;
 }
 
+#webamp div[tabindex='-1'] {
+  pointer-events: none !important;
+}
+
+#webamp .window {
+  pointer-events: auto !important;
+}
+
 .winamp-host.compact {
   min-height: 20px;
   width: 100%;
