@@ -142,7 +142,7 @@ test('playback from table updates winamp shell and info panel', async ({ page })
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
 
-  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
+  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
@@ -162,7 +162,7 @@ test('browse flow and full navigation still work', async ({ page }) => {
 
   await expect(page.getByText('Tokyo FM')).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
+  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
 
   await page.getByRole('button', { name: 'Favorites' }).click();
   await expect(page.getByText('My Stations')).toBeVisible();

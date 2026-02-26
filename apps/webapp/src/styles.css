@@ -14,7 +14,7 @@
   --player-gap: 16px;
   --nav-height: 64px;
   --nav-gap: 12px;
-  --stack-padding: 340px;
+  --stack-padding: 250px;
 }
 
 * {
@@ -655,25 +655,26 @@ main {
 
 .winamp-compact {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 8px;
+  right: 8px;
   bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   z-index: 60;
-  width: min(560px, calc(100vw - 20px));
+  width: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: stretch;
+  align-items: center;
   pointer-events: none;
 }
 
 .winamp-compact-main {
-  min-height: 118px;
+  min-height: calc(18px * var(--winamp-scale, 1));
   display: flex;
   justify-content: center;
   align-items: flex-start;
   position: relative;
   pointer-events: auto;
+  width: 100%;
 }
 
 .winamp-compact-meta {
@@ -725,8 +726,13 @@ main {
 }
 
 .winamp-host.compact {
-  min-height: 116px;
+  min-height: calc(16px * var(--winamp-scale, 1));
   width: 100%;
+}
+
+.winamp-host.compact > div {
+  transform: scale(var(--winamp-scale, 1));
+  transform-origin: top center;
 }
 
 .winamp-loading {
@@ -1033,7 +1039,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 420px;
+    --stack-padding: 290px;
     --nav-height: 72px;
   }
 
@@ -1047,7 +1053,6 @@ main {
   }
 
   .winamp-compact {
-    width: calc(100vw - 12px);
     bottom: calc(8px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   }
 

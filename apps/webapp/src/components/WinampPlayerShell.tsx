@@ -53,8 +53,8 @@ const loadWebampCtor = async () => {
   }
 };
 
-const SILENT_TRACK_BASE64 =
-  'UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
+const SILENT_TRACK_SECONDS = 12;
+let sharedSilentTrackBlobUrl: string | null = null;
 
 const normalizeMediaStatus = (value: string): WebampMediaStatus => {
   const normalized = value.toUpperCase();
@@ -70,13 +70,59 @@ const isLayoutError = (error: unknown) =>
   toErrorMessage(error).toLowerCase().includes("reading 'left'");
 
 const createSilentTrackBlobUrl = () => {
-  const binary = atob(SILENT_TRACK_BASE64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
+  const sampleRate = 8000;
+  const channels = 1;
+  const bitsPerSample = 8;
+  const bytesPerSample = bitsPerSample / 8;
+  const frameCount = sampleRate * SILENT_TRACK_SECONDS;
+  const dataSize = frameCount * channels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  let offset = 0;
+  const writeString = (value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset, value.charCodeAt(i));
+      offset += 1;
+    }
+  };
+  const writeUint32 = (value: number) => {
+    view.setUint32(offset, value, true);
+    offset += 4;
+  };
+  const writeUint16 = (value: number) => {
+    view.setUint16(offset, value, true);
+    offset += 2;
+  };
+
+  writeString('RIFF');
+  writeUint32(36 + dataSize);
+  writeString('WAVE');
+  writeString('fmt ');
+  writeUint32(16);
+  writeUint16(1);
+  writeUint16(channels);
+  writeUint32(sampleRate);
+  writeUint32(sampleRate * channels * bytesPerSample);
+  writeUint16(channels * bytesPerSample);
+  writeUint16(bitsPerSample);
+  writeString('data');
+  writeUint32(dataSize);
+  for (let i = 0; i < dataSize; i += 1) {
+    view.setUint8(offset + i, 128);
   }
-  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 };
+
+const getSharedSilentTrackUrl = () => {
+  if (!sharedSilentTrackBlobUrl) {
+    sharedSilentTrackBlobUrl = createSilentTrackBlobUrl();
+  }
+  return sharedSilentTrackBlobUrl;
+};
+
+const getStationTrackUrl = (stationId: string) =>
+  `${getSharedSilentTrackUrl()}#${encodeURIComponent(stationId)}`;
 
 const buildTracks = (playlist: StationLite[], stationTrackUrls: Map<string, string>): WebampTrack[] =>
   playlist.map((station) => ({
@@ -91,7 +137,8 @@ const buildLayout = (expanded: boolean) => {
   if (!expanded) {
     return {
       main: {
-        position: { top: 6, left: 6 }
+        position: { top: 6, left: 6 },
+        shadeMode: true
       },
       equalizer: {
         position: { top: 138, left: 6 },
@@ -121,6 +168,41 @@ const buildLayout = (expanded: boolean) => {
   };
 };
 
+const applyCompactWindowshade = () => {
+  const toggle = document.querySelector('[title="Toggle Windowshade Mode"]') as
+    | HTMLElement
+    | null;
+  if (!toggle) return false;
+  const mainWindow = toggle.closest('.window') as HTMLElement | null;
+  const height = mainWindow?.getBoundingClientRect().height ?? 0;
+  if (height <= 42 && height > 0) return true;
+  toggle.click();
+  return false;
+};
+
+const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
+  const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
+  const windowNode = menu?.closest('.window') as HTMLElement | null;
+  const anchor = windowNode?.parentElement as HTMLElement | null;
+  if (!windowNode || !anchor) return false;
+
+  const mountRect = mountNode.getBoundingClientRect();
+  const baseScale = windowNode.classList.contains('doubled') ? 2 : 1;
+  const baseWidth = 275;
+  const nextScale = Number((baseScale * scale).toFixed(3));
+  const nextWidth = baseWidth * nextScale;
+  const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
+  const top = mountRect.top;
+
+  anchor.style.position = 'fixed';
+  anchor.style.inset = '0 auto auto 0';
+  anchor.style.transform = `translate(${left}px, ${top}px)`;
+  windowNode.style.transformOrigin = 'top left';
+  windowNode.style.transform = `scale(${nextScale})`;
+
+  return true;
+};
+
 export const WinampPlayerShell = ({
   onDetails
 }: {
@@ -130,7 +212,6 @@ export const WinampPlayerShell = ({
     player,
     winamp,
     nowPlaying,
-    nowPlayingStatus,
     recent,
     playNext,
     playLast,
@@ -147,6 +228,7 @@ export const WinampPlayerShell = ({
   const webampRef = useRef<WebampInstance | null>(null);
   const syncPauseUntilRef = useRef(0);
   const suppressTrackSyncUntilRef = useRef(0);
+  const allowTrackChangeUntilRef = useRef(0);
   const retryDelayRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const syncingVolumeFromWebampRef = useRef(false);
@@ -158,6 +240,7 @@ export const WinampPlayerShell = ({
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
+  const [compactScale, setCompactScale] = useState(1);
 
   const current = player.current;
 
@@ -167,24 +250,21 @@ export const WinampPlayerShell = ({
     return [] as StationLite[];
   }, [winamp.playlist, current]);
 
-  const statusLabel = useMemo(() => {
-    if (!current) return 'Pick a station to start listening';
-    if (player.status === 'buffering') return 'Buffering...';
-    if (player.status === 'error') return 'Stream error, reconnecting';
-    if (player.status === 'paused') return 'Paused';
-    return 'Live';
-  }, [current, player.status]);
-
-  const trackLabel = useMemo(() => {
-    if (!current) return null;
-    if (nowPlaying) return `Now playing: ${nowPlaying}`;
-    if (nowPlayingStatus === 'loading') return 'Fetching track...';
-    if (nowPlayingStatus === 'unavailable') return 'Track info unavailable';
-    return null;
-  }, [current, nowPlaying, nowPlayingStatus]);
-
   const liked = current ? isFavorite(current.stationuuid) : false;
   const canResume = Boolean(recent.length);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const viewport = Math.max(window.innerWidth, 320);
+      const nextScale = clamp((viewport - 24) / 550, 0.72, 1.4);
+      setCompactScale(Number(nextScale.toFixed(3)));
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+    };
+  }, []);
 
   useEffect(() => {
     playlistRef.current = playlist;
@@ -197,14 +277,13 @@ export const WinampPlayerShell = ({
 
     for (const [id, url] of urls.entries()) {
       if (nextIds.has(id)) continue;
-      URL.revokeObjectURL(url);
       urls.delete(id);
       lookup.delete(url);
     }
 
     playlist.forEach((station) => {
       if (!urls.has(station.stationuuid)) {
-        urls.set(station.stationuuid, createSilentTrackBlobUrl());
+        urls.set(station.stationuuid, getStationTrackUrl(station.stationuuid));
       }
       const url = urls.get(station.stationuuid);
       if (url) {
@@ -215,7 +294,6 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     return () => {
-      stationTrackUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
       stationTrackUrlsRef.current.clear();
       stationByTrackUrlRef.current.clear();
     };
@@ -227,7 +305,11 @@ export const WinampPlayerShell = ({
 
     let cancelled = false;
     let mountedInstance: WebampInstance | null = null;
+    const markUserIntent = () => {
+      allowTrackChangeUntilRef.current = Date.now() + 450;
+    };
     mountNode.innerHTML = '';
+    mountNode.addEventListener('pointerdown', markUserIntent, true);
     setWebampReady(false);
     setWebampFailed(false);
     setBootError(null);
@@ -266,6 +348,19 @@ export const WinampPlayerShell = ({
             mountedInstance = instance;
             webampRef.current = instance;
             instance.setVolume(Math.round(player.volume * 100));
+            if (!winamp.expanded) {
+              let shadeAttempt = 0;
+              const ensureShade = () => {
+                if (cancelled) return;
+                shadeAttempt += 1;
+                const done = applyCompactWindowshade();
+                syncCompactWindowPlacement(mountNode, compactScale);
+                if (!done && shadeAttempt < 12) {
+                  window.setTimeout(ensureShade, 70);
+                }
+              };
+              window.setTimeout(ensureShade, 40);
+            }
             setWebampReady(true);
             setWebampFailed(false);
             setBootError(null);
@@ -317,6 +412,7 @@ export const WinampPlayerShell = ({
     return () => {
       cancelled = true;
       setWebampReady(false);
+      mountNode.removeEventListener('pointerdown', markUserIntent, true);
       if (retryDelayRef.current !== null) {
         window.clearTimeout(retryDelayRef.current);
         retryDelayRef.current = null;
@@ -333,6 +429,23 @@ export const WinampPlayerShell = ({
       }
     };
   }, [winamp.expanded, bootCycle]);
+
+  useEffect(() => {
+    if (winamp.expanded || !webampReady) return;
+    const mountNode = compactHostRef.current;
+    if (!mountNode) return;
+
+    const sync = () => {
+      syncCompactWindowPlacement(mountNode, compactScale);
+    };
+    sync();
+    window.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }, [winamp.expanded, webampReady, compactScale]);
 
   useEffect(() => {
     const instance = webampRef.current;
@@ -396,6 +509,23 @@ export const WinampPlayerShell = ({
 
     const unsubscribeTrack = instance.onTrackDidChange((trackInfo) => {
       if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
+      if (Date.now() > allowTrackChangeUntilRef.current) {
+        const currentId = player.current?.stationuuid;
+        if (currentId) {
+          const currentIndex = playlistRef.current.findIndex(
+            (item) => item.stationuuid === currentId
+          );
+          if (currentIndex >= 0) {
+            suppressTrackSyncUntilRef.current = Date.now() + 350;
+            try {
+              instance.setCurrentTrack(currentIndex);
+            } catch {
+              // ignore
+            }
+          }
+        }
+        return;
+      }
       const target = stationByTrackUrlRef.current.get(trackInfo.url);
       if (target) {
         if (player.current?.stationuuid === target.stationuuid) return;
@@ -453,10 +583,6 @@ export const WinampPlayerShell = ({
 
       if (nextStatus === 'PAUSED' && player.isPlaying) {
         player.toggle();
-      }
-
-      if (nextStatus === 'STOPPED' && player.isPlaying) {
-        player.stop();
       }
     }, 280);
 
@@ -523,11 +649,9 @@ export const WinampPlayerShell = ({
         </svg>
       </button>
 
-      {nowPlaying && (
-        <button className="chip" type="button" onClick={copyTrack}>
-          Copy track
-        </button>
-      )}
+      <button className="chip" type="button" onClick={copyTrack} disabled={!nowPlaying}>
+        Song
+      </button>
 
       {variant === 'compact' ? (
         <button className="chip active" type="button" onClick={() => winamp.setExpanded(true)}>
@@ -539,7 +663,7 @@ export const WinampPlayerShell = ({
 
   return (
     <>
-      <div className="winamp-compact">
+      <div className="winamp-compact" style={{ ['--winamp-scale' as any]: compactScale }}>
         <div className="winamp-compact-main">
           <div className="winamp-host compact" ref={compactHostRef} />
           {!webampReady && (
@@ -558,23 +682,6 @@ export const WinampPlayerShell = ({
               )}
             </div>
           )}
-        </div>
-
-        <div className="winamp-compact-meta">
-          <div className="player-title">{current?.name ?? 'RadioAtlas'}</div>
-          <div className="player-sub">{current ? stationLocation(current) : statusLabel}</div>
-          {trackLabel && (
-            <button
-              className={`player-track ${nowPlaying ? 'track-copy' : ''}`}
-              onClick={() => nowPlaying && copyTrack()}
-              type="button"
-              disabled={!nowPlaying}
-              title={nowPlaying ? 'Copy track' : undefined}
-            >
-              {trackLabel}
-            </button>
-          )}
-          {!trackLabel && <div className="player-status">{statusLabel}</div>}
         </div>
         {actionStrip('compact')}
       </div>
