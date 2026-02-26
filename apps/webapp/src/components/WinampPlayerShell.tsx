@@ -126,34 +126,6 @@ const buildLayout = (expanded: boolean) => {
   };
 };
 
-const applyCompactWindowshade = () => {
-  const toggle = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
-  if (!toggle) return false;
-  const mainWindow = toggle.closest('.window') as HTMLElement | null;
-  const height = mainWindow?.getBoundingClientRect().height ?? 0;
-  if (height <= 42 && height > 0) return true;
-  toggle.click();
-  return false;
-};
-
-const closeAuxWindow = (windowId: string, toggleTitle: string) => {
-  const windowNode = document.getElementById(windowId) as HTMLElement | null;
-  if (!windowNode) return true;
-  const rect = windowNode.getBoundingClientRect();
-  const isVisible = rect.width > 8 && rect.height > 8;
-  if (!isVisible) return true;
-  const toggle = document.querySelector(`[title="${toggleTitle}"]`) as HTMLElement | null;
-  if (!toggle) return false;
-  toggle.click();
-  return false;
-};
-
-const collapseCompactAuxWindows = () => {
-  const eqClosed = closeAuxWindow('equalizer-window', 'Toggle Graphical Equalizer');
-  const playlistClosed = closeAuxWindow('playlist-window', 'Toggle Playlist Editor');
-  return eqClosed && playlistClosed;
-};
-
 const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
   const windowNode =
@@ -167,19 +139,20 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   windowNode.style.transform = '';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
-  const baseHeight = rawRect.height || 116;
   const nextScale = Number(scale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
-  const nextHeight = baseHeight * nextScale;
+  const compactHeight = Math.round(28 * nextScale);
   const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
-  const top = mountRect.top + Math.max(0, mountRect.height) - nextHeight;
+  const top = mountRect.top;
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
   anchor.style.transform = `translate(${left}px, ${top}px)`;
   anchor.style.zIndex = '58';
   anchor.style.pointerEvents = 'none';
-  windowNode.style.pointerEvents = windowNode.classList.contains('shade') ? 'auto' : 'none';
+  anchor.style.height = `${compactHeight}px`;
+  anchor.style.overflow = 'hidden';
+  windowNode.style.pointerEvents = 'auto';
   windowNode.style.transform = `scale(${nextScale})`;
 
   return true;
@@ -197,6 +170,8 @@ const resetWebampWindowPlacement = () => {
     anchor.style.transform = '';
     anchor.style.zIndex = '';
     anchor.style.pointerEvents = '';
+    anchor.style.height = '';
+    anchor.style.overflow = '';
   }
   if (windowNode) {
     windowNode.style.transformOrigin = '';
@@ -353,18 +328,16 @@ export const WinampPlayerShell = ({
             webampRef.current = instance;
             instance.setVolume(Math.round(player.volume * 100));
             if (!winamp.expanded) {
-              let shadeAttempt = 0;
-              const ensureShade = () => {
+              let placementAttempt = 0;
+              const ensureCompactPlacement = () => {
                 if (cancelled) return;
-                shadeAttempt += 1;
-                const done = applyCompactWindowshade();
-                const auxClosed = collapseCompactAuxWindows();
                 syncCompactWindowPlacement(mountNode, compactScale);
-                if ((!done || !auxClosed) && shadeAttempt < 90) {
-                  window.setTimeout(ensureShade, 180);
+                placementAttempt += 1;
+                if (placementAttempt < 10) {
+                  window.setTimeout(ensureCompactPlacement, 180);
                 }
               };
-              window.setTimeout(ensureShade, 80);
+              window.setTimeout(ensureCompactPlacement, 80);
             } else {
               resetWebampWindowPlacement();
             }

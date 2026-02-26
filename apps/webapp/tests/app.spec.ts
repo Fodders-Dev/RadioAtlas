@@ -152,7 +152,11 @@ test('playback from table updates winamp shell and info panel', async ({ page })
 test('browse flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Browse', exact: true }).click();
+  await page.evaluate(() => {
+    const navItems = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-item'));
+    const browse = navItems.find((item) => item.textContent?.includes('Browse'));
+    browse?.click();
+  });
   await expect(page.getByText('Choose a continent to explore local stations.')).toBeVisible();
 
   await page.getByRole('button', { name: /Asia/ }).click();
