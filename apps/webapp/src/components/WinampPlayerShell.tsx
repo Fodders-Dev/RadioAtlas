@@ -105,8 +105,11 @@ export const WinampPlayerShell = ({
   const overlayHostRef = useRef<HTMLDivElement | null>(null);
   const webampRef = useRef<WebampInstance | null>(null);
   const syncPauseUntilRef = useRef(0);
+  const retryDelayRef = useRef<number | null>(null);
+  const retryCountRef = useRef(0);
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
+  const [bootCycle, setBootCycle] = useState(0);
 
   const current = player.current;
   const statusLabel = useMemo(() => {
@@ -180,6 +183,7 @@ export const WinampPlayerShell = ({
           instance.setVolume(0);
           setWebampReady(true);
           setWebampFailed(false);
+          retryCountRef.current = 0;
           return;
         } catch {
           if (attempt === 2 || cancelled) {
@@ -194,6 +198,13 @@ export const WinampPlayerShell = ({
 
       if (!cancelled) {
         setWebampFailed(true);
+        if (retryCountRef.current < 4) {
+          retryCountRef.current += 1;
+          retryDelayRef.current = window.setTimeout(() => {
+            retryDelayRef.current = null;
+            setBootCycle((value) => value + 1);
+          }, 500 * retryCountRef.current);
+        }
       }
     };
 
@@ -206,6 +217,10 @@ export const WinampPlayerShell = ({
     return () => {
       cancelled = true;
       setWebampReady(false);
+      if (retryDelayRef.current !== null) {
+        window.clearTimeout(retryDelayRef.current);
+        retryDelayRef.current = null;
+      }
       if (mountedInstance) {
         try {
           mountedInstance.dispose();
@@ -217,7 +232,7 @@ export const WinampPlayerShell = ({
         webampRef.current = null;
       }
     };
-  }, [winamp.expanded]);
+  }, [winamp.expanded, bootCycle]);
 
   useEffect(() => {
     const instance = webampRef.current;
