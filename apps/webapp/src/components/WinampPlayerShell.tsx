@@ -40,9 +40,8 @@ type WebampInstance = {
 
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
 
-const SILENT_TRACK_URL =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
-const TRACK_STATION_TOKEN = '#station=';
+const SILENT_TRACK_BASE64 =
+  'UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
 
 const normalizeMediaStatus = (value: string): WebampMediaStatus => {
   const normalized = value.toUpperCase();
@@ -53,24 +52,18 @@ const normalizeMediaStatus = (value: string): WebampMediaStatus => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const toTrackUrl = (stationuuid: string) =>
-  `${SILENT_TRACK_URL}${TRACK_STATION_TOKEN}${encodeURIComponent(stationuuid)}`;
-
-const stationIdFromTrackUrl = (value: string) => {
-  const idx = value.indexOf(TRACK_STATION_TOKEN);
-  if (idx < 0) return null;
-  const raw = value.slice(idx + TRACK_STATION_TOKEN.length).split('&')[0];
-  if (!raw) return null;
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
+const createSilentTrackBlobUrl = () => {
+  const binary = atob(SILENT_TRACK_BASE64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
   }
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
 };
 
-const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
+const buildTracks = (playlist: StationLite[], stationTrackUrls: Map<string, string>): WebampTrack[] =>
   playlist.map((station) => ({
-    url: toTrackUrl(station.stationuuid),
+    url: stationTrackUrls.get(station.stationuuid) || '',
     metaData: {
       title: station.name,
       artist: stationLocation(station)
@@ -134,6 +127,8 @@ export const WinampPlayerShell = ({
   const retryCountRef = useRef(0);
   const syncingVolumeFromWebampRef = useRef(false);
   const playlistRef = useRef<StationLite[]>([]);
+  const stationTrackUrlsRef = useRef<Map<string, string>>(new Map());
+  const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootCycle, setBootCycle] = useState(0);
@@ -170,6 +165,37 @@ export const WinampPlayerShell = ({
   }, [playlist]);
 
   useEffect(() => {
+    const nextIds = new Set(playlist.map((item) => item.stationuuid));
+    const urls = stationTrackUrlsRef.current;
+    const lookup = stationByTrackUrlRef.current;
+
+    for (const [id, url] of urls.entries()) {
+      if (nextIds.has(id)) continue;
+      URL.revokeObjectURL(url);
+      urls.delete(id);
+      lookup.delete(url);
+    }
+
+    playlist.forEach((station) => {
+      if (!urls.has(station.stationuuid)) {
+        urls.set(station.stationuuid, createSilentTrackBlobUrl());
+      }
+      const url = urls.get(station.stationuuid);
+      if (url) {
+        lookup.set(url, station);
+      }
+    });
+  }, [playlist]);
+
+  useEffect(() => {
+    return () => {
+      stationTrackUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      stationTrackUrlsRef.current.clear();
+      stationByTrackUrlRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     const mountNode = winamp.expanded ? overlayHostRef.current : compactHostRef.current;
     if (!mountNode) return;
 
@@ -194,7 +220,7 @@ export const WinampPlayerShell = ({
               name: skin.name,
               url: skin.url
             })),
-            initialTracks: buildTracks(playlist),
+            initialTracks: buildTracks(playlist, stationTrackUrlsRef.current),
             enableDoubleSizeMode: true,
             enableHotkeys: false,
             enableMediaSession: false,
@@ -279,7 +305,9 @@ export const WinampPlayerShell = ({
     const instance = webampRef.current;
     if (!instance || !webampReady) return;
 
-    const tracks = buildTracks(playlist);
+    const tracks = buildTracks(playlist, stationTrackUrlsRef.current).filter((item) =>
+      Boolean(item.url)
+    );
     if (!tracks.length) return;
 
     try {
@@ -324,12 +352,9 @@ export const WinampPlayerShell = ({
 
     const unsubscribeTrack = instance.onTrackDidChange((trackInfo) => {
       if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
-      const stationId = stationIdFromTrackUrl(trackInfo.url);
-      if (!stationId) return;
-      if (player.current?.stationuuid === stationId) return;
-
-      const target = playlistRef.current.find((item) => item.stationuuid === stationId);
+      const target = stationByTrackUrlRef.current.get(trackInfo.url);
       if (target) {
+        if (player.current?.stationuuid === target.stationuuid) return;
         playStation(target);
       }
     });
