@@ -419,7 +419,6 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
-      applyCompactWindowshade();
       syncCompactWindowPlacement(mountNode, compactScale);
     };
     sync();
