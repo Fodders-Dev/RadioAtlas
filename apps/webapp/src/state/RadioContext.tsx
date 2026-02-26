@@ -384,6 +384,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
+        notify('Share dialog opened');
         return;
       } catch {
         // ignore share aborts/errors, fall through
@@ -405,13 +406,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     if (tg?.openLink) {
       tg.openLink(shareUrl);
+      notify('Share opened');
       return;
     }
 
     // 4. Last Resort: Window Open
     try {
-      window.open(shareUrl, '_blank', 'noopener,noreferrer');
-      return;
+      const popup = window.open(shareUrl, '_blank', 'noopener,noreferrer');
+      if (popup) {
+        notify('Share opened');
+        return;
+      }
     } catch {
       // ignore
     }

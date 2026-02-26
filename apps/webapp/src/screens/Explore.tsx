@@ -1,12 +1,10 @@
-import { geoBounds, geoCentroid } from 'd3-geo';
-import { feature } from 'topojson-client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Globe } from '../components/Globe';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
 import { useRadio } from '../state/RadioContext';
 import { toLite } from '../lib/stationUtils';
-import worldData from '../assets/countries-110m.json';
+import { resolveStationCoords } from '../lib/geoResolver';
 
 export const Explore = () => {
   const { stations, playStation, player } = useRadio();
@@ -19,52 +17,6 @@ export const Explore = () => {
   const pickListRef = useRef<HTMLDivElement | null>(null);
   const debounced = useDebounce(query, 250);
 
-  const normalizeName = useCallback(
-    (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/\(.*?\)/g, '')
-        .replace(/[^a-z ]/g, ' ')
-        .replace(/\bthe\b|\bof\b|\band\b/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    []
-  );
-
-  const [countryCenters, setCountryCenters] = useState(() => ({
-    normalize: normalizeName,
-    centers: new Map<string, [number, number]>(),
-    bounds: new Map<string, [[number, number], [number, number]]>()
-  }));
-
-  useEffect(() => {
-    const data = worldData as any;
-    const features = feature(data, data.objects.countries).features as Array<{
-      properties?: { name?: string };
-    }>;
-    const centers = new Map<string, [number, number]>();
-    const bounds = new Map<string, [[number, number], [number, number]]>();
-
-    features.forEach((item) => {
-      const name = item.properties?.name;
-      if (!name) return;
-      const [lon, lat] = geoCentroid(item as any);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      const key = normalizeName(name);
-      centers.set(key, [lat, lon]);
-      const boundsValue = geoBounds(item as any);
-      if (boundsValue?.length === 2) {
-        bounds.set(key, boundsValue as [[number, number], [number, number]]);
-      }
-    });
-
-    setCountryCenters({
-      normalize: normalizeName,
-      centers,
-      bounds
-    });
-  }, [normalizeName]);
-
   useEffect(() => {
     const handleResize = () => {
       setViewportWidth(window.innerWidth);
@@ -72,27 +24,6 @@ export const Explore = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  const aliases = useMemo(
-    () => ({
-      'russian federation': 'russia',
-      'united states': 'united states america',
-      'united states of america': 'united states america',
-      usa: 'united states america',
-      uk: 'united kingdom',
-      'united kingdom great britain northern ireland': 'united kingdom',
-      'korea republic of': 'south korea',
-      'korea democratic peoples republic of': 'north korea',
-      'iran islamic republic of': 'iran',
-      'syrian arab republic': 'syria',
-      'viet nam': 'vietnam',
-      'tanzania united republic of': 'tanzania',
-      'venezuela bolivarian republic of': 'venezuela',
-      'bolivia plurinational state of': 'bolivia',
-      'czechia': 'czech republic'
-    }),
-    []
-  );
 
   const hashCode = (value: string) => {
     let hash = 0;
@@ -102,53 +33,10 @@ export const Explore = () => {
     return hash;
   };
 
-  const clampLat = (value: number) => Math.max(-85, Math.min(85, value));
-  const clampLon = (value: number) => Math.max(-180, Math.min(180, value));
-
-  const resolveCoords = useCallback((station: {
-    stationuuid: string;
-    geo_lat: number | null;
-    geo_long: number | null;
-    country?: string;
-  }) => {
-    if (station.geo_lat !== null && station.geo_long !== null) {
-      return { lat: station.geo_lat, lon: station.geo_long };
-    }
-    const country = station.country?.trim();
-    if (!country) return null;
-    const normalized = countryCenters.normalize(country);
-    const alias = aliases[normalized as keyof typeof aliases] || normalized;
-    const bounds = countryCenters.bounds.get(alias);
-    const seed = hashCode(station.stationuuid);
-    const rand1 = (seed % 1000) / 1000;
-    const rand2 = ((seed / 1000) % 1000) / 1000;
-    if (bounds) {
-      const [min, max] = bounds;
-      const lonRange = max[0] - min[0];
-      const latRange = max[1] - min[1];
-      if (Number.isFinite(lonRange) && Number.isFinite(latRange)) {
-        if (lonRange > 140 || latRange > 70) {
-          const centroid = countryCenters.centers.get(alias);
-          if (centroid) {
-            return { lat: clampLat(centroid[0]), lon: clampLon(centroid[1]) };
-          }
-          return null;
-        }
-        const pad = 0.08;
-        const lon = min[0] + lonRange * (pad + rand1 * (1 - pad * 2));
-        const lat = min[1] + latRange * (pad + rand2 * (1 - pad * 2));
-        return { lat: clampLat(lat), lon: clampLon(lon) };
-      }
-    }
-    const centroid = countryCenters.centers.get(alias);
-    if (!centroid) return null;
-    return { lat: clampLat(centroid[0]), lon: clampLon(centroid[1]) };
-  }, [aliases, countryCenters]);
-
   const globePoints = useMemo(() => {
     const mapped = stations
       .map((station) => {
-        const coords = resolveCoords(station);
+        const coords = resolveStationCoords(station);
         if (!coords) return null;
         return {
           id: station.stationuuid,
@@ -166,7 +54,7 @@ export const Explore = () => {
       order: number;
     }>;
     return mapped.sort((a, b) => a.order - b.order);
-  }, [stations, resolveCoords]);
+  }, [stations]);
 
   const visiblePoints = useMemo(() => {
     const isMobile = viewportWidth < 720;
@@ -192,8 +80,8 @@ export const Explore = () => {
     const full =
       stations.find((station) => station.stationuuid === current.stationuuid) ??
       current;
-    return resolveCoords(full);
-  }, [player.current?.stationuuid, stations, resolveCoords]);
+    return resolveStationCoords(full);
+  }, [player.current?.stationuuid, stations]);
 
   const handlePickCandidates = useCallback(
     (ids: string[]) => {
@@ -201,10 +89,16 @@ export const Explore = () => {
         setPickList([]);
         return;
       }
-      const next = ids
-        .map((id) => stations.find((station) => station.stationuuid === id))
-        .filter(Boolean)
-        .map((station) => toLite(station!));
+      const position = new Map(ids.map((id, index) => [id, index]));
+      const next = stations
+        .filter((station) => position.has(station.stationuuid))
+        .sort((a, b) => {
+          const orderA = position.get(a.stationuuid) ?? Number.MAX_SAFE_INTEGER;
+          const orderB = position.get(b.stationuuid) ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.name.localeCompare(b.name);
+        })
+        .map(toLite);
       setPickList(next);
     },
     [stations]
@@ -271,13 +165,18 @@ export const Explore = () => {
           }}
         />
         <div className="globe-scroll-hint">
-          {pickList.length ? 'Stations nearby ↓' : 'Scroll for stations ↓'}
+          {pickList.length
+            ? `${pickList.length} stations near this point ↓`
+            : 'Tap a glow point to tune in ↓'}
         </div>
       </div>
 
       {pickList.length > 1 && (
         <div className="section" ref={pickListRef}>
-          <div className="section-title">Pick a station nearby</div>
+          <div className="section-title">Pick a station nearby ({pickList.length})</div>
+          <div className="section-subtitle">
+            Nearest matches are listed first. Choose one to start playback.
+          </div>
           <div className="pick-panel">
             {pickList.map((station) => (
               <button

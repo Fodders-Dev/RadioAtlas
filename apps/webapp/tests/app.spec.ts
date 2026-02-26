@@ -164,6 +164,32 @@ test('favorites and search behave correctly', async ({ page }) => {
   await expect(page.getByText('Berlin Pulse')).toBeVisible();
 });
 
+test('navigation and browse hierarchy work', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Browse', exact: true }).click();
+  await expect(page.getByText('Choose a continent to explore local stations.')).toBeVisible();
+
+  await page.getByRole('button', { name: /Asia/ }).click();
+  await expect(page.getByPlaceholder('Search country')).toBeVisible();
+
+  await page.getByPlaceholder('Search country').fill('jap');
+  await page.getByRole('button', { name: /Japan/ }).click();
+
+  await expect(page.getByText('Tokyo FM')).toBeVisible();
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
+
+  await page.getByRole('button', { name: 'Favorites' }).click();
+  await expect(page.getByText('My Stations')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Search' }).click();
+  await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByText('Background Audio')).toBeVisible();
+});
+
 test('play resumes last station and random next works', async ({ page }) => {
   await page.addInitScript(() => {
     Math.random = () => 0.6;
@@ -191,6 +217,14 @@ test('play resumes last station and random next works', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Random station' }).click();
   await expect(page.locator('.player-title')).toContainText('Berlin Pulse');
+});
+
+test('share always shows result toast', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Share' }).click();
+  await expect(page.locator('.toast')).toBeVisible();
+  await expect(page.locator('.toast')).toContainText(/Share|Link/);
 });
 
 test('links mode saves and plays external audio', async ({ page }) => {

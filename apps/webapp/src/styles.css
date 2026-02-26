@@ -447,6 +447,52 @@ main {
   gap: 8px;
 }
 
+.browse-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.browse-card,
+.browse-list-item {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.browse-card:hover,
+.browse-list-item:hover {
+  border-color: rgba(246, 201, 69, 0.35);
+  background: rgba(246, 201, 69, 0.08);
+}
+
+.browse-list {
+  display: grid;
+  gap: 8px;
+}
+
+.browse-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.browse-meta {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.browse-hint {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .settings-card {
   display: flex;
   justify-content: space-between;

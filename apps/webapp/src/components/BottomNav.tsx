@@ -8,7 +8,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'Explore', label: 'Explore' },
   { id: 'Favorites', label: 'Favorites' },
-  { id: 'Browse', label: 'Random' },
+  { id: 'Browse', label: 'Browse' },
   { id: 'Search', label: 'Search' },
   { id: 'Settings', label: 'Settings' }
 ];

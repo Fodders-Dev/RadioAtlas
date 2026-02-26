@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const API_URLS = [
   'https://de1.api.radio-browser.info/json/stations/search',
@@ -13,13 +14,30 @@ const FAST_LIMIT = Number(process.env.FAST_LIMIT || 10000);
 const FULL_LIMIT = Number(process.env.FULL_LIMIT || 10000);
 const FULL_PAGES = Number(process.env.FULL_PAGES || 5);
 const MODE = (process.env.MODE || 'both').toLowerCase();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = join(__dirname, '..');
 
 const FAST_OUTPUT =
   process.env.FAST_OUTPUT ||
-  join(process.cwd(), 'apps', 'webapp', 'public', 'catalog-fast.json');
+  join(ROOT_DIR, 'apps', 'webapp', 'public', 'catalog-fast.json');
 const FULL_OUTPUT =
   process.env.FULL_OUTPUT ||
-  join(process.cwd(), 'apps', 'webapp', 'public', 'catalog-full.json');
+  join(ROOT_DIR, 'apps', 'webapp', 'public', 'catalog-full.json');
+
+const asNumber = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized === 'null' || normalized === 'undefined') {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const pickStation = (raw) => ({
   stationuuid: raw.stationuuid,
@@ -35,8 +53,8 @@ const pickStation = (raw) => ({
   language: raw.language || '',
   codec: raw.codec || '',
   bitrate: Number(raw.bitrate || 0),
-  geo_lat: raw.geo_lat === null || raw.geo_lat === undefined ? null : Number(raw.geo_lat),
-  geo_long: raw.geo_long === null || raw.geo_long === undefined ? null : Number(raw.geo_long)
+  geo_lat: asNumber(raw.geo_lat),
+  geo_long: asNumber(raw.geo_long)
 });
 
 const fetchFromEndpoint = async (endpoint, limit, pages) => {

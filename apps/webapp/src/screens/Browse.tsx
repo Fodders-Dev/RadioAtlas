@@ -1,116 +1,255 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StationTable } from '../components/StationTable';
-import { useRadio } from '../state/RadioContext';
+import { resolveContinent } from '../lib/geoResolver';
 import { toLite } from '../lib/stationUtils';
-import type { Station } from '../types';
+import { useRadio } from '../state/RadioContext';
+import type { BrowseState, ContinentId, CountryBucket } from '../types';
 
-const VIBES = [
-  { id: 'all', label: 'All', keywords: [] },
-  { id: 'chill', label: 'Chill', keywords: ['chill', 'ambient', 'lofi', 'downtempo'] },
-  { id: 'electro', label: 'Electronic', keywords: ['electronic', 'house', 'techno', 'edm'] },
-  { id: 'dance', label: 'Dance', keywords: ['dance', 'club', 'trance', 'dnb'] },
-  { id: 'pop', label: 'Pop', keywords: ['pop', 'top', 'chart', 'hits'] },
-  { id: 'hiphop', label: 'Hip-Hop', keywords: ['hip', 'rap', 'hip-hop', 'trap'] },
-  { id: 'rock', label: 'Rock', keywords: ['rock', 'metal', 'indie', 'alternative'] },
-  { id: 'indie', label: 'Indie', keywords: ['indie', 'alternative', 'shoegaze'] },
-  { id: 'retro', label: 'Retro', keywords: ['80s', '90s', 'retro', 'oldies'] },
-  { id: 'jazz', label: 'Jazz', keywords: ['jazz', 'blues', 'swing', 'soul'] },
-  { id: 'classical', label: 'Classical', keywords: ['classical', 'orchestra', 'piano'] },
-  { id: 'cinema', label: 'Cinematic', keywords: ['soundtrack', 'cinema', 'score'] },
-  { id: 'news', label: 'News', keywords: ['news', 'talk', 'public', 'politics'] },
-  { id: 'sports', label: 'Sports', keywords: ['sports', 'football', 'soccer', 'nba'] },
-  { id: 'world', label: 'World', keywords: ['world', 'latin', 'reggae', 'afro'] }
+const CONTINENT_ORDER: ContinentId[] = [
+  'Europe',
+  'Asia',
+  'North America',
+  'South America',
+  'Africa',
+  'Oceania',
+  'Antarctica',
+  'Other'
 ];
 
-const makeRng = (seed: number) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), t | 1);
-    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
+const CONTINENT_HINTS: Record<ContinentId, string> = {
+  Europe: 'Public broadcasters, dance, indie and talk.',
+  Asia: 'Regional pop, talk and large city FM networks.',
+  'North America': 'News, classic hits, college and local stations.',
+  'South America': 'Latin formats, regional and cultural streams.',
+  Africa: 'Urban, news and community-driven stations.',
+  Oceania: 'Island and metro radio scenes.',
+  Antarctica: 'Very few remote streams.',
+  Other: 'Stations without enough location metadata.'
 };
 
-const sampleStations = (stations: Station[], count: number, seed: number) => {
-  if (stations.length <= count) return stations.slice();
-  const rng = makeRng(seed);
-  const copy = stations.slice();
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, count);
-};
+const normalizeCountryKey = (value: string) =>
+  value.toLowerCase().replace(/\s+/g, ' ').trim();
 
-const stationText = (station: Station) =>
-  `${station.name} ${station.tags} ${station.language} ${station.country}`.toLowerCase();
+const sortStations = (left: { name: string }, right: { name: string }) =>
+  left.name.localeCompare(right.name);
 
 export const Browse = () => {
   const { stations, playStation } = useRadio();
-  const [vibe, setVibe] = useState('all');
-  const [seed, setSeed] = useState(() => Date.now());
+  const [step, setStep] = useState<BrowseState>('continents');
+  const [selectedContinent, setSelectedContinent] = useState<ContinentId | null>(null);
+  const [selectedCountryKey, setSelectedCountryKey] = useState<string | null>(null);
+  const [countryQuery, setCountryQuery] = useState('');
 
-  const vibeConfig = useMemo(
-    () => VIBES.find((item) => item.id === vibe) ?? VIBES[0],
-    [vibe]
+  const countryBuckets = useMemo(() => {
+    const map = new Map<string, CountryBucket>();
+    stations.forEach((station) => {
+      const country = station.country?.trim() || 'Unknown';
+      const key = normalizeCountryKey(country);
+      const existing = map.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.stations.push(toLite(station));
+        return;
+      }
+      map.set(key, {
+        key,
+        country,
+        continent: resolveContinent(station.country),
+        count: 1,
+        stations: [toLite(station)]
+      });
+    });
+
+    return Array.from(map.values())
+      .map((bucket) => ({
+        ...bucket,
+        stations: bucket.stations.sort(sortStations)
+      }))
+      .sort((a, b) => {
+        if (a.count !== b.count) return b.count - a.count;
+        return a.country.localeCompare(b.country);
+      });
+  }, [stations]);
+
+  const continentBuckets = useMemo(
+    () =>
+      CONTINENT_ORDER.map((continent) => {
+        const countries = countryBuckets.filter((bucket) => bucket.continent === continent);
+        const stationCount = countries.reduce((sum, item) => sum + item.count, 0);
+        return {
+          id: continent,
+          countries,
+          countryCount: countries.length,
+          stationCount
+        };
+      }).filter((item) => item.countryCount > 0),
+    [countryBuckets]
   );
 
-  const filtered = useMemo(() => {
-    if (!vibeConfig.keywords.length) return stations;
-    return stations.filter((station) =>
-      vibeConfig.keywords.some((keyword) => stationText(station).includes(keyword))
-    );
-  }, [stations, vibeConfig]);
+  const filteredCountries = useMemo(() => {
+    if (!selectedContinent) return [];
+    const source = countryBuckets.filter((bucket) => bucket.continent === selectedContinent);
+    const q = countryQuery.trim().toLowerCase();
+    if (!q) return source;
+    return source.filter((bucket) => bucket.country.toLowerCase().includes(q));
+  }, [countryBuckets, selectedContinent, countryQuery]);
 
-  const picks = useMemo(() => sampleStations(filtered, 24, seed), [filtered, seed]);
+  const selectedCountry = useMemo(
+    () => countryBuckets.find((bucket) => bucket.key === selectedCountryKey) ?? null,
+    [countryBuckets, selectedCountryKey]
+  );
 
-  const handleSurprise = () => {
-    if (!filtered.length) return;
-    const next = sampleStations(filtered, 1, Date.now())[0];
-    if (next) playStation(next);
+  useEffect(() => {
+    if (!selectedContinent && step !== 'continents') {
+      setStep('continents');
+    }
+  }, [selectedContinent, step]);
+
+  useEffect(() => {
+    if (step === 'stations' && !selectedCountry) {
+      setStep(selectedContinent ? 'countries' : 'continents');
+    }
+  }, [selectedCountry, selectedContinent, step]);
+
+  const openContinent = (continent: ContinentId) => {
+    setSelectedContinent(continent);
+    setSelectedCountryKey(null);
+    setCountryQuery('');
+    setStep('countries');
   };
+
+  const openCountry = (countryKey: string) => {
+    setSelectedCountryKey(countryKey);
+    setStep('stations');
+  };
+
+  const backToContinents = () => {
+    setStep('continents');
+    setSelectedContinent(null);
+    setSelectedCountryKey(null);
+    setCountryQuery('');
+  };
+
+  const backToCountries = () => {
+    setStep('countries');
+    setSelectedCountryKey(null);
+  };
+
+  if (!stations.length) {
+    return (
+      <section className="screen">
+        <div className="section">
+          <div className="section-title">Browse</div>
+          <div className="empty-state">Loading stations...</div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="screen">
       <div className="section">
-        <div className="section-title">Random</div>
+        <div className="section-title">Browse</div>
         <div className="section-subtitle">
-          Discover something new. Shuffle the airwaves and jump in.
-        </div>
-        <div className="chip-row">
-          <button className="chip active" onClick={handleSurprise} type="button">
-            Surprise me
-          </button>
-          <button className="chip" onClick={() => setSeed(Date.now())} type="button">
-            New picks
-          </button>
+          {step === 'continents' && 'Choose a continent to explore local stations.'}
+          {step === 'countries' &&
+            `Pick a country in ${selectedContinent}. ${filteredCountries.length} found.`}
+          {step === 'stations' &&
+            `${selectedCountry?.country || 'Country'} · ${selectedCountry?.count || 0} stations.`}
         </div>
       </div>
 
-      <div className="section">
-        <div className="section-subtitle">Vibes</div>
-        <div className="chip-row">
-          {VIBES.map((item) => (
+      {step === 'continents' && (
+        <div className="browse-grid">
+          {continentBuckets.map((continent) => (
             <button
-              key={item.id}
-              className={`chip ${item.id === vibe ? 'active' : ''}`}
-              onClick={() => setVibe(item.id)}
+              key={continent.id}
+              className="browse-card"
               type="button"
+              onClick={() => openContinent(continent.id)}
             >
-              {item.label}
+              <div className="browse-title">{continent.id}</div>
+              <div className="browse-meta">
+                {continent.countryCount} countries · {continent.stationCount} stations
+              </div>
+              <div className="browse-hint">{CONTINENT_HINTS[continent.id]}</div>
             </button>
           ))}
         </div>
-      </div>
+      )}
 
-      <div className="section">
-        <div className="section-subtitle">
-          {vibeConfig.label} picks ({filtered.length})
-        </div>
-      </div>
+      {step === 'countries' && (
+        <>
+          <div className="section">
+            <div className="chip-row">
+              <button className="chip" type="button" onClick={backToContinents}>
+                Back to continents
+              </button>
+            </div>
+            <div className="search-bar">
+              <input
+                placeholder="Search country"
+                value={countryQuery}
+                onChange={(event) => setCountryQuery(event.target.value)}
+              />
+              {countryQuery && (
+                <button className="clear-btn" type="button" onClick={() => setCountryQuery('')}>
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
 
-      <StationTable stations={picks.map(toLite)} compact />
+          {filteredCountries.length ? (
+            <div className="browse-list">
+              {filteredCountries.map((bucket) => (
+                <button
+                  key={bucket.key}
+                  className="browse-list-item"
+                  type="button"
+                  onClick={() => openCountry(bucket.key)}
+                >
+                  <div className="browse-title">{bucket.country}</div>
+                  <div className="browse-meta">{bucket.count} stations</div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No countries found for this query.</div>
+          )}
+        </>
+      )}
+
+      {step === 'stations' && selectedCountry && (
+        <>
+          <div className="section">
+            <div className="chip-row">
+              <button className="chip" type="button" onClick={backToCountries}>
+                Back to countries
+              </button>
+              <button
+                className="chip active"
+                type="button"
+                onClick={() => {
+                  const random =
+                    selectedCountry.stations[
+                      Math.floor(Math.random() * selectedCountry.stations.length)
+                    ];
+                  if (random) playStation(random);
+                }}
+              >
+                Play random in {selectedCountry.country}
+              </button>
+            </div>
+          </div>
+          {selectedCountry.stations.length ? (
+            <StationTable stations={selectedCountry.stations} />
+          ) : (
+            <div className="empty-state">No stations in this country yet.</div>
+          )}
+        </>
+      )}
     </section>
   );
 };
+

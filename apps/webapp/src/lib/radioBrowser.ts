@@ -24,13 +24,24 @@ const normalizeBase = (value?: string) =>
   value ? value.replace(/\/+$/, '') : '';
 
 const asNumber = (value: unknown): number | null => {
-  const num = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(num) ? num : null;
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || normalized === 'null' || normalized === 'undefined') {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const normalizeStation = (raw: Station): Station => ({
   ...raw,
   name: raw.name?.trim() || 'Unknown Station',
+  state: raw.state?.trim() || '',
   url_resolved: raw.url_resolved || raw.url,
   geo_lat: asNumber(raw.geo_lat),
   geo_long: asNumber(raw.geo_long)

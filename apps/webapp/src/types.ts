@@ -16,6 +16,26 @@ export type Station = {
   geo_long: number | null;
 };
 
+export type ContinentId =
+  | 'Africa'
+  | 'Asia'
+  | 'Europe'
+  | 'North America'
+  | 'South America'
+  | 'Oceania'
+  | 'Antarctica'
+  | 'Other';
+
+export type BrowseState = 'continents' | 'countries' | 'stations';
+
+export type CountryBucket = {
+  key: string;
+  country: string;
+  continent: ContinentId;
+  count: number;
+  stations: StationLite[];
+};
+
 export type StationLite = Pick<
   Station,
   | 'stationuuid'

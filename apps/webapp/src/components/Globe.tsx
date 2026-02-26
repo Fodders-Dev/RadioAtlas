@@ -405,7 +405,10 @@ export const Globe = ({
       return;
     }
 
-    candidates.sort((a, b) => a.dist - b.dist);
+    candidates.sort((a, b) => {
+      if (a.dist !== b.dist) return a.dist - b.dist;
+      return a.id.localeCompare(b.id);
+    });
     if (candidates.length === 1) {
       onPick?.(candidates[0].id);
       onPickCandidates?.([]);
