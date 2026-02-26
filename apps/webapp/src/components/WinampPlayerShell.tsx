@@ -14,16 +14,6 @@ type WebampTrack = {
 
 type WebampMediaStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
 
-type WebampSerializedState = {
-  media?: {
-    volume?: number;
-    status?: string;
-  };
-  playlist?: {
-    currentTrack?: number;
-  };
-};
-
 type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
   dispose: () => void;
@@ -35,9 +25,9 @@ type WebampInstance = {
   pause: () => void;
   stop: () => void;
   getMediaStatus: () => string;
-  onTrackDidChange: (cb: (trackInfo: { url: string } | null) => void) => () => void;
-  __getSerializedState?: () => WebampSerializedState;
-  __onStateChange?: (cb: () => void) => () => void;
+  onTrackDidChange: (
+    cb: (trackInfo: { url: string; metaData?: { title?: string } } | null) => void
+  ) => () => void;
 };
 
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
@@ -62,6 +52,7 @@ const normalizeMediaStatus = (value: string): WebampMediaStatus => {
   if (normalized === 'PAUSED') return 'PAUSED';
   return 'STOPPED';
 };
+
 const normalizeTrackUrl = (url: string) => {
   try {
     return new URL(url, window.location.origin).toString();
@@ -69,6 +60,7 @@ const normalizeTrackUrl = (url: string) => {
     return url;
   }
 };
+
 const canonicalTrackUrl = (url: string) => {
   try {
     const parsed = new URL(url, window.location.origin);
@@ -139,7 +131,8 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   windowNode.style.transform = '';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
-  const nextScale = Number(scale.toFixed(3));
+  const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.48, 1.24);
+  const nextScale = Number(Math.min(scale, fitScale).toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const compactHeight = Math.round(28 * nextScale);
   const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
@@ -207,9 +200,12 @@ export const WinampPlayerShell = ({
   const suppressTrackSyncUntilRef = useRef(0);
   const retryDelayRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
-  const syncingVolumeFromWebampRef = useRef(false);
   const playablePlaylistRef = useRef<StationLite[]>([]);
   const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
+  const stationByTrackTitleRef = useRef<Map<string, StationLite>>(new Map());
+  const lastPlaylistSignatureRef = useRef('');
+  const currentTrackIndexRef = useRef<number | null>(null);
+
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -223,6 +219,7 @@ export const WinampPlayerShell = ({
     if (current) return [current];
     return [] as StationLite[];
   }, [winamp.playlist, current]);
+
   const playablePlaylist = useMemo(
     () => playlist.filter((station) => Boolean(station.url_resolved)),
     [playlist]
@@ -249,18 +246,23 @@ export const WinampPlayerShell = ({
   }, [playablePlaylist]);
 
   useEffect(() => {
-    const lookup = stationByTrackUrlRef.current;
-    lookup.clear();
+    const byUrl = stationByTrackUrlRef.current;
+    const byTitle = stationByTrackTitleRef.current;
+    byUrl.clear();
+    byTitle.clear();
+
     playablePlaylist.forEach((station) => {
       if (!station.url_resolved) return;
-      lookup.set(normalizeTrackUrl(station.url_resolved), station);
-      lookup.set(canonicalTrackUrl(station.url_resolved), station);
+      byUrl.set(normalizeTrackUrl(station.url_resolved), station);
+      byUrl.set(canonicalTrackUrl(station.url_resolved), station);
+      byTitle.set(station.name.trim().toLowerCase(), station);
     });
   }, [playablePlaylist]);
 
   useEffect(() => {
     return () => {
       stationByTrackUrlRef.current.clear();
+      stationByTrackTitleRef.current.clear();
     };
   }, []);
 
@@ -279,7 +281,13 @@ export const WinampPlayerShell = ({
 
     let cancelled = false;
     let mountedInstance: WebampInstance | null = null;
+
     if (webampRef.current) {
+      try {
+        webampRef.current.stop();
+      } catch {
+        // ignore
+      }
       try {
         webampRef.current.dispose();
       } catch {
@@ -287,6 +295,7 @@ export const WinampPlayerShell = ({
       }
       webampRef.current = null;
     }
+
     mountNode.innerHTML = '';
     resetWebampWindowPlacement();
     setWebampReady(false);
@@ -299,7 +308,7 @@ export const WinampPlayerShell = ({
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const layoutModes = [false];
+        const layoutModes = [false, true];
         for (const useLayout of layoutModes) {
           try {
             const instance = new Webamp({
@@ -320,13 +329,21 @@ export const WinampPlayerShell = ({
 
             await instance.renderWhenReady(mountNode);
             if (cancelled) {
+              try {
+                instance.stop();
+              } catch {
+                // ignore
+              }
               instance.dispose();
               return;
             }
 
             mountedInstance = instance;
             webampRef.current = instance;
+            lastPlaylistSignatureRef.current = '';
+            currentTrackIndexRef.current = null;
             instance.setVolume(Math.round(player.volume * 100));
+
             if (!winamp.expanded) {
               let placementAttempt = 0;
               const ensureCompactPlacement = () => {
@@ -341,6 +358,7 @@ export const WinampPlayerShell = ({
             } else {
               resetWebampWindowPlacement();
             }
+
             setWebampReady(true);
             setWebampFailed(false);
             setBootError(null);
@@ -358,12 +376,12 @@ export const WinampPlayerShell = ({
             mountNode.innerHTML = '';
           }
         }
+
         if (attempt === 2 || cancelled) {
           break;
         }
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, 200 * (attempt + 1))
-        );
+
+        await new Promise((resolve) => window.setTimeout(resolve, 200 * (attempt + 1)));
       }
 
       if (!cancelled) {
@@ -394,6 +412,11 @@ export const WinampPlayerShell = ({
         retryDelayRef.current = null;
       }
       if (mountedInstance) {
+        try {
+          mountedInstance.stop();
+        } catch {
+          // ignore
+        }
         try {
           mountedInstance.dispose();
         } catch {
@@ -442,26 +465,37 @@ export const WinampPlayerShell = ({
     const tracks = buildTracks(playablePlaylist);
     if (!tracks.length) return;
 
+    const signature = tracks
+      .map((track) => `${track.url}::${track.metaData.title}`)
+      .join('|');
+    if (signature === lastPlaylistSignatureRef.current) return;
+
     try {
       instance.setTracksToPlay(tracks);
-      const currentId = current?.stationuuid;
-      const currentIndex = currentId
-        ? playablePlaylist.findIndex((item) => item.stationuuid === currentId)
-        : 0;
-      if (currentIndex >= 0) {
-        suppressTrackSyncUntilRef.current = Date.now() + 700;
-        instance.setCurrentTrack(currentIndex);
-      }
+      lastPlaylistSignatureRef.current = signature;
+      currentTrackIndexRef.current = null;
     } catch {
       // ignore
     }
-  }, [webampReady, playablePlaylist, current?.stationuuid]);
+  }, [webampReady, playablePlaylist]);
 
   useEffect(() => {
     const instance = webampRef.current;
     if (!instance || !webampReady) return;
 
     try {
+      const currentId = current?.stationuuid;
+      if (currentId) {
+        const index = playablePlaylist.findIndex((item) => item.stationuuid === currentId);
+        if (index >= 0 && currentTrackIndexRef.current !== index) {
+          currentTrackIndexRef.current = index;
+          suppressTrackSyncUntilRef.current = Date.now() + 700;
+          instance.setCurrentTrack(index);
+        }
+      } else {
+        currentTrackIndexRef.current = null;
+      }
+
       syncPauseUntilRef.current = Date.now() + 500;
       if (!current || !player.isPlaying) {
         instance.pause();
@@ -471,12 +505,11 @@ export const WinampPlayerShell = ({
     } catch {
       // ignore
     }
-  }, [webampReady, current?.stationuuid, player.isPlaying]);
+  }, [webampReady, playablePlaylist, current?.stationuuid, player.isPlaying]);
 
   useEffect(() => {
     const instance = webampRef.current;
     if (!instance || !webampReady) return;
-    if (syncingVolumeFromWebampRef.current) return;
 
     try {
       instance.setVolume(Math.round(clamp(player.volume, 0, 1) * 100));
@@ -489,55 +522,44 @@ export const WinampPlayerShell = ({
     const instance = webampRef.current;
     if (!instance || !webampReady) return;
 
-    const unsubscribeTrack = instance.onTrackDidChange((trackInfo) => {
-      if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
-      const lookup = stationByTrackUrlRef.current;
-      const target =
-        lookup.get(normalizeTrackUrl(trackInfo.url)) ??
-        lookup.get(canonicalTrackUrl(trackInfo.url));
-      if (target) {
-        if (player.current?.stationuuid === target.stationuuid) return;
-        playStation(target);
-        return;
+    const applyTrack = (trackInfo: { url: string; metaData?: { title?: string } }) => {
+      const byUrl = stationByTrackUrlRef.current;
+      const byTitle = stationByTrackTitleRef.current;
+      const byTrackUrl =
+        byUrl.get(normalizeTrackUrl(trackInfo.url)) ??
+        byUrl.get(canonicalTrackUrl(trackInfo.url));
+      const titleKey = trackInfo.metaData?.title?.trim().toLowerCase();
+      const target = byTrackUrl ?? (titleKey ? byTitle.get(titleKey) : undefined);
+      if (!target) return;
+
+      const index = playablePlaylistRef.current.findIndex(
+        (item) => item.stationuuid === target.stationuuid
+      );
+      if (index >= 0) {
+        currentTrackIndexRef.current = index;
       }
 
-      let currentIndex: number | undefined;
-      try {
-        currentIndex = instance.__getSerializedState?.().playlist?.currentTrack;
-      } catch {
-        currentIndex = undefined;
-      }
-      if (typeof currentIndex === 'number' && currentIndex >= 0) {
-        const station = playablePlaylistRef.current[currentIndex];
-        if (station && player.current?.stationuuid !== station.stationuuid) {
-          playStation(station);
+      if (player.current?.stationuuid === target.stationuuid) {
+        if (!player.isPlaying) {
+          syncPauseUntilRef.current = Date.now() + 360;
+          player.toggle();
         }
+        return;
       }
+      playStation(target);
+    };
+
+    const unsubscribeTrack = instance.onTrackDidChange((trackInfo) => {
+      if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
+      applyTrack(trackInfo);
     });
 
     let previousStatus = normalizeMediaStatus(instance.getMediaStatus());
-
-    const syncMediaState = (state?: WebampSerializedState) => {
-      const media = state?.media;
-      if (!media) return;
-      if (typeof media.volume === 'number') {
-        const nextVolume = clamp(media.volume / 100, 0, 1);
-        if (Math.abs(nextVolume - player.volume) > 0.03) {
-          syncingVolumeFromWebampRef.current = true;
-          player.setVolume(nextVolume);
-          window.setTimeout(() => {
-            syncingVolumeFromWebampRef.current = false;
-          }, 120);
-        }
-      }
-
-      const nextStatus = normalizeMediaStatus(media.status ?? instance.getMediaStatus());
+    const statusTick = window.setInterval(() => {
+      const nextStatus = normalizeMediaStatus(instance.getMediaStatus());
       if (nextStatus === previousStatus) return;
       previousStatus = nextStatus;
-
-      if (Date.now() < syncPauseUntilRef.current) {
-        return;
-      }
+      if (Date.now() < syncPauseUntilRef.current) return;
 
       if (nextStatus === 'PLAYING') {
         if (player.current) {
@@ -554,18 +576,13 @@ export const WinampPlayerShell = ({
       if ((nextStatus === 'PAUSED' || nextStatus === 'STOPPED') && player.isPlaying) {
         player.toggle();
       }
-    };
-
-    const unsubscribeState = instance.__onStateChange?.(() => {
-      const state = instance.__getSerializedState?.();
-      syncMediaState(state);
-    });
+    }, 420);
 
     return () => {
       unsubscribeTrack?.();
-      unsubscribeState?.();
+      window.clearInterval(statusTick);
     };
-  }, [webampReady, player, playLast, playStation, canResume]);
+  }, [webampReady, playStation, playLast, canResume, player.current?.stationuuid, player.isPlaying]);
 
   const actionStrip = (variant: 'compact' | 'overlay') => (
     <div className={`winamp-actions ${variant}`}>

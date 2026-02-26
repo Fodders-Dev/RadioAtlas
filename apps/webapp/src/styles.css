@@ -655,12 +655,12 @@ main {
 
 .winamp-compact {
   position: fixed;
-  left: 8px;
-  right: 8px;
+  left: 6px;
+  right: 6px;
   bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   z-index: 60;
   width: auto;
-  max-width: min(98vw, 920px);
+  max-width: 100vw;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -725,14 +725,6 @@ main {
 
 .winamp-host > div {
   margin: 0 auto;
-}
-
-#webamp div[tabindex='-1'] {
-  pointer-events: none !important;
-}
-
-#webamp .window {
-  pointer-events: auto !important;
 }
 
 .winamp-host.compact {
@@ -816,7 +808,7 @@ main {
   position: absolute;
   inset: 0;
   padding: calc(8px + env(safe-area-inset-top)) 0 calc(76px + env(safe-area-inset-bottom));
-  overflow: hidden;
+  overflow: auto;
 }
 
 .winamp-host.overlay {
