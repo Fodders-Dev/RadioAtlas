@@ -200,13 +200,17 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) 
   const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
-  const compactHeight = forceStrip ? Math.min(30, rawHeight) : rawHeight;
+  const compactHeight = forceStrip ? clamp(rawHeight, 28, 40) : Math.max(28, rawHeight);
   mountNode.style.height = `${compactHeight}px`;
   const hostRect = mountNode.getBoundingClientRect();
   const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
   const actionsNode = document.querySelector('.winamp-actions.compact') as HTMLElement | null;
   const actionsRect = actionsNode?.getBoundingClientRect();
-  const top = actionsRect ? Math.max(hostRect.top, actionsRect.bottom + 6) : hostRect.top;
+  const navNode = document.querySelector('.bottom-nav') as HTMLElement | null;
+  const navRect = navNode?.getBoundingClientRect();
+  const minTop = actionsRect ? actionsRect.bottom + 8 : hostRect.top;
+  const maxBottom = navRect ? navRect.top - 2 : hostRect.bottom;
+  let top = Math.max(hostRect.top, minTop);
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
@@ -219,6 +223,13 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) 
   anchor.dataset.raCompactAnchor = '1';
   windowNode.style.pointerEvents = 'auto';
   windowNode.style.transform = `scale(${nextScale})`;
+  const placedRect = windowNode.getBoundingClientRect();
+  const adjustDown = Math.max(0, minTop - placedRect.top);
+  const adjustUp = Math.max(0, placedRect.bottom - maxBottom);
+  if (adjustDown > 0 || adjustUp > 0) {
+    top = top + adjustDown - adjustUp;
+    anchor.style.transform = `translate(${left}px, ${top}px)`;
+  }
 
   return true;
 };

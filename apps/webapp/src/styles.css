@@ -687,11 +687,11 @@ main {
   width: 100%;
   height: 100%;
   align-items: flex-start;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .winamp-compact.expanded-host .winamp-host.compact {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .winamp-compact-main {
@@ -769,7 +769,7 @@ main {
 }
 
 .winamp-host.compact {
-  min-height: 20px;
+  min-height: 30px;
   width: 100%;
 }
 
@@ -814,8 +814,9 @@ main {
 .winamp-overlay {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: 2300;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .winamp-overlay-backdrop {
@@ -823,6 +824,7 @@ main {
   inset: 0;
   border: none;
   background: rgba(0, 0, 0, 0.66);
+  pointer-events: none;
 }
 
 .winamp-overlay-header {
@@ -833,7 +835,7 @@ main {
   justify-content: flex-end;
   align-items: flex-start;
   gap: 8px;
-  z-index: 2100;
+  z-index: 2310;
   pointer-events: auto;
 }
 
@@ -851,6 +853,7 @@ main {
   padding: calc(8px + env(safe-area-inset-top)) 0 calc(76px + env(safe-area-inset-bottom));
   overflow: auto;
   z-index: 150;
+  pointer-events: none;
 }
 
 .winamp-host.overlay {
@@ -863,7 +866,7 @@ main {
   left: 10px;
   right: 10px;
   bottom: calc(8px + env(safe-area-inset-bottom));
-  z-index: 2100;
+  z-index: 2310;
   background: rgba(8, 10, 18, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
