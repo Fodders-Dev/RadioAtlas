@@ -5,7 +5,7 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 
 ## UX patterns (from references)
 - Radio++: tabs for Find Station / My Stations / Preferences; search field; table with Name/URL.
-- Radio Garden: globe with station dots; bottom nav Explore / Favorites / Browse / Search / Settings; persistent mini-player.
+- Radio Garden: globe with station dots; bottom nav Explore / Favorites / Browse / Search / Settings; persistent player.
 
 ## Screens
 - Explore
@@ -25,12 +25,15 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 - Settings
   - Clear cache/favorites/recent.
 
-## Mini player
-- Always visible at bottom.
-- Prev/Next, Play/Pause, station title, location, favorite toggle, share, open external, volume.
+## Winamp player mode
+- Always visible Winamp compact shell at bottom (main window).
+- Expand opens full-height overlay with main + EQ + playlist stack.
+- Prev/Next, Play/Pause, station title, location, favorite toggle, share, info, open external, volume.
 - Status: buffering/playing/error.
 - Track info can be copied and saved locally.
 - Share uses bot deep link when configured.
+- Skin manager: local presets + uploaded `.wsz` (uploaded skin applies for current session).
+- Global app theme colors are derived from active skin with Winamp Classic fallback.
 
 ## Streaming
 - HTML5 audio with auto-reconnect on error/stall.

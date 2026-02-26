@@ -28,12 +28,20 @@ npm run dev:bot
 ## User data
 - Favorites + recently played are stored in browser localStorage per device.
 - Copied track history is stored in localStorage per device.
+- Winamp skin selection is stored in localStorage:
+  - preset skin persists across reloads
+  - uploaded `.wsz` is session-only and falls back to preset after reload
 
 ## Cache
 - Catalog cached for 30 minutes in localStorage.
 - Clear cache via Settings screen.
 - Local fallback catalog lives at `apps/webapp/public/catalog-fast.json`.
 - Update fallback catalog with `npm run catalog:update`.
+
+## Winamp skins
+- Preset files are served from `apps/webapp/public/winamp-skins`.
+- To add presets: copy `.wsz` to that folder and register it in `src/lib/winampSkins.ts`.
+- Uploaded skin import supports `.wsz` and `.zip` with Winamp skin assets.
 
 ## Deploy (Telegram Mini App)
 1. Host `apps/webapp` on HTTPS (Vercel recommended).

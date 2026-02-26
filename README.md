@@ -86,3 +86,5 @@ VITE_API_URL=https://your-domain/api
 - Webapp pulls stations from Radio Browser and filters https streams.
 - Favorites and recently played are stored locally in the browser.
 - Station catalog source: https://docs.radio-browser.info/ (community-maintained).
+- Player mode is Winamp-only (Webamp UI) with compact shell + full overlay.
+- Preset skins are in `apps/webapp/public/winamp-skins`; upload `.wsz` is session-only.

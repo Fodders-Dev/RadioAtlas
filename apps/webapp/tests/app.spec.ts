@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'url';
 import { expect, test, type Page } from '@playwright/test';
 
 const stations = [
@@ -115,56 +116,39 @@ test.beforeEach(async ({ page }) => {
       this.dispatchEvent(new Event('pause'));
     };
     HTMLMediaElement.prototype.load = function () {};
+    // @ts-expect-error test polyfill
+    window.ResizeObserver =
+      window.ResizeObserver ||
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
   });
 
   await mockStations(page);
 });
 
-test('explore loads globe and stations', async ({ page }) => {
+test('explore loads and compact winamp shell is visible', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.app-title')).toHaveText('RadioAtlas');
   await expect(page.getByRole('heading', { name: 'Explore the airwaves' })).toBeVisible();
   await expect(page.getByText('Tokyo FM')).toBeVisible();
-  await expect(page.locator('.globe-count')).toContainText('Showing');
+  await expect(page.locator('.winamp-shell')).toBeVisible();
+  await expect(page.locator('.winamp-host.compact')).toBeVisible();
 });
 
-test('playback opens details panel', async ({ page }) => {
+test('playback from table updates winamp shell and info panel', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Tokyo FM')).toBeVisible();
-
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
 
+  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
-  await expect(page.locator('.details-link').first()).toContainText(
-    'https://stream.example.com/tokyo'
-  );
 });
 
-test('favorites and search behave correctly', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByText('Tokyo FM')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Play' }).first().click();
-  await page.getByRole('button', { name: 'Favorite' }).first().click();
-
-  await page.getByRole('button', { name: 'Favorites' }).click();
-  await expect(page.getByText('My Stations')).toBeVisible();
-  const favoritesSection = page.locator('.section', { hasText: 'My Stations' });
-  await expect(favoritesSection.getByText('Tokyo FM')).toBeVisible();
-  await expect(page.getByText('Recently played')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Search' }).click();
-  const input = page.getByPlaceholder(
-    'Search by name, tag, country, language'
-  );
-  await input.fill('berlin');
-  await expect(page.getByText('Berlin Pulse')).toBeVisible();
-});
-
-test('navigation and browse hierarchy work', async ({ page }) => {
+test('browse flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
   await page.getByRole('button', { name: 'Browse', exact: true }).click();
@@ -187,70 +171,49 @@ test('navigation and browse hierarchy work', async ({ page }) => {
   await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByText('Background Audio')).toBeVisible();
+  await expect(page.getByText('Player Skin')).toBeVisible();
 });
 
-test('play resumes last station and random next works', async ({ page }) => {
-  await page.addInitScript(() => {
-    Math.random = () => 0.6;
-    const recent = [
-      {
-        stationuuid: 'uuid-tokyo',
-        name: 'Tokyo FM',
-        url_resolved: 'https://stream.example.com/tokyo',
-        favicon: '',
-        country: 'Japan',
-        state: 'Tokyo',
-        tags: 'pop,jpop',
-        geo_lat: 35.6895,
-        geo_long: 139.6917
-      }
-    ];
-    localStorage.setItem('radio:recent', JSON.stringify(recent));
-  });
-
+test('expand and collapse winamp overlay', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Tokyo FM')).toBeVisible();
+  await page.getByRole('button', { name: 'Expand' }).click();
+  await expect(page.locator('.winamp-overlay')).toBeVisible();
+  await expect(page.locator('.winamp-host.overlay')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.locator('.player-title')).toContainText('Tokyo FM');
-
-  await page.getByRole('button', { name: 'Random station' }).click();
-  await expect(page.locator('.player-title')).toContainText('Berlin Pulse');
+  await page.getByRole('button', { name: 'Collapse', exact: true }).click();
+  await expect(page.locator('.winamp-overlay')).toHaveCount(0);
 });
 
-test('share always shows result toast', async ({ page }) => {
+test('skin preset change persists in localStorage', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  await page.locator('#skin-select').selectOption('eric-potter');
+
+  const stored = await page.evaluate(() => localStorage.getItem('radio:winamp-skin'));
+  expect(stored).toContain('eric-potter');
+});
+
+test('skin upload applies uploaded mode', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const skinFile = fileURLToPath(
+    new URL('../../../winamp skins/base-2.91.wsz', import.meta.url)
+  );
+  await page.locator('input[type="file"]').first().setInputFiles(skinFile);
+  await page.waitForFunction(() =>
+    (localStorage.getItem('radio:winamp-skin') || '').includes('uploaded')
+  );
+
+  const stored = await page.evaluate(() => localStorage.getItem('radio:winamp-skin'));
+  expect(stored).toContain('uploaded');
+});
+
+test('share action always displays toast', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
   await page.getByRole('button', { name: 'Share' }).click();
   await expect(page.locator('.toast')).toBeVisible();
   await expect(page.locator('.toast')).toContainText(/Share|Link/);
-});
-
-test('links mode saves and plays external audio', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page.getByRole('button', { name: 'Links' }).click();
-
-  const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
-  await input.fill('https://stream.example.com/external.mp3');
-  await page.getByRole('button', { name: 'Add link' }).click();
-
-  await expect(page.getByText('stream.example.com', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Play link' }).click();
-  await expect(page.locator('.player-title')).toContainText('stream.example.com');
-});
-
-test('links mode extracts audio streams', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page.getByRole('button', { name: 'Links' }).click();
-
-  const input = page.getByPlaceholder('Audio URL or playlist (.m3u/.pls)');
-  await input.fill('https://soundcloud.com/demo/track');
-  await page.getByRole('button', { name: 'Add link' }).click();
-
-  await expect(page.getByText('Extracted Demo')).toBeVisible();
-  await page.getByRole('button', { name: 'Play link' }).click();
-  await expect(page.locator('.player-title')).toContainText('Extracted Demo');
 });

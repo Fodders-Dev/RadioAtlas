@@ -1,6 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Station, StationLite } from '../types';
+import type {
+  ActiveWinampSkin,
+  Station,
+  StationLite,
+  WinampSkinPreset,
+  WinampSkinSource
+} from '../types';
 import { fetchStations, clearStationsCache } from '../lib/radioBrowser';
 import { fetchNowPlaying, subscribeNowPlaying } from '../lib/nowPlaying';
 import { useLocalStorage } from '../lib/useLocalStorage';
@@ -8,6 +14,13 @@ import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
 import { getApiBase } from '../lib/apiBase';
+import { applySkinPalette, applySkinThemeFromUrl, extractSkinPaletteFromBlob } from '../lib/skinTheme';
+import {
+  DEFAULT_WINAMP_SKIN_ID,
+  WINAMP_CLASSIC_PALETTE,
+  WINAMP_SKIN_PRESETS,
+  findPresetSkin
+} from '../lib/winampSkins';
 
 type TrackHistoryItem = {
   id: string;
@@ -15,6 +28,21 @@ type TrackHistoryItem = {
   stationName: string;
   track: string;
   timestamp: number;
+};
+
+type StoredSkin = {
+  source: WinampSkinSource;
+  id?: string;
+  name?: string;
+};
+
+type WinampState = {
+  expanded: boolean;
+  setExpanded: (value: boolean) => void;
+  availableSkins: WinampSkinPreset[];
+  activeSkin: ActiveWinampSkin;
+  setSkin: (skinId: string) => void;
+  importSkin: (file: File) => Promise<boolean>;
 };
 
 type RadioContextValue = {
@@ -28,6 +56,7 @@ type RadioContextValue = {
   nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
   trackHistory: TrackHistoryItem[];
   player: ReturnType<typeof useAudioPlayer>;
+  winamp: WinampState;
   playStation: (station: Station | StationLite) => void;
   playPrevious: () => void;
   playNext: () => void;
@@ -48,6 +77,18 @@ const RadioContext = createContext<RadioContextValue | null>(null);
 
 const MAX_RECENT = 20;
 const MAX_TRACK_HISTORY = 200;
+const DEFAULT_STORED_SKIN: StoredSkin = {
+  source: 'preset',
+  id: DEFAULT_WINAMP_SKIN_ID
+};
+
+const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
+  const preset = findPresetSkin(presetId);
+  return {
+    ...preset,
+    source: 'preset'
+  };
+};
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [stations, setStations] = useState<Station[]>([]);
@@ -70,8 +111,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:recent',
     []
   );
+  const [storedSkin, setStoredSkin] = useLocalStorage<StoredSkin>(
+    'radio:winamp-skin',
+    DEFAULT_STORED_SKIN
+  );
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [winampExpanded, setWinampExpanded] = useState(false);
+  const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
+    toActiveSkin(storedSkin.id)
+  );
+
+  const uploadedSkinUrlRef = useRef<string | null>(null);
 
   const logDebug = (msg: string) => {
     setDebugLogs((prev) =>
@@ -79,10 +130,65 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2000);
+  };
+
   const player = useAudioPlayer({
     onEvent: logDebug
   });
   const startHandledRef = useRef(false);
+  const skinRestoreRef = useRef(false);
+
+  useEffect(() => {
+    if (skinRestoreRef.current) return;
+    skinRestoreRef.current = true;
+
+    if (storedSkin.source === 'preset') {
+      setActiveSkin(toActiveSkin(storedSkin.id));
+      return;
+    }
+
+    if (storedSkin.source === 'uploaded') {
+      const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
+      setActiveSkin(fallback);
+      setStoredSkin({ source: 'preset', id: fallback.id });
+      notify('Uploaded skin is session-only. Re-import to restore it.');
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const applyTheme = async () => {
+      const palette = activeSkin.palette
+        ? applySkinPalette(activeSkin.palette)
+        : await applySkinThemeFromUrl(activeSkin.url, WINAMP_CLASSIC_PALETTE);
+
+      const tg = window.Telegram?.WebApp;
+      tg?.setHeaderColor?.(palette.bg);
+      tg?.setBackgroundColor?.(palette.bg);
+      if (mounted) {
+        logDebug(`Skin: ${activeSkin.name}`);
+      }
+    };
+
+    applyTheme().catch(() => {
+      applySkinPalette(WINAMP_CLASSIC_PALETTE);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeSkin]);
+
+  useEffect(() => {
+    return () => {
+      if (uploadedSkinUrlRef.current) {
+        URL.revokeObjectURL(uploadedSkinUrlRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -124,12 +230,56 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const tg = window.Telegram?.WebApp;
     tg?.ready?.();
     tg?.expand?.();
-    tg?.setHeaderColor?.('#0b1514');
-    tg?.setBackgroundColor?.('#0b1514');
     if (tg?.isActive) {
       logDebug(`WebApp active state: ${tg.isActive}`);
     }
   }, []);
+
+  const openExternal = (station: Station | StationLite) => {
+    const url = station.url_resolved;
+    const tg = window.Telegram?.WebApp;
+    if (tg?.openLink) {
+      tg.openLink(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const addRecent = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    setRecent((prev) => {
+      const next = [lite, ...prev.filter((item) => item.stationuuid !== lite.stationuuid)];
+      return next.slice(0, MAX_RECENT);
+    });
+  };
+
+  const playStationInternal = (
+    station: Station | StationLite,
+    addToHistory: boolean
+  ) => {
+    const lite = toLite(station);
+    const url = lite.url_resolved;
+    if (!url) {
+      notify('Missing stream URL');
+      return;
+    }
+    const proxyBase = getApiBase();
+    const hasProxy = Boolean(proxyBase);
+    const isHttps = url.startsWith('https://');
+    const isLocal = window.location.protocol === 'http:';
+    if (!isHttps && !isLocal && !hasProxy) {
+      notify('HTTP stream: open externally');
+      openExternal(lite);
+      return;
+    }
+    player.playStation(lite);
+    if (addToHistory) {
+      addRecent(lite);
+    }
+  };
+
+  const playStation = (station: Station | StationLite) =>
+    playStationInternal(station, true);
 
   useEffect(() => {
     if (startHandledRef.current) return;
@@ -180,11 +330,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         const track = await fetchNowPlaying(station, logDebug);
         if (track) {
           logDebug(`Metadata: ${track}`);
-        } else {
-          // Only log failure if we haven't seen a track in a while
-          if (Date.now() - lastUpdate > 20000) {
-            logDebug(`Metadata: null (API: ${getApiBase() || 'default'})`);
-          }
+        } else if (Date.now() - lastUpdate > 20000) {
+          logDebug(`Metadata: null (API: ${getApiBase() || 'default'})`);
         }
         applyTrack(track);
       } catch (e) {
@@ -208,11 +355,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [player.current?.stationuuid, player.isPlaying]);
 
-  const notify = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2000);
-  };
-
   const isFavorite = (stationId: string) =>
     favorites.some((item) => item.stationuuid === stationId);
 
@@ -225,42 +367,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return [lite, ...prev];
     });
   };
-
-  const addRecent = (station: Station | StationLite) => {
-    const lite = toLite(station);
-    setRecent((prev) => {
-      const next = [lite, ...prev.filter((item) => item.stationuuid !== lite.stationuuid)];
-      return next.slice(0, MAX_RECENT);
-    });
-  };
-
-  const playStationInternal = (
-    station: Station | StationLite,
-    addToHistory: boolean
-  ) => {
-    const lite = toLite(station);
-    const url = lite.url_resolved;
-    if (!url) {
-      notify('Missing stream URL');
-      return;
-    }
-    const proxyBase = getApiBase();
-    const hasProxy = Boolean(proxyBase);
-    const isHttps = url.startsWith('https://');
-    const isLocal = window.location.protocol === 'http:';
-    if (!isHttps && !isLocal && !hasProxy) {
-      notify('HTTP stream: open externally');
-      openExternal(lite);
-      return;
-    }
-    player.playStation(lite);
-    if (addToHistory) {
-      addRecent(lite);
-    }
-  };
-
-  const playStation = (station: Station | StationLite) =>
-    playStationInternal(station, true);
 
   const playPrevious = () => {
     const currentId = player.current?.stationuuid;
@@ -329,7 +435,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       ]
       : undefined;
 
-    // Use track title if available, otherwise station name
     const title = nowPlaying || station.name;
     const artist = nowPlaying ? station.name : (station.country || 'Live Radio');
 
@@ -348,16 +453,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
   }, [player.current, player.isPlaying, nowPlaying, playPrevious, playNext, player]);
 
-  const openExternal = (station: Station | StationLite) => {
-    const url = station.url_resolved;
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
   const openWebAppExternally = () => {
     let url = window.location.origin;
     if (player.current) {
@@ -366,7 +461,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const tg = window.Telegram?.WebApp;
     if (tg?.openLink) {
-      // Using openLink to break out of WebView
       tg.openLink(url, { try_instant_view: false });
       return;
     }
@@ -380,18 +474,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       : `${window.location.origin}?station=station_${station.stationuuid}`;
     const title = station.name;
     const text = `Listen live: ${station.name}`;
-    // 1. Try Native Share (Mobile)
+
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
         notify('Share dialog opened');
         return;
       } catch {
-        // ignore share aborts/errors, fall through
+        // ignore
       }
     }
 
-    // 2. Try Clipboard
     try {
       await navigator.clipboard.writeText(`${title} ${url}`);
       notify('Link copied');
@@ -400,7 +493,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       // ignore
     }
 
-    // 3. Fallback: Telegram Share Link
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
     const tg = window.Telegram?.WebApp;
 
@@ -410,7 +502,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // 4. Last Resort: Window Open
     try {
       const popup = window.open(shareUrl, '_blank', 'noopener,noreferrer');
       if (popup) {
@@ -453,6 +544,61 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setSkin = (skinId: string) => {
+    const preset = findPresetSkin(skinId);
+    setActiveSkin({ ...preset, source: 'preset' });
+    setStoredSkin({ source: 'preset', id: preset.id });
+    notify(`Skin: ${preset.name}`);
+  };
+
+  const importSkin = async (file: File) => {
+    const name = file.name || 'Uploaded skin';
+    const lowerName = name.toLowerCase();
+    if (!lowerName.endsWith('.wsz') && !lowerName.endsWith('.zip')) {
+      notify('Skin must be .wsz or .zip');
+      return false;
+    }
+
+    try {
+      let palette = WINAMP_CLASSIC_PALETTE;
+      try {
+        palette = await extractSkinPaletteFromBlob(file);
+      } catch {
+        notify('Skin palette fallback applied');
+      }
+      if (uploadedSkinUrlRef.current) {
+        URL.revokeObjectURL(uploadedSkinUrlRef.current);
+      }
+      const url = URL.createObjectURL(file);
+      uploadedSkinUrlRef.current = url;
+      setActiveSkin({
+        id: `uploaded-${Date.now()}`,
+        name,
+        url,
+        source: 'uploaded',
+        palette
+      });
+      setStoredSkin({ source: 'uploaded', name });
+      notify('Uploaded skin applied');
+      return true;
+    } catch {
+      notify('Unable to import skin');
+      return false;
+    }
+  };
+
+  const winamp = useMemo<WinampState>(
+    () => ({
+      expanded: winampExpanded,
+      setExpanded: setWinampExpanded,
+      availableSkins: WINAMP_SKIN_PRESETS,
+      activeSkin,
+      setSkin,
+      importSkin
+    }),
+    [winampExpanded, activeSkin]
+  );
+
   const value: RadioContextValue = {
     stations,
     loading,
@@ -464,6 +610,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     nowPlayingStatus,
     trackHistory,
     player,
+    winamp,
     playStation,
     playPrevious,
     playNext,

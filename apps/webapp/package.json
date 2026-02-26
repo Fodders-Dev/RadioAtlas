@@ -13,9 +13,11 @@
   "dependencies": {
     "d3-geo": "^3.1.1",
     "hls.js": "^1.5.16",
+    "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "topojson-client": "^3.1.0"
+    "topojson-client": "^3.1.0",
+    "webamp": "^2.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",

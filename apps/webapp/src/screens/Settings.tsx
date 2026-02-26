@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useRadio } from '../state/RadioContext';
+import { SkinPicker } from '../components/SkinPicker';
 
 export const Settings = () => {
-  const { clearCache, clearFavorites, clearRecent, openWebAppExternally, debugLogs } = useRadio();
+  const {
+    clearCache,
+    clearFavorites,
+    clearRecent,
+    openWebAppExternally,
+    debugLogs,
+    winamp
+  } = useRadio();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
   const apiBase = getApiBase();
@@ -51,6 +59,28 @@ export const Settings = () => {
           >
             Open App
           </button>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">Player Skin</div>
+        <div className="settings-card stack">
+          <div>
+            <div className="settings-label">Winamp Skin Mode</div>
+            <div className="settings-desc">
+              Select a preset or upload your own .wsz skin.
+            </div>
+          </div>
+          <SkinPicker />
+          <div className="settings-actions">
+            <button
+              className={`chip ${winamp.expanded ? 'active' : ''}`}
+              type="button"
+              onClick={() => winamp.setExpanded(!winamp.expanded)}
+            >
+              {winamp.expanded ? 'Collapse player' : 'Expand player'}
+            </button>
+          </div>
         </div>
       </div>
 

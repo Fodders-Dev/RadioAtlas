@@ -1,0 +1,440 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { StationLite } from '../types';
+import { stationLocation } from '../lib/stationUtils';
+import { useRadio } from '../state/RadioContext';
+import { SkinPicker } from './SkinPicker';
+import { WinampOverlay } from './WinampOverlay';
+
+type WebampTrack = {
+  url: string;
+  metaData: {
+    title: string;
+    artist: string;
+  };
+};
+
+type WebampMediaStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
+
+type WebampInstance = {
+  renderWhenReady: (node: HTMLElement) => Promise<void>;
+  dispose: () => void;
+  setTracksToPlay: (tracks: WebampTrack[]) => void;
+  setSkinFromUrl: (url: string) => void;
+  setVolume: (volume: number) => void;
+  play: () => void;
+  pause: () => void;
+  stop: () => void;
+  getMediaStatus: () => string;
+};
+
+type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
+
+const SILENT_TRACK_URL =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
+
+const normalizeMediaStatus = (value: string): WebampMediaStatus => {
+  const normalized = value.toUpperCase();
+  if (normalized === 'PLAYING') return 'PLAYING';
+  if (normalized === 'PAUSED') return 'PAUSED';
+  return 'STOPPED';
+};
+
+const buildTrack = (station: StationLite | null, track: string | null): WebampTrack[] => {
+  if (!station) return [];
+  return [
+    {
+      url: SILENT_TRACK_URL,
+      metaData: {
+        title: track || station.name,
+        artist: [station.state, station.country].filter(Boolean).join(', ') || 'Live Radio'
+      }
+    }
+  ];
+};
+
+const buildLayout = (expanded: boolean) => {
+  if (!expanded) {
+    return {
+      main: {
+        position: { x: 0, y: 0 }
+      },
+      equalizer: { closed: true },
+      playlist: { closed: true }
+    };
+  }
+
+  return {
+    main: {
+      position: { x: 12, y: 16 }
+    },
+    equalizer: {
+      position: { x: 12, y: 132 },
+      closed: false
+    },
+    playlist: {
+      position: { x: 12, y: 248 },
+      size: [0, 12],
+      closed: false
+    }
+  };
+};
+
+export const WinampPlayerShell = ({
+  onDetails
+}: {
+  onDetails?: () => void;
+}) => {
+  const {
+    player,
+    winamp,
+    nowPlaying,
+    nowPlayingStatus,
+    stations,
+    recent,
+    playPrevious,
+    playNext,
+    playLast,
+    copyTrack,
+    toggleFavorite,
+    isFavorite,
+    shareStation,
+    openWebAppExternally
+  } = useRadio();
+
+  const compactHostRef = useRef<HTMLDivElement | null>(null);
+  const overlayHostRef = useRef<HTMLDivElement | null>(null);
+  const webampRef = useRef<WebampInstance | null>(null);
+  const syncPauseUntilRef = useRef(0);
+  const [webampReady, setWebampReady] = useState(false);
+  const [webampFailed, setWebampFailed] = useState(false);
+
+  const current = player.current;
+  const statusLabel = useMemo(() => {
+    if (!current) return 'Pick a station to start listening';
+    if (player.status === 'buffering') return 'Buffering...';
+    if (player.status === 'error') return 'Stream error, reconnecting';
+    if (player.status === 'paused') return 'Paused';
+    return 'Live';
+  }, [current, player.status]);
+
+  const trackLabel = useMemo(() => {
+    if (!current) return null;
+    if (nowPlaying) return `Now playing: ${nowPlaying}`;
+    if (nowPlayingStatus === 'loading') return 'Fetching track...';
+    if (nowPlayingStatus === 'unavailable') return 'Track info unavailable';
+    return null;
+  }, [current, nowPlaying, nowPlayingStatus]);
+
+  const historyIndex = useMemo(() => {
+    if (!current) return -1;
+    return recent.findIndex((item) => item.stationuuid === current.stationuuid);
+  }, [current, recent]);
+
+  const canPrev = historyIndex >= 0 && historyIndex < recent.length - 1;
+  const canNext = historyIndex > 0;
+  const showRandom = !canNext;
+  const canRandom = stations.length > 0;
+  const liked = current ? isFavorite(current.stationuuid) : false;
+  const canResume = Boolean(recent.length);
+
+  useEffect(() => {
+    const mountNode = winamp.expanded ? overlayHostRef.current : compactHostRef.current;
+    if (!mountNode) return;
+
+    let cancelled = false;
+    let mountedInstance: WebampInstance | null = null;
+    mountNode.innerHTML = '';
+    setWebampReady(false);
+
+    const boot = async () => {
+      try {
+        const mod = await import('webamp');
+        if (cancelled) return;
+        const Webamp = mod.default as unknown as WebampCtor;
+        const instance = new Webamp({
+          initialSkin: {
+            url: winamp.activeSkin.url
+          },
+          availableSkins: winamp.availableSkins.map((skin) => ({
+            name: skin.name,
+            url: skin.url
+          })),
+          initialTracks: buildTrack(current, nowPlaying),
+          enableHotkeys: false,
+          enableMediaSession: false,
+          zIndex: winamp.expanded ? 70 : 20,
+          windowLayout: buildLayout(winamp.expanded)
+        });
+
+        await instance.renderWhenReady(mountNode);
+        if (cancelled) {
+          instance.dispose();
+          return;
+        }
+
+        mountedInstance = instance;
+        webampRef.current = instance;
+        instance.setVolume(0);
+        setWebampReady(true);
+        setWebampFailed(false);
+      } catch {
+        setWebampFailed(true);
+      }
+    };
+
+    void boot();
+
+    return () => {
+      cancelled = true;
+      setWebampReady(false);
+      if (mountedInstance) {
+        mountedInstance.dispose();
+      }
+      if (webampRef.current === mountedInstance) {
+        webampRef.current = null;
+      }
+    };
+  }, [winamp.expanded]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance) return;
+    try {
+      instance.setSkinFromUrl(winamp.activeSkin.url);
+      instance.setVolume(0);
+    } catch {
+      // ignore
+    }
+  }, [winamp.activeSkin.url]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady) return;
+
+    try {
+      instance.setTracksToPlay(buildTrack(current, nowPlaying));
+      syncPauseUntilRef.current = Date.now() + 500;
+
+      if (!current) {
+        instance.stop();
+      } else if (player.isPlaying) {
+        instance.play();
+      } else {
+        instance.pause();
+      }
+      instance.setVolume(0);
+    } catch {
+      // ignore
+    }
+  }, [current?.stationuuid, player.isPlaying, nowPlaying, webampReady]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady) return;
+
+    let previousStatus = normalizeMediaStatus(instance.getMediaStatus());
+    const timer = window.setInterval(() => {
+      const nextStatus = normalizeMediaStatus(instance.getMediaStatus());
+      if (nextStatus === previousStatus) return;
+      previousStatus = nextStatus;
+
+      if (Date.now() < syncPauseUntilRef.current) {
+        return;
+      }
+
+      if (nextStatus === 'PLAYING') {
+        if (player.current) {
+          if (!player.isPlaying) {
+            player.toggle();
+          }
+        } else if (canResume) {
+          playLast();
+        }
+      }
+
+      if (nextStatus === 'PAUSED') {
+        if (player.isPlaying) {
+          player.toggle();
+        }
+      }
+
+      if (nextStatus === 'STOPPED') {
+        if (player.isPlaying) {
+          player.stop();
+        }
+      }
+
+      try {
+        instance.setVolume(0);
+      } catch {
+        // ignore
+      }
+    }, 300);
+
+    return () => window.clearInterval(timer);
+  }, [webampReady, player, canResume, playLast]);
+
+  const handlePrimary = () => {
+    if (current) {
+      player.toggle();
+      return;
+    }
+    if (canResume) {
+      playLast();
+    }
+  };
+
+  const actionStrip = (variant: 'compact' | 'overlay') => (
+    <div className={`winamp-actions ${variant}`}>
+      <button
+        className="icon-btn"
+        onClick={playPrevious}
+        type="button"
+        disabled={!canPrev}
+        aria-label="Previous station"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6h2v12H6V6zm3 6 9 6V6l-9 6z" />
+        </svg>
+      </button>
+      <button
+        className="player-btn primary"
+        onClick={handlePrimary}
+        type="button"
+        disabled={!current && !canResume}
+      >
+        {player.isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <button
+        className="icon-btn"
+        onClick={playNext}
+        type="button"
+        disabled={!canNext && !canRandom}
+        aria-label={showRandom ? 'Random station' : 'Next station'}
+      >
+        {showRandom ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 4h4v4h-2V6.4l-3.8 3.8-1.4-1.4 3.8-3.8H16V4zM4 6h4c1.1 0 2.2.4 3 1.2l1 1-1.4 1.4-1-1C9 8.2 8.5 8 8 8H4V6zm12.2 8.2 1.4-1.4L20 15.2V14h2v4h-4v-2h1.2l-2.8-2.8zM4 16h4c.5 0 1-.2 1.4-.6l5.2-5.2 1.4 1.4-5.2 5.2c-.8.8-1.9 1.2-3 1.2H4v-2z" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 6h2v12h-2V6zM6 18l9-6-9-6v12z" />
+          </svg>
+        )}
+      </button>
+
+      <button
+        className={`icon-btn ${liked ? 'active' : ''}`}
+        onClick={() => current && toggleFavorite(current)}
+        type="button"
+        disabled={!current}
+        aria-label={liked ? 'Unfavorite' : 'Favorite'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+        </svg>
+      </button>
+
+      {onDetails && (
+        <button
+          className="player-btn"
+          onClick={() => current && onDetails()}
+          type="button"
+          disabled={!current}
+        >
+          Info
+        </button>
+      )}
+
+      <button
+        className="player-btn"
+        onClick={() => current && shareStation(current)}
+        type="button"
+        disabled={!current}
+      >
+        Share
+      </button>
+
+      <button
+        className="icon-btn"
+        onClick={openWebAppExternally}
+        type="button"
+        title="Open in Browser"
+        aria-label="Open app"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7z" />
+        </svg>
+      </button>
+
+      <div className="player-volume">
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={player.volume}
+          onChange={(event) => player.setVolume(Number(event.target.value))}
+        />
+      </div>
+
+      {nowPlaying && (
+        <button className="player-btn" type="button" onClick={copyTrack}>
+          Copy track
+        </button>
+      )}
+
+      {variant === 'compact' ? (
+        <button className="chip active" type="button" onClick={() => winamp.setExpanded(true)}>
+          Expand
+        </button>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="winamp-shell">
+        <div className="winamp-shell-head">
+          <div className="player-title">{current?.name ?? 'RadioAtlas'}</div>
+          <div className="player-sub">{current ? stationLocation(current) : statusLabel}</div>
+          {trackLabel && (
+            <button
+              className={`player-track ${nowPlaying ? 'track-copy' : ''}`}
+              onClick={() => nowPlaying && copyTrack()}
+              type="button"
+              disabled={!nowPlaying}
+              title={nowPlaying ? 'Copy track' : undefined}
+            >
+              {trackLabel}
+            </button>
+          )}
+          <div className="player-status">{statusLabel}</div>
+        </div>
+
+        <div className="winamp-shell-main">
+          <div className="winamp-host compact" ref={compactHostRef} />
+          {!webampReady && (
+            <div className="winamp-loading">{webampFailed ? 'Winamp failed to load' : 'Loading Winamp...'}</div>
+          )}
+        </div>
+
+        <div className="winamp-shell-footer">
+          <SkinPicker compact />
+          {actionStrip('compact')}
+        </div>
+      </div>
+
+      <WinampOverlay
+        open={winamp.expanded}
+        title={current?.name || 'Winamp Player'}
+        subtitle={current ? stationLocation(current) : 'Pick a station'}
+        onCollapse={() => winamp.setExpanded(false)}
+        headerActions={<SkinPicker />}
+        footerActions={actionStrip('overlay')}
+      >
+        <div className="winamp-host overlay" ref={overlayHostRef} />
+      </WinampOverlay>
+    </>
+  );
+};

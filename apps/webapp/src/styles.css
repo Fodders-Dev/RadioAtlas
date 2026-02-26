@@ -14,7 +14,7 @@
   --player-gap: 16px;
   --nav-height: 64px;
   --nav-gap: 12px;
-  --stack-padding: 420px;
+  --stack-padding: 440px;
 }
 
 * {
@@ -24,8 +24,7 @@
 body {
   margin: 0;
   font-family: 'Space Grotesk', sans-serif;
-  background: radial-gradient(circle at top, #1a2f2b 0%, #0b1514 60%),
-    linear-gradient(120deg, rgba(246, 201, 69, 0.08), transparent 40%);
+  background: radial-gradient(circle at top, var(--bg-2) 0%, var(--bg) 64%);
   color: var(--text);
   min-height: 100vh;
 }
@@ -608,7 +607,7 @@ main {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  background: rgba(15, 25, 24, 0.92);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 8px;
@@ -647,52 +646,30 @@ main {
   opacity: 1;
 }
 
-.mini-player {
+.winamp-shell {
   position: fixed;
   left: 12px;
   right: 12px;
   bottom: calc(12px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
-  background: rgba(16, 28, 27, 0.95);
-  border: 1px solid rgba(246, 201, 69, 0.25);
-  border-radius: 20px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: 60px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  backdrop-filter: blur(10px);
-  z-index: 11;
-}
-
-.player-art {
-  width: 60px;
-  height: 60px;
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: rgba(246, 201, 69, 0.2);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-
-.player-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.player-fallback {
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.player-meta {
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  backdrop-filter: blur(10px);
+  z-index: 18;
+}
+
+.winamp-shell-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .player-title {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
 }
 
@@ -717,20 +694,159 @@ main {
   color: var(--muted);
 }
 
-.player-controls {
+.winamp-shell-main {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  min-height: 124px;
+  padding: 6px;
+  overflow: hidden;
+}
+
+.winamp-shell-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.winamp-host {
+  min-height: 112px;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.winamp-host > div {
+  margin: 0 auto;
+}
+
+.winamp-loading {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 8px 0 2px;
+}
+
+.winamp-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-end;
   align-items: center;
 }
 
-.player-controls .player-btn {
-  width: 72px;
+.winamp-actions.compact {
+  justify-content: flex-start;
+}
+
+.winamp-actions.overlay {
+  justify-content: flex-start;
+}
+
+.winamp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+.winamp-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.winamp-overlay-panel {
+  position: relative;
+  width: min(980px, calc(100% - 12px));
+  margin: 6px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.winamp-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.winamp-overlay-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.winamp-overlay-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.winamp-overlay-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.winamp-overlay-host {
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 8px;
+  overflow: auto;
+}
+
+.winamp-host.overlay {
+  min-height: 420px;
+  justify-content: flex-start;
+}
+
+.winamp-overlay-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.skin-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.skin-picker-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.skin-picker-select {
+  min-width: 180px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.skin-picker.compact .skin-picker-select {
+  min-width: 150px;
 }
 
 .player-volume input {
-  width: 80px;
+  width: 94px;
 }
 
 .empty-state {
@@ -745,7 +861,7 @@ main {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(200px + env(safe-area-inset-bottom));
+  bottom: calc(260px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   background: rgba(246, 201, 69, 0.9);
   color: #2b1a00;
@@ -775,7 +891,7 @@ main {
 .details-card {
   position: relative;
   width: min(560px, calc(100% - 24px));
-  margin: 0 12px 180px;
+  margin: 0 12px 250px;
   background: rgba(16, 28, 27, 0.96);
   border: 1px solid rgba(246, 201, 69, 0.3);
   border-radius: 22px;
@@ -885,18 +1001,18 @@ main {
     display: none;
   }
 
-  .player-controls {
+  .winamp-actions {
     justify-content: stretch;
   }
 
-  .player-controls .player-btn {
+  .winamp-actions .player-btn {
     width: auto;
   }
 }
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 520px;
+    --stack-padding: 620px;
     --nav-height: 72px;
   }
 
@@ -909,34 +1025,42 @@ main {
     bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
-  .mini-player {
-    grid-template-columns: 52px 1fr;
-    grid-template-areas:
-      'art meta'
-      'controls controls';
+  .winamp-shell {
+    left: 10px;
+    right: 10px;
+    padding: 8px;
   }
 
-  .player-art {
-    width: 52px;
-    height: 52px;
-    grid-area: art;
+  .winamp-overlay-panel {
+    width: calc(100% - 8px);
+    margin: 4px;
+    border-radius: 12px;
+    padding: 10px;
   }
 
-  .player-meta {
-    grid-area: meta;
+  .winamp-overlay-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .player-controls {
-    grid-area: controls;
-    justify-content: stretch;
+  .winamp-overlay-header-actions {
+    justify-content: flex-start;
+  }
+
+  .winamp-host.overlay {
+    min-height: 360px;
+  }
+
+  .skin-picker-select {
+    min-width: 140px;
   }
 
   .player-volume input {
-    width: 100%;
+    width: 82px;
   }
 
   .details-card {
-    margin-bottom: 210px;
+    margin-bottom: 300px;
   }
 
   .details-grid {

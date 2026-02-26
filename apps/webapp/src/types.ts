@@ -48,3 +48,25 @@ export type StationLite = Pick<
   | 'geo_lat'
   | 'geo_long'
 >;
+
+export type SkinPalette = {
+  bg: string;
+  panel: string;
+  accent: string;
+  muted: string;
+  border: string;
+  text: string;
+};
+
+export type WinampSkinSource = 'preset' | 'uploaded';
+
+export type WinampSkinPreset = {
+  id: string;
+  name: string;
+  url: string;
+  palette?: SkinPalette;
+};
+
+export type ActiveWinampSkin = WinampSkinPreset & {
+  source: WinampSkinSource;
+};

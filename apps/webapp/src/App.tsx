@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BottomNav, type NavTab } from './components/BottomNav';
-import { MiniPlayer } from './components/MiniPlayer';
+import { WinampPlayerShell } from './components/WinampPlayerShell';
 import { StationDetails } from './components/StationDetails';
 import { Toast } from './components/Toast';
 import { Explore } from './screens/Explore';
@@ -48,7 +48,7 @@ const App = () => {
       </main>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />
-      <MiniPlayer onDetails={() => setDetailsOpen(true)} />
+      <WinampPlayerShell onDetails={() => setDetailsOpen(true)} />
       <StationDetails open={detailsOpen} onClose={() => setDetailsOpen(false)} />
       <Toast message={toast} />
     </div>
