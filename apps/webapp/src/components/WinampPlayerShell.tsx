@@ -182,7 +182,7 @@ const resetCompactWindowVisibility = () => {
   });
 };
 
-const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
+const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) => {
   const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
@@ -199,7 +199,8 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.72, 3.6);
   const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
-  const compactHeight = Math.max(18, Math.round(baseHeight * nextScale));
+  const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
+  const compactHeight = forceStrip ? Math.min(30, rawHeight) : rawHeight;
   mountNode.style.height = `${compactHeight}px`;
   const hostRect = mountNode.getBoundingClientRect();
   const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
@@ -429,7 +430,7 @@ export const WinampPlayerShell = ({
               const ensureCompactPlacement = () => {
                 if (cancelled) return;
                 setMainWindowShadeMode(true);
-                syncCompactWindowPlacement(mountNode);
+                syncCompactWindowPlacement(mountNode, true);
                 placementAttempt += 1;
                 if (placementAttempt < 10) {
                   window.setTimeout(ensureCompactPlacement, 180);
@@ -530,7 +531,7 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
     compactSettledRef.current = false;
     setMainWindowShadeMode(true);
-    syncCompactWindowPlacement(mountNode);
+    syncCompactWindowPlacement(mountNode, true);
   }, [winamp.expanded, webampReady]);
 
   useEffect(() => {
@@ -539,19 +540,20 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
+      let forceStrip = false;
       if (!compactSettledRef.current) {
         const mainWindow = getMainWindowNode();
         const mainHeight = mainWindow?.getBoundingClientRect().height ?? 0;
         if (mainHeight > 64) {
           mountNode.style.height = '28px';
           setMainWindowShadeMode(true);
-          return;
+          forceStrip = true;
         }
         if (mainHeight > 0) {
-          compactSettledRef.current = true;
+          compactSettledRef.current = mainHeight <= 64;
         }
       }
-      syncCompactWindowPlacement(mountNode);
+      syncCompactWindowPlacement(mountNode, forceStrip);
     };
     sync();
     window.addEventListener('scroll', sync, { passive: true });
