@@ -64,6 +64,10 @@ const normalizeMediaStatus = (value: string): WebampMediaStatus => {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+const isLayoutError = (error: unknown) =>
+  toErrorMessage(error).toLowerCase().includes("reading 'left'");
 
 const createSilentTrackBlobUrl = () => {
   const binary = atob(SILENT_TRACK_BASE64);
@@ -146,11 +150,13 @@ export const WinampPlayerShell = ({
   const retryDelayRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const syncingVolumeFromWebampRef = useRef(false);
+  const disableWindowLayoutRef = useRef(false);
   const playlistRef = useRef<StationLite[]>([]);
   const stationTrackUrlsRef = useRef<Map<string, string>>(new Map());
   const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
 
   const current = player.current;
@@ -224,56 +230,73 @@ export const WinampPlayerShell = ({
     mountNode.innerHTML = '';
     setWebampReady(false);
     setWebampFailed(false);
+    setBootError(null);
 
     const boot = async () => {
       const Webamp = await loadWebampCtor();
       if (cancelled) return;
 
+      let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const instance = new Webamp({
-            initialSkin: {
-              url: winamp.activeSkin.url
-            },
-            availableSkins: winamp.availableSkins.map((skin) => ({
-              name: skin.name,
-              url: skin.url
-            })),
-            initialTracks: buildTracks(playlist, stationTrackUrlsRef.current),
-            enableDoubleSizeMode: true,
-            enableHotkeys: false,
-            enableMediaSession: false,
-            zIndex: winamp.expanded ? 70 : 20,
-            windowLayout: buildLayout(winamp.expanded)
-          });
+        const layoutModes = disableWindowLayoutRef.current ? [false] : [true, false];
+        for (const useLayout of layoutModes) {
+          try {
+            const instance = new Webamp({
+              initialSkin: {
+                url: winamp.activeSkin.url
+              },
+              availableSkins: winamp.availableSkins.map((skin) => ({
+                name: skin.name,
+                url: skin.url
+              })),
+              initialTracks: buildTracks(playlist, stationTrackUrlsRef.current),
+              enableDoubleSizeMode: true,
+              enableHotkeys: false,
+              enableMediaSession: false,
+              zIndex: winamp.expanded ? 70 : 40,
+              ...(useLayout ? { windowLayout: buildLayout(winamp.expanded) } : {})
+            });
 
-          await instance.renderWhenReady(mountNode);
-          if (cancelled) {
-            instance.dispose();
+            await instance.renderWhenReady(mountNode);
+            if (cancelled) {
+              instance.dispose();
+              return;
+            }
+
+            mountedInstance = instance;
+            webampRef.current = instance;
+            instance.setVolume(Math.round(player.volume * 100));
+            setWebampReady(true);
+            setWebampFailed(false);
+            setBootError(null);
+            retryCountRef.current = 0;
             return;
+          } catch (error) {
+            lastError = error;
+            console.error(
+              `Winamp init failed (attempt ${attempt + 1}, layout=${useLayout ? 'on' : 'off'})`,
+              error
+            );
+            if (useLayout && isLayoutError(error)) {
+              disableWindowLayoutRef.current = true;
+            }
+            if (cancelled) {
+              break;
+            }
+            mountNode.innerHTML = '';
           }
-
-          mountedInstance = instance;
-          webampRef.current = instance;
-          instance.setVolume(Math.round(player.volume * 100));
-          setWebampReady(true);
-          setWebampFailed(false);
-          retryCountRef.current = 0;
-          return;
-        } catch (error) {
-          console.error('Winamp init failed', error);
-          if (attempt === 2 || cancelled) {
-            break;
-          }
-          await new Promise((resolve) =>
-            window.setTimeout(resolve, 200 * (attempt + 1))
-          );
-          mountNode.innerHTML = '';
         }
+        if (attempt === 2 || cancelled) {
+          break;
+        }
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 200 * (attempt + 1))
+        );
       }
 
       if (!cancelled) {
         setWebampFailed(true);
+        setBootError(lastError ? toErrorMessage(lastError) : null);
         if (retryCountRef.current < 5) {
           retryCountRef.current += 1;
           retryDelayRef.current = window.setTimeout(() => {
@@ -522,7 +545,12 @@ export const WinampPlayerShell = ({
           {!webampReady && (
             <div className="winamp-loading">
               {webampFailed ? (
-                <button className="chip" type="button" onClick={() => setBootCycle((value) => value + 1)}>
+                <button
+                  className="chip"
+                  type="button"
+                  title={bootError || undefined}
+                  onClick={() => setBootCycle((value) => value + 1)}
+                >
                   Winamp load failed. Retry
                 </button>
               ) : (
@@ -562,7 +590,12 @@ export const WinampPlayerShell = ({
         {!webampReady && (
           <div className="winamp-loading overlay">
             {webampFailed ? (
-              <button className="chip" type="button" onClick={() => setBootCycle((value) => value + 1)}>
+              <button
+                className="chip"
+                type="button"
+                title={bootError || undefined}
+                onClick={() => setBootCycle((value) => value + 1)}
+              >
                 Winamp load failed. Retry
               </button>
             ) : (
