@@ -297,6 +297,7 @@ export const WinampPlayerShell = ({
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
   const modeSwitchUntilRef = useRef(0);
+  const compactSettledRef = useRef(false);
 
   const current = player.current;
 
@@ -418,6 +419,7 @@ export const WinampPlayerShell = ({
             instance.setVolume(Math.round(player.volume * 100));
 
             modeSwitchUntilRef.current = Date.now() + 1200;
+            compactSettledRef.current = false;
             if (winamp.expanded) {
               resetWebampWindowPlacement();
               resetCompactWindowVisibility();
@@ -515,6 +517,7 @@ export const WinampPlayerShell = ({
       if (mountNode) {
         mountNode.style.height = '100%';
       }
+      compactSettledRef.current = false;
       resetWebampWindowPlacement();
       resetCompactWindowVisibility();
       window.setTimeout(() => {
@@ -525,6 +528,7 @@ export const WinampPlayerShell = ({
 
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
+    compactSettledRef.current = false;
     setMainWindowShadeMode(true);
     syncCompactWindowPlacement(mountNode);
   }, [winamp.expanded, webampReady]);
@@ -535,6 +539,18 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
+      if (!compactSettledRef.current) {
+        const mainWindow = getMainWindowNode();
+        const mainHeight = mainWindow?.getBoundingClientRect().height ?? 0;
+        if (mainHeight > 64) {
+          mountNode.style.height = '28px';
+          setMainWindowShadeMode(true);
+          return;
+        }
+        if (mainHeight > 0) {
+          compactSettledRef.current = true;
+        }
+      }
       syncCompactWindowPlacement(mountNode);
     };
     sync();

@@ -25,6 +25,16 @@ export const WINAMP_SKIN_PRESETS: WinampSkinPreset[] = [
     id: 'tenchi-muyo-aeka',
     name: 'Tenchi Muyo - Aeka',
     url: '/winamp-skins/Tenchi Muyo - Aeka.wsz'
+  },
+  {
+    id: 'berserk-gatts-orange',
+    name: 'Berserk - Gatts Orange',
+    url: '/winamp-skins/Berserk_-_Gatts_Orange.wsz'
+  },
+  {
+    id: 'cowboy-bebop',
+    name: 'Cowboy Bebop',
+    url: '/winamp-skins/cowboy_bebop.wsz'
   }
 ];
 
