@@ -118,6 +118,22 @@ const buildLayout = (expanded: boolean) => {
   };
 };
 
+const buildPersistentLayout = () => ({
+  main: {
+    position: { top: 16, left: 16 },
+    shadeMode: true
+  },
+  equalizer: {
+    position: { top: 136, left: 16 },
+    closed: false
+  },
+  playlist: {
+    position: { top: 252, left: 16 },
+    size: { extraHeight: 12, extraWidth: 4 },
+    closed: false
+  }
+});
+
 const getMainWindowNode = () => {
   const mainWindow =
     (document.querySelector('#main-window')?.closest('.window') as HTMLElement | null) ?? null;
@@ -179,12 +195,15 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   windowNode.style.top = '0px';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
+  const baseHeight = rawRect.height || 28;
   const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.72, 3.6);
   const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
-  const compactHeight = Math.round(28 * nextScale);
-  const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
-  const top = mountRect.top;
+  const compactHeight = Math.max(18, Math.round(baseHeight * nextScale));
+  mountNode.style.height = `${compactHeight}px`;
+  const hostRect = mountNode.getBoundingClientRect();
+  const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
+  const top = hostRect.top;
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
@@ -226,6 +245,21 @@ const resetWebampWindowPlacement = () => {
   }
 };
 
+const isWindowShaded = () => {
+  const mainWindow = getMainWindowNode();
+  if (!mainWindow) return true;
+  const rect = mainWindow.getBoundingClientRect();
+  return rect.height <= 40;
+};
+
+const setMainWindowShadeMode = (shaded: boolean) => {
+  const toggleBtn = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
+  if (!toggleBtn) return;
+  const current = isWindowShaded();
+  if (current === shaded) return;
+  toggleBtn.click();
+};
+
 export const WinampPlayerShell = ({
   onDetails
 }: {
@@ -247,7 +281,6 @@ export const WinampPlayerShell = ({
   } = useRadio();
 
   const compactHostRef = useRef<HTMLDivElement | null>(null);
-  const overlayHostRef = useRef<HTMLDivElement | null>(null);
   const webampRef = useRef<WebampInstance | null>(null);
   const syncPauseUntilRef = useRef(0);
   const suppressTrackSyncUntilRef = useRef(0);
@@ -263,6 +296,7 @@ export const WinampPlayerShell = ({
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
+  const modeSwitchUntilRef = useRef(0);
 
   const current = player.current;
 
@@ -315,7 +349,7 @@ export const WinampPlayerShell = ({
   }, [winamp.expanded]);
 
   useEffect(() => {
-    const mountNode = winamp.expanded ? overlayHostRef.current : compactHostRef.current;
+    const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
     let cancelled = false;
@@ -347,7 +381,7 @@ export const WinampPlayerShell = ({
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const layoutModes = winamp.expanded ? [true, false] : [true];
+        const layoutModes = [true, false];
         for (const useLayout of layoutModes) {
           try {
             const instance = new Webamp({
@@ -362,8 +396,8 @@ export const WinampPlayerShell = ({
               enableDoubleSizeMode: false,
               enableHotkeys: false,
               enableMediaSession: false,
-              zIndex: winamp.expanded ? 140 : 64,
-              ...(useLayout ? { windowLayout: buildLayout(winamp.expanded) } : {})
+              zIndex: 140,
+              ...(useLayout ? { windowLayout: buildPersistentLayout() } : {})
             });
 
             await instance.renderWhenReady(mountNode);
@@ -383,10 +417,16 @@ export const WinampPlayerShell = ({
             currentTrackIndexRef.current = null;
             instance.setVolume(Math.round(player.volume * 100));
 
-            if (!winamp.expanded) {
+            modeSwitchUntilRef.current = Date.now() + 1200;
+            if (winamp.expanded) {
+              resetWebampWindowPlacement();
+              resetCompactWindowVisibility();
+              window.setTimeout(() => setMainWindowShadeMode(false), 120);
+            } else {
               let placementAttempt = 0;
               const ensureCompactPlacement = () => {
                 if (cancelled) return;
+                setMainWindowShadeMode(true);
                 syncCompactWindowPlacement(mountNode);
                 placementAttempt += 1;
                 if (placementAttempt < 10) {
@@ -394,8 +434,6 @@ export const WinampPlayerShell = ({
                 }
               };
               window.setTimeout(ensureCompactPlacement, 80);
-            } else {
-              resetWebampWindowPlacement();
             }
 
             setWebampReady(true);
@@ -467,7 +505,29 @@ export const WinampPlayerShell = ({
         webampRef.current = null;
       }
     };
-  }, [winamp.expanded, bootCycle]);
+  }, [bootCycle]);
+
+  useEffect(() => {
+    if (!webampReady) return;
+    modeSwitchUntilRef.current = Date.now() + 1400;
+    if (winamp.expanded) {
+      const mountNode = compactHostRef.current;
+      if (mountNode) {
+        mountNode.style.height = '100%';
+      }
+      resetWebampWindowPlacement();
+      resetCompactWindowVisibility();
+      window.setTimeout(() => {
+        setMainWindowShadeMode(false);
+      }, 80);
+      return;
+    }
+
+    const mountNode = compactHostRef.current;
+    if (!mountNode) return;
+    setMainWindowShadeMode(true);
+    syncCompactWindowPlacement(mountNode);
+  }, [winamp.expanded, webampReady]);
 
   useEffect(() => {
     if (winamp.expanded || !webampReady) return;
@@ -564,6 +624,7 @@ export const WinampPlayerShell = ({
     if (!instance || !webampReady) return;
 
     const applyTrack = (trackInfo: { url: string; metaData?: { title?: string } }) => {
+      if (Date.now() < modeSwitchUntilRef.current) return;
       const byUrl = stationByTrackUrlRef.current;
       const byTitle = stationByTrackTitleRef.current;
       const byTrackUrl =
@@ -597,6 +658,7 @@ export const WinampPlayerShell = ({
 
     let previousStatus = normalizeMediaStatus(instance.getMediaStatus());
     const statusTick = window.setInterval(() => {
+      if (Date.now() < modeSwitchUntilRef.current) return;
       const nextStatus = normalizeMediaStatus(instance.getMediaStatus());
       if (nextStatus === previousStatus) return;
       previousStatus = nextStatus;
@@ -695,37 +757,35 @@ export const WinampPlayerShell = ({
 
   return (
     <>
-      {!winamp.expanded && (
-        <div className="winamp-compact">
-          {actionStrip('compact')}
-          <div className="winamp-compact-main">
-            <div className="winamp-host compact" ref={compactHostRef} />
-            {!webampReady && (
-              <div className="winamp-loading">
-                {webampFailed ? (
-                  <button
-                    className="chip"
-                    type="button"
-                    title={bootError || undefined}
-                    onClick={() => setBootCycle((value) => value + 1)}
-                  >
-                    Winamp load failed. Retry
-                  </button>
-                ) : (
-                  'Loading Winamp...'
-                )}
-              </div>
-            )}
-          </div>
+      <div className={`winamp-compact ${winamp.expanded ? 'expanded-host' : ''}`}>
+        {!winamp.expanded ? actionStrip('compact') : null}
+        <div className="winamp-compact-main">
+          <div className="winamp-host compact" ref={compactHostRef} />
+          {!webampReady && !winamp.expanded && (
+            <div className="winamp-loading">
+              {webampFailed ? (
+                <button
+                  className="chip"
+                  type="button"
+                  title={bootError || undefined}
+                  onClick={() => setBootCycle((value) => value + 1)}
+                >
+                  Winamp load failed. Retry
+                </button>
+              ) : (
+                'Loading Winamp...'
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <WinampOverlay
         open={winamp.expanded}
         onCollapse={() => winamp.setExpanded(false)}
         footerActions={actionStrip('overlay')}
       >
-        <div className="winamp-host overlay" ref={overlayHostRef} />
+        <div className="winamp-host overlay" />
         {!webampReady && (
           <div className="winamp-loading overlay">
             {webampFailed ? (
