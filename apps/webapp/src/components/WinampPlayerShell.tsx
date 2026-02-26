@@ -145,50 +145,73 @@ export const WinampPlayerShell = ({
     let mountedInstance: WebampInstance | null = null;
     mountNode.innerHTML = '';
     setWebampReady(false);
+    setWebampFailed(false);
 
     const boot = async () => {
-      try {
-        const mod = await import('webamp');
-        if (cancelled) return;
-        const Webamp = mod.default as unknown as WebampCtor;
-        const instance = new Webamp({
-          initialSkin: {
-            url: winamp.activeSkin.url
-          },
-          availableSkins: winamp.availableSkins.map((skin) => ({
-            name: skin.name,
-            url: skin.url
-          })),
-          initialTracks: buildTrack(current, nowPlaying),
-          enableHotkeys: false,
-          enableMediaSession: false,
-          zIndex: winamp.expanded ? 70 : 20,
-          windowLayout: buildLayout(winamp.expanded)
-        });
+      const mod = await import('webamp');
+      if (cancelled) return;
+      const Webamp = mod.default as unknown as WebampCtor;
 
-        await instance.renderWhenReady(mountNode);
-        if (cancelled) {
-          instance.dispose();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const instance = new Webamp({
+            initialSkin: {
+              url: winamp.activeSkin.url
+            },
+            availableSkins: winamp.availableSkins.map((skin) => ({
+              name: skin.name,
+              url: skin.url
+            })),
+            initialTracks: buildTrack(current, nowPlaying),
+            enableHotkeys: false,
+            enableMediaSession: false,
+            zIndex: winamp.expanded ? 70 : 20,
+            windowLayout: buildLayout(winamp.expanded)
+          });
+
+          await instance.renderWhenReady(mountNode);
+          if (cancelled) {
+            instance.dispose();
+            return;
+          }
+
+          mountedInstance = instance;
+          webampRef.current = instance;
+          instance.setVolume(0);
+          setWebampReady(true);
+          setWebampFailed(false);
           return;
+        } catch {
+          if (attempt === 2 || cancelled) {
+            break;
+          }
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, 180 * (attempt + 1))
+          );
+          mountNode.innerHTML = '';
         }
+      }
 
-        mountedInstance = instance;
-        webampRef.current = instance;
-        instance.setVolume(0);
-        setWebampReady(true);
-        setWebampFailed(false);
-      } catch {
+      if (!cancelled) {
         setWebampFailed(true);
       }
     };
 
-    void boot();
+    void boot().catch(() => {
+      if (!cancelled) {
+        setWebampFailed(true);
+      }
+    });
 
     return () => {
       cancelled = true;
       setWebampReady(false);
       if (mountedInstance) {
-        mountedInstance.dispose();
+        try {
+          mountedInstance.dispose();
+        } catch {
+          // ignore
+        }
       }
       if (webampRef.current === mountedInstance) {
         webampRef.current = null;
