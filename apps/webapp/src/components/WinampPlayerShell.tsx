@@ -130,14 +130,53 @@ const getMainWindowNode = () => {
   );
 };
 
+const getWebampWindowNodes = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
+
+const enforceCompactWindowVisibility = () => {
+  const mainWindow = getMainWindowNode();
+  if (!mainWindow) return;
+
+  getWebampWindowNodes().forEach((windowNode) => {
+    if (windowNode === mainWindow) {
+      delete windowNode.dataset.raCompactHidden;
+      windowNode.style.display = '';
+      windowNode.style.pointerEvents = 'auto';
+      return;
+    }
+
+    if (windowNode.dataset.raCompactHidden === undefined) {
+      windowNode.dataset.raCompactHidden = windowNode.style.display || '__empty__';
+    }
+    windowNode.style.display = 'none';
+    windowNode.style.pointerEvents = 'none';
+  });
+};
+
+const resetCompactWindowVisibility = () => {
+  getWebampWindowNodes().forEach((windowNode) => {
+    if (windowNode.dataset.raCompactHidden !== undefined) {
+      const previousDisplay = windowNode.dataset.raCompactHidden;
+      windowNode.style.display = previousDisplay === '__empty__' ? '' : previousDisplay;
+      delete windowNode.dataset.raCompactHidden;
+    } else {
+      windowNode.style.display = '';
+    }
+    windowNode.style.pointerEvents = '';
+  });
+};
+
 const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
+  enforceCompactWindowVisibility();
   const mountRect = mountNode.getBoundingClientRect();
   windowNode.style.transformOrigin = 'top left';
   windowNode.style.transform = '';
+  windowNode.style.left = '0px';
+  windowNode.style.top = '0px';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
   const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.72, 3.6);
@@ -153,6 +192,7 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   anchor.style.zIndex = '58';
   anchor.style.pointerEvents = 'none';
   anchor.style.height = `${compactHeight}px`;
+  anchor.style.width = `${Math.round(nextWidth)}px`;
   anchor.style.overflow = 'hidden';
   anchor.dataset.raCompactAnchor = '1';
   windowNode.style.pointerEvents = 'auto';
@@ -170,15 +210,19 @@ const resetWebampWindowPlacement = () => {
     anchor.style.zIndex = '';
     anchor.style.pointerEvents = '';
     anchor.style.height = '';
+    anchor.style.width = '';
     anchor.style.overflow = '';
     delete anchor.dataset.raCompactAnchor;
   });
 
+  resetCompactWindowVisibility();
   const windowNode = getMainWindowNode();
   if (windowNode) {
     windowNode.style.transformOrigin = '';
     windowNode.style.transform = '';
     windowNode.style.pointerEvents = '';
+    windowNode.style.left = '';
+    windowNode.style.top = '';
   }
 };
 
