@@ -2,8 +2,6 @@ import type { ReactNode } from 'react';
 
 type WinampOverlayProps = {
   open: boolean;
-  title: string;
-  subtitle: string;
   onCollapse: () => void;
   headerActions?: ReactNode;
   children: ReactNode;
@@ -12,8 +10,6 @@ type WinampOverlayProps = {
 
 export const WinampOverlay = ({
   open,
-  title,
-  subtitle,
   onCollapse,
   headerActions,
   children,
@@ -30,10 +26,6 @@ export const WinampOverlay = ({
         aria-label="Collapse player"
       />
       <div className="winamp-overlay-header">
-        <div className="winamp-overlay-title-wrap">
-          <div className="winamp-overlay-title">{title}</div>
-          <div className="winamp-overlay-subtitle">{subtitle}</div>
-        </div>
         <div className="winamp-overlay-header-actions">
           {headerActions}
           <button className="chip active" type="button" onClick={onCollapse}>

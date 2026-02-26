@@ -3,6 +3,7 @@ import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
+const WINAMP_ONLY_MODE = true;
 
 type ReconnectState = {
   timer: number | null;
@@ -238,6 +239,11 @@ export const useAudioPlayer = ({
   }, [current]);
 
   useEffect(() => {
+    if (WINAMP_ONLY_MODE) {
+      return () => {
+        // no-op
+      };
+    }
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     audio.preload = 'auto'; // Enable automatic buffering for smoother playback
@@ -352,6 +358,29 @@ export const useAudioPlayer = ({
   }, [volume]);
 
   const playStation = async (station: StationLite) => {
+    if (WINAMP_ONLY_MODE) {
+      let resolvedStation = station;
+      if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
+        pushEvent('extract: resolving external link');
+        const extracted = await resolveExternalStream(
+          station.url_resolved,
+          pushEvent
+        );
+        if (extracted) {
+          resolvedStation = { ...station, url_resolved: extracted };
+        } else {
+          pushEvent('extract: failed, using original link');
+        }
+      }
+      setCurrent(resolvedStation);
+      setStatus('playing');
+      setIsPlaying(true);
+      candidatesRef.current = buildCandidates(resolvedStation.url_resolved);
+      candidateIndexRef.current = 0;
+      activeUrlRef.current = resolvedStation.url_resolved;
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -400,6 +429,15 @@ export const useAudioPlayer = ({
   };
 
   const toggle = async () => {
+    if (WINAMP_ONLY_MODE) {
+      if (!current) return;
+      setIsPlaying((prev) => {
+        const next = !prev;
+        setStatus(next ? 'playing' : 'paused');
+        return next;
+      });
+      return;
+    }
     const audio = audioRef.current;
     if (!audio || !current) return;
 
@@ -416,6 +454,12 @@ export const useAudioPlayer = ({
   };
 
   const stop = () => {
+    if (WINAMP_ONLY_MODE) {
+      setCurrent(null);
+      setIsPlaying(false);
+      setStatus('idle');
+      return;
+    }
     const audio = audioRef.current;
     if (!audio) return;
     audio.pause();

@@ -19,6 +19,9 @@ type WebampSerializedState = {
     volume?: number;
     status?: string;
   };
+  playlist?: {
+    currentTrack?: number;
+  };
 };
 
 type WebampInstance = {
@@ -64,6 +67,14 @@ const normalizeTrackUrl = (url: string) => {
     return new URL(url, window.location.origin).toString();
   } catch {
     return url;
+  }
+};
+const canonicalTrackUrl = (url: string) => {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return `${parsed.origin}${parsed.pathname}`.toLowerCase();
+  } catch {
+    return url.split(/[?#]/, 1)[0].toLowerCase();
   }
 };
 
@@ -118,9 +129,7 @@ const buildLayout = (expanded: boolean) => {
 };
 
 const applyCompactWindowshade = () => {
-  const toggle = document.querySelector('[title="Toggle Windowshade Mode"]') as
-    | HTMLElement
-    | null;
+  const toggle = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
   if (!toggle) return false;
   const mainWindow = toggle.closest('.window') as HTMLElement | null;
   const height = mainWindow?.getBoundingClientRect().height ?? 0;
@@ -131,25 +140,45 @@ const applyCompactWindowshade = () => {
 
 const syncCompactWindowPlacement = (mountNode: HTMLElement, scale: number) => {
   const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
-  const windowNode = menu?.closest('.window') as HTMLElement | null;
+  const windowNode =
+    (menu?.closest('.window') as HTMLElement | null) ??
+    (document.querySelector('.window') as HTMLElement | null);
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
   const mountRect = mountNode.getBoundingClientRect();
-  const baseScale = windowNode.classList.contains('doubled') ? 2 : 1;
   const baseWidth = 275;
-  const nextScale = Number((baseScale * scale).toFixed(3));
+  const nextScale = Number(scale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const left = mountRect.left + Math.max(0, (mountRect.width - nextWidth) / 2);
-  const top = mountRect.top;
+  const top = mountRect.top + 2;
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
   anchor.style.transform = `translate(${left}px, ${top}px)`;
+  anchor.style.zIndex = '58';
   windowNode.style.transformOrigin = 'top left';
   windowNode.style.transform = `scale(${nextScale})`;
 
   return true;
+};
+
+const resetWebampWindowPlacement = () => {
+  const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
+  const windowNode =
+    (menu?.closest('.window') as HTMLElement | null) ??
+    (document.querySelector('.window') as HTMLElement | null);
+  const anchor = windowNode?.parentElement as HTMLElement | null;
+  if (anchor) {
+    anchor.style.position = '';
+    anchor.style.inset = '';
+    anchor.style.transform = '';
+    anchor.style.zIndex = '';
+  }
+  if (windowNode) {
+    windowNode.style.transformOrigin = '';
+    windowNode.style.transform = '';
+  }
 };
 
 export const WinampPlayerShell = ({
@@ -181,7 +210,7 @@ export const WinampPlayerShell = ({
   const retryCountRef = useRef(0);
   const syncingVolumeFromWebampRef = useRef(false);
   const disableWindowLayoutRef = useRef(false);
-  const playlistRef = useRef<StationLite[]>([]);
+  const playablePlaylistRef = useRef<StationLite[]>([]);
   const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
@@ -196,6 +225,10 @@ export const WinampPlayerShell = ({
     if (current) return [current];
     return [] as StationLite[];
   }, [winamp.playlist, current]);
+  const playablePlaylist = useMemo(
+    () => playlist.filter((station) => Boolean(station.url_resolved)),
+    [playlist]
+  );
 
   const liked = current ? isFavorite(current.stationuuid) : false;
   const canResume = Boolean(recent.length);
@@ -203,7 +236,7 @@ export const WinampPlayerShell = ({
   useEffect(() => {
     const updateScale = () => {
       const viewport = Math.max(window.innerWidth, 320);
-      const nextScale = clamp((viewport - 24) / 550, 0.72, 1.4);
+      const nextScale = clamp((viewport - 24) / 275, 0.64, 1.24);
       setCompactScale(Number(nextScale.toFixed(3)));
     };
     updateScale();
@@ -214,17 +247,18 @@ export const WinampPlayerShell = ({
   }, []);
 
   useEffect(() => {
-    playlistRef.current = playlist;
-  }, [playlist]);
+    playablePlaylistRef.current = playablePlaylist;
+  }, [playablePlaylist]);
 
   useEffect(() => {
     const lookup = stationByTrackUrlRef.current;
     lookup.clear();
-    playlist.forEach((station) => {
+    playablePlaylist.forEach((station) => {
       if (!station.url_resolved) return;
       lookup.set(normalizeTrackUrl(station.url_resolved), station);
+      lookup.set(canonicalTrackUrl(station.url_resolved), station);
     });
-  }, [playlist]);
+  }, [playablePlaylist]);
 
   useEffect(() => {
     return () => {
@@ -233,12 +267,30 @@ export const WinampPlayerShell = ({
   }, []);
 
   useEffect(() => {
+    if (!winamp.expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [winamp.expanded]);
+
+  useEffect(() => {
     const mountNode = winamp.expanded ? overlayHostRef.current : compactHostRef.current;
     if (!mountNode) return;
 
     let cancelled = false;
     let mountedInstance: WebampInstance | null = null;
+    if (webampRef.current) {
+      try {
+        webampRef.current.dispose();
+      } catch {
+        // ignore
+      }
+      webampRef.current = null;
+    }
     mountNode.innerHTML = '';
+    resetWebampWindowPlacement();
     setWebampReady(false);
     setWebampFailed(false);
     setBootError(null);
@@ -260,8 +312,8 @@ export const WinampPlayerShell = ({
                 name: skin.name,
                 url: skin.url
               })),
-              initialTracks: buildTracks(playlist),
-              enableDoubleSizeMode: true,
+              initialTracks: buildTracks(playablePlaylist),
+              enableDoubleSizeMode: false,
               enableHotkeys: false,
               enableMediaSession: false,
               zIndex: winamp.expanded ? 140 : 64,
@@ -289,6 +341,8 @@ export const WinampPlayerShell = ({
                 }
               };
               window.setTimeout(ensureShade, 40);
+            } else {
+              resetWebampWindowPlacement();
             }
             setWebampReady(true);
             setWebampFailed(false);
@@ -352,6 +406,7 @@ export const WinampPlayerShell = ({
           // ignore
         }
       }
+      resetWebampWindowPlacement();
       if (webampRef.current === mountedInstance) {
         webampRef.current = null;
       }
@@ -364,6 +419,7 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
+      applyCompactWindowshade();
       syncCompactWindowPlacement(mountNode, compactScale);
     };
     sync();
@@ -390,24 +446,31 @@ export const WinampPlayerShell = ({
     const instance = webampRef.current;
     if (!instance || !webampReady) return;
 
-    const tracks = buildTracks(playlist).filter((item) =>
-      Boolean(item.url)
-    );
+    const tracks = buildTracks(playablePlaylist);
     if (!tracks.length) return;
 
     try {
       instance.setTracksToPlay(tracks);
       const currentId = current?.stationuuid;
       const currentIndex = currentId
-        ? playlist.findIndex((item) => item.stationuuid === currentId)
+        ? playablePlaylist.findIndex((item) => item.stationuuid === currentId)
         : 0;
       if (currentIndex >= 0) {
         suppressTrackSyncUntilRef.current = Date.now() + 700;
         instance.setCurrentTrack(currentIndex);
       }
+    } catch {
+      // ignore
+    }
+  }, [webampReady, playablePlaylist, current?.stationuuid]);
 
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady) return;
+
+    try {
       syncPauseUntilRef.current = Date.now() + 500;
-      if (!current) {
+      if (!current || !player.isPlaying) {
         instance.pause();
       } else {
         instance.play();
@@ -415,7 +478,7 @@ export const WinampPlayerShell = ({
     } catch {
       // ignore
     }
-  }, [webampReady, playlist, current?.stationuuid]);
+  }, [webampReady, current?.stationuuid, player.isPlaying]);
 
   useEffect(() => {
     const instance = webampRef.current;
@@ -435,20 +498,34 @@ export const WinampPlayerShell = ({
 
     const unsubscribeTrack = instance.onTrackDidChange((trackInfo) => {
       if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
-      const target = stationByTrackUrlRef.current.get(normalizeTrackUrl(trackInfo.url));
+      const lookup = stationByTrackUrlRef.current;
+      const target =
+        lookup.get(normalizeTrackUrl(trackInfo.url)) ??
+        lookup.get(canonicalTrackUrl(trackInfo.url));
       if (target) {
         if (player.current?.stationuuid === target.stationuuid) return;
         playStation(target);
+        return;
+      }
+
+      let currentIndex: number | undefined;
+      try {
+        currentIndex = instance.__getSerializedState?.().playlist?.currentTrack;
+      } catch {
+        currentIndex = undefined;
+      }
+      if (typeof currentIndex === 'number' && currentIndex >= 0) {
+        const station = playablePlaylistRef.current[currentIndex];
+        if (station && player.current?.stationuuid !== station.stationuuid) {
+          playStation(station);
+        }
       }
     });
 
-    const syncMediaState = () => {
-      let media: WebampSerializedState['media'] | undefined;
-      try {
-        media = instance.__getSerializedState?.().media;
-      } catch {
-        return;
-      }
+    let previousStatus = normalizeMediaStatus(instance.getMediaStatus());
+
+    const syncMediaState = (state?: WebampSerializedState) => {
+      const media = state?.media;
       if (!media) return;
       if (typeof media.volume === 'number') {
         const nextVolume = clamp(media.volume / 100, 0, 1);
@@ -460,17 +537,8 @@ export const WinampPlayerShell = ({
           }, 120);
         }
       }
-    };
 
-    const unsubscribeState = instance.__onStateChange?.(() => {
-      syncMediaState();
-    });
-
-    let previousStatus = normalizeMediaStatus(instance.getMediaStatus());
-    const timer = window.setInterval(() => {
-      syncMediaState();
-
-      const nextStatus = normalizeMediaStatus(instance.getMediaStatus());
+      const nextStatus = normalizeMediaStatus(media.status ?? instance.getMediaStatus());
       if (nextStatus === previousStatus) return;
       previousStatus = nextStatus;
 
@@ -483,20 +551,24 @@ export const WinampPlayerShell = ({
           if (!player.isPlaying) {
             player.toggle();
           }
-        } else if (playlistRef.current.length) {
-          playStation(playlistRef.current[0]);
+        } else if (playablePlaylistRef.current.length) {
+          playStation(playablePlaylistRef.current[0]);
         } else if (canResume) {
           playLast();
         }
       }
 
-      if (nextStatus === 'PAUSED' && player.isPlaying) {
+      if ((nextStatus === 'PAUSED' || nextStatus === 'STOPPED') && player.isPlaying) {
         player.toggle();
       }
-    }, 280);
+    };
+
+    const unsubscribeState = instance.__onStateChange?.(() => {
+      const state = instance.__getSerializedState?.();
+      syncMediaState(state);
+    });
 
     return () => {
-      window.clearInterval(timer);
       unsubscribeTrack?.();
       unsubscribeState?.();
     };
@@ -573,7 +645,8 @@ export const WinampPlayerShell = ({
   return (
     <>
       {!winamp.expanded && (
-        <div className="winamp-compact" style={{ ['--winamp-scale' as any]: compactScale }}>
+        <div className="winamp-compact">
+          {actionStrip('compact')}
           <div className="winamp-compact-main">
             <div className="winamp-host compact" ref={compactHostRef} />
             {!webampReady && (
@@ -593,14 +666,11 @@ export const WinampPlayerShell = ({
               </div>
             )}
           </div>
-          {actionStrip('compact')}
         </div>
       )}
 
       <WinampOverlay
         open={winamp.expanded}
-        title={current?.name || 'Winamp Player'}
-        subtitle={current ? stationLocation(current) : 'Pick a station'}
         onCollapse={() => winamp.setExpanded(false)}
         footerActions={actionStrip('overlay')}
       >
