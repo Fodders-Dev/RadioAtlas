@@ -182,6 +182,52 @@ test('station starts even when it was not in the saved winamp playlist', async (
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
+test('favorite station can start even when saved winamp playlist is stale', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'radio:favorites',
+      JSON.stringify([
+        {
+          stationuuid: 'uuid-tokyo',
+          name: 'Tokyo FM',
+          url_resolved: 'https://stream.example.com/tokyo',
+          favicon: '',
+          country: 'Japan',
+          state: 'Tokyo',
+          tags: 'pop,jpop',
+          geo_lat: 35.6895,
+          geo_long: 139.6917
+        }
+      ])
+    );
+    localStorage.setItem(
+      'radio:winamp-playlist',
+      JSON.stringify([
+        {
+          stationuuid: 'uuid-berlin',
+          name: 'Berlin Pulse',
+          url_resolved: 'https://stream.example.com/berlin',
+          favicon: '',
+          country: 'Germany',
+          state: 'Berlin',
+          tags: 'techno,house',
+          geo_lat: 52.52,
+          geo_long: 13.405
+        }
+      ])
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Favorites' }).click();
+  await expect(page.getByText('My Stations')).toBeVisible();
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Expand' }).click();
+  await expect(page.locator('#webamp')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
+});
+
 test('browse flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
@@ -239,7 +285,7 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
 
   expect(compactBox).not.toBeNull();
   expect(navBox).not.toBeNull();
-  expect(compactBox!.height).toBeGreaterThanOrEqual(90);
+  expect(compactBox!.height).toBeGreaterThanOrEqual(116);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
 });
 

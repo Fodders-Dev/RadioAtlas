@@ -670,6 +670,7 @@ main {
 }
 
 .winamp-compact.expanded-host {
+  position: fixed;
   inset: 0;
   bottom: auto;
   left: 0;
@@ -678,13 +679,19 @@ main {
   max-width: 100vw;
   height: 100vh;
   z-index: 2300;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
   pointer-events: auto;
+  overflow: hidden;
 }
 
 .winamp-compact.expanded-host .winamp-compact-main {
+  flex: 1;
   width: 100%;
   height: 100%;
+  min-height: 0;
   align-items: flex-start;
   justify-content: center;
   padding: calc(54px + env(safe-area-inset-top)) 0
@@ -702,7 +709,7 @@ main {
 }
 
 .winamp-compact-main {
-  min-height: 20px;
+  min-height: 32px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -776,7 +783,7 @@ main {
 }
 
 .winamp-host.compact {
-  min-height: 30px;
+  min-height: 34px;
   width: 100%;
 }
 
@@ -812,6 +819,11 @@ main {
   justify-content: center;
   position: relative;
   z-index: 61;
+}
+
+.winamp-actions.compact .chip,
+.winamp-actions.compact .icon-btn {
+  flex: 0 0 auto;
 }
 
 .winamp-actions.overlay {
@@ -1066,6 +1078,7 @@ main {
     left: 8px;
     right: 8px;
     bottom: calc(8px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
+    gap: 10px;
   }
 
   .winamp-actions.compact {
@@ -1073,12 +1086,17 @@ main {
     width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding: 0 2px 2px;
+    padding: 0 2px 4px;
     scrollbar-width: none;
   }
 
   .winamp-compact-main {
-    min-height: 96px;
+    min-height: 126px;
+    padding-bottom: 4px;
+  }
+
+  .winamp-host.compact {
+    min-height: 120px;
   }
 
   .winamp-overlay-header {

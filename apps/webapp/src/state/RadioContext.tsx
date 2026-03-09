@@ -91,6 +91,21 @@ const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
   };
 };
 
+const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
+  const merged: StationLite[] = [];
+  const seen = new Set<string>();
+
+  groups.forEach((group) => {
+    group.forEach((station) => {
+      if (!station || seen.has(station.stationuuid)) return;
+      seen.add(station.stationuuid);
+      merged.push(station);
+    });
+  });
+
+  return merged;
+};
+
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,9 +277,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const lite = toLite(station);
     setWinampPlaylist((prev) => {
       if (prev.some((item) => item.stationuuid === lite.stationuuid)) {
-        return prev;
+        return prev.map((item) => (item.stationuuid === lite.stationuuid ? lite : item));
       }
-      return [...prev, lite];
+      return [lite, ...prev];
     });
   };
 
@@ -273,17 +288,22 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setWinampPlaylist((prev) => {
       const favIds = new Set(favorites.map((item) => item.stationuuid));
       const withoutFavs = prev.filter((item) => !favIds.has(item.stationuuid));
-      return [...favorites, ...withoutFavs];
+      return mergeUniqueStations(favorites, withoutFavs);
     });
   }, [favorites, setWinampPlaylist]);
 
   useEffect(() => {
     if (winampPlaylist.length) return;
-    const seed = [...favorites, ...recent].slice(0, 120);
+    const seed = mergeUniqueStations(favorites, recent).slice(0, 120);
     if (seed.length) {
       setWinampPlaylist(seed);
     }
   }, [favorites, recent, winampPlaylist.length, setWinampPlaylist]);
+
+  useEffect(() => {
+    if (!player.current) return;
+    addToWinampPlaylist(player.current);
+  }, [player.current?.stationuuid]);
 
   const playStationInternal = (
     station: Station | StationLite,
@@ -304,11 +324,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       openExternal(lite);
       return;
     }
-    player.playStation(lite);
     addToWinampPlaylist(lite);
     if (addToHistory) {
       addRecent(lite);
     }
+    player.playStation(lite);
   };
 
   const playStation = (station: Station | StationLite) =>
