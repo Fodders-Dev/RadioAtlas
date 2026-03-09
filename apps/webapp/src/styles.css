@@ -696,7 +696,7 @@ main {
   justify-content: flex-start;
   padding: calc(54px + env(safe-area-inset-top)) 8px
     calc(76px + env(safe-area-inset-bottom));
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 1;
   overflow: auto;
 }
