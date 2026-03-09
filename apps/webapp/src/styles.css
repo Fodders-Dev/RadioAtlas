@@ -677,9 +677,8 @@ main {
   width: 100vw;
   max-width: 100vw;
   height: 100vh;
-  z-index: 2050;
-  align-items: flex-start;
-  justify-content: flex-start;
+  z-index: 2300;
+  display: block;
   pointer-events: none;
 }
 
@@ -687,10 +686,18 @@ main {
   width: 100%;
   height: 100%;
   align-items: flex-start;
-  pointer-events: auto;
+  justify-content: center;
+  padding: calc(54px + env(safe-area-inset-top)) 0
+    calc(88px + env(safe-area-inset-bottom));
+  pointer-events: none;
+  z-index: 1;
 }
 
 .winamp-compact.expanded-host .winamp-host.compact {
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   pointer-events: auto;
 }
 
@@ -811,31 +818,24 @@ main {
   justify-content: flex-start;
 }
 
-.winamp-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2300;
-  overflow: hidden;
-  pointer-events: none;
-}
-
 .winamp-overlay-backdrop {
   position: absolute;
   inset: 0;
   border: none;
   background: rgba(0, 0, 0, 0.66);
-  pointer-events: none;
+  z-index: 0;
+  pointer-events: auto;
 }
 
 .winamp-overlay-header {
-  position: fixed;
+  position: absolute;
   top: calc(8px + env(safe-area-inset-top));
   right: 10px;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
   gap: 8px;
-  z-index: 2310;
+  z-index: 3;
   pointer-events: auto;
 }
 
@@ -847,26 +847,12 @@ main {
   justify-content: flex-end;
 }
 
-.winamp-overlay-host {
-  position: absolute;
-  inset: 0;
-  padding: calc(8px + env(safe-area-inset-top)) 0 calc(76px + env(safe-area-inset-bottom));
-  overflow: auto;
-  z-index: 150;
-  pointer-events: none;
-}
-
-.winamp-host.overlay {
-  min-height: 100%;
-  width: 100%;
-}
-
 .winamp-overlay-footer {
-  position: fixed;
+  position: absolute;
   left: 10px;
   right: 10px;
   bottom: calc(8px + env(safe-area-inset-bottom));
-  z-index: 2310;
+  z-index: 3;
   background: rgba(8, 10, 18, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
@@ -1063,7 +1049,7 @@ main {
 
 @media (max-width: 600px) {
   :root {
-    --stack-padding: 240px;
+    --stack-padding: 320px;
     --nav-height: 72px;
   }
 
@@ -1077,11 +1063,22 @@ main {
   }
 
   .winamp-compact {
+    left: 8px;
+    right: 8px;
     bottom: calc(8px + var(--nav-height) + var(--nav-gap) + env(safe-area-inset-bottom));
   }
 
   .winamp-actions.compact {
     justify-content: flex-start;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 2px 2px;
+    scrollbar-width: none;
+  }
+
+  .winamp-compact-main {
+    min-height: 96px;
   }
 
   .winamp-overlay-header {
@@ -1091,10 +1088,6 @@ main {
 
   .winamp-overlay-header-actions {
     gap: 6px;
-  }
-
-  .winamp-host.overlay {
-    min-height: 100%;
   }
 
   .winamp-overlay-footer {

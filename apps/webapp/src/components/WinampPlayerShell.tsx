@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StationLite } from '../types';
 import { stationLocation } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
-import { WinampOverlay } from './WinampOverlay';
 
 type WebampTrack = {
   url: string;
@@ -13,6 +12,7 @@ type WebampTrack = {
 };
 
 type WebampMediaStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
+type CompactPlacementMode = 'strip' | 'window';
 
 type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
@@ -33,6 +33,7 @@ type WebampInstance = {
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
 
 let webampCtorPromise: Promise<WebampCtor> | null = null;
+const MOBILE_COMPACT_BREAKPOINT = 600;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -73,6 +74,8 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const getCompactPlacementMode = (): CompactPlacementMode =>
+  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT ? 'window' : 'strip';
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
@@ -82,41 +85,6 @@ const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
       artist: stationLocation(station)
     }
   }));
-
-const buildLayout = (expanded: boolean) => {
-  if (!expanded) {
-    return {
-      main: {
-        position: { top: 6, left: 6 },
-        shadeMode: true
-      },
-      equalizer: {
-        position: { top: 138, left: 6 },
-        closed: true
-      },
-      playlist: {
-        position: { top: 254, left: 6 },
-        size: { extraHeight: 12, extraWidth: 4 },
-        closed: true
-      }
-    };
-  }
-
-  return {
-    main: {
-      position: { top: 16, left: 16 }
-    },
-    equalizer: {
-      position: { top: 136, left: 16 },
-      closed: false
-    },
-    playlist: {
-      position: { top: 252, left: 16 },
-      size: { extraHeight: 12, extraWidth: 4 },
-      closed: false
-    }
-  };
-};
 
 const buildPersistentLayout = () => ({
   main: {
@@ -182,11 +150,15 @@ const resetCompactWindowVisibility = () => {
   });
 };
 
-const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) => {
+const syncCompactWindowPlacement = (
+  mountNode: HTMLElement,
+  mode: CompactPlacementMode = 'strip'
+) => {
   const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
+  const useWindowLayout = mode === 'window';
   enforceCompactWindowVisibility();
   const mountRect = mountNode.getBoundingClientRect();
   windowNode.style.transformOrigin = 'top left';
@@ -196,26 +168,34 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, forceStrip = false) 
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || 275;
   const baseHeight = rawRect.height || 28;
-  const fitScale = clamp((mountRect.width - 8) / baseWidth, 0.72, 3.6);
+  const fitScale = clamp(
+    (mountRect.width - (useWindowLayout ? 20 : 8)) / baseWidth,
+    useWindowLayout ? 0.94 : 0.72,
+    3.6
+  );
   const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
-  const compactHeight = forceStrip ? clamp(rawHeight, 28, 40) : Math.max(28, rawHeight);
-  mountNode.style.height = `${compactHeight}px`;
   const hostRect = mountNode.getBoundingClientRect();
   const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
   const actionsNode = document.querySelector('.winamp-actions.compact') as HTMLElement | null;
   const actionsRect = actionsNode?.getBoundingClientRect();
   const navNode = document.querySelector('.bottom-nav') as HTMLElement | null;
   const navRect = navNode?.getBoundingClientRect();
-  const minTop = actionsRect ? actionsRect.bottom + 8 : hostRect.top;
-  const maxBottom = navRect ? navRect.top - 2 : hostRect.bottom;
+  const minTop = actionsRect ? actionsRect.bottom + (useWindowLayout ? 10 : 8) : hostRect.top;
+  const maxBottom = navRect ? navRect.top - (useWindowLayout ? 10 : 2) : hostRect.bottom;
+  const targetHeight = useWindowLayout ? clamp(rawHeight, 92, 156) : clamp(rawHeight, 32, 40);
+  const compactHeight = Math.min(
+    targetHeight,
+    Math.max(useWindowLayout ? 92 : 32, Math.round(maxBottom - minTop))
+  );
+  mountNode.style.height = `${compactHeight}px`;
   let top = Math.max(hostRect.top, minTop);
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
   anchor.style.transform = `translate(${left}px, ${top}px)`;
-  anchor.style.zIndex = '58';
+  anchor.style.zIndex = useWindowLayout ? '59' : '58';
   anchor.style.pointerEvents = 'none';
   anchor.style.height = `${compactHeight}px`;
   anchor.style.width = `${Math.round(nextWidth)}px`;
@@ -315,15 +295,24 @@ export const WinampPlayerShell = ({
 
   const current = player.current;
 
-  const playlist = useMemo(() => {
-    if (winamp.playlist.length) return winamp.playlist;
-    if (current) return [current];
-    return [] as StationLite[];
+  const effectivePlaylist = useMemo(() => {
+    const merged: StationLite[] = [];
+    const seen = new Set<string>();
+
+    const addStation = (station: StationLite | null) => {
+      if (!station || seen.has(station.stationuuid)) return;
+      seen.add(station.stationuuid);
+      merged.push(station);
+    };
+
+    addStation(current);
+    winamp.playlist.forEach(addStation);
+    return merged;
   }, [winamp.playlist, current]);
 
   const playablePlaylist = useMemo(
-    () => playlist.filter((station) => Boolean(station.url_resolved)),
-    [playlist]
+    () => effectivePlaylist.filter((station) => Boolean(station.url_resolved)),
+    [effectivePlaylist]
   );
 
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -442,8 +431,9 @@ export const WinampPlayerShell = ({
               let placementAttempt = 0;
               const ensureCompactPlacement = () => {
                 if (cancelled) return;
-                setMainWindowShadeMode(true);
-                syncCompactWindowPlacement(mountNode, true);
+                const compactMode = getCompactPlacementMode();
+                setMainWindowShadeMode(compactMode === 'strip');
+                syncCompactWindowPlacement(mountNode, compactMode);
                 placementAttempt += 1;
                 if (placementAttempt < 10) {
                   window.setTimeout(ensureCompactPlacement, 180);
@@ -543,8 +533,9 @@ export const WinampPlayerShell = ({
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
     compactSettledRef.current = false;
-    setMainWindowShadeMode(true);
-    syncCompactWindowPlacement(mountNode, true);
+    const compactMode = getCompactPlacementMode();
+    setMainWindowShadeMode(compactMode === 'strip');
+    syncCompactWindowPlacement(mountNode, compactMode);
   }, [winamp.expanded, webampReady]);
 
   useEffect(() => {
@@ -553,6 +544,15 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
+      const compactMode = getCompactPlacementMode();
+      if (compactMode === 'window') {
+        compactSettledRef.current = true;
+        mountNode.style.height = '';
+        setMainWindowShadeMode(false);
+        syncCompactWindowPlacement(mountNode, compactMode);
+        return;
+      }
+
       let forceStrip = false;
       if (!compactSettledRef.current) {
         const mainWindow = getMainWindowNode();
@@ -566,7 +566,7 @@ export const WinampPlayerShell = ({
           compactSettledRef.current = mainHeight <= 64;
         }
       }
-      syncCompactWindowPlacement(mountNode, forceStrip);
+      syncCompactWindowPlacement(mountNode, forceStrip ? 'strip' : compactMode);
     };
     sync();
     window.addEventListener('scroll', sync, { passive: true });
@@ -787,38 +787,35 @@ export const WinampPlayerShell = ({
   );
 
   return (
-    <>
-      <div className={`winamp-compact ${winamp.expanded ? 'expanded-host' : ''}`}>
-        {!winamp.expanded ? actionStrip('compact') : null}
-        <div className="winamp-compact-main">
-          <div className="winamp-host compact" ref={compactHostRef} />
-          {!webampReady && !winamp.expanded && (
-            <div className="winamp-loading">
-              {webampFailed ? (
-                <button
-                  className="chip"
-                  type="button"
-                  title={bootError || undefined}
-                  onClick={() => setBootCycle((value) => value + 1)}
-                >
-                  Winamp load failed. Retry
-                </button>
-              ) : (
-                'Loading Winamp...'
-              )}
+    <div
+      className={`winamp-compact ${winamp.expanded ? 'expanded-host' : ''}`}
+      role={winamp.expanded ? 'dialog' : undefined}
+      aria-modal={winamp.expanded ? 'true' : undefined}
+    >
+      {winamp.expanded ? (
+        <>
+          <button
+            className="winamp-overlay-backdrop"
+            type="button"
+            onClick={() => winamp.setExpanded(false)}
+            aria-label="Collapse player"
+          />
+          <div className="winamp-overlay-header">
+            <div className="winamp-overlay-header-actions">
+              <button className="chip active" type="button" onClick={() => winamp.setExpanded(false)}>
+                Collapse
+              </button>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      ) : (
+        actionStrip('compact')
+      )}
 
-      <WinampOverlay
-        open={winamp.expanded}
-        onCollapse={() => winamp.setExpanded(false)}
-        footerActions={actionStrip('overlay')}
-      >
-        <div className="winamp-host overlay" />
+      <div className="winamp-compact-main">
+        <div className="winamp-host compact" ref={compactHostRef} />
         {!webampReady && (
-          <div className="winamp-loading overlay">
+          <div className={`winamp-loading ${winamp.expanded ? 'overlay' : ''}`}>
             {webampFailed ? (
               <button
                 className="chip"
@@ -833,7 +830,9 @@ export const WinampPlayerShell = ({
             )}
           </div>
         )}
-      </WinampOverlay>
-    </>
+      </div>
+
+      {winamp.expanded ? <div className="winamp-overlay-footer">{actionStrip('overlay')}</div> : null}
+    </div>
   );
 };

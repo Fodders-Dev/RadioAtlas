@@ -149,6 +149,39 @@ test('playback from table updates winamp shell and info panel', async ({ page })
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
+test('station starts even when it was not in the saved winamp playlist', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'radio:winamp-playlist',
+      JSON.stringify([
+        {
+          stationuuid: 'uuid-berlin',
+          name: 'Berlin Pulse',
+          url_resolved: 'https://stream.example.com/berlin',
+          favicon: '',
+          country: 'Germany',
+          state: 'Berlin',
+          tags: 'techno,house',
+          geo_lat: 52.52,
+          geo_long: 13.405
+        }
+      ])
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByPlaceholder('Search by name, tag, country, language').fill('Tokyo');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.getByRole('button', { name: 'Expand' })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand' }).click();
+  await expect(page.locator('#webamp')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
+});
+
 test('browse flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
@@ -182,11 +215,32 @@ test('browse flow and full navigation still work', async ({ page }) => {
 test('expand and collapse winamp overlay', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Expand' }).click();
-  await expect(page.locator('.winamp-overlay')).toBeVisible();
-  await expect(page.locator('.winamp-host.overlay')).toBeVisible();
+  await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+  await expect(page.locator('#webamp')).toHaveCount(1);
+  await expect(page.locator('#webamp .window').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Collapse', exact: true }).click();
-  await expect(page.locator('.winamp-overlay')).toHaveCount(0);
+  await expect(page.locator('.winamp-compact.expanded-host')).toHaveCount(0);
+  await expect(page.locator('.winamp-compact')).toBeVisible();
+});
+
+test('mobile compact player stays usable above bottom nav', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/');
+
+  const compactMain = page.locator('.winamp-compact-main');
+  const nav = page.locator('.bottom-nav');
+
+  await expect(compactMain).toBeVisible();
+  await expect(nav).toBeVisible();
+
+  const compactBox = await compactMain.boundingBox();
+  const navBox = await nav.boundingBox();
+
+  expect(compactBox).not.toBeNull();
+  expect(navBox).not.toBeNull();
+  expect(compactBox!.height).toBeGreaterThanOrEqual(90);
+  expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
 });
 
 test('skin preset change persists in localStorage', async ({ page }) => {
