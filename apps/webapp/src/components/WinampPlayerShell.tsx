@@ -41,7 +41,12 @@ const MOBILE_COMPACT_MIN_HEIGHT = 104;
 const MOBILE_COMPACT_MAX_HEIGHT = 148;
 const STRIP_COMPACT_MIN_HEIGHT = 40;
 const STRIP_COMPACT_MAX_HEIGHT = 54;
-const EXPANDED_STACK_WIDTH = 324;
+const EXPANDED_STACK_WIDTH = 336;
+const EXPANDED_HOST_TOP_PADDING = 54;
+const EXPANDED_HOST_BOTTOM_PADDING = 88;
+const EXPANDED_MAIN_TOP = 0;
+const EXPANDED_EQUALIZER_TOP = 116;
+const EXPANDED_PLAYLIST_TOP = 232;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -82,18 +87,8 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-const isTelegramMobilePlatform = () => {
-  const platform = window.Telegram?.WebApp?.platform?.toLowerCase() || '';
-  return platform === 'android' || platform === 'ios';
-};
-const isLikelyTouchDevice = () => {
-  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  const hasTouchStart = 'ontouchstart' in window;
-  const mobileUserAgent = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
-  return coarse || hasTouchStart || navigator.maxTouchPoints > 1 || mobileUserAgent || isTelegramMobilePlatform();
-};
 const getCompactPlacementMode = (): CompactPlacementMode =>
-  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT && isLikelyTouchDevice() ? 'window' : 'strip';
+  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT ? 'window' : 'strip';
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
@@ -134,6 +129,11 @@ const getMainWindowNode = () => {
 
 const getWebampWindowNodes = () =>
   Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
+
+const getWebampWindowNode = (windowId: string) => {
+  const direct = document.getElementById(windowId);
+  return (direct?.closest('.window') as HTMLElement | null) ?? null;
+};
 
 const enforceCompactWindowVisibility = () => {
   const mainWindow = getMainWindowNode();
@@ -270,27 +270,44 @@ const resetWebampWindowPlacement = () => {
 };
 
 const syncExpandedWindowPlacement = (mountNode: HTMLElement) => {
-  const mainWindow = getMainWindowNode();
-  const anchor = mainWindow?.parentElement as HTMLElement | null;
-  if (!mainWindow || !anchor) return false;
-
   const hostRect = mountNode.getBoundingClientRect();
-  const scale = clamp((hostRect.width - 28) / EXPANDED_STACK_WIDTH, 1, 1.42);
+  const scale = clamp((hostRect.width - 24) / EXPANDED_STACK_WIDTH, 0.92, 1.36);
   const nextScale = Number(scale.toFixed(3));
+  const stackWidth = EXPANDED_STACK_WIDTH * nextScale;
+  const stackLeft = hostRect.left + Math.max(8, (hostRect.width - stackWidth) / 2);
+  const stackTop = hostRect.top + EXPANDED_HOST_TOP_PADDING;
 
-  anchor.style.position = 'absolute';
-  anchor.style.inset = '0 auto auto 50%';
-  anchor.style.left = '50%';
-  anchor.style.top = '0';
-  anchor.style.transform = `translateX(-50%) scale(${nextScale})`;
-  anchor.style.transformOrigin = 'top center';
-  anchor.style.zIndex = '1601';
-  anchor.style.pointerEvents = 'auto';
-  anchor.style.height = 'auto';
-  anchor.style.width = 'auto';
-  anchor.style.overflow = 'visible';
-  anchor.dataset.raExpandedAnchor = '1';
-  delete anchor.dataset.raCompactAnchor;
+  const mainWindow = getWebampWindowNode('main-window') ?? getMainWindowNode();
+  const equalizerWindow = getWebampWindowNode('equalizer-window');
+  const playlistWindow = getWebampWindowNode('playlist-window');
+
+  const placements = [
+    { windowNode: mainWindow, topOffset: EXPANDED_MAIN_TOP, zIndex: '1603' },
+    { windowNode: equalizerWindow, topOffset: EXPANDED_EQUALIZER_TOP, zIndex: '1602' },
+    { windowNode: playlistWindow, topOffset: EXPANDED_PLAYLIST_TOP, zIndex: '1601' }
+  ];
+
+  let placed = false;
+  placements.forEach(({ windowNode, topOffset, zIndex }) => {
+    const anchor = windowNode?.parentElement as HTMLElement | null;
+    if (!anchor) return;
+    placed = true;
+    anchor.style.position = 'fixed';
+    anchor.style.inset = 'auto auto auto auto';
+    anchor.style.left = `${Math.round(stackLeft)}px`;
+    anchor.style.top = `${Math.round(stackTop + topOffset * nextScale)}px`;
+    anchor.style.transform = `scale(${nextScale})`;
+    anchor.style.transformOrigin = 'top left';
+    anchor.style.zIndex = zIndex;
+    anchor.style.pointerEvents = 'auto';
+    anchor.style.height = 'auto';
+    anchor.style.width = 'auto';
+    anchor.style.overflow = 'visible';
+    anchor.dataset.raExpandedAnchor = '1';
+    delete anchor.dataset.raCompactAnchor;
+  });
+
+  if (!placed) return false;
   return true;
 };
 
@@ -363,7 +380,7 @@ export const WinampPlayerShell = ({
     window.setTimeout(() => {
       setMainWindowShadeMode(false);
       syncExpandedWindowPlacement(mountNode);
-    }, 80);
+    }, 70);
     window.setTimeout(() => {
       syncExpandedWindowPlacement(mountNode);
     }, 220);

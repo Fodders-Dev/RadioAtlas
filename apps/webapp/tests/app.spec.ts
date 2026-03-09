@@ -104,6 +104,24 @@ const mockStations = async (page: Page) => {
       })
     })
   );
+  await page.route('**/metadata?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        nowPlaying: 'Mock Song',
+        source: 'test'
+      })
+    })
+  );
+  await page.route('**/fetch?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/plain; charset=utf-8',
+      body: 'title=Mock Song'
+    })
+  );
 };
 
 test.beforeEach(async ({ page }) => {
