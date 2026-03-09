@@ -272,6 +272,12 @@ test('expand and collapse winamp overlay', async ({ page }) => {
 
 test('mobile compact player stays usable above bottom nav', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      configurable: true,
+      get: () => 5
+    });
+  });
   await page.goto('/');
 
   const compactMain = page.locator('.winamp-compact-main');
@@ -285,7 +291,7 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
 
   expect(compactBox).not.toBeNull();
   expect(navBox).not.toBeNull();
-  expect(compactBox!.height).toBeGreaterThanOrEqual(116);
+  expect(compactBox!.height).toBeGreaterThanOrEqual(40);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
 });
 

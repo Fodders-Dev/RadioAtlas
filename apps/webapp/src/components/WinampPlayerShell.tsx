@@ -37,10 +37,11 @@ const MOBILE_COMPACT_BREAKPOINT = 600;
 const MAIN_WINDOW_WIDTH = 275;
 const SHADED_WINDOW_HEIGHT = 28;
 const FULL_WINDOW_HEIGHT = 116;
-const MOBILE_COMPACT_MIN_HEIGHT = 116;
-const MOBILE_COMPACT_MAX_HEIGHT = 176;
-const STRIP_COMPACT_MIN_HEIGHT = 34;
-const STRIP_COMPACT_MAX_HEIGHT = 44;
+const MOBILE_COMPACT_MIN_HEIGHT = 104;
+const MOBILE_COMPACT_MAX_HEIGHT = 148;
+const STRIP_COMPACT_MIN_HEIGHT = 40;
+const STRIP_COMPACT_MAX_HEIGHT = 54;
+const EXPANDED_STACK_WIDTH = 324;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -81,8 +82,12 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const isLikelyTouchDevice = () => {
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  return coarse || navigator.maxTouchPoints > 1;
+};
 const getCompactPlacementMode = (): CompactPlacementMode =>
-  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT ? 'window' : 'strip';
+  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT && isLikelyTouchDevice() ? 'window' : 'strip';
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
@@ -183,7 +188,7 @@ const syncCompactWindowPlacement = (
     : measuredHeight;
   const fitScale = clamp(
     (mountRect.width - (useWindowLayout ? 20 : 8)) / baseWidth,
-    useWindowLayout ? 1 : 0.78,
+    useWindowLayout ? 0.96 : 0.92,
     3.6
   );
   const nextScale = Number(fitScale.toFixed(3));
@@ -228,7 +233,9 @@ const syncCompactWindowPlacement = (
 };
 
 const resetWebampWindowPlacement = () => {
-  const anchors = document.querySelectorAll<HTMLElement>('[data-ra-compact-anchor="1"]');
+  const anchors = document.querySelectorAll<HTMLElement>(
+    '[data-ra-compact-anchor="1"], [data-ra-expanded-anchor="1"]'
+  );
   anchors.forEach((anchor) => {
     anchor.style.position = '';
     anchor.style.inset = '';
@@ -238,7 +245,11 @@ const resetWebampWindowPlacement = () => {
     anchor.style.height = '';
     anchor.style.width = '';
     anchor.style.overflow = '';
+    anchor.style.left = '';
+    anchor.style.top = '';
+    anchor.style.transformOrigin = '';
     delete anchor.dataset.raCompactAnchor;
+    delete anchor.dataset.raExpandedAnchor;
   });
 
   resetCompactWindowVisibility();
@@ -250,6 +261,31 @@ const resetWebampWindowPlacement = () => {
     windowNode.style.left = '';
     windowNode.style.top = '';
   }
+};
+
+const syncExpandedWindowPlacement = (mountNode: HTMLElement) => {
+  const mainWindow = getMainWindowNode();
+  const anchor = mainWindow?.parentElement as HTMLElement | null;
+  if (!mainWindow || !anchor) return false;
+
+  const hostRect = mountNode.getBoundingClientRect();
+  const scale = clamp((hostRect.width - 28) / EXPANDED_STACK_WIDTH, 1, 1.42);
+  const nextScale = Number(scale.toFixed(3));
+
+  anchor.style.position = 'absolute';
+  anchor.style.inset = '0 auto auto 50%';
+  anchor.style.left = '50%';
+  anchor.style.top = '0';
+  anchor.style.transform = `translateX(-50%) scale(${nextScale})`;
+  anchor.style.transformOrigin = 'top center';
+  anchor.style.zIndex = '1601';
+  anchor.style.pointerEvents = 'auto';
+  anchor.style.height = 'auto';
+  anchor.style.width = 'auto';
+  anchor.style.overflow = 'visible';
+  anchor.dataset.raExpandedAnchor = '1';
+  delete anchor.dataset.raCompactAnchor;
+  return true;
 };
 
 const isWindowShaded = () => {
@@ -320,7 +356,11 @@ export const WinampPlayerShell = ({
     resetCompactWindowVisibility();
     window.setTimeout(() => {
       setMainWindowShadeMode(false);
+      syncExpandedWindowPlacement(mountNode);
     }, 80);
+    window.setTimeout(() => {
+      syncExpandedWindowPlacement(mountNode);
+    }, 220);
   };
 
   const applyCompactLayout = (mountNode: HTMLElement) => {
@@ -329,6 +369,7 @@ export const WinampPlayerShell = ({
     const compactMode = getCompactPlacementMode();
     if (compactMode === 'window') {
       mountNode.style.height = `${MOBILE_COMPACT_MIN_HEIGHT}px`;
+      setMainWindowShadeMode(false);
     } else {
       mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
       setMainWindowShadeMode(true);
@@ -600,6 +641,22 @@ export const WinampPlayerShell = ({
     const interval = window.setInterval(sync, 300);
     return () => {
       window.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      window.clearInterval(interval);
+    };
+  }, [winamp.expanded, webampReady]);
+
+  useEffect(() => {
+    if (!winamp.expanded || !webampReady) return;
+    const mountNode = compactHostRef.current;
+    if (!mountNode) return;
+    const sync = () => {
+      syncExpandedWindowPlacement(mountNode);
+    };
+    sync();
+    window.addEventListener('resize', sync);
+    const interval = window.setInterval(sync, 450);
+    return () => {
       window.removeEventListener('resize', sync);
       window.clearInterval(interval);
     };

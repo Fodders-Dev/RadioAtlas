@@ -1091,12 +1091,17 @@ main {
   }
 
   .winamp-compact-main {
-    min-height: 126px;
-    padding-bottom: 4px;
+    min-height: 44px;
+    padding-bottom: 2px;
   }
 
   .winamp-host.compact {
-    min-height: 120px;
+    min-height: 40px;
+  }
+
+  .winamp-actions.compact .chip,
+  .winamp-actions.compact .icon-btn {
+    min-height: 36px;
   }
 
   .winamp-overlay-header {
