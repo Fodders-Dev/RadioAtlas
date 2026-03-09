@@ -489,6 +489,26 @@ export const WinampPlayerShell = ({
     }, 160);
   };
 
+  useEffect(() => {
+    const onShadeToggleStart = (event: Event) => {
+      if (expandedRef.current) return;
+      const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
+      if (!shell || shell.classList.contains('expanded-host')) return;
+      const target = event.target as HTMLElement | null;
+      const shadeToggle = target?.closest('[title="Toggle Windowshade Mode"]');
+      if (!shadeToggle) return;
+      event.preventDefault();
+      event.stopPropagation();
+      requestExpand();
+    };
+    document.addEventListener('mousedown', onShadeToggleStart, true);
+    document.addEventListener('touchstart', onShadeToggleStart, true);
+    return () => {
+      document.removeEventListener('mousedown', onShadeToggleStart, true);
+      document.removeEventListener('touchstart', onShadeToggleStart, true);
+    };
+  }, []);
+
   const applyExpandedLayout = (mountNode: HTMLElement) => {
     mountNode.style.height = '100%';
     mountNode.style.minHeight = `${FULL_WINDOW_HEIGHT}px`;

@@ -319,6 +319,15 @@ test('expand and collapse winamp overlay', async ({ page }) => {
   await expect(page.locator('.winamp-compact')).toBeVisible();
 });
 
+test('windowshade toggle opens full expanded player from compact mode', async ({ page }) => {
+  await page.goto('/');
+  const shadeToggle = page.locator('[title="Toggle Windowshade Mode"]').first();
+  await expect(shadeToggle).toBeVisible();
+  await shadeToggle.click();
+  await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Collapse', exact: true })).toBeVisible();
+});
+
 test('expanded mode keeps station list clickable', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Expand' }).click();
