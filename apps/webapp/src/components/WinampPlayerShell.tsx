@@ -297,9 +297,15 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
   const actionsNode = document.querySelector('.winamp-actions.compact') as HTMLElement | null;
   const actionsRect = actionsNode?.getBoundingClientRect();
+  const trackLineNode = document.querySelector('.winamp-trackline.compact') as HTMLElement | null;
+  const trackLineRect = trackLineNode?.getBoundingClientRect();
   const navNode = document.querySelector('.bottom-nav') as HTMLElement | null;
   const navRect = navNode?.getBoundingClientRect();
-  const minTop = actionsRect ? actionsRect.bottom + 8 : hostRect.top;
+  const minTop = Math.max(
+    hostRect.top,
+    (actionsRect?.bottom ?? hostRect.top) + 8,
+    trackLineRect ? trackLineRect.bottom + 6 : hostRect.top
+  );
   const maxBottom = navRect ? navRect.top - 4 : hostRect.bottom;
   const availableHeight = Math.max(STRIP_COMPACT_MIN_HEIGHT, Math.round(maxBottom - minTop));
   const compactHeight = clamp(
@@ -379,6 +385,9 @@ const resetWebampWindowPlacement = () => {
 const isWindowShaded = () => {
   const mainWindow = getMainWindowNode();
   if (!mainWindow) return true;
+  if (mainWindow.classList.contains('shade')) return true;
+  const mainContent = mainWindow.querySelector('#main-window') as HTMLElement | null;
+  if (mainContent?.classList.contains('shade')) return true;
   const rect = mainWindow.getBoundingClientRect();
   return rect.height <= 40;
 };
@@ -395,6 +404,33 @@ const setMainWindowShadeMode = (shaded: boolean) => {
   if (isWindowShaded() !== shaded) {
     mainWindow.classList.toggle('shade', shaded);
   }
+};
+
+const isWindowVisible = (id: string) => {
+  const node = getWindowById(id);
+  if (!node) return false;
+  const style = window.getComputedStyle(node);
+  const rect = node.getBoundingClientRect();
+  return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 8 && rect.height > 8;
+};
+
+const ensureWindowVisible = (id: string, toggleTitle: string) => {
+  if (isWindowVisible(id)) return;
+  const toggle = document.querySelector(`[title="${toggleTitle}"]`) as HTMLElement | null;
+  if (!toggle) return;
+
+  const now = Date.now();
+  const last = Number(toggle.dataset.raForceOpenAt || '0');
+  if (now - last < 420) return;
+  toggle.dataset.raForceOpenAt = String(now);
+  toggle.click();
+};
+
+const ensureExpandedWindowsVisible = () => {
+  setMainWindowShadeMode(false);
+  ensureWindowVisible('equalizer-window', 'Toggle Graphical Equalizer');
+  ensureWindowVisible('playlist-window', 'Toggle Playlist Editor');
+  setMainWindowShadeMode(false);
 };
 
 export const WinampPlayerShell = ({
@@ -462,11 +498,11 @@ export const WinampPlayerShell = ({
       webampRoot.dataset.raExpandedRoot = '1';
     }
     window.setTimeout(() => {
-      setMainWindowShadeMode(false);
+      ensureExpandedWindowsVisible();
       syncExpandedWindowPlacement();
     }, 80);
     window.setTimeout(() => {
-      setMainWindowShadeMode(false);
+      ensureExpandedWindowsVisible();
       syncExpandedWindowPlacement();
     }, 260);
   };
@@ -745,7 +781,7 @@ export const WinampPlayerShell = ({
   useEffect(() => {
     if (!winamp.expanded || !webampReady) return;
     const sync = () => {
-      setMainWindowShadeMode(false);
+      ensureExpandedWindowsVisible();
       resetCompactWindowVisibility();
       syncExpandedWindowPlacement();
     };
@@ -969,7 +1005,11 @@ export const WinampPlayerShell = ({
       </button>
 
       {variant === 'compact' ? (
-        <button className="chip active" type="button" onClick={() => winamp.setExpanded(true)}>
+        <button
+          className="chip active expand-chip"
+          type="button"
+          onClick={() => winamp.setExpanded(true)}
+        >
           Expand
         </button>
       ) : null}
@@ -1014,7 +1054,7 @@ export const WinampPlayerShell = ({
       ) : (
         <>
           {actionStrip('compact')}
-          {trackLine('compact')}
+          {canCopyTrackTitle ? trackLine('compact') : null}
         </>
       )}
 

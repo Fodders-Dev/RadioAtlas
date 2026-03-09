@@ -827,6 +827,13 @@ main {
   z-index: 61;
 }
 
+.winamp-actions.compact .expand-chip {
+  position: sticky;
+  right: 0;
+  margin-left: auto;
+  z-index: 2;
+}
+
 .winamp-actions.compact .chip,
 .winamp-actions.compact .icon-btn {
   flex: 0 0 auto;
@@ -889,7 +896,7 @@ main {
 .winamp-overlay-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(3, 6, 12, 0.24);
+  background: rgba(3, 6, 12, 0.14);
   z-index: 0;
   pointer-events: none;
 }
