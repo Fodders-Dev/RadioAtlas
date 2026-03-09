@@ -118,6 +118,8 @@ const getMainWindowNode = () => {
 const getWebampWindowNodes = () =>
   Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
 
+const getWebampRootNode = () => document.getElementById('webamp') as HTMLElement | null;
+
 const enforceCompactWindowVisibility = () => {
   const mainWindow = getMainWindowNode();
   if (!mainWindow) return;
@@ -239,6 +241,18 @@ const resetWebampWindowPlacement = () => {
     windowNode.style.left = '';
     windowNode.style.top = '';
   }
+
+  const webampRoot = getWebampRootNode();
+  if (webampRoot?.dataset.raExpandedRoot === '1') {
+    webampRoot.style.position = '';
+    webampRoot.style.inset = '';
+    webampRoot.style.left = '';
+    webampRoot.style.top = '';
+    webampRoot.style.transform = '';
+    webampRoot.style.width = '';
+    webampRoot.style.height = '';
+    delete webampRoot.dataset.raExpandedRoot;
+  }
 };
 
 const isWindowShaded = () => {
@@ -307,6 +321,17 @@ export const WinampPlayerShell = ({
     mountNode.style.minHeight = `${FULL_WINDOW_HEIGHT}px`;
     resetWebampWindowPlacement();
     resetCompactWindowVisibility();
+    const webampRoot = getWebampRootNode();
+    if (webampRoot) {
+      webampRoot.style.position = 'fixed';
+      webampRoot.style.inset = '0 auto auto 0';
+      webampRoot.style.left = '0';
+      webampRoot.style.top = '0';
+      webampRoot.style.transform = '';
+      webampRoot.style.width = '0';
+      webampRoot.style.height = '0';
+      webampRoot.dataset.raExpandedRoot = '1';
+    }
     window.setTimeout(() => {
       setMainWindowShadeMode(false);
     }, 80);
@@ -315,6 +340,7 @@ export const WinampPlayerShell = ({
   const applyCompactLayout = (mountNode: HTMLElement) => {
     mountNode.style.minHeight = '';
     compactSettledRef.current = false;
+    resetWebampWindowPlacement();
     mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
     setMainWindowShadeMode(true);
     syncCompactWindowPlacement(mountNode);
