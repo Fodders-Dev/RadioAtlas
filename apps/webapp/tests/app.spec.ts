@@ -84,6 +84,20 @@ const mockStations = async (page: Page) => {
       body: ''
     })
   );
+  await page.route('**/status-json.xsl', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        icestats: {
+          source: {
+            listenurl: 'https://stream.example.com/tokyo',
+            title: 'Mock Song'
+          }
+        }
+      })
+    })
+  );
   await page.route('**/extract?url=**', (route) =>
     route.fulfill({
       status: 200,
@@ -142,6 +156,13 @@ test.beforeEach(async ({ page }) => {
         unobserve() {}
         disconnect() {}
       };
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => {},
+        readText: async () => ''
+      }
+    });
   });
 
   await mockStations(page);
@@ -298,6 +319,15 @@ test('expand and collapse winamp overlay', async ({ page }) => {
   await expect(page.locator('.winamp-compact')).toBeVisible();
 });
 
+test('expanded mode keeps station list clickable', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Expand' }).click();
+
+  const targetRow = page.locator('.station-row').filter({ hasText: 'Berlin Pulse' }).first();
+  await targetRow.getByRole('button', { name: 'Play' }).click();
+  await expect(targetRow.getByRole('button', { name: 'Pause' })).toBeVisible();
+});
+
 test('mobile compact player stays usable above bottom nav', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.addInitScript(() => {
@@ -357,4 +387,17 @@ test('share action always displays toast', async ({ page }) => {
   await page.getByRole('button', { name: 'Share' }).click();
   await expect(page.locator('.toast')).toBeVisible();
   await expect(page.locator('.toast')).toContainText(/Share|Link/);
+});
+
+test('track line shows track title only and supports copy click', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  const trackLine = page.locator('.winamp-trackline.compact');
+  await expect(trackLine).toBeVisible();
+  await expect(trackLine).toContainText('Mock Song');
+  await expect(trackLine).not.toContainText('Tokyo FM');
+
+  await trackLine.click();
+  await expect(page.locator('.toast')).toContainText('Track copied');
 });

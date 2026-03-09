@@ -428,6 +428,7 @@ export const WinampPlayerShell = ({
   const stationByTrackTitleRef = useRef<Map<string, StationLite>>(new Map());
   const lastPlaylistSignatureRef = useRef('');
   const currentTrackIndexRef = useRef<number | null>(null);
+  const currentTrackStationIdRef = useRef<string | null>(null);
 
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
@@ -501,6 +502,8 @@ export const WinampPlayerShell = ({
 
   const liked = current ? isFavorite(current.stationuuid) : false;
   const canResume = Boolean(recent.length);
+  const trackTitle = nowPlaying?.trim() || '';
+  const canCopyTrackTitle = Boolean(trackTitle);
 
   useEffect(() => {
     playablePlaylistRef.current = playablePlaylist;
@@ -606,6 +609,7 @@ export const WinampPlayerShell = ({
             webampRef.current = instance;
             lastPlaylistSignatureRef.current = '';
             currentTrackIndexRef.current = null;
+            currentTrackStationIdRef.current = null;
             instance.setVolume(Math.round(player.volume * 100));
 
             modeSwitchUntilRef.current = Date.now() + 1200;
@@ -781,6 +785,7 @@ export const WinampPlayerShell = ({
       instance.setTracksToPlay(tracks);
       lastPlaylistSignatureRef.current = signature;
       currentTrackIndexRef.current = null;
+      currentTrackStationIdRef.current = null;
     } catch {
       // ignore
     }
@@ -794,13 +799,19 @@ export const WinampPlayerShell = ({
       const currentId = current?.stationuuid;
       if (currentId) {
         const index = playablePlaylist.findIndex((item) => item.stationuuid === currentId);
-        if (index >= 0 && currentTrackIndexRef.current !== index) {
+        if (
+          index >= 0 &&
+          (currentTrackIndexRef.current !== index ||
+            currentTrackStationIdRef.current !== currentId)
+        ) {
           currentTrackIndexRef.current = index;
+          currentTrackStationIdRef.current = currentId;
           suppressTrackSyncUntilRef.current = Date.now() + 700;
           instance.setCurrentTrack(index);
         }
       } else {
         currentTrackIndexRef.current = null;
+        currentTrackStationIdRef.current = null;
       }
 
       syncPauseUntilRef.current = Date.now() + 500;
@@ -848,6 +859,7 @@ export const WinampPlayerShell = ({
       );
       if (index >= 0) {
         currentTrackIndexRef.current = index;
+        currentTrackStationIdRef.current = target.stationuuid;
       }
 
       if (player.current?.stationuuid === target.stationuuid) {
@@ -952,7 +964,7 @@ export const WinampPlayerShell = ({
         </svg>
       </button>
 
-      <button className="chip" type="button" onClick={copyTrack} disabled={!nowPlaying}>
+      <button className="chip" type="button" onClick={copyTrack} disabled={!canCopyTrackTitle}>
         Song
       </button>
 
@@ -962,6 +974,21 @@ export const WinampPlayerShell = ({
         </button>
       ) : null}
     </div>
+  );
+
+  const trackLine = (variant: 'compact' | 'overlay') => (
+    <button
+      className={`winamp-trackline ${variant}`}
+      type="button"
+      onClick={copyTrack}
+      disabled={!canCopyTrackTitle}
+      title={canCopyTrackTitle ? 'Copy track title' : 'Track title unavailable'}
+      aria-label={canCopyTrackTitle ? `Copy track title: ${trackTitle}` : 'Track title unavailable'}
+    >
+      <span className="winamp-trackline-label">
+        {canCopyTrackTitle ? trackTitle : 'Track title unavailable'}
+      </span>
+    </button>
   );
 
   return (
@@ -985,10 +1012,16 @@ export const WinampPlayerShell = ({
           </div>
         </>
       ) : (
-        actionStrip('compact')
+        <>
+          {actionStrip('compact')}
+          {trackLine('compact')}
+        </>
       )}
 
-      <div className="winamp-compact-main">
+      <div
+        className="winamp-compact-main"
+        onClick={!winamp.expanded ? () => winamp.setExpanded(true) : undefined}
+      >
         <div className="winamp-host compact" ref={compactHostRef} />
         {!webampReady && (
           <div className={`winamp-loading ${winamp.expanded ? 'overlay' : ''}`}>
@@ -1008,7 +1041,12 @@ export const WinampPlayerShell = ({
         )}
       </div>
 
-      {winamp.expanded ? <div className="winamp-overlay-footer">{actionStrip('overlay')}</div> : null}
+      {winamp.expanded ? (
+        <div className="winamp-overlay-footer">
+          {trackLine('overlay')}
+          {actionStrip('overlay')}
+        </div>
+      ) : null}
     </div>
   );
 };
