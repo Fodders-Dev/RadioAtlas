@@ -119,6 +119,89 @@ const getWebampWindowNodes = () =>
   Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
 
 const getWebampRootNode = () => document.getElementById('webamp') as HTMLElement | null;
+const getWindowById = (id: string) =>
+  (document.querySelector(`#${id}`)?.closest('.window') as HTMLElement | null) ?? null;
+
+const placeWindowAnchor = (windowNode: HTMLElement, left: number, top: number, zOrder: number) => {
+  const anchor = windowNode.parentElement as HTMLElement | null;
+  if (!anchor) return;
+
+  anchor.style.position = 'absolute';
+  anchor.style.inset = '';
+  anchor.style.left = '0px';
+  anchor.style.top = '0px';
+  anchor.style.transformOrigin = 'top left';
+  anchor.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  anchor.style.zIndex = String(1650 + zOrder);
+  anchor.style.pointerEvents = 'none';
+  anchor.dataset.raExpandedAnchor = '1';
+
+  windowNode.style.left = '0px';
+  windowNode.style.top = '0px';
+  windowNode.style.transform = '';
+  windowNode.style.pointerEvents = 'auto';
+};
+
+const syncExpandedWindowPlacement = () => {
+  const mainWindow = getWindowById('main-window');
+  if (!mainWindow) return false;
+  const equalizerWindow = getWindowById('equalizer-window');
+  const playlistWindow = getWindowById('playlist-window');
+
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const headerRect = (
+    document.querySelector('.winamp-overlay-header') as HTMLElement | null
+  )?.getBoundingClientRect();
+  const footerRect = (
+    document.querySelector('.winamp-overlay-footer') as HTMLElement | null
+  )?.getBoundingClientRect();
+  const availableTop = Math.max(6, Math.round((headerRect?.bottom ?? 0) + 8));
+  const availableBottom = Math.max(
+    availableTop + 140,
+    Math.round((footerRect?.top ?? viewportHeight) - 8)
+  );
+
+  const mainRect = mainWindow.getBoundingClientRect();
+  const eqRect = equalizerWindow?.getBoundingClientRect();
+  const playlistRect = playlistWindow?.getBoundingClientRect();
+  const mainWidth = Math.max(mainRect.width, MAIN_WINDOW_WIDTH);
+  const mainHeight = Math.max(mainRect.height, FULL_WINDOW_HEIGHT);
+  const eqWidth = equalizerWindow ? Math.max(eqRect?.width ?? 0, MAIN_WINDOW_WIDTH) : 0;
+  const eqHeight = equalizerWindow ? Math.max(eqRect?.height ?? 0, FULL_WINDOW_HEIGHT) : 0;
+  const playlistWidth = playlistWindow ? Math.max(playlistRect?.width ?? 0, MAIN_WINDOW_WIDTH) : 0;
+  const playlistHeight = playlistWindow ? Math.max(playlistRect?.height ?? 0, 220) : 0;
+
+  const gap = 6;
+  const totalHeight =
+    mainHeight +
+    (equalizerWindow ? gap + eqHeight : 0) +
+    (playlistWindow ? gap + playlistHeight : 0);
+  const stackWidth = Math.max(mainWidth, eqWidth, playlistWidth);
+
+  let stackTop = availableTop;
+  const overflow = stackTop + totalHeight - availableBottom;
+  if (overflow > 0) {
+    stackTop = Math.max(6, stackTop - overflow);
+  }
+  const stackLeft = Math.max(6, Math.round((viewportWidth - stackWidth) / 2));
+
+  let cursor = stackTop;
+  placeWindowAnchor(mainWindow, stackLeft, cursor, 1);
+  cursor += mainHeight;
+
+  if (equalizerWindow) {
+    cursor += gap;
+    placeWindowAnchor(equalizerWindow, stackLeft, cursor, 2);
+    cursor += eqHeight;
+  }
+
+  if (playlistWindow) {
+    cursor += gap;
+    placeWindowAnchor(playlistWindow, stackLeft, cursor, 3);
+  }
+  return true;
+};
 
 const enforceCompactWindowVisibility = () => {
   const mainWindow = getMainWindowNode();
@@ -251,6 +334,7 @@ const resetWebampWindowPlacement = () => {
     webampRoot.style.transform = '';
     webampRoot.style.width = '';
     webampRoot.style.height = '';
+    webampRoot.style.pointerEvents = '';
     delete webampRoot.dataset.raExpandedRoot;
   }
 };
@@ -328,13 +412,19 @@ export const WinampPlayerShell = ({
       webampRoot.style.left = '0';
       webampRoot.style.top = '0';
       webampRoot.style.transform = '';
-      webampRoot.style.width = '0';
-      webampRoot.style.height = '0';
+      webampRoot.style.width = '100%';
+      webampRoot.style.height = '100%';
+      webampRoot.style.pointerEvents = 'none';
       webampRoot.dataset.raExpandedRoot = '1';
     }
     window.setTimeout(() => {
       setMainWindowShadeMode(false);
+      syncExpandedWindowPlacement();
     }, 80);
+    window.setTimeout(() => {
+      setMainWindowShadeMode(false);
+      syncExpandedWindowPlacement();
+    }, 260);
   };
 
   const applyCompactLayout = (mountNode: HTMLElement) => {
@@ -610,10 +700,13 @@ export const WinampPlayerShell = ({
     const sync = () => {
       setMainWindowShadeMode(false);
       resetCompactWindowVisibility();
+      syncExpandedWindowPlacement();
     };
     sync();
+    const interval = window.setInterval(sync, 280);
     window.addEventListener('resize', sync);
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener('resize', sync);
     };
   }, [winamp.expanded, webampReady]);
