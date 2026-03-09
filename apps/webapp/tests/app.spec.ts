@@ -167,6 +167,16 @@ test('playback from table updates winamp shell and info panel', async ({ page })
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
+test('switching between stations keeps selected station as current', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  const berlinRow = page.locator('.station-row').filter({ hasText: 'Berlin Pulse' }).first();
+  await berlinRow.getByRole('button', { name: 'Play' }).click();
+  await page.getByRole('button', { name: 'Expand' }).click();
+  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(page.locator('.details-title')).toHaveText('Berlin Pulse');
+});
+
 test('station starts even when it was not in the saved winamp playlist', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -310,6 +320,7 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
   expect(compactBox).not.toBeNull();
   expect(navBox).not.toBeNull();
   expect(compactBox!.height).toBeGreaterThanOrEqual(40);
+  expect(compactBox!.height).toBeLessThanOrEqual(70);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
 });
 

@@ -12,7 +12,6 @@ type WebampTrack = {
 };
 
 type WebampMediaStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
-type CompactPlacementMode = 'strip' | 'window';
 
 type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
@@ -33,20 +32,11 @@ type WebampInstance = {
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
 
 let webampCtorPromise: Promise<WebampCtor> | null = null;
-const MOBILE_COMPACT_BREAKPOINT = 600;
 const MAIN_WINDOW_WIDTH = 275;
 const SHADED_WINDOW_HEIGHT = 28;
 const FULL_WINDOW_HEIGHT = 116;
-const MOBILE_COMPACT_MIN_HEIGHT = 104;
-const MOBILE_COMPACT_MAX_HEIGHT = 148;
-const STRIP_COMPACT_MIN_HEIGHT = 40;
-const STRIP_COMPACT_MAX_HEIGHT = 54;
-const EXPANDED_STACK_WIDTH = 336;
-const EXPANDED_HOST_TOP_PADDING = 54;
-const EXPANDED_HOST_BOTTOM_PADDING = 88;
-const EXPANDED_MAIN_TOP = 0;
-const EXPANDED_EQUALIZER_TOP = 116;
-const EXPANDED_PLAYLIST_TOP = 232;
+const STRIP_COMPACT_MIN_HEIGHT = 44;
+const STRIP_COMPACT_MAX_HEIGHT = 62;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -87,8 +77,6 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-const getCompactPlacementMode = (): CompactPlacementMode =>
-  window.innerWidth <= MOBILE_COMPACT_BREAKPOINT ? 'window' : 'strip';
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
@@ -130,11 +118,6 @@ const getMainWindowNode = () => {
 const getWebampWindowNodes = () =>
   Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
 
-const getWebampWindowNode = (windowId: string) => {
-  const direct = document.getElementById(windowId);
-  return (direct?.closest('.window') as HTMLElement | null) ?? null;
-};
-
 const enforceCompactWindowVisibility = () => {
   const mainWindow = getMainWindowNode();
   if (!mainWindow) return;
@@ -168,18 +151,12 @@ const resetCompactWindowVisibility = () => {
   });
 };
 
-const syncCompactWindowPlacement = (
-  mountNode: HTMLElement,
-  mode: CompactPlacementMode = 'strip'
-) => {
+const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
-  const useWindowLayout = mode === 'window';
-  if (useWindowLayout) {
-    setMainWindowShadeMode(false);
-  }
+  setMainWindowShadeMode(true);
   enforceCompactWindowVisibility();
   const mountRect = mountNode.getBoundingClientRect();
   windowNode.style.transformOrigin = 'top left';
@@ -189,14 +166,8 @@ const syncCompactWindowPlacement = (
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || MAIN_WINDOW_WIDTH;
   const measuredHeight = rawRect.height || SHADED_WINDOW_HEIGHT;
-  const baseHeight = useWindowLayout
-    ? Math.max(measuredHeight, isWindowShaded() ? FULL_WINDOW_HEIGHT : measuredHeight)
-    : measuredHeight;
-  const fitScale = clamp(
-    (mountRect.width - (useWindowLayout ? 20 : 8)) / baseWidth,
-    useWindowLayout ? 0.96 : 0.92,
-    3.6
-  );
+  const baseHeight = measuredHeight;
+  const fitScale = clamp((mountRect.width - 8) / baseWidth, 1, 3.6);
   const nextScale = Number(fitScale.toFixed(3));
   const nextWidth = baseWidth * nextScale;
   const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
@@ -206,20 +177,21 @@ const syncCompactWindowPlacement = (
   const actionsRect = actionsNode?.getBoundingClientRect();
   const navNode = document.querySelector('.bottom-nav') as HTMLElement | null;
   const navRect = navNode?.getBoundingClientRect();
-  const minTop = actionsRect ? actionsRect.bottom + (useWindowLayout ? 10 : 8) : hostRect.top;
-  const maxBottom = navRect ? navRect.top - (useWindowLayout ? 10 : 2) : hostRect.bottom;
-  const minHeight = useWindowLayout ? MOBILE_COMPACT_MIN_HEIGHT : STRIP_COMPACT_MIN_HEIGHT;
-  const maxHeight = useWindowLayout ? MOBILE_COMPACT_MAX_HEIGHT : STRIP_COMPACT_MAX_HEIGHT;
-  const availableHeight = Math.max(minHeight, Math.round(maxBottom - minTop));
-  const targetHeight = clamp(rawHeight, minHeight, maxHeight);
-  const compactHeight = clamp(Math.min(targetHeight, availableHeight), minHeight, maxHeight);
+  const minTop = actionsRect ? actionsRect.bottom + 8 : hostRect.top;
+  const maxBottom = navRect ? navRect.top - 4 : hostRect.bottom;
+  const availableHeight = Math.max(STRIP_COMPACT_MIN_HEIGHT, Math.round(maxBottom - minTop));
+  const compactHeight = clamp(
+    Math.min(rawHeight, availableHeight),
+    STRIP_COMPACT_MIN_HEIGHT,
+    STRIP_COMPACT_MAX_HEIGHT
+  );
   mountNode.style.height = `${compactHeight}px`;
   let top = Math.max(hostRect.top, minTop);
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
   anchor.style.transform = `translate(${left}px, ${top}px)`;
-  anchor.style.zIndex = useWindowLayout ? '59' : '58';
+  anchor.style.zIndex = '58';
   anchor.style.pointerEvents = 'none';
   anchor.style.height = `${compactHeight}px`;
   anchor.style.width = `${Math.round(nextWidth)}px`;
@@ -267,48 +239,6 @@ const resetWebampWindowPlacement = () => {
     windowNode.style.left = '';
     windowNode.style.top = '';
   }
-};
-
-const syncExpandedWindowPlacement = (mountNode: HTMLElement) => {
-  const hostRect = mountNode.getBoundingClientRect();
-  const scale = clamp((hostRect.width - 24) / EXPANDED_STACK_WIDTH, 0.92, 1.36);
-  const nextScale = Number(scale.toFixed(3));
-  const stackWidth = EXPANDED_STACK_WIDTH * nextScale;
-  const stackLeft = hostRect.left + Math.max(8, (hostRect.width - stackWidth) / 2);
-  const stackTop = hostRect.top + EXPANDED_HOST_TOP_PADDING;
-
-  const mainWindow = getWebampWindowNode('main-window') ?? getMainWindowNode();
-  const equalizerWindow = getWebampWindowNode('equalizer-window');
-  const playlistWindow = getWebampWindowNode('playlist-window');
-
-  const placements = [
-    { windowNode: mainWindow, topOffset: EXPANDED_MAIN_TOP, zIndex: '1603' },
-    { windowNode: equalizerWindow, topOffset: EXPANDED_EQUALIZER_TOP, zIndex: '1602' },
-    { windowNode: playlistWindow, topOffset: EXPANDED_PLAYLIST_TOP, zIndex: '1601' }
-  ];
-
-  let placed = false;
-  placements.forEach(({ windowNode, topOffset, zIndex }) => {
-    const anchor = windowNode?.parentElement as HTMLElement | null;
-    if (!anchor) return;
-    placed = true;
-    anchor.style.position = 'fixed';
-    anchor.style.inset = 'auto auto auto auto';
-    anchor.style.left = `${Math.round(stackLeft)}px`;
-    anchor.style.top = `${Math.round(stackTop + topOffset * nextScale)}px`;
-    anchor.style.transform = `scale(${nextScale})`;
-    anchor.style.transformOrigin = 'top left';
-    anchor.style.zIndex = zIndex;
-    anchor.style.pointerEvents = 'auto';
-    anchor.style.height = 'auto';
-    anchor.style.width = 'auto';
-    anchor.style.overflow = 'visible';
-    anchor.dataset.raExpandedAnchor = '1';
-    delete anchor.dataset.raCompactAnchor;
-  });
-
-  if (!placed) return false;
-  return true;
 };
 
 const isWindowShaded = () => {
@@ -379,25 +309,15 @@ export const WinampPlayerShell = ({
     resetCompactWindowVisibility();
     window.setTimeout(() => {
       setMainWindowShadeMode(false);
-      syncExpandedWindowPlacement(mountNode);
-    }, 70);
-    window.setTimeout(() => {
-      syncExpandedWindowPlacement(mountNode);
-    }, 220);
+    }, 80);
   };
 
   const applyCompactLayout = (mountNode: HTMLElement) => {
     mountNode.style.minHeight = '';
     compactSettledRef.current = false;
-    const compactMode = getCompactPlacementMode();
-    if (compactMode === 'window') {
-      mountNode.style.height = `${MOBILE_COMPACT_MIN_HEIGHT}px`;
-      setMainWindowShadeMode(false);
-    } else {
-      mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
-      setMainWindowShadeMode(true);
-    }
-    syncCompactWindowPlacement(mountNode, compactMode);
+    mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
+    setMainWindowShadeMode(true);
+    syncCompactWindowPlacement(mountNode);
   };
 
   const effectivePlaylist = useMemo(() => {
@@ -635,28 +555,18 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
-      const compactMode = getCompactPlacementMode();
-      if (compactMode === 'window') {
-        compactSettledRef.current = true;
-        mountNode.style.height = `${MOBILE_COMPACT_MIN_HEIGHT}px`;
-        syncCompactWindowPlacement(mountNode, compactMode);
-        return;
-      }
-
-      let forceStrip = false;
       if (!compactSettledRef.current) {
         const mainWindow = getMainWindowNode();
         const mainHeight = mainWindow?.getBoundingClientRect().height ?? 0;
         if (mainHeight > 64) {
           mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
           setMainWindowShadeMode(true);
-          forceStrip = true;
         }
         if (mainHeight > 0) {
           compactSettledRef.current = mainHeight <= 64;
         }
       }
-      syncCompactWindowPlacement(mountNode, forceStrip ? 'strip' : compactMode);
+      syncCompactWindowPlacement(mountNode);
     };
     sync();
     window.addEventListener('scroll', sync, { passive: true });
@@ -671,17 +581,14 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     if (!winamp.expanded || !webampReady) return;
-    const mountNode = compactHostRef.current;
-    if (!mountNode) return;
     const sync = () => {
-      syncExpandedWindowPlacement(mountNode);
+      setMainWindowShadeMode(false);
+      resetCompactWindowVisibility();
     };
     sync();
     window.addEventListener('resize', sync);
-    const interval = window.setInterval(sync, 450);
     return () => {
       window.removeEventListener('resize', sync);
-      window.clearInterval(interval);
     };
   }, [winamp.expanded, webampReady]);
 
@@ -770,6 +677,9 @@ export const WinampPlayerShell = ({
       const titleKey = trackInfo.metaData?.title?.trim().toLowerCase();
       const target = byTrackUrl ?? (titleKey ? byTitle.get(titleKey) : undefined);
       if (!target) return;
+      if (player.current?.stationuuid && target.stationuuid !== player.current.stationuuid) {
+        return;
+      }
 
       const index = playablePlaylistRef.current.findIndex(
         (item) => item.stationuuid === target.stationuuid
@@ -900,11 +810,9 @@ export const WinampPlayerShell = ({
     >
       {winamp.expanded ? (
         <>
-          <button
+          <div
             className="winamp-overlay-backdrop"
-            type="button"
-            onClick={() => winamp.setExpanded(false)}
-            aria-label="Collapse player"
+            aria-hidden="true"
           />
           <div className="winamp-overlay-header">
             <div className="winamp-overlay-header-actions">
