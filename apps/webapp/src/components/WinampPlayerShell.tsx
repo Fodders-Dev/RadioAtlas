@@ -1013,17 +1013,6 @@ export const WinampPlayerShell = ({
         Song
       </button>
 
-      {variant === 'compact' ? (
-        <button
-          className="chip active expand-chip"
-          type="button"
-          onMouseDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-          onClick={requestExpand}
-        >
-          Expand
-        </button>
-      ) : null}
     </div>
   );
 
@@ -1065,6 +1054,15 @@ export const WinampPlayerShell = ({
       ) : (
         <>
           {actionStrip('compact')}
+          <button
+            className="chip active winamp-expand-fab"
+            type="button"
+            onMouseDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+            onClick={requestExpand}
+          >
+            Expand
+          </button>
           {canCopyTrackTitle ? trackLine('compact') : null}
         </>
       )}

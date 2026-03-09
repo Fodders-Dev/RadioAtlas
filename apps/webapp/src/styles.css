@@ -825,12 +825,15 @@ main {
   justify-content: center;
   position: relative;
   z-index: 61;
+  padding-right: 90px;
 }
 
-.winamp-actions.compact .expand-chip {
-  position: relative;
-  margin-left: auto;
-  flex: 0 0 auto;
+.winamp-expand-fab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 62;
+  pointer-events: auto;
   touch-action: manipulation;
 }
 
@@ -1154,7 +1157,7 @@ main {
     width: 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding: 0 2px 4px;
+    padding: 0 90px 4px 2px;
     scrollbar-width: none;
   }
 
