@@ -122,9 +122,46 @@ const getWebampRootNode = () => document.getElementById('webamp') as HTMLElement
 const getWindowById = (id: string) =>
   (document.querySelector(`#${id}`)?.closest('.window') as HTMLElement | null) ?? null;
 
+const resolveWindowAnchor = (windowNode: HTMLElement) => {
+  const webampRoot = getWebampRootNode();
+  let anchor = windowNode.parentElement as HTMLElement | null;
+  let current = anchor;
+
+  while (current && current !== webampRoot) {
+    const computed = window.getComputedStyle(current);
+    if (
+      computed.position === 'absolute' ||
+      computed.position === 'fixed' ||
+      current.style.transform
+    ) {
+      anchor = current;
+    }
+    current = current.parentElement as HTMLElement | null;
+  }
+
+  return anchor;
+};
+
+const resetIntermediateAnchors = (windowNode: HTMLElement, anchor: HTMLElement) => {
+  let current = windowNode.parentElement as HTMLElement | null;
+  while (current && current !== anchor) {
+    current.style.position = 'absolute';
+    current.style.inset = '';
+    current.style.left = '0px';
+    current.style.top = '0px';
+    current.style.transformOrigin = 'top left';
+    current.style.transform = '';
+    current.style.zIndex = '';
+    current.style.pointerEvents = 'none';
+    current.dataset.raExpandedAnchor = '1';
+    current = current.parentElement as HTMLElement | null;
+  }
+};
+
 const placeWindowAnchor = (windowNode: HTMLElement, left: number, top: number, zOrder: number) => {
-  const anchor = windowNode.parentElement as HTMLElement | null;
+  const anchor = resolveWindowAnchor(windowNode);
   if (!anchor) return;
+  resetIntermediateAnchors(windowNode, anchor);
 
   anchor.style.position = 'absolute';
   anchor.style.inset = '';
@@ -347,11 +384,17 @@ const isWindowShaded = () => {
 };
 
 const setMainWindowShadeMode = (shaded: boolean) => {
-  const toggleBtn = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
-  if (!toggleBtn) return;
+  const mainWindow = getMainWindowNode();
+  if (!mainWindow) return;
   const current = isWindowShaded();
   if (current === shaded) return;
-  toggleBtn.click();
+  const toggleBtn = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
+  if (toggleBtn) {
+    toggleBtn.click();
+  }
+  if (isWindowShaded() !== shaded) {
+    mainWindow.classList.toggle('shade', shaded);
+  }
 };
 
 export const WinampPlayerShell = ({
