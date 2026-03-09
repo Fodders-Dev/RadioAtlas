@@ -480,6 +480,15 @@ export const WinampPlayerShell = ({
     expandedRef.current = winamp.expanded;
   }, [winamp.expanded]);
 
+  const requestExpand = () => {
+    winamp.setExpanded(true);
+    window.setTimeout(() => {
+      if (!expandedRef.current) {
+        winamp.setExpanded(true);
+      }
+    }, 160);
+  };
+
   const applyExpandedLayout = (mountNode: HTMLElement) => {
     mountNode.style.height = '100%';
     mountNode.style.minHeight = `${FULL_WINDOW_HEIGHT}px`;
@@ -1008,7 +1017,9 @@ export const WinampPlayerShell = ({
         <button
           className="chip active expand-chip"
           type="button"
-          onClick={() => winamp.setExpanded(true)}
+          onMouseDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          onClick={requestExpand}
         >
           Expand
         </button>
@@ -1060,7 +1071,7 @@ export const WinampPlayerShell = ({
 
       <div
         className="winamp-compact-main"
-        onClick={!winamp.expanded ? () => winamp.setExpanded(true) : undefined}
+        onClick={!winamp.expanded ? requestExpand : undefined}
       >
         <div className="winamp-host compact" ref={compactHostRef} />
         {!webampReady && (
