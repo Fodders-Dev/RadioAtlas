@@ -679,7 +679,7 @@ main {
   height: 100vh;
   z-index: 2300;
   display: block;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .winamp-compact.expanded-host .winamp-compact-main {
@@ -689,7 +689,7 @@ main {
   justify-content: center;
   padding: calc(54px + env(safe-area-inset-top)) 0
     calc(88px + env(safe-area-inset-bottom));
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 1;
 }
 
