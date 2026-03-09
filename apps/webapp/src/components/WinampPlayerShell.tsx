@@ -82,9 +82,15 @@ const canonicalTrackUrl = (url: string) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const isTelegramMobilePlatform = () => {
+  const platform = window.Telegram?.WebApp?.platform?.toLowerCase() || '';
+  return platform === 'android' || platform === 'ios';
+};
 const isLikelyTouchDevice = () => {
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  return coarse || navigator.maxTouchPoints > 1;
+  const hasTouchStart = 'ontouchstart' in window;
+  const mobileUserAgent = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  return coarse || hasTouchStart || navigator.maxTouchPoints > 1 || mobileUserAgent || isTelegramMobilePlatform();
 };
 const getCompactPlacementMode = (): CompactPlacementMode =>
   window.innerWidth <= MOBILE_COMPACT_BREAKPOINT && isLikelyTouchDevice() ? 'window' : 'strip';
