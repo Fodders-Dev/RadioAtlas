@@ -304,7 +304,7 @@ test('skin upload applies uploaded mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
 
   const skinFile = fileURLToPath(
-    new URL('../../../winamp skins/base-2.91.wsz', import.meta.url)
+    new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url)
   );
   await page.locator('input[type="file"]').first().setInputFiles(skinFile);
   await page.waitForFunction(() =>
