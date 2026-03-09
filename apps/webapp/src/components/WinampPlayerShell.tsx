@@ -30,6 +30,7 @@ type WebampInstance = {
 };
 
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
+type CompactViewMode = 'strip' | 'panel';
 
 let webampCtorPromise: Promise<WebampCtor> | null = null;
 const MAIN_WINDOW_WIDTH = 275;
@@ -37,6 +38,8 @@ const SHADED_WINDOW_HEIGHT = 28;
 const FULL_WINDOW_HEIGHT = 116;
 const STRIP_COMPACT_MIN_HEIGHT = 44;
 const STRIP_COMPACT_MAX_HEIGHT = 62;
+const PANEL_COMPACT_MIN_HEIGHT = 96;
+const PANEL_COMPACT_MAX_HEIGHT = 196;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -273,12 +276,12 @@ const resetCompactWindowVisibility = () => {
   });
 };
 
-const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
+const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactViewMode) => {
   const windowNode = getMainWindowNode();
   const anchor = windowNode?.parentElement as HTMLElement | null;
   if (!windowNode || !anchor) return false;
 
-  setMainWindowShadeMode(true);
+  setMainWindowShadeMode(viewMode === 'strip');
   enforceCompactWindowVisibility();
   const mountRect = mountNode.getBoundingClientRect();
   windowNode.style.transformOrigin = 'top left';
@@ -308,11 +311,18 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement) => {
   );
   const maxBottom = navRect ? navRect.top - 4 : hostRect.bottom;
   const availableHeight = Math.max(STRIP_COMPACT_MIN_HEIGHT, Math.round(maxBottom - minTop));
-  const compactHeight = clamp(
-    Math.min(rawHeight, availableHeight),
-    STRIP_COMPACT_MIN_HEIGHT,
-    STRIP_COMPACT_MAX_HEIGHT
-  );
+  const compactHeight =
+    viewMode === 'panel'
+      ? clamp(
+          Math.min(rawHeight, availableHeight),
+          Math.min(PANEL_COMPACT_MIN_HEIGHT, availableHeight),
+          Math.min(PANEL_COMPACT_MAX_HEIGHT, availableHeight)
+        )
+      : clamp(
+          Math.min(rawHeight, availableHeight),
+          STRIP_COMPACT_MIN_HEIGHT,
+          STRIP_COMPACT_MAX_HEIGHT
+        );
   mountNode.style.height = `${compactHeight}px`;
   let top = Math.max(hostRect.top, minTop);
 
@@ -471,7 +481,7 @@ export const WinampPlayerShell = ({
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
   const modeSwitchUntilRef = useRef(0);
-  const compactSettledRef = useRef(false);
+  const compactViewModeRef = useRef<CompactViewMode>('strip');
   const expandedRef = useRef(winamp.expanded);
 
   const current = player.current;
@@ -499,7 +509,14 @@ export const WinampPlayerShell = ({
       if (!shadeToggle) return;
       event.preventDefault();
       event.stopPropagation();
-      requestExpand();
+      compactViewModeRef.current = compactViewModeRef.current === 'strip' ? 'panel' : 'strip';
+      const mountNode = compactHostRef.current;
+      if (!mountNode) return;
+      mountNode.dataset.raCompactView = compactViewModeRef.current;
+      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+      window.setTimeout(() => {
+        syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+      }, 120);
     };
     document.addEventListener('mousedown', onShadeToggleStart, true);
     document.addEventListener('touchstart', onShadeToggleStart, true);
@@ -538,11 +555,12 @@ export const WinampPlayerShell = ({
 
   const applyCompactLayout = (mountNode: HTMLElement) => {
     mountNode.style.minHeight = '';
-    compactSettledRef.current = false;
     resetWebampWindowPlacement();
-    mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
-    setMainWindowShadeMode(true);
-    syncCompactWindowPlacement(mountNode);
+    const mode = compactViewModeRef.current;
+    mountNode.dataset.raCompactView = mode;
+    mountNode.style.height =
+      mode === 'panel' ? `${PANEL_COMPACT_MIN_HEIGHT}px` : `${STRIP_COMPACT_MIN_HEIGHT}px`;
+    syncCompactWindowPlacement(mountNode, mode);
   };
 
   const effectivePlaylist = useMemo(() => {
@@ -678,7 +696,7 @@ export const WinampPlayerShell = ({
             instance.setVolume(Math.round(player.volume * 100));
 
             modeSwitchUntilRef.current = Date.now() + 1200;
-            compactSettledRef.current = false;
+            compactViewModeRef.current = 'strip';
             if (expandedRef.current) {
               applyExpandedLayout(mountNode);
             } else {
@@ -783,18 +801,7 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
-      if (!compactSettledRef.current) {
-        const mainWindow = getMainWindowNode();
-        const mainHeight = mainWindow?.getBoundingClientRect().height ?? 0;
-        if (mainHeight > 64) {
-          mountNode.style.height = `${STRIP_COMPACT_MIN_HEIGHT}px`;
-          setMainWindowShadeMode(true);
-        }
-        if (mainHeight > 0) {
-          compactSettledRef.current = mainHeight <= 64;
-        }
-      }
-      syncCompactWindowPlacement(mountNode);
+      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
     };
     sync();
     window.addEventListener('scroll', sync, { passive: true });

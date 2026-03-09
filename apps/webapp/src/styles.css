@@ -718,6 +718,7 @@ main {
   position: relative;
   pointer-events: auto;
   width: 100%;
+  transition: min-height 160ms ease;
 }
 
 .winamp-compact:not(.expanded-host) .winamp-compact-main {
@@ -791,6 +792,11 @@ main {
 .winamp-host.compact {
   min-height: 34px;
   width: 100%;
+  transition: height 160ms ease, min-height 160ms ease;
+}
+
+[data-ra-compact-anchor='1'] {
+  transition: transform 160ms ease, height 160ms ease;
 }
 
 .winamp-loading {
