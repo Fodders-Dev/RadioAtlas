@@ -11,18 +11,19 @@ import { Settings } from './screens/Settings';
 import { useRadio } from './state/RadioContext';
 import { buildLabel } from './lib/buildInfo';
 
-const TAB_COMPONENTS: Record<NavTab, JSX.Element> = {
-  Explore: <Explore />,
-  Favorites: <Favorites />,
-  Browse: <Browse />,
-  Search: <Search />,
-  Settings: <Settings />
+const TAB_COMPONENTS: Record<NavTab, () => JSX.Element> = {
+  Explore: () => <Explore />,
+  Favorites: () => <Favorites />,
+  Browse: () => <Browse />,
+  Search: () => <Search />,
+  Settings: () => <Settings />
 };
 
 const MOBILE_SWIPE_MAX_WIDTH = 720;
 const SWIPE_THRESHOLD = 56;
 const SWIPE_DOMINANCE_RATIO = 1.25;
 const DEFAULT_PLAYER_SAFE_HEIGHT = 164;
+const SWIPE_TRANSITION_MS = 280;
 const SWIPE_IGNORE_SELECTOR = [
   'input',
   'select',
@@ -41,13 +42,21 @@ const SWIPE_IGNORE_SELECTOR = [
   '[role="dialog"]'
 ].join(', ');
 
+type SwipeTransitionState = {
+  from: NavTab;
+  to: NavTab;
+  direction: -1 | 1;
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('Explore');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [playerSafeHeight, setPlayerSafeHeight] = useState(DEFAULT_PLAYER_SAFE_HEIGHT);
+  const [swipeTransition, setSwipeTransition] = useState<SwipeTransitionState | null>(null);
   const { loading, error, toast, player, winamp } = useRadio();
   const versionLabel = buildLabel();
   const mainRef = useRef<HTMLElement | null>(null);
+  const swipeTransitionTimeoutRef = useRef<number | null>(null);
   const swipeRef = useRef({
     blocked: false,
     startX: 0,
@@ -66,6 +75,14 @@ const App = () => {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (swipeTransitionTimeoutRef.current !== null) {
+        window.clearTimeout(swipeTransitionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let resizeObserver: ResizeObserver | null = null;
@@ -117,13 +134,44 @@ const App = () => {
     };
   }, [activeTab, winamp.expanded]);
 
+  const changeTab = (nextTab: NavTab, animateSwipe = false) => {
+    if (nextTab === activeTab && !swipeTransition) return;
+
+    const currentIndex = tabOrder.indexOf(activeTab);
+    const nextIndex = tabOrder.indexOf(nextTab);
+    const direction =
+      currentIndex !== -1 && nextIndex !== -1 && nextIndex < currentIndex ? -1 : 1;
+
+    if (swipeTransitionTimeoutRef.current !== null) {
+      window.clearTimeout(swipeTransitionTimeoutRef.current);
+      swipeTransitionTimeoutRef.current = null;
+    }
+
+    if (animateSwipe) {
+      setSwipeTransition({
+        from: activeTab,
+        to: nextTab,
+        direction
+      });
+      swipeTransitionTimeoutRef.current = window.setTimeout(() => {
+        setSwipeTransition(null);
+        swipeTransitionTimeoutRef.current = null;
+      }, SWIPE_TRANSITION_MS);
+    } else {
+      setSwipeTransition(null);
+    }
+
+    setActiveTab(nextTab);
+    mainRef.current?.scrollTo({ top: 0, behavior: animateSwipe ? 'auto' : 'smooth' });
+  };
+
   const goToAdjacentTab = (direction: -1 | 1) => {
+    if (swipeTransition) return;
     const currentIndex = tabOrder.indexOf(activeTab);
     if (currentIndex === -1) return;
     const nextIndex = currentIndex + direction;
     if (nextIndex < 0 || nextIndex >= tabOrder.length) return;
-    setActiveTab(tabOrder[nextIndex]);
-    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    changeTab(tabOrder[nextIndex], true);
   };
 
   const handleTouchStart: TouchEventHandler<HTMLElement> = (event) => {
@@ -161,6 +209,11 @@ const App = () => {
   const appStyle = {
     ['--player-safe-height' as '--player-safe-height']: `${playerSafeHeight}px`
   };
+  const transitionDirectionClass =
+    swipeTransition?.direction === -1 ? 'swipe-dir-prev' : 'swipe-dir-next';
+  const ActiveScreen = TAB_COMPONENTS[activeTab];
+  const TransitionFromScreen = swipeTransition ? TAB_COMPONENTS[swipeTransition.from] : null;
+  const TransitionToScreen = swipeTransition ? TAB_COMPONENTS[swipeTransition.to] : null;
 
   return (
     <div className="app" style={appStyle}>
@@ -172,7 +225,7 @@ const App = () => {
           </div>
         </div>
         <div className="app-badge" title={versionLabel}>
-          Live В· {versionLabel}
+          Live | {versionLabel}
         </div>
       </header>
 
@@ -185,10 +238,27 @@ const App = () => {
       >
         {loading && <div className="loading">Loading stations...</div>}
         {error && <div className="error">{error}</div>}
-        {TAB_COMPONENTS[activeTab]}
+        <div
+          className={`tab-stage ${swipeTransition ? `transitioning ${transitionDirectionClass}` : ''}`}
+        >
+          {swipeTransition && TransitionFromScreen && TransitionToScreen ? (
+            <>
+              <div className="tab-pane tab-pane-from">
+                <TransitionFromScreen />
+              </div>
+              <div className="tab-pane tab-pane-to">
+                <TransitionToScreen />
+              </div>
+            </>
+          ) : (
+            <div className="tab-pane tab-pane-active">
+              <ActiveScreen />
+            </div>
+          )}
+        </div>
       </main>
 
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav active={activeTab} onChange={(tab) => changeTab(tab)} />
       <WinampPlayerShell onDetails={() => setDetailsOpen(true)} />
       <StationDetails open={detailsOpen} onClose={() => setDetailsOpen(false)} />
       <Toast message={toast} />

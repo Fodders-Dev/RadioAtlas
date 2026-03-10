@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import type { StationLite } from '../types';
 import { stationLocation } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
@@ -41,7 +41,22 @@ const FULL_WINDOW_HEIGHT = 116;
 const STRIP_COMPACT_MIN_HEIGHT = 44;
 const STRIP_COMPACT_MAX_HEIGHT = 62;
 const PANEL_COMPACT_MIN_HEIGHT = 96;
-const PANEL_COMPACT_MAX_HEIGHT = 196;
+const PANEL_COMPACT_MAX_HEIGHT = 208;
+const MIN_COMPACT_SCALE = 0.82;
+const COMPACT_TRANSPORT_SELECTOR = [
+  '#webamp #previous',
+  '#webamp #play',
+  '#webamp #pause',
+  '#webamp #stop',
+  '#webamp #next'
+].join(', ');
+const COMPACT_INTERACTIVE_SELECTOR = [
+  COMPACT_TRANSPORT_SELECTOR,
+  '#webamp #shade',
+  '#webamp [title="Toggle Windowshade Mode"]',
+  '#webamp [title="Volume Bar"]',
+  '#webamp [title="Balance"]'
+].join(', ');
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -88,6 +103,16 @@ const toAssetUrl = (value: string) => {
   } catch {
     return value;
   }
+};
+
+const stopNativeEvent = (event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  (
+    event as Event & {
+      stopImmediatePropagation?: () => void;
+    }
+  ).stopImmediatePropagation?.();
 };
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
@@ -321,14 +346,9 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
   windowNode.style.pointerEvents = 'auto';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || MAIN_WINDOW_WIDTH;
-  const measuredHeight = rawRect.height || SHADED_WINDOW_HEIGHT;
-  const baseHeight = measuredHeight;
-  const fitScale = clamp((mountRect.width - 8) / baseWidth, 1, 3.6);
-  const nextScale = Number(fitScale.toFixed(3));
-  const nextWidth = baseWidth * nextScale;
-  const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
+  const baseHeight =
+    rawRect.height || (viewMode === 'panel' ? FULL_WINDOW_HEIGHT : SHADED_WINDOW_HEIGHT);
   const hostRect = mountNode.getBoundingClientRect();
-  const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
   const actionsNode = document.querySelector('.winamp-actions.compact') as HTMLElement | null;
   const actionsRect = actionsNode?.getBoundingClientRect();
   const trackLineNode = document.querySelector('.winamp-trackline.compact') as HTMLElement | null;
@@ -341,27 +361,33 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
     trackLineRect ? trackLineRect.bottom + 6 : hostRect.top
   );
   const maxBottom = navRect ? navRect.top - 4 : hostRect.bottom;
-  const availableHeight = Math.max(STRIP_COMPACT_MIN_HEIGHT, Math.round(maxBottom - minTop));
-  const compactHeight =
-    viewMode === 'panel'
-      ? clamp(
-          Math.min(rawHeight, availableHeight),
-          Math.min(PANEL_COMPACT_MIN_HEIGHT, availableHeight),
-          Math.min(PANEL_COMPACT_MAX_HEIGHT, availableHeight)
-        )
-      : clamp(
-          Math.min(rawHeight, availableHeight),
-          STRIP_COMPACT_MIN_HEIGHT,
-          STRIP_COMPACT_MAX_HEIGHT
-        );
-  mountNode.style.height = `${compactHeight}px`;
+  const baseMinHeight =
+    viewMode === 'panel' ? PANEL_COMPACT_MIN_HEIGHT : STRIP_COMPACT_MIN_HEIGHT;
+  const baseMaxHeight =
+    viewMode === 'panel' ? PANEL_COMPACT_MAX_HEIGHT : STRIP_COMPACT_MAX_HEIGHT;
+  const availableHeight = Math.max(baseMinHeight, Math.round(maxBottom - minTop));
+  const allowedHeight = Math.min(baseMaxHeight, availableHeight);
+  const widthScale = Math.max((mountRect.width - 8) / baseWidth, MIN_COMPACT_SCALE);
+  const heightScale = allowedHeight / baseHeight;
+  const nextScale = Number(clamp(Math.min(widthScale, heightScale), MIN_COMPACT_SCALE, 3.6).toFixed(3));
+  const nextWidth = Math.max(1, Math.round(baseWidth * nextScale));
+  const rawHeight = Math.max(18, Math.round(baseHeight * nextScale));
+  const compactHeight = clamp(
+    Math.min(rawHeight, allowedHeight),
+    Math.min(baseMinHeight, availableHeight),
+    allowedHeight
+  );
+  const heightPadding = viewMode === 'panel' ? 4 : 0;
+  const visualHeight = Math.min(availableHeight, compactHeight + heightPadding);
+  const left = hostRect.left + Math.max(0, (hostRect.width - nextWidth) / 2);
+  mountNode.style.height = `${visualHeight}px`;
   windowNode.style.transform = `scale(${nextScale})`;
 
   const finalLeft = Math.round(left);
-  const maxTop = Math.max(minTop, maxBottom - compactHeight);
+  const maxTop = Math.max(minTop, maxBottom - visualHeight);
   const finalTop = Math.round(clamp(Math.max(hostRect.top, minTop), minTop, maxTop));
   const finalWidth = Math.round(nextWidth);
-  const finalHeight = Math.round(compactHeight);
+  const finalHeight = Math.round(visualHeight);
   const currentLeft = Number.parseFloat(anchor.style.left || Number.NaN);
   const currentTop = Number.parseFloat(anchor.style.top || Number.NaN);
   const currentWidth = Number.parseFloat(anchor.style.width || Number.NaN);
@@ -512,6 +538,7 @@ export const WinampPlayerShell = ({
     winamp,
     nowPlaying,
     recent,
+    playPrevious,
     playNext,
     playLast,
     playStation,
@@ -582,6 +609,98 @@ export const WinampPlayerShell = ({
     };
   }, []);
 
+  useEffect(() => {
+    const syncCompactAfterControl = () => {
+      const mountNode = compactHostRef.current;
+      if (!mountNode || expandedRef.current) return;
+      window.requestAnimationFrame(() => {
+        syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+        window.setTimeout(() => {
+          syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+        }, 90);
+      });
+    };
+
+    const onTransportClick = (event: Event) => {
+      if (expandedRef.current) return;
+      const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
+      if (!shell || shell.classList.contains('expanded-host')) return;
+      const target = event.target as HTMLElement | null;
+      const webampRoot = getWebampRootNode();
+      if (!target || !webampRoot?.contains(target)) return;
+
+      const control =
+        target.closest('#previous, [title="Previous Track"]') ? 'previous' :
+        target.closest('#play, [title="Play"]') ? 'play' :
+        target.closest('#pause, [title="Pause"]') ? 'pause' :
+        target.closest('#stop, [title="Stop"]') ? 'stop' :
+        target.closest('#next, [title="Next Track"]') ? 'next' :
+        null;
+      if (!control) return;
+
+      stopNativeEvent(event);
+
+      if (control === 'previous') {
+        playPrevious();
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (control === 'next') {
+        playNext();
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (control === 'stop') {
+        player.stop();
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (control === 'pause') {
+        if (player.current && player.isPlaying) {
+          void player.toggle();
+        }
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (player.current) {
+        if (!player.isPlaying) {
+          void player.toggle();
+        }
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (playablePlaylistRef.current.length) {
+        playStation(playablePlaylistRef.current[0]);
+        syncCompactAfterControl();
+        return;
+      }
+
+      if (recent.length > 0) {
+        playLast();
+        syncCompactAfterControl();
+      }
+    };
+
+    document.addEventListener('click', onTransportClick, true);
+    return () => {
+      document.removeEventListener('click', onTransportClick, true);
+    };
+  }, [
+    playLast,
+    playNext,
+    playPrevious,
+    playStation,
+    player,
+    player.current,
+    player.isPlaying,
+    recent.length
+  ]);
+
   const applyExpandedLayout = (mountNode: HTMLElement) => {
     mountNode.style.height = '100%';
     mountNode.style.minHeight = `${FULL_WINDOW_HEIGHT}px`;
@@ -645,6 +764,14 @@ export const WinampPlayerShell = ({
   const canResume = Boolean(recent.length);
   const trackTitle = nowPlaying?.trim() || '';
   const canCopyTrackTitle = Boolean(trackTitle);
+  const handleCompactMainClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (winamp.expanded) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(COMPACT_INTERACTIVE_SELECTOR)) {
+      return;
+    }
+    requestExpand();
+  };
 
   useEffect(() => {
     playablePlaylistRef.current = playablePlaylist;
@@ -1165,7 +1292,7 @@ export const WinampPlayerShell = ({
 
       <div
         className="winamp-compact-main"
-        onClick={!winamp.expanded ? requestExpand : undefined}
+        onClick={!winamp.expanded ? handleCompactMainClick : undefined}
       >
         <div className="winamp-host compact" ref={compactHostRef} />
         {!webampReady && (

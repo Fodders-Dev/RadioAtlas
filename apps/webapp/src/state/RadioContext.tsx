@@ -413,9 +413,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const playPrevious = () => {
     const currentId = player.current?.stationuuid;
-    if (!currentId || recent.length < 2) return;
+    if (!currentId || !recent.length) return;
     const index = recent.findIndex((item) => item.stationuuid === currentId);
-    const prev = index >= 0 ? recent[index + 1] : null;
+    if (index === -1) {
+      void playStationInternal(recent[0], false);
+      return;
+    }
+    const prev = recent[index + 1] ?? null;
     if (prev) {
       void playStationInternal(prev, false);
     }

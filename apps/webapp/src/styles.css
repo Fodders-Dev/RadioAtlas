@@ -104,6 +104,87 @@ input {
   padding: 10px 14px calc(var(--player-stack-offset) + 18px);
 }
 
+.tab-stage {
+  position: relative;
+  min-height: 100%;
+}
+
+.tab-stage.transitioning {
+  overflow: hidden;
+}
+
+.tab-pane {
+  min-height: 100%;
+}
+
+.tab-stage.transitioning .tab-pane {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.tab-stage.transitioning.swipe-dir-next .tab-pane-from {
+  animation: tab-slide-out-left 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.tab-stage.transitioning.swipe-dir-next .tab-pane-to {
+  animation: tab-slide-in-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.tab-stage.transitioning.swipe-dir-prev .tab-pane-from {
+  animation: tab-slide-out-right 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.tab-stage.transitioning.swipe-dir-prev .tab-pane-to {
+  animation: tab-slide-in-left 280ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes tab-slide-out-left {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0.26;
+    transform: translate3d(-18%, 0, 0);
+  }
+}
+
+@keyframes tab-slide-in-right {
+  from {
+    opacity: 0.72;
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes tab-slide-out-right {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0.26;
+    transform: translate3d(18%, 0, 0);
+  }
+}
+
+@keyframes tab-slide-in-left {
+  from {
+    opacity: 0.72;
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -806,7 +887,15 @@ input {
   pointer-events: none !important;
 }
 
-.winamp-compact:not(.expanded-host) #webamp #shade {
+.winamp-compact:not(.expanded-host) #webamp #shade,
+.winamp-compact:not(.expanded-host) #webamp #previous,
+.winamp-compact:not(.expanded-host) #webamp #play,
+.winamp-compact:not(.expanded-host) #webamp #pause,
+.winamp-compact:not(.expanded-host) #webamp #stop,
+.winamp-compact:not(.expanded-host) #webamp #next,
+.winamp-compact:not(.expanded-host) #webamp [title='Toggle Windowshade Mode'],
+.winamp-compact:not(.expanded-host) #webamp [title='Volume Bar'],
+.winamp-compact:not(.expanded-host) #webamp [title='Balance'] {
   pointer-events: auto !important;
 }
 
@@ -1346,6 +1435,13 @@ input {
     min-height: 0;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-stage.transitioning .tab-pane {
+    animation: none !important;
+  }
+}
+
 .icon-btn {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.06);
