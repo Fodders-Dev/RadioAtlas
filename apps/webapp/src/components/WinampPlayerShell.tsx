@@ -328,11 +328,8 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
 
   anchor.style.position = 'fixed';
   anchor.style.inset = '0 auto auto 0';
-  anchor.style.transform = `translate(${left}px, ${top}px)`;
   anchor.style.zIndex = '58';
   anchor.style.pointerEvents = 'none';
-  anchor.style.height = `${compactHeight}px`;
-  anchor.style.width = `${Math.round(nextWidth)}px`;
   anchor.style.overflow = 'hidden';
   anchor.dataset.raCompactAnchor = '1';
   windowNode.style.pointerEvents = 'auto';
@@ -342,7 +339,33 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
   const adjustUp = Math.max(0, placedRect.bottom - maxBottom);
   if (adjustDown > 0 || adjustUp > 0) {
     top = top + adjustDown - adjustUp;
-    anchor.style.transform = `translate(${left}px, ${top}px)`;
+  }
+
+  const finalLeft = Math.round(left);
+  const finalTop = Math.round(top);
+  const finalWidth = Math.round(nextWidth);
+  const finalHeight = Math.round(compactHeight);
+  const prevLeft = Number(anchor.dataset.raCompactLeft ?? Number.NaN);
+  const prevTop = Number(anchor.dataset.raCompactTop ?? Number.NaN);
+  const prevWidth = Number(anchor.dataset.raCompactWidth ?? Number.NaN);
+  const prevHeight = Number(anchor.dataset.raCompactHeight ?? Number.NaN);
+  const changed =
+    !Number.isFinite(prevLeft) ||
+    !Number.isFinite(prevTop) ||
+    !Number.isFinite(prevWidth) ||
+    !Number.isFinite(prevHeight) ||
+    Math.abs(prevLeft - finalLeft) > 1 ||
+    Math.abs(prevTop - finalTop) > 1 ||
+    Math.abs(prevWidth - finalWidth) > 1 ||
+    Math.abs(prevHeight - finalHeight) > 1;
+  if (changed) {
+    anchor.style.transform = `translate(${finalLeft}px, ${finalTop}px)`;
+    anchor.style.height = `${finalHeight}px`;
+    anchor.style.width = `${finalWidth}px`;
+    anchor.dataset.raCompactLeft = String(finalLeft);
+    anchor.dataset.raCompactTop = String(finalTop);
+    anchor.dataset.raCompactWidth = String(finalWidth);
+    anchor.dataset.raCompactHeight = String(finalHeight);
   }
 
   return true;
@@ -365,6 +388,10 @@ const resetWebampWindowPlacement = () => {
     anchor.style.top = '';
     anchor.style.transformOrigin = '';
     delete anchor.dataset.raCompactAnchor;
+    delete anchor.dataset.raCompactLeft;
+    delete anchor.dataset.raCompactTop;
+    delete anchor.dataset.raCompactWidth;
+    delete anchor.dataset.raCompactHeight;
     delete anchor.dataset.raExpandedAnchor;
   });
 
