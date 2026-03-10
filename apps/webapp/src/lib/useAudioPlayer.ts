@@ -4,6 +4,14 @@ import { getApiBase } from './apiBase';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
 
+export const EQ_BANDS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000] as const;
+
+export type PlayerEqState = {
+  enabled: boolean;
+  preamp: number;
+  bands: number[];
+};
+
 type PlayStationResult = {
   ok: boolean;
   error?: string;
@@ -32,10 +40,17 @@ type ExtractResponse = {
   error?: string;
 };
 
+const EQ_CENTER = 50;
+const EQ_RANGE_DB = 12;
+
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 const isDirectAudioUrl = (url: string) =>
   /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(url);
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
+const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
+const sliderToDb = (value: number) => ((clampPercent(value) - EQ_CENTER) / EQ_CENTER) * EQ_RANGE_DB;
+const dbToGain = (value: number) => 10 ** (value / 20);
+const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
 
 const buildProxyUrl = (url: string) => {
   const base = normalizeBase(getApiBase());
@@ -76,9 +91,7 @@ const resolveExternalStream = async (
 
   try {
     log(`extract: request ${url}`);
-    const response = await fetch(
-      `${base}/extract?url=${encodeURIComponent(url)}`
-    );
+    const response = await fetch(`${base}/extract?url=${encodeURIComponent(url)}`);
     const data = (await response.json()) as ExtractResponse;
     if (!response.ok || data?.type === 'error') {
       const errorMsg = data?.error ? ` (${data.error})` : '';
@@ -111,7 +124,8 @@ const buildCandidates = (url: string) => {
   const candidates: string[] = [];
   const apiBase = normalizeBase(getApiBase());
   const isLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
-  const proxyPreferred = Boolean(apiBase) && (url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url));
+  const proxyPreferred =
+    Boolean(apiBase) && (url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url));
 
   if (proxyPreferred) {
     candidates.push(buildProxyUrl(url));
@@ -151,12 +165,19 @@ export const useAudioPlayer = ({
   const candidateIndexRef = useRef(0);
   const activeUrlRef = useRef<string | null>(null);
   const lastErrorRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const preampGainRef = useRef<GainNode | null>(null);
+  const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [eqEnabled, setEqEnabled] = useState(true);
+  const [eqPreamp, setEqPreamp] = useState(EQ_CENTER);
+  const [eqBands, setEqBands] = useState<number[]>(createDefaultEqBands);
 
   const pushEvent = (message: string) => {
     if (onEvent) onEvent(message);
@@ -183,6 +204,74 @@ export const useAudioPlayer = ({
     }
   };
 
+  const applyEqToGraph = () => {
+    const preampNode = preampGainRef.current;
+    if (preampNode) {
+      preampNode.gain.value = dbToGain(eqEnabled ? sliderToDb(eqPreamp) : 0);
+    }
+    eqFiltersRef.current.forEach((filter, index) => {
+      filter.gain.value = eqEnabled ? sliderToDb(eqBands[index] ?? EQ_CENTER) : 0;
+    });
+  };
+
+  const ensureAudioGraph = () => {
+    if (audioContextRef.current) return audioContextRef.current;
+
+    const audio = audioRef.current;
+    const AudioCtx =
+      typeof window !== 'undefined'
+        ? (window.AudioContext ||
+            // @ts-expect-error legacy Safari
+            window.webkitAudioContext)
+        : undefined;
+
+    if (!audio || !AudioCtx) {
+      return null;
+    }
+
+    try {
+      const context = new AudioCtx();
+      const source = context.createMediaElementSource(audio);
+      const preamp = context.createGain();
+      const filters = EQ_BANDS.map((frequency, index) => {
+        const filter = context.createBiquadFilter();
+        filter.frequency.value = frequency;
+        filter.gain.value = 0;
+        filter.Q.value = index === 0 || index === EQ_BANDS.length - 1 ? 0.7 : 1.05;
+        filter.type =
+          index === 0 ? 'lowshelf' : index === EQ_BANDS.length - 1 ? 'highshelf' : 'peaking';
+        return filter;
+      });
+
+      source.connect(preamp);
+      let currentNode: AudioNode = preamp;
+      filters.forEach((filter) => {
+        currentNode.connect(filter);
+        currentNode = filter;
+      });
+      currentNode.connect(context.destination);
+
+      audioContextRef.current = context;
+      mediaSourceRef.current = source;
+      preampGainRef.current = preamp;
+      eqFiltersRef.current = filters;
+      return context;
+    } catch (error) {
+      pushEvent(`eq: graph failed (${error instanceof Error ? error.message : 'unknown'})`);
+      return null;
+    }
+  };
+
+  const resumeAudioContext = async () => {
+    const context = audioContextRef.current;
+    if (!context || context.state !== 'suspended') return;
+    try {
+      await context.resume();
+    } catch (error) {
+      pushEvent(`eq: resume failed (${error instanceof Error ? error.message : 'unknown'})`);
+    }
+  };
+
   const attachSource = async (url: string) => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -195,15 +284,15 @@ export const useAudioPlayer = ({
       const mod = await import('hls.js');
       const hls = new mod.default({
         enableWorker: true,
-        lowLatencyMode: false, // Disabled for stable playback without stuttering
-        maxBufferLength: 30, // Buffer up to 30 seconds
-        maxMaxBufferLength: 60, // Max buffer 60 seconds
-        maxBufferSize: 60 * 1000 * 1000, // 60MB buffer
-        maxBufferHole: 0.5, // Allow small gaps
-        liveSyncDurationCount: 3, // Keep 3 segments behind live edge
-        liveMaxLatencyDurationCount: 10, // Max latency 10 segments
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 10,
         liveDurationInfinity: true,
-        highBufferWatchdogPeriod: 2 // Check buffer every 2 seconds
+        highBufferWatchdogPeriod: 2
       });
       hls.loadSource(url);
       hls.attachMedia(audio);
@@ -231,6 +320,7 @@ export const useAudioPlayer = ({
       candidateIndexRef.current = index;
       try {
         await attachSource(nextUrl);
+        await resumeAudioContext();
         await audio.play();
         activeUrlRef.current = nextUrl;
         setErrorMessage(null);
@@ -270,11 +360,31 @@ export const useAudioPlayer = ({
         const url = activeUrlRef.current || currentRef.current?.url_resolved;
         if (!url) return;
         await attachSource(url);
+        await resumeAudioContext();
         await audio.play();
       } catch {
         scheduleReconnect();
       }
     }, delay);
+  };
+
+  const setEqBand = (index: number, value: number) => {
+    setEqBands((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const nextValue = clampPercent(value);
+      if (Math.abs((prev[index] ?? EQ_CENTER) - nextValue) < 0.01) {
+        return prev;
+      }
+      const next = [...prev];
+      next[index] = nextValue;
+      return next;
+    });
+  };
+
+  const resetEq = () => {
+    setEqEnabled(true);
+    setEqPreamp(EQ_CENTER);
+    setEqBands(createDefaultEqBands());
   };
 
   useEffect(() => {
@@ -284,9 +394,8 @@ export const useAudioPlayer = ({
   useEffect(() => {
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
-    audio.preload = 'auto'; // Enable automatic buffering for smoother playback
-    // Note: crossOrigin removed - some streams don't support CORS and it can cause issues
-    audio.controls = false; // Hidden element, no controls needed
+    audio.preload = 'auto';
+    audio.controls = false;
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
     audio.setAttribute('autoplay', 'false');
@@ -295,6 +404,7 @@ export const useAudioPlayer = ({
       document.body.appendChild(audio);
     }
     audioRef.current = audio;
+    ensureAudioGraph();
 
     const handlePlaying = () => {
       setStatus('playing');
@@ -302,7 +412,7 @@ export const useAudioPlayer = ({
       setErrorMessage(null);
       lastErrorRef.current = null;
       clearReconnect();
-      clearWaitingTimeout(); // Clear any pending reconnect from buffering
+      clearWaitingTimeout();
       pushEvent('audio: playing');
       if ('mediaSession' in navigator) {
         try {
@@ -326,8 +436,6 @@ export const useAudioPlayer = ({
     const handleWaiting = () => {
       if (currentRef.current) {
         setStatus('buffering');
-        // Only schedule reconnect if buffering persists for more than 5 seconds
-        // Short buffering is normal and resolves itself
         clearWaitingTimeout();
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
@@ -369,12 +477,14 @@ export const useAudioPlayer = ({
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
-        audio.play().catch(() => { });
+        audio.play().catch(() => {});
       }
       pushEvent(`visibility: ${document.visibilityState}`);
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('pointerdown', resumeAudioContext, { passive: true });
+    document.addEventListener('keydown', resumeAudioContext);
 
     return () => {
       audio.pause();
@@ -386,7 +496,19 @@ export const useAudioPlayer = ({
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleEnded);
       document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('pointerdown', resumeAudioContext);
+      document.removeEventListener('keydown', resumeAudioContext);
       cleanupHls();
+      mediaSourceRef.current?.disconnect();
+      mediaSourceRef.current = null;
+      preampGainRef.current?.disconnect();
+      preampGainRef.current = null;
+      eqFiltersRef.current.forEach((filter) => filter.disconnect());
+      eqFiltersRef.current = [];
+      if (audioContextRef.current) {
+        void audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
       if (audio instanceof HTMLAudioElement) {
         audio.remove();
       }
@@ -399,6 +521,20 @@ export const useAudioPlayer = ({
     }
   }, [volume]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.dataset.raEqEnabled = eqEnabled ? 'true' : 'false';
+    audio.dataset.raEqPreamp = String(Math.round(eqPreamp));
+    audio.dataset.raEqBands = eqBands.map((value) => Math.round(value)).join(',');
+    audio.dataset.raEqFrequencies = EQ_BANDS.join(',');
+  }, [eqBands, eqEnabled, eqPreamp]);
+
+  useEffect(() => {
+    ensureAudioGraph();
+    applyEqToGraph();
+  }, [eqBands, eqEnabled, eqPreamp]);
+
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
     const audio = audioRef.current;
     if (!audio) {
@@ -408,7 +544,6 @@ export const useAudioPlayer = ({
       };
     }
 
-    // Clean up previous state
     clearReconnect();
     cleanupHls();
     clearWaitingTimeout();
@@ -416,11 +551,10 @@ export const useAudioPlayer = ({
     lastErrorRef.current = null;
     setErrorMessage(null);
 
-    // Stop current playback and reset
     audio.pause();
     audio.src = '';
     audio.currentTime = 0;
-    audio.load(); // Reset the audio element
+    audio.load();
 
     let resolvedStation = station;
     if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
@@ -433,10 +567,7 @@ export const useAudioPlayer = ({
         return { ok: false, error };
       }
       pushEvent('extract: resolving external link');
-      const extracted = await resolveExternalStream(
-        station.url_resolved,
-        pushEvent
-      );
+      const extracted = await resolveExternalStream(station.url_resolved, pushEvent);
       if (extracted) {
         resolvedStation = { ...station, url_resolved: extracted };
       } else {
@@ -485,6 +616,7 @@ export const useAudioPlayer = ({
         const result = await playCandidateAtIndex(candidateIndexRef.current);
         return result.ok;
       }
+      await resumeAudioContext();
       await audio.play();
       return true;
     } catch (error) {
@@ -518,8 +650,17 @@ export const useAudioPlayer = ({
     status,
     isPlaying,
     volume,
+    eq: {
+      enabled: eqEnabled,
+      preamp: eqPreamp,
+      bands: eqBands
+    } as PlayerEqState,
     errorMessage,
     setVolume,
+    setEqBand,
+    setEqEnabled,
+    setEqPreamp: (value: number) => setEqPreamp(clampPercent(value)),
+    resetEq,
     playStation,
     toggle,
     stop

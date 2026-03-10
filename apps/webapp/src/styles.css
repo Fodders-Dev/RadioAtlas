@@ -794,7 +794,7 @@ input {
     calc(76px + env(safe-area-inset-bottom));
   pointer-events: none;
   z-index: 1;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .winamp-compact.expanded-host .winamp-host.compact {
@@ -901,6 +901,13 @@ input {
 
 .winamp-compact.expanded-host #webamp {
   z-index: 1600 !important;
+  touch-action: none;
+}
+
+.winamp-compact.expanded-host #webamp > div[tabindex='-1'],
+.winamp-compact.expanded-host #webamp .draggable,
+.winamp-compact.expanded-host #webamp .playlist-top-title {
+  pointer-events: auto !important;
 }
 
 .winamp-host.compact {
@@ -1024,6 +1031,7 @@ input {
 .winamp-overlay-header {
   position: absolute;
   top: calc(8px + env(safe-area-inset-top));
+  left: 10px;
   right: 10px;
   display: flex;
   justify-content: flex-end;
@@ -1481,12 +1489,14 @@ input {
   }
 
   .winamp-overlay-header {
+    left: 6px;
     right: 6px;
     top: calc(6px + env(safe-area-inset-top));
   }
 
   .winamp-overlay-header-actions {
     gap: 6px;
+    width: 100%;
   }
 
   .winamp-overlay-footer {
@@ -1512,6 +1522,11 @@ input {
 
   .details-card {
     margin-bottom: calc(var(--player-stack-offset) + 22px);
+  }
+
+  .winamp-compact.expanded-host .winamp-compact-main {
+    padding-top: calc(60px + env(safe-area-inset-top));
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
   }
 
   .details-grid {

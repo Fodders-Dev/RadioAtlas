@@ -243,6 +243,34 @@ const openFullscreenPlayer = async (page: Page) => {
   await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
 };
 
+const getWebampWindowRect = async (page: Page, id: string) =>
+  page.evaluate((windowId) => {
+    const rect = document.querySelector(`#${windowId}`)?.closest('.window')?.getBoundingClientRect();
+    return rect
+      ? {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        }
+      : null;
+  }, id);
+
+const setWebampEqHandleOffset = async (page: Page, id: string, offset: number) => {
+  await page.evaluate(
+    ({ sliderId, nextOffset }) => {
+      const band = document.querySelector(`#${sliderId}`) as HTMLElement | null;
+      const sliderRoot = band?.firstElementChild as HTMLElement | null;
+      const handle = sliderRoot?.firstElementChild as HTMLElement | null;
+      if (!handle) {
+        throw new Error(`EQ slider not found: ${sliderId}`);
+      }
+      handle.style.transform = `translateY(${nextOffset}px)`;
+    },
+    { sliderId: id, nextOffset: offset }
+  );
+};
+
 const setWebampSliderValue = async (page: Page, title: string, value: number) => {
   await page.evaluate(
     ({ sliderTitle, nextValue }) => {
@@ -263,6 +291,44 @@ const setWebampSliderValue = async (page: Page, title: string, value: number) =>
       slider.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     },
     { sliderTitle: title, nextValue: value }
+  );
+};
+
+const triggerWebampControl = async (page: Page, title: string) => {
+  await page.evaluate((controlTitle) => {
+    const control = document.querySelector(`[title="${controlTitle}"]`) as HTMLElement | null;
+    if (!control) {
+      throw new Error(`Control not found: ${controlTitle}`);
+    }
+    control.click();
+  }, title);
+};
+
+const captureExpandedWindowForTest = async (
+  page: Page,
+  id: 'main-window' | 'equalizer-window' | 'playlist-window',
+  deltaX: number,
+  deltaY: number
+) => {
+  await page.evaluate(
+    ({ windowId, x, y }) => {
+      const testApi = (
+        window as typeof window & {
+          __radioAtlasWinamp?: {
+            captureExpandedPosition: (targetId: typeof windowId) => boolean;
+          };
+        }
+      ).__radioAtlasWinamp;
+      const windowNode = document.querySelector(`#${windowId}`)?.closest('.window') as HTMLElement | null;
+      if (!windowNode || !testApi) {
+        throw new Error(`Expanded window hook unavailable: ${windowId}`);
+      }
+      windowNode.style.transform = `translate(${x}px, ${y}px)`;
+      if (!testApi.captureExpandedPosition(windowId)) {
+        throw new Error(`Failed to capture expanded position: ${windowId}`);
+      }
+    },
+    { windowId: id, x: deltaX, y: deltaY }
   );
 };
 
@@ -517,6 +583,52 @@ test('expanded mode keeps station list clickable', async ({ page }) => {
   await expect(targetRow.getByRole('button', { name: 'Pause' })).toBeVisible();
 });
 
+test('fullscreen windows can be repositioned', async ({ page }) => {
+  await page.goto('/');
+  await openFullscreenPlayer(page);
+
+  const before = await getWebampWindowRect(page, 'main-window');
+  expect(before).not.toBeNull();
+
+  await captureExpandedWindowForTest(page, 'main-window', 120, 70);
+
+  await expect
+    .poll(async () => getWebampWindowRect(page, 'main-window'))
+    .toMatchObject({
+      x: expect.any(Number),
+      y: expect.any(Number)
+    });
+
+  await expect
+    .poll(async () => {
+      const rect = await getWebampWindowRect(page, 'main-window');
+      if (!rect || !before) return { dx: 0, dy: 0 };
+      return {
+        dx: Math.abs(rect.x - before.x),
+        dy: Math.abs(rect.y - before.y)
+      };
+    })
+    .toEqual({ dx: 120, dy: 70 });
+});
+
+test('reset layout recenters fullscreen windows after dragging', async ({ page }) => {
+  await page.goto('/');
+  await openFullscreenPlayer(page);
+  await captureExpandedWindowForTest(page, 'main-window', 140, 80);
+
+  const moved = await getWebampWindowRect(page, 'main-window');
+  expect(moved).not.toBeNull();
+
+  await page.getByRole('button', { name: 'Reset layout' }).click();
+
+  await expect
+    .poll(async () => getWebampWindowRect(page, 'main-window'))
+    .not.toMatchObject({
+      x: moved!.x,
+      y: moved!.y
+    });
+});
+
 test('mobile compact player stays usable above bottom nav', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.addInitScript(() => {
@@ -540,6 +652,24 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
   expect(navBox).not.toBeNull();
   expect(compactBox!.height).toBeGreaterThanOrEqual(40);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
+});
+
+test('mobile fullscreen scales the main window close to screen width', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await openFullscreenPlayer(page);
+
+  await expect
+    .poll(async () => getWebampWindowRect(page, 'main-window'))
+    .toMatchObject({
+      width: expect.any(Number)
+    });
+
+  const rect = await getWebampWindowRect(page, 'main-window');
+  expect(rect).not.toBeNull();
+  expect(rect!.width).toBeGreaterThanOrEqual(300);
+  expect(rect!.x).toBeGreaterThanOrEqual(0);
+  expect(rect!.x + rect!.width).toBeLessThanOrEqual(390);
 });
 
 test('skin preset change persists in localStorage', async ({ page }) => {
@@ -595,7 +725,7 @@ test('webamp next button follows radio random navigation in fullscreen', async (
   await page.getByRole('button', { name: 'Play' }).first().click();
   await openFullscreenPlayer(page);
 
-  await page.locator('[title="Next Track"]').click();
+  await triggerWebampControl(page, 'Next Track');
   await expect
     .poll(async () => {
       return page.evaluate(() => {
@@ -612,7 +742,7 @@ test('webamp previous button follows radio history in fullscreen', async ({ page
   await page.getByRole('button', { name: 'Play' }).nth(1).click();
   await openFullscreenPlayer(page);
 
-  await page.locator('[title="Previous Track"]').click();
+  await triggerWebampControl(page, 'Previous Track');
   await expect
     .poll(async () => {
       return page.evaluate(() => {
@@ -636,4 +766,32 @@ test('webamp volume bar updates the real audio engine volume', async ({ page }) 
       });
     })
     .toBe(0.25);
+});
+
+test('webamp equalizer updates the real player EQ state', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await openFullscreenPlayer(page);
+
+  await setWebampEqHandleOffset(page, 'preamp', 0);
+  await setWebampEqHandleOffset(page, 'band-600', 0);
+
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return {
+          enabled: audio?.dataset.raEqEnabled || '',
+          preamp: audio?.dataset.raEqPreamp || '',
+          bands: (audio?.dataset.raEqBands || '')
+            .split(',')
+            .map((value) => Number(value))
+        };
+      });
+    })
+    .toEqual({
+      enabled: 'true',
+      preamp: '100',
+      bands: [51, 51, 51, 100, 51, 51, 51, 51, 51, 51]
+    });
 });
