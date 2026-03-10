@@ -15,7 +15,7 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --host --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
     stdout: 'pipe',
     stderr: 'pipe'
   }

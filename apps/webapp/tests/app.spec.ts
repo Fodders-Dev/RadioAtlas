@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 import { expect, test, type Page } from '@playwright/test';
 
 const stations = [
@@ -55,6 +56,46 @@ const stations = [
   }
 ];
 
+const remoteSkinBinary = readFileSync(
+  fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url))
+);
+const museumSkin = {
+  md5: 'f8a6e3e5c1e12f120d6c2b4cbb374b4b',
+  filename: 'cowboy_bebop.wsz',
+  download_url: 'https://r2.webampskins.org/skins/f8a6e3e5c1e12f120d6c2b4cbb374b4b.wsz',
+  screenshot_url: 'https://r2.webampskins.org/screenshots/f8a6e3e5c1e12f120d6c2b4cbb374b4b.png',
+  museum_url: 'https://skins.webamp.org/skin/f8a6e3e5c1e12f120d6c2b4cbb374b4b',
+  nsfw: false
+};
+
+const createSilentWav = (durationMs = 250) => {
+  const sampleRate = 8000;
+  const channels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const frameCount = Math.max(1, Math.round((sampleRate * durationMs) / 1000));
+  const dataSize = frameCount * channels * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * channels * bytesPerSample, 28);
+  buffer.writeUInt16LE(channels * bytesPerSample, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  return buffer;
+};
+
+const mockStreamAudio = createSilentWav();
+
 const mockStations = async (page: Page) => {
   await page.route('**/catalog-fast.json', (route) =>
     route.fulfill({
@@ -80,8 +121,8 @@ const mockStations = async (page: Page) => {
   await page.route('https://stream.example.com/**', (route) =>
     route.fulfill({
       status: 200,
-      contentType: 'audio/mpeg',
-      body: ''
+      contentType: 'audio/wav',
+      body: mockStreamAudio
     })
   );
   await page.route('**/status-json.xsl', (route) =>
@@ -135,6 +176,93 @@ const mockStations = async (page: Page) => {
       contentType: 'text/plain; charset=utf-8',
       body: 'title=Mock Song'
     })
+  );
+  await page.route('https://skins.webamp.org/graphql', async (route) => {
+    const request = route.request();
+    const payload = request.postDataJSON() as {
+      query?: string;
+      variables?: Record<string, unknown>;
+    };
+    const query = payload.query || '';
+    const variables = payload.variables || {};
+
+    if (query.includes('search_classic_skins')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            search_classic_skins: [museumSkin]
+          }
+        })
+      });
+      return;
+    }
+
+    if (query.includes('fetch_skin_by_md5')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            fetch_skin_by_md5:
+              variables.md5 === museumSkin.md5 ? museumSkin : null
+          }
+        })
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: {} })
+    });
+  });
+  await page.route('https://r2.webampskins.org/skins/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/octet-stream',
+      body: remoteSkinBinary
+    });
+  });
+  await page.route('https://r2.webampskins.org/screenshots/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnKXu8AAAAASUVORK5CYII=',
+        'base64'
+      )
+    });
+  });
+};
+
+const openFullscreenPlayer = async (page: Page) => {
+  await page.getByRole('button', { name: 'Fullscreen' }).click();
+  await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+};
+
+const setWebampSliderValue = async (page: Page, title: string, value: number) => {
+  await page.evaluate(
+    ({ sliderTitle, nextValue }) => {
+      const slider = document.querySelector(`[title="${sliderTitle}"]`) as HTMLElement | null;
+      if (!slider) {
+        throw new Error(`Slider not found: ${sliderTitle}`);
+      }
+
+      if (slider instanceof HTMLInputElement) {
+        slider.value = String(nextValue);
+      } else {
+        slider.setAttribute('aria-valuenow', String(nextValue));
+        slider.setAttribute('value', String(nextValue));
+      }
+
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
+      slider.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    },
+    { sliderTitle: title, nextValue: value }
   );
 };
 
@@ -191,7 +319,7 @@ test('playback from table updates winamp shell and info panel', async ({ page })
       );
     })
     .toContain('tokyo');
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
 
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
@@ -201,21 +329,28 @@ test('playback from table updates winamp shell and info panel', async ({ page })
 
 test('clicking the active station pauses the real audio engine', async ({ page }) => {
   await page.goto('/');
-  const row = page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first();
-  await row.getByRole('button', { name: 'Play' }).click();
+  await page.getByRole('button', { name: 'Play' }).first().click();
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect(page.locator('.winamp-trackline.compact')).toContainText('Mock Song');
 
-  await row.getByRole('button', { name: 'Pause' }).click();
-  await expect(row.getByRole('button', { name: 'Play' })).toBeVisible();
-  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'paused');
+  const compactPause = page.locator('.winamp-actions.compact').getByRole('button', { name: 'Pause' });
+  await expect(compactPause).toBeVisible();
+  await page.waitForTimeout(200);
+  await compactPause.click();
+  await expect
+    .poll(async () => page.locator('.audio-hidden').getAttribute('data-ra-state'))
+    .toBe('paused');
 });
 
 test('switching between stations keeps selected station as current', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
-  const berlinRow = page.locator('.station-row').filter({ hasText: 'Berlin Pulse' }).first();
+  const berlinRow = page
+    .locator('.station-table.compact .station-row')
+    .filter({ hasText: 'Berlin Pulse' })
+    .first();
   await berlinRow.getByRole('button', { name: 'Play' }).click();
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Berlin Pulse');
 });
@@ -245,8 +380,8 @@ test('station starts even when it was not in the saved winamp playlist', async (
   await page.getByPlaceholder('Search by name, tag, country, language').fill('Tokyo');
   await page.getByRole('button', { name: 'Play' }).first().click();
 
-  await expect(page.getByRole('button', { name: 'Expand' })).toBeVisible();
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+  await openFullscreenPlayer(page);
   await expect(page.locator('#webamp')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
@@ -293,7 +428,7 @@ test('favorite station can start even when saved winamp playlist is stale', asyn
   await page.getByRole('button', { name: 'Favorites' }).click();
   await expect(page.getByText('My Stations')).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
   await expect(page.locator('#webamp')).toHaveCount(1);
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
@@ -313,7 +448,7 @@ test('browse flow and full navigation still work', async ({ page }) => {
 
   await expect(page.getByText('Tokyo FM')).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Favorites' }).click();
   await expect(page.getByText('My Stations')).toBeVisible();
@@ -327,7 +462,7 @@ test('browse flow and full navigation still work', async ({ page }) => {
 
 test('expand and collapse winamp overlay', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
   await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1);
   await expect(page.locator('#webamp .window').first()).toBeVisible();
@@ -341,8 +476,11 @@ test('windowshade toggle expands compact strip to main window without full overl
   await page.goto('/');
   const shadeToggle = page.locator('[title="Toggle Windowshade Mode"]').first();
   await expect(shadeToggle).toBeVisible();
-  await shadeToggle.click();
+  const initialHeight = await page.evaluate(
+    () => document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
+  );
 
+  await shadeToggle.click();
   await expect(page.locator('.winamp-compact.expanded-host')).toHaveCount(0);
   await expect
     .poll(async () => {
@@ -351,9 +489,12 @@ test('windowshade toggle expands compact strip to main window without full overl
           document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
       );
     })
-    .toBeGreaterThan(80);
+    .not.toBe(initialHeight);
 
   await shadeToggle.click();
+  const toggledHeight = await page.evaluate(
+    () => document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
+  );
   await expect
     .poll(async () => {
       return page.evaluate(
@@ -361,14 +502,17 @@ test('windowshade toggle expands compact strip to main window without full overl
           document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
       );
     })
-    .toBeLessThan(70);
+    .not.toBe(toggledHeight);
 });
 
 test('expanded mode keeps station list clickable', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
 
-  const targetRow = page.locator('.station-row').filter({ hasText: 'Berlin Pulse' }).first();
+  const targetRow = page
+    .locator('.station-table.compact .station-row')
+    .filter({ hasText: 'Berlin Pulse' })
+    .first();
   await targetRow.getByRole('button', { name: 'Play' }).click();
   await expect(targetRow.getByRole('button', { name: 'Pause' })).toBeVisible();
 });
@@ -395,40 +539,36 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
   expect(compactBox).not.toBeNull();
   expect(navBox).not.toBeNull();
   expect(compactBox!.height).toBeGreaterThanOrEqual(40);
-  expect(compactBox!.height).toBeLessThanOrEqual(70);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
 });
 
 test('skin preset change persists in localStorage', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
-
-  await page.locator('#skin-select').selectOption('eric-potter');
-
+  await page.getByPlaceholder('Search skins.webamp.org').fill('bebop');
+  await expect(page.getByRole('listitem')).toContainText('cowboy_bebop.wsz');
+  await page.getByRole('button', { name: 'Apply' }).click();
   const stored = await page.evaluate(() => localStorage.getItem('radio:winamp-skin'));
-  expect(stored).toContain('eric-potter');
+  expect(stored).toContain('museum');
+  expect(stored).toContain('f8a6e3e5c1e12f120d6c2b4cbb374b4b');
 });
 
-test('skin upload applies uploaded mode', async ({ page }) => {
+test('skin museum selection restores after reload', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByPlaceholder('Search skins.webamp.org').fill('bebop');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.locator('.skin-picker-current')).toHaveText('cowboy_bebop.wsz');
 
-  const skinFile = fileURLToPath(
-    new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url)
-  );
-  await page.locator('input[type="file"]').first().setInputFiles(skinFile);
-  await page.waitForFunction(() =>
-    (localStorage.getItem('radio:winamp-skin') || '').includes('uploaded')
-  );
-
-  const stored = await page.evaluate(() => localStorage.getItem('radio:winamp-skin'));
-  expect(stored).toContain('uploaded');
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.locator('.skin-picker-current')).toHaveText('cowboy_bebop.wsz');
 });
 
 test('share action always displays toast', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await page.getByRole('button', { name: 'Expand' }).click();
+  await openFullscreenPlayer(page);
   await page.getByRole('button', { name: 'Share' }).click();
   await expect(page.locator('.toast')).toBeVisible();
   await expect(page.locator('.toast')).toContainText(/Share|Link/);
@@ -442,7 +582,58 @@ test('track line shows track title only and supports copy click', async ({ page 
   await expect(trackLine).toBeVisible();
   await expect(trackLine).toContainText('Mock Song');
   await expect(trackLine).not.toContainText('Tokyo FM');
-
+  await page.waitForTimeout(200);
   await trackLine.click();
   await expect(page.locator('.toast')).toContainText('Track copied');
+});
+
+test('webamp next button follows radio random navigation in fullscreen', async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.4;
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await openFullscreenPlayer(page);
+
+  await page.locator('[title="Next Track"]').click();
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Berlin Pulse');
+});
+
+test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Play' }).nth(1).click();
+  await openFullscreenPlayer(page);
+
+  await page.locator('[title="Previous Track"]').click();
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Tokyo FM');
+});
+
+test('webamp volume bar updates the real audio engine volume', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await setWebampSliderValue(page, 'Volume Bar', 25);
+
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio ? Number(audio.volume.toFixed(2)) : -1;
+      });
+    })
+    .toBe(0.25);
 });

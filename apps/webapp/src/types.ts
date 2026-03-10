@@ -58,7 +58,7 @@ export type SkinPalette = {
   text: string;
 };
 
-export type WinampSkinSource = 'preset' | 'uploaded';
+export type WinampSkinSource = 'preset' | 'museum';
 
 export type WinampSkinPreset = {
   id: string;
@@ -67,6 +67,13 @@ export type WinampSkinPreset = {
   palette?: SkinPalette;
 };
 
-export type ActiveWinampSkin = WinampSkinPreset & {
-  source: WinampSkinSource;
+export type WinampMuseumSkin = WinampSkinPreset & {
+  md5: string;
+  museumUrl: string;
+  screenshotUrl: string | null;
+  nsfw: boolean;
 };
+
+export type ActiveWinampSkin =
+  | (WinampSkinPreset & { source: 'preset' })
+  | (WinampMuseumSkin & { source: 'museum' });

@@ -4,6 +4,7 @@ import type {
   ActiveWinampSkin,
   Station,
   StationLite,
+  WinampMuseumSkin,
   WinampSkinPreset,
   WinampSkinSource
 } from '../types';
@@ -14,7 +15,8 @@ import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
 import { getApiBase } from '../lib/apiBase';
-import { applySkinPalette, applySkinThemeFromUrl, extractSkinPaletteFromBlob } from '../lib/skinTheme';
+import { applySkinPalette, applySkinThemeFromUrl } from '../lib/skinTheme';
+import { fetchMuseumSkinByMd5 } from '../lib/skinMuseum';
 import {
   DEFAULT_WINAMP_SKIN_ID,
   WINAMP_CLASSIC_PALETTE,
@@ -33,6 +35,7 @@ type TrackHistoryItem = {
 type StoredSkin = {
   source: WinampSkinSource;
   id?: string;
+  md5?: string;
   name?: string;
 };
 
@@ -43,7 +46,7 @@ type WinampState = {
   activeSkin: ActiveWinampSkin;
   playlist: StationLite[];
   setSkin: (skinId: string) => void;
-  importSkin: (file: File) => Promise<boolean>;
+  selectSkin: (skin: WinampMuseumSkin) => void;
 };
 
 type RadioContextValue = {
@@ -90,6 +93,11 @@ const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
     source: 'preset'
   };
 };
+
+const toMuseumActiveSkin = (skin: WinampMuseumSkin): ActiveWinampSkin => ({
+  ...skin,
+  source: 'museum'
+});
 
 const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
   const merged: StationLite[] = [];
@@ -142,8 +150,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     toActiveSkin(storedSkin.id)
   );
 
-  const uploadedSkinUrlRef = useRef<string | null>(null);
-
   const logDebug = (msg: string) => {
     setDebugLogs((prev) =>
       [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50)
@@ -159,23 +165,44 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     onEvent: logDebug
   });
   const startHandledRef = useRef(false);
-  const skinRestoreRef = useRef(false);
 
   useEffect(() => {
-    if (skinRestoreRef.current) return;
-    skinRestoreRef.current = true;
+    let cancelled = false;
 
-    if (storedSkin.source === 'preset') {
-      setActiveSkin(toActiveSkin(storedSkin.id));
-      return;
-    }
+    const restoreSkin = async () => {
+      if (storedSkin.source === 'preset') {
+        setActiveSkin(toActiveSkin(storedSkin.id));
+        return;
+      }
 
-    if (storedSkin.source === 'uploaded') {
+      if (storedSkin.source === 'museum' && storedSkin.md5) {
+        try {
+          const restoredSkin = await fetchMuseumSkinByMd5(storedSkin.md5);
+          if (cancelled) return;
+          if (restoredSkin) {
+            setActiveSkin(toMuseumActiveSkin(restoredSkin));
+            logDebug(`Skin restored: ${restoredSkin.name}`);
+            return;
+          }
+        } catch (error) {
+          logDebug(
+            `Skin restore failed: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
+      if (cancelled) return;
       const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
       setActiveSkin(fallback);
       setStoredSkin({ source: 'preset', id: fallback.id });
-      notify('Uploaded skin is session-only. Re-import to restore it.');
-    }
+      notify('Saved skin unavailable. Reverted to Winamp Base 2.91.');
+    };
+
+    void restoreSkin();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -201,15 +228,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       mounted = false;
     };
   }, [activeSkin]);
-
-  useEffect(() => {
-    return () => {
-      if (uploadedSkinUrlRef.current) {
-        URL.revokeObjectURL(uploadedSkinUrlRef.current);
-      }
-    };
-  }, []);
-
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -598,40 +616,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(`Skin: ${preset.name}`);
   };
 
-  const importSkin = async (file: File) => {
-    const name = file.name || 'Uploaded skin';
-    const lowerName = name.toLowerCase();
-    if (!lowerName.endsWith('.wsz') && !lowerName.endsWith('.zip')) {
-      notify('Skin must be .wsz or .zip');
-      return false;
-    }
-
-    try {
-      let palette = WINAMP_CLASSIC_PALETTE;
-      try {
-        palette = await extractSkinPaletteFromBlob(file);
-      } catch {
-        notify('Skin palette fallback applied');
-      }
-      if (uploadedSkinUrlRef.current) {
-        URL.revokeObjectURL(uploadedSkinUrlRef.current);
-      }
-      const url = URL.createObjectURL(file);
-      uploadedSkinUrlRef.current = url;
-      setActiveSkin({
-        id: `uploaded-${Date.now()}`,
-        name,
-        url,
-        source: 'uploaded',
-        palette
-      });
-      setStoredSkin({ source: 'uploaded', name });
-      notify('Uploaded skin applied');
-      return true;
-    } catch {
-      notify('Unable to import skin');
-      return false;
-    }
+  const selectSkin = (skin: WinampMuseumSkin) => {
+    setActiveSkin(toMuseumActiveSkin(skin));
+    setStoredSkin({
+      source: 'museum',
+      md5: skin.md5,
+      name: skin.name
+    });
+    notify(`Skin: ${skin.name}`);
   };
 
   const winamp = useMemo<WinampState>(
@@ -642,7 +634,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       activeSkin,
       playlist: winampPlaylist,
       setSkin,
-      importSkin
+      selectSkin
     }),
     [winampExpanded, activeSkin, winampPlaylist]
   );

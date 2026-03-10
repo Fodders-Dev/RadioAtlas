@@ -69,7 +69,7 @@ export const Settings = () => {
           <div>
             <div className="settings-label">Winamp Skin Mode</div>
             <div className="settings-desc">
-              Select a preset or upload your own .wsz skin.
+              Search skins.webamp.org and persist the one you choose.
             </div>
           </div>
           <SkinPicker />

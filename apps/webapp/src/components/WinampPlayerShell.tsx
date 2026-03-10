@@ -18,6 +18,8 @@ type WebampInstance = {
   dispose: () => void;
   appendTracks?: (tracks: WebampTrack[]) => void;
   setTracksToPlay?: (tracks: WebampTrack[]) => void;
+  setVolume?: (volume: number) => void;
+  setBalance?: (balance: number) => void;
   previousTrack?: () => void;
   nextTrack?: () => void;
   play?: () => Promise<void> | void;
@@ -103,6 +105,19 @@ const toAssetUrl = (value: string) => {
   } catch {
     return value;
   }
+};
+const toWebampVolume = (value: number) => Math.round(clamp(value, 0, 1) * 100);
+const toPlayerVolume = (value: number) => clamp(value / 100, 0, 1);
+const getSliderValue = (node: Element | null) => {
+  if (!node) return null;
+  if (node instanceof HTMLInputElement) {
+    const directValue = Number(node.value);
+    if (Number.isFinite(directValue)) return directValue;
+  }
+  const ariaValue = Number(node.getAttribute('aria-valuenow') || '');
+  if (Number.isFinite(ariaValue)) return ariaValue;
+  const valueAttr = Number(node.getAttribute('value') || '');
+  return Number.isFinite(valueAttr) ? valueAttr : null;
 };
 
 const stopNativeEvent = (event: Event) => {
@@ -554,10 +569,14 @@ export const WinampPlayerShell = ({
   const syncPauseUntilRef = useRef(0);
   const suppressTrackSyncUntilRef = useRef(0);
   const retryDelayRef = useRef<number | null>(null);
+  const expandRetryRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const playablePlaylistRef = useRef<StationLite[]>([]);
   const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
   const stationByTrackTitleRef = useRef<Map<string, StationLite>>(new Map());
+  const playlistSignatureRef = useRef('');
+  const lastAppliedVolumeRef = useRef<number | null>(null);
+  const suppressVolumeSyncUntilRef = useRef(0);
 
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
@@ -571,16 +590,32 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     expandedRef.current = winamp.expanded;
+    if (winamp.expanded && expandRetryRef.current !== null) {
+      window.clearTimeout(expandRetryRef.current);
+      expandRetryRef.current = null;
+    }
   }, [winamp.expanded]);
 
   const requestExpand = () => {
+    if (expandRetryRef.current !== null) {
+      window.clearTimeout(expandRetryRef.current);
+    }
     winamp.setExpanded(true);
-    window.setTimeout(() => {
+    expandRetryRef.current = window.setTimeout(() => {
+      expandRetryRef.current = null;
       if (!expandedRef.current) {
         winamp.setExpanded(true);
       }
     }, 160);
   };
+
+  useEffect(() => {
+    return () => {
+      if (expandRetryRef.current !== null) {
+        window.clearTimeout(expandRetryRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const onShadeToggleStart = (event: Event) => {
@@ -612,19 +647,26 @@ export const WinampPlayerShell = ({
   useEffect(() => {
     const syncCompactAfterControl = () => {
       const mountNode = compactHostRef.current;
-      if (!mountNode || expandedRef.current) return;
+      if (!mountNode) return;
       window.requestAnimationFrame(() => {
-        syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
-        window.setTimeout(() => {
+        if (expandedRef.current) {
+          ensureExpandedWindowsVisible();
+          syncExpandedWindowPlacement();
+        } else {
           syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+        }
+        window.setTimeout(() => {
+          if (expandedRef.current) {
+            ensureExpandedWindowsVisible();
+            syncExpandedWindowPlacement();
+          } else {
+            syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+          }
         }, 90);
       });
     };
 
     const onTransportClick = (event: Event) => {
-      if (expandedRef.current) return;
-      const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
-      if (!shell || shell.classList.contains('expanded-host')) return;
       const target = event.target as HTMLElement | null;
       const webampRoot = getWebampRootNode();
       if (!target || !webampRoot?.contains(target)) return;
@@ -759,11 +801,21 @@ export const WinampPlayerShell = ({
     () => effectivePlaylist.filter((station) => Boolean(station.url_resolved)),
     [effectivePlaylist]
   );
+  const playlistSignature = useMemo(
+    () =>
+      playablePlaylist
+        .map((station) => `${station.stationuuid}:${canonicalTrackUrl(station.url_resolved || '')}`)
+        .join('|'),
+    [playablePlaylist]
+  );
 
   const liked = current ? isFavorite(current.stationuuid) : false;
   const canResume = Boolean(recent.length);
   const trackTitle = nowPlaying?.trim() || '';
   const canCopyTrackTitle = Boolean(trackTitle);
+  const stopCompactInteraction = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+  };
   const handleCompactMainClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (winamp.expanded) return;
     const target = event.target as HTMLElement | null;
@@ -1074,6 +1126,22 @@ export const WinampPlayerShell = ({
   }, [winamp.expanded, webampReady]);
 
   useEffect(() => {
+    if (winamp.expanded || !webampReady) return;
+    const mountNode = compactHostRef.current;
+    if (!mountNode) return;
+
+    const sync = () => {
+      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+    };
+
+    sync();
+    const timeoutId = window.setTimeout(sync, 90);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [current?.stationuuid, player.isPlaying, trackTitle, webampReady, winamp.expanded]);
+
+  useEffect(() => {
     if (!winamp.expanded || !webampReady) return;
     const sync = () => {
       ensureExpandedWindowsVisible();
@@ -1088,6 +1156,78 @@ export const WinampPlayerShell = ({
       window.removeEventListener('resize', sync);
     };
   }, [winamp.expanded, webampReady]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady || !playablePlaylist.length) return;
+    if (playlistSignatureRef.current === playlistSignature) return;
+
+    suppressTrackSyncUntilRef.current = Date.now() + 500;
+    playlistSignatureRef.current = playlistSignature;
+    try {
+      instance.setTracksToPlay?.(buildTracks(playablePlaylist));
+    } catch (error) {
+      console.error('Winamp playlist sync failed', error);
+    }
+  }, [webampReady, playablePlaylist, playlistSignature]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady) return;
+
+    const nextVolume = toWebampVolume(player.volume);
+    if (lastAppliedVolumeRef.current === nextVolume) return;
+
+    lastAppliedVolumeRef.current = nextVolume;
+    suppressVolumeSyncUntilRef.current = Date.now() + 160;
+    try {
+      instance.setVolume?.(nextVolume);
+      instance.setBalance?.(0);
+    } catch (error) {
+      console.error('Winamp volume sync failed', error);
+    }
+  }, [player.volume, webampReady]);
+
+  useEffect(() => {
+    if (!webampReady) return;
+
+    const onSliderChange = (event: Event) => {
+      if (Date.now() < suppressVolumeSyncUntilRef.current) return;
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      const volumeNode = target.closest('[title="Volume Bar"]');
+      if (volumeNode) {
+        const value = getSliderValue(volumeNode);
+        if (value === null) return;
+        const nextVolume = toPlayerVolume(value);
+        if (Math.abs(player.volume - nextVolume) < 0.005) return;
+        lastAppliedVolumeRef.current = toWebampVolume(nextVolume);
+        player.setVolume(nextVolume);
+        return;
+      }
+
+      const balanceNode = target.closest('[title="Balance"]');
+      if (!balanceNode) return;
+      const instance = webampRef.current;
+      suppressVolumeSyncUntilRef.current = Date.now() + 160;
+      try {
+        instance?.setBalance?.(0);
+      } catch {
+        // ignore
+      }
+    };
+
+    document.addEventListener('input', onSliderChange, true);
+    document.addEventListener('change', onSliderChange, true);
+    document.addEventListener('mouseup', onSliderChange, true);
+
+    return () => {
+      document.removeEventListener('input', onSliderChange, true);
+      document.removeEventListener('change', onSliderChange, true);
+      document.removeEventListener('mouseup', onSliderChange, true);
+    };
+  }, [player, player.volume, webampReady]);
 
   useEffect(() => {
     const instance = webampRef.current;
@@ -1167,13 +1307,34 @@ export const WinampPlayerShell = ({
     };
   }, [webampReady, playStation, playLast, canResume, player.current?.stationuuid, player.isPlaying]);
 
+  const quietWebampPlayback = () => {
+    const instance = webampRef.current;
+    syncPauseUntilRef.current = Date.now() + 700;
+    try {
+      instance?.pause?.();
+    } catch {
+      // ignore
+    }
+    try {
+      instance?.stop?.();
+    } catch {
+      // ignore
+    }
+  };
+
   const actionStrip = (variant: 'compact' | 'overlay') => (
-    <div className={`winamp-actions ${variant}`}>
+    <div
+      className={`winamp-actions ${variant}`}
+      onMouseDown={stopCompactInteraction}
+      onTouchStart={stopCompactInteraction}
+      onClick={stopCompactInteraction}
+    >
       <button
         className={`chip ${current && player.isPlaying ? 'active' : ''}`}
         type="button"
         onClick={() => {
           if (current) {
+            quietWebampPlayback();
             void player.toggle();
             return;
           }
@@ -1243,7 +1404,13 @@ export const WinampPlayerShell = ({
     <button
       className={`winamp-trackline ${variant}`}
       type="button"
-      onClick={copyTrack}
+      onMouseDown={stopCompactInteraction}
+      onTouchStart={stopCompactInteraction}
+      onClick={() => {
+        if (canCopyTrackTitle) {
+          void copyTrack();
+        }
+      }}
       disabled={!canCopyTrackTitle}
       title={canCopyTrackTitle ? 'Copy track title' : 'Track title unavailable'}
       aria-label={canCopyTrackTitle ? `Copy track title: ${trackTitle}` : 'Track title unavailable'}
@@ -1280,13 +1447,13 @@ export const WinampPlayerShell = ({
           <button
             className="chip active winamp-expand-fab"
             type="button"
-            onMouseDown={(event) => event.stopPropagation()}
-            onTouchStart={(event) => event.stopPropagation()}
+            onMouseDown={stopCompactInteraction}
+            onTouchStart={stopCompactInteraction}
             onClick={requestExpand}
           >
             Fullscreen
           </button>
-          {canCopyTrackTitle ? trackLine('compact') : null}
+          {trackLine('compact')}
         </>
       )}
 

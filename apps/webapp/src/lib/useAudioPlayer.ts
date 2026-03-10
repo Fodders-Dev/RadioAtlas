@@ -474,7 +474,8 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (!audio || !current) return false;
 
-    if (isPlaying) {
+    const nativeState = audio.getAttribute('data-ra-state');
+    if (isPlaying || nativeState === 'playing' || !audio.paused) {
       audio.pause();
       return true;
     }
