@@ -732,7 +732,7 @@ export const WinampPlayerShell = ({
                 if (cancelled) return;
                 applyCompactLayout(mountNode);
                 placementAttempt += 1;
-                if (placementAttempt < 10) {
+                if (placementAttempt < 6) {
                   window.setTimeout(ensureCompactPlacement, 180);
                 }
               };
@@ -833,11 +833,13 @@ export const WinampPlayerShell = ({
     sync();
     window.addEventListener('scroll', sync, { passive: true });
     window.addEventListener('resize', sync);
-    const interval = window.setInterval(sync, 300);
+    const lateSyncA = window.setTimeout(sync, 320);
+    const lateSyncB = window.setTimeout(sync, 900);
     return () => {
       window.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
-      window.clearInterval(interval);
+      window.clearTimeout(lateSyncA);
+      window.clearTimeout(lateSyncB);
     };
   }, [winamp.expanded, webampReady]);
 
