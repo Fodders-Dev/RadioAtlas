@@ -843,19 +843,84 @@ export const WinampPlayerShell = ({
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
+    let frameId: number | null = null;
+    const observed = new Set<Element>();
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
+
     const sync = () => {
+      frameId = null;
       syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
     };
-    sync();
-    window.addEventListener('scroll', sync, { passive: true });
-    window.addEventListener('resize', sync);
-    const lateSyncA = window.setTimeout(sync, 320);
-    const lateSyncB = window.setTimeout(sync, 900);
+
+    const queueSync = () => {
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(sync);
+    };
+
+    const observeNode = (node: Element | null) => {
+      if (!node || observed.has(node)) return;
+      observed.add(node);
+      resizeObserver?.observe(node);
+    };
+
+    const attachLayoutObservers = () => {
+      observeNode(document.documentElement);
+      observeNode(document.body);
+      observeNode(document.querySelector('.app'));
+      observeNode(document.querySelector('main'));
+      observeNode(document.querySelector('.bottom-nav'));
+      observeNode(document.querySelector('.winamp-actions.compact'));
+      observeNode(document.querySelector('.winamp-trackline.compact'));
+      observeNode(getWebampRootNode());
+      observeNode(getMainWindowNode());
+    };
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        queueSync();
+      });
+      attachLayoutObservers();
+    }
+
+    if (typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver(() => {
+        attachLayoutObservers();
+        queueSync();
+      });
+      mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    queueSync();
+    window.addEventListener('scroll', queueSync, { passive: true });
+    window.addEventListener('resize', queueSync);
+    const settleInterval = window.setInterval(queueSync, 220);
+    const stopSettleInterval = window.setTimeout(() => {
+      window.clearInterval(settleInterval);
+    }, 4200);
+    const lateSyncA = window.setTimeout(queueSync, 120);
+    const lateSyncB = window.setTimeout(queueSync, 320);
+    const lateSyncC = window.setTimeout(queueSync, 760);
+    const lateSyncD = window.setTimeout(queueSync, 1500);
+    const lateSyncE = window.setTimeout(queueSync, 2600);
     return () => {
-      window.removeEventListener('scroll', sync);
-      window.removeEventListener('resize', sync);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      window.removeEventListener('scroll', queueSync);
+      window.removeEventListener('resize', queueSync);
+      window.clearInterval(settleInterval);
+      window.clearTimeout(stopSettleInterval);
       window.clearTimeout(lateSyncA);
       window.clearTimeout(lateSyncB);
+      window.clearTimeout(lateSyncC);
+      window.clearTimeout(lateSyncD);
+      window.clearTimeout(lateSyncE);
     };
   }, [winamp.expanded, webampReady]);
 
