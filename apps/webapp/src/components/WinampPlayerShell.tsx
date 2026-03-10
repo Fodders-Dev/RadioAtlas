@@ -154,7 +154,11 @@ const resolveWindowAnchor = (windowNode: HTMLElement) => {
   return anchor;
 };
 
-const resetIntermediateAnchors = (windowNode: HTMLElement, anchor: HTMLElement) => {
+const resetIntermediateAnchors = (
+  windowNode: HTMLElement,
+  anchor: HTMLElement,
+  marker: 'compact' | 'expanded'
+) => {
   let current = windowNode.parentElement as HTMLElement | null;
   while (current && current !== anchor) {
     current.style.position = 'absolute';
@@ -165,7 +169,13 @@ const resetIntermediateAnchors = (windowNode: HTMLElement, anchor: HTMLElement) 
     current.style.transform = '';
     current.style.zIndex = '';
     current.style.pointerEvents = 'none';
-    current.dataset.raExpandedAnchor = '1';
+    if (marker === 'compact') {
+      current.dataset.raCompactAnchor = '1';
+      delete current.dataset.raExpandedAnchor;
+    } else {
+      current.dataset.raExpandedAnchor = '1';
+      delete current.dataset.raCompactAnchor;
+    }
     current = current.parentElement as HTMLElement | null;
   }
 };
@@ -173,7 +183,7 @@ const resetIntermediateAnchors = (windowNode: HTMLElement, anchor: HTMLElement) 
 const placeWindowAnchor = (windowNode: HTMLElement, left: number, top: number, zOrder: number) => {
   const anchor = resolveWindowAnchor(windowNode);
   if (!anchor) return;
-  resetIntermediateAnchors(windowNode, anchor);
+  resetIntermediateAnchors(windowNode, anchor, 'expanded');
 
   anchor.style.position = 'absolute';
   anchor.style.inset = '';
@@ -287,16 +297,28 @@ const resetCompactWindowVisibility = () => {
 
 const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactViewMode) => {
   const windowNode = getMainWindowNode();
-  const anchor = windowNode?.parentElement as HTMLElement | null;
+  const anchor = windowNode ? resolveWindowAnchor(windowNode) : null;
   if (!windowNode || !anchor) return false;
 
   setMainWindowShadeMode(viewMode === 'strip');
   enforceCompactWindowVisibility();
+  resetIntermediateAnchors(windowNode, anchor, 'compact');
   const mountRect = mountNode.getBoundingClientRect();
+  anchor.style.position = 'fixed';
+  anchor.style.inset = '';
+  anchor.style.left = '0px';
+  anchor.style.top = '0px';
+  anchor.style.transformOrigin = 'top left';
+  anchor.style.transform = '';
+  anchor.style.zIndex = '58';
+  anchor.style.pointerEvents = 'none';
+  anchor.style.overflow = 'hidden';
+  anchor.dataset.raCompactAnchor = '1';
   windowNode.style.transformOrigin = 'top left';
   windowNode.style.transform = '';
   windowNode.style.left = '0px';
   windowNode.style.top = '0px';
+  windowNode.style.pointerEvents = 'auto';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || MAIN_WINDOW_WIDTH;
   const measuredHeight = rawRect.height || SHADED_WINDOW_HEIGHT;
@@ -333,27 +355,17 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
           STRIP_COMPACT_MAX_HEIGHT
         );
   mountNode.style.height = `${compactHeight}px`;
-  let top = Math.max(hostRect.top, minTop);
-
-  anchor.style.position = 'fixed';
-  anchor.style.inset = '0 auto auto 0';
-  anchor.style.zIndex = '58';
-  anchor.style.pointerEvents = 'none';
-  anchor.style.overflow = 'hidden';
-  anchor.dataset.raCompactAnchor = '1';
-  windowNode.style.pointerEvents = 'auto';
   windowNode.style.transform = `scale(${nextScale})`;
-  const placedRect = windowNode.getBoundingClientRect();
-  const adjustDown = Math.max(0, minTop - placedRect.top);
-  const adjustUp = Math.max(0, placedRect.bottom - maxBottom);
-  if (adjustDown > 0 || adjustUp > 0) {
-    top = top + adjustDown - adjustUp;
-  }
 
   const finalLeft = Math.round(left);
-  const finalTop = Math.round(top);
+  const maxTop = Math.max(minTop, maxBottom - compactHeight);
+  const finalTop = Math.round(clamp(Math.max(hostRect.top, minTop), minTop, maxTop));
   const finalWidth = Math.round(nextWidth);
   const finalHeight = Math.round(compactHeight);
+  const currentLeft = Number.parseFloat(anchor.style.left || Number.NaN);
+  const currentTop = Number.parseFloat(anchor.style.top || Number.NaN);
+  const currentWidth = Number.parseFloat(anchor.style.width || Number.NaN);
+  const currentHeight = Number.parseFloat(anchor.style.height || Number.NaN);
   const prevLeft = Number(anchor.dataset.raCompactLeft ?? Number.NaN);
   const prevTop = Number(anchor.dataset.raCompactTop ?? Number.NaN);
   const prevWidth = Number(anchor.dataset.raCompactWidth ?? Number.NaN);
@@ -366,9 +378,20 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
     Math.abs(prevLeft - finalLeft) > 1 ||
     Math.abs(prevTop - finalTop) > 1 ||
     Math.abs(prevWidth - finalWidth) > 1 ||
-    Math.abs(prevHeight - finalHeight) > 1;
+    Math.abs(prevHeight - finalHeight) > 1 ||
+    !Number.isFinite(currentLeft) ||
+    !Number.isFinite(currentTop) ||
+    !Number.isFinite(currentWidth) ||
+    !Number.isFinite(currentHeight) ||
+    Math.abs(currentLeft - finalLeft) > 1 ||
+    Math.abs(currentTop - finalTop) > 1 ||
+    Math.abs(currentWidth - finalWidth) > 1 ||
+    Math.abs(currentHeight - finalHeight) > 1 ||
+    anchor.style.transform !== '';
   if (changed) {
-    anchor.style.transform = `translate(${finalLeft}px, ${finalTop}px)`;
+    anchor.style.left = `${finalLeft}px`;
+    anchor.style.top = `${finalTop}px`;
+    anchor.style.transform = '';
     anchor.style.height = `${finalHeight}px`;
     anchor.style.width = `${finalWidth}px`;
     anchor.dataset.raCompactLeft = String(finalLeft);
@@ -865,10 +888,13 @@ export const WinampPlayerShell = ({
     };
 
     const attachLayoutObservers = () => {
+      observeNode(mountNode);
       observeNode(document.documentElement);
       observeNode(document.body);
       observeNode(document.querySelector('.app'));
       observeNode(document.querySelector('main'));
+      observeNode(document.querySelector('.winamp-compact'));
+      observeNode(document.querySelector('.winamp-compact-main'));
       observeNode(document.querySelector('.bottom-nav'));
       observeNode(document.querySelector('.winamp-actions.compact'));
       observeNode(document.querySelector('.winamp-trackline.compact'));
@@ -897,10 +923,7 @@ export const WinampPlayerShell = ({
     queueSync();
     window.addEventListener('scroll', queueSync, { passive: true });
     window.addEventListener('resize', queueSync);
-    const settleInterval = window.setInterval(queueSync, 220);
-    const stopSettleInterval = window.setTimeout(() => {
-      window.clearInterval(settleInterval);
-    }, 4200);
+    const watchdogInterval = window.setInterval(queueSync, 240);
     const lateSyncA = window.setTimeout(queueSync, 120);
     const lateSyncB = window.setTimeout(queueSync, 320);
     const lateSyncC = window.setTimeout(queueSync, 760);
@@ -914,8 +937,7 @@ export const WinampPlayerShell = ({
       mutationObserver?.disconnect();
       window.removeEventListener('scroll', queueSync);
       window.removeEventListener('resize', queueSync);
-      window.clearInterval(settleInterval);
-      window.clearTimeout(stopSettleInterval);
+      window.clearInterval(watchdogInterval);
       window.clearTimeout(lateSyncA);
       window.clearTimeout(lateSyncB);
       window.clearTimeout(lateSyncC);
