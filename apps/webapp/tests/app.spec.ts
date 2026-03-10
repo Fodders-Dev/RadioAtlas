@@ -141,10 +141,12 @@ const mockStations = async (page: Page) => {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     HTMLMediaElement.prototype.play = function () {
+      this.setAttribute('data-ra-state', 'playing');
       this.dispatchEvent(new Event('playing'));
       return Promise.resolve();
     };
     HTMLMediaElement.prototype.pause = function () {
+      this.setAttribute('data-ra-state', 'paused');
       this.dispatchEvent(new Event('pause'));
     };
     HTMLMediaElement.prototype.load = function () {};
@@ -180,12 +182,32 @@ test('explore loads and compact winamp shell is visible', async ({ page }) => {
 test('playback from table updates winamp shell and info panel', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.audio-hidden')).toHaveCount(1);
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () => {
+      return page.evaluate(
+        () => (document.querySelector('.audio-hidden') as HTMLAudioElement | null)?.src || ''
+      );
+    })
+    .toContain('tokyo');
   await page.getByRole('button', { name: 'Expand' }).click();
 
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
+});
+
+test('clicking the active station pauses the real audio engine', async ({ page }) => {
+  await page.goto('/');
+  const row = page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first();
+  await row.getByRole('button', { name: 'Play' }).click();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+
+  await row.getByRole('button', { name: 'Pause' }).click();
+  await expect(row.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'paused');
 });
 
 test('switching between stations keeps selected station as current', async ({ page }) => {
@@ -280,11 +302,7 @@ test('favorite station can start even when saved winamp playlist is stale', asyn
 test('browse flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
-  await page.evaluate(() => {
-    const navItems = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-item'));
-    const browse = navItems.find((item) => item.textContent?.includes('Browse'));
-    browse?.click();
-  });
+  await page.getByRole('button', { name: 'Browse' }).click();
   await expect(page.getByText('Choose a continent to explore local stations.')).toBeVisible();
 
   await page.getByRole('button', { name: /Asia/ }).click();

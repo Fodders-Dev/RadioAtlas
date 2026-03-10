@@ -3,7 +3,12 @@ import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
-const WINAMP_ONLY_MODE = true;
+
+type PlayStationResult = {
+  ok: boolean;
+  error?: string;
+  station?: StationLite;
+};
 
 type ReconnectState = {
   timer: number | null;
@@ -104,20 +109,30 @@ const resolveExternalStream = async (
 
 const buildCandidates = (url: string) => {
   const candidates: string[] = [];
-  const apiBase = getApiBase();
+  const apiBase = normalizeBase(getApiBase());
   const isLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
+  const proxyPreferred = Boolean(apiBase) && (url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url));
+
+  if (proxyPreferred) {
+    candidates.push(buildProxyUrl(url));
+  }
+
   if (url.startsWith('http://')) {
     const httpsUrl = url.replace(/^http:\/\//, 'https://');
     if (httpsUrl !== url) {
       candidates.push(httpsUrl);
     }
-    if (apiBase) {
+    if (apiBase && !proxyPreferred) {
       candidates.push(buildProxyUrl(url));
-    } else if (isLocal) {
+    }
+    if (isLocal) {
       candidates.push(url);
     }
   } else {
     candidates.push(url);
+    if (apiBase && !proxyPreferred && (isHls(url) || !isDirectAudioUrl(url))) {
+      candidates.push(buildProxyUrl(url));
+    }
   }
   return Array.from(new Set(candidates));
 };
@@ -135,11 +150,13 @@ export const useAudioPlayer = ({
   const candidatesRef = useRef<string[]>([]);
   const candidateIndexRef = useRef(0);
   const activeUrlRef = useRef<string | null>(null);
+  const lastErrorRef = useRef<string | null>(null);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const pushEvent = (message: string) => {
     if (onEvent) onEvent(message);
@@ -197,22 +214,48 @@ export const useAudioPlayer = ({
     }
   };
 
-  const tryNextCandidate = async () => {
+  const playCandidateAtIndex = async (startIndex: number) => {
     const audio = audioRef.current;
-    if (!audio) return false;
+    if (!audio) {
+      return { ok: false, error: 'Audio engine unavailable' };
+    }
+
+    const list = candidatesRef.current;
+    if (startIndex < 0 || startIndex >= list.length) {
+      return { ok: false, error: 'No playable stream candidates' };
+    }
+
+    let lastError = 'No playable stream candidates';
+    for (let index = startIndex; index < list.length; index += 1) {
+      const nextUrl = list[index];
+      candidateIndexRef.current = index;
+      try {
+        await attachSource(nextUrl);
+        await audio.play();
+        activeUrlRef.current = nextUrl;
+        setErrorMessage(null);
+        lastErrorRef.current = null;
+        return { ok: true };
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : 'Playback failed';
+        lastErrorRef.current = lastError;
+        pushEvent(`playback: candidate failed (${nextUrl}) ${lastError}`);
+      }
+    }
+
+    setStatus('error');
+    setIsPlaying(false);
+    setErrorMessage(lastError);
+    return { ok: false, error: lastError };
+  };
+
+  const tryNextCandidate = async () => {
     const list = candidatesRef.current;
     if (candidateIndexRef.current >= list.length - 1) {
       return false;
     }
-    candidateIndexRef.current += 1;
-    const nextUrl = list[candidateIndexRef.current];
-    try {
-      await attachSource(nextUrl);
-      await audio.play();
-      return true;
-    } catch {
-      return false;
-    }
+    const result = await playCandidateAtIndex(candidateIndexRef.current + 1);
+    return result.ok;
   };
 
   const scheduleReconnect = () => {
@@ -239,11 +282,6 @@ export const useAudioPlayer = ({
   }, [current]);
 
   useEffect(() => {
-    if (WINAMP_ONLY_MODE) {
-      return () => {
-        // no-op
-      };
-    }
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     audio.preload = 'auto'; // Enable automatic buffering for smoother playback
@@ -261,6 +299,8 @@ export const useAudioPlayer = ({
     const handlePlaying = () => {
       setStatus('playing');
       setIsPlaying(true);
+      setErrorMessage(null);
+      lastErrorRef.current = null;
       clearReconnect();
       clearWaitingTimeout(); // Clear any pending reconnect from buffering
       pushEvent('audio: playing');
@@ -304,6 +344,7 @@ export const useAudioPlayer = ({
         tryNextCandidate().then((switched) => {
           if (!switched) {
             setStatus('error');
+            setIsPlaying(false);
             scheduleReconnect();
           }
         });
@@ -313,6 +354,7 @@ export const useAudioPlayer = ({
     const handleEnded = () => {
       if (currentRef.current) {
         setStatus('buffering');
+        setIsPlaying(false);
         scheduleReconnect();
       }
       pushEvent('audio: ended');
@@ -357,38 +399,22 @@ export const useAudioPlayer = ({
     }
   }, [volume]);
 
-  const playStation = async (station: StationLite) => {
-    if (WINAMP_ONLY_MODE) {
-      let resolvedStation = station;
-      if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
-        pushEvent('extract: resolving external link');
-        const extracted = await resolveExternalStream(
-          station.url_resolved,
-          pushEvent
-        );
-        if (extracted) {
-          resolvedStation = { ...station, url_resolved: extracted };
-        } else {
-          pushEvent('extract: failed, using original link');
-        }
-      }
-      setCurrent(resolvedStation);
-      setStatus('playing');
-      setIsPlaying(true);
-      candidatesRef.current = buildCandidates(resolvedStation.url_resolved);
-      candidateIndexRef.current = 0;
-      activeUrlRef.current = resolvedStation.url_resolved;
-      return;
-    }
-
+  const playStation = async (station: StationLite): Promise<PlayStationResult> => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) {
+      return {
+        ok: false,
+        error: 'Audio engine unavailable'
+      };
+    }
 
     // Clean up previous state
     clearReconnect();
     cleanupHls();
     clearWaitingTimeout();
     activeUrlRef.current = null;
+    lastErrorRef.current = null;
+    setErrorMessage(null);
 
     // Stop current playback and reset
     audio.pause();
@@ -398,6 +424,14 @@ export const useAudioPlayer = ({
 
     let resolvedStation = station;
     if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
+      if (!normalizeBase(getApiBase())) {
+        const error = 'API proxy required for this station';
+        setCurrent(station);
+        setIsPlaying(false);
+        setStatus('error');
+        setErrorMessage(error);
+        return { ok: false, error };
+      }
       pushEvent('extract: resolving external link');
       const extracted = await resolveExternalStream(
         station.url_resolved,
@@ -406,60 +440,62 @@ export const useAudioPlayer = ({
       if (extracted) {
         resolvedStation = { ...station, url_resolved: extracted };
       } else {
-        pushEvent('extract: failed, using original link');
+        const error = 'Unable to resolve a playable stream';
+        setCurrent(station);
+        setIsPlaying(false);
+        setStatus('error');
+        setErrorMessage(error);
+        pushEvent('extract: failed');
+        return { ok: false, error };
       }
     }
 
     setCurrent(resolvedStation);
     setStatus('buffering');
+    setIsPlaying(false);
     candidatesRef.current = buildCandidates(resolvedStation.url_resolved);
     candidateIndexRef.current = 0;
-
-    try {
-      const url = candidatesRef.current[0];
-      await attachSource(url);
-      await audio.play();
-    } catch {
-      const switched = await tryNextCandidate();
-      if (!switched) {
-        setStatus('error');
-        scheduleReconnect();
-      }
+    if (!candidatesRef.current.length) {
+      const error = 'API proxy required for this stream';
+      setStatus('error');
+      setErrorMessage(error);
+      return { ok: false, error };
     }
+
+    const result = await playCandidateAtIndex(0);
+    if (!result.ok) {
+      return { ok: false, error: result.error, station: resolvedStation };
+    }
+
+    return { ok: true, station: resolvedStation };
   };
 
   const toggle = async () => {
-    if (WINAMP_ONLY_MODE) {
-      if (!current) return;
-      setIsPlaying((prev) => {
-        const next = !prev;
-        setStatus(next ? 'playing' : 'paused');
-        return next;
-      });
-      return;
-    }
     const audio = audioRef.current;
-    if (!audio || !current) return;
+    if (!audio || !current) return false;
 
     if (isPlaying) {
       audio.pause();
-      return;
+      return true;
     }
 
     try {
+      if (!audio.src) {
+        const result = await playCandidateAtIndex(candidateIndexRef.current);
+        return result.ok;
+      }
       await audio.play();
-    } catch {
+      return true;
+    } catch (error) {
+      pushEvent(`audio: resume failed (${error instanceof Error ? error.message : 'unknown'})`);
       setStatus('error');
+      setIsPlaying(false);
+      setErrorMessage(error instanceof Error ? error.message : 'Playback failed');
+      return false;
     }
   };
 
   const stop = () => {
-    if (WINAMP_ONLY_MODE) {
-      setCurrent(null);
-      setIsPlaying(false);
-      setStatus('idle');
-      return;
-    }
     const audio = audioRef.current;
     if (!audio) return;
     audio.pause();
@@ -468,8 +504,12 @@ export const useAudioPlayer = ({
     cleanupHls();
     clearReconnect();
     clearWaitingTimeout();
+    activeUrlRef.current = null;
+    lastErrorRef.current = null;
     setCurrent(null);
+    setIsPlaying(false);
     setStatus('idle');
+    setErrorMessage(null);
   };
 
   return {
@@ -477,6 +517,7 @@ export const useAudioPlayer = ({
     status,
     isPlaying,
     volume,
+    errorMessage,
     setVolume,
     playStation,
     toggle,

@@ -276,10 +276,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const addToWinampPlaylist = (station: Station | StationLite) => {
     const lite = toLite(station);
     setWinampPlaylist((prev) => {
-      if (prev.some((item) => item.stationuuid === lite.stationuuid)) {
-        return prev.map((item) => (item.stationuuid === lite.stationuuid ? lite : item));
-      }
-      return [lite, ...prev];
+      return [lite, ...prev.filter((item) => item.stationuuid !== lite.stationuuid)];
     });
   };
 
@@ -300,12 +297,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [favorites, recent, winampPlaylist.length, setWinampPlaylist]);
 
-  useEffect(() => {
-    if (!player.current) return;
-    addToWinampPlaylist(player.current);
-  }, [player.current?.stationuuid]);
-
-  const playStationInternal = (
+  const playStationInternal = async (
     station: Station | StationLite,
     addToHistory: boolean
   ) => {
@@ -315,24 +307,22 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify('Missing stream URL');
       return;
     }
-    const proxyBase = getApiBase();
-    const hasProxy = Boolean(proxyBase);
-    const isHttps = url.startsWith('https://');
-    const isLocal = window.location.protocol === 'http:';
-    if (!isHttps && !isLocal && !hasProxy) {
-      notify('HTTP stream: open externally');
-      openExternal(lite);
+
+    const result = await player.playStation(lite);
+    if (!result.ok) {
+      notify(result.error || 'Playback failed');
       return;
     }
-    addToWinampPlaylist(lite);
+
+    const playedStation = result.station ?? lite;
+    addToWinampPlaylist(playedStation);
     if (addToHistory) {
-      addRecent(lite);
+      addRecent(playedStation);
     }
-    player.playStation(lite);
   };
 
   const playStation = (station: Station | StationLite) =>
-    playStationInternal(station, true);
+    void playStationInternal(station, true);
 
   useEffect(() => {
     if (startHandledRef.current) return;
@@ -427,7 +417,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const index = recent.findIndex((item) => item.stationuuid === currentId);
     const prev = index >= 0 ? recent[index + 1] : null;
     if (prev) {
-      playStationInternal(prev, false);
+      void playStationInternal(prev, false);
     }
   };
 
@@ -449,23 +439,23 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const index = recent.findIndex((item) => item.stationuuid === currentId);
       const next = index > 0 ? recent[index - 1] : null;
       if (next) {
-        playStationInternal(next, false);
+        void playStationInternal(next, false);
         return;
       }
     }
     const randomStation = pickRandomStation();
     if (randomStation) {
-      playStationInternal(randomStation, true);
+      void playStationInternal(randomStation, true);
     }
   };
 
   const playLast = () => {
     if (recent.length) {
-      playStationInternal(recent[0], true);
+      void playStationInternal(recent[0], true);
       return;
     }
     if (stations.length) {
-      playStationInternal(stations[0], true);
+      void playStationInternal(stations[0], true);
     }
   };
 
