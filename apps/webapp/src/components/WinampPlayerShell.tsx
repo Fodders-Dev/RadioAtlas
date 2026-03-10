@@ -12,8 +12,6 @@ type WebampTrack = {
   };
 };
 
-type WebampMediaStatus = 'PLAYING' | 'PAUSED' | 'STOPPED';
-
 type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
   dispose: () => void;
@@ -26,10 +24,6 @@ type WebampInstance = {
   play?: () => Promise<void> | void;
   pause?: () => void;
   stop?: () => void;
-  getMediaStatus?: () => string;
-  onTrackDidChange?: (
-    cb: (trackInfo: { url: string; metaData?: { title?: string } } | null) => void
-  ) => () => void;
   onWillClose?: (cb: (cancel: () => void) => void) => () => void;
   onClose?: (cb: () => void) => () => void;
 };
@@ -37,7 +31,7 @@ type WebampInstance = {
 type WebampCtor = new (options: Record<string, unknown>) => WebampInstance;
 type CompactViewMode = 'strip' | 'panel';
 type ExpandedWindowId = 'main-window' | 'equalizer-window' | 'playlist-window';
-type ExpandedLayoutMode = 'stack' | 'columns';
+type ResponsiveExpandedMode = 'mobile' | 'desktop';
 type ExpandedViewportBounds = {
   left: number;
   top: number;
@@ -46,48 +40,15 @@ type ExpandedViewportBounds = {
   width: number;
   height: number;
 };
+type WinampDevApi = {
+  moveExpandedWindow: (id: ExpandedWindowId, deltaX: number, deltaY: number) => boolean;
+  resetExpandedLayout: () => void;
+};
 type ExpandedWindowMetric = {
   id: ExpandedWindowId;
   node: HTMLElement;
   width: number;
   height: number;
-};
-type ExpandedPlacement = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-type ExpandedWindowState = ExpandedPlacement & {
-  id: ExpandedWindowId;
-  visible: boolean;
-  userPositioned: boolean;
-  scale: number;
-};
-type ExpandedLayoutState = {
-  initialized: boolean;
-  mode: ExpandedLayoutMode;
-  scale: number;
-  windows: Partial<Record<ExpandedWindowId, ExpandedWindowState>>;
-};
-type ExpandedLayoutCandidate = {
-  mode: ExpandedLayoutMode;
-  scale: number;
-  placements: Partial<Record<ExpandedWindowId, ExpandedPlacement>>;
-};
-type ExpandedSyncOptions = {
-  forceAutoLayout?: boolean;
-  resetUserPositions?: boolean;
-};
-type DragTrackingState = {
-  id: ExpandedWindowId | null;
-  moved: boolean;
-  startX: number;
-  startY: number;
-};
-type WinampTestApi = {
-  captureExpandedPosition: (id: ExpandedWindowId) => boolean;
-  resetExpandedLayout: () => void;
 };
 
 let webampCtorPromise: Promise<WebampCtor> | null = null;
@@ -95,9 +56,6 @@ const MAIN_WINDOW_WIDTH = 275;
 const SHADED_WINDOW_HEIGHT = 28;
 const FULL_WINDOW_HEIGHT = 116;
 const PLAYLIST_WINDOW_HEIGHT = 232;
-const EXPANDED_LAYOUT_GAP = 12;
-const MIN_EXPANDED_SCALE = 0.92;
-const MAX_EXPANDED_SCALE = 3.4;
 const EXPANDED_WINDOW_ORDER: ExpandedWindowId[] = [
   'main-window',
   'equalizer-window',
@@ -113,6 +71,9 @@ const STRIP_COMPACT_MAX_HEIGHT = 62;
 const PANEL_COMPACT_MIN_HEIGHT = 96;
 const PANEL_COMPACT_MAX_HEIGHT = 208;
 const MIN_COMPACT_SCALE = 0.82;
+const MOBILE_EXPANDED_BREAKPOINT = 760;
+const MOBILE_EXPANDED_MAX_SCALE = 1.38;
+const DESKTOP_EXPANDED_MAX_SCALE = 1.74;
 const EQ_DOM_IDS = ['preamp', ...EQ_BANDS.map((band) => `band-${band}`)] as const;
 const COMPACT_TRANSPORT_SELECTOR = [
   '#webamp #previous',
@@ -138,21 +99,6 @@ const loadWebampCtor = async () => {
   } catch (error) {
     webampCtorPromise = null;
     throw error;
-  }
-};
-
-const normalizeMediaStatus = (value: string): WebampMediaStatus => {
-  const normalized = value.toUpperCase();
-  if (normalized === 'PLAYING') return 'PLAYING';
-  if (normalized === 'PAUSED') return 'PAUSED';
-  return 'STOPPED';
-};
-
-const normalizeTrackUrl = (url: string) => {
-  try {
-    return new URL(url, window.location.origin).toString();
-  } catch {
-    return url;
   }
 };
 
@@ -250,6 +196,17 @@ const getExpandedWindowId = (windowNode: HTMLElement | null): ExpandedWindowId |
   return null;
 };
 
+const readExpandedAnchorTransform = (anchor: HTMLElement) => {
+  const match = anchor.style.transform.match(
+    /translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([-\d.]+)\)/
+  );
+  return {
+    x: match ? Number(match[1]) : 0,
+    y: match ? Number(match[2]) : 0,
+    scale: match ? Number(match[3]) : Number(anchor.dataset.raExpandedScale || '1') || 1
+  };
+};
+
 const resolveWindowAnchor = (windowNode: HTMLElement) => {
   const webampRoot = getWebampRootNode();
   let anchor = windowNode.parentElement as HTMLElement | null;
@@ -293,123 +250,6 @@ const getExpandedViewportBounds = (): ExpandedViewportBounds => {
     width: Math.max(160, right - left),
     height: Math.max(140, bottom - top)
   };
-};
-
-const clampExpandedWindowPosition = (
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  bounds: ExpandedViewportBounds
-) => {
-  const maxX = Math.max(bounds.left, bounds.right - width);
-  const maxY = Math.max(bounds.top, bounds.bottom - height);
-  return {
-    x: clamp(x, bounds.left, maxX),
-    y: clamp(y, bounds.top, maxY)
-  };
-};
-
-const buildStackCandidate = (
-  metrics: ExpandedWindowMetric[],
-  bounds: ExpandedViewportBounds
-): ExpandedLayoutCandidate => {
-  const gap = EXPANDED_LAYOUT_GAP;
-  const contentWidth = Math.max(...metrics.map((metric) => metric.width));
-  const contentHeight =
-    metrics.reduce((total, metric) => total + metric.height, 0) + gap * Math.max(0, metrics.length - 1);
-  const scale = clamp(
-    Math.min(bounds.width / contentWidth, bounds.height / contentHeight),
-    MIN_EXPANDED_SCALE,
-    MAX_EXPANDED_SCALE
-  );
-  const placements: Partial<Record<ExpandedWindowId, ExpandedPlacement>> = {};
-  let cursorY = bounds.top + Math.max(0, (bounds.height - contentHeight * scale) / 2);
-
-  metrics.forEach((metric) => {
-    const width = metric.width * scale;
-    const height = metric.height * scale;
-    const x = bounds.left + Math.max(0, (bounds.width - width) / 2);
-    placements[metric.id] = {
-      x,
-      y: cursorY,
-      width,
-      height
-    };
-    cursorY += height + gap;
-  });
-
-  return {
-    mode: 'stack',
-    scale,
-    placements
-  };
-};
-
-const buildColumnsCandidate = (
-  metrics: ExpandedWindowMetric[],
-  bounds: ExpandedViewportBounds
-): ExpandedLayoutCandidate => {
-  const mainMetric = metrics.find((metric) => metric.id === 'main-window') ?? metrics[0];
-  const rightMetrics = metrics.filter((metric) => metric.id !== mainMetric.id);
-  if (!mainMetric || rightMetrics.length === 0) {
-    return buildStackCandidate(metrics, bounds);
-  }
-
-  const gap = EXPANDED_LAYOUT_GAP;
-  const rightColumnWidth = Math.max(...rightMetrics.map((metric) => metric.width));
-  const rightColumnHeight =
-    rightMetrics.reduce((total, metric) => total + metric.height, 0) +
-    gap * Math.max(0, rightMetrics.length - 1);
-  const contentWidth = mainMetric.width + gap + rightColumnWidth;
-  const contentHeight = Math.max(mainMetric.height, rightColumnHeight);
-  const scale = clamp(
-    Math.min(bounds.width / contentWidth, bounds.height / contentHeight),
-    MIN_EXPANDED_SCALE,
-    MAX_EXPANDED_SCALE
-  );
-  const placements: Partial<Record<ExpandedWindowId, ExpandedPlacement>> = {};
-  const startX = bounds.left + Math.max(0, (bounds.width - contentWidth * scale) / 2);
-  const startY = bounds.top + Math.max(0, (bounds.height - contentHeight * scale) / 2);
-
-  placements[mainMetric.id] = {
-    x: startX,
-    y: startY,
-    width: mainMetric.width * scale,
-    height: mainMetric.height * scale
-  };
-
-  let cursorY = startY;
-  rightMetrics.forEach((metric) => {
-    placements[metric.id] = {
-      x: startX + mainMetric.width * scale + gap,
-      y: cursorY,
-      width: metric.width * scale,
-      height: metric.height * scale
-    };
-    cursorY += metric.height * scale + gap;
-  });
-
-  return {
-    mode: 'columns',
-    scale,
-    placements
-  };
-};
-
-const buildExpandedLayoutCandidate = (
-  metrics: ExpandedWindowMetric[],
-  bounds: ExpandedViewportBounds
-): ExpandedLayoutCandidate => {
-  const stack = buildStackCandidate(metrics, bounds);
-  if (metrics.length < 2 || bounds.width < 760) {
-    return stack;
-  }
-  const columns = buildColumnsCandidate(metrics, bounds);
-  if (columns.scale >= stack.scale * 0.96 && bounds.width > bounds.height) {
-    return columns;
-  }
-  return stack;
 };
 
 const resetIntermediateAnchors = (
@@ -463,6 +303,7 @@ const placeExpandedWindowAnchor = (
   anchor.style.width = `${Math.round(width)}px`;
   anchor.style.height = `${Math.round(height)}px`;
   anchor.dataset.raExpandedAnchor = '1';
+  anchor.dataset.raExpandedScale = String(scale);
 
   windowNode.style.left = '0px';
   windowNode.style.top = '0px';
@@ -634,6 +475,7 @@ const resetWebampWindowPlacement = () => {
     delete anchor.dataset.raCompactWidth;
     delete anchor.dataset.raCompactHeight;
     delete anchor.dataset.raExpandedAnchor;
+    delete anchor.dataset.raExpandedScale;
   });
 
   resetCompactWindowVisibility();
@@ -660,14 +502,12 @@ const resetWebampWindowPlacement = () => {
   }
 };
 
-const measureExpandedWindowMetric = (
-  windowNode: HTMLElement,
-  scaleHint: number
-): ExpandedWindowMetric | null => {
+const measureExpandedWindowMetric = (windowNode: HTMLElement): ExpandedWindowMetric | null => {
   const id = getExpandedWindowId(windowNode);
   if (!id) return null;
   const rect = windowNode.getBoundingClientRect();
-  const scale = scaleHint > 0 ? scaleHint : 1;
+  const anchor = resolveWindowAnchor(windowNode);
+  const scale = Math.max(0.1, Number(anchor?.dataset.raExpandedScale || '1') || 1);
   const fallbackHeight =
     id === 'playlist-window' ? PLAYLIST_WINDOW_HEIGHT : FULL_WINDOW_HEIGHT;
 
@@ -677,14 +517,6 @@ const measureExpandedWindowMetric = (
     width: Math.max(MAIN_WINDOW_WIDTH, rect.width / scale || MAIN_WINDOW_WIDTH),
     height: Math.max(fallbackHeight, rect.height / scale || fallbackHeight)
   };
-};
-
-const getPointerClientPoint = (event: MouseEvent | TouchEvent) => {
-  if ('touches' in event) {
-    const touch = event.touches[0] ?? event.changedTouches[0];
-    return touch ? { x: touch.clientX, y: touch.clientY } : { x: 0, y: 0 };
-  }
-  return { x: event.clientX, y: event.clientY };
 };
 
 const getEqSliderValueFromBand = (bandNode: Element | null) => {
@@ -743,10 +575,30 @@ const ensureWindowVisible = (id: string, toggleTitle: string) => {
   toggle.click();
 };
 
-const ensureExpandedWindowsVisible = () => {
+const setWindowVisibility = (id: string, toggleTitle: string, visible: boolean) => {
+  const isVisible = isWindowVisible(id);
+  if (isVisible === visible) return;
+  const toggle = document.querySelector(`[title="${toggleTitle}"]`) as HTMLElement | null;
+  if (!toggle) return;
+  toggle.click();
+};
+
+const getResponsiveExpandedMode = () =>
+  window.innerWidth < MOBILE_EXPANDED_BREAKPOINT ? 'mobile' : 'desktop';
+
+const ensureExpandedWindowsVisible = (
+  mode: ResponsiveExpandedMode,
+  applyDefaults: boolean
+) => {
   setMainWindowShadeMode(false);
   ensureWindowVisible('equalizer-window', 'Toggle Graphical Equalizer');
-  ensureWindowVisible('playlist-window', 'Toggle Playlist Editor');
+  if (applyDefaults) {
+    setWindowVisibility(
+      'playlist-window',
+      'Toggle Playlist Editor',
+      mode === 'desktop'
+    );
+  }
   setMainWindowShadeMode(false);
 };
 
@@ -773,35 +625,21 @@ export const WinampPlayerShell = ({
 
   const compactHostRef = useRef<HTMLDivElement | null>(null);
   const webampRef = useRef<WebampInstance | null>(null);
-  const syncPauseUntilRef = useRef(0);
-  const suppressTrackSyncUntilRef = useRef(0);
   const retryDelayRef = useRef<number | null>(null);
   const expandRetryRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const playablePlaylistRef = useRef<StationLite[]>([]);
-  const stationByTrackUrlRef = useRef<Map<string, StationLite>>(new Map());
-  const stationByTrackTitleRef = useRef<Map<string, StationLite>>(new Map());
   const playlistSignatureRef = useRef('');
   const lastAppliedVolumeRef = useRef<number | null>(null);
   const suppressVolumeSyncUntilRef = useRef(0);
-  const expandedLayoutRef = useRef<ExpandedLayoutState>({
-    initialized: false,
-    mode: 'stack',
-    scale: 1,
-    windows: {}
-  });
-  const expandedDragRef = useRef<DragTrackingState>({
-    id: null,
-    moved: false,
-    startX: 0,
-    startY: 0
-  });
 
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
-  const modeSwitchUntilRef = useRef(0);
+  const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
+    typeof window === 'undefined' ? 'desktop' : getResponsiveExpandedMode()
+  );
   const compactViewModeRef = useRef<CompactViewMode>('panel');
   const expandedRef = useRef(winamp.expanded);
 
@@ -833,6 +671,19 @@ export const WinampPlayerShell = ({
       if (expandRetryRef.current !== null) {
         window.clearTimeout(expandRetryRef.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncMode = () => {
+      setExpandedLayoutMode(getResponsiveExpandedMode());
+    };
+    syncMode();
+    window.addEventListener('resize', syncMode);
+    window.addEventListener('orientationchange', syncMode);
+    return () => {
+      window.removeEventListener('resize', syncMode);
+      window.removeEventListener('orientationchange', syncMode);
     };
   }, []);
 
@@ -870,14 +721,14 @@ export const WinampPlayerShell = ({
       window.requestAnimationFrame(() => {
         if (expandedRef.current) {
           resetCompactWindowVisibility();
-          syncExpandedWindowPlacement();
+          syncExpandedWindowPlacement(getResponsiveExpandedMode());
         } else {
           syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
         }
         window.setTimeout(() => {
           if (expandedRef.current) {
             resetCompactWindowVisibility();
-            syncExpandedWindowPlacement();
+            syncExpandedWindowPlacement(getResponsiveExpandedMode());
           } else {
             syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
           }
@@ -983,6 +834,9 @@ export const WinampPlayerShell = ({
     mountNode.style.minHeight = `${FULL_WINDOW_HEIGHT}px`;
     resetWebampWindowPlacement();
     resetCompactWindowVisibility();
+    const mode = getResponsiveExpandedMode();
+    setExpandedLayoutMode(mode);
+    mountNode.dataset.raExpandedMode = mode;
     const webampRoot = getWebampRootNode();
     if (webampRoot) {
       webampRoot.style.position = 'fixed';
@@ -992,14 +846,13 @@ export const WinampPlayerShell = ({
       webampRoot.style.transform = '';
       webampRoot.style.width = '100%';
       webampRoot.style.height = '100%';
-      webampRoot.style.pointerEvents = 'auto';
+      webampRoot.style.pointerEvents = 'none';
       webampRoot.dataset.raExpandedRoot = '1';
     }
-    const forceAutoLayout = !expandedLayoutRef.current.initialized;
     const queueInitialPlacement = () => {
-      ensureExpandedWindowsVisible();
+      ensureExpandedWindowsVisible(mode, true);
       resetCompactWindowVisibility();
-      syncExpandedWindowPlacement({ forceAutoLayout });
+      syncExpandedWindowPlacement(mode);
     };
     window.requestAnimationFrame(queueInitialPlacement);
     window.setTimeout(queueInitialPlacement, 180);
@@ -1060,180 +913,148 @@ export const WinampPlayerShell = ({
     requestExpand();
   };
 
-  const readExpandedWindowMetrics = () =>
-    EXPANDED_WINDOW_ORDER.map((id) => {
-      const node = getWindowById(id);
-      if (!node || !isWindowVisible(id)) return null;
-      return measureExpandedWindowMetric(node, expandedLayoutRef.current.scale || 1);
-    }).filter((metric): metric is ExpandedWindowMetric => Boolean(metric));
+  const syncExpandedWindowPlacement = (mode: ResponsiveExpandedMode) => {
+    const mainWindow = getWindowById('main-window');
+    if (!mainWindow) return false;
 
-  const syncExpandedWindowPlacement = (
-    options: ExpandedSyncOptions = {}
-  ) => {
-    const metrics = readExpandedWindowMetrics();
-    if (!metrics.length) return false;
-
+    const eqWindow = getWindowById('equalizer-window');
+    const playlistWindow = getWindowById('playlist-window');
     const bounds = getExpandedViewportBounds();
-    const candidate = buildExpandedLayoutCandidate(metrics, bounds);
-    const previousState = expandedLayoutRef.current;
-    const nextWindows: Partial<Record<ExpandedWindowId, ExpandedWindowState>> = {
-      ...previousState.windows
-    };
+    const mainMetric = measureExpandedWindowMetric(mainWindow);
+    const eqMetric =
+      eqWindow && isWindowVisible('equalizer-window')
+        ? measureExpandedWindowMetric(eqWindow)
+        : null;
+    const playlistMetric =
+      playlistWindow && isWindowVisible('playlist-window')
+        ? measureExpandedWindowMetric(playlistWindow)
+        : null;
 
-    metrics.forEach((metric) => {
-      const previousWindow = previousState.windows[metric.id];
-      const autoPlacement = candidate.placements[metric.id];
-      if (!autoPlacement) return;
+    if (!mainMetric) return false;
 
-      const shouldAutoPlace =
-        options.forceAutoLayout ||
-        options.resetUserPositions ||
-        !previousWindow ||
-        !previousWindow.userPositioned;
-      let x = autoPlacement.x;
-      let y = autoPlacement.y;
-
-      if (!shouldAutoPlace && previousWindow) {
-        const scaleRatio = candidate.scale / (previousWindow.scale || 1);
-        const preserved = clampExpandedWindowPosition(
-          previousWindow.x * scaleRatio,
-          previousWindow.y * scaleRatio,
-          metric.width * candidate.scale,
-          metric.height * candidate.scale,
-          bounds
-        );
-        x = preserved.x;
-        y = preserved.y;
-      }
-
-      placeExpandedWindowAnchor(
-        metric.node,
-        x,
-        y,
-        EXPANDED_WINDOW_Z_ORDER[metric.id],
-        candidate.scale,
-        metric.width,
-        metric.height
+    const gap = mode === 'mobile' ? 10 : 8;
+    const placeStack = (metrics: ExpandedWindowMetric[], maxScale: number) => {
+      const contentWidth = Math.max(...metrics.map((metric) => metric.width));
+      const contentHeight =
+        metrics.reduce((total, metric) => total + metric.height, 0) +
+        gap * Math.max(0, metrics.length - 1);
+      const scale = clamp(
+        Math.min(bounds.width / contentWidth, bounds.height / contentHeight),
+        mode === 'mobile' ? 1.04 : 1,
+        maxScale
       );
-      nextWindows[metric.id] = {
-        id: metric.id,
-        x,
-        y,
-        width: metric.width * candidate.scale,
-        height: metric.height * candidate.scale,
-        visible: true,
-        userPositioned:
-          shouldAutoPlace ? Boolean(previousWindow?.userPositioned && !options.resetUserPositions) : true,
-        scale: candidate.scale
-      };
-    });
 
-    EXPANDED_WINDOW_ORDER.forEach((id) => {
-      if (metrics.some((metric) => metric.id === id)) return;
-      const previousWindow = nextWindows[id];
-      if (!previousWindow) return;
-      nextWindows[id] = {
-        ...previousWindow,
-        visible: false
-      };
-    });
-
-    expandedLayoutRef.current = {
-      initialized: true,
-      mode: candidate.mode,
-      scale: candidate.scale,
-      windows: nextWindows
+      let cursorY =
+        bounds.top + Math.max(0, Math.round((bounds.height - contentHeight * scale) / 2));
+      metrics.forEach((metric) => {
+        const width = metric.width * scale;
+        const height = metric.height * scale;
+        const x = bounds.left + Math.max(0, Math.round((bounds.width - width) / 2));
+        placeExpandedWindowAnchor(
+          metric.node,
+          x,
+          cursorY,
+          EXPANDED_WINDOW_Z_ORDER[metric.id],
+          scale,
+          metric.width,
+          metric.height
+        );
+        cursorY += height + gap;
+      });
     };
 
+    if (mode === 'mobile' || !playlistMetric || bounds.width < 980) {
+      const metrics = [mainMetric, ...(eqMetric ? [eqMetric] : []), ...(playlistMetric ? [playlistMetric] : [])];
+      placeStack(
+        metrics,
+        mode === 'mobile' ? MOBILE_EXPANDED_MAX_SCALE : 1.42
+      );
+      return true;
+    }
+
+    const leftColumnHeight = mainMetric.height + (eqMetric ? gap + eqMetric.height : 0);
+    const clusterWidth = mainMetric.width + gap + playlistMetric.width;
+    const clusterHeight = Math.max(leftColumnHeight, playlistMetric.height);
+    const scale = clamp(
+      Math.min(bounds.width / clusterWidth, bounds.height / clusterHeight),
+      1,
+      DESKTOP_EXPANDED_MAX_SCALE
+    );
+    const startX = bounds.left + Math.max(0, Math.round((bounds.width - clusterWidth * scale) / 2));
+    const startY = bounds.top + Math.max(0, Math.round((bounds.height - clusterHeight * scale) / 2));
+
+    placeExpandedWindowAnchor(
+      mainMetric.node,
+      startX,
+      startY,
+      EXPANDED_WINDOW_Z_ORDER[mainMetric.id],
+      scale,
+      mainMetric.width,
+      mainMetric.height
+    );
+
+    if (eqMetric) {
+      placeExpandedWindowAnchor(
+        eqMetric.node,
+        startX,
+        startY + Math.round((mainMetric.height + gap) * scale),
+        EXPANDED_WINDOW_Z_ORDER[eqMetric.id],
+        scale,
+        eqMetric.width,
+        eqMetric.height
+      );
+    }
+
+    const playlistY =
+      startY + Math.max(0, Math.round(((clusterHeight - playlistMetric.height) * scale) / 2));
+    placeExpandedWindowAnchor(
+      playlistMetric.node,
+      startX + Math.round((mainMetric.width + gap) * scale),
+      playlistY,
+      EXPANDED_WINDOW_Z_ORDER[playlistMetric.id],
+      scale,
+      playlistMetric.width,
+      playlistMetric.height
+    );
     return true;
   };
 
-  const captureExpandedWindowPosition = (
-    windowNode: HTMLElement,
-    userPositioned: boolean
-  ) => {
-    const id = getExpandedWindowId(windowNode);
-    if (!id) return;
-    const scale =
-      expandedLayoutRef.current.windows[id]?.scale ??
-      expandedLayoutRef.current.scale ??
-      1;
-    const metric = measureExpandedWindowMetric(windowNode, scale);
-    if (!metric) return;
-
-    const rect = windowNode.getBoundingClientRect();
-    const bounds = getExpandedViewportBounds();
-    const nextPosition = clampExpandedWindowPosition(
-      rect.left,
-      rect.top,
-      metric.width * scale,
-      metric.height * scale,
-      bounds
-    );
-
-    placeExpandedWindowAnchor(
-      windowNode,
-      nextPosition.x,
-      nextPosition.y,
-      EXPANDED_WINDOW_Z_ORDER[id],
-      scale,
-      metric.width,
-      metric.height
-    );
-
-    expandedLayoutRef.current = {
-      ...expandedLayoutRef.current,
-      initialized: true,
-      windows: {
-        ...expandedLayoutRef.current.windows,
-        [id]: {
-          id,
-          x: nextPosition.x,
-          y: nextPosition.y,
-          width: metric.width * scale,
-          height: metric.height * scale,
-          visible: true,
-          userPositioned,
-          scale
-        }
-      }
-    };
+  const offsetExpandedWindow = (id: ExpandedWindowId, deltaX: number, deltaY: number) => {
+    const windowNode = getWindowById(id);
+    const anchor = windowNode ? resolveWindowAnchor(windowNode) : null;
+    if (!windowNode || !anchor) return false;
+    const { x, y, scale } = readExpandedAnchorTransform(anchor);
+    anchor.style.transform = `translate(${Math.round(x + deltaX)}px, ${Math.round(y + deltaY)}px) scale(${scale})`;
+    return true;
   };
 
   const resetExpandedLayout = () => {
-    expandedLayoutRef.current = {
-      initialized: false,
-      mode: 'stack',
-      scale: 1,
-      windows: {}
+    if (!winamp.expanded || !webampReady) return;
+    const mode = getResponsiveExpandedMode();
+    setExpandedLayoutMode(mode);
+    ensureExpandedWindowsVisible(mode, true);
+    const sync = () => {
+      resetCompactWindowVisibility();
+      syncExpandedWindowPlacement(mode);
     };
-    if (winamp.expanded && webampReady) {
-      ensureExpandedWindowsVisible();
-      window.requestAnimationFrame(() => {
-        syncExpandedWindowPlacement({
-          forceAutoLayout: true,
-          resetUserPositions: true
-        });
-      });
-    }
+    sync();
+    window.requestAnimationFrame(sync);
+    window.setTimeout(sync, 120);
   };
 
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const testWindow = window as typeof window & { __radioAtlasWinamp?: WinampTestApi };
-    testWindow.__radioAtlasWinamp = {
-      captureExpandedPosition: (id) => {
-        const windowNode = getWindowById(id);
-        if (!windowNode) return false;
-        captureExpandedWindowPosition(windowNode, true);
-        return true;
-      },
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+    const hostWindow = window as typeof window & {
+      __radioAtlasWinamp?: WinampDevApi;
+    };
+    hostWindow.__radioAtlasWinamp = {
+      moveExpandedWindow: offsetExpandedWindow,
       resetExpandedLayout
     };
     return () => {
-      delete testWindow.__radioAtlasWinamp;
+      delete hostWindow.__radioAtlasWinamp;
     };
-  }, [resetExpandedLayout]);
+  }, [resetExpandedLayout, webampReady, winamp.expanded]);
 
   const syncExpandedEqStateFromDom = () => {
     const equalizerWindow = document.querySelector('#equalizer-window') as HTMLElement | null;
@@ -1264,27 +1085,6 @@ export const WinampPlayerShell = ({
   useEffect(() => {
     playablePlaylistRef.current = playablePlaylist;
   }, [playablePlaylist]);
-
-  useEffect(() => {
-    const byUrl = stationByTrackUrlRef.current;
-    const byTitle = stationByTrackTitleRef.current;
-    byUrl.clear();
-    byTitle.clear();
-
-    playablePlaylist.forEach((station) => {
-      if (!station.url_resolved) return;
-      byUrl.set(normalizeTrackUrl(station.url_resolved), station);
-      byUrl.set(canonicalTrackUrl(station.url_resolved), station);
-      byTitle.set(station.name.trim().toLowerCase(), station);
-    });
-  }, [playablePlaylist]);
-
-  useEffect(() => {
-    return () => {
-      stationByTrackUrlRef.current.clear();
-      stationByTrackTitleRef.current.clear();
-    };
-  }, []);
 
   useEffect(() => {
     if (!winamp.expanded) return;
@@ -1371,10 +1171,6 @@ export const WinampPlayerShell = ({
                 setBootCycle((value) => value + 1);
               }
             }) ?? null;
-            suppressTrackSyncUntilRef.current = Date.now() + 1200;
-            syncPauseUntilRef.current = Date.now() + 1200;
-
-            modeSwitchUntilRef.current = Date.now() + 1200;
             compactViewModeRef.current = 'panel';
             if (expandedRef.current) {
               applyExpandedLayout(mountNode);
@@ -1466,7 +1262,6 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     if (!webampReady) return;
-    modeSwitchUntilRef.current = Date.now() + 1400;
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
     if (winamp.expanded) {
@@ -1579,163 +1374,51 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     if (!winamp.expanded || !webampReady) return;
-
-    let frameId: number | null = null;
-    let resizeObserver: ResizeObserver | null = null;
-    let mutationObserver: MutationObserver | null = null;
-    const observed = new Set<Element>();
-
-    let pendingOptions: ExpandedSyncOptions = {
-      forceAutoLayout: !expandedLayoutRef.current.initialized
-    };
-
-    const sync = () => {
-      frameId = null;
-      if (expandedDragRef.current.id) return;
+    const syncExpandedLayout = (applyDefaults: boolean) => {
+      const mode = getResponsiveExpandedMode();
+      setExpandedLayoutMode(mode);
+      const mountNode = compactHostRef.current;
+      if (mountNode) {
+        mountNode.dataset.raExpandedMode = mode;
+      }
+      if (applyDefaults) {
+        ensureExpandedWindowsVisible(mode, true);
+      } else {
+        setMainWindowShadeMode(false);
+      }
       resetCompactWindowVisibility();
-      syncExpandedWindowPlacement(pendingOptions);
-      pendingOptions = {};
+      syncExpandedWindowPlacement(mode);
     };
 
-    const queueSync = (options: ExpandedSyncOptions = {}) => {
-      pendingOptions = {
-        forceAutoLayout: pendingOptions.forceAutoLayout || options.forceAutoLayout,
-        resetUserPositions: pendingOptions.resetUserPositions || options.resetUserPositions
-      };
-      if (expandedDragRef.current.id) return;
-      if (frameId !== null) return;
-      frameId = window.requestAnimationFrame(sync);
-    };
-
-    const observeNode = (node: Element | null) => {
-      if (!node || observed.has(node)) return;
-      observed.add(node);
-      resizeObserver?.observe(node);
-    };
-
-    const attachObservers = () => {
-      observeNode(document.documentElement);
-      observeNode(document.body);
-      observeNode(compactHostRef.current);
-      observeNode(getWebampRootNode());
-      observeNode(document.querySelector('.winamp-overlay-header'));
-      observeNode(document.querySelector('.winamp-overlay-footer'));
-      EXPANDED_WINDOW_ORDER.forEach((id) => {
-        observeNode(getWindowById(id));
-      });
-    };
-
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        attachObservers();
-        queueSync();
-      });
-      attachObservers();
-    }
-
-    if (typeof MutationObserver !== 'undefined') {
-      mutationObserver = new MutationObserver(() => {
-        attachObservers();
-        queueSync();
-      });
-      mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class']
-      });
-    }
+    syncExpandedLayout(true);
+    const lateSyncA = window.setTimeout(() => syncExpandedLayout(false), 110);
+    const lateSyncB = window.setTimeout(() => syncExpandedLayout(false), 260);
 
     const onResize = () => {
-      queueSync();
+      syncExpandedLayout(false);
     };
 
-    queueSync({
-      forceAutoLayout: !expandedLayoutRef.current.initialized
-    });
-    const lateSyncA = window.setTimeout(() => queueSync(), 110);
-    const lateSyncB = window.setTimeout(() => queueSync(), 320);
+    const onExpandedToggle = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        !target?.closest(
+          '[title="Toggle Graphical Equalizer"], [title="Toggle Playlist Editor"], [title="Toggle Windowshade Mode"]'
+        )
+      ) {
+        return;
+      }
+      window.setTimeout(() => syncExpandedLayout(false), 120);
+    };
+
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
-
+    document.addEventListener('click', onExpandedToggle, true);
     return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
-      resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
       window.clearTimeout(lateSyncA);
       window.clearTimeout(lateSyncB);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
-    };
-  }, [winamp.expanded, webampReady]);
-
-  useEffect(() => {
-    if (!winamp.expanded || !webampReady) return;
-
-    const finishDrag = () => {
-      const activeId = expandedDragRef.current.id;
-      const moved = expandedDragRef.current.moved;
-      expandedDragRef.current = {
-        id: null,
-        moved: false,
-        startX: 0,
-        startY: 0
-      };
-      if (!activeId || !moved) return;
-      const windowNode = getWindowById(activeId);
-      if (!windowNode) return;
-      captureExpandedWindowPosition(windowNode, true);
-      window.requestAnimationFrame(() => {
-        resetCompactWindowVisibility();
-        syncExpandedWindowPlacement();
-      });
-    };
-
-    const onDragStart = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const dragHandle = target.closest('.draggable, .playlist-top-title') as HTMLElement | null;
-      const windowNode = dragHandle?.closest('.window') as HTMLElement | null;
-      const id = getExpandedWindowId(windowNode);
-      if (!id) return;
-      const point = getPointerClientPoint(event);
-      expandedDragRef.current = {
-        id,
-        moved: false,
-        startX: point.x,
-        startY: point.y
-      };
-    };
-
-    const onDragMove = (event: MouseEvent | TouchEvent) => {
-      if (!expandedDragRef.current.id || expandedDragRef.current.moved) return;
-      const point = getPointerClientPoint(event);
-      if (
-        Math.abs(point.x - expandedDragRef.current.startX) > 4 ||
-        Math.abs(point.y - expandedDragRef.current.startY) > 4
-      ) {
-        expandedDragRef.current.moved = true;
-      }
-    };
-
-    document.addEventListener('mousedown', onDragStart, true);
-    document.addEventListener('touchstart', onDragStart, true);
-    window.addEventListener('mousemove', onDragMove, true);
-    window.addEventListener('touchmove', onDragMove, true);
-    window.addEventListener('mouseup', finishDrag, true);
-    window.addEventListener('touchend', finishDrag, true);
-    window.addEventListener('touchcancel', finishDrag, true);
-
-    return () => {
-      document.removeEventListener('mousedown', onDragStart, true);
-      document.removeEventListener('touchstart', onDragStart, true);
-      window.removeEventListener('mousemove', onDragMove, true);
-      window.removeEventListener('touchmove', onDragMove, true);
-      window.removeEventListener('mouseup', finishDrag, true);
-      window.removeEventListener('touchend', finishDrag, true);
-      window.removeEventListener('touchcancel', finishDrag, true);
+      document.removeEventListener('click', onExpandedToggle, true);
     };
   }, [winamp.expanded, webampReady]);
 
@@ -1744,7 +1427,6 @@ export const WinampPlayerShell = ({
     if (!instance || !webampReady || !playablePlaylist.length) return;
     if (playlistSignatureRef.current === playlistSignature) return;
 
-    suppressTrackSyncUntilRef.current = Date.now() + 500;
     playlistSignatureRef.current = playlistSignature;
     try {
       instance.setTracksToPlay?.(buildTracks(playablePlaylist));
@@ -1855,86 +1537,58 @@ export const WinampPlayerShell = ({
   }, [player, player.eq.bands, player.eq.enabled, player.eq.preamp, webampReady]);
 
   useEffect(() => {
-    const instance = webampRef.current;
-    if (!instance || !webampReady) return;
+    if (!webampReady) return;
+    const mainContent = document.getElementById('main-window') as HTMLElement | null;
+    if (!mainContent) return;
 
-    const quietWebamp = () => {
-      syncPauseUntilRef.current = Date.now() + 700;
-      try {
-        instance.pause?.();
-      } catch {
-        // ignore
-      }
-      try {
-        instance.stop?.();
-      } catch {
-        // ignore
-      }
-    };
+    if (window.getComputedStyle(mainContent).position === 'static') {
+      mainContent.dataset.raVisualizerPosition = mainContent.style.position || '__empty__';
+      mainContent.style.position = 'relative';
+    }
 
-    const applyTrack = (trackInfo: { url: string; metaData?: { title?: string } }) => {
-      if (Date.now() < modeSwitchUntilRef.current) return;
-      const byUrl = stationByTrackUrlRef.current;
-      const byTitle = stationByTrackTitleRef.current;
-      const byTrackUrl =
-        byUrl.get(normalizeTrackUrl(trackInfo.url)) ??
-        byUrl.get(canonicalTrackUrl(trackInfo.url));
-      const titleKey = trackInfo.metaData?.title?.trim().toLowerCase();
-      const target = byTrackUrl ?? (titleKey ? byTitle.get(titleKey) : undefined);
-      if (!target) return;
-      if (player.current?.stationuuid && target.stationuuid !== player.current.stationuuid) {
-        quietWebamp();
-        playStation(target);
-        return;
-      }
-
-      if (player.current?.stationuuid === target.stationuuid) {
-        if (!player.isPlaying) {
-          void player.toggle();
-        }
-        quietWebamp();
-        return;
-      }
-      quietWebamp();
-      playStation(target);
-    };
-
-    const unsubscribeTrack = instance.onTrackDidChange?.((trackInfo) => {
-      if (!trackInfo || Date.now() < suppressTrackSyncUntilRef.current) return;
-      applyTrack(trackInfo);
-    });
-
-    let previousStatus = normalizeMediaStatus(instance.getMediaStatus?.() ?? 'STOPPED');
-    const statusTick = window.setInterval(() => {
-      if (Date.now() < modeSwitchUntilRef.current) return;
-      const nextStatus = normalizeMediaStatus(instance.getMediaStatus?.() ?? 'STOPPED');
-      if (nextStatus === previousStatus) return;
-      previousStatus = nextStatus;
-      if (Date.now() < syncPauseUntilRef.current) return;
-
-      if (nextStatus === 'PLAYING') {
-        if (player.current) {
-          if (!player.isPlaying) {
-            void player.toggle();
-          }
-        } else if (playablePlaylistRef.current.length) {
-          playStation(playablePlaylistRef.current[0]);
-        } else if (canResume) {
-          playLast();
-        }
-        quietWebamp();
-      }
-    }, 420);
+    let overlay = mainContent.querySelector('.ra-visualizer-overlay') as HTMLElement | null;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'ra-visualizer-overlay';
+      mainContent.appendChild(overlay);
+    }
 
     return () => {
-      unsubscribeTrack?.();
-      window.clearInterval(statusTick);
+      overlay?.remove();
+      if (mainContent.dataset.raVisualizerPosition !== undefined) {
+        const previous = mainContent.dataset.raVisualizerPosition;
+        mainContent.style.position = previous === '__empty__' ? '' : previous;
+        delete mainContent.dataset.raVisualizerPosition;
+      }
     };
-  }, [webampReady, playStation, playLast, canResume, player.current?.stationuuid, player.isPlaying]);
+  }, [webampReady]);
+
+  useEffect(() => {
+    if (!webampReady) return;
+    const overlay = document.querySelector('#main-window .ra-visualizer-overlay') as HTMLElement | null;
+    if (!overlay) return;
+
+    const desiredBars = player.visualizer.spectrum.length;
+    while (overlay.childElementCount < desiredBars) {
+      const bar = document.createElement('span');
+      bar.className = 'ra-visualizer-overlay-bar';
+      overlay.appendChild(bar);
+    }
+    while (overlay.childElementCount > desiredBars) {
+      overlay.lastElementChild?.remove();
+    }
+
+    overlay.dataset.active = player.visualizer.active ? 'true' : 'false';
+    overlay.dataset.available = player.visualizer.available ? 'true' : 'false';
+    Array.from(overlay.children).forEach((child, index) => {
+      const bar = child as HTMLElement;
+      const level = player.visualizer.spectrum[index] ?? 0;
+      bar.style.setProperty('--ra-level', String(level));
+    });
+  }, [player.visualizer, webampReady]);
 
   const quietWebampPlayback = () => {
     const instance = webampRef.current;
-    syncPauseUntilRef.current = Date.now() + 700;
     try {
       instance?.pause?.();
     } catch {
@@ -2049,6 +1703,7 @@ export const WinampPlayerShell = ({
   return (
     <div
       className={`winamp-compact ${winamp.expanded ? 'expanded-host' : ''}`}
+      data-expanded-layout={winamp.expanded ? expandedLayoutMode : undefined}
       role={winamp.expanded ? 'dialog' : undefined}
       aria-modal={winamp.expanded ? 'true' : undefined}
     >
@@ -2060,9 +1715,11 @@ export const WinampPlayerShell = ({
           />
           <div className="winamp-overlay-header">
             <div className="winamp-overlay-header-actions">
-              <button className="chip" type="button" onClick={resetExpandedLayout}>
-                Reset layout
-              </button>
+              {expandedLayoutMode === 'desktop' ? (
+                <button className="chip" type="button" onClick={resetExpandedLayout}>
+                  Reset layout
+                </button>
+              ) : null}
               <button className="chip active" type="button" onClick={() => winamp.setExpanded(false)}>
                 Collapse
               </button>

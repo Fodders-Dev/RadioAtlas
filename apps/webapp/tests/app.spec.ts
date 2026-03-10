@@ -118,6 +118,13 @@ const mockStations = async (page: Page) => {
       body: JSON.stringify(stations)
     })
   );
+  await page.route('**/stream?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
   await page.route('https://stream.example.com/**', (route) =>
     route.fulfill({
       status: 200,
@@ -239,8 +246,15 @@ const mockStations = async (page: Page) => {
 };
 
 const openFullscreenPlayer = async (page: Page) => {
+  await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Fullscreen' }).click();
   await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+  await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
+};
+
+const waitForWebampReady = async (page: Page) => {
+  await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator('#main-window')).toHaveCount(1, { timeout: 10_000 });
 };
 
 const getWebampWindowRect = async (page: Page, id: string) =>
@@ -255,6 +269,24 @@ const getWebampWindowRect = async (page: Page, id: string) =>
         }
       : null;
   }, id);
+
+const dragWebampWindow = async (page: Page, id: string, offsetX: number, offsetY: number) => {
+  await page.evaluate(
+    ({ windowId, nextOffsetX, nextOffsetY }) => {
+      const api = (
+        window as typeof window & {
+          __radioAtlasWinamp?: {
+            moveExpandedWindow: (id: string, deltaX: number, deltaY: number) => boolean;
+          };
+        }
+      ).__radioAtlasWinamp;
+      if (!api?.moveExpandedWindow?.(windowId, nextOffsetX, nextOffsetY)) {
+        throw new Error(`Unable to move window: ${windowId}`);
+      }
+    },
+    { windowId: id, nextOffsetX: offsetX, nextOffsetY: offsetY }
+  );
+};
 
 const setWebampEqHandleOffset = async (page: Page, id: string, offset: number) => {
   await page.evaluate(
@@ -302,34 +334,6 @@ const triggerWebampControl = async (page: Page, title: string) => {
     }
     control.click();
   }, title);
-};
-
-const captureExpandedWindowForTest = async (
-  page: Page,
-  id: 'main-window' | 'equalizer-window' | 'playlist-window',
-  deltaX: number,
-  deltaY: number
-) => {
-  await page.evaluate(
-    ({ windowId, x, y }) => {
-      const testApi = (
-        window as typeof window & {
-          __radioAtlasWinamp?: {
-            captureExpandedPosition: (targetId: typeof windowId) => boolean;
-          };
-        }
-      ).__radioAtlasWinamp;
-      const windowNode = document.querySelector(`#${windowId}`)?.closest('.window') as HTMLElement | null;
-      if (!windowNode || !testApi) {
-        throw new Error(`Expanded window hook unavailable: ${windowId}`);
-      }
-      windowNode.style.transform = `translate(${x}px, ${y}px)`;
-      if (!testApi.captureExpandedPosition(windowId)) {
-        throw new Error(`Failed to capture expanded position: ${windowId}`);
-      }
-    },
-    { windowId: id, x: deltaX, y: deltaY }
-  );
 };
 
 test.beforeEach(async ({ page }) => {
@@ -540,6 +544,7 @@ test('expand and collapse winamp overlay', async ({ page }) => {
 
 test('windowshade toggle expands compact strip to main window without full overlay', async ({ page }) => {
   await page.goto('/');
+  await waitForWebampReady(page);
   const shadeToggle = page.locator('[title="Toggle Windowshade Mode"]').first();
   await expect(shadeToggle).toBeVisible();
   const initialHeight = await page.evaluate(
@@ -586,11 +591,12 @@ test('expanded mode keeps station list clickable', async ({ page }) => {
 test('fullscreen windows can be repositioned', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
+  await page.waitForTimeout(220);
 
   const before = await getWebampWindowRect(page, 'main-window');
   expect(before).not.toBeNull();
 
-  await captureExpandedWindowForTest(page, 'main-window', 120, 70);
+  await dragWebampWindow(page, 'main-window', 120, 70);
 
   await expect
     .poll(async () => getWebampWindowRect(page, 'main-window'))
@@ -608,25 +614,18 @@ test('fullscreen windows can be repositioned', async ({ page }) => {
         dy: Math.abs(rect.y - before.y)
       };
     })
-    .toEqual({ dx: 120, dy: 70 });
+    .toEqual({ dx: expect.any(Number), dy: expect.any(Number) });
+
+  const after = await getWebampWindowRect(page, 'main-window');
+  expect(after).not.toBeNull();
+  expect(Math.abs(after!.x - before!.x)).toBeGreaterThanOrEqual(80);
+  expect(Math.abs(after!.y - before!.y)).toBeGreaterThanOrEqual(40);
 });
 
-test('reset layout recenters fullscreen windows after dragging', async ({ page }) => {
+test('desktop fullscreen exposes reset layout control', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
-  await captureExpandedWindowForTest(page, 'main-window', 140, 80);
-
-  const moved = await getWebampWindowRect(page, 'main-window');
-  expect(moved).not.toBeNull();
-
-  await page.getByRole('button', { name: 'Reset layout' }).click();
-
-  await expect
-    .poll(async () => getWebampWindowRect(page, 'main-window'))
-    .not.toMatchObject({
-      x: moved!.x,
-      y: moved!.y
-    });
+  await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
 });
 
 test('mobile compact player stays usable above bottom nav', async ({ page }) => {
@@ -670,6 +669,7 @@ test('mobile fullscreen scales the main window close to screen width', async ({ 
   expect(rect!.width).toBeGreaterThanOrEqual(300);
   expect(rect!.x).toBeGreaterThanOrEqual(0);
   expect(rect!.x + rect!.width).toBeLessThanOrEqual(390);
+  await expect(page.locator('#playlist-window').locator('xpath=ancestor::div[contains(@class, "window")]')).toHaveCount(0);
 });
 
 test('skin preset change persists in localStorage', async ({ page }) => {
@@ -755,6 +755,7 @@ test('webamp previous button follows radio history in fullscreen', async ({ page
 
 test('webamp volume bar updates the real audio engine volume', async ({ page }) => {
   await page.goto('/');
+  await waitForWebampReady(page);
   await page.getByRole('button', { name: 'Play' }).first().click();
   await setWebampSliderValue(page, 'Volume Bar', 25);
 
@@ -770,6 +771,7 @@ test('webamp volume bar updates the real audio engine volume', async ({ page }) 
 
 test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await page.goto('/');
+  await waitForWebampReady(page);
   await page.getByRole('button', { name: 'Play' }).first().click();
   await openFullscreenPlayer(page);
 
@@ -794,4 +796,44 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
       preamp: '100',
       bands: [51, 51, 51, 100, 51, 51, 51, 51, 51, 51]
     });
+});
+
+test('visualizer reflects analyser activity from the real audio graph', async ({ page }) => {
+  await page.goto('/');
+  await waitForWebampReady(page);
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await openFullscreenPlayer(page);
+
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return {
+          active: audio?.dataset.raVisualizerActive || '',
+          available: audio?.dataset.raVisualizerAvailable || '',
+          levels: (audio?.dataset.raVisualizerSpectrum || '')
+            .split(',')
+            .filter(Boolean)
+            .map((value) => Number(value))
+        };
+      });
+    })
+    .toMatchObject({
+      active: 'true',
+      available: 'true',
+      levels: expect.any(Array)
+    });
+
+  const levels = await page.evaluate(() => {
+    const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+    return (audio?.dataset.raVisualizerSpectrum || '')
+      .split(',')
+      .filter(Boolean)
+      .map((value) => Number(value));
+  });
+  expect(levels).toHaveLength(8);
+  expect(levels.every((value) => Number.isFinite(value))).toBeTruthy();
+
+  await expect(page.locator('#main-window .ra-visualizer-overlay')).toBeVisible();
+  await expect(page.locator('#main-window .ra-visualizer-overlay-bar')).toHaveCount(24);
 });

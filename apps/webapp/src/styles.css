@@ -794,7 +794,7 @@ input {
     calc(76px + env(safe-area-inset-bottom));
   pointer-events: none;
   z-index: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .winamp-compact.expanded-host .winamp-host.compact {
@@ -908,6 +908,11 @@ input {
 .winamp-compact.expanded-host #webamp .draggable,
 .winamp-compact.expanded-host #webamp .playlist-top-title {
   pointer-events: auto !important;
+}
+
+.winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp .draggable,
+.winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp .playlist-top-title {
+  pointer-events: none !important;
 }
 
 .winamp-host.compact {
@@ -1066,6 +1071,33 @@ input {
 .winamp-compact.expanded-host .winamp-actions.overlay,
 .winamp-compact.expanded-host #webamp .window {
   pointer-events: auto;
+}
+
+.ra-visualizer-overlay {
+  position: absolute;
+  left: 108px;
+  top: 42px;
+  width: 72px;
+  height: 14px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  pointer-events: none;
+  opacity: 0.96;
+  z-index: 3;
+}
+
+.ra-visualizer-overlay[data-active='false'] {
+  opacity: 0.38;
+}
+
+.ra-visualizer-overlay-bar {
+  flex: 1 1 auto;
+  min-width: 1px;
+  height: calc(10% + (var(--ra-level, 0) * 90%));
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(180deg, #f7f58f 0%, #9dff70 55%, #31a23f 100%);
+  box-shadow: 0 0 6px rgba(111, 255, 121, 0.28);
 }
 
 .skin-picker {
@@ -1497,6 +1529,7 @@ input {
   .winamp-overlay-header-actions {
     gap: 6px;
     width: 100%;
+    justify-content: flex-end;
   }
 
   .winamp-overlay-footer {
@@ -1525,8 +1558,28 @@ input {
   }
 
   .winamp-compact.expanded-host .winamp-compact-main {
-    padding-top: calc(60px + env(safe-area-inset-top));
-    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+    padding-top: calc(52px + env(safe-area-inset-top));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-header-actions {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-compact-main {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp {
+    touch-action: auto;
+  }
+
+  .ra-visualizer-overlay {
+    left: 108px;
+    top: 42px;
+    width: 70px;
   }
 
   .details-grid {

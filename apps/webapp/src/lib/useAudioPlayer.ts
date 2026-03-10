@@ -12,6 +12,13 @@ export type PlayerEqState = {
   bands: number[];
 };
 
+export type PlayerVisualizerState = {
+  active: boolean;
+  available: boolean;
+  spectrum: number[];
+  waveform: number[];
+};
+
 type PlayStationResult = {
   ok: boolean;
   error?: string;
@@ -42,6 +49,8 @@ type ExtractResponse = {
 
 const EQ_CENTER = 50;
 const EQ_RANGE_DB = 12;
+const VISUALIZER_BARS = 24;
+const VISUALIZER_WAVEFORM_SAMPLES = 24;
 
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 const isDirectAudioUrl = (url: string) =>
@@ -51,6 +60,8 @@ const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
 const sliderToDb = (value: number) => ((clampPercent(value) - EQ_CENTER) / EQ_CENTER) * EQ_RANGE_DB;
 const dbToGain = (value: number) => 10 ** (value / 20);
 const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
+const createEmptySpectrum = () => Array.from({ length: VISUALIZER_BARS }, () => 0);
+const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, () => 0);
 
 const buildProxyUrl = (url: string) => {
   const base = normalizeBase(getApiBase());
@@ -169,6 +180,9 @@ export const useAudioPlayer = ({
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const preampGainRef = useRef<GainNode | null>(null);
   const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const visualizerFrameRef = useRef<number | null>(null);
+  const audioGraphFailedRef = useRef(false);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
@@ -178,6 +192,12 @@ export const useAudioPlayer = ({
   const [eqEnabled, setEqEnabled] = useState(true);
   const [eqPreamp, setEqPreamp] = useState(EQ_CENTER);
   const [eqBands, setEqBands] = useState<number[]>(createDefaultEqBands);
+  const [visualizer, setVisualizer] = useState<PlayerVisualizerState>({
+    active: false,
+    available: false,
+    spectrum: createEmptySpectrum(),
+    waveform: createEmptyWaveform()
+  });
 
   const pushEvent = (message: string) => {
     if (onEvent) onEvent(message);
@@ -215,6 +235,7 @@ export const useAudioPlayer = ({
   };
 
   const ensureAudioGraph = () => {
+    if (audioGraphFailedRef.current) return null;
     if (audioContextRef.current) return audioContextRef.current;
 
     const audio = audioRef.current;
@@ -233,6 +254,9 @@ export const useAudioPlayer = ({
       const context = new AudioCtx();
       const source = context.createMediaElementSource(audio);
       const preamp = context.createGain();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.72;
       const filters = EQ_BANDS.map((frequency, index) => {
         const filter = context.createBiquadFilter();
         filter.frequency.value = frequency;
@@ -249,14 +273,28 @@ export const useAudioPlayer = ({
         currentNode.connect(filter);
         currentNode = filter;
       });
-      currentNode.connect(context.destination);
+      currentNode.connect(analyser);
+      analyser.connect(context.destination);
 
       audioContextRef.current = context;
       mediaSourceRef.current = source;
       preampGainRef.current = preamp;
       eqFiltersRef.current = filters;
+      analyserRef.current = analyser;
+      setVisualizer((prev) => ({
+        ...prev,
+        available: true
+      }));
       return context;
     } catch (error) {
+      audioGraphFailedRef.current = true;
+      analyserRef.current = null;
+      setVisualizer({
+        active: false,
+        available: false,
+        spectrum: createEmptySpectrum(),
+        waveform: createEmptyWaveform()
+      });
       pushEvent(`eq: graph failed (${error instanceof Error ? error.message : 'unknown'})`);
       return null;
     }
@@ -505,10 +543,22 @@ export const useAudioPlayer = ({
       preampGainRef.current = null;
       eqFiltersRef.current.forEach((filter) => filter.disconnect());
       eqFiltersRef.current = [];
+      analyserRef.current?.disconnect();
+      analyserRef.current = null;
+      if (visualizerFrameRef.current !== null) {
+        window.cancelAnimationFrame(visualizerFrameRef.current);
+        visualizerFrameRef.current = null;
+      }
       if (audioContextRef.current) {
         void audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
       }
+      setVisualizer({
+        active: false,
+        available: false,
+        spectrum: createEmptySpectrum(),
+        waveform: createEmptyWaveform()
+      });
       if (audio instanceof HTMLAudioElement) {
         audio.remove();
       }
@@ -531,9 +581,91 @@ export const useAudioPlayer = ({
   }, [eqBands, eqEnabled, eqPreamp]);
 
   useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.dataset.raVisualizerActive = visualizer.active ? 'true' : 'false';
+    audio.dataset.raVisualizerAvailable = visualizer.available ? 'true' : 'false';
+    audio.dataset.raVisualizerSpectrum = visualizer.spectrum
+      .slice(0, 8)
+      .map((value) => value.toFixed(2))
+      .join(',');
+  }, [visualizer]);
+
+  useEffect(() => {
     ensureAudioGraph();
     applyEqToGraph();
   }, [eqBands, eqEnabled, eqPreamp]);
+
+  useEffect(() => {
+    if (visualizerFrameRef.current !== null) {
+      window.cancelAnimationFrame(visualizerFrameRef.current);
+      visualizerFrameRef.current = null;
+    }
+
+    const analyser = analyserRef.current;
+    if (!analyser || !isPlaying) {
+      setVisualizer((prev) => ({
+        ...prev,
+        active: false,
+        available: Boolean(analyser),
+        spectrum: createEmptySpectrum(),
+        waveform: createEmptyWaveform()
+      }));
+      return;
+    }
+
+    const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+    const waveformData = new Uint8Array(analyser.fftSize);
+    let lastFrameAt = 0;
+
+    const updateFrame = (now: number) => {
+      if (now - lastFrameAt < 48) {
+        visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
+        return;
+      }
+      lastFrameAt = now;
+
+      analyser.getByteFrequencyData(frequencyData);
+      analyser.getByteTimeDomainData(waveformData);
+
+      const nextSpectrum = Array.from({ length: VISUALIZER_BARS }, (_, index) => {
+        const start = Math.floor((index * frequencyData.length) / VISUALIZER_BARS);
+        const end = Math.max(
+          start + 1,
+          Math.floor(((index + 1) * frequencyData.length) / VISUALIZER_BARS)
+        );
+        let peak = 0;
+        for (let cursor = start; cursor < end; cursor += 1) {
+          peak = Math.max(peak, frequencyData[cursor] ?? 0);
+        }
+        return Number((peak / 255).toFixed(3));
+      });
+
+      const nextWaveform = Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, (_, index) => {
+        const sourceIndex = Math.floor(
+          (index * waveformData.length) / VISUALIZER_WAVEFORM_SAMPLES
+        );
+        const centered = ((waveformData[sourceIndex] ?? 128) - 128) / 128;
+        return Number(centered.toFixed(3));
+      });
+
+      setVisualizer({
+        active: true,
+        available: true,
+        spectrum: nextSpectrum,
+        waveform: nextWaveform
+      });
+      visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
+    };
+
+    visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
+    return () => {
+      if (visualizerFrameRef.current !== null) {
+        window.cancelAnimationFrame(visualizerFrameRef.current);
+        visualizerFrameRef.current = null;
+      }
+    };
+  }, [isPlaying]);
 
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
     const audio = audioRef.current;
@@ -655,6 +787,7 @@ export const useAudioPlayer = ({
       preamp: eqPreamp,
       bands: eqBands
     } as PlayerEqState,
+    visualizer,
     errorMessage,
     setVolume,
     setEqBand,
