@@ -43,7 +43,7 @@ export const Settings = () => {
   };
 
   return (
-    <section className="screen">
+    <section className="screen screen-settings">
       <div className="section">
         <div className="section-title">Background Audio</div>
         <div className="settings-card">
@@ -79,7 +79,7 @@ export const Settings = () => {
               type="button"
               onClick={() => winamp.setExpanded(!winamp.expanded)}
             >
-              {winamp.expanded ? 'Collapse player' : 'Expand player'}
+              {winamp.expanded ? 'Close fullscreen player' : 'Open fullscreen player'}
             </button>
           </div>
         </div>

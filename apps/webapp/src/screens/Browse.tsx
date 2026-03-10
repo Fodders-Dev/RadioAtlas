@@ -137,7 +137,7 @@ export const Browse = () => {
 
   if (!stations.length) {
     return (
-      <section className="screen">
+      <section className="screen screen-browse">
         <div className="section">
           <div className="section-title">Browse</div>
           <div className="empty-state">Loading stations...</div>
@@ -147,8 +147,8 @@ export const Browse = () => {
   }
 
   return (
-    <section className="screen">
-      <div className="section">
+    <section className="screen screen-browse">
+      <div className="section browse-heading">
         <div className="section-title">Browse</div>
         <div className="section-subtitle">
           {step === 'continents' && 'Choose a continent to explore local stations.'}

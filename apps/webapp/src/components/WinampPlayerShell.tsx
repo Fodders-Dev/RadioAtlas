@@ -102,7 +102,7 @@ const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
 const buildPersistentLayout = () => ({
   main: {
     position: { top: 16, left: 16 },
-    shadeMode: true
+    shadeMode: false
   },
   equalizer: {
     position: { top: 136, left: 16 },
@@ -537,7 +537,7 @@ export const WinampPlayerShell = ({
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootCycle, setBootCycle] = useState(0);
   const modeSwitchUntilRef = useRef(0);
-  const compactViewModeRef = useRef<CompactViewMode>('strip');
+  const compactViewModeRef = useRef<CompactViewMode>('panel');
   const expandedRef = useRef(winamp.expanded);
 
   const current = player.current;
@@ -760,7 +760,7 @@ export const WinampPlayerShell = ({
             syncPauseUntilRef.current = Date.now() + 1200;
 
             modeSwitchUntilRef.current = Date.now() + 1200;
-            compactViewModeRef.current = 'strip';
+            compactViewModeRef.current = 'panel';
             if (expandedRef.current) {
               applyExpandedLayout(mountNode);
             } else {
@@ -1157,7 +1157,7 @@ export const WinampPlayerShell = ({
             onTouchStart={(event) => event.stopPropagation()}
             onClick={requestExpand}
           >
-            Expand
+            Fullscreen
           </button>
           {canCopyTrackTitle ? trackLine('compact') : null}
         </>

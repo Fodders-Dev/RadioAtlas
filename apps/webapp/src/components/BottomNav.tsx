@@ -5,7 +5,7 @@ type NavItem = {
   label: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { id: 'Explore', label: 'Explore' },
   { id: 'Favorites', label: 'Favorites' },
   { id: 'Browse', label: 'Browse' },
@@ -20,7 +20,7 @@ export const BottomNav = ({
   active: NavTab;
   onChange: (tab: NavTab) => void;
 }) => (
-  <nav className="bottom-nav">
+  <nav className="bottom-nav" aria-label="Primary navigation">
     {NAV_ITEMS.map((item) => (
       <button
         key={item.id}

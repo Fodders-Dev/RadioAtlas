@@ -483,8 +483,8 @@ export const Search = () => {
   );
 
   return (
-    <section className="screen">
-      <div className="section">
+    <section className="screen screen-search">
+      <div className="section search-heading">
         <div className="section-title">Search</div>
         <div className="section-subtitle">
           {showStations
@@ -499,11 +499,11 @@ export const Search = () => {
           >
             Stations
           </button>
-          <button
-            className={`chip ${showStations ? '' : 'active'}`}
-            type="button"
-            onClick={() => setMode('links')}
-          >
+        <button
+          className={`chip ${showStations ? '' : 'active'}`}
+          type="button"
+          onClick={() => setMode('links')}
+        >
             Links
           </button>
         </div>
@@ -511,7 +511,7 @@ export const Search = () => {
 
       {showStations ? (
         <>
-          <div className="section">
+          <div className="section search-controls">
             <div className="search-bar">
               <input
                 placeholder="Search by name, tag, country, language"
@@ -569,7 +569,9 @@ export const Search = () => {
                 : `All stations: ${stations.length}`}
             </div>
           </div>
-          <StationTable stations={results} />
+          <div className="search-results-shell">
+            <StationTable stations={results} />
+          </div>
           {visibleCount < filtered.length && (
             <div className="section">
               <button className="chip" type="button" onClick={loadMore}>

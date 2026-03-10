@@ -121,7 +121,7 @@ export const Explore = () => {
   const trending = useMemo(() => stations.slice(0, 20).map(toLite), [stations]);
 
   return (
-    <section className="screen">
+    <section className="screen screen-explore">
       <div className="hero">
         <div>
           <h1>Explore the airwaves</h1>
@@ -130,89 +130,95 @@ export const Explore = () => {
         <div className="hero-pill">Global live map</div>
       </div>
 
-      <div className="section">
-        <div className="section-title">Quick search</div>
-        <div className="search-bar">
-          <input
-            placeholder="Search stations by name"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query && (
-            <button className="clear-btn" type="button" onClick={() => setQuery('')}>
-              Clear
-            </button>
+      <div className="explore-layout">
+        <div className="explore-main-column">
+          <div className="section explore-search-card">
+            <div className="section-title">Quick search</div>
+            <div className="search-bar">
+              <input
+                placeholder="Search stations by name"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query && (
+                <button className="clear-btn" type="button" onClick={() => setQuery('')}>
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="globe-wrap">
+            <Globe
+              points={visiblePoints}
+              activeId={player.current?.stationuuid}
+              focusPoint={focusPoint ?? undefined}
+              totalCount={stations.length}
+              geoCount={globePoints.length}
+              zoomLevel={zoomLevel}
+              onZoomChange={setZoomLevel}
+              onPickCandidates={handlePickCandidates}
+              onPick={(id) => {
+                const picked = stations.find((station) => station.stationuuid === id);
+                if (picked) {
+                  playStation(picked);
+                  setPickList([]);
+                }
+              }}
+            />
+            <div className="globe-scroll-hint">
+              {pickList.length
+                ? `${pickList.length} stations near this point в†“`
+                : 'Tap a glow point to tune in в†“'}
+            </div>
+          </div>
+
+          {pickList.length > 1 && (
+            <div className="section" ref={pickListRef}>
+              <div className="section-title">Pick a station nearby ({pickList.length})</div>
+              <div className="section-subtitle">
+                Nearest matches are listed first. Choose one to start playback.
+              </div>
+              <div className="pick-panel">
+                {pickList.map((station) => (
+                  <button
+                    key={station.stationuuid}
+                    className="pick-item"
+                    type="button"
+                    onClick={() => {
+                      playStation(station);
+                      setPickList([]);
+                    }}
+                  >
+                    <div className="pick-name">{station.name}</div>
+                    <div className="pick-meta">
+                      {[station.state, station.country].filter(Boolean).join(', ') ||
+                        'Unknown location'}
+                    </div>
+                  </button>
+                ))}
+                <button className="pick-dismiss" type="button" onClick={() => setPickList([])}>
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="explore-side-column">
+          {query ? (
+            <div className="section">
+              <div className="section-title">Search results</div>
+              <StationTable stations={searchResults} />
+            </div>
+          ) : (
+            <div className="section">
+              <div className="section-title">Trending right now</div>
+              <StationTable stations={trending} compact />
+            </div>
           )}
         </div>
       </div>
-
-      <div className="globe-wrap">
-        <Globe
-          points={visiblePoints}
-          activeId={player.current?.stationuuid}
-          focusPoint={focusPoint ?? undefined}
-          totalCount={stations.length}
-          geoCount={globePoints.length}
-          zoomLevel={zoomLevel}
-          onZoomChange={setZoomLevel}
-          onPickCandidates={handlePickCandidates}
-          onPick={(id) => {
-            const picked = stations.find((station) => station.stationuuid === id);
-            if (picked) {
-              playStation(picked);
-              setPickList([]);
-            }
-          }}
-        />
-        <div className="globe-scroll-hint">
-          {pickList.length
-            ? `${pickList.length} stations near this point ↓`
-            : 'Tap a glow point to tune in ↓'}
-        </div>
-      </div>
-
-      {pickList.length > 1 && (
-        <div className="section" ref={pickListRef}>
-          <div className="section-title">Pick a station nearby ({pickList.length})</div>
-          <div className="section-subtitle">
-            Nearest matches are listed first. Choose one to start playback.
-          </div>
-          <div className="pick-panel">
-            {pickList.map((station) => (
-              <button
-                key={station.stationuuid}
-                className="pick-item"
-                type="button"
-                onClick={() => {
-                  playStation(station);
-                  setPickList([]);
-                }}
-              >
-                <div className="pick-name">{station.name}</div>
-                <div className="pick-meta">
-                  {[station.state, station.country].filter(Boolean).join(', ') ||
-                    'Unknown location'}
-                </div>
-              </button>
-            ))}
-            <button className="pick-dismiss" type="button" onClick={() => setPickList([])}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {query ? (
-        <div className="section">
-          <div className="section-title">Search results</div>
-          <StationTable stations={searchResults} />
-        </div>
-      ) : (
-        <div className="section">
-          <div className="section-title">Trending right now</div>
-          <StationTable stations={trending} compact />
-        </div>
-      )}
     </section>
   );
 };
