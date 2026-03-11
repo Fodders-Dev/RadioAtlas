@@ -91,7 +91,7 @@ const App = () => {
 
     const syncPlayerSafeHeight = () => {
       const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
-      if (!shell || shell.classList.contains('expanded-host')) return;
+      if (!shell || shell.classList.contains('fullscreen-ui')) return;
       const nextHeight = Math.max(108, Math.round(shell.getBoundingClientRect().height));
       setPlayerSafeHeight((prev) => (Math.abs(prev - nextHeight) > 1 ? nextHeight : prev));
     };

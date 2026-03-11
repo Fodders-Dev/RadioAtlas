@@ -765,45 +765,13 @@ input {
   pointer-events: none;
 }
 
-.winamp-compact.expanded-host {
-  position: fixed;
-  inset: 0;
-  bottom: auto;
-  left: 0;
-  right: 0;
-  width: 100vw;
-  max-width: 100vw;
-  height: 100vh;
-  z-index: 2300;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
+.winamp-compact.fullscreen-ui {
   pointer-events: none;
-  overflow: hidden;
 }
 
-.winamp-compact.expanded-host .winamp-compact-main {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  align-items: stretch;
-  justify-content: flex-start;
-  padding: calc(54px + env(safe-area-inset-top)) 10px
-    calc(76px + env(safe-area-inset-bottom));
+.winamp-compact.fullscreen-ui .winamp-compact-main,
+.winamp-compact.fullscreen-ui .winamp-host.compact {
   pointer-events: none;
-  z-index: 1;
-  overflow: auto;
-}
-
-.winamp-compact.expanded-host .winamp-host.compact {
-  min-height: 100%;
-  width: 100%;
-  display: block;
-  align-items: flex-start;
-  pointer-events: none;
-  padding-bottom: 12px;
 }
 
 .winamp-compact-main {
@@ -817,7 +785,7 @@ input {
   transition: min-height 160ms ease;
 }
 
-.winamp-compact:not(.expanded-host) .winamp-compact-main {
+.winamp-compact:not(.fullscreen-ui) .winamp-compact-main {
   cursor: zoom-in;
 }
 
@@ -877,42 +845,26 @@ input {
   pointer-events: auto;
 }
 
-.winamp-compact:not(.expanded-host) #webamp {
+.winamp-compact:not(.fullscreen-ui) #webamp {
   z-index: 56 !important;
 }
 
-.winamp-compact:not(.expanded-host) #webamp .window,
-.winamp-compact:not(.expanded-host) #webamp .draggable,
-.winamp-compact:not(.expanded-host) #webamp .playlist-top-title {
+.winamp-compact:not(.fullscreen-ui) #webamp .window,
+.winamp-compact:not(.fullscreen-ui) #webamp .draggable,
+.winamp-compact:not(.fullscreen-ui) #webamp .playlist-top-title {
   pointer-events: none !important;
 }
 
-.winamp-compact:not(.expanded-host) #webamp #shade,
-.winamp-compact:not(.expanded-host) #webamp #previous,
-.winamp-compact:not(.expanded-host) #webamp #play,
-.winamp-compact:not(.expanded-host) #webamp #pause,
-.winamp-compact:not(.expanded-host) #webamp #stop,
-.winamp-compact:not(.expanded-host) #webamp #next,
-.winamp-compact:not(.expanded-host) #webamp [title='Toggle Windowshade Mode'],
-.winamp-compact:not(.expanded-host) #webamp [title='Volume Bar'],
-.winamp-compact:not(.expanded-host) #webamp [title='Balance'] {
+.winamp-compact:not(.fullscreen-ui) #webamp #shade,
+.winamp-compact:not(.fullscreen-ui) #webamp #previous,
+.winamp-compact:not(.fullscreen-ui) #webamp #play,
+.winamp-compact:not(.fullscreen-ui) #webamp #pause,
+.winamp-compact:not(.fullscreen-ui) #webamp #stop,
+.winamp-compact:not(.fullscreen-ui) #webamp #next,
+.winamp-compact:not(.fullscreen-ui) #webamp [title='Toggle Windowshade Mode'],
+.winamp-compact:not(.fullscreen-ui) #webamp [title='Volume Bar'],
+.winamp-compact:not(.fullscreen-ui) #webamp [title='Balance'] {
   pointer-events: auto !important;
-}
-
-.winamp-compact.expanded-host #webamp {
-  z-index: 1600 !important;
-  touch-action: none;
-}
-
-.winamp-compact.expanded-host #webamp > div[tabindex='-1'],
-.winamp-compact.expanded-host #webamp .draggable,
-.winamp-compact.expanded-host #webamp .playlist-top-title {
-  pointer-events: auto !important;
-}
-
-.winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp .draggable,
-.winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp .playlist-top-title {
-  pointer-events: none !important;
 }
 
 .winamp-host.compact {
@@ -1070,8 +1022,8 @@ input {
   pointer-events: auto;
 }
 
-.winamp-compact.expanded-host .winamp-actions.overlay,
-.winamp-compact.expanded-host #webamp .window {
+.winamp-compact.fullscreen-ui .winamp-actions.overlay,
+.winamp-compact.fullscreen-ui #webamp .window {
   pointer-events: auto;
 }
 
@@ -1568,49 +1520,24 @@ input {
     margin-bottom: calc(var(--player-stack-offset) + 22px);
   }
 
-  .winamp-compact.expanded-host .winamp-compact-main {
-    padding-top: calc(52px + env(safe-area-inset-top));
-    padding-bottom: calc(92px + env(safe-area-inset-bottom));
-  }
-
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] {
+  .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] {
     background:
       linear-gradient(180deg, rgba(6, 10, 19, 0.98), rgba(9, 15, 28, 0.98)),
       radial-gradient(circle at top, rgba(56, 89, 124, 0.22), transparent 52%);
   }
 
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-header-actions {
+  .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-header-actions {
     width: auto;
     margin-left: auto;
   }
 
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-compact-main {
-    padding-top: calc(58px + env(safe-area-inset-top));
-    padding-left: 8px;
-    padding-right: 8px;
-    padding-bottom: calc(88px + env(safe-area-inset-bottom));
-    overflow: hidden;
-  }
-
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp {
-    touch-action: auto;
-  }
-
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-host.compact {
-    min-height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 2px;
-  }
-
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-backdrop {
+  .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-backdrop {
     background:
       linear-gradient(180deg, rgba(5, 9, 18, 1), rgba(8, 12, 24, 0.98)),
       radial-gradient(circle at top, rgba(52, 82, 112, 0.24), transparent 55%);
   }
 
-  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-footer {
+  .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-footer {
     left: 8px;
     right: 8px;
     background: rgba(7, 10, 18, 0.92);

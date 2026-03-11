@@ -235,11 +235,11 @@ const resolveCompactWindowAnchor = (windowNode: HTMLElement) => {
 
 const resolveExpandedWindowAnchor = (windowNode: HTMLElement) => {
   const webampRoot = getWebampRootNode();
+  let anchor = (windowNode.parentElement as HTMLElement | null) ?? windowNode;
   if (!webampRoot) {
-    return windowNode;
+    return anchor;
   }
-  let anchor = windowNode;
-  let current = windowNode;
+  let current = anchor;
 
   while (current && current !== webampRoot) {
     const computed = window.getComputedStyle(current);
@@ -725,7 +725,7 @@ export const WinampPlayerShell = ({
     const onShadeToggleStart = (event: Event) => {
       if (expandedRef.current) return;
       const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
-      if (!shell || shell.classList.contains('expanded-host')) return;
+      if (!shell || shell.classList.contains('fullscreen-ui')) return;
       const target = event.target as HTMLElement | null;
       const shadeToggle = target?.closest('[title="Toggle Windowshade Mode"]');
       if (!shadeToggle) return;
@@ -1754,9 +1754,53 @@ export const WinampPlayerShell = ({
     </button>
   );
 
+  const expandedShellStyle = winamp.expanded
+    ? ({
+        position: 'fixed',
+        inset: '0',
+        bottom: 'auto',
+        left: '0',
+        right: '0',
+        width: '100vw',
+        maxWidth: '100vw',
+        height: '100vh',
+        alignItems: 'stretch',
+        justifyContent: 'stretch',
+        overflow: 'hidden'
+      } satisfies React.CSSProperties)
+    : undefined;
+
+  const expandedMainStyle = winamp.expanded
+    ? ({
+        flex: '1 1 auto',
+        width: '100%',
+        height: '100%',
+        minHeight: 0,
+        alignItems: 'stretch',
+        justifyContent: 'flex-start',
+        padding:
+          expandedLayoutMode === 'mobile'
+            ? 'calc(58px + env(safe-area-inset-top)) 8px calc(88px + env(safe-area-inset-bottom))'
+            : 'calc(54px + env(safe-area-inset-top)) 10px calc(76px + env(safe-area-inset-bottom))'
+      } satisfies React.CSSProperties)
+    : undefined;
+
+  const expandedHostStyle = winamp.expanded
+    ? ({
+        minHeight: '100%',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+        paddingTop: expandedLayoutMode === 'mobile' ? '2px' : '0',
+        paddingBottom: '12px'
+      } satisfies React.CSSProperties)
+    : undefined;
+
   return (
     <div
-      className={`winamp-compact ${winamp.expanded ? 'expanded-host' : ''}`}
+      className={`winamp-compact ${winamp.expanded ? 'fullscreen-ui' : ''}`}
+      style={expandedShellStyle}
       data-expanded-layout={winamp.expanded ? expandedLayoutMode : undefined}
       role={winamp.expanded ? 'dialog' : undefined}
       aria-modal={winamp.expanded ? 'true' : undefined}
@@ -1798,9 +1842,10 @@ export const WinampPlayerShell = ({
 
       <div
         className="winamp-compact-main"
+        style={expandedMainStyle}
         onClick={!winamp.expanded ? handleCompactMainClick : undefined}
       >
-        <div className="winamp-host compact" ref={compactHostRef} />
+        <div className="winamp-host compact" style={expandedHostStyle} ref={compactHostRef} />
         {!webampReady && (
           <div className={`winamp-loading ${winamp.expanded ? 'overlay' : ''}`}>
             {webampFailed ? (

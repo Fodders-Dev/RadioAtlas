@@ -248,7 +248,7 @@ const mockStations = async (page: Page) => {
 const openFullscreenPlayer = async (page: Page) => {
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Fullscreen' }).click();
-  await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
 };
 
@@ -400,6 +400,9 @@ test('playback from table updates winamp shell and info panel', async ({ page })
     })
     .toContain('tokyo');
   await openFullscreenPlayer(page);
+  const expandedRect = await getWebampWindowRect(page, 'main-window');
+  expect(expandedRect).not.toBeNull();
+  expect(expandedRect!.width).toBeGreaterThanOrEqual(300);
 
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
@@ -545,12 +548,12 @@ test('browse flow and full navigation still work', async ({ page }) => {
 test('expand and collapse winamp overlay', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
-  await expect(page.locator('.winamp-compact.expanded-host')).toBeVisible();
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1);
   await expect(page.locator('#webamp .window').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Collapse', exact: true }).click();
-  await expect(page.locator('.winamp-compact.expanded-host')).toHaveCount(0);
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toHaveCount(0);
   await expect(page.locator('.winamp-compact')).toBeVisible();
 });
 
@@ -564,7 +567,7 @@ test('windowshade toggle expands compact strip to main window without full overl
   );
 
   await shadeToggle.click();
-  await expect(page.locator('.winamp-compact.expanded-host')).toHaveCount(0);
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toHaveCount(0);
   await expect
     .poll(async () => {
       return page.evaluate(
@@ -603,7 +606,7 @@ test('expanded mode keeps station list clickable', async ({ page }) => {
 test('fullscreen windows can be repositioned', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
-  await page.waitForTimeout(220);
+  await page.waitForTimeout(700);
 
   const before = await getWebampWindowRect(page, 'main-window');
   expect(before).not.toBeNull();
@@ -696,6 +699,17 @@ test('mobile fullscreen scales the main window close to screen width', async ({ 
   await expect(page.locator('#playlist-window').locator('xpath=ancestor::div[contains(@class, "window")]')).toHaveCount(0);
 });
 
+test('narrow popup fullscreen keeps the main window visible', async ({ page }) => {
+  await page.setViewportSize({ width: 537, height: 843 });
+  await page.goto('/');
+  await openFullscreenPlayer(page);
+
+  const rect = await getWebampWindowRect(page, 'main-window');
+  expect(rect).not.toBeNull();
+  expect(rect!.width).toBeGreaterThanOrEqual(320);
+  expect(rect!.height).toBeGreaterThanOrEqual(120);
+});
+
 test('skin preset change persists in localStorage', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
@@ -734,10 +748,10 @@ test('track line shows track title only and supports copy click', async ({ page 
 
   const trackLine = page.locator('.winamp-trackline.compact');
   await expect(trackLine).toBeVisible();
+  await expect(trackLine).toBeEnabled();
   await expect(trackLine).toContainText('Mock Song');
   await expect(trackLine).not.toContainText('Tokyo FM');
-  await page.waitForTimeout(200);
-  await trackLine.dispatchEvent('click');
+  await trackLine.click();
   await expect(page.locator('.toast')).toContainText('Track copied');
 });
 
