@@ -45,8 +45,16 @@ type WinampState = {
   availableSkins: WinampSkinPreset[];
   activeSkin: ActiveWinampSkin;
   playlist: StationLite[];
+  collection: StationLite[];
+  collectionSource: string | null;
+  setCollection: (sourceId: string, stations: Array<Station | StationLite>) => void;
   setSkin: (skinId: string) => void;
   selectSkin: (skin: WinampMuseumSkin) => void;
+};
+
+type PlayStationOptions = {
+  playlist?: Array<Station | StationLite>;
+  sourceId?: string;
 };
 
 type RadioContextValue = {
@@ -61,7 +69,7 @@ type RadioContextValue = {
   trackHistory: TrackHistoryItem[];
   player: ReturnType<typeof useAudioPlayer>;
   winamp: WinampState;
-  playStation: (station: Station | StationLite) => void;
+  playStation: (station: Station | StationLite, options?: PlayStationOptions) => void;
   playPrevious: () => void;
   playNext: () => void;
   playLast: () => void;
@@ -149,6 +157,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
     toActiveSkin(storedSkin.id)
   );
+  const [winampCollectionState, setWinampCollectionState] = useState<{
+    sourceId: string | null;
+    stations: StationLite[];
+  }>({
+    sourceId: null,
+    stations: []
+  });
 
   const logDebug = (msg: string) => {
     setDebugLogs((prev) =>
@@ -291,39 +306,75 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const addToWinampPlaylist = (station: Station | StationLite) => {
-    const lite = toLite(station);
-    setWinampPlaylist((prev) => {
-      return [lite, ...prev.filter((item) => item.stationuuid !== lite.stationuuid)];
+  const setWinampCollection = (sourceId: string, stations: Array<Station | StationLite>) => {
+    const nextStations = mergeUniqueStations(
+      stations.map((station) => toLite(station))
+    ).slice(0, 120);
+
+    setWinampCollectionState((prev) => {
+      const unchanged =
+        prev.sourceId === sourceId &&
+        prev.stations.length === nextStations.length &&
+        prev.stations.every(
+          (station, index) => station.stationuuid === nextStations[index]?.stationuuid
+        );
+      if (unchanged) {
+        return prev;
+      }
+      return {
+        sourceId,
+        stations: nextStations
+      };
     });
   };
 
-  useEffect(() => {
-    if (!favorites.length) return;
-    setWinampPlaylist((prev) => {
-      const favIds = new Set(favorites.map((item) => item.stationuuid));
-      const withoutFavs = prev.filter((item) => !favIds.has(item.stationuuid));
-      return mergeUniqueStations(favorites, withoutFavs);
-    });
-  }, [favorites, setWinampPlaylist]);
+  const seedWinampPlaylist = (
+    station: Station | StationLite,
+    playlistOverride?: Array<Station | StationLite>
+  ) => {
+    const lite = toLite(station);
+    const visibleCollection = playlistOverride?.length
+      ? playlistOverride.map((item) => toLite(item))
+      : winampCollectionState.stations;
+    const next = mergeUniqueStations(
+      [lite],
+      visibleCollection,
+      favorites,
+      recent
+    ).slice(0, 120);
+    setWinampPlaylist(next);
+  };
 
   useEffect(() => {
     if (winampPlaylist.length) return;
-    const seed = mergeUniqueStations(favorites, recent).slice(0, 120);
+    const seed = mergeUniqueStations(
+      winampCollectionState.stations,
+      favorites,
+      recent
+    ).slice(0, 120);
     if (seed.length) {
       setWinampPlaylist(seed);
     }
-  }, [favorites, recent, winampPlaylist.length, setWinampPlaylist]);
+  }, [favorites, recent, winampCollectionState.stations, winampPlaylist.length, setWinampPlaylist]);
 
   const playStationInternal = async (
     station: Station | StationLite,
-    addToHistory: boolean
+    addToHistory: boolean,
+    options?: PlayStationOptions
   ) => {
     const lite = toLite(station);
     const url = lite.url_resolved;
     if (!url) {
       notify('Missing stream URL');
       return;
+    }
+
+    const playlistOverride = options?.playlist?.map((item) => toLite(item)) ?? [];
+    const sourceId =
+      options?.sourceId ??
+      (playlistOverride.length ? 'playback-context' : winampCollectionState.sourceId);
+    if (playlistOverride.length && sourceId) {
+      setWinampCollection(sourceId, playlistOverride);
     }
 
     const result = await player.playStation(lite);
@@ -333,14 +384,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const playedStation = result.station ?? lite;
-    addToWinampPlaylist(playedStation);
+    seedWinampPlaylist(playedStation, playlistOverride);
     if (addToHistory) {
       addRecent(playedStation);
     }
   };
 
-  const playStation = (station: Station | StationLite) =>
-    void playStationInternal(station, true);
+  const playStation = (station: Station | StationLite, options?: PlayStationOptions) =>
+    void playStationInternal(station, true, options);
 
   useEffect(() => {
     if (startHandledRef.current) return;
@@ -444,15 +495,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const pickRandomStation = () => {
-    if (!stations.length) return null;
+    const pool = winampCollectionState.stations.length
+      ? winampCollectionState.stations
+      : stations;
+    if (!pool.length) return null;
     const currentId = player.current?.stationuuid;
-    if (stations.length === 1) return stations[0];
+    if (pool.length === 1) return pool[0];
     for (let i = 0; i < 6; i += 1) {
-      const candidate = stations[Math.floor(Math.random() * stations.length)];
+      const candidate = pool[Math.floor(Math.random() * pool.length)];
       if (!candidate || candidate.stationuuid === currentId) continue;
       return candidate;
     }
-    return stations.find((item) => item.stationuuid !== currentId) ?? stations[0];
+    return pool.find((item) => item.stationuuid !== currentId) ?? pool[0];
   };
 
   const playNext = () => {
@@ -467,13 +521,23 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
     const randomStation = pickRandomStation();
     if (randomStation) {
-      void playStationInternal(randomStation, true);
+      void playStationInternal(randomStation, true, {
+        playlist: winampCollectionState.stations,
+        sourceId: winampCollectionState.sourceId ?? 'playback-context'
+      });
     }
   };
 
   const playLast = () => {
     if (recent.length) {
       void playStationInternal(recent[0], true);
+      return;
+    }
+    if (winampCollectionState.stations.length) {
+      void playStationInternal(winampCollectionState.stations[0], true, {
+        playlist: winampCollectionState.stations,
+        sourceId: winampCollectionState.sourceId ?? 'playback-context'
+      });
       return;
     }
     if (stations.length) {
@@ -633,10 +697,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       availableSkins: WINAMP_SKIN_PRESETS,
       activeSkin,
       playlist: winampPlaylist,
+      collection: winampCollectionState.stations,
+      collectionSource: winampCollectionState.sourceId,
+      setCollection: setWinampCollection,
       setSkin,
       selectSkin
     }),
-    [winampExpanded, activeSkin, winampPlaylist]
+    [winampExpanded, activeSkin, winampCollectionState, winampPlaylist]
   );
 
   const value: RadioContextValue = {

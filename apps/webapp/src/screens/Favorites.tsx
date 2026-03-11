@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { StationTable } from '../components/StationTable';
 import { useRadio } from '../state/RadioContext';
 
 export const Favorites = () => {
-  const { favorites, recent, trackHistory } = useRadio();
+  const { favorites, recent, trackHistory, winamp } = useRadio();
   const lastPlayed = recent[0];
   const formatTime = (value: number) =>
     new Date(value).toLocaleString(undefined, {
@@ -12,6 +13,16 @@ export const Favorites = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+
+  useEffect(() => {
+    if (favorites.length) {
+      winamp.setCollection('favorites', favorites);
+      return;
+    }
+    if (recent.length) {
+      winamp.setCollection('recent', recent);
+    }
+  }, [favorites, recent, winamp]);
 
   return (
     <section className="screen screen-favorites">
@@ -70,11 +81,11 @@ export const Favorites = () => {
       <div className="favorites-station-grid">
         <div className="section">
           <div className="section-title">My Stations</div>
-          <StationTable stations={favorites} />
+          <StationTable stations={favorites} sourceId="favorites" />
         </div>
         <div className="section">
           <div className="section-title">Recently played</div>
-          <StationTable stations={recent} compact />
+          <StationTable stations={recent} compact sourceId="recent" />
         </div>
       </div>
     </section>

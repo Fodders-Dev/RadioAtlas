@@ -7,7 +7,7 @@ import { toLite } from '../lib/stationUtils';
 import { resolveStationCoords } from '../lib/geoResolver';
 
 export const Explore = () => {
-  const { stations, playStation, player } = useRadio();
+  const { stations, playStation, player, winamp } = useRadio();
   const [query, setQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pickList, setPickList] = useState<ReturnType<typeof toLite>[]>([]);
@@ -119,6 +119,12 @@ export const Explore = () => {
   }, [debounced, stations]);
 
   const trending = useMemo(() => stations.slice(0, 20).map(toLite), [stations]);
+  const visibleCollection = query ? searchResults : trending;
+
+  useEffect(() => {
+    if (!visibleCollection.length) return;
+    winamp.setCollection(query ? 'explore-search' : 'explore-trending', visibleCollection);
+  }, [query, visibleCollection, winamp]);
 
   return (
     <section className="screen screen-explore">
@@ -161,7 +167,10 @@ export const Explore = () => {
               onPick={(id) => {
                 const picked = stations.find((station) => station.stationuuid === id);
                 if (picked) {
-                  playStation(picked);
+                  playStation(picked, {
+                    playlist: pickList.length ? pickList : visibleCollection,
+                    sourceId: pickList.length ? 'explore-pick' : query ? 'explore-search' : 'explore-trending'
+                  });
                   setPickList([]);
                 }
               }}
@@ -186,7 +195,10 @@ export const Explore = () => {
                     className="pick-item"
                     type="button"
                     onClick={() => {
-                      playStation(station);
+                      playStation(station, {
+                        playlist: pickList,
+                        sourceId: 'explore-pick'
+                      });
                       setPickList([]);
                     }}
                   >
@@ -209,12 +221,12 @@ export const Explore = () => {
           {query ? (
             <div className="section">
               <div className="section-title">Search results</div>
-              <StationTable stations={searchResults} />
+              <StationTable stations={searchResults} sourceId="explore-search" />
             </div>
           ) : (
             <div className="section">
               <div className="section-title">Trending right now</div>
-              <StationTable stations={trending} compact />
+              <StationTable stations={trending} compact sourceId="explore-trending" />
             </div>
           )}
         </div>

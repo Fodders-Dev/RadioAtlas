@@ -5,9 +5,10 @@ import { useRadio } from '../state/RadioContext';
 type StationTableProps = {
   stations: StationLite[];
   compact?: boolean;
+  sourceId?: string;
 };
 
-export const StationTable = ({ stations, compact }: StationTableProps) => {
+export const StationTable = ({ stations, compact, sourceId }: StationTableProps) => {
   const { playStation, toggleFavorite, isFavorite, player } = useRadio();
 
   if (!stations.length) {
@@ -36,7 +37,14 @@ export const StationTable = ({ stations, compact }: StationTableProps) => {
           >
             <button
               className="play-btn"
-              onClick={() => (active ? player.toggle() : playStation(station))}
+              onClick={() =>
+                active
+                  ? player.toggle()
+                  : playStation(station, {
+                      playlist: stations,
+                      sourceId
+                    })
+              }
               type="button"
             >
               {active && player.isPlaying ? 'Pause' : 'Play'}

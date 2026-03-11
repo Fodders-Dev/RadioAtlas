@@ -173,7 +173,7 @@ const parsePls = (text: string, baseUrl: string) => {
 };
 
 export const Search = () => {
-  const { stations, playStation, player, recent } = useRadio();
+  const { stations, playStation, player, recent, winamp } = useRadio();
   const [mode, setMode] = useState<'stations' | 'links'>('stations');
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(200);
@@ -482,6 +482,20 @@ export const Search = () => {
     [recent]
   );
 
+  useEffect(() => {
+    if (showStations) {
+      if (!results.length) return;
+      winamp.setCollection('search-stations', results);
+      return;
+    }
+    if (links.length) {
+      winamp.setCollection('search-links', links.map(toExternalStation));
+      return;
+    }
+    if (!linkRecent.length) return;
+    winamp.setCollection('search-links-recent', linkRecent);
+  }, [linkRecent, links, results, showStations, winamp]);
+
   return (
     <section className="screen screen-search">
       <div className="section search-heading">
@@ -570,7 +584,7 @@ export const Search = () => {
             </div>
           </div>
           <div className="search-results-shell">
-            <StationTable stations={results} />
+            <StationTable stations={results} sourceId="search-stations" />
           </div>
           {visibleCount < filtered.length && (
             <div className="section">
@@ -652,7 +666,12 @@ export const Search = () => {
                           className="play-btn"
                           type="button"
                           onClick={() =>
-                            active ? player.toggle() : playStation(station)
+                            active
+                              ? player.toggle()
+                              : playStation(station, {
+                                  playlist: links.map(toExternalStation),
+                                  sourceId: 'search-links'
+                                })
                           }
                           aria-label="Play link"
                         >
@@ -679,7 +698,7 @@ export const Search = () => {
           {linkRecent.length > 0 && (
             <div className="section">
               <div className="section-title">Recently played links</div>
-              <StationTable stations={linkRecent} compact />
+              <StationTable stations={linkRecent} compact sourceId="search-links-recent" />
             </div>
           )}
         </>

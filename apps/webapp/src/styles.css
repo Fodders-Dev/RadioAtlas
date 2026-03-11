@@ -790,7 +790,7 @@ input {
   min-height: 0;
   align-items: stretch;
   justify-content: flex-start;
-  padding: calc(54px + env(safe-area-inset-top)) 8px
+  padding: calc(54px + env(safe-area-inset-top)) 10px
     calc(76px + env(safe-area-inset-bottom));
   pointer-events: none;
   z-index: 1;
@@ -1028,7 +1028,9 @@ input {
 .winamp-overlay-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(3, 6, 12, 0.14);
+  background:
+    radial-gradient(circle at top, rgba(34, 52, 74, 0.34), rgba(4, 8, 18, 0.92) 68%),
+    rgba(3, 6, 12, 0.88);
   z-index: 0;
   pointer-events: none;
 }
@@ -1457,6 +1459,15 @@ input {
   }
 }
 
+@media (max-width: 760px) {
+  .app[data-winamp-expanded='true'] .app-header,
+  .app[data-winamp-expanded='true'] .app-main,
+  .app[data-winamp-expanded='true'] .bottom-nav {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
 @media (max-width: 600px) {
   :root {
     --nav-height: 72px;
@@ -1559,7 +1570,13 @@ input {
 
   .winamp-compact.expanded-host .winamp-compact-main {
     padding-top: calc(52px + env(safe-area-inset-top));
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] {
+    background:
+      linear-gradient(180deg, rgba(6, 10, 19, 0.98), rgba(9, 15, 28, 0.98)),
+      radial-gradient(circle at top, rgba(56, 89, 124, 0.22), transparent 52%);
   }
 
   .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-header-actions {
@@ -1568,12 +1585,36 @@ input {
   }
 
   .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-compact-main {
-    padding-left: 6px;
-    padding-right: 6px;
+    padding-top: calc(58px + env(safe-area-inset-top));
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    overflow: hidden;
   }
 
   .winamp-compact.expanded-host[data-expanded-layout='mobile'] #webamp {
     touch-action: auto;
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-host.compact {
+    min-height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 2px;
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-backdrop {
+    background:
+      linear-gradient(180deg, rgba(5, 9, 18, 1), rgba(8, 12, 24, 0.98)),
+      radial-gradient(circle at top, rgba(52, 82, 112, 0.24), transparent 55%);
+  }
+
+  .winamp-compact.expanded-host[data-expanded-layout='mobile'] .winamp-overlay-footer {
+    left: 8px;
+    right: 8px;
+    background: rgba(7, 10, 18, 0.92);
+    border-radius: 14px;
   }
 
   .ra-visualizer-overlay {

@@ -190,9 +190,15 @@ const getWindowById = (id: string) =>
   (document.querySelector(`#${id}`)?.closest('.window') as HTMLElement | null) ?? null;
 const getExpandedWindowId = (windowNode: HTMLElement | null): ExpandedWindowId | null => {
   if (!windowNode) return null;
-  if (windowNode.querySelector('#main-window')) return 'main-window';
-  if (windowNode.querySelector('#equalizer-window')) return 'equalizer-window';
-  if (windowNode.querySelector('#playlist-window')) return 'playlist-window';
+  if (windowNode.id === 'main-window' || windowNode.querySelector('#main-window')) {
+    return 'main-window';
+  }
+  if (windowNode.id === 'equalizer-window' || windowNode.querySelector('#equalizer-window')) {
+    return 'equalizer-window';
+  }
+  if (windowNode.id === 'playlist-window' || windowNode.querySelector('#playlist-window')) {
+    return 'playlist-window';
+  }
   return null;
 };
 
@@ -209,8 +215,11 @@ const readExpandedAnchorTransform = (anchor: HTMLElement) => {
 
 const resolveWindowAnchor = (windowNode: HTMLElement) => {
   const webampRoot = getWebampRootNode();
-  let anchor = windowNode.parentElement as HTMLElement | null;
-  let current = anchor;
+  if (!webampRoot) {
+    return windowNode;
+  }
+  let anchor = windowNode;
+  let current = windowNode;
 
   while (current && current !== webampRoot) {
     const computed = window.getComputedStyle(current);
@@ -257,6 +266,9 @@ const resetIntermediateAnchors = (
   anchor: HTMLElement,
   marker: 'compact' | 'expanded'
 ) => {
+  if (anchor === windowNode) {
+    return;
+  }
   const pointerEvents = marker === 'expanded' ? 'auto' : 'none';
   let current = windowNode.parentElement as HTMLElement | null;
   while (current && current !== anchor) {
@@ -305,10 +317,12 @@ const placeExpandedWindowAnchor = (
   anchor.dataset.raExpandedAnchor = '1';
   anchor.dataset.raExpandedScale = String(scale);
 
-  windowNode.style.left = '0px';
-  windowNode.style.top = '0px';
-  windowNode.style.transform = '';
-  windowNode.style.pointerEvents = 'auto';
+  if (anchor !== windowNode) {
+    windowNode.style.left = '0px';
+    windowNode.style.top = '0px';
+    windowNode.style.transform = '';
+    windowNode.style.pointerEvents = 'auto';
+  }
 };
 
 const enforceCompactWindowVisibility = () => {
@@ -878,12 +892,12 @@ export const WinampPlayerShell = ({
       merged.push(station);
     };
 
+    addStation(current);
+    winamp.collection.forEach(addStation);
     winamp.playlist.forEach(addStation);
-    if (!merged.length) {
-      addStation(current);
-    }
+    recent.forEach(addStation);
     return merged;
-  }, [winamp.playlist, current]);
+  }, [current, recent, winamp.collection, winamp.playlist]);
 
   const playablePlaylist = useMemo(
     () => effectivePlaylist.filter((station) => Boolean(station.url_resolved)),
@@ -932,20 +946,28 @@ export const WinampPlayerShell = ({
 
     if (!mainMetric) return false;
 
-    const gap = mode === 'mobile' ? 10 : 8;
-    const placeStack = (metrics: ExpandedWindowMetric[], maxScale: number) => {
+    const gap = mode === 'mobile' ? 12 : 8;
+    const placeStack = (
+      metrics: ExpandedWindowMetric[],
+      maxScale: number,
+      verticalAlign: 'top' | 'center' = 'center',
+      minScale = 1
+    ) => {
       const contentWidth = Math.max(...metrics.map((metric) => metric.width));
       const contentHeight =
         metrics.reduce((total, metric) => total + metric.height, 0) +
         gap * Math.max(0, metrics.length - 1);
       const scale = clamp(
         Math.min(bounds.width / contentWidth, bounds.height / contentHeight),
-        mode === 'mobile' ? 1.04 : 1,
+        minScale,
         maxScale
       );
-
-      let cursorY =
-        bounds.top + Math.max(0, Math.round((bounds.height - contentHeight * scale) / 2));
+      const scaledHeight = contentHeight * scale;
+      const topOffset =
+        verticalAlign === 'top'
+          ? Math.max(4, Math.round(Math.min(26, (bounds.height - scaledHeight) * 0.12)))
+          : Math.max(0, Math.round((bounds.height - scaledHeight) / 2));
+      let cursorY = bounds.top + topOffset;
       metrics.forEach((metric) => {
         const width = metric.width * scale;
         const height = metric.height * scale;
@@ -963,12 +985,24 @@ export const WinampPlayerShell = ({
       });
     };
 
-    if (mode === 'mobile' || !playlistMetric || bounds.width < 980) {
-      const metrics = [mainMetric, ...(eqMetric ? [eqMetric] : []), ...(playlistMetric ? [playlistMetric] : [])];
+    if (mode === 'mobile') {
+      const metrics = [
+        mainMetric,
+        ...(eqMetric ? [eqMetric] : []),
+        ...(playlistMetric ? [playlistMetric] : [])
+      ];
       placeStack(
         metrics,
-        mode === 'mobile' ? MOBILE_EXPANDED_MAX_SCALE : 1.42
+        1.62,
+        'top',
+        1.14
       );
+      return true;
+    }
+
+    if (!playlistMetric || bounds.width < 980) {
+      const metrics = [mainMetric, ...(eqMetric ? [eqMetric] : []), ...(playlistMetric ? [playlistMetric] : [])];
+      placeStack(metrics, 1.5, 'center', 1);
       return true;
     }
 

@@ -34,7 +34,7 @@ const sortStations = (left: { name: string }, right: { name: string }) =>
   left.name.localeCompare(right.name);
 
 export const Browse = () => {
-  const { stations, playStation } = useRadio();
+  const { stations, playStation, winamp } = useRadio();
   const [step, setStep] = useState<BrowseState>('continents');
   const [selectedContinent, setSelectedContinent] = useState<ContinentId | null>(null);
   const [selectedCountryKey, setSelectedCountryKey] = useState<string | null>(null);
@@ -110,6 +110,11 @@ export const Browse = () => {
       setStep(selectedContinent ? 'countries' : 'continents');
     }
   }, [selectedCountry, selectedContinent, step]);
+
+  useEffect(() => {
+    if (step !== 'stations' || !selectedCountry?.stations.length) return;
+    winamp.setCollection(`browse-${selectedCountry.key}`, selectedCountry.stations);
+  }, [selectedCountry, step, winamp]);
 
   const openContinent = (continent: ContinentId) => {
     setSelectedContinent(continent);
@@ -235,7 +240,12 @@ export const Browse = () => {
                     selectedCountry.stations[
                       Math.floor(Math.random() * selectedCountry.stations.length)
                     ];
-                  if (random) playStation(random);
+                  if (random) {
+                    playStation(random, {
+                      playlist: selectedCountry.stations,
+                      sourceId: `browse-${selectedCountry.key}`
+                    });
+                  }
                 }}
               >
                 Play random in {selectedCountry.country}
@@ -243,7 +253,10 @@ export const Browse = () => {
             </div>
           </div>
           {selectedCountry.stations.length ? (
-            <StationTable stations={selectedCountry.stations} />
+            <StationTable
+              stations={selectedCountry.stations}
+              sourceId={`browse-${selectedCountry.key}`}
+            />
           ) : (
             <div className="empty-state">No stations in this country yet.</div>
           )}

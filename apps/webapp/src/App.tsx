@@ -216,7 +216,11 @@ const App = () => {
   const TransitionToScreen = swipeTransition ? TAB_COMPONENTS[swipeTransition.to] : null;
 
   return (
-    <div className="app" style={appStyle}>
+    <div
+      className="app"
+      style={appStyle}
+      data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
+    >
       <header className="app-header">
         <div>
           <div className="app-title">RadioAtlas</div>
