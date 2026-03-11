@@ -213,7 +213,27 @@ const readExpandedAnchorTransform = (anchor: HTMLElement) => {
   };
 };
 
-const resolveWindowAnchor = (windowNode: HTMLElement) => {
+const resolveCompactWindowAnchor = (windowNode: HTMLElement) => {
+  const webampRoot = getWebampRootNode();
+  let anchor = windowNode.parentElement as HTMLElement | null;
+  let current = anchor;
+
+  while (current && current !== webampRoot) {
+    const computed = window.getComputedStyle(current);
+    if (
+      computed.position === 'absolute' ||
+      computed.position === 'fixed' ||
+      current.style.transform
+    ) {
+      anchor = current;
+    }
+    current = current.parentElement as HTMLElement | null;
+  }
+
+  return anchor;
+};
+
+const resolveExpandedWindowAnchor = (windowNode: HTMLElement) => {
   const webampRoot = getWebampRootNode();
   if (!webampRoot) {
     return windowNode;
@@ -300,7 +320,7 @@ const placeExpandedWindowAnchor = (
   width: number,
   height: number
 ) => {
-  const anchor = resolveWindowAnchor(windowNode);
+  const anchor = resolveExpandedWindowAnchor(windowNode);
   if (!anchor) return;
   resetIntermediateAnchors(windowNode, anchor, 'expanded');
 
@@ -360,7 +380,7 @@ const resetCompactWindowVisibility = () => {
 
 const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactViewMode) => {
   const windowNode = getMainWindowNode();
-  const anchor = windowNode ? resolveWindowAnchor(windowNode) : null;
+  const anchor = windowNode ? resolveCompactWindowAnchor(windowNode) : null;
   if (!windowNode || !anchor) return false;
 
   setMainWindowShadeMode(viewMode === 'strip');
@@ -520,7 +540,7 @@ const measureExpandedWindowMetric = (windowNode: HTMLElement): ExpandedWindowMet
   const id = getExpandedWindowId(windowNode);
   if (!id) return null;
   const rect = windowNode.getBoundingClientRect();
-  const anchor = resolveWindowAnchor(windowNode);
+  const anchor = resolveExpandedWindowAnchor(windowNode);
   const scale = Math.max(0.1, Number(anchor?.dataset.raExpandedScale || '1') || 1);
   const fallbackHeight =
     id === 'playlist-window' ? PLAYLIST_WINDOW_HEIGHT : FULL_WINDOW_HEIGHT;
@@ -1055,7 +1075,7 @@ export const WinampPlayerShell = ({
 
   const offsetExpandedWindow = (id: ExpandedWindowId, deltaX: number, deltaY: number) => {
     const windowNode = getWindowById(id);
-    const anchor = windowNode ? resolveWindowAnchor(windowNode) : null;
+    const anchor = windowNode ? resolveExpandedWindowAnchor(windowNode) : null;
     if (!windowNode || !anchor) return false;
     const { x, y, scale } = readExpandedAnchorTransform(anchor);
     anchor.style.transform = `translate(${Math.round(x + deltaX)}px, ${Math.round(y + deltaY)}px) scale(${scale})`;

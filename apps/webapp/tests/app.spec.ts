@@ -270,6 +270,8 @@ const getWebampWindowRect = async (page: Page, id: string) =>
       : null;
   }, id);
 
+const getCompactMainWindowRect = async (page: Page) => getWebampWindowRect(page, 'main-window');
+
 const dragWebampWindow = async (page: Page, id: string, offsetX: number, offsetY: number) => {
   await page.evaluate(
     ({ windowId, nextOffsetX, nextOffsetY }) => {
@@ -377,6 +379,12 @@ test('explore loads and compact winamp shell is visible', async ({ page }) => {
   ).toBeVisible();
   await expect(page.locator('.winamp-compact')).toBeVisible();
   await expect(page.locator('.winamp-host.compact')).toBeVisible();
+  await waitForWebampReady(page);
+  await page.waitForTimeout(4500);
+  const mainWindowRect = await getCompactMainWindowRect(page);
+  expect(mainWindowRect).not.toBeNull();
+  expect(mainWindowRect!.width).toBeGreaterThanOrEqual(180);
+  expect(mainWindowRect!.height).toBeGreaterThanOrEqual(40);
 });
 
 test('playback from table updates winamp shell and info panel', async ({ page }) => {
@@ -650,11 +658,23 @@ test('mobile compact player stays usable above bottom nav', async ({ page }) => 
 
   const compactBox = await compactMain.boundingBox();
   const navBox = await nav.boundingBox();
+  const mainWindowRect = await getCompactMainWindowRect(page);
 
   expect(compactBox).not.toBeNull();
   expect(navBox).not.toBeNull();
+  expect(mainWindowRect).not.toBeNull();
   expect(compactBox!.height).toBeGreaterThanOrEqual(40);
   expect(compactBox!.y + compactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
+  expect(mainWindowRect!.width).toBeGreaterThanOrEqual(180);
+
+  await page.waitForTimeout(4500);
+
+  const stableCompactBox = await compactMain.boundingBox();
+  const stableMainWindowRect = await getCompactMainWindowRect(page);
+  expect(stableCompactBox).not.toBeNull();
+  expect(stableMainWindowRect).not.toBeNull();
+  expect(stableCompactBox!.y + stableCompactBox!.height).toBeLessThanOrEqual(navBox!.y - 4);
+  expect(stableMainWindowRect!.width).toBeGreaterThanOrEqual(180);
 });
 
 test('mobile fullscreen scales the main window close to screen width', async ({ page }) => {
