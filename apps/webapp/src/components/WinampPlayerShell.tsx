@@ -927,11 +927,30 @@ export const WinampPlayerShell = ({
   };
 
   const effectivePlaylist = useMemo(() => {
+    const ordered: StationLite[] = [];
+    const seen = new Set<string>();
+    const pushUniqueStation = (station: StationLite | null | undefined) => {
+      if (!station) return;
+      if (seen.has(station.stationuuid)) return;
+      seen.add(station.stationuuid);
+      ordered.push(station);
+    };
+
+    // Keep currently selected station first so Webamp title/playlist reflect real playback target.
+    pushUniqueStation(current);
+
     if (queue.items.length) {
-      return queue.items;
+      const indexed =
+        queue.currentIndex >= 0 && queue.currentIndex < queue.items.length
+          ? queue.items[queue.currentIndex]
+          : null;
+      pushUniqueStation(indexed);
+      queue.items.forEach(pushUniqueStation);
+      return ordered;
     }
-    return current ? [current] : [];
-  }, [current, queue.items]);
+
+    return ordered;
+  }, [current, queue.items, queue.currentIndex]);
 
   const playablePlaylist = useMemo(
     () => effectivePlaylist.filter((station) => Boolean(station.url_resolved)),
@@ -1577,6 +1596,22 @@ export const WinampPlayerShell = ({
       console.error('Winamp playlist sync failed', error);
     }
   }, [webampReady, playablePlaylist, playlistSignature]);
+
+  useEffect(() => {
+    if (!webampReady) return;
+    // Webamp is used as UI shell; keep its internal decoder silent to avoid stale stream bleed-through.
+    const instance = webampRef.current;
+    try {
+      instance?.pause?.();
+    } catch {
+      // ignore
+    }
+    try {
+      instance?.stop?.();
+    } catch {
+      // ignore
+    }
+  }, [webampReady, player.current?.stationuuid, player.isPlaying]);
 
   useEffect(() => {
     const instance = webampRef.current;

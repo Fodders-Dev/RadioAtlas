@@ -1174,7 +1174,8 @@ input {
   border-radius: 999px;
   font-weight: 600;
   font-size: 12px;
-  z-index: 20;
+  z-index: 1805;
+  pointer-events: none;
 }
 
 .details-overlay {

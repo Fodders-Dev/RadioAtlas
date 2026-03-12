@@ -544,6 +544,23 @@ test('switching between stations keeps selected station as current', async ({ pa
     .filter({ hasText: 'Berlin Pulse' })
     .first();
   await berlinRow.getByRole('button', { name: 'Play' }).click();
+  await expect
+    .poll(async () => {
+      return page.evaluate(
+        () => (document.querySelector('.audio-hidden') as HTMLAudioElement | null)?.src || ''
+      );
+    })
+    .toContain('berlin');
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          (document.querySelector('[title="Song Title"]')?.textContent || '')
+            .replace(/\s+/g, '')
+            .toLowerCase()
+      )
+    )
+    .toContain('berlinpulse');
   await openFullscreenPlayer(page);
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Berlin Pulse');
