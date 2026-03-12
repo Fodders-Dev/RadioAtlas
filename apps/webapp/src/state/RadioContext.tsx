@@ -96,6 +96,7 @@ type PlayStationInternalOptions = PlayStationOptions & {
   addToRecent?: boolean;
   queueSnapshot?: QueueSnapshot;
   historyCursorTarget?: number;
+  suppressErrorToast?: boolean;
 };
 
 type RadioContextValue = {
@@ -563,7 +564,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const result = await player.playStation(lite);
     if (!result.ok) {
-      notify(result.error || 'Playback failed');
+      if (!options?.suppressErrorToast) {
+        notify(result.error || 'Playback failed');
+      }
       return false;
     }
 
@@ -730,37 +733,68 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const playNext = () => {
-    const currentQueue = queueRef.current;
-    if (
-      currentQueue.items.length > 0 &&
-      currentQueue.currentIndex >= 0 &&
-      currentQueue.currentIndex < currentQueue.items.length - 1
-    ) {
-      const nextIndex = currentQueue.currentIndex + 1;
-      const nextStation = currentQueue.items[nextIndex];
-      if (nextStation) {
-        void playStationInternal(nextStation, {
+    const playFromQueue = async () => {
+      const currentQueue = queueRef.current;
+      if (
+        currentQueue.items.length <= 0 ||
+        currentQueue.currentIndex < 0 ||
+        currentQueue.currentIndex >= currentQueue.items.length - 1
+      ) {
+        return false;
+      }
+
+      for (
+        let nextIndex = currentQueue.currentIndex + 1;
+        nextIndex < currentQueue.items.length;
+        nextIndex += 1
+      ) {
+        const nextStation = currentQueue.items[nextIndex];
+        if (!nextStation) continue;
+        const ok = await playStationInternal(nextStation, {
           queueSnapshot: {
             ...currentQueue,
             currentIndex: nextIndex
-          }
+          },
+          suppressErrorToast: true
         });
-        return;
+        if (ok) return true;
       }
-    }
 
-    const globalPool = stations.map((station) => toLite(station));
-    const randomStation = pickRandomStation(
-      globalPool.length ? globalPool : currentQueue.items
-    );
-    if (!randomStation) return;
+      return false;
+    };
 
-    void playStationInternal(randomStation, {
-      queueSnapshot: resolveQueueSnapshot(randomStation, {
-        sourceId: 'all-stations',
-        sourceLabel: 'All stations'
-      })
-    });
+    const playFromGlobalPool = async () => {
+      const currentQueue = queueRef.current;
+      const globalPool = stations.map((station) => toLite(station));
+      const pool = globalPool.length ? globalPool : currentQueue.items;
+      if (!pool.length) return false;
+
+      const tried = new Set<string>();
+      const maxAttempts = Math.min(12, pool.length);
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const available = pool.filter((station) => !tried.has(station.stationuuid));
+        const candidatePool = available.length ? available : pool;
+        const randomStation = pickRandomStation(candidatePool);
+        if (!randomStation) break;
+        tried.add(randomStation.stationuuid);
+        const ok = await playStationInternal(randomStation, {
+          queueSnapshot: resolveQueueSnapshot(randomStation, {
+            sourceId: 'all-stations',
+            sourceLabel: 'All stations'
+          }),
+          suppressErrorToast: true
+        });
+        if (ok) return true;
+      }
+
+      return false;
+    };
+
+    void (async () => {
+      if (await playFromQueue()) return;
+      if (await playFromGlobalPool()) return;
+      notify('No playable station in catalog');
+    })();
   };
 
   const playLast = () => {

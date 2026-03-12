@@ -873,7 +873,7 @@ export const WinampPlayerShell = ({
         }
 
         if (control === 'pause') {
-          if (player.current && player.isPlaying) {
+          if (player.current) {
             void player.toggle();
           }
           syncCompactAfterControl();

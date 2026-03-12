@@ -142,6 +142,40 @@ const pushUnique = (items: string[], value: string) => {
   items.push(value);
 };
 
+const buildUrlVariants = (url: string) => {
+  const directPreferred: string[] = [];
+  const proxyInputs: string[] = [url];
+
+  if (url.startsWith('http://')) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (
+        host === 'fallout.fm' &&
+        parsed.port === '8000' &&
+        /^\/falloutfm\d+\.ogg$/i.test(parsed.pathname)
+      ) {
+        const upgraded = new URL(url);
+        upgraded.protocol = 'https:';
+        upgraded.port = '8444';
+        pushUnique(directPreferred, upgraded.toString());
+      }
+      if (host === 'gyusyabu.ddo.jp' && parsed.pathname === '/') {
+        const streamMount = new URL(url);
+        streamMount.pathname = '/;stream.mp3';
+        pushUnique(proxyInputs, streamMount.toString());
+      }
+    } catch {
+      // ignore invalid URL
+    }
+    pushUnique(directPreferred, url.replace(/^http:\/\//, 'https://'));
+  } else {
+    pushUnique(directPreferred, url);
+  }
+
+  return { directPreferred, proxyInputs };
+};
+
 const toPlaybackError = (
   fallback: string,
   options: {
@@ -172,22 +206,24 @@ const buildCandidates = ({
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && apiAvailable && proxyRelevant;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
+  const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
   if (url.startsWith('http://')) {
-    const httpsUrl = url.replace(/^http:\/\//, 'https://');
-    if (httpsUrl !== url) {
-      pushUnique(candidates, httpsUrl);
-    }
+    directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
     if (isHttpLocal) {
       pushUnique(candidates, url);
     }
     if (canUseProxy) {
-      pushUnique(candidates, buildProxyUrl(url, normalizedBase));
+      proxyInputs.forEach((candidate) => {
+        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
+      });
     }
   } else {
     pushUnique(candidates, url);
     if (canUseProxy) {
-      pushUnique(candidates, buildProxyUrl(url, normalizedBase));
+      proxyInputs.forEach((candidate) => {
+        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
+      });
     }
   }
 

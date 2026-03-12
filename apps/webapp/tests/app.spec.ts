@@ -72,6 +72,22 @@ const brokenHttpStation = {
   url_resolved: 'http://broken-stream.example.com/live.mp3'
 };
 
+const brokenQueueStation = {
+  ...stations[0],
+  stationuuid: 'uuid-broken-queue',
+  name: 'Broken Queue FM',
+  url: 'https://stream.example.com/broken-queue',
+  url_resolved: 'https://stream.example.com/broken-queue'
+};
+
+const legacyFalloutStation = {
+  ...stations[0],
+  stationuuid: 'uuid-fallout-legacy',
+  name: 'Fallout 2 OST - Fallout.fm',
+  url: 'http://fallout.fm:8000/falloutfm4.ogg',
+  url_resolved: 'http://fallout.fm:8000/falloutfm4.ogg'
+};
+
 const remoteSkinBinary = readFileSync(
   fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url))
 );
@@ -534,6 +550,23 @@ test('clicking the active station pauses the real audio engine', async ({ page }
   await expect
     .poll(async () => page.locator('.audio-hidden').getAttribute('data-ra-state'))
     .toBe('paused');
+});
+
+test('webamp pause control always pauses and resumes the real audio engine', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await openFullscreenPlayer(page);
+
+  await triggerWebampControl(page, 'Pause');
+  await expect
+    .poll(async () => page.locator('.audio-hidden').getAttribute('data-ra-state'))
+    .toBe('paused');
+
+  await triggerWebampControl(page, 'Play');
+  await expect
+    .poll(async () => page.locator('.audio-hidden').getAttribute('data-ra-state'))
+    .toBe('playing');
 });
 
 test('switching between stations keeps selected station as current', async ({ page }) => {
@@ -1048,6 +1081,91 @@ test('next track follows queue order before global fallback', async ({ page }) =
     .toBe('Rio Beats');
 });
 
+test('webamp next skips an unplayable queue station and continues to a playable one', async ({ page }) => {
+  await overrideCatalog(page, [stations[0], brokenQueueStation, stations[1]]);
+  await page.route('https://stream.example.com/broken-queue', (route) => route.abort('failed'));
+  await page.addInitScript(() => {
+    const basePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      const src = this.src || '';
+      if (src.includes('broken-queue')) {
+        this.setAttribute('data-ra-state', 'error');
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new Error('broken queue candidate'));
+      }
+      return basePlay.call(this);
+    };
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'radio:playback-queue:v2',
+      JSON.stringify({
+        items: [
+          {
+            stationuuid: 'uuid-tokyo',
+            name: 'Tokyo FM',
+            url_resolved: 'https://stream.example.com/tokyo',
+            favicon: '',
+            country: 'Japan',
+            state: 'Tokyo',
+            tags: 'pop,jpop',
+            geo_lat: 35.6895,
+            geo_long: 139.6917
+          },
+          {
+            stationuuid: 'uuid-broken-queue',
+            name: 'Broken Queue FM',
+            url_resolved: 'https://stream.example.com/broken-queue',
+            favicon: '',
+            country: 'Nowhere',
+            state: '',
+            tags: 'broken',
+            geo_lat: null,
+            geo_long: null
+          },
+          {
+            stationuuid: 'uuid-berlin',
+            name: 'Berlin Pulse',
+            url_resolved: 'https://stream.example.com/berlin',
+            favicon: '',
+            country: 'Germany',
+            state: 'Berlin',
+            tags: 'techno,house',
+            geo_lat: 52.52,
+            geo_long: 13.405
+          }
+        ],
+        currentIndex: 0,
+        sourceId: 'ordered-queue',
+        sourceLabel: 'Ordered queue'
+      })
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await openFullscreenPlayer(page);
+
+  await triggerWebampControl(page, 'Next Track');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Berlin Pulse');
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('berlin');
+});
+
 test('https direct station falls back to proxy when direct playback fails', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('radio:api-url', 'https://proxy.radio.test');
@@ -1139,6 +1257,82 @@ test('shows mixed content error when only http stream is left and API is offline
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
   await expect(page.locator('.toast')).toContainText(/stream blocked\/mixed content|no playable candidate/);
+});
+
+test('legacy fallout stream URL upgrades to active https endpoint', async ({ page }) => {
+  await overrideCatalog(page, [legacyFalloutStation]);
+  await page.route('**/api/health', (route) => route.fulfill({ status: 503, body: 'offline' }));
+  await page.route('https://fallout.fm:8444/falloutfm4.ogg', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/ogg',
+      body: mockStreamAudio
+    })
+  );
+  await page.route('http://fallout.fm:8000/falloutfm4.ogg', (route) => route.abort('failed'));
+  await page.route('https://fallout.fm:8000/falloutfm4.ogg', (route) => route.abort('failed'));
+  await page.route('**/stream?url=**', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('https://fallout.fm:8444/falloutfm4.ogg');
+});
+
+test('retro gyusyabu stream can use proxy mountpoint fallback', async ({ page }) => {
+  await overrideCatalog(page, [
+    {
+      ...stations[0],
+      stationuuid: 'uuid-retro-gyu',
+      name: 'Retro PC GAME MUSIC Streaming Radio',
+      url: 'http://gyusyabu.ddo.jp:8000/listen.pls',
+      url_resolved: 'http://gyusyabu.ddo.jp:8000/'
+    }
+  ]);
+  await page.addInitScript(() => {
+    localStorage.setItem('radio:api-url', 'https://proxy.radio.test');
+  });
+  await page.route('https://proxy.radio.test/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    })
+  );
+  await page.route('https://gyusyabu.ddo.jp:8000/', (route) => route.abort('failed'));
+  await page.route('https://proxy.radio.test/stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F', (route) =>
+    route.abort('failed')
+  );
+  await page.route(
+    'https://proxy.radio.test/stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F%3Bstream.mp3',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'audio/wav',
+        body: mockStreamAudio
+      })
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F%3Bstream.mp3');
 });
 
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
