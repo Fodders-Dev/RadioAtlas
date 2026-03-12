@@ -187,6 +187,7 @@ export const useAudioPlayer = ({
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.8);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [eqEnabled, setEqEnabled] = useState(true);
@@ -316,6 +317,7 @@ export const useAudioPlayer = ({
 
     cleanupHls();
     activeUrlRef.current = url;
+    setActiveUrl(url);
     pushEvent(`source: ${url}`);
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -680,6 +682,7 @@ export const useAudioPlayer = ({
     cleanupHls();
     clearWaitingTimeout();
     activeUrlRef.current = null;
+    setActiveUrl(null);
     lastErrorRef.current = null;
     setErrorMessage(null);
 
@@ -781,6 +784,7 @@ export const useAudioPlayer = ({
     current,
     status,
     isPlaying,
+    activeUrl,
     volume,
     eq: {
       enabled: eqEnabled,

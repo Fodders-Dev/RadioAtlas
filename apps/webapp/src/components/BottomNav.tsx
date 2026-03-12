@@ -1,4 +1,4 @@
-export type NavTab = 'Explore' | 'Favorites' | 'Browse' | 'Search' | 'Settings';
+export type NavTab = 'Explore' | 'Favorites' | 'Browse' | 'Search' | 'Playlist' | 'Settings';
 
 type NavItem = {
   id: NavTab;
@@ -10,6 +10,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'Favorites', label: 'Favorites' },
   { id: 'Browse', label: 'Browse' },
   { id: 'Search', label: 'Search' },
+  { id: 'Playlist', label: 'Playlist' },
   { id: 'Settings', label: 'Settings' }
 ];
 

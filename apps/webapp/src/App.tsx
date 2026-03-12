@@ -7,6 +7,7 @@ import { Explore } from './screens/Explore';
 import { Favorites } from './screens/Favorites';
 import { Browse } from './screens/Browse';
 import { Search } from './screens/Search';
+import { Playlist } from './screens/Playlist';
 import { Settings } from './screens/Settings';
 import { useRadio } from './state/RadioContext';
 import { buildLabel } from './lib/buildInfo';
@@ -16,6 +17,7 @@ const TAB_COMPONENTS: Record<NavTab, () => JSX.Element> = {
   Favorites: () => <Favorites />,
   Browse: () => <Browse />,
   Search: () => <Search />,
+  Playlist: () => <Playlist />,
   Settings: () => <Settings />
 };
 
@@ -43,8 +45,6 @@ const SWIPE_IGNORE_SELECTOR = [
 ].join(', ');
 
 type SwipeTransitionState = {
-  from: NavTab;
-  to: NavTab;
   direction: -1 | 1;
 };
 
@@ -149,8 +149,6 @@ const App = () => {
 
     if (animateSwipe) {
       setSwipeTransition({
-        from: activeTab,
-        to: nextTab,
         direction
       });
       swipeTransitionTimeoutRef.current = window.setTimeout(() => {
@@ -212,8 +210,6 @@ const App = () => {
   const transitionDirectionClass =
     swipeTransition?.direction === -1 ? 'swipe-dir-prev' : 'swipe-dir-next';
   const ActiveScreen = TAB_COMPONENTS[activeTab];
-  const TransitionFromScreen = swipeTransition ? TAB_COMPONENTS[swipeTransition.from] : null;
-  const TransitionToScreen = swipeTransition ? TAB_COMPONENTS[swipeTransition.to] : null;
 
   return (
     <div
@@ -245,20 +241,9 @@ const App = () => {
         <div
           className={`tab-stage ${swipeTransition ? `transitioning ${transitionDirectionClass}` : ''}`}
         >
-          {swipeTransition && TransitionFromScreen && TransitionToScreen ? (
-            <>
-              <div className="tab-pane tab-pane-from">
-                <TransitionFromScreen />
-              </div>
-              <div className="tab-pane tab-pane-to">
-                <TransitionToScreen />
-              </div>
-            </>
-          ) : (
-            <div className="tab-pane tab-pane-active">
-              <ActiveScreen />
-            </div>
-          )}
+          <div className="tab-pane tab-pane-active">
+            <ActiveScreen />
+          </div>
         </div>
       </main>
 

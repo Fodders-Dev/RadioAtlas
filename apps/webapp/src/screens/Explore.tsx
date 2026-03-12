@@ -7,7 +7,7 @@ import { toLite } from '../lib/stationUtils';
 import { resolveStationCoords } from '../lib/geoResolver';
 
 export const Explore = () => {
-  const { stations, playStation, player, winamp } = useRadio();
+  const { stations, playStation, player } = useRadio();
   const [query, setQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pickList, setPickList] = useState<ReturnType<typeof toLite>[]>([]);
@@ -120,11 +120,6 @@ export const Explore = () => {
 
   const trending = useMemo(() => stations.slice(0, 20).map(toLite), [stations]);
   const visibleCollection = query ? searchResults : trending;
-
-  useEffect(() => {
-    if (!visibleCollection.length) return;
-    winamp.setCollection(query ? 'explore-search' : 'explore-trending', visibleCollection);
-  }, [query, visibleCollection, winamp]);
 
   return (
     <section className="screen screen-explore">

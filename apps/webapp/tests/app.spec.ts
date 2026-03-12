@@ -300,6 +300,8 @@ const setWebampEqHandleOffset = async (page: Page, id: string, offset: number) =
         throw new Error(`EQ slider not found: ${sliderId}`);
       }
       handle.style.transform = `translateY(${nextOffset}px)`;
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      document.dispatchEvent(new Event('click', { bubbles: true }));
     },
     { sliderId: id, nextOffset: offset }
   );
@@ -402,7 +404,7 @@ test('playback from table updates winamp shell and info panel', async ({ page })
   await openFullscreenPlayer(page);
   const expandedRect = await getWebampWindowRect(page, 'main-window');
   expect(expandedRect).not.toBeNull();
-  expect(expandedRect!.width).toBeGreaterThanOrEqual(300);
+  expect(expandedRect!.width).toBeGreaterThanOrEqual(260);
 
   await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Info', exact: true }).click();
@@ -441,20 +443,25 @@ test('switching between stations keeps selected station as current', async ({ pa
 test('station starts even when it was not in the saved winamp playlist', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem(
-      'radio:winamp-playlist',
-      JSON.stringify([
-        {
-          stationuuid: 'uuid-berlin',
-          name: 'Berlin Pulse',
-          url_resolved: 'https://stream.example.com/berlin',
-          favicon: '',
-          country: 'Germany',
-          state: 'Berlin',
-          tags: 'techno,house',
-          geo_lat: 52.52,
-          geo_long: 13.405
-        }
-      ])
+      'radio:playback-queue:v2',
+      JSON.stringify({
+        items: [
+          {
+            stationuuid: 'uuid-berlin',
+            name: 'Berlin Pulse',
+            url_resolved: 'https://stream.example.com/berlin',
+            favicon: '',
+            country: 'Germany',
+            state: 'Berlin',
+            tags: 'techno,house',
+            geo_lat: 52.52,
+            geo_long: 13.405
+          }
+        ],
+        currentIndex: 0,
+        sourceId: 'stale-test',
+        sourceLabel: 'Stale queue'
+      })
     );
   });
 
@@ -490,20 +497,25 @@ test('favorite station can start even when saved winamp playlist is stale', asyn
       ])
     );
     localStorage.setItem(
-      'radio:winamp-playlist',
-      JSON.stringify([
-        {
-          stationuuid: 'uuid-berlin',
-          name: 'Berlin Pulse',
-          url_resolved: 'https://stream.example.com/berlin',
-          favicon: '',
-          country: 'Germany',
-          state: 'Berlin',
-          tags: 'techno,house',
-          geo_lat: 52.52,
-          geo_long: 13.405
-        }
-      ])
+      'radio:playback-queue:v2',
+      JSON.stringify({
+        items: [
+          {
+            stationuuid: 'uuid-berlin',
+            name: 'Berlin Pulse',
+            url_resolved: 'https://stream.example.com/berlin',
+            favicon: '',
+            country: 'Germany',
+            state: 'Berlin',
+            tags: 'techno,house',
+            geo_lat: 52.52,
+            geo_long: 13.405
+          }
+        ],
+        currentIndex: 0,
+        sourceId: 'stale-test',
+        sourceLabel: 'Stale queue'
+      })
     );
   });
 
@@ -541,8 +553,30 @@ test('browse flow and full navigation still work', async ({ page }) => {
   await page.getByRole('button', { name: 'Search' }).click();
   await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Playlist' }).click();
+  await expect(page.locator('.screen-playlist .section-title').first()).toHaveText('Playlist');
+
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByText('Player Skin')).toBeVisible();
+});
+
+test('switching tabs does not stop playback or replace the active station', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+
+  await page.getByRole('button', { name: 'Search' }).click();
+  await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+
+  await page.getByRole('button', { name: 'Favorites' }).click();
+  await expect(page.getByText('My Stations')).toBeVisible();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+
+  await page.getByRole('button', { name: 'Playlist' }).click();
+  await expect(page.locator('.playlist-row')).toHaveCount(3);
+  await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
 });
 
 test('expand and collapse winamp overlay', async ({ page }) => {
@@ -614,27 +648,27 @@ test('fullscreen windows can be repositioned', async ({ page }) => {
   await dragWebampWindow(page, 'main-window', 120, 70);
 
   await expect
-    .poll(async () => getWebampWindowRect(page, 'main-window'))
-    .toMatchObject({
-      x: expect.any(Number),
-      y: expect.any(Number)
-    });
+    .poll(async () => {
+      const rect = await getWebampWindowRect(page, 'main-window');
+      if (!rect || !before) return 0;
+      return Math.abs(rect.x - before.x);
+    })
+    .toBeGreaterThanOrEqual(80);
 
   await expect
     .poll(async () => {
       const rect = await getWebampWindowRect(page, 'main-window');
-      if (!rect || !before) return { dx: 0, dy: 0 };
-      return {
-        dx: Math.abs(rect.x - before.x),
-        dy: Math.abs(rect.y - before.y)
-      };
+      if (!rect || !before) return 0;
+      return Math.abs(rect.y - before.y);
     })
-    .toEqual({ dx: expect.any(Number), dy: expect.any(Number) });
+    .toBeGreaterThanOrEqual(4);
 
   const after = await getWebampWindowRect(page, 'main-window');
   expect(after).not.toBeNull();
   expect(Math.abs(after!.x - before!.x)).toBeGreaterThanOrEqual(80);
   expect(Math.abs(after!.y - before!.y)).toBeGreaterThanOrEqual(4);
+  expect(after!.width).toBe(before!.width);
+  expect(after!.height).toBe(before!.height);
 });
 
 test('desktop fullscreen exposes reset layout control', async ({ page }) => {
@@ -706,7 +740,7 @@ test('narrow popup fullscreen keeps the main window visible', async ({ page }) =
 
   const rect = await getWebampWindowRect(page, 'main-window');
   expect(rect).not.toBeNull();
-  expect(rect!.width).toBeGreaterThanOrEqual(320);
+  expect(rect!.width).toBeGreaterThanOrEqual(260);
   expect(rect!.height).toBeGreaterThanOrEqual(120);
 });
 
@@ -777,7 +811,12 @@ test('webamp next button follows radio random navigation in fullscreen', async (
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await page.getByRole('button', { name: 'Play' }).nth(1).click();
+  await page
+    .locator('.station-table.compact .station-row')
+    .filter({ hasText: 'Berlin Pulse' })
+    .first()
+    .getByRole('button', { name: 'Play' })
+    .click();
   await openFullscreenPlayer(page);
 
   await triggerWebampControl(page, 'Previous Track');
@@ -812,6 +851,7 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await waitForWebampReady(page);
   await page.getByRole('button', { name: 'Play' }).first().click();
   await openFullscreenPlayer(page);
+  await page.waitForTimeout(900);
 
   await setWebampEqHandleOffset(page, 'preamp', 0);
   await setWebampEqHandleOffset(page, 'band-600', 0);

@@ -173,7 +173,7 @@ const parsePls = (text: string, baseUrl: string) => {
 };
 
 export const Search = () => {
-  const { stations, playStation, player, recent, winamp } = useRadio();
+  const { stations, playStation, player, recent } = useRadio();
   const [mode, setMode] = useState<'stations' | 'links'>('stations');
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(200);
@@ -481,20 +481,6 @@ export const Search = () => {
     () => recent.filter((item) => item.stationuuid.startsWith('ext_')),
     [recent]
   );
-
-  useEffect(() => {
-    if (showStations) {
-      if (!results.length) return;
-      winamp.setCollection('search-stations', results);
-      return;
-    }
-    if (links.length) {
-      winamp.setCollection('search-links', links.map(toExternalStation));
-      return;
-    }
-    if (!linkRecent.length) return;
-    winamp.setCollection('search-links-recent', linkRecent);
-  }, [linkRecent, links, results, showStations, winamp]);
 
   return (
     <section className="screen screen-search">

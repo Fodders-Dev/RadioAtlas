@@ -34,7 +34,7 @@ const sortStations = (left: { name: string }, right: { name: string }) =>
   left.name.localeCompare(right.name);
 
 export const Browse = () => {
-  const { stations, playStation, winamp } = useRadio();
+  const { stations, playStation } = useRadio();
   const [step, setStep] = useState<BrowseState>('continents');
   const [selectedContinent, setSelectedContinent] = useState<ContinentId | null>(null);
   const [selectedCountryKey, setSelectedCountryKey] = useState<string | null>(null);
@@ -110,11 +110,6 @@ export const Browse = () => {
       setStep(selectedContinent ? 'countries' : 'continents');
     }
   }, [selectedCountry, selectedContinent, step]);
-
-  useEffect(() => {
-    if (step !== 'stations' || !selectedCountry?.stations.length) return;
-    winamp.setCollection(`browse-${selectedCountry.key}`, selectedCountry.stations);
-  }, [selectedCountry, step, winamp]);
 
   const openContinent = (continent: ContinentId) => {
     setSelectedContinent(continent);

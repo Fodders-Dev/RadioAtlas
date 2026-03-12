@@ -39,15 +39,65 @@ type StoredSkin = {
   name?: string;
 };
 
+type CompactMode = 'strip' | 'panel';
+type ExpandedWindowId = 'main-window' | 'equalizer-window' | 'playlist-window';
+
+type QueueSnapshot = {
+  items: StationLite[];
+  currentIndex: number;
+  sourceId: string | null;
+  sourceLabel: string | null;
+};
+
+type PlaybackState = {
+  currentStation: StationLite | null;
+  status: ReturnType<typeof useAudioPlayer>['status'];
+  isPlaying: boolean;
+  activeStreamUrl: string | null;
+  error: string | null;
+  nowPlaying: string | null;
+};
+
+type LayoutWindowVisibility = {
+  'equalizer-window': boolean;
+  'playlist-window': boolean;
+};
+
+type WindowPositions = Partial<Record<ExpandedWindowId, { x: number; y: number }>>;
+
+type StoredWinampLayout = {
+  version: 2;
+  compactMode: CompactMode;
+  windowPositions: WindowPositions;
+  windowVisibility: LayoutWindowVisibility;
+};
+
+type QueueState = QueueSnapshot & {
+  setQueueFromList: (
+    stations: Array<Station | StationLite>,
+    options?: {
+      sourceId?: string | null;
+      sourceLabel?: string | null;
+      startStationId?: string | null;
+    }
+  ) => void;
+  playAtIndex: (index: number) => void;
+  removeAtIndex: (index: number) => void;
+  clearQueue: () => void;
+};
+
 type WinampState = {
   expanded: boolean;
   setExpanded: (value: boolean) => void;
+  compactMode: CompactMode;
+  setCompactMode: (mode: CompactMode) => void;
+  windowPositions: WindowPositions;
+  setWindowPosition: (id: ExpandedWindowId, position: { x: number; y: number }) => void;
+  windowVisibility: LayoutWindowVisibility;
+  setWindowVisibility: (id: keyof LayoutWindowVisibility, visible: boolean) => void;
+  resetLayout: () => void;
   availableSkins: WinampSkinPreset[];
   activeSkin: ActiveWinampSkin;
-  playlist: StationLite[];
-  collection: StationLite[];
-  collectionSource: string | null;
-  setCollection: (sourceId: string, stations: Array<Station | StationLite>) => void;
   setSkin: (skinId: string) => void;
   selectSkin: (skin: WinampMuseumSkin) => void;
 };
@@ -55,6 +105,14 @@ type WinampState = {
 type PlayStationOptions = {
   playlist?: Array<Station | StationLite>;
   sourceId?: string;
+  sourceLabel?: string;
+};
+
+type PlayStationInternalOptions = PlayStationOptions & {
+  recordHistory?: boolean;
+  addToRecent?: boolean;
+  queueSnapshot?: QueueSnapshot;
+  historyCursorTarget?: number;
 };
 
 type RadioContextValue = {
@@ -67,7 +125,10 @@ type RadioContextValue = {
   nowPlaying: string | null;
   nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
   trackHistory: TrackHistoryItem[];
+  playbackHistory: StationLite[];
+  playback: PlaybackState;
   player: ReturnType<typeof useAudioPlayer>;
+  queue: QueueState;
   winamp: WinampState;
   playStation: (station: Station | StationLite, options?: PlayStationOptions) => void;
   playPrevious: () => void;
@@ -89,9 +150,26 @@ const RadioContext = createContext<RadioContextValue | null>(null);
 
 const MAX_RECENT = 20;
 const MAX_TRACK_HISTORY = 200;
+const MAX_PLAYBACK_HISTORY = 80;
+const MAX_QUEUE_ITEMS = 120;
 const DEFAULT_STORED_SKIN: StoredSkin = {
   source: 'preset',
   id: DEFAULT_WINAMP_SKIN_ID
+};
+const DEFAULT_QUEUE: QueueSnapshot = {
+  items: [],
+  currentIndex: -1,
+  sourceId: null,
+  sourceLabel: null
+};
+const DEFAULT_LAYOUT: StoredWinampLayout = {
+  version: 2,
+  compactMode: 'panel',
+  windowPositions: {},
+  windowVisibility: {
+    'equalizer-window': true,
+    'playlist-window': true
+  }
 };
 
 const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
@@ -122,6 +200,47 @@ const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefin
   return merged;
 };
 
+const normalizeStations = (stations: Array<Station | StationLite>) =>
+  mergeUniqueStations(stations.map((station) => toLite(station))).slice(0, MAX_QUEUE_ITEMS);
+
+const getQueueSourceLabel = (
+  sourceId: string | null | undefined,
+  sourceLabel: string | null | undefined,
+  items: StationLite[]
+) => {
+  if (sourceLabel?.trim()) return sourceLabel.trim();
+  if (!sourceId) {
+    return items.length === 1 ? items[0]?.name || 'Playback queue' : 'Playback queue';
+  }
+  if (sourceId === 'favorites') return 'Favorites';
+  if (sourceId === 'recent') return 'Recently played';
+  if (sourceId === 'search-stations') return 'Search results';
+  if (sourceId === 'search-links') return 'Saved links';
+  if (sourceId === 'search-links-recent') return 'Recent links';
+  if (sourceId === 'explore-trending') return 'Trending stations';
+  if (sourceId === 'explore-search') return 'Explore search';
+  if (sourceId === 'explore-pick') return 'Nearby picks';
+  if (sourceId.startsWith('browse-')) return 'Browse results';
+  if (sourceId.startsWith('station-')) return items[0]?.name || 'Single station';
+  return sourceId
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const snapshotsEqual = (left: QueueSnapshot, right: QueueSnapshot) =>
+  left.currentIndex === right.currentIndex &&
+  left.sourceId === right.sourceId &&
+  left.sourceLabel === right.sourceLabel &&
+  left.items.length === right.items.length &&
+  left.items.every((station, index) => station.stationuuid === right.items[index]?.stationuuid);
+
+const clampQueueIndex = (items: StationLite[], index: number) => {
+  if (!items.length) return -1;
+  return Math.min(Math.max(index, 0), items.length - 1);
+};
+
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,13 +262,21 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:recent',
     []
   );
-  const [winampPlaylist, setWinampPlaylist] = useLocalStorage<StationLite[]>(
-    'radio:winamp-playlist',
+  const [storedQueue, setStoredQueue] = useLocalStorage<QueueSnapshot>(
+    'radio:playback-queue:v2',
+    DEFAULT_QUEUE
+  );
+  const [playbackHistoryEntries, setPlaybackHistoryEntries] = useLocalStorage<StationLite[]>(
+    'radio:playback-history:v2',
     []
   );
   const [storedSkin, setStoredSkin] = useLocalStorage<StoredSkin>(
     'radio:winamp-skin',
     DEFAULT_STORED_SKIN
+  );
+  const [storedLayout, setStoredLayout] = useLocalStorage<StoredWinampLayout>(
+    'radio:winamp-layout:v2',
+    DEFAULT_LAYOUT
   );
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
@@ -157,13 +284,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
     toActiveSkin(storedSkin.id)
   );
-  const [winampCollectionState, setWinampCollectionState] = useState<{
-    sourceId: string | null;
-    stations: StationLite[];
-  }>({
-    sourceId: null,
-    stations: []
-  });
+  const [playbackHistoryCursor, setPlaybackHistoryCursor] = useState(() =>
+    playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
+  );
 
   const logDebug = (msg: string) => {
     setDebugLogs((prev) =>
@@ -180,6 +303,145 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     onEvent: logDebug
   });
   const startHandledRef = useRef(false);
+  const queueRef = useRef<QueueSnapshot>(storedQueue);
+  const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
+  const historyCursorRef = useRef(playbackHistoryCursor);
+
+  useEffect(() => {
+    queueRef.current = storedQueue;
+  }, [storedQueue]);
+
+  useEffect(() => {
+    historyEntriesRef.current = playbackHistoryEntries;
+  }, [playbackHistoryEntries]);
+
+  useEffect(() => {
+    historyCursorRef.current = playbackHistoryCursor;
+  }, [playbackHistoryCursor]);
+
+  useEffect(() => {
+    if (storedLayout?.version === 2) return;
+    setStoredLayout(DEFAULT_LAYOUT);
+  }, [setStoredLayout, storedLayout]);
+
+  useEffect(() => {
+    if (!playbackHistoryEntries.length) {
+      if (playbackHistoryCursor !== -1) {
+        setPlaybackHistoryCursor(-1);
+      }
+      return;
+    }
+    if (playbackHistoryCursor >= playbackHistoryEntries.length) {
+      setPlaybackHistoryCursor(playbackHistoryEntries.length - 1);
+    }
+  }, [playbackHistoryCursor, playbackHistoryEntries]);
+
+  const updateQueue = (nextSnapshot: QueueSnapshot) => {
+    const sanitizedItems = normalizeStations(nextSnapshot.items);
+    const queueSnapshot: QueueSnapshot = {
+      items: sanitizedItems,
+      currentIndex: clampQueueIndex(sanitizedItems, nextSnapshot.currentIndex),
+      sourceId: nextSnapshot.sourceId,
+      sourceLabel: getQueueSourceLabel(
+        nextSnapshot.sourceId,
+        nextSnapshot.sourceLabel,
+        sanitizedItems
+      )
+    };
+
+    setStoredQueue((prev) => (snapshotsEqual(prev, queueSnapshot) ? prev : queueSnapshot));
+  };
+
+  const resolveQueueSnapshot = (
+    station: StationLite,
+    options?: PlayStationOptions,
+    fallbackQueue?: QueueSnapshot
+  ) => {
+    const playlistOverride = options?.playlist?.length ? normalizeStations(options.playlist) : [];
+    if (playlistOverride.length) {
+      const index = playlistOverride.findIndex(
+        (item) => item.stationuuid === station.stationuuid
+      );
+      const items =
+        index === -1 ? mergeUniqueStations([station], playlistOverride) : playlistOverride;
+      return {
+        items,
+        currentIndex: Math.max(
+          0,
+          items.findIndex((item) => item.stationuuid === station.stationuuid)
+        ),
+        sourceId: options?.sourceId ?? 'playback-context',
+        sourceLabel: getQueueSourceLabel(
+          options?.sourceId ?? 'playback-context',
+          options?.sourceLabel,
+          items
+        )
+      };
+    }
+
+    const currentQueue = fallbackQueue ?? queueRef.current;
+    const existingIndex = currentQueue.items.findIndex(
+      (item) => item.stationuuid === station.stationuuid
+    );
+    if (existingIndex >= 0) {
+      return {
+        ...currentQueue,
+        currentIndex: existingIndex,
+        sourceId: options?.sourceId ?? currentQueue.sourceId,
+        sourceLabel: getQueueSourceLabel(
+          options?.sourceId ?? currentQueue.sourceId,
+          options?.sourceLabel ?? currentQueue.sourceLabel,
+          currentQueue.items
+        )
+      };
+    }
+
+    const items = normalizeStations([station]);
+    const sourceId = options?.sourceId ?? `station-${station.stationuuid}`;
+    return {
+      items,
+      currentIndex: items.length ? 0 : -1,
+      sourceId,
+      sourceLabel: getQueueSourceLabel(sourceId, options?.sourceLabel ?? station.name, items)
+    };
+  };
+
+  const pushPlaybackHistory = (
+    station: StationLite,
+    recordHistory: boolean,
+    historyCursorTarget?: number
+  ) => {
+    if (!recordHistory) {
+      if (typeof historyCursorTarget === 'number') {
+        setPlaybackHistoryCursor(historyCursorTarget);
+        return;
+      }
+      const existingIndex = historyEntriesRef.current.findIndex(
+        (item) => item.stationuuid === station.stationuuid
+      );
+      if (existingIndex >= 0) {
+        setPlaybackHistoryCursor(existingIndex);
+      }
+      return;
+    }
+
+    const base =
+      historyCursorRef.current >= 0
+        ? historyEntriesRef.current.slice(0, historyCursorRef.current + 1)
+        : historyEntriesRef.current;
+    const last = base[base.length - 1];
+    let next = base;
+    if (last?.stationuuid === station.stationuuid) {
+      next = [...base.slice(0, -1), station];
+    } else {
+      next = [...base, station];
+    }
+    if (next.length > MAX_PLAYBACK_HISTORY) {
+      next = next.slice(next.length - MAX_PLAYBACK_HISTORY);
+    }
+    setPlaybackHistoryEntries(next);
+    setPlaybackHistoryCursor(next.length - 1);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -199,9 +461,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             logDebug(`Skin restored: ${restoredSkin.name}`);
             return;
           }
-        } catch (error) {
+        } catch (restoreError) {
           logDebug(
-            `Skin restore failed: ${error instanceof Error ? error.message : String(error)}`
+            `Skin restore failed: ${
+              restoreError instanceof Error ? restoreError.message : String(restoreError)
+            }`
           );
         }
       }
@@ -243,6 +507,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       mounted = false;
     };
   }, [activeSkin]);
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -257,15 +522,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
         }
         const full = await fetchStations({ mode: 'full' });
-        if (mounted) {
-          if (full.length) {
-            setStations(full);
-            hasData = true;
-          }
+        if (mounted && full.length) {
+          setStations(full);
+          hasData = true;
         }
-      } catch (err) {
+      } catch (loadError) {
         if (mounted && !hasData) {
-          setError(err instanceof Error ? err.message : 'Failed to load');
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load');
         }
       } finally {
         if (mounted) {
@@ -273,7 +536,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     };
-    load();
+    void load();
     return () => {
       mounted = false;
     };
@@ -306,92 +569,41 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const setWinampCollection = (sourceId: string, stations: Array<Station | StationLite>) => {
-    const nextStations = mergeUniqueStations(
-      stations.map((station) => toLite(station))
-    ).slice(0, 120);
-
-    setWinampCollectionState((prev) => {
-      const unchanged =
-        prev.sourceId === sourceId &&
-        prev.stations.length === nextStations.length &&
-        prev.stations.every(
-          (station, index) => station.stationuuid === nextStations[index]?.stationuuid
-        );
-      if (unchanged) {
-        return prev;
-      }
-      return {
-        sourceId,
-        stations: nextStations
-      };
-    });
-  };
-
-  const seedWinampPlaylist = (
-    station: Station | StationLite,
-    playlistOverride?: Array<Station | StationLite>
-  ) => {
-    const lite = toLite(station);
-    const visibleCollection = playlistOverride?.length
-      ? playlistOverride.map((item) => toLite(item))
-      : winampCollectionState.stations;
-    const next = mergeUniqueStations(
-      [lite],
-      visibleCollection,
-      favorites,
-      recent
-    ).slice(0, 120);
-    setWinampPlaylist(next);
-  };
-
-  useEffect(() => {
-    if (winampPlaylist.length) return;
-    const seed = mergeUniqueStations(
-      winampCollectionState.stations,
-      favorites,
-      recent
-    ).slice(0, 120);
-    if (seed.length) {
-      setWinampPlaylist(seed);
-    }
-  }, [favorites, recent, winampCollectionState.stations, winampPlaylist.length, setWinampPlaylist]);
-
   const playStationInternal = async (
     station: Station | StationLite,
-    addToHistory: boolean,
-    options?: PlayStationOptions
+    options?: PlayStationInternalOptions
   ) => {
     const lite = toLite(station);
-    const url = lite.url_resolved;
-    if (!url) {
+    if (!lite.url_resolved) {
       notify('Missing stream URL');
-      return;
-    }
-
-    const playlistOverride = options?.playlist?.map((item) => toLite(item)) ?? [];
-    const sourceId =
-      options?.sourceId ??
-      (playlistOverride.length ? 'playback-context' : winampCollectionState.sourceId);
-    if (playlistOverride.length && sourceId) {
-      setWinampCollection(sourceId, playlistOverride);
+      return false;
     }
 
     const result = await player.playStation(lite);
     if (!result.ok) {
       notify(result.error || 'Playback failed');
-      return;
+      return false;
     }
 
     const playedStation = result.station ?? lite;
-    seedWinampPlaylist(playedStation, playlistOverride);
-    if (addToHistory) {
+    const nextQueue =
+      options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
+    updateQueue(nextQueue);
+
+    if (options?.addToRecent !== false) {
       addRecent(playedStation);
     }
+
+    pushPlaybackHistory(
+      playedStation,
+      options?.recordHistory !== false,
+      options?.historyCursorTarget
+    );
+    return true;
   };
 
   const playStation = (station: Station | StationLite, options?: PlayStationOptions) =>
-    void playStationInternal(station, true, options);
+    void playStationInternal(station, options);
 
   useEffect(() => {
     if (startHandledRef.current) return;
@@ -406,9 +618,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const stationId = parseStationParam(startParam);
     const station = stations.find((item) => item.stationuuid === stationId);
     if (station) {
-      playStation(station);
+      void playStationInternal(station, {
+        sourceId: 'deep-link',
+        sourceLabel: 'Deep link'
+      });
       startHandledRef.current = true;
+      return;
     }
+
+    startHandledRef.current = true;
   }, [stations]);
 
   useEffect(() => {
@@ -446,12 +664,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           logDebug(`Metadata: null (API: ${getApiBase() || 'default'})`);
         }
         applyTrack(track);
-      } catch (e) {
-        logDebug(`Metadata Err: ${e instanceof Error ? e.message : String(e)}`);
+      } catch (metadataError) {
+        logDebug(
+          `Metadata Err: ${
+            metadataError instanceof Error ? metadataError.message : String(metadataError)
+          }`
+        );
       }
     };
 
-    update();
+    void update();
     const interval = window.setInterval(update, 15000);
     const timeout = window.setTimeout(() => {
       if (!lastUpdate) {
@@ -481,68 +703,115 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const playPrevious = () => {
-    const currentId = player.current?.stationuuid;
-    if (!currentId || !recent.length) return;
-    const index = recent.findIndex((item) => item.stationuuid === currentId);
-    if (index === -1) {
-      void playStationInternal(recent[0], false);
-      return;
-    }
-    const prev = recent[index + 1] ?? null;
-    if (prev) {
-      void playStationInternal(prev, false);
-    }
+    if (historyCursorRef.current <= 0) return;
+    const previousIndex = historyCursorRef.current - 1;
+    const previousStation = historyEntriesRef.current[previousIndex];
+    if (!previousStation) return;
+
+    const currentQueue = queueRef.current;
+    const queueIndex = currentQueue.items.findIndex(
+      (item) => item.stationuuid === previousStation.stationuuid
+    );
+    const queueSnapshot =
+      queueIndex >= 0
+        ? {
+            ...currentQueue,
+            currentIndex: queueIndex
+          }
+        : resolveQueueSnapshot(previousStation, {
+            sourceId: 'history',
+            sourceLabel: 'History'
+          });
+
+    void playStationInternal(previousStation, {
+      recordHistory: false,
+      addToRecent: false,
+      queueSnapshot,
+      historyCursorTarget: previousIndex
+    });
   };
 
-  const pickRandomStation = () => {
-    const pool = winampCollectionState.stations.length
-      ? winampCollectionState.stations
-      : stations;
+  const pickRandomStation = (pool: StationLite[]) => {
     if (!pool.length) return null;
     const currentId = player.current?.stationuuid;
-    if (pool.length === 1) return pool[0];
+    if (pool.length === 1) {
+      return pool[0].stationuuid === currentId ? null : pool[0];
+    }
+
     for (let i = 0; i < 6; i += 1) {
       const candidate = pool[Math.floor(Math.random() * pool.length)];
       if (!candidate || candidate.stationuuid === currentId) continue;
       return candidate;
     }
-    return pool.find((item) => item.stationuuid !== currentId) ?? pool[0];
+
+    return pool.find((item) => item.stationuuid !== currentId) ?? null;
   };
 
   const playNext = () => {
-    const currentId = player.current?.stationuuid;
-    if (currentId && recent.length >= 2) {
-      const index = recent.findIndex((item) => item.stationuuid === currentId);
-      const next = index > 0 ? recent[index - 1] : null;
-      if (next) {
-        void playStationInternal(next, false);
+    const currentQueue = queueRef.current;
+    if (currentQueue.currentIndex >= 0 && currentQueue.currentIndex < currentQueue.items.length - 1) {
+      const nextIndex = currentQueue.currentIndex + 1;
+      const nextStation = currentQueue.items[nextIndex];
+      if (nextStation) {
+        void playStationInternal(nextStation, {
+          queueSnapshot: {
+            ...currentQueue,
+            currentIndex: nextIndex
+          }
+        });
         return;
       }
     }
-    const randomStation = pickRandomStation();
-    if (randomStation) {
-      void playStationInternal(randomStation, true, {
-        playlist: winampCollectionState.stations,
-        sourceId: winampCollectionState.sourceId ?? 'playback-context'
-      });
-    }
+
+    const queuePool = currentQueue.items.length ? currentQueue.items : normalizeStations(stations);
+    const randomStation = pickRandomStation(queuePool);
+    if (!randomStation) return;
+    const randomIndex = currentQueue.items.findIndex(
+      (item) => item.stationuuid === randomStation.stationuuid
+    );
+    const queueSnapshot =
+      randomIndex >= 0
+        ? {
+            ...currentQueue,
+            currentIndex: randomIndex
+          }
+        : resolveQueueSnapshot(randomStation, {
+            sourceId: currentQueue.sourceId ?? 'random',
+            sourceLabel: currentQueue.sourceLabel ?? 'Random'
+          });
+
+    void playStationInternal(randomStation, {
+      queueSnapshot
+    });
   };
 
   const playLast = () => {
-    if (recent.length) {
-      void playStationInternal(recent[0], true);
-      return;
-    }
-    if (winampCollectionState.stations.length) {
-      void playStationInternal(winampCollectionState.stations[0], true, {
-        playlist: winampCollectionState.stations,
-        sourceId: winampCollectionState.sourceId ?? 'playback-context'
-      });
-      return;
-    }
-    if (stations.length) {
-      void playStationInternal(stations[0], true);
-    }
+    const currentQueue = queueRef.current;
+    const latestStation =
+      historyEntriesRef.current[historyEntriesRef.current.length - 1] ??
+      recent[0] ??
+      currentQueue.items[0] ??
+      stations[0];
+
+    if (!latestStation) return;
+
+    const queueIndex = currentQueue.items.findIndex(
+      (item) => item.stationuuid === latestStation.stationuuid
+    );
+    const queueSnapshot =
+      queueIndex >= 0
+        ? {
+            ...currentQueue,
+            currentIndex: queueIndex
+          }
+        : resolveQueueSnapshot(latestStation, {
+            sourceId: currentQueue.sourceId ?? 'resume',
+            sourceLabel: currentQueue.sourceLabel ?? 'Resume'
+          });
+
+    void playStationInternal(latestStation, {
+      queueSnapshot
+    });
   };
 
   useEffect(() => {
@@ -556,16 +825,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const artwork = station.favicon
       ? [
-        {
-          src: station.favicon,
-          sizes: '512x512',
-          type: 'image/png'
-        }
-      ]
+          {
+            src: station.favicon,
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
       : undefined;
 
     const title = nowPlaying || station.name;
-    const artist = nowPlaying ? station.name : (station.country || 'Live Radio');
+    const artist = nowPlaying ? station.name : station.country || 'Live Radio';
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
@@ -580,7 +849,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     navigator.mediaSession.setActionHandler('stop', () => player.stop());
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-  }, [player.current, player.isPlaying, nowPlaying, playPrevious, playNext, player]);
+  }, [player, player.current, player.isPlaying, nowPlaying]);
 
   const openWebAppExternally = () => {
     let url = window.location.origin;
@@ -690,20 +959,158 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(`Skin: ${skin.name}`);
   };
 
+  const playback = useMemo<PlaybackState>(
+    () => ({
+      currentStation: player.current,
+      status: player.status,
+      isPlaying: player.isPlaying,
+      activeStreamUrl: player.activeUrl,
+      error: player.errorMessage,
+      nowPlaying
+    }),
+    [nowPlaying, player]
+  );
+
+  const queue = useMemo<QueueState>(
+    () => ({
+      ...storedQueue,
+      setQueueFromList: (queueStations, options) => {
+        const items = normalizeStations(queueStations);
+        const currentIndex = options?.startStationId
+          ? items.findIndex((item) => item.stationuuid === options.startStationId)
+          : items.length
+            ? 0
+            : -1;
+
+        updateQueue({
+          items,
+          currentIndex,
+          sourceId: options?.sourceId ?? storedQueue.sourceId,
+          sourceLabel: getQueueSourceLabel(
+            options?.sourceId ?? storedQueue.sourceId,
+            options?.sourceLabel ?? storedQueue.sourceLabel,
+            items
+          )
+        });
+      },
+      playAtIndex: (index) => {
+        const target = queueRef.current.items[index];
+        if (!target) return;
+        void playStationInternal(target, {
+          queueSnapshot: {
+            ...queueRef.current,
+            currentIndex: index
+          }
+        });
+      },
+      removeAtIndex: (index) => {
+        const currentQueue = queueRef.current;
+        const target = currentQueue.items[index];
+        if (!target) return;
+
+        const nextItems = currentQueue.items.filter((_, itemIndex) => itemIndex !== index);
+        if (!nextItems.length) {
+          updateQueue({
+            ...currentQueue,
+            items: [],
+            currentIndex: -1
+          });
+          if (player.current?.stationuuid === target.stationuuid) {
+            player.stop();
+          }
+          return;
+        }
+
+        if (index === currentQueue.currentIndex) {
+          const nextIndex = Math.min(index, nextItems.length - 1);
+          const nextStation = nextItems[nextIndex];
+          if (!nextStation) return;
+          const nextQueue: QueueSnapshot = {
+            ...currentQueue,
+            items: nextItems,
+            currentIndex: nextIndex
+          };
+          updateQueue(nextQueue);
+          void playStationInternal(nextStation, {
+            recordHistory: false,
+            addToRecent: false,
+            queueSnapshot: nextQueue
+          });
+          return;
+        }
+
+        updateQueue({
+          ...currentQueue,
+          items: nextItems,
+          currentIndex:
+            index < currentQueue.currentIndex
+              ? Math.max(0, currentQueue.currentIndex - 1)
+              : currentQueue.currentIndex
+        });
+      },
+      clearQueue: () => {
+        updateQueue({
+          ...queueRef.current,
+          items: [],
+          currentIndex: -1
+        });
+        player.stop();
+      }
+    }),
+    [player, storedQueue]
+  );
+
   const winamp = useMemo<WinampState>(
     () => ({
       expanded: winampExpanded,
       setExpanded: setWinampExpanded,
+      compactMode: storedLayout.compactMode,
+      setCompactMode: (mode) =>
+        setStoredLayout((prev) =>
+          prev.compactMode === mode ? prev : { ...prev, compactMode: mode }
+        ),
+      windowPositions: storedLayout.windowPositions,
+      setWindowPosition: (id, position) =>
+        setStoredLayout((prev) => {
+          const currentPosition = prev.windowPositions[id];
+          if (
+            currentPosition &&
+            Math.abs(currentPosition.x - position.x) < 1 &&
+            Math.abs(currentPosition.y - position.y) < 1
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            windowPositions: {
+              ...prev.windowPositions,
+              [id]: {
+                x: Math.round(position.x),
+                y: Math.round(position.y)
+              }
+            }
+          };
+        }),
+      windowVisibility: storedLayout.windowVisibility,
+      setWindowVisibility: (id, visible) =>
+        setStoredLayout((prev) =>
+          prev.windowVisibility[id] === visible
+            ? prev
+            : {
+                ...prev,
+                windowVisibility: {
+                  ...prev.windowVisibility,
+                  [id]: visible
+                }
+              }
+        ),
+      resetLayout: () => setStoredLayout(DEFAULT_LAYOUT),
       availableSkins: WINAMP_SKIN_PRESETS,
       activeSkin,
-      playlist: winampPlaylist,
-      collection: winampCollectionState.stations,
-      collectionSource: winampCollectionState.sourceId,
-      setCollection: setWinampCollection,
       setSkin,
       selectSkin
     }),
-    [winampExpanded, activeSkin, winampCollectionState, winampPlaylist]
+    [activeSkin, setStoredLayout, storedLayout, winampExpanded]
   );
 
   const value: RadioContextValue = {
@@ -716,7 +1123,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     nowPlaying,
     nowPlayingStatus,
     trackHistory,
+    playbackHistory: playbackHistoryEntries,
+    playback,
     player,
+    queue,
     winamp,
     playStation,
     playPrevious,

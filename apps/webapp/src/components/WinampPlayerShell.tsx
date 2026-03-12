@@ -622,15 +622,35 @@ const getResponsiveExpandedMode = () =>
 
 const ensureExpandedWindowsVisible = (
   mode: ResponsiveExpandedMode,
-  applyDefaults: boolean
+  applyDefaults: boolean,
+  visibility: {
+    'equalizer-window': boolean;
+    'playlist-window': boolean;
+  }
 ) => {
   setMainWindowShadeMode(false);
-  ensureWindowVisible('equalizer-window', 'Toggle Graphical Equalizer');
   if (applyDefaults) {
+    setWindowVisibility(
+      'equalizer-window',
+      'Toggle Graphical Equalizer',
+      visibility['equalizer-window']
+    );
     setWindowVisibility(
       'playlist-window',
       'Toggle Playlist Editor',
-      mode === 'desktop'
+      mode === 'desktop' && visibility['playlist-window']
+    );
+  } else {
+    ensureWindowVisible('equalizer-window', 'Toggle Graphical Equalizer');
+    setWindowVisibility(
+      'equalizer-window',
+      'Toggle Graphical Equalizer',
+      visibility['equalizer-window']
+    );
+    setWindowVisibility(
+      'playlist-window',
+      'Toggle Playlist Editor',
+      mode === 'desktop' && visibility['playlist-window']
     );
   }
   setMainWindowShadeMode(false);
@@ -643,9 +663,10 @@ export const WinampPlayerShell = ({
 }) => {
   const {
     player,
+    queue,
     winamp,
     nowPlaying,
-    recent,
+    playbackHistory,
     playPrevious,
     playNext,
     playLast,
@@ -674,7 +695,7 @@ export const WinampPlayerShell = ({
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
     typeof window === 'undefined' ? 'desktop' : getResponsiveExpandedMode()
   );
-  const compactViewModeRef = useRef<CompactViewMode>('panel');
+  const compactViewModeRef = useRef<CompactViewMode>(winamp.compactMode);
   const expandedRef = useRef(winamp.expanded);
 
   const current = player.current;
@@ -732,6 +753,7 @@ export const WinampPlayerShell = ({
       event.preventDefault();
       event.stopPropagation();
       compactViewModeRef.current = compactViewModeRef.current === 'strip' ? 'panel' : 'strip';
+      winamp.setCompactMode(compactViewModeRef.current);
       const mountNode = compactHostRef.current;
       if (!mountNode) return;
       mountNode.dataset.raCompactView = compactViewModeRef.current;
@@ -746,7 +768,7 @@ export const WinampPlayerShell = ({
       document.removeEventListener('mousedown', onShadeToggleStart, true);
       document.removeEventListener('touchstart', onShadeToggleStart, true);
     };
-  }, []);
+  }, [winamp]);
 
   useEffect(() => {
     const syncCompactAfterControl = () => {
@@ -838,7 +860,7 @@ export const WinampPlayerShell = ({
         return;
       }
 
-      if (recent.length > 0) {
+      if (playbackHistory.length > 0 || queue.items.length > 0) {
         playLast();
         syncCompactAfterControl();
       }
@@ -860,7 +882,8 @@ export const WinampPlayerShell = ({
     player,
     player.current,
     player.isPlaying,
-    recent.length
+    playbackHistory.length,
+    queue.items.length
   ]);
 
   const applyExpandedLayout = (mountNode: HTMLElement) => {
@@ -884,7 +907,7 @@ export const WinampPlayerShell = ({
       webampRoot.dataset.raExpandedRoot = '1';
     }
     const queueInitialPlacement = () => {
-      ensureExpandedWindowsVisible(mode, true);
+      ensureExpandedWindowsVisible(mode, true, winamp.windowVisibility);
       resetCompactWindowVisibility();
       syncExpandedWindowPlacement(mode);
     };
@@ -895,7 +918,8 @@ export const WinampPlayerShell = ({
   const applyCompactLayout = (mountNode: HTMLElement) => {
     mountNode.style.minHeight = '';
     resetWebampWindowPlacement();
-    const mode = compactViewModeRef.current;
+    const mode = winamp.compactMode;
+    compactViewModeRef.current = mode;
     mountNode.dataset.raCompactView = mode;
     mountNode.style.height =
       mode === 'panel' ? `${PANEL_COMPACT_MIN_HEIGHT}px` : `${STRIP_COMPACT_MIN_HEIGHT}px`;
@@ -903,21 +927,11 @@ export const WinampPlayerShell = ({
   };
 
   const effectivePlaylist = useMemo(() => {
-    const merged: StationLite[] = [];
-    const seen = new Set<string>();
-
-    const addStation = (station: StationLite | null) => {
-      if (!station || seen.has(station.stationuuid)) return;
-      seen.add(station.stationuuid);
-      merged.push(station);
-    };
-
-    addStation(current);
-    winamp.collection.forEach(addStation);
-    winamp.playlist.forEach(addStation);
-    recent.forEach(addStation);
-    return merged;
-  }, [current, recent, winamp.collection, winamp.playlist]);
+    if (queue.items.length) {
+      return queue.items;
+    }
+    return current ? [current] : [];
+  }, [current, queue.items]);
 
   const playablePlaylist = useMemo(
     () => effectivePlaylist.filter((station) => Boolean(station.url_resolved)),
@@ -932,7 +946,7 @@ export const WinampPlayerShell = ({
   );
 
   const liked = current ? isFavorite(current.stationuuid) : false;
-  const canResume = Boolean(recent.length);
+  const canResume = Boolean(playbackHistory.length || queue.items.length);
   const trackTitle = nowPlaying?.trim() || '';
   const canCopyTrackTitle = Boolean(trackTitle);
   const stopCompactInteraction = (event: { stopPropagation: () => void }) => {
@@ -1020,56 +1034,72 @@ export const WinampPlayerShell = ({
       return true;
     }
 
-    if (!playlistMetric || bounds.width < 980) {
-      const metrics = [mainMetric, ...(eqMetric ? [eqMetric] : []), ...(playlistMetric ? [playlistMetric] : [])];
-      placeStack(metrics, 1.5, 'center', 1);
-      return true;
-    }
-
-    const leftColumnHeight = mainMetric.height + (eqMetric ? gap + eqMetric.height : 0);
-    const clusterWidth = mainMetric.width + gap + playlistMetric.width;
-    const clusterHeight = Math.max(leftColumnHeight, playlistMetric.height);
-    const scale = clamp(
-      Math.min(bounds.width / clusterWidth, bounds.height / clusterHeight),
-      1,
-      DESKTOP_EXPANDED_MAX_SCALE
+    const defaultLeftColumnHeight = mainMetric.height + (eqMetric ? gap + eqMetric.height : 0);
+    const defaultClusterWidth =
+      mainMetric.width + (playlistMetric ? gap + playlistMetric.width : 0);
+    const defaultClusterHeight = Math.max(
+      defaultLeftColumnHeight,
+      playlistMetric?.height ?? mainMetric.height
     );
-    const startX = bounds.left + Math.max(0, Math.round((bounds.width - clusterWidth * scale) / 2));
-    const startY = bounds.top + Math.max(0, Math.round((bounds.height - clusterHeight * scale) / 2));
+    const defaultStartX =
+      bounds.left + Math.max(0, Math.round((bounds.width - defaultClusterWidth) / 2));
+    const defaultStartY =
+      bounds.top + Math.max(0, Math.round((bounds.height - defaultClusterHeight) / 2));
 
+    const clampPosition = (metric: ExpandedWindowMetric, x: number, y: number) => ({
+      x: clamp(Math.round(x), bounds.left, Math.max(bounds.left, bounds.right - metric.width)),
+      y: clamp(Math.round(y), bounds.top, Math.max(bounds.top, bounds.bottom - metric.height))
+    });
+
+    const mainPosition = clampPosition(
+      mainMetric,
+      winamp.windowPositions['main-window']?.x ?? defaultStartX,
+      winamp.windowPositions['main-window']?.y ?? defaultStartY
+    );
     placeExpandedWindowAnchor(
       mainMetric.node,
-      startX,
-      startY,
+      mainPosition.x,
+      mainPosition.y,
       EXPANDED_WINDOW_Z_ORDER[mainMetric.id],
-      scale,
+      1,
       mainMetric.width,
       mainMetric.height
     );
 
     if (eqMetric) {
+      const eqPosition = clampPosition(
+        eqMetric,
+        winamp.windowPositions['equalizer-window']?.x ?? mainPosition.x,
+        winamp.windowPositions['equalizer-window']?.y ??
+          mainPosition.y + mainMetric.height + gap
+      );
       placeExpandedWindowAnchor(
         eqMetric.node,
-        startX,
-        startY + Math.round((mainMetric.height + gap) * scale),
+        eqPosition.x,
+        eqPosition.y,
         EXPANDED_WINDOW_Z_ORDER[eqMetric.id],
-        scale,
+        1,
         eqMetric.width,
         eqMetric.height
       );
     }
 
-    const playlistY =
-      startY + Math.max(0, Math.round(((clusterHeight - playlistMetric.height) * scale) / 2));
-    placeExpandedWindowAnchor(
-      playlistMetric.node,
-      startX + Math.round((mainMetric.width + gap) * scale),
-      playlistY,
-      EXPANDED_WINDOW_Z_ORDER[playlistMetric.id],
-      scale,
-      playlistMetric.width,
-      playlistMetric.height
-    );
+    if (playlistMetric) {
+      const playlistPosition = clampPosition(
+        playlistMetric,
+        winamp.windowPositions['playlist-window']?.x ?? mainPosition.x + mainMetric.width + gap,
+        winamp.windowPositions['playlist-window']?.y ?? mainPosition.y
+      );
+      placeExpandedWindowAnchor(
+        playlistMetric.node,
+        playlistPosition.x,
+        playlistPosition.y,
+        EXPANDED_WINDOW_Z_ORDER[playlistMetric.id],
+        1,
+        playlistMetric.width,
+        playlistMetric.height
+      );
+    }
     return true;
   };
 
@@ -1078,15 +1108,22 @@ export const WinampPlayerShell = ({
     const anchor = windowNode ? resolveExpandedWindowAnchor(windowNode) : null;
     if (!windowNode || !anchor) return false;
     const { x, y, scale } = readExpandedAnchorTransform(anchor);
-    anchor.style.transform = `translate(${Math.round(x + deltaX)}px, ${Math.round(y + deltaY)}px) scale(${scale})`;
+    const nextX = Math.round(x + deltaX);
+    const nextY = Math.round(y + deltaY);
+    anchor.style.transform = `translate(${nextX}px, ${nextY}px) scale(${scale})`;
+    winamp.setWindowPosition(id, {
+      x: nextX,
+      y: nextY
+    });
     return true;
   };
 
   const resetExpandedLayout = () => {
     if (!winamp.expanded || !webampReady) return;
+    winamp.resetLayout();
     const mode = getResponsiveExpandedMode();
     setExpandedLayoutMode(mode);
-    ensureExpandedWindowsVisible(mode, true);
+    ensureExpandedWindowsVisible(mode, true, winamp.windowVisibility);
     const sync = () => {
       resetCompactWindowVisibility();
       syncExpandedWindowPlacement(mode);
@@ -1225,7 +1262,7 @@ export const WinampPlayerShell = ({
                 setBootCycle((value) => value + 1);
               }
             }) ?? null;
-            compactViewModeRef.current = 'panel';
+            compactViewModeRef.current = winamp.compactMode;
             if (expandedRef.current) {
               applyExpandedLayout(mountNode);
             } else {
@@ -1323,7 +1360,7 @@ export const WinampPlayerShell = ({
       return;
     }
     applyCompactLayout(mountNode);
-  }, [winamp.expanded, webampReady]);
+  }, [winamp.compactMode, winamp.expanded, webampReady]);
 
   useEffect(() => {
     if (winamp.expanded || !webampReady) return;
@@ -1436,9 +1473,10 @@ export const WinampPlayerShell = ({
         mountNode.dataset.raExpandedMode = mode;
       }
       if (applyDefaults) {
-        ensureExpandedWindowsVisible(mode, true);
+        ensureExpandedWindowsVisible(mode, true, winamp.windowVisibility);
       } else {
         setMainWindowShadeMode(false);
+        ensureExpandedWindowsVisible(mode, false, winamp.windowVisibility);
       }
       resetCompactWindowVisibility();
       syncExpandedWindowPlacement(mode);
@@ -1461,7 +1499,11 @@ export const WinampPlayerShell = ({
       ) {
         return;
       }
-      window.setTimeout(() => syncExpandedLayout(false), 120);
+      window.setTimeout(() => {
+        winamp.setWindowVisibility('equalizer-window', isWindowVisible('equalizer-window'));
+        winamp.setWindowVisibility('playlist-window', isWindowVisible('playlist-window'));
+        syncExpandedLayout(false);
+      }, 120);
     };
 
     window.addEventListener('resize', onResize);
@@ -1474,7 +1516,7 @@ export const WinampPlayerShell = ({
       window.removeEventListener('orientationchange', onResize);
       document.removeEventListener('click', onExpandedToggle, true);
     };
-  }, [winamp.expanded, webampReady]);
+  }, [winamp, winamp.expanded, webampReady]);
 
   useEffect(() => {
     const instance = webampRef.current;
@@ -1679,7 +1721,7 @@ export const WinampPlayerShell = ({
       </button>
 
       <button className="chip" type="button" onClick={playNext}>
-        Random
+        Next
       </button>
 
       <button
