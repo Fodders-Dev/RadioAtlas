@@ -14,7 +14,7 @@ npm run dev:bot
 
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links
-- `VITE_API_URL`: API base for catalog/proxy (defaults to `/api`)
+- `VITE_API_URL`: optional API base for catalog/proxy (empty by default)
 
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.

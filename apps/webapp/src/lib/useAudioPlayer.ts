@@ -170,8 +170,7 @@ const buildCandidates = ({
   const isHttpLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
   const proxyRelevant = url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && apiAvailable && proxyRelevant;
-  const blockedMixedContent = url.startsWith('http://') && !apiAvailable;
-  const apiUnavailable = Boolean(normalizedBase) && !apiAvailable && proxyRelevant;
+  const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !apiAvailable;
 
   if (url.startsWith('http://')) {
     const httpsUrl = url.replace(/^http:\/\//, 'https://');
@@ -194,7 +193,12 @@ const buildCandidates = ({
   return {
     candidates,
     blockedMixedContent,
-    apiUnavailable
+    apiUnavailable:
+      Boolean(normalizedBase) &&
+      !apiAvailable &&
+      proxyRelevant &&
+      candidates.length === 0 &&
+      !blockedMixedContent
   };
 };
 
@@ -408,9 +412,6 @@ export const useAudioPlayer = ({
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Playback failed';
         lastErrorRef.current = lastError;
-        if (apiBaseRef.current && nextUrl.startsWith(`${apiBaseRef.current}/`)) {
-          markApiUnavailable(apiBaseRef.current);
-        }
         pushEvent(`playback: candidate failed (${nextUrl}) ${lastError}`);
       }
     }

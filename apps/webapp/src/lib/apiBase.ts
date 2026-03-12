@@ -41,7 +41,7 @@ export const getApiBase = () => {
     }
   }
 
-  return normalizeBase(import.meta.env.VITE_API_URL || '/api');
+  return normalizeBase(import.meta.env.VITE_API_URL || '');
 };
 
 export const setApiBase = (value: string) => {

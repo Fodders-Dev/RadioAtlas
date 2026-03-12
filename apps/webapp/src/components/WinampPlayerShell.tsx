@@ -87,6 +87,7 @@ const COMPACT_INTERACTIVE_SELECTOR = [
   '#webamp [title="Volume Bar"]',
   '#webamp [title="Balance"]'
 ].join(', ');
+const BOOT_WINDOW_WAIT_MS = 1800;
 
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
@@ -187,6 +188,26 @@ const getExpandedWindowId = (windowNode: HTMLElement | null): ExpandedWindowId |
     return 'playlist-window';
   }
   return null;
+};
+
+const isWindowRenderable = (node: HTMLElement | null) => {
+  if (!node) return false;
+  const rect = node.getBoundingClientRect();
+  return rect.width > 8 && rect.height > 8;
+};
+
+const waitForMainWindow = async (
+  timeoutMs: number,
+  isCancelled: () => boolean
+) => {
+  const started = Date.now();
+  while (!isCancelled() && Date.now() - started < timeoutMs) {
+    if (isWindowRenderable(getMainWindowNode())) {
+      return true;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 90));
+  }
+  return isWindowRenderable(getMainWindowNode());
 };
 
 const readExpandedAnchorTransform = (anchor: HTMLElement) => {
@@ -1169,77 +1190,87 @@ export const WinampPlayerShell = ({
     const boot = async () => {
       const Webamp = await loadWebampCtor();
       if (cancelled) return;
+      const fallbackSkinUrl = winamp.availableSkins[0]?.url || winamp.activeSkin.url;
+      const skinCandidates = Array.from(
+        new Set([toAssetUrl(winamp.activeSkin.url), toAssetUrl(fallbackSkinUrl)])
+      );
 
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const layoutModes = [true, false];
-        for (const useLayout of layoutModes) {
-          try {
-            const instance = new Webamp({
-              initialSkin: {
-                url: toAssetUrl(winamp.activeSkin.url)
-              },
-              availableSkins: winamp.availableSkins.map((skin) => ({
-                name: skin.name,
-                url: toAssetUrl(skin.url)
-              })),
-              initialTracks: buildTracks(playablePlaylist),
-              enableDoubleSizeMode: false,
-              enableHotkeys: false,
-              enableMediaSession: false,
-              zIndex: 140,
-              ...(useLayout ? { windowLayout: buildPersistentLayout() } : {})
-            });
+        for (const skinUrl of skinCandidates) {
+          const layoutModes = [true, false];
+          for (const useLayout of layoutModes) {
+            try {
+              const instance = new Webamp({
+                initialSkin: {
+                  url: skinUrl
+                },
+                availableSkins: winamp.availableSkins.map((skin) => ({
+                  name: skin.name,
+                  url: toAssetUrl(skin.url)
+                })),
+                initialTracks: buildTracks(playablePlaylist),
+                enableDoubleSizeMode: false,
+                enableHotkeys: false,
+                enableMediaSession: false,
+                zIndex: 140,
+                ...(useLayout ? { windowLayout: buildPersistentLayout() } : {})
+              });
 
-            await instance.renderWhenReady(mountNode);
-            if (cancelled) {
-              try {
-                instance.stop?.();
-              } catch {
-                // ignore
+              await instance.renderWhenReady(mountNode);
+              const ready = await waitForMainWindow(BOOT_WINDOW_WAIT_MS, () => cancelled);
+              if (!ready) {
+                throw new Error('Webamp main window missing after boot');
               }
-              instance.dispose();
-              return;
-            }
-
-            mountedInstance = instance;
-            webampRef.current = instance;
-            unsubscribeWillClose = instance.onWillClose?.((cancel) => cancel()) ?? null;
-            unsubscribeClosed = instance.onClose?.(() => {
-              if (!cancelled) {
-                setBootCycle((value) => value + 1);
-              }
-            }) ?? null;
-            if (expandedRef.current) {
-              applyExpandedLayout(mountNode);
-            } else {
-              let placementAttempt = 0;
-              const ensureCompactPlacement = () => {
-                if (cancelled) return;
-                applyCompactLayout(mountNode);
-                placementAttempt += 1;
-                if (placementAttempt < 6) {
-                  window.setTimeout(ensureCompactPlacement, 180);
+              if (cancelled) {
+                try {
+                  instance.stop?.();
+                } catch {
+                  // ignore
                 }
-              };
-              window.setTimeout(ensureCompactPlacement, 80);
-            }
+                instance.dispose();
+                return;
+              }
 
-            setWebampReady(true);
-            setWebampFailed(false);
-            setBootError(null);
-            retryCountRef.current = 0;
-            return;
-          } catch (error) {
-            lastError = error;
-            console.error(
-              `Winamp init failed (attempt ${attempt + 1}, layout=${useLayout ? 'on' : 'off'})`,
-              error
-            );
-            if (cancelled) {
-              break;
+              mountedInstance = instance;
+              webampRef.current = instance;
+              unsubscribeWillClose = instance.onWillClose?.((cancel) => cancel()) ?? null;
+              unsubscribeClosed = instance.onClose?.(() => {
+                if (!cancelled) {
+                  setBootCycle((value) => value + 1);
+                }
+              }) ?? null;
+              if (expandedRef.current) {
+                applyExpandedLayout(mountNode);
+              } else {
+                let placementAttempt = 0;
+                const ensureCompactPlacement = () => {
+                  if (cancelled) return;
+                  applyCompactLayout(mountNode);
+                  placementAttempt += 1;
+                  if (placementAttempt < 6) {
+                    window.setTimeout(ensureCompactPlacement, 180);
+                  }
+                };
+                window.setTimeout(ensureCompactPlacement, 80);
+              }
+
+              setWebampReady(true);
+              setWebampFailed(false);
+              setBootError(null);
+              retryCountRef.current = 0;
+              return;
+            } catch (error) {
+              lastError = error;
+              console.error(
+                `Winamp init failed (attempt ${attempt + 1}, layout=${useLayout ? 'on' : 'off'})`,
+                error
+              );
+              if (cancelled) {
+                break;
+              }
+              mountNode.innerHTML = '';
             }
-            mountNode.innerHTML = '';
           }
         }
 

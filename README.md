@@ -51,6 +51,7 @@ Run `apps/api` on VPS and set:
 VITE_API_URL=https://your-domain/api
 ```
 This enables catalog proxying and http stream playback via `/api/stream`.
+If `VITE_API_URL` is not set, webapp runs without API proxy by default.
 
 ## Optional extractor (NewPipe-style, YouTube blocked)
 The extractor resolves non-direct URLs (SoundCloud, Bandcamp, PeerTube, MediaCCC)

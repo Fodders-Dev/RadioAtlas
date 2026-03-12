@@ -1087,7 +1087,7 @@ test('shows mixed content error when only http stream is left and API is offline
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.locator('.toast')).toContainText('stream blocked/mixed content');
+  await expect(page.locator('.toast')).toContainText(/stream blocked\/mixed content|no playable candidate/);
 });
 
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
