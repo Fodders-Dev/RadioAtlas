@@ -196,6 +196,24 @@ const isWindowRenderable = (node: HTMLElement | null) => {
   return rect.width > 8 && rect.height > 8;
 };
 
+const isWindowVisibleOnViewport = (node: HTMLElement | null) => {
+  if (!node) return false;
+  const style = window.getComputedStyle(node);
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  const rect = node.getBoundingClientRect();
+  if (rect.width <= 8 || rect.height <= 8) {
+    return false;
+  }
+  return (
+    rect.right > 4 &&
+    rect.bottom > 4 &&
+    rect.left < window.innerWidth - 4 &&
+    rect.top < window.innerHeight - 4
+  );
+};
+
 const waitForMainWindow = async (
   timeoutMs: number,
   isCancelled: () => boolean
@@ -694,6 +712,8 @@ export const WinampPlayerShell = ({
   const playlistSignatureRef = useRef('');
   const lastAppliedVolumeRef = useRef<number | null>(null);
   const suppressVolumeSyncUntilRef = useRef(0);
+  const expandedRecoveryAttemptsRef = useRef(0);
+  const recoveredSkinRef = useRef<string | null>(null);
 
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
@@ -713,6 +733,13 @@ export const WinampPlayerShell = ({
       expandRetryRef.current = null;
     }
   }, [winamp.expanded]);
+
+  useEffect(() => {
+    if (recoveredSkinRef.current !== winamp.activeSkin.url) {
+      recoveredSkinRef.current = winamp.activeSkin.url;
+      expandedRecoveryAttemptsRef.current = 0;
+    }
+  }, [winamp.activeSkin.url]);
 
   const requestExpand = () => {
     if (expandRetryRef.current !== null) {
@@ -1499,6 +1526,44 @@ export const WinampPlayerShell = ({
       document.removeEventListener('click', onExpandedToggle, true);
     };
   }, [winamp, winamp.expanded, webampReady]);
+
+  useEffect(() => {
+    if (!winamp.expanded || !webampReady) return;
+
+    let cancelled = false;
+    const recoverLayout = () => {
+      if (cancelled || !winamp.expanded) return;
+      const mainWindow = getWindowById('main-window');
+      if (isWindowVisibleOnViewport(mainWindow)) {
+        expandedRecoveryAttemptsRef.current = 0;
+        return;
+      }
+
+      expandedRecoveryAttemptsRef.current += 1;
+      const mode = getResponsiveExpandedMode();
+      console.warn(
+        `Winamp window hidden after boot; recovery attempt ${expandedRecoveryAttemptsRef.current}`
+      );
+      winamp.resetLayout();
+      ensureExpandedWindowsVisible(mode, true, winamp.windowVisibility);
+      resetCompactWindowVisibility();
+      syncExpandedWindowPlacement(mode);
+
+      if (expandedRecoveryAttemptsRef.current >= 2) {
+        setBootCycle((value) => value + 1);
+        expandedRecoveryAttemptsRef.current = 0;
+      }
+    };
+
+    const checkA = window.setTimeout(recoverLayout, 320);
+    const checkB = window.setTimeout(recoverLayout, 980);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(checkA);
+      window.clearTimeout(checkB);
+    };
+  }, [winamp, winamp.expanded, webampReady, winamp.activeSkin.url]);
 
   useEffect(() => {
     const instance = webampRef.current;
