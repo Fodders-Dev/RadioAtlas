@@ -2,7 +2,7 @@ import { stationLocation } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
 
 export const Playlist = () => {
-  const { queue, playback, playbackHistory } = useRadio();
+  const { player, queue, playbackHistory } = useRadio();
 
   return (
     <section className="screen screen-playlist">
@@ -46,7 +46,7 @@ export const Playlist = () => {
             {queue.items.map((station, index) => {
               const active =
                 index === queue.currentIndex &&
-                playback.currentStation?.stationuuid === station.stationuuid;
+                player.current?.stationuuid === station.stationuuid;
               return (
                 <div
                   key={station.stationuuid}
@@ -59,7 +59,7 @@ export const Playlist = () => {
                   </div>
                   <div className="playlist-actions">
                     <button className="chip" type="button" onClick={() => queue.playAtIndex(index)}>
-                      {active && playback.isPlaying ? 'Playing' : 'Play'}
+                      {active && player.isPlaying ? 'Playing' : 'Play'}
                     </button>
                     <button className="chip" type="button" onClick={() => queue.removeAtIndex(index)}>
                       Remove

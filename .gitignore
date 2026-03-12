@@ -8,3 +8,4 @@ test-results/
 .env
 .env.local
 .DS_Store
+apps/webapp/vite-plan*.log

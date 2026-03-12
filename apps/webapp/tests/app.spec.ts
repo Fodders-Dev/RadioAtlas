@@ -56,6 +56,22 @@ const stations = [
   }
 ];
 
+const httpUpgradeStation = {
+  ...stations[0],
+  stationuuid: 'uuid-http-upgrade',
+  name: 'HTTP Upgrade FM',
+  url: 'http://stream.example.com/http-upgrade.mp3',
+  url_resolved: 'http://stream.example.com/http-upgrade.mp3'
+};
+
+const brokenHttpStation = {
+  ...stations[0],
+  stationuuid: 'uuid-http-broken',
+  name: 'Broken HTTP FM',
+  url: 'http://broken-stream.example.com/live.mp3',
+  url_resolved: 'http://broken-stream.example.com/live.mp3'
+};
+
 const remoteSkinBinary = readFileSync(
   fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url))
 );
@@ -245,11 +261,55 @@ const mockStations = async (page: Page) => {
   });
 };
 
+const overrideCatalog = async (page: Page, values: typeof stations) => {
+  const body = JSON.stringify(values);
+  await page.route('**/catalog-fast.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body
+    })
+  );
+  await page.route('**/catalog-full.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body
+    })
+  );
+  await page.route('**/json/stations/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body
+    })
+  );
+};
+
 const openFullscreenPlayer = async (page: Page) => {
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Fullscreen' }).click();
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
+};
+
+const waitForWebampWindowVisible = async (page: Page, id: string) => {
+  await expect
+    .poll(async () => {
+      return page.evaluate((windowId) => {
+        const node = document.querySelector(`#${windowId}`)?.closest('.window') as HTMLElement | null;
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return (
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          rect.width > 8 &&
+          rect.height > 8
+        );
+      }, id);
+    })
+    .toBe(true);
 };
 
 const waitForWebampReady = async (page: Page) => {
@@ -290,23 +350,6 @@ const dragWebampWindow = async (page: Page, id: string, offsetX: number, offsetY
   );
 };
 
-const setWebampEqHandleOffset = async (page: Page, id: string, offset: number) => {
-  await page.evaluate(
-    ({ sliderId, nextOffset }) => {
-      const band = document.querySelector(`#${sliderId}`) as HTMLElement | null;
-      const sliderRoot = band?.firstElementChild as HTMLElement | null;
-      const handle = sliderRoot?.firstElementChild as HTMLElement | null;
-      if (!handle) {
-        throw new Error(`EQ slider not found: ${sliderId}`);
-      }
-      handle.style.transform = `translateY(${nextOffset}px)`;
-      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      document.dispatchEvent(new Event('click', { bubbles: true }));
-    },
-    { sliderId: id, nextOffset: offset }
-  );
-};
-
 const setWebampSliderValue = async (page: Page, title: string, value: number) => {
   await page.evaluate(
     ({ sliderTitle, nextValue }) => {
@@ -328,6 +371,72 @@ const setWebampSliderValue = async (page: Page, title: string, value: number) =>
     },
     { sliderTitle: title, nextValue: value }
   );
+};
+
+const setWebampEqBandValue = async (page: Page, id: string, value: number) => {
+  await waitForWebampWindowVisible(page, 'equalizer-window');
+  const sliderHandle = await page.waitForFunction((sliderId) => {
+    const sliderRoot = document.querySelector(`#${sliderId} > *`) as HTMLElement | null;
+    const handle = sliderRoot?.firstElementChild as HTMLElement | null;
+    const rootRect = sliderRoot?.getBoundingClientRect();
+    const handleRect = handle?.getBoundingClientRect();
+    if (!rootRect || !handleRect || rootRect.width <= 0 || handleRect.width <= 0) {
+      return null;
+    }
+
+    return {
+      root: {
+        x: rootRect.x,
+        y: rootRect.y,
+        width: rootRect.width,
+        height: rootRect.height
+      },
+      handle: {
+        x: handleRect.x,
+        y: handleRect.y,
+        width: handleRect.width,
+        height: handleRect.height
+      }
+    };
+  }, id);
+  const sliderBoxes = await sliderHandle.jsonValue();
+
+  const { handle, root } = sliderBoxes;
+  const targetY = root.y + (1 - value / 100) * 51;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(root.x + root.width / 2, targetY, { steps: 12 });
+  await page.mouse.up();
+};
+
+const openWebampEqWindow = async (page: Page) => {
+  const isVisible = async () =>
+    page.evaluate(() => {
+      const node = document.querySelector('#equalizer-window')?.closest('.window') as HTMLElement | null;
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return (
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        rect.width > 8 &&
+        rect.height > 8
+      );
+    });
+
+  if (await isVisible()) return;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.locator('[title="Toggle Graphical Equalizer"]').click({ force: true });
+    try {
+      await waitForWebampWindowVisible(page, 'equalizer-window');
+      return;
+    } catch {
+      // Retry once if Webamp ignored the first toggle during layout sync.
+    }
+  }
+
+  throw new Error('Equalizer window did not open');
 };
 
 const triggerWebampControl = async (page: Page, title: string) => {
@@ -640,7 +749,7 @@ test('expanded mode keeps station list clickable', async ({ page }) => {
 test('fullscreen windows can be repositioned', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(1400);
 
   const before = await getWebampWindowRect(page, 'main-window');
   expect(before).not.toBeNull();
@@ -808,6 +917,179 @@ test('webamp next button follows radio random navigation in fullscreen', async (
     .toBe('Berlin Pulse');
 });
 
+test('next track can leave a single-station queue and use the full catalog', async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.4;
+    localStorage.setItem(
+      'radio:playback-queue:v2',
+      JSON.stringify({
+        items: [
+          {
+            stationuuid: 'uuid-tokyo',
+            name: 'Tokyo FM',
+            url_resolved: 'https://stream.example.com/tokyo',
+            favicon: '',
+            country: 'Japan',
+            state: 'Tokyo',
+            tags: 'pop,jpop',
+            geo_lat: 35.6895,
+            geo_long: 139.6917
+          }
+        ],
+        currentIndex: 0,
+        sourceId: 'single-station',
+        sourceLabel: 'Single station'
+      })
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await openFullscreenPlayer(page);
+
+  await triggerWebampControl(page, 'Next Track');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Berlin Pulse');
+});
+
+test('next track follows queue order before global fallback', async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0.4;
+    localStorage.setItem(
+      'radio:playback-queue:v2',
+      JSON.stringify({
+        items: [
+          {
+            stationuuid: 'uuid-tokyo',
+            name: 'Tokyo FM',
+            url_resolved: 'https://stream.example.com/tokyo',
+            favicon: '',
+            country: 'Japan',
+            state: 'Tokyo',
+            tags: 'pop,jpop',
+            geo_lat: 35.6895,
+            geo_long: 139.6917
+          },
+          {
+            stationuuid: 'uuid-berlin',
+            name: 'Berlin Pulse',
+            url_resolved: 'https://stream.example.com/berlin',
+            favicon: '',
+            country: 'Germany',
+            state: 'Berlin',
+            tags: 'techno,house',
+            geo_lat: 52.52,
+            geo_long: 13.405
+          },
+          {
+            stationuuid: 'uuid-rio',
+            name: 'Rio Beats',
+            url_resolved: 'https://stream.example.com/rio',
+            favicon: '',
+            country: 'Brazil',
+            state: 'Rio de Janeiro',
+            tags: 'samba,bossa',
+            geo_lat: -22.9068,
+            geo_long: -43.1729
+          }
+        ],
+        currentIndex: 0,
+        sourceId: 'ordered-queue',
+        sourceLabel: 'Ordered queue'
+      })
+    );
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await openFullscreenPlayer(page);
+
+  await triggerWebampControl(page, 'Next Track');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Berlin Pulse');
+
+  await triggerWebampControl(page, 'Next Track');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .toBe('Rio Beats');
+});
+
+test('https non-direct station starts when API proxy is offline', async ({ page }) => {
+  await page.route('**/api/health', (route) => route.fulfill({ status: 503, body: 'offline' }));
+  await page.route('**/stream?url=**', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      });
+    })
+    .toContain('https://stream.example.com/tokyo');
+});
+
+test('http station upgrades to https when API proxy is offline', async ({ page }) => {
+  await overrideCatalog(page, [httpUpgradeStation]);
+  await page.route('**/api/health', (route) => route.fulfill({ status: 503, body: 'offline' }));
+  await page.route('**/stream?url=**', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      });
+    })
+    .toContain('https://stream.example.com/http-upgrade.mp3');
+});
+
+test('shows mixed content error when only http stream is left and API is offline', async ({ page }) => {
+  await page.addInitScript(() => {
+    const basePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      const src = this.src || '';
+      if (src.includes('broken-stream.example.com')) {
+        this.setAttribute('data-ra-state', 'error');
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new Error('blocked'));
+      }
+      return basePlay.call(this);
+    };
+  });
+
+  await overrideCatalog(page, [brokenHttpStation]);
+  await page.route('**/api/health', (route) => route.fulfill({ status: 503, body: 'offline' }));
+  await page.route('**/stream?url=**', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('.toast')).toContainText('stream blocked/mixed content');
+});
+
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Play' }).first().click();
@@ -852,9 +1134,10 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await page.getByRole('button', { name: 'Play' }).first().click();
   await openFullscreenPlayer(page);
   await page.waitForTimeout(900);
+  await openWebampEqWindow(page);
 
-  await setWebampEqHandleOffset(page, 'preamp', 0);
-  await setWebampEqHandleOffset(page, 'band-600', 0);
+  await setWebampEqBandValue(page, 'preamp', 100);
+  await setWebampEqBandValue(page, 'band-600', 100);
 
   await expect
     .poll(async () => {

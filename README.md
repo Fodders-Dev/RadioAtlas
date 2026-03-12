@@ -88,3 +88,7 @@ VITE_API_URL=https://your-domain/api
 - Station catalog source: https://docs.radio-browser.info/ (community-maintained).
 - Player mode is Winamp-only (Webamp UI) with compact shell + full overlay.
 - Preset skins are in `apps/webapp/public/winamp-skins`; upload `.wsz` is session-only.
+
+## Legacy debug tools
+- One-off webapp debug scripts were moved to `tools/legacy-debug/webapp`.
+- They are not part of regular app runtime or CI and are kept only for manual diagnostics.

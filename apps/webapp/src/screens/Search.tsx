@@ -4,6 +4,7 @@ import { useDebounce } from '../lib/useDebounce';
 import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { getApiBase } from '../lib/apiBase';
+import { checkApiAvailability, markApiUnavailable } from '../lib/apiAvailability';
 import { useRadio } from '../state/RadioContext';
 import { toLite } from '../lib/stationUtils';
 import type { StationLite } from '../types';
@@ -192,12 +193,43 @@ export const Search = () => {
   const debounced = useDebounce(query, 250);
   const showStations = mode === 'stations';
   const apiBase = getApiBase();
+  const [apiOnline, setApiOnline] = useState(true);
+
+  const checkApiOnline = useCallback(async () => {
+    if (!apiBase) {
+      setApiOnline(false);
+      return false;
+    }
+    const ok = await checkApiAvailability(apiBase, { timeoutMs: 1_000 });
+    setApiOnline(ok);
+    return ok;
+  }, [apiBase]);
 
   useEffect(() => {
     if (linkError) {
       setLinkError(null);
     }
   }, [linkUrl, linkName, mode, linkError]);
+
+  useEffect(() => {
+    let active = true;
+
+    const refresh = async () => {
+      const ok = await checkApiOnline();
+      if (!active) return;
+      setApiOnline(ok);
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => {
+      void refresh();
+    }, 15_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [checkApiOnline]);
 
   useEffect(() => {
     setVisibleCount(200);
@@ -297,6 +329,19 @@ export const Search = () => {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+  const ensureApiAvailable = async () => {
+    if (!apiBase) {
+      setApiOnline(false);
+      setLinkError('API unavailable');
+      return false;
+    }
+    const ok = await checkApiOnline();
+    if (!ok) {
+      setLinkError('API unavailable');
+    }
+    return ok;
+  };
+
   const addLinks = (items: ExternalLink[]) => {
     setLinks((prev) => {
       const existing = new Set(prev.map((item) => item.url));
@@ -353,13 +398,42 @@ export const Search = () => {
 
     setLinkLoading(true);
     try {
-      const fetchUrl = apiBase
-        ? `${apiBase}/fetch?url=${encodeURIComponent(normalized)}`
-        : normalized;
-      const response = await fetch(fetchUrl);
-      if (!response.ok) {
-        throw new Error(`Playlist fetch failed (${response.status})`);
+      const fetchTargets: string[] = [normalized];
+      const apiReady = apiBase ? await checkApiOnline() : false;
+      if (apiReady) {
+        fetchTargets.unshift(`${apiBase}/fetch?url=${encodeURIComponent(normalized)}`);
       }
+
+      let response: Response | null = null;
+      let lastStatus = 0;
+      for (const fetchUrl of fetchTargets) {
+        try {
+          const next = await fetch(fetchUrl);
+          if (!next.ok) {
+            lastStatus = next.status;
+            if (apiBase && fetchUrl.startsWith(`${apiBase}/`)) {
+              setApiOnline(false);
+            }
+            continue;
+          }
+          response = next;
+          break;
+        } catch {
+          if (apiBase && fetchUrl.startsWith(`${apiBase}/`)) {
+            setApiOnline(false);
+            markApiUnavailable(apiBase);
+            continue;
+          }
+        }
+      }
+
+      if (!response) {
+        if (apiBase && !apiReady) {
+          throw new Error('API unavailable');
+        }
+        throw new Error(`Playlist fetch failed (${lastStatus || 0})`);
+      }
+
       const text = await response.text();
       const lower = normalized.toLowerCase();
       const rawItems = lower.endsWith('.pls') || text.toLowerCase().includes('[playlist]')
@@ -398,6 +472,14 @@ export const Search = () => {
 
   const extractLinkFor = async (sourceUrl: string, nameOverride?: string) => {
     const normalized = normalizeUrl(sourceUrl);
+    if (!apiBase) {
+      setLinkError('API unavailable');
+      return;
+    }
+    const canUseApi = await ensureApiAvailable();
+    if (!canUseApi) {
+      return;
+    }
     setLinkLoading(true);
     try {
       const response = await fetch(
@@ -437,6 +519,8 @@ export const Search = () => {
       setLinkUrl('');
       setLinkName('');
     } catch (err) {
+      setApiOnline(false);
+      markApiUnavailable(apiBase);
       setLinkError(err instanceof Error ? err.message : 'Extraction failed');
     } finally {
       setLinkLoading(false);
@@ -608,7 +692,7 @@ export const Search = () => {
                   className="chip"
                   type="button"
                   onClick={extractLink}
-                  disabled={linkLoading || !apiBase}
+                  disabled={linkLoading || !apiBase || !apiOnline}
                 >
                   Extract streams
                 </button>
@@ -622,9 +706,9 @@ export const Search = () => {
                 </button>
               </div>
             </div>
-            {!apiBase && (
+            {(!apiBase || !apiOnline) && (
               <div className="error">
-                Extractor is offline. Set API URL in Settings.
+                Extractor is offline. Check API URL in Settings.
               </div>
             )}
             {linkError && <div className="error">{linkError}</div>}

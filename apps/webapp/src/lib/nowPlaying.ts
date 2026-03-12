@@ -1,5 +1,6 @@
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
+import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
 const textDecoder = new TextDecoder('utf-8');
@@ -195,7 +196,12 @@ const fetchWithTimeout = async (url: string, ms = 4000) => {
   }
 };
 
-const fetchIcecastCORS = async (origin: string, path: string): Promise<string | null> => {
+const fetchIcecastCORS = async (
+  origin: string,
+  path: string,
+  apiBase: string,
+  apiAvailable: boolean
+): Promise<string | null> => {
   const target = `${origin}/status-json.xsl`;
   let data: any = null;
 
@@ -206,15 +212,12 @@ const fetchIcecastCORS = async (origin: string, path: string): Promise<string | 
     // ignore direct failure
   }
 
-  if (!data) {
-    const api = getApiBase();
-    if (api) {
-      try {
-        const res = await fetchWithTimeout(`${api}/fetch?url=${encodeURIComponent(target)}`);
-        if (res.ok) data = await res.json();
-      } catch {
-        // ignore proxy failure
-      }
+  if (!data && apiBase && apiAvailable) {
+    try {
+      const res = await fetchWithTimeout(`${apiBase}/fetch?url=${encodeURIComponent(target)}`);
+      if (res.ok) data = await res.json();
+    } catch {
+      markApiUnavailable(apiBase);
     }
   }
 
@@ -236,7 +239,11 @@ const fetchIcecastCORS = async (origin: string, path: string): Promise<string | 
   return null;
 };
 
-const fetchShoutcastCORS = async (origin: string): Promise<string | null> => {
+const fetchShoutcastCORS = async (
+  origin: string,
+  apiBase: string,
+  apiAvailable: boolean
+): Promise<string | null> => {
   const target = `${origin}/7.html`;
   let text: string | null = null;
 
@@ -247,15 +254,12 @@ const fetchShoutcastCORS = async (origin: string): Promise<string | null> => {
     // ignore
   }
 
-  if (!text) {
-    const api = getApiBase();
-    if (api) {
-      try {
-        const res = await fetchWithTimeout(`${api}/fetch?url=${encodeURIComponent(target)}`);
-        if (res.ok) text = await res.text();
-      } catch {
-        // ignore
-      }
+  if (!text && apiBase && apiAvailable) {
+    try {
+      const res = await fetchWithTimeout(`${apiBase}/fetch?url=${encodeURIComponent(target)}`);
+      if (res.ok) text = await res.text();
+    } catch {
+      markApiUnavailable(apiBase);
     }
   }
 
@@ -274,6 +278,13 @@ const fetchShoutcastCORS = async (origin: string): Promise<string | null> => {
 export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: string) => void) => {
   const url = station.url_resolved;
   if (!url) return null;
+  const apiBase = getApiBase();
+  const apiAvailable = apiBase
+    ? await checkApiAvailability(apiBase, { timeoutMs: 1_000 })
+    : false;
+  if (apiBase && !apiAvailable && logDebug) {
+    logDebug('[API] unavailable');
+  }
 
   try {
     const urlObj = new URL(url);
@@ -281,11 +292,11 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
     const path = urlObj.pathname;
 
     // 1. Try generic Icecast JSON (fast, reliable if CORS allowed)
-    const icecast = await fetchIcecastCORS(origin, path);
+    const icecast = await fetchIcecastCORS(origin, path, apiBase, apiAvailable);
     if (icecast) return icecast;
 
     // 2. Try generic Shoutcast (fast, reliable if CORS allowed)
-    const shoutcast = await fetchShoutcastCORS(origin);
+    const shoutcast = await fetchShoutcastCORS(origin, apiBase, apiAvailable);
     if (shoutcast) return shoutcast;
 
     // 3. Try AzuraCast API (specific to AzuraCast hosts)
@@ -303,10 +314,9 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
 
   // 5. Final Resort: Server-side Metadata Proxy
   // Ask our own API server to connect and parse the metadata for us
-  const api = getApiBase();
-  if (api) {
+  if (apiBase && apiAvailable) {
     try {
-      const res = await fetch(`${api}/metadata?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${apiBase}/metadata?url=${encodeURIComponent(url)}`);
 
       let data: any = null;
       if (res.ok) {
@@ -329,6 +339,7 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
         }
       }
     } catch (e) {
+      markApiUnavailable(apiBase);
       if (logDebug) logDebug(`[SSR] Fetch Fail: ${e}`);
     }
   }

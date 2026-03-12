@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
+import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
 
@@ -47,6 +48,12 @@ type ExtractResponse = {
   error?: string;
 };
 
+type CandidatePlan = {
+  candidates: string[];
+  blockedMixedContent: boolean;
+  apiUnavailable: boolean;
+};
+
 const EQ_CENTER = 50;
 const EQ_RANGE_DB = 12;
 const VISUALIZER_BARS = 24;
@@ -63,11 +70,8 @@ const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
 const createEmptySpectrum = () => Array.from({ length: VISUALIZER_BARS }, () => 0);
 const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, () => 0);
 
-const buildProxyUrl = (url: string) => {
-  const base = normalizeBase(getApiBase());
-  if (!base) return url;
-  return `${base}/stream?url=${encodeURIComponent(url)}`;
-};
+const buildProxyUrl = (url: string, apiBase: string) =>
+  `${normalizeBase(apiBase)}/stream?url=${encodeURIComponent(url)}`;
 
 const isExternalStation = (station: StationLite) =>
   station.stationuuid.startsWith('ext_') ||
@@ -87,6 +91,7 @@ const pickBestStream = (streams: ExtractAudioStream[]) => {
 
 const resolveExternalStream = async (
   url: string,
+  apiBase: string,
   log: (message: string) => void,
   depth = 0
 ): Promise<string | null> => {
@@ -94,7 +99,7 @@ const resolveExternalStream = async (
     log('extract: depth limit reached');
     return null;
   }
-  const base = normalizeBase(getApiBase());
+  const base = normalizeBase(apiBase);
   if (!base) {
     log('extract: api base missing');
     return null;
@@ -124,42 +129,73 @@ const resolveExternalStream = async (
       return null;
     }
     log(`extract: playlist -> ${nextUrl}`);
-    return resolveExternalStream(nextUrl, log, depth + 1);
+    return resolveExternalStream(nextUrl, base, log, depth + 1);
   } catch (err) {
     log(`extract: failed (${err instanceof Error ? err.message : 'unknown'})`);
     return null;
   }
 };
 
-const buildCandidates = (url: string) => {
-  const candidates: string[] = [];
-  const apiBase = normalizeBase(getApiBase());
-  const isLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
-  const proxyPreferred =
-    Boolean(apiBase) && (url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url));
+const pushUnique = (items: string[], value: string) => {
+  if (!value) return;
+  if (items.includes(value)) return;
+  items.push(value);
+};
 
-  if (proxyPreferred) {
-    candidates.push(buildProxyUrl(url));
-  }
+const toPlaybackError = (
+  fallback: string,
+  options: {
+    blockedMixedContent?: boolean;
+    apiUnavailable?: boolean;
+  } = {}
+) => {
+  if (options.blockedMixedContent) return 'stream blocked/mixed content';
+  if (options.apiUnavailable) return 'api unavailable';
+  if (fallback === 'api unavailable') return 'api unavailable';
+  if (fallback === 'stream blocked/mixed content') return 'stream blocked/mixed content';
+  return 'no playable candidate';
+};
+
+const buildCandidates = ({
+  url,
+  apiBase,
+  apiAvailable
+}: {
+  url: string;
+  apiBase: string;
+  apiAvailable: boolean;
+}): CandidatePlan => {
+  const candidates: string[] = [];
+  const normalizedBase = normalizeBase(apiBase);
+  const isHttpLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
+  const proxyRelevant = url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url);
+  const canUseProxy = Boolean(normalizedBase) && apiAvailable && proxyRelevant;
+  const blockedMixedContent = url.startsWith('http://') && !apiAvailable;
+  const apiUnavailable = Boolean(normalizedBase) && !apiAvailable && proxyRelevant;
 
   if (url.startsWith('http://')) {
     const httpsUrl = url.replace(/^http:\/\//, 'https://');
     if (httpsUrl !== url) {
-      candidates.push(httpsUrl);
+      pushUnique(candidates, httpsUrl);
     }
-    if (apiBase && !proxyPreferred) {
-      candidates.push(buildProxyUrl(url));
+    if (isHttpLocal) {
+      pushUnique(candidates, url);
     }
-    if (isLocal) {
-      candidates.push(url);
+    if (canUseProxy) {
+      pushUnique(candidates, buildProxyUrl(url, normalizedBase));
     }
   } else {
-    candidates.push(url);
-    if (apiBase && !proxyPreferred && (isHls(url) || !isDirectAudioUrl(url))) {
-      candidates.push(buildProxyUrl(url));
+    pushUnique(candidates, url);
+    if (canUseProxy) {
+      pushUnique(candidates, buildProxyUrl(url, normalizedBase));
     }
   }
-  return Array.from(new Set(candidates));
+
+  return {
+    candidates,
+    blockedMixedContent,
+    apiUnavailable
+  };
 };
 
 export const useAudioPlayer = ({
@@ -175,6 +211,12 @@ export const useAudioPlayer = ({
   const candidatesRef = useRef<string[]>([]);
   const candidateIndexRef = useRef(0);
   const activeUrlRef = useRef<string | null>(null);
+  const apiBaseRef = useRef('');
+  const candidatePlanRef = useRef<CandidatePlan>({
+    candidates: [],
+    blockedMixedContent: false,
+    apiUnavailable: false
+  });
   const lastErrorRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -187,7 +229,6 @@ export const useAudioPlayer = ({
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeUrl, setActiveUrl] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.8);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [eqEnabled, setEqEnabled] = useState(true);
@@ -316,8 +357,6 @@ export const useAudioPlayer = ({
     if (!audio) return;
 
     cleanupHls();
-    activeUrlRef.current = url;
-    setActiveUrl(url);
     pushEvent(`source: ${url}`);
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -351,10 +390,10 @@ export const useAudioPlayer = ({
 
     const list = candidatesRef.current;
     if (startIndex < 0 || startIndex >= list.length) {
-      return { ok: false, error: 'No playable stream candidates' };
+      return { ok: false, error: 'no playable candidate' };
     }
 
-    let lastError = 'No playable stream candidates';
+    let lastError = 'no playable candidate';
     for (let index = startIndex; index < list.length; index += 1) {
       const nextUrl = list[index];
       candidateIndexRef.current = index;
@@ -369,14 +408,21 @@ export const useAudioPlayer = ({
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Playback failed';
         lastErrorRef.current = lastError;
+        if (apiBaseRef.current && nextUrl.startsWith(`${apiBaseRef.current}/`)) {
+          markApiUnavailable(apiBaseRef.current);
+        }
         pushEvent(`playback: candidate failed (${nextUrl}) ${lastError}`);
       }
     }
 
+    const normalizedError = toPlaybackError('no playable candidate', {
+      blockedMixedContent: candidatePlanRef.current.blockedMixedContent,
+      apiUnavailable: candidatePlanRef.current.apiUnavailable
+    });
     setStatus('error');
     setIsPlaying(false);
-    setErrorMessage(lastError);
-    return { ok: false, error: lastError };
+    setErrorMessage(normalizedError);
+    return { ok: false, error: normalizedError };
   };
 
   const tryNextCandidate = async () => {
@@ -397,11 +443,10 @@ export const useAudioPlayer = ({
     reconnectRef.current.timer = window.setTimeout(async () => {
       reconnectRef.current.timer = null;
       try {
-        const url = activeUrlRef.current || currentRef.current?.url_resolved;
-        if (!url) return;
-        await attachSource(url);
-        await resumeAudioContext();
-        await audio.play();
+        const result = await playCandidateAtIndex(0);
+        if (!result.ok) {
+          throw new Error(result.error || 'reconnect failed');
+        }
       } catch {
         scheduleReconnect();
       }
@@ -493,7 +538,14 @@ export const useAudioPlayer = ({
           if (!switched) {
             setStatus('error');
             setIsPlaying(false);
-            scheduleReconnect();
+            const finalError = toPlaybackError('no playable candidate', {
+              blockedMixedContent: candidatePlanRef.current.blockedMixedContent,
+              apiUnavailable: candidatePlanRef.current.apiUnavailable
+            });
+            setErrorMessage(finalError);
+            if (finalError === 'no playable candidate') {
+              scheduleReconnect();
+            }
           }
         });
       }
@@ -682,7 +734,6 @@ export const useAudioPlayer = ({
     cleanupHls();
     clearWaitingTimeout();
     activeUrlRef.current = null;
-    setActiveUrl(null);
     lastErrorRef.current = null;
     setErrorMessage(null);
 
@@ -691,10 +742,20 @@ export const useAudioPlayer = ({
     audio.currentTime = 0;
     audio.load();
 
+    const apiBase = normalizeBase(getApiBase());
+    apiBaseRef.current = apiBase;
+    const apiAvailable = apiBase
+      ? await checkApiAvailability(apiBase, { timeoutMs: 1_000 })
+      : false;
+    if (apiBase && !apiAvailable) {
+      pushEvent('api: unavailable');
+      markApiUnavailable(apiBase);
+    }
+
     let resolvedStation = station;
     if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
-      if (!normalizeBase(getApiBase())) {
-        const error = 'API proxy required for this station';
+      if (!apiBase || !apiAvailable) {
+        const error = 'api unavailable';
         setCurrent(station);
         setIsPlaying(false);
         setStatus('error');
@@ -702,11 +763,11 @@ export const useAudioPlayer = ({
         return { ok: false, error };
       }
       pushEvent('extract: resolving external link');
-      const extracted = await resolveExternalStream(station.url_resolved, pushEvent);
+      const extracted = await resolveExternalStream(station.url_resolved, apiBase, pushEvent);
       if (extracted) {
         resolvedStation = { ...station, url_resolved: extracted };
       } else {
-        const error = 'Unable to resolve a playable stream';
+        const error = 'no playable candidate';
         setCurrent(station);
         setIsPlaying(false);
         setStatus('error');
@@ -719,10 +780,19 @@ export const useAudioPlayer = ({
     setCurrent(resolvedStation);
     setStatus('buffering');
     setIsPlaying(false);
-    candidatesRef.current = buildCandidates(resolvedStation.url_resolved);
+    const candidatePlan = buildCandidates({
+      url: resolvedStation.url_resolved,
+      apiBase,
+      apiAvailable
+    });
+    candidatePlanRef.current = candidatePlan;
+    candidatesRef.current = candidatePlan.candidates;
     candidateIndexRef.current = 0;
     if (!candidatesRef.current.length) {
-      const error = 'API proxy required for this stream';
+      const error = toPlaybackError('no playable candidate', {
+        blockedMixedContent: candidatePlan.blockedMixedContent,
+        apiUnavailable: candidatePlan.apiUnavailable
+      });
       setStatus('error');
       setErrorMessage(error);
       return { ok: false, error };
@@ -730,7 +800,13 @@ export const useAudioPlayer = ({
 
     const result = await playCandidateAtIndex(0);
     if (!result.ok) {
-      return { ok: false, error: result.error, station: resolvedStation };
+      const error = toPlaybackError(result.error || 'no playable candidate', {
+        blockedMixedContent: candidatePlan.blockedMixedContent,
+        apiUnavailable: candidatePlan.apiUnavailable
+      });
+      setStatus('error');
+      setErrorMessage(error);
+      return { ok: false, error, station: resolvedStation };
     }
 
     return { ok: true, station: resolvedStation };
@@ -758,7 +834,7 @@ export const useAudioPlayer = ({
       pushEvent(`audio: resume failed (${error instanceof Error ? error.message : 'unknown'})`);
       setStatus('error');
       setIsPlaying(false);
-      setErrorMessage(error instanceof Error ? error.message : 'Playback failed');
+      setErrorMessage('no playable candidate');
       return false;
     }
   };
@@ -784,7 +860,6 @@ export const useAudioPlayer = ({
     current,
     status,
     isPlaying,
-    activeUrl,
     volume,
     eq: {
       enabled: eqEnabled,

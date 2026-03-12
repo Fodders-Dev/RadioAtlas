@@ -49,15 +49,6 @@ type QueueSnapshot = {
   sourceLabel: string | null;
 };
 
-type PlaybackState = {
-  currentStation: StationLite | null;
-  status: ReturnType<typeof useAudioPlayer>['status'];
-  isPlaying: boolean;
-  activeStreamUrl: string | null;
-  error: string | null;
-  nowPlaying: string | null;
-};
-
 type LayoutWindowVisibility = {
   'equalizer-window': boolean;
   'playlist-window': boolean;
@@ -73,14 +64,6 @@ type StoredWinampLayout = {
 };
 
 type QueueState = QueueSnapshot & {
-  setQueueFromList: (
-    stations: Array<Station | StationLite>,
-    options?: {
-      sourceId?: string | null;
-      sourceLabel?: string | null;
-      startStationId?: string | null;
-    }
-  ) => void;
   playAtIndex: (index: number) => void;
   removeAtIndex: (index: number) => void;
   clearQueue: () => void;
@@ -126,7 +109,6 @@ type RadioContextValue = {
   nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
-  playback: PlaybackState;
   player: ReturnType<typeof useAudioPlayer>;
   queue: QueueState;
   winamp: WinampState;
@@ -749,7 +731,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const playNext = () => {
     const currentQueue = queueRef.current;
-    if (currentQueue.currentIndex >= 0 && currentQueue.currentIndex < currentQueue.items.length - 1) {
+    if (
+      currentQueue.items.length > 0 &&
+      currentQueue.currentIndex >= 0 &&
+      currentQueue.currentIndex < currentQueue.items.length - 1
+    ) {
       const nextIndex = currentQueue.currentIndex + 1;
       const nextStation = currentQueue.items[nextIndex];
       if (nextStation) {
@@ -763,25 +749,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    const queuePool = currentQueue.items.length ? currentQueue.items : normalizeStations(stations);
-    const randomStation = pickRandomStation(queuePool);
-    if (!randomStation) return;
-    const randomIndex = currentQueue.items.findIndex(
-      (item) => item.stationuuid === randomStation.stationuuid
+    const globalPool = stations.map((station) => toLite(station));
+    const randomStation = pickRandomStation(
+      globalPool.length ? globalPool : currentQueue.items
     );
-    const queueSnapshot =
-      randomIndex >= 0
-        ? {
-            ...currentQueue,
-            currentIndex: randomIndex
-          }
-        : resolveQueueSnapshot(randomStation, {
-            sourceId: currentQueue.sourceId ?? 'random',
-            sourceLabel: currentQueue.sourceLabel ?? 'Random'
-          });
+    if (!randomStation) return;
 
     void playStationInternal(randomStation, {
-      queueSnapshot
+      queueSnapshot: resolveQueueSnapshot(randomStation, {
+        sourceId: 'all-stations',
+        sourceLabel: 'All stations'
+      })
     });
   };
 
@@ -959,40 +937,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(`Skin: ${skin.name}`);
   };
 
-  const playback = useMemo<PlaybackState>(
-    () => ({
-      currentStation: player.current,
-      status: player.status,
-      isPlaying: player.isPlaying,
-      activeStreamUrl: player.activeUrl,
-      error: player.errorMessage,
-      nowPlaying
-    }),
-    [nowPlaying, player]
-  );
-
   const queue = useMemo<QueueState>(
     () => ({
       ...storedQueue,
-      setQueueFromList: (queueStations, options) => {
-        const items = normalizeStations(queueStations);
-        const currentIndex = options?.startStationId
-          ? items.findIndex((item) => item.stationuuid === options.startStationId)
-          : items.length
-            ? 0
-            : -1;
-
-        updateQueue({
-          items,
-          currentIndex,
-          sourceId: options?.sourceId ?? storedQueue.sourceId,
-          sourceLabel: getQueueSourceLabel(
-            options?.sourceId ?? storedQueue.sourceId,
-            options?.sourceLabel ?? storedQueue.sourceLabel,
-            items
-          )
-        });
-      },
       playAtIndex: (index) => {
         const target = queueRef.current.items[index];
         if (!target) return;
@@ -1124,7 +1071,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     nowPlayingStatus,
     trackHistory,
     playbackHistory: playbackHistoryEntries,
-    playback,
     player,
     queue,
     winamp,

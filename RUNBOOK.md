@@ -84,4 +84,10 @@ npm run dev:bot
 3. API env:
    - `EXTRACTOR_URL=http://127.0.0.1:4001`
 4. Webapp:
-   - Search → Links → "Extract streams".
+   - Search -> Links -> "Extract streams".
+
+## Legacy debug tools
+- Legacy webapp diagnostics scripts are stored in `tools/legacy-debug/webapp`.
+- Run them from repo root, for example:
+  - `node tools/legacy-debug/webapp/debug-icy.js`
+  - `node tools/legacy-debug/webapp/check-top-radio.js`

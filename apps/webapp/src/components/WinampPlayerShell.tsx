@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEven
 import type { StationLite } from '../types';
 import { stationLocation } from '../lib/stationUtils';
 import { EQ_BANDS } from '../lib/useAudioPlayer';
+import {
+  bindWinampTransportBridge,
+  getWebampRootNode,
+  stopNativeEvent
+} from '../lib/winampBridge';
 import { useRadio } from '../state/RadioContext';
 
 type WebampTrack = {
@@ -15,13 +20,9 @@ type WebampTrack = {
 type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
   dispose: () => void;
-  appendTracks?: (tracks: WebampTrack[]) => void;
   setTracksToPlay?: (tracks: WebampTrack[]) => void;
   setVolume?: (volume: number) => void;
   setBalance?: (balance: number) => void;
-  previousTrack?: () => void;
-  nextTrack?: () => void;
-  play?: () => Promise<void> | void;
   pause?: () => void;
   stop?: () => void;
   onWillClose?: (cb: (cancel: () => void) => void) => () => void;
@@ -72,9 +73,6 @@ const PANEL_COMPACT_MIN_HEIGHT = 96;
 const PANEL_COMPACT_MAX_HEIGHT = 208;
 const MIN_COMPACT_SCALE = 0.82;
 const MOBILE_EXPANDED_BREAKPOINT = 760;
-const MOBILE_EXPANDED_MAX_SCALE = 1.38;
-const DESKTOP_EXPANDED_MAX_SCALE = 1.74;
-const EQ_DOM_IDS = ['preamp', ...EQ_BANDS.map((band) => `band-${band}`)] as const;
 const COMPACT_TRANSPORT_SELECTOR = [
   '#webamp #previous',
   '#webamp #play',
@@ -135,16 +133,6 @@ const getSliderValue = (node: Element | null) => {
   return Number.isFinite(valueAttr) ? valueAttr : null;
 };
 
-const stopNativeEvent = (event: Event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  (
-    event as Event & {
-      stopImmediatePropagation?: () => void;
-    }
-  ).stopImmediatePropagation?.();
-};
-
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
     url: station.url_resolved || '',
@@ -185,7 +173,6 @@ const getMainWindowNode = () => {
 const getWebampWindowNodes = () =>
   Array.from(document.querySelectorAll<HTMLElement>('#webamp .window'));
 
-const getWebampRootNode = () => document.getElementById('webamp') as HTMLElement | null;
 const getWindowById = (id: string) =>
   (document.querySelector(`#${id}`)?.closest('.window') as HTMLElement | null) ?? null;
 const getExpandedWindowId = (windowNode: HTMLElement | null): ExpandedWindowId | null => {
@@ -683,7 +670,6 @@ export const WinampPlayerShell = ({
   const retryDelayRef = useRef<number | null>(null);
   const expandRetryRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
-  const playablePlaylistRef = useRef<StationLite[]>([]);
   const playlistSignatureRef = useRef('');
   const lastAppliedVolumeRef = useRef<number | null>(null);
   const suppressVolumeSyncUntilRef = useRef(0);
@@ -695,7 +681,6 @@ export const WinampPlayerShell = ({
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
     typeof window === 'undefined' ? 'desktop' : getResponsiveExpandedMode()
   );
-  const compactViewModeRef = useRef<CompactViewMode>(winamp.compactMode);
   const expandedRef = useRef(winamp.expanded);
 
   const current = player.current;
@@ -748,18 +733,19 @@ export const WinampPlayerShell = ({
       const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
       if (!shell || shell.classList.contains('fullscreen-ui')) return;
       const target = event.target as HTMLElement | null;
+      const webampRoot = getWebampRootNode();
+      if (!target || !webampRoot?.contains(target)) return;
       const shadeToggle = target?.closest('[title="Toggle Windowshade Mode"]');
       if (!shadeToggle) return;
-      event.preventDefault();
-      event.stopPropagation();
-      compactViewModeRef.current = compactViewModeRef.current === 'strip' ? 'panel' : 'strip';
-      winamp.setCompactMode(compactViewModeRef.current);
+      stopNativeEvent(event);
+      const nextMode: CompactViewMode = winamp.compactMode === 'strip' ? 'panel' : 'strip';
+      winamp.setCompactMode(nextMode);
       const mountNode = compactHostRef.current;
       if (!mountNode) return;
-      mountNode.dataset.raCompactView = compactViewModeRef.current;
-      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+      mountNode.dataset.raCompactView = nextMode;
+      syncCompactWindowPlacement(mountNode, nextMode);
       window.setTimeout(() => {
-        syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+        syncCompactWindowPlacement(mountNode, nextMode);
       }, 120);
     };
     document.addEventListener('mousedown', onShadeToggleStart, true);
@@ -779,101 +765,67 @@ export const WinampPlayerShell = ({
           resetCompactWindowVisibility();
           syncExpandedWindowPlacement(getResponsiveExpandedMode());
         } else {
-          syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+          syncCompactWindowPlacement(mountNode, winamp.compactMode);
         }
         window.setTimeout(() => {
           if (expandedRef.current) {
             resetCompactWindowVisibility();
             syncExpandedWindowPlacement(getResponsiveExpandedMode());
           } else {
-            syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+            syncCompactWindowPlacement(mountNode, winamp.compactMode);
           }
         }, 90);
       });
     };
-
-    const getTransportControl = (target: HTMLElement | null) => {
-      if (!target) return null;
-      return target.closest('#previous, [title="Previous Track"]') ? 'previous' :
-        target.closest('#play, [title="Play"]') ? 'play' :
-        target.closest('#pause, [title="Pause"]') ? 'pause' :
-        target.closest('#stop, [title="Stop"]') ? 'stop' :
-        target.closest('#next, [title="Next Track"]') ? 'next' :
-        null;
-    };
-
-    const onTransportPress = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      const webampRoot = getWebampRootNode();
-      if (!target || !webampRoot?.contains(target)) return;
-      const control = getTransportControl(target);
-      if (!control) return;
-      stopNativeEvent(event);
-    };
-
-    const onTransportClick = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      const webampRoot = getWebampRootNode();
-      if (!target || !webampRoot?.contains(target)) return;
-      const control = getTransportControl(target);
-      if (!control) return;
-
-      stopNativeEvent(event);
-
-      if (control === 'previous') {
-        playPrevious();
-        syncCompactAfterControl();
-        return;
-      }
-
-      if (control === 'next') {
-        playNext();
-        syncCompactAfterControl();
-        return;
-      }
-
-      if (control === 'stop') {
-        player.stop();
-        syncCompactAfterControl();
-        return;
-      }
-
-      if (control === 'pause') {
-        if (player.current && player.isPlaying) {
-          void player.toggle();
+    return bindWinampTransportBridge({
+      onControl: (control) => {
+        if (control === 'previous') {
+          playPrevious();
+          syncCompactAfterControl();
+          return;
         }
-        syncCompactAfterControl();
-        return;
-      }
 
-      if (player.current) {
-        if (!player.isPlaying) {
-          void player.toggle();
+        if (control === 'next') {
+          playNext();
+          syncCompactAfterControl();
+          return;
         }
-        syncCompactAfterControl();
-        return;
-      }
 
-      if (playablePlaylistRef.current.length) {
-        playStation(playablePlaylistRef.current[0]);
-        syncCompactAfterControl();
-        return;
-      }
+        if (control === 'stop') {
+          player.stop();
+          syncCompactAfterControl();
+          return;
+        }
 
-      if (playbackHistory.length > 0 || queue.items.length > 0) {
-        playLast();
-        syncCompactAfterControl();
-      }
-    };
+        if (control === 'pause') {
+          if (player.current && player.isPlaying) {
+            void player.toggle();
+          }
+          syncCompactAfterControl();
+          return;
+        }
 
-    document.addEventListener('mousedown', onTransportPress, true);
-    document.addEventListener('touchstart', onTransportPress, true);
-    document.addEventListener('click', onTransportClick, true);
-    return () => {
-      document.removeEventListener('mousedown', onTransportPress, true);
-      document.removeEventListener('touchstart', onTransportPress, true);
-      document.removeEventListener('click', onTransportClick, true);
-    };
+        if (player.current) {
+          if (!player.isPlaying) {
+            void player.toggle();
+          }
+          syncCompactAfterControl();
+          return;
+        }
+
+        const queuedStation = queue.items.find((station) => Boolean(station.url_resolved));
+        if (queuedStation) {
+          playStation(queuedStation);
+          syncCompactAfterControl();
+          return;
+        }
+
+        if (playbackHistory.length > 0 || queue.items.length > 0) {
+          playLast();
+          syncCompactAfterControl();
+        }
+      }
+    });
   }, [
     playLast,
     playNext,
@@ -883,6 +835,7 @@ export const WinampPlayerShell = ({
     player.current,
     player.isPlaying,
     playbackHistory.length,
+    queue.items,
     queue.items.length
   ]);
 
@@ -919,7 +872,6 @@ export const WinampPlayerShell = ({
     mountNode.style.minHeight = '';
     resetWebampWindowPlacement();
     const mode = winamp.compactMode;
-    compactViewModeRef.current = mode;
     mountNode.dataset.raCompactView = mode;
     mountNode.style.height =
       mode === 'panel' ? `${PANEL_COMPACT_MIN_HEIGHT}px` : `${STRIP_COMPACT_MIN_HEIGHT}px`;
@@ -1174,10 +1126,6 @@ export const WinampPlayerShell = ({
   };
 
   useEffect(() => {
-    playablePlaylistRef.current = playablePlaylist;
-  }, [playablePlaylist]);
-
-  useEffect(() => {
     if (!winamp.expanded) return;
     const previousOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
@@ -1262,7 +1210,6 @@ export const WinampPlayerShell = ({
                 setBootCycle((value) => value + 1);
               }
             }) ?? null;
-            compactViewModeRef.current = winamp.compactMode;
             if (expandedRef.current) {
               applyExpandedLayout(mountNode);
             } else {
@@ -1374,7 +1321,7 @@ export const WinampPlayerShell = ({
 
     const sync = () => {
       frameId = null;
-      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+      syncCompactWindowPlacement(mountNode, winamp.compactMode);
     };
 
     const queueSync = () => {
@@ -1453,7 +1400,7 @@ export const WinampPlayerShell = ({
     if (!mountNode) return;
 
     const sync = () => {
-      syncCompactWindowPlacement(mountNode, compactViewModeRef.current);
+      syncCompactWindowPlacement(mountNode, winamp.compactMode);
     };
 
     sync();
@@ -1461,7 +1408,7 @@ export const WinampPlayerShell = ({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [current?.stationuuid, player.isPlaying, trackTitle, webampReady, winamp.expanded]);
+  }, [current?.stationuuid, player.isPlaying, trackTitle, webampReady, winamp.compactMode, winamp.expanded]);
 
   useEffect(() => {
     if (!winamp.expanded || !webampReady) return;
@@ -1492,6 +1439,10 @@ export const WinampPlayerShell = ({
 
     const onExpandedToggle = (event: Event) => {
       const target = event.target as HTMLElement | null;
+      const webampRoot = getWebampRootNode();
+      if (!target || !webampRoot?.contains(target)) {
+        return;
+      }
       if (
         !target?.closest(
           '[title="Toggle Graphical Equalizer"], [title="Toggle Playlist Editor"], [title="Toggle Windowshade Mode"]'
@@ -1554,7 +1505,8 @@ export const WinampPlayerShell = ({
     const onSliderChange = (event: Event) => {
       if (Date.now() < suppressVolumeSyncUntilRef.current) return;
       const target = event.target as HTMLElement | null;
-      if (!target) return;
+      const webampRoot = getWebampRootNode();
+      if (!target || !webampRoot?.contains(target)) return;
 
       const volumeNode = target.closest('[title="Volume Bar"]');
       if (volumeNode) {
