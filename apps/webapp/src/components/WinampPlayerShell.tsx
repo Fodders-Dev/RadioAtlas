@@ -164,6 +164,20 @@ const getMainWindowNode = () => {
     (document.querySelector('#main-window')?.closest('.window') as HTMLElement | null) ?? null;
   if (mainWindow) return mainWindow;
 
+  const transportWindow =
+    (
+      document
+        .querySelector(
+          '#play, [title="Play"], [title="Pause"], [title="Stop"], [title="Next Track"]'
+        )
+        ?.closest('.window') as HTMLElement | null
+    ) ?? null;
+  if (transportWindow) return transportWindow;
+
+  const titleWindow =
+    (document.querySelector('[title="Song Title"]')?.closest('.window') as HTMLElement | null) ?? null;
+  if (titleWindow) return titleWindow;
+
   const menu = document.querySelector('[title="Winamp Menu"]') as HTMLElement | null;
   return (
     (menu?.closest('.window') as HTMLElement | null) ??
@@ -212,6 +226,17 @@ const isWindowVisibleOnViewport = (node: HTMLElement | null) => {
     rect.left < window.innerWidth - 4 &&
     rect.top < window.innerHeight - 4
   );
+};
+
+const isWindowVisibleInCompactHost = (windowNode: HTMLElement | null, hostNode: HTMLElement | null) => {
+  if (!windowNode || !hostNode) return false;
+  const windowRect = windowNode.getBoundingClientRect();
+  const hostRect = hostNode.getBoundingClientRect();
+  if (windowRect.width <= 8 || windowRect.height <= 8) return false;
+  if (hostRect.width <= 8 || hostRect.height <= 8) return false;
+  const overlapX = Math.max(0, Math.min(windowRect.right, hostRect.right) - Math.max(windowRect.left, hostRect.left));
+  const overlapY = Math.max(0, Math.min(windowRect.bottom, hostRect.bottom) - Math.max(windowRect.top, hostRect.top));
+  return overlapX >= 20 && overlapY >= 12;
 };
 
 const waitForMainWindow = async (
@@ -713,6 +738,7 @@ export const WinampPlayerShell = ({
   const lastAppliedVolumeRef = useRef<number | null>(null);
   const suppressVolumeSyncUntilRef = useRef(0);
   const expandedRecoveryAttemptsRef = useRef(0);
+  const compactRecoveryAttemptsRef = useRef(0);
   const recoveredSkinRef = useRef<string | null>(null);
 
   const [webampReady, setWebampReady] = useState(false);
@@ -738,6 +764,7 @@ export const WinampPlayerShell = ({
     if (recoveredSkinRef.current !== winamp.activeSkin.url) {
       recoveredSkinRef.current = winamp.activeSkin.url;
       expandedRecoveryAttemptsRef.current = 0;
+      compactRecoveryAttemptsRef.current = 0;
     }
   }, [winamp.activeSkin.url]);
 
@@ -1583,6 +1610,51 @@ export const WinampPlayerShell = ({
       window.clearTimeout(checkB);
     };
   }, [winamp, winamp.expanded, webampReady, winamp.activeSkin.url]);
+
+  useEffect(() => {
+    if (winamp.expanded || !webampReady) return;
+    const mountNode = compactHostRef.current;
+    if (!mountNode) return;
+
+    let cancelled = false;
+    const recoverLayout = () => {
+      if (cancelled || winamp.expanded) return;
+      const mainWindow = getMainWindowNode();
+      const visibleOnScreen = isWindowVisibleOnViewport(mainWindow);
+      const visibleInHost = isWindowVisibleInCompactHost(mainWindow, mountNode);
+      if (visibleOnScreen && visibleInHost) {
+        compactRecoveryAttemptsRef.current = 0;
+        return;
+      }
+
+      compactRecoveryAttemptsRef.current += 1;
+      console.warn(
+        `Winamp compact window hidden after boot; recovery attempt ${compactRecoveryAttemptsRef.current}`
+      );
+      applyCompactLayout(mountNode);
+      window.setTimeout(() => {
+        if (!cancelled && !winamp.expanded) {
+          syncCompactWindowPlacement(mountNode, winamp.compactMode);
+        }
+      }, 110);
+
+      if (compactRecoveryAttemptsRef.current >= 3) {
+        setBootCycle((value) => value + 1);
+        compactRecoveryAttemptsRef.current = 0;
+      }
+    };
+
+    const checkA = window.setTimeout(recoverLayout, 240);
+    const checkB = window.setTimeout(recoverLayout, 760);
+    const checkC = window.setTimeout(recoverLayout, 1420);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(checkA);
+      window.clearTimeout(checkB);
+      window.clearTimeout(checkC);
+    };
+  }, [winamp, winamp.compactMode, winamp.expanded, webampReady, winamp.activeSkin.url]);
 
   useEffect(() => {
     const instance = webampRef.current;

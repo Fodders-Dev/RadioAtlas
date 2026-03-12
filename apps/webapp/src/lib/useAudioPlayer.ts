@@ -168,9 +168,10 @@ const buildCandidates = ({
   const candidates: string[] = [];
   const normalizedBase = normalizeBase(apiBase);
   const isHttpLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
-  const proxyRelevant = url.startsWith('http://') || isHls(url) || !isDirectAudioUrl(url);
+  const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
+  const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && apiAvailable && proxyRelevant;
-  const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !apiAvailable;
+  const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
 
   if (url.startsWith('http://')) {
     const httpsUrl = url.replace(/^http:\/\//, 'https://');
@@ -746,7 +747,7 @@ export const useAudioPlayer = ({
     const apiBase = normalizeBase(getApiBase());
     apiBaseRef.current = apiBase;
     const apiAvailable = apiBase
-      ? await checkApiAvailability(apiBase, { timeoutMs: 1_000 })
+      ? await checkApiAvailability(apiBase, { timeoutMs: 2_200 })
       : false;
     if (apiBase && !apiAvailable) {
       pushEvent('api: unavailable');

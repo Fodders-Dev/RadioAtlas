@@ -1048,6 +1048,40 @@ test('next track follows queue order before global fallback', async ({ page }) =
     .toBe('Rio Beats');
 });
 
+test('https direct station falls back to proxy when direct playback fails', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('radio:api-url', 'https://proxy.radio.test');
+  });
+  await page.route('https://proxy.radio.test/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    })
+  );
+  await page.route('https://stream.example.com/tokyo', (route) => route.abort('failed'));
+  await page.route('https://proxy.radio.test/stream?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('https://proxy.radio.test/stream?url=');
+});
+
 test('https non-direct station starts when API proxy is offline', async ({ page }) => {
   await page.route('**/api/health', (route) => route.fulfill({ status: 503, body: 'offline' }));
   await page.route('**/stream?url=**', (route) => route.abort('failed'));
