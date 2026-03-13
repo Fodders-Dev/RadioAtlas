@@ -170,6 +170,7 @@ const buildUrlVariants = (url: string) => {
       if (host === 'gyusyabu.ddo.jp' && parsed.pathname === '/') {
         const streamMount = new URL(url);
         streamMount.pathname = '/;stream.mp3';
+        pushUnique(directPreferred, streamMount.toString().replace(/^http:\/\//, 'https://'));
         pushUnique(proxyInputs, streamMount.toString());
       }
     } catch {
@@ -211,7 +212,7 @@ const buildCandidates = ({
   const isHttpLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
-  const canUseProxy = Boolean(normalizedBase) && apiAvailable && proxyRelevant;
+  const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
@@ -241,7 +242,7 @@ const buildCandidates = ({
       Boolean(normalizedBase) &&
       !apiAvailable &&
       proxyRelevant &&
-      candidates.length === 0 &&
+      !canUseProxy &&
       !blockedMixedContent
   };
 };
@@ -619,8 +620,17 @@ export const useAudioPlayer = ({
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
           if (currentRef.current && isSessionCurrent(activeSession)) {
-            pushEvent('audio: prolonged buffering, reconnecting...');
-            scheduleReconnect(activeSession);
+            tryNextCandidate(activeSession).then((switched) => {
+              if (!currentRef.current || !isSessionCurrent(activeSession)) {
+                return;
+              }
+              if (switched) {
+                pushEvent('audio: prolonged buffering, switched candidate');
+                return;
+              }
+              pushEvent('audio: prolonged buffering, reconnecting...');
+              scheduleReconnect(activeSession);
+            });
           }
         }, 5000);
       }
@@ -767,6 +777,12 @@ export const useAudioPlayer = ({
       return;
     }
 
+    setVisualizer((prev) => ({
+      ...prev,
+      active: true,
+      available: true
+    }));
+
     const frequencyData = new Uint8Array(analyser.frequencyBinCount);
     const waveformData = new Uint8Array(analyser.fftSize);
     let lastFrameAt = 0;
@@ -886,11 +902,32 @@ export const useAudioPlayer = ({
     setCurrent(resolvedStation);
     setStatus('buffering');
     setIsPlaying(false);
-    const candidatePlan = buildCandidates({
-      url: resolvedStation.url_resolved,
-      apiBase,
-      apiAvailable
+    const sourceUrls: string[] = [];
+    pushUnique(sourceUrls, resolvedStation.url_resolved);
+    if (
+      !isExternalStation(resolvedStation) &&
+      resolvedStation.url &&
+      resolvedStation.url !== resolvedStation.url_resolved
+    ) {
+      pushUnique(sourceUrls, resolvedStation.url);
+    }
+    const plans = sourceUrls.map((sourceUrl) =>
+      buildCandidates({
+        url: sourceUrl,
+        apiBase,
+        apiAvailable
+      })
+    );
+    const mergedCandidates: string[] = [];
+    plans.forEach((plan) => {
+      plan.candidates.forEach((candidate) => pushUnique(mergedCandidates, candidate));
     });
+    const candidatePlan: CandidatePlan = {
+      candidates: mergedCandidates,
+      blockedMixedContent:
+        mergedCandidates.length === 0 && plans.some((plan) => plan.blockedMixedContent),
+      apiUnavailable: mergedCandidates.length === 0 && plans.some((plan) => plan.apiUnavailable)
+    };
     candidatePlanRef.current = candidatePlan;
     candidatesRef.current = candidatePlan.candidates;
     candidateIndexRef.current = 0;

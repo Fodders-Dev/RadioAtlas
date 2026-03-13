@@ -80,6 +80,14 @@ const brokenQueueStation = {
   url_resolved: 'https://stream.example.com/broken-queue'
 };
 
+const staleResolvedStation = {
+  ...stations[0],
+  stationuuid: 'uuid-stale-resolved',
+  name: 'Stale Resolved FM',
+  url: 'https://stream.example.com/fallback.m3u',
+  url_resolved: 'https://dead-stream.example.com/live.mp3'
+};
+
 const legacyFalloutStation = {
   ...stations[0],
   stationuuid: 'uuid-fallout-legacy',
@@ -1234,6 +1242,78 @@ test('http station upgrades to https when API proxy is offline', async ({ page }
       });
     })
     .toContain('https://stream.example.com/http-upgrade.mp3');
+});
+
+test('http station still falls back to API proxy even when /health check fails', async ({ page }) => {
+  await overrideCatalog(page, [httpUpgradeStation]);
+  await page.addInitScript(() => {
+    localStorage.setItem('radio:api-url', 'https://proxy.radio.test');
+  });
+  await page.route('https://proxy.radio.test/health', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false })
+    })
+  );
+  await page.route('https://stream.example.com/http-upgrade.mp3', (route) => route.abort('failed'));
+  await page.route('https://proxy.radio.test/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('https://proxy.radio.test/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
+});
+
+test('uses original station url when url_resolved is stale or dead', async ({ page }) => {
+  await overrideCatalog(page, [staleResolvedStation]);
+  await page.addInitScript(() => {
+    const basePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      const src = this.src || '';
+      if (src.includes('dead-stream.example.com')) {
+        this.setAttribute('data-ra-state', 'error');
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new Error('dead resolved candidate'));
+      }
+      return basePlay.call(this);
+    };
+  });
+  await page.route('https://dead-stream.example.com/live.mp3', (route) => route.abort('failed'));
+  await page.route('https://stream.example.com/fallback.m3u', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Play' }).first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('https://stream.example.com/fallback.m3u');
 });
 
 test('shows mixed content error when only http stream is left and API is offline', async ({ page }) => {

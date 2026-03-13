@@ -3,6 +3,7 @@ import type { Station, StationLite } from '../types';
 export const toLite = (station: Station | StationLite): StationLite => ({
   stationuuid: station.stationuuid,
   name: station.name,
+  url: ('url' in station && station.url) || station.url_resolved,
   url_resolved: station.url_resolved,
   favicon: station.favicon,
   country: station.country,

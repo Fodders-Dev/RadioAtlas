@@ -47,7 +47,8 @@ export type StationLite = Pick<
   | 'tags'
   | 'geo_lat'
   | 'geo_long'
->;
+> &
+  Partial<Pick<Station, 'url'>>;
 
 export type SkinPalette = {
   bg: string;
