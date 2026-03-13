@@ -564,6 +564,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const result = await player.playStation(lite);
     if (!result.ok) {
+      if (result.error === 'playback superseded') {
+        return false;
+      }
       if (!options?.suppressErrorToast) {
         notify(result.error || 'Playback failed');
       }
@@ -688,10 +691,36 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const playPrevious = () => {
-    if (historyCursorRef.current <= 0) return;
+    const playFromQueue = () => {
+      const currentQueue = queueRef.current;
+      if (currentQueue.currentIndex <= 0 || currentQueue.items.length <= 1) {
+        return false;
+      }
+      const previousIndex = currentQueue.currentIndex - 1;
+      const previousStation = currentQueue.items[previousIndex];
+      if (!previousStation) return false;
+      const queueSnapshot: QueueSnapshot = {
+        ...currentQueue,
+        currentIndex: previousIndex
+      };
+      void playStationInternal(previousStation, {
+        recordHistory: false,
+        addToRecent: false,
+        queueSnapshot
+      });
+      return true;
+    };
+
+    if (historyCursorRef.current <= 0) {
+      playFromQueue();
+      return;
+    }
     const previousIndex = historyCursorRef.current - 1;
     const previousStation = historyEntriesRef.current[previousIndex];
-    if (!previousStation) return;
+    if (!previousStation) {
+      playFromQueue();
+      return;
+    }
 
     const currentQueue = queueRef.current;
     const queueIndex = currentQueue.items.findIndex(

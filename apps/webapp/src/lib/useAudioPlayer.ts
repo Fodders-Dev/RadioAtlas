@@ -26,6 +26,12 @@ type PlayStationResult = {
   station?: StationLite;
 };
 
+type PlayCandidateResult = {
+  ok: boolean;
+  error?: string;
+  superseded?: boolean;
+};
+
 type ReconnectState = {
   timer: number | null;
   attempts: number;
@@ -58,6 +64,7 @@ const EQ_CENTER = 50;
 const EQ_RANGE_DB = 12;
 const VISUALIZER_BARS = 24;
 const VISUALIZER_WAVEFORM_SAMPLES = 24;
+const PLAYBACK_SUPERSEDED = 'playback superseded';
 
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 const isDirectAudioUrl = (url: string) =>
@@ -266,6 +273,7 @@ export const useAudioPlayer = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const visualizerFrameRef = useRef<number | null>(null);
   const audioGraphFailedRef = useRef(false);
+  const playbackSessionRef = useRef(0);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
@@ -292,6 +300,13 @@ export const useAudioPlayer = ({
     }
     reconnectRef.current = { timer: null, attempts: 0 };
   };
+
+  const beginPlaybackSession = () => {
+    playbackSessionRef.current += 1;
+    return playbackSessionRef.current;
+  };
+
+  const isSessionCurrent = (sessionId: number) => playbackSessionRef.current === sessionId;
 
   const clearWaitingTimeout = () => {
     if (waitingTimeoutRef.current !== null) {
@@ -423,10 +438,17 @@ export const useAudioPlayer = ({
     }
   };
 
-  const playCandidateAtIndex = async (startIndex: number) => {
+  const playCandidateAtIndex = async (
+    startIndex: number,
+    sessionId = playbackSessionRef.current
+  ): Promise<PlayCandidateResult> => {
     const audio = audioRef.current;
     if (!audio) {
       return { ok: false, error: 'Audio engine unavailable' };
+    }
+
+    if (!isSessionCurrent(sessionId)) {
+      return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
     }
 
     const list = candidatesRef.current;
@@ -436,17 +458,35 @@ export const useAudioPlayer = ({
 
     let lastError = 'no playable candidate';
     for (let index = startIndex; index < list.length; index += 1) {
+      if (!isSessionCurrent(sessionId)) {
+        return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+      }
       const nextUrl = list[index];
       candidateIndexRef.current = index;
       try {
         await attachSource(nextUrl);
+        if (!isSessionCurrent(sessionId)) {
+          audio.pause();
+          return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+        }
         await resumeAudioContext();
+        if (!isSessionCurrent(sessionId)) {
+          audio.pause();
+          return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+        }
         await audio.play();
+        if (!isSessionCurrent(sessionId)) {
+          audio.pause();
+          return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+        }
         activeUrlRef.current = nextUrl;
         setErrorMessage(null);
         lastErrorRef.current = null;
         return { ok: true };
       } catch (error) {
+        if (!isSessionCurrent(sessionId)) {
+          return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+        }
         lastError = error instanceof Error ? error.message : 'Playback failed';
         lastErrorRef.current = lastError;
         pushEvent(`playback: candidate failed (${nextUrl}) ${lastError}`);
@@ -463,30 +503,45 @@ export const useAudioPlayer = ({
     return { ok: false, error: normalizedError };
   };
 
-  const tryNextCandidate = async () => {
+  const tryNextCandidate = async (sessionId = playbackSessionRef.current) => {
+    if (!isSessionCurrent(sessionId)) {
+      return false;
+    }
     const list = candidatesRef.current;
     if (candidateIndexRef.current >= list.length - 1) {
       return false;
     }
-    const result = await playCandidateAtIndex(candidateIndexRef.current + 1);
+    const result = await playCandidateAtIndex(candidateIndexRef.current + 1, sessionId);
     return result.ok;
   };
 
-  const scheduleReconnect = () => {
+  const scheduleReconnect = (sessionId = playbackSessionRef.current) => {
     const audio = audioRef.current;
-    if (!audio || !currentRef.current || reconnectRef.current.timer !== null) return;
+    if (
+      !audio ||
+      !currentRef.current ||
+      reconnectRef.current.timer !== null ||
+      !isSessionCurrent(sessionId)
+    ) {
+      return;
+    }
 
     reconnectRef.current.attempts += 1;
     const delay = Math.min(15000, 2000 * reconnectRef.current.attempts);
     reconnectRef.current.timer = window.setTimeout(async () => {
       reconnectRef.current.timer = null;
+      if (!isSessionCurrent(sessionId)) {
+        return;
+      }
       try {
-        const result = await playCandidateAtIndex(0);
+        const result = await playCandidateAtIndex(0, sessionId);
         if (!result.ok) {
           throw new Error(result.error || 'reconnect failed');
         }
       } catch {
-        scheduleReconnect();
+        if (isSessionCurrent(sessionId)) {
+          scheduleReconnect(sessionId);
+        }
       }
     }, delay);
   };
@@ -557,22 +612,27 @@ export const useAudioPlayer = ({
       pushEvent('audio: pause');
     };
     const handleWaiting = () => {
+      const activeSession = playbackSessionRef.current;
       if (currentRef.current) {
         setStatus('buffering');
         clearWaitingTimeout();
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
-          if (currentRef.current) {
+          if (currentRef.current && isSessionCurrent(activeSession)) {
             pushEvent('audio: prolonged buffering, reconnecting...');
-            scheduleReconnect();
+            scheduleReconnect(activeSession);
           }
         }, 5000);
       }
       pushEvent('audio: waiting');
     };
     const handleError = () => {
+      const activeSession = playbackSessionRef.current;
       if (currentRef.current) {
-        tryNextCandidate().then((switched) => {
+        tryNextCandidate(activeSession).then((switched) => {
+          if (!isSessionCurrent(activeSession)) {
+            return;
+          }
           if (!switched) {
             setStatus('error');
             setIsPlaying(false);
@@ -582,7 +642,7 @@ export const useAudioPlayer = ({
             });
             setErrorMessage(finalError);
             if (finalError === 'no playable candidate') {
-              scheduleReconnect();
+              scheduleReconnect(activeSession);
             }
           }
         });
@@ -590,10 +650,11 @@ export const useAudioPlayer = ({
       pushEvent('audio: error');
     };
     const handleEnded = () => {
+      const activeSession = playbackSessionRef.current;
       if (currentRef.current) {
         setStatus('buffering');
         setIsPlaying(false);
-        scheduleReconnect();
+        scheduleReconnect(activeSession);
       }
       pushEvent('audio: ended');
     };
@@ -767,6 +828,7 @@ export const useAudioPlayer = ({
         error: 'Audio engine unavailable'
       };
     }
+    const playbackSession = beginPlaybackSession();
 
     clearReconnect();
     cleanupHls();
@@ -785,6 +847,9 @@ export const useAudioPlayer = ({
     const apiAvailable = apiBase
       ? await checkApiAvailability(apiBase, { timeoutMs: 2_200 })
       : false;
+    if (!isSessionCurrent(playbackSession)) {
+      return { ok: false, error: PLAYBACK_SUPERSEDED };
+    }
     if (apiBase && !apiAvailable) {
       pushEvent('api: unavailable');
       markApiUnavailable(apiBase);
@@ -802,6 +867,9 @@ export const useAudioPlayer = ({
       }
       pushEvent('extract: resolving external link');
       const extracted = await resolveExternalStream(station.url_resolved, apiBase, pushEvent);
+      if (!isSessionCurrent(playbackSession)) {
+        return { ok: false, error: PLAYBACK_SUPERSEDED };
+      }
       if (extracted) {
         resolvedStation = { ...station, url_resolved: extracted };
       } else {
@@ -827,6 +895,9 @@ export const useAudioPlayer = ({
     candidatesRef.current = candidatePlan.candidates;
     candidateIndexRef.current = 0;
     if (!candidatesRef.current.length) {
+      if (!isSessionCurrent(playbackSession)) {
+        return { ok: false, error: PLAYBACK_SUPERSEDED };
+      }
       const error = toPlaybackError('no playable candidate', {
         blockedMixedContent: candidatePlan.blockedMixedContent,
         apiUnavailable: candidatePlan.apiUnavailable
@@ -836,7 +907,10 @@ export const useAudioPlayer = ({
       return { ok: false, error };
     }
 
-    const result = await playCandidateAtIndex(0);
+    const result = await playCandidateAtIndex(0, playbackSession);
+    if (result.superseded || result.error === PLAYBACK_SUPERSEDED) {
+      return { ok: false, error: PLAYBACK_SUPERSEDED };
+    }
     if (!result.ok) {
       const error = toPlaybackError(result.error || 'no playable candidate', {
         blockedMixedContent: candidatePlan.blockedMixedContent,
@@ -856,13 +930,18 @@ export const useAudioPlayer = ({
 
     const nativeState = audio.getAttribute('data-ra-state');
     if (isPlaying || nativeState === 'playing' || !audio.paused) {
+      clearReconnect();
+      clearWaitingTimeout();
       audio.pause();
       return true;
     }
 
     try {
       if (!audio.src) {
-        const result = await playCandidateAtIndex(candidateIndexRef.current);
+        const result = await playCandidateAtIndex(
+          candidateIndexRef.current,
+          playbackSessionRef.current
+        );
         return result.ok;
       }
       await resumeAudioContext();
@@ -880,6 +959,7 @@ export const useAudioPlayer = ({
   const stop = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    beginPlaybackSession();
     audio.pause();
     audio.src = '';
     audio.currentTime = 0;
