@@ -78,6 +78,8 @@ const dbToGain = (value: number) => 10 ** (value / 20);
 const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
 const createEmptySpectrum = () => Array.from({ length: VISUALIZER_BARS }, () => 0);
 const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, () => 0);
+const shouldForceAudioGraph = () =>
+  typeof window !== 'undefined' && Boolean((window as typeof window & { __RA_FORCE_AUDIO_GRAPH__?: boolean }).__RA_FORCE_AUDIO_GRAPH__);
 
 const buildProxyUrl = (url: string, apiBase: string) =>
   `${normalizeBase(apiBase)}/stream?url=${encodeURIComponent(url)}`;
@@ -609,7 +611,9 @@ export const useAudioPlayer = ({
       document.body.appendChild(audio);
     }
     audioRef.current = audio;
-    ensureAudioGraph();
+    if (shouldForceAudioGraph()) {
+      ensureAudioGraph();
+    }
 
     const handlePlaying = () => {
       const requestedStation = requestedStationRef.current;
@@ -796,6 +800,9 @@ export const useAudioPlayer = ({
   }, [visualizer]);
 
   useEffect(() => {
+    if (!shouldForceAudioGraph()) {
+      return;
+    }
     ensureAudioGraph();
     applyEqToGraph();
   }, [eqBands, eqEnabled, eqPreamp]);

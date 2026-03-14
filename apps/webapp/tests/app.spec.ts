@@ -1649,6 +1649,9 @@ test('webamp volume bar updates the real audio engine volume', async ({ page }) 
 });
 
 test('webamp equalizer updates the real player EQ state', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as Window & { __RA_FORCE_AUDIO_GRAPH__?: boolean }).__RA_FORCE_AUDIO_GRAPH__ = true;
+  });
   await page.goto('/');
   await waitForWebampReady(page);
   await playHomeStation(page, 'Tokyo FM');
@@ -1680,6 +1683,9 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
 });
 
 test('visualizer reflects analyser activity from the real audio graph', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as Window & { __RA_FORCE_AUDIO_GRAPH__?: boolean }).__RA_FORCE_AUDIO_GRAPH__ = true;
+  });
   await page.goto('/');
   await waitForWebampReady(page);
   await playHomeStation(page, 'Tokyo FM');
