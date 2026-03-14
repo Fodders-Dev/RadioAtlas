@@ -1626,3 +1626,59 @@ test('visualizer reflects analyser activity from the real audio graph', async ({
   await expect(page.locator('#main-window .ra-visualizer-overlay-bar')).toHaveCount(24);
 });
 
+
+test('mobile search hides the global app header to keep more room for results', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Поиск' }).click();
+  await expect(page.locator('.screen-search')).toBeVisible();
+  await expect(page.locator('.app-header')).toBeHidden();
+});
+
+test('failed station switch does not replace the current title with a broken target', async ({
+  page
+}) => {
+  await overrideCatalog(page, [stations[0], brokenQueueStation]);
+  await page.addInitScript(() => {
+    const basePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      const src = this.src || '';
+      if (src.includes('broken-queue')) {
+        this.setAttribute('data-ra-state', 'error');
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new Error('broken target'));
+      }
+      return basePlay.call(this);
+    };
+  });
+  await page.route('https://stream.example.com/broken-queue', (route) => route.abort('failed'));
+
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+
+  const brokenRow = page
+    .locator('.station-table.compact .station-row')
+    .filter({ hasText: 'Broken Queue FM' })
+    .first();
+  await brokenRow.locator('.play-btn').click();
+
+  await expect(page.locator('.toast')).toContainText(/no playable candidate|Playback failed/);
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          (document.querySelector('[title="Song Title"]')?.textContent || '')
+            .replace(/\s+/g, '')
+            .toLowerCase()
+      )
+    )
+    .not.toContain('brokenqueuefm');
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const activeRow = document.querySelector('.station-row.active .station-title .marquee-text');
+        return activeRow?.textContent?.trim() || '';
+      });
+    })
+    .not.toBe('Broken Queue FM');
+});

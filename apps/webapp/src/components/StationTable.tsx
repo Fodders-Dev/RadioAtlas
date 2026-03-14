@@ -38,13 +38,14 @@ export const StationTable = ({
         const active = player.current?.stationuuid === station.stationuuid;
         const liked = isFavorite(station.stationuuid);
         const isLong = station.name.length > 26;
+        const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
         return (
           <div
             key={station.stationuuid}
             className={`station-row ${active ? 'active' : ''}`}
           >
             <button
-              className="play-btn"
+              className={`play-btn ${compact ? 'icon-only' : ''}`}
               onClick={() =>
                 active
                   ? player.toggle()
@@ -54,8 +55,19 @@ export const StationTable = ({
                     })
               }
               type="button"
+              aria-label={playLabel}
             >
-              {active && player.isPlaying ? t('common.pause') : t('common.play')}
+              {compact ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {active && player.isPlaying ? (
+                    <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
+                  ) : (
+                    <path d="M8 5v14l11-7z" />
+                  )}
+                </svg>
+              ) : (
+                playLabel
+              )}
             </button>
             <div className="station-name">
               <div className="station-name-head">

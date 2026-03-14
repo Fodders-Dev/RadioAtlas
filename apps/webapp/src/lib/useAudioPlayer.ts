@@ -263,6 +263,7 @@ export const useAudioPlayer = ({
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
   const waitingTimeoutRef = useRef<number | null>(null);
   const currentRef = useRef<StationLite | null>(null);
+  const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<string[]>([]);
   const candidateIndexRef = useRef(0);
   const activeUrlRef = useRef<string | null>(null);
@@ -531,7 +532,7 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (
       !audio ||
-      !currentRef.current ||
+      (!requestedStationRef.current && !currentRef.current) ||
       reconnectRef.current.timer !== null ||
       !isSessionCurrent(sessionId)
     ) {
@@ -597,7 +598,13 @@ export const useAudioPlayer = ({
     ensureAudioGraph();
 
     const handlePlaying = () => {
+      const requestedStation = requestedStationRef.current;
       candidateHasPlayedRef.current = true;
+      if (requestedStation) {
+        setCurrent((prev) =>
+          prev?.stationuuid === requestedStation.stationuuid ? prev : requestedStation
+        );
+      }
       setStatus('playing');
       setIsPlaying(true);
       setErrorMessage(null);
@@ -619,14 +626,14 @@ export const useAudioPlayer = ({
     };
     const handlePause = () => {
       setIsPlaying(false);
-      if (currentRef.current) {
+      if (requestedStationRef.current || currentRef.current) {
         setStatus((prev) => (prev === 'error' ? prev : 'paused'));
       }
       pushEvent('audio: pause');
     };
     const handleWaiting = () => {
       const activeSession = playbackSessionRef.current;
-      if (currentRef.current) {
+      if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
         clearWaitingTimeout();
         const elapsedSinceAttach = candidateStartedAtRef.current
@@ -637,9 +644,9 @@ export const useAudioPlayer = ({
           : Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
-          if (currentRef.current && isSessionCurrent(activeSession)) {
+          if ((requestedStationRef.current || currentRef.current) && isSessionCurrent(activeSession)) {
             tryNextCandidate(activeSession).then((switched) => {
-              if (!currentRef.current || !isSessionCurrent(activeSession)) {
+              if ((!requestedStationRef.current && !currentRef.current) || !isSessionCurrent(activeSession)) {
                 return;
               }
               if (switched) {
@@ -656,12 +663,14 @@ export const useAudioPlayer = ({
     };
     const handleError = () => {
       const activeSession = playbackSessionRef.current;
-      if (currentRef.current) {
+      if (requestedStationRef.current || currentRef.current) {
         tryNextCandidate(activeSession).then((switched) => {
           if (!isSessionCurrent(activeSession)) {
             return;
           }
           if (!switched) {
+            requestedStationRef.current = null;
+            setCurrent(null);
             setStatus('error');
             setIsPlaying(false);
             const finalError = toPlaybackError('no playable candidate', {
@@ -679,7 +688,7 @@ export const useAudioPlayer = ({
     };
     const handleEnded = () => {
       const activeSession = playbackSessionRef.current;
-      if (currentRef.current) {
+      if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
         setIsPlaying(false);
         scheduleReconnect(activeSession);
@@ -869,10 +878,11 @@ export const useAudioPlayer = ({
     clearWaitingTimeout();
     activeUrlRef.current = null;
     lastErrorRef.current = null;
+    requestedStationRef.current = null;
     setErrorMessage(null);
 
     audio.pause();
-    audio.src = '';
+    audio.removeAttribute('src');
     audio.currentTime = 0;
     audio.load();
 
@@ -893,7 +903,7 @@ export const useAudioPlayer = ({
     if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
       if (!apiBase || !apiAvailable) {
         const error = 'api unavailable';
-        setCurrent(station);
+        setCurrent(null);
         setIsPlaying(false);
         setStatus('error');
         setErrorMessage(error);
@@ -908,7 +918,7 @@ export const useAudioPlayer = ({
         resolvedStation = { ...station, url_resolved: extracted };
       } else {
         const error = 'no playable candidate';
-        setCurrent(station);
+        setCurrent(null);
         setIsPlaying(false);
         setStatus('error');
         setErrorMessage(error);
@@ -917,7 +927,8 @@ export const useAudioPlayer = ({
       }
     }
 
-    setCurrent(resolvedStation);
+    requestedStationRef.current = resolvedStation;
+    setCurrent(null);
     setStatus('buffering');
     setIsPlaying(false);
     const sourceUrls: string[] = [];
@@ -953,6 +964,7 @@ export const useAudioPlayer = ({
       if (!isSessionCurrent(playbackSession)) {
         return { ok: false, error: PLAYBACK_SUPERSEDED };
       }
+      requestedStationRef.current = null;
       const error = toPlaybackError('no playable candidate', {
         blockedMixedContent: candidatePlan.blockedMixedContent,
         apiUnavailable: candidatePlan.apiUnavailable
@@ -967,6 +979,7 @@ export const useAudioPlayer = ({
       return { ok: false, error: PLAYBACK_SUPERSEDED };
     }
     if (!result.ok) {
+      requestedStationRef.current = null;
       const error = toPlaybackError(result.error || 'no playable candidate', {
         blockedMixedContent: candidatePlan.blockedMixedContent,
         apiUnavailable: candidatePlan.apiUnavailable
@@ -1016,13 +1029,14 @@ export const useAudioPlayer = ({
     if (!audio) return;
     beginPlaybackSession();
     audio.pause();
-    audio.src = '';
+    audio.removeAttribute('src');
     audio.currentTime = 0;
     cleanupHls();
     clearReconnect();
     clearWaitingTimeout();
     activeUrlRef.current = null;
     lastErrorRef.current = null;
+    requestedStationRef.current = null;
     setCurrent(null);
     setIsPlaying(false);
     setStatus('idle');

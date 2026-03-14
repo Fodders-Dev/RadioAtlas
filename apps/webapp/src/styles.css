@@ -414,9 +414,25 @@ input {
   padding: 6px 10px;
   border-radius: 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
+  white-space: nowrap;
+}
+
+.play-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.play-btn.icon-only {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
 }
 
 .play-btn:hover,
@@ -1939,18 +1955,18 @@ input {
 }
 
 .station-table.compact .station-row {
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 7px;
   align-items: center;
-  padding: 8px 9px;
+  padding: 7px 8px;
   background: rgba(255, 255, 255, 0.03);
 }
 
 .station-table.compact .play-btn {
-  min-width: 52px;
-  min-height: 32px;
-  padding: 5px 6px;
-  font-size: 11px;
+  min-width: 40px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 10px;
 }
 
 .station-table.compact .station-name {
@@ -1963,9 +1979,9 @@ input {
 }
 
 .station-fav-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   flex: 0 0 auto;
 }
 
@@ -1973,7 +1989,7 @@ input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .winamp-compact-topbar .winamp-trackline {
@@ -1992,8 +2008,8 @@ input {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 14px;
-  gap: 12px;
+  padding: 11px;
+  gap: 9px;
   align-items: stretch;
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2014,7 +2030,7 @@ input {
 
 .app-rail .winamp-trackline {
   width: 100%;
-  min-height: 34px;
+  min-height: 30px;
   border-radius: 10px;
 }
 
@@ -2025,28 +2041,28 @@ input {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
 }
 
 .app-rail .winamp-actions.compact .chip,
 .app-rail .winamp-actions.compact .icon-btn {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  min-height: 34px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 9px;
 }
 
 .app-rail .winamp-compact-main {
-  min-height: 112px;
+  min-height: 88px;
   width: 100%;
 }
 
 .app-rail .winamp-compact[data-compact-view='strip'] .winamp-compact-main {
   flex: 0 0 auto;
-  height: 52px;
-  min-height: 52px;
+  height: 42px;
+  min-height: 42px;
   overflow: hidden;
 }
 
@@ -2057,12 +2073,12 @@ input {
 
 .app-rail .winamp-host.compact {
   width: 100%;
-  min-height: 108px;
+  min-height: 84px;
 }
 
 .app-rail .winamp-compact[data-compact-view='strip'] .winamp-host.compact {
-  height: 44px;
-  min-height: 44px;
+  height: 36px;
+  min-height: 36px;
   overflow: hidden;
 }
 
@@ -2216,6 +2232,14 @@ input {
 }
 
 @media (max-width: 760px) {
+  .app-header {
+    display: none;
+  }
+
+  .app-shell {
+    padding-top: 10px;
+  }
+
   .app[data-winamp-expanded='true'] .app-header,
   .app[data-winamp-expanded='true'] .app-main,
   .app[data-winamp-expanded='true'] .bottom-nav {
@@ -2280,39 +2304,45 @@ input {
   }
 
   .app-rail .winamp-compact {
-    border-radius: 24px;
-    padding: 12px;
+    border-radius: 22px;
+    padding: 10px;
   }
 
   .app-rail .winamp-actions.compact {
-    gap: 5px;
+    gap: 4px;
   }
 
   .app-rail .winamp-actions.compact .chip,
   .app-rail .winamp-actions.compact .icon-btn {
-    width: 32px;
-    min-width: 32px;
-    height: 32px;
-    min-height: 32px;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
     padding: 0;
   }
 
+  .app-rail .winamp-trackline {
+    min-height: 28px;
+    padding: 7px 8px;
+    font-size: 10px;
+  }
+
   .app-rail .winamp-compact-main {
-    min-height: 96px;
+    min-height: 78px;
   }
 
   .app-rail .winamp-compact[data-compact-view='strip'] .winamp-compact-main {
-    height: 48px;
-    min-height: 48px;
+    height: 40px;
+    min-height: 40px;
   }
 
   .app-rail .winamp-host.compact {
-    min-height: 94px;
+    min-height: 74px;
   }
 
   .app-rail .winamp-compact[data-compact-view='strip'] .winamp-host.compact {
-    height: 40px;
-    min-height: 40px;
+    height: 34px;
+    min-height: 34px;
   }
 
   .winamp-overlay-footer {
