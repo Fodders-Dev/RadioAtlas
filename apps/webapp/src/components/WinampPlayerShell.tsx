@@ -2092,8 +2092,10 @@ export const WinampPlayerShell = ({
         </>
       ) : (
         <>
-          {trackLine('compact')}
-          {actionStrip('compact')}
+          <div className="winamp-compact-topbar">
+            {trackLine('compact')}
+            {actionStrip('compact')}
+          </div>
         </>
       )}
 

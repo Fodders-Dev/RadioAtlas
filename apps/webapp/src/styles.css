@@ -88,8 +88,11 @@ input {
   border: 1px solid rgba(246, 201, 69, 0.4);
   padding: 6px 12px;
   border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.25;
   max-width: 48vw;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -350,6 +353,8 @@ input {
 }
 
 .station-title {
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -411,6 +416,7 @@ input {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .play-btn:hover,
@@ -1933,17 +1939,18 @@ input {
 }
 
 .station-table.compact .station-row {
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  padding: 9px 10px;
+  padding: 8px 9px;
   background: rgba(255, 255, 255, 0.03);
 }
 
 .station-table.compact .play-btn {
-  min-width: 56px;
-  min-height: 34px;
-  padding: 5px 8px;
+  min-width: 52px;
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 11px;
 }
 
 .station-table.compact .station-name {
@@ -1956,10 +1963,21 @@ input {
 }
 
 .station-fav-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
   flex: 0 0 auto;
+}
+
+.winamp-compact-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.winamp-compact-topbar .winamp-trackline {
+  min-width: 0;
 }
 
 .home-stack-card .empty-state,
@@ -1991,7 +2009,7 @@ input {
 }
 
 .app-rail .winamp-trackline.compact {
-  order: -1;
+  order: 0;
 }
 
 .app-rail .winamp-trackline {
@@ -2001,17 +2019,23 @@ input {
 }
 
 .app-rail .winamp-actions.compact {
-  width: 100%;
+  width: auto;
+  flex: 0 0 auto;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .app-rail .winamp-actions.compact .chip,
 .app-rail .winamp-actions.compact .icon-btn {
-  width: 100%;
-  min-height: 36px;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 10px;
 }
 
 .app-rail .winamp-compact-main {
@@ -2206,6 +2230,9 @@ input {
   }
 
   .app-badge {
+    padding: 6px 10px;
+    font-size: 10px;
+    line-height: 1.2;
     max-width: 52vw;
   }
 
@@ -2258,14 +2285,16 @@ input {
   }
 
   .app-rail .winamp-actions.compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
   }
 
   .app-rail .winamp-actions.compact .chip,
   .app-rail .winamp-actions.compact .icon-btn {
-    min-height: 34px;
-    font-size: 11px;
-    padding: 6px;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
   }
 
   .app-rail .winamp-compact-main {

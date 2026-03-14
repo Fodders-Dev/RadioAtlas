@@ -74,11 +74,11 @@ export const Favorites = () => {
       <div className="favorites-station-grid">
         <div className="section">
           <div className="section-title">{t('favoritesScreen.myStations')}</div>
-          <StationTable stations={favorites} sourceId="favorites" />
+          <StationTable stations={favorites} sourceId="favorites" buildQueue={false} />
         </div>
         <div className="section">
           <div className="section-title">{t('favoritesScreen.recentStations')}</div>
-          <StationTable stations={recent} compact sourceId="recent" />
+          <StationTable stations={recent} compact sourceId="recent" buildQueue={false} />
         </div>
       </div>
     </section>

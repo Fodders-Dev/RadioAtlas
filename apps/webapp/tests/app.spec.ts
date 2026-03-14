@@ -712,6 +712,27 @@ test('favorite station can start even when saved winamp playlist is stale', asyn
   await expect(page.locator('#webamp')).toHaveCount(1);
   await page.getByRole('button', { name: 'Инфо', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem('radio:playback-queue:v2');
+        if (!raw) return null;
+        const queue = JSON.parse(raw) as {
+          items?: Array<{ stationuuid?: string }>;
+          currentIndex?: number;
+        };
+        return {
+          count: queue.items?.length ?? 0,
+          currentIndex: queue.currentIndex ?? -1,
+          currentStation: queue.items?.[queue.currentIndex ?? 0]?.stationuuid ?? null
+        };
+      })
+    )
+    .toEqual({
+      count: 1,
+      currentIndex: 0,
+      currentStation: 'uuid-tokyo'
+    });
 });
 
 test('discover flow and full navigation still work', async ({ page }) => {
@@ -1554,3 +1575,4 @@ test('visualizer reflects analyser activity from the real audio graph', async ({
   await expect(page.locator('#main-window .ra-visualizer-overlay')).toBeVisible();
   await expect(page.locator('#main-window .ra-visualizer-overlay-bar')).toHaveCount(24);
 });
+

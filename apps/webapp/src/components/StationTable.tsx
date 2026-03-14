@@ -7,9 +7,15 @@ type StationTableProps = {
   stations: StationLite[];
   compact?: boolean;
   sourceId?: string;
+  buildQueue?: boolean;
 };
 
-export const StationTable = ({ stations, compact, sourceId }: StationTableProps) => {
+export const StationTable = ({
+  stations,
+  compact,
+  sourceId,
+  buildQueue = true
+}: StationTableProps) => {
   const { playStation, toggleFavorite, isFavorite, player } = useRadio();
   const { t } = useLocale();
 
@@ -43,7 +49,7 @@ export const StationTable = ({ stations, compact, sourceId }: StationTableProps)
                 active
                   ? player.toggle()
                   : playStation(station, {
-                      playlist: stations,
+                      playlist: buildQueue ? stations : undefined,
                       sourceId
                     })
               }
