@@ -88,6 +88,14 @@ const staleResolvedStation = {
   url_resolved: 'https://dead-stream.example.com/live.mp3'
 };
 
+const slowStartStation = {
+  ...stations[0],
+  stationuuid: 'uuid-slow-start',
+  name: 'Slow Start FM',
+  url: 'https://stream.example.com/slow-start',
+  url_resolved: 'https://stream.example.com/slow-start'
+};
+
 const legacyFalloutStation = {
   ...stations[0],
   stationuuid: 'uuid-fallout-legacy',
@@ -1366,6 +1374,48 @@ test('uses original station url when url_resolved is stale or dead', async ({ pa
       })
     )
     .toContain('https://stream.example.com/fallback.m3u');
+});
+
+test('slow-start station is not skipped during startup buffering', async ({ page }) => {
+  await overrideCatalog(page, [slowStartStation, stations[1]]);
+  await page.addInitScript(() => {
+    const basePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      const src = this.src || '';
+      if (!src.includes('slow-start')) {
+        return basePlay.call(this);
+      }
+      if (this.dataset.raSlowStartReady === 'true') {
+        return basePlay.call(this);
+      }
+      this.dataset.raSlowStartReady = 'true';
+      this.setAttribute('data-ra-state', 'buffering');
+      this.dispatchEvent(new Event('waiting'));
+      return new Promise<void>((resolve) => {
+        window.setTimeout(() => {
+          this.setAttribute('data-ra-state', 'playing');
+          this.dispatchEvent(new Event('playing'));
+          resolve();
+        }, 7000);
+      });
+    };
+  });
+
+  await page.goto('/');
+  await page.locator('.play-btn').first().click();
+
+  await page.waitForTimeout(6500);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('slow-start');
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing', {
+    timeout: 12000
+  });
 });
 
 test('shows mixed content error when only http stream is left and API is offline', async ({ page }) => {

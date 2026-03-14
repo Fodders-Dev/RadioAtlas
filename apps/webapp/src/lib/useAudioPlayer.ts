@@ -65,6 +65,8 @@ const EQ_RANGE_DB = 12;
 const VISUALIZER_BARS = 24;
 const VISUALIZER_WAVEFORM_SAMPLES = 24;
 const PLAYBACK_SUPERSEDED = 'playback superseded';
+const STARTUP_BUFFER_GRACE_MS = 15000;
+const REBUFFER_GRACE_MS = 6000;
 
 const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 const isDirectAudioUrl = (url: string) =>
@@ -279,6 +281,8 @@ export const useAudioPlayer = ({
   const visualizerFrameRef = useRef<number | null>(null);
   const audioGraphFailedRef = useRef(false);
   const playbackSessionRef = useRef(0);
+  const candidateStartedAtRef = useRef(0);
+  const candidateHasPlayedRef = useRef(false);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
@@ -418,6 +422,9 @@ export const useAudioPlayer = ({
     if (!audio) return;
 
     cleanupHls();
+    clearWaitingTimeout();
+    candidateStartedAtRef.current = Date.now();
+    candidateHasPlayedRef.current = false;
     pushEvent(`source: ${url}`);
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
@@ -590,6 +597,7 @@ export const useAudioPlayer = ({
     ensureAudioGraph();
 
     const handlePlaying = () => {
+      candidateHasPlayedRef.current = true;
       setStatus('playing');
       setIsPlaying(true);
       setErrorMessage(null);
@@ -621,6 +629,12 @@ export const useAudioPlayer = ({
       if (currentRef.current) {
         setStatus('buffering');
         clearWaitingTimeout();
+        const elapsedSinceAttach = candidateStartedAtRef.current
+          ? Date.now() - candidateStartedAtRef.current
+          : 0;
+        const timeoutMs = candidateHasPlayedRef.current
+          ? REBUFFER_GRACE_MS
+          : Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
           if (currentRef.current && isSessionCurrent(activeSession)) {
@@ -636,7 +650,7 @@ export const useAudioPlayer = ({
               scheduleReconnect(activeSession);
             });
           }
-        }, 5000);
+        }, timeoutMs);
       }
       pushEvent('audio: waiting');
     };
