@@ -82,6 +82,11 @@ const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPL
 const buildProxyUrl = (url: string, apiBase: string) =>
   `${normalizeBase(apiBase)}/stream?url=${encodeURIComponent(url)}`;
 
+const isSecureProxyContext = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.protocol === 'https:';
+};
+
 const isExternalStation = (station: StationLite) =>
   station.stationuuid.startsWith('ext_') ||
   station.country === 'External' ||
@@ -217,17 +222,23 @@ const buildCandidates = ({
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
+  const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy && isSecureProxyContext();
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
   if (url.startsWith('http://')) {
-    if (isHttpLocal) {
+    if (shouldForceProxyForHttp) {
+      proxyInputs.forEach((candidate) => {
+        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
+      });
+      directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
+    } else if (isHttpLocal) {
       directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
       pushUnique(candidates, url);
     } else if (directPreferred.length) {
       directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
     }
-    if (canUseProxy) {
+    if (canUseProxy && !shouldForceProxyForHttp) {
       proxyInputs.forEach((candidate) => {
         pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
       });

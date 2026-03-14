@@ -18,6 +18,16 @@ const normalizeBase = (value?: string | null) => {
   }
 };
 
+const isSecureApiCandidate = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.protocol === 'https:';
+};
+
+const getDefaultApiBase = () => {
+  if (!isSecureApiCandidate()) return '';
+  return '/api';
+};
+
 export const getApiBase = () => {
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
@@ -41,7 +51,9 @@ export const getApiBase = () => {
     }
   }
 
-  return normalizeBase(import.meta.env.VITE_API_URL || '');
+  const envBase = normalizeBase(import.meta.env.VITE_API_URL || '');
+  if (envBase) return envBase;
+  return getDefaultApiBase();
 };
 
 export const setApiBase = (value: string) => {
