@@ -1339,6 +1339,40 @@ test('http station still falls back to API proxy even when /health check fails',
     .toContain('https://proxy.radio.test/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
 });
 
+test('explicit same-origin api query makes http stations use proxy first even on local http', async ({
+  page
+}) => {
+  await overrideCatalog(page, [httpUpgradeStation]);
+  await page.route('**/api/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    })
+  );
+  await page.route('http://stream.example.com/http-upgrade.mp3', (route) => route.abort('failed'));
+  await page.route('**/api/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
+
+  await page.goto('/?api=/api');
+  await page.locator('.play-btn').first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('/api/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
+});
+
 test('uses original station url when url_resolved is stale or dead', async ({ page }) => {
   await overrideCatalog(page, [staleResolvedStation]);
   await page.addInitScript(() => {
@@ -1515,6 +1549,65 @@ test('retro gyusyabu stream can use proxy mountpoint fallback', async ({ page })
       })
     )
     .toContain('stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F%3Bstream.mp3');
+});
+
+test('proxy-first http playback does not let webamp request raw station streams', async ({
+  page
+}) => {
+  let directStreamHits = 0;
+
+  await overrideCatalog(page, [
+    {
+      ...stations[0],
+      stationuuid: 'uuid-retro-gyu-webamp',
+      name: 'Retro PC GAME MUSIC Streaming Radio',
+      url: 'http://gyusyabu.ddo.jp:8000/listen.pls',
+      url_resolved: 'http://gyusyabu.ddo.jp:8000/'
+    }
+  ]);
+  await page.route('**/api/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    })
+  );
+  await page.route('http://gyusyabu.ddo.jp:8000/**', (route) => {
+    directStreamHits += 1;
+    return route.abort('failed');
+  });
+  await page.route('https://gyusyabu.ddo.jp:8000/**', (route) => {
+    directStreamHits += 1;
+    return route.abort('failed');
+  });
+  await page.route('**/api/stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F', (route) =>
+    route.abort('failed')
+  );
+  await page.route(
+    '**/api/stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F%3Bstream.mp3',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'audio/wav',
+        body: mockStreamAudio
+      })
+  );
+
+  await page.goto('/?api=/api');
+  await page.locator('.play-btn').first().click();
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('/api/stream?url=http%3A%2F%2Fgyusyabu.ddo.jp%3A8000%2F%3Bstream.mp3');
+
+  await page.waitForTimeout(1500);
+  expect(directStreamHits).toBe(0);
 });
 
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {

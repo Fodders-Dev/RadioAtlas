@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
-import { getApiBase } from './apiBase';
+import { getApiBase, hasExplicitApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
@@ -86,6 +86,9 @@ const isSecureProxyContext = () => {
   if (typeof window === 'undefined') return false;
   return window.location.protocol === 'https:';
 };
+
+const shouldPreferProxy = (apiBase: string) =>
+  Boolean(normalizeBase(apiBase)) && (isSecureProxyContext() || hasExplicitApiBase());
 
 const isExternalStation = (station: StationLite) =>
   station.stationuuid.startsWith('ext_') ||
@@ -222,7 +225,8 @@ const buildCandidates = ({
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
-  const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy && isSecureProxyContext();
+  const shouldForceProxyForHttp =
+    url.startsWith('http://') && canUseProxy && shouldPreferProxy(normalizedBase);
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
@@ -231,7 +235,6 @@ const buildCandidates = ({
       proxyInputs.forEach((candidate) => {
         pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
       });
-      directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
     } else if (isHttpLocal) {
       directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
       pushUnique(candidates, url);

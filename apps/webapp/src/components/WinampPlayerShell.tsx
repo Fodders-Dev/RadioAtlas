@@ -123,6 +123,8 @@ const toAssetUrl = (value: string) => {
 };
 const toWebampVolume = (value: number) => Math.round(clamp(value, 0, 1) * 100);
 const toPlayerVolume = (value: number) => clamp(value / 100, 0, 1);
+const SILENT_WEBAMP_TRACK_URL =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 const getSliderValue = (node: Element | null) => {
   if (!node) return null;
   if (node instanceof HTMLInputElement) {
@@ -137,7 +139,9 @@ const getSliderValue = (node: Element | null) => {
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
-    url: station.url_resolved || '',
+    // Webamp is a UI shell in this app, so its internal decoder should never own
+    // real station networking or bypass the playback engine's proxy policy.
+    url: SILENT_WEBAMP_TRACK_URL,
     metaData: {
       title: station.name,
       artist: stationLocation(station)

@@ -56,6 +56,24 @@ export const getApiBase = () => {
   return getDefaultApiBase();
 };
 
+export const hasExplicitApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const paramValue = params.get('api');
+    if (normalizeBase(paramValue)) return true;
+
+    try {
+      if (normalizeBase(localStorage.getItem(STORAGE_KEY))) {
+        return true;
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  return Boolean(normalizeBase(import.meta.env.VITE_API_URL || ''));
+};
+
 export const setApiBase = (value: string) => {
   const normalized = normalizeBase(value);
   if (!normalized) return false;
