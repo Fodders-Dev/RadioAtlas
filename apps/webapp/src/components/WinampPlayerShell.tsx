@@ -7,6 +7,7 @@ import {
   getWebampRootNode,
   stopNativeEvent
 } from '../lib/winampBridge';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 
 type WebampTrack = {
@@ -452,6 +453,9 @@ const syncCompactWindowPlacement = (mountNode: HTMLElement, viewMode: CompactVie
   windowNode.style.transform = '';
   windowNode.style.left = '0px';
   windowNode.style.top = '0px';
+  windowNode.style.width = `${MAIN_WINDOW_WIDTH}px`;
+  windowNode.style.height =
+    viewMode === 'panel' ? `${FULL_WINDOW_HEIGHT}px` : `${SHADED_WINDOW_HEIGHT}px`;
   windowNode.style.pointerEvents = 'auto';
   const rawRect = windowNode.getBoundingClientRect();
   const baseWidth = rawRect.width || MAIN_WINDOW_WIDTH;
@@ -571,6 +575,8 @@ const resetWebampWindowPlacement = () => {
     windowNode.style.pointerEvents = '';
     windowNode.style.left = '';
     windowNode.style.top = '';
+    windowNode.style.width = '';
+    windowNode.style.height = '';
   }
 
   const webampRoot = getWebampRootNode();
@@ -629,6 +635,7 @@ const isWindowShaded = () => {
 const setMainWindowShadeMode = (shaded: boolean) => {
   const mainWindow = getMainWindowNode();
   if (!mainWindow) return;
+  const mainContent = mainWindow.querySelector('#main-window') as HTMLElement | null;
   const current = isWindowShaded();
   if (current === shaded) return;
   const toggleBtn = document.querySelector('[title="Toggle Windowshade Mode"]') as HTMLElement | null;
@@ -637,6 +644,7 @@ const setMainWindowShadeMode = (shaded: boolean) => {
   }
   if (isWindowShaded() !== shaded) {
     mainWindow.classList.toggle('shade', shaded);
+    mainContent?.classList.toggle('shade', shaded);
   }
 };
 
@@ -712,6 +720,7 @@ export const WinampPlayerShell = ({
 }: {
   onDetails?: () => void;
 }) => {
+  const { t } = useLocale();
   const {
     player,
     queue,
@@ -749,6 +758,8 @@ export const WinampPlayerShell = ({
     typeof window === 'undefined' ? 'desktop' : getResponsiveExpandedMode()
   );
   const expandedRef = useRef(winamp.expanded);
+  const figmaCaptureMode =
+    typeof window !== 'undefined' && window.location.hash.includes('figmacapture=');
 
   const current = player.current;
 
@@ -1235,6 +1246,15 @@ export const WinampPlayerShell = ({
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
+    if (figmaCaptureMode) {
+      mountNode.innerHTML = '';
+      resetWebampWindowPlacement();
+      setWebampReady(false);
+      setWebampFailed(false);
+      setBootError(null);
+      return;
+    }
+
     let cancelled = false;
     let mountedInstance: WebampInstance | null = null;
     let unsubscribeWillClose: (() => void) | null = null;
@@ -1400,7 +1420,7 @@ export const WinampPlayerShell = ({
         webampRef.current = null;
       }
     };
-  }, [bootCycle, winamp.activeSkin.url]);
+  }, [bootCycle, figmaCaptureMode, winamp.activeSkin.url]);
 
   useEffect(() => {
     if (!webampReady) return;
@@ -1852,45 +1872,82 @@ export const WinampPlayerShell = ({
     }
   };
 
-  const actionStrip = (variant: 'compact' | 'overlay') => (
-    <div
-      className={`winamp-actions ${variant}`}
-      onMouseDown={stopCompactInteraction}
-      onTouchStart={stopCompactInteraction}
-      onClick={stopCompactInteraction}
+  const transportButton = (
+    <button
+      className={`chip ${current && player.isPlaying ? 'active' : ''}`}
+      type="button"
+      onClick={() => {
+        if (current) {
+          quietWebampPlayback();
+          void player.toggle();
+          return;
+        }
+        playLast();
+      }}
+      disabled={!current && !canResume}
     >
-      <button
-        className={`chip ${current && player.isPlaying ? 'active' : ''}`}
-        type="button"
-        onClick={() => {
-          if (current) {
-            quietWebampPlayback();
-            void player.toggle();
-            return;
-          }
-          playLast();
-        }}
-        disabled={!current && !canResume}
-      >
-        {current ? (player.isPlaying ? 'Pause' : 'Play') : 'Resume'}
-      </button>
+      {current ? (player.isPlaying ? t('common.pause') : t('common.play')) : t('common.resume')}
+    </button>
+  );
 
-      <button className="chip" type="button" onClick={playNext}>
-        Next
-      </button>
+  const nextButton = (
+    <button className="chip" type="button" onClick={playNext}>
+      {t('common.next')}
+    </button>
+  );
 
+  const favoriteButton = (
+    <button
+      className={`icon-btn ${liked ? 'active' : ''}`}
+      onClick={() => current && toggleFavorite(current)}
+      type="button"
+      disabled={!current}
+      aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+      </svg>
+    </button>
+  );
+
+  const appButton = (
+    <button
+      className="icon-btn"
+      onClick={openWebAppExternally}
+      type="button"
+      title={t('common.openBrowser')}
+      aria-label={t('common.openApp')}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7z" />
+      </svg>
+    </button>
+  );
+
+  const compactActions = (
+    <>
+      {favoriteButton}
       <button
-        className={`icon-btn ${liked ? 'active' : ''}`}
-        onClick={() => current && toggleFavorite(current)}
+        className="icon-btn active"
         type="button"
-        disabled={!current}
-        aria-label={liked ? 'Unfavorite' : 'Favorite'}
+        onMouseDown={stopCompactInteraction}
+        onTouchStart={stopCompactInteraction}
+        onClick={requestExpand}
+        aria-label={t('winamp.fullscreen')}
+        title={t('winamp.fullscreen')}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+          <path d="M5 5h5V3H3v7h2V5zm14 0v5h2V3h-7v2h5zM5 14H3v7h7v-2H5v-5zm16 0h-2v5h-5v2h7v-7z" />
         </svg>
       </button>
+    </>
+  );
 
+  const overlayActions = (
+    <>
+      {transportButton}
+      {nextButton}
+      {favoriteButton}
       {onDetails && (
         <button
           className="chip"
@@ -1898,35 +1955,32 @@ export const WinampPlayerShell = ({
           type="button"
           disabled={!current}
         >
-          Info
+          {t('common.info')}
         </button>
       )}
-
       <button
         className="chip"
         onClick={() => current && shareStation(current)}
         type="button"
         disabled={!current}
       >
-        Share
+        {t('common.share')}
       </button>
-
-      <button
-        className="icon-btn"
-        onClick={openWebAppExternally}
-        type="button"
-        title="Open in Browser"
-        aria-label="Open app"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7z" />
-        </svg>
-      </button>
-
+      {appButton}
       <button className="chip" type="button" onClick={copyTrack} disabled={!canCopyTrackTitle}>
-        Song
+        {t('common.song')}
       </button>
+    </>
+  );
 
+  const actionStrip = (variant: 'compact' | 'overlay') => (
+    <div
+      className={`winamp-actions ${variant}`}
+      onMouseDown={stopCompactInteraction}
+      onTouchStart={stopCompactInteraction}
+      onClick={stopCompactInteraction}
+    >
+      {variant === 'compact' ? compactActions : overlayActions}
     </div>
   );
 
@@ -1942,29 +1996,36 @@ export const WinampPlayerShell = ({
         }
       }}
       disabled={!canCopyTrackTitle}
-      title={canCopyTrackTitle ? 'Copy track title' : 'Track title unavailable'}
-      aria-label={canCopyTrackTitle ? `Copy track title: ${trackTitle}` : 'Track title unavailable'}
+      title={canCopyTrackTitle ? t('winamp.copyTrackTitle') : t('winamp.trackUnavailable')}
+      aria-label={canCopyTrackTitle ? `${t('winamp.copyTrackTitle')}: ${trackTitle}` : t('winamp.trackUnavailable')}
     >
       <span className="winamp-trackline-label">
-        {canCopyTrackTitle ? trackTitle : 'Track title unavailable'}
+        {canCopyTrackTitle ? trackTitle : t('winamp.trackUnavailable')}
       </span>
     </button>
   );
 
   const expandedShellStyle = winamp.expanded
-    ? ({
-        position: 'fixed',
-        inset: '0',
-        bottom: 'auto',
-        left: '0',
-        right: '0',
-        width: '100vw',
-        maxWidth: '100vw',
-        height: '100vh',
-        alignItems: 'stretch',
-        justifyContent: 'stretch',
-        overflow: 'hidden'
-      } satisfies React.CSSProperties)
+    ? expandedLayoutMode === 'mobile'
+      ? ({
+          position: 'fixed',
+          inset: '0',
+          bottom: 'auto',
+          left: '0',
+          right: '0',
+          width: '100vw',
+          maxWidth: '100vw',
+          height: '100vh',
+          alignItems: 'stretch',
+          justifyContent: 'stretch',
+          overflow: 'hidden'
+        } satisfies React.CSSProperties)
+      : ({
+          minHeight: '100%',
+          height: '100%',
+          alignItems: 'stretch',
+          justifyContent: 'stretch'
+        } satisfies React.CSSProperties)
     : undefined;
 
   const expandedMainStyle = winamp.expanded
@@ -1994,46 +2055,45 @@ export const WinampPlayerShell = ({
       } satisfies React.CSSProperties)
     : undefined;
 
+  const overlayQueuePreview = queue.items
+    .slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4)
+    .filter(Boolean);
+  const overlayHistoryPreview = playbackHistory.slice().reverse().slice(0, 4);
+
   return (
     <div
       className={`winamp-compact ${winamp.expanded ? 'fullscreen-ui' : ''}`}
       style={expandedShellStyle}
       data-expanded-layout={winamp.expanded ? expandedLayoutMode : undefined}
-      role={winamp.expanded ? 'dialog' : undefined}
-      aria-modal={winamp.expanded ? 'true' : undefined}
+      data-compact-view={!winamp.expanded ? winamp.compactMode : undefined}
+      role={winamp.expanded && expandedLayoutMode === 'mobile' ? 'dialog' : undefined}
+      aria-modal={winamp.expanded && expandedLayoutMode === 'mobile' ? 'true' : undefined}
     >
       {winamp.expanded ? (
         <>
-          <div
-            className="winamp-overlay-backdrop"
-            aria-hidden="true"
-          />
+          {expandedLayoutMode === 'mobile' ? (
+            <div
+              className="winamp-overlay-backdrop"
+              aria-hidden="true"
+            />
+          ) : null}
           <div className="winamp-overlay-header">
             <div className="winamp-overlay-header-actions">
               {expandedLayoutMode === 'desktop' ? (
                 <button className="chip" type="button" onClick={resetExpandedLayout}>
-                  Reset layout
+                  {t('winamp.resetLayout')}
                 </button>
               ) : null}
               <button className="chip active" type="button" onClick={() => winamp.setExpanded(false)}>
-                Collapse
+                {t('winamp.collapse')}
               </button>
             </div>
           </div>
         </>
       ) : (
         <>
-          {actionStrip('compact')}
-          <button
-            className="chip active winamp-expand-fab"
-            type="button"
-            onMouseDown={stopCompactInteraction}
-            onTouchStart={stopCompactInteraction}
-            onClick={requestExpand}
-          >
-            Fullscreen
-          </button>
           {trackLine('compact')}
+          {actionStrip('compact')}
         </>
       )}
 
@@ -2043,19 +2103,51 @@ export const WinampPlayerShell = ({
         onClick={!winamp.expanded ? handleCompactMainClick : undefined}
       >
         <div className="winamp-host compact" style={expandedHostStyle} ref={compactHostRef} />
+        {winamp.expanded && expandedLayoutMode === 'desktop' ? (
+          <aside className="winamp-overlay-sidebar">
+            <div className="winamp-overlay-card">
+              <div className="winamp-overlay-label">{t('winamp.nowTuned')}</div>
+              <div className="winamp-overlay-title">
+                {current?.name || queue.items[queue.currentIndex]?.name || t('winamp.noStation')}
+              </div>
+              <div className="winamp-overlay-copy">
+                {queue.sourceLabel || t('radio.queueDefault')} - {t('winamp.queueReady', {
+                  count: queue.items.length
+                })}
+              </div>
+            </div>
+            <div className="winamp-overlay-card">
+              <div className="winamp-overlay-label">{t('winamp.upNext')}</div>
+              <div className="winamp-overlay-list">
+                {overlayQueuePreview.length ? (
+                  overlayQueuePreview.map((station) => (
+                    <div className="winamp-overlay-item" key={station.stationuuid}>
+                      <strong>{station.name}</strong>
+                      <span>{station.country || station.state || t('common.unknown')}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="winamp-overlay-empty">{t('winamp.buildQueue')}</div>
+                )}
+              </div>
+            </div>
+          </aside>
+        ) : null}
         {!webampReady && (
           <div className={`winamp-loading ${winamp.expanded ? 'overlay' : ''}`}>
-            {webampFailed ? (
+            {figmaCaptureMode ? (
+              t('winamp.figmaPlaceholder')
+            ) : webampFailed ? (
               <button
                 className="chip"
                 type="button"
                 title={bootError || undefined}
                 onClick={() => setBootCycle((value) => value + 1)}
               >
-                Winamp load failed. Retry
+                {t('winamp.loadingFailed')}
               </button>
             ) : (
-              'Loading Winamp...'
+              t('winamp.loadingShell')
             )}
           </div>
         )}
@@ -2063,6 +2155,34 @@ export const WinampPlayerShell = ({
 
       {winamp.expanded ? (
         <div className="winamp-overlay-footer">
+          <div className="winamp-overlay-summary">
+            <div className="winamp-overlay-card">
+              <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
+              <div className="winamp-overlay-title">
+                {current?.name || queue.items[queue.currentIndex]?.name || t('winamp.noStation')}
+              </div>
+              <div className="winamp-overlay-copy">
+                {queue.sourceLabel || t('radio.queueDefault')} - {t('winamp.queueCount', {
+                  count: queue.items.length
+                })}
+              </div>
+            </div>
+            <div className="winamp-overlay-card">
+              <div className="winamp-overlay-label">{t('winamp.recentSessions')}</div>
+              <div className="winamp-overlay-list">
+                {overlayHistoryPreview.length ? (
+                  overlayHistoryPreview.map((station) => (
+                    <div className="winamp-overlay-item" key={`${station.stationuuid}-${station.name}`}>
+                      <strong>{station.name}</strong>
+                      <span>{station.country || station.state || t('common.unknown')}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="winamp-overlay-empty">{t('winamp.historyEmpty')}</div>
+                )}
+              </div>
+            </div>
+          </div>
           {trackLine('overlay')}
           {actionStrip('overlay')}
         </div>

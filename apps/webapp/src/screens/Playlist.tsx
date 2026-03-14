@@ -1,16 +1,18 @@
 import { stationLocation } from '../lib/stationUtils';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 
 export const Playlist = () => {
   const { player, queue, playbackHistory } = useRadio();
+  const { t } = useLocale();
 
   return (
     <section className="screen screen-playlist">
       <div className="section playlist-heading">
-        <div className="section-title">Playlist</div>
+        <div className="section-title">{t('playlist.title')}</div>
         <div className="section-subtitle">
-          {queue.sourceLabel || 'Playback queue'}
-          {queue.items.length ? ` · ${queue.items.length} stations` : ''}
+          {queue.sourceLabel || t('radio.queueDefault')}
+          {queue.items.length ? ` - ${t('playlist.stationsCount', { count: queue.items.length })}` : ''}
         </div>
         <div className="chip-row">
           <button
@@ -23,7 +25,7 @@ export const Playlist = () => {
             }}
             disabled={queue.currentIndex < 0}
           >
-            Play current
+            {t('playlist.playCurrent')}
           </button>
           <button
             className="chip"
@@ -31,15 +33,13 @@ export const Playlist = () => {
             onClick={() => queue.clearQueue()}
             disabled={!queue.items.length}
           >
-            Clear queue
+            {t('playlist.clearQueue')}
           </button>
         </div>
       </div>
 
       {!queue.items.length ? (
-        <div className="empty-state">
-          Start any station from Explore, Browse, Search, or Favorites to build a queue.
-        </div>
+        <div className="empty-state">{t('playlist.empty')}</div>
       ) : (
         <div className="playlist-shell">
           <div className="playlist-list">
@@ -59,10 +59,10 @@ export const Playlist = () => {
                   </div>
                   <div className="playlist-actions">
                     <button className="chip" type="button" onClick={() => queue.playAtIndex(index)}>
-                      {active && player.isPlaying ? 'Playing' : 'Play'}
+                      {active && player.isPlaying ? t('playlist.playing') : t('common.play')}
                     </button>
                     <button className="chip" type="button" onClick={() => queue.removeAtIndex(index)}>
-                      Remove
+                      {t('common.remove')}
                     </button>
                   </div>
                 </div>
@@ -71,7 +71,7 @@ export const Playlist = () => {
           </div>
 
           <div className="section playlist-history-card">
-            <div className="section-title">Playback history</div>
+            <div className="section-title">{t('playlist.historyTitle')}</div>
             {playbackHistory.length ? (
               <div className="playlist-history-list">
                 {playbackHistory
@@ -86,7 +86,7 @@ export const Playlist = () => {
                   ))}
               </div>
             ) : (
-              <div className="empty-state">Playback history is empty.</div>
+              <div className="empty-state">{t('playlist.historyEmpty')}</div>
             )}
           </div>
         </div>
@@ -94,3 +94,4 @@ export const Playlist = () => {
     </section>
   );
 };
+

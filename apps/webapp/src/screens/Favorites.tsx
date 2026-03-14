@@ -1,11 +1,13 @@
 import { StationTable } from '../components/StationTable';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 
 export const Favorites = () => {
   const { favorites, recent, trackHistory } = useRadio();
+  const { locale, t } = useLocale();
   const lastPlayed = recent[0];
   const formatTime = (value: number) =>
-    new Date(value).toLocaleString(undefined, {
+    new Date(value).toLocaleString(locale, {
       year: 'numeric',
       month: 'short',
       day: '2-digit',
@@ -17,22 +19,24 @@ export const Favorites = () => {
     <section className="screen screen-favorites">
       <div className="favorites-top-grid">
         <div className="section">
-          <div className="section-title">Profile</div>
+          <div className="section-title">{t('favoritesScreen.profileTitle')}</div>
           <div className="profile-card">
             <div>
-              <div className="profile-name">You</div>
-              <div className="profile-sub">Favorites are saved on this device.</div>
+              <div className="profile-name">{t('favoritesScreen.profileName')}</div>
+              <div className="profile-sub">{t('favoritesScreen.profileDesc')}</div>
               {lastPlayed && (
-                <div className="profile-last">Last played: {lastPlayed.name}</div>
+                <div className="profile-last">
+                  {t('favoritesScreen.lastPlayed', { station: lastPlayed.name })}
+                </div>
               )}
             </div>
             <div className="profile-stats">
               <div>
-                <span>Favorites</span>
+                <span>{t('favoritesScreen.favorites')}</span>
                 <strong>{favorites.length}</strong>
               </div>
               <div>
-                <span>Recent</span>
+                <span>{t('favoritesScreen.recent')}</span>
                 <strong>{recent.length}</strong>
               </div>
             </div>
@@ -40,9 +44,9 @@ export const Favorites = () => {
         </div>
 
         <div className="section">
-          <div className="section-title">Track journal</div>
+          <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
           {trackHistory.length === 0 ? (
-            <div className="empty-state">Copied tracks will appear here.</div>
+            <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
           ) : (
             <div className="track-list">
               {trackHistory.slice(0, 50).map((item) => (
@@ -50,7 +54,7 @@ export const Favorites = () => {
                   <div>
                     <div className="track-title">{item.track}</div>
                     <div className="track-meta">
-                      {item.stationName} В· {formatTime(item.timestamp)}
+                      {item.stationName} - {formatTime(item.timestamp)}
                     </div>
                   </div>
                   <button
@@ -58,7 +62,7 @@ export const Favorites = () => {
                     type="button"
                     onClick={() => navigator.clipboard.writeText(item.track)}
                   >
-                    Copy
+                    {t('common.copy')}
                   </button>
                 </div>
               ))}
@@ -69,14 +73,15 @@ export const Favorites = () => {
 
       <div className="favorites-station-grid">
         <div className="section">
-          <div className="section-title">My Stations</div>
+          <div className="section-title">{t('favoritesScreen.myStations')}</div>
           <StationTable stations={favorites} sourceId="favorites" />
         </div>
         <div className="section">
-          <div className="section-title">Recently played</div>
+          <div className="section-title">{t('favoritesScreen.recentStations')}</div>
           <StationTable stations={recent} compact sourceId="recent" />
         </div>
       </div>
     </section>
   );
 };
+

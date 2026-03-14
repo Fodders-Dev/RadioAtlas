@@ -18,6 +18,14 @@ const buildTrack = (artist?: string, title?: string) => {
   return parts.join(' - ');
 };
 
+const canAttemptDirectFetch = (url: string) => {
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
 const fetchIcy = async (url: string, timeoutMs = 6000): Promise<string | null> => {
   if (!url || !url.startsWith('https://')) return null;
 
@@ -82,7 +90,11 @@ const parseAzuraCast = (data: any): string | null => {
   return song?.text || buildTrack(song?.artist, song?.title);
 };
 
-const fetchAzuraCast = async (host: string): Promise<string | null> => {
+const fetchAzuraCast = async (
+  host: string,
+  apiBase: string,
+  apiAvailable: boolean
+): Promise<string | null> => {
   const endpoints = [
     `https://${host}/api/nowplaying/1`,
     `https://${host}/api/nowplaying`
@@ -90,7 +102,16 @@ const fetchAzuraCast = async (host: string): Promise<string | null> => {
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint, { cache: 'no-store' });
+      let response: Response | null = null;
+      if (canAttemptDirectFetch(endpoint)) {
+        response = await fetch(endpoint, { cache: 'no-store' });
+      } else if (apiBase && apiAvailable) {
+        response = await fetch(`${apiBase}/fetch?url=${encodeURIComponent(endpoint)}`, {
+          cache: 'no-store'
+        });
+      } else {
+        continue;
+      }
       if (!response.ok) continue;
       const data = await response.json();
       const track = parseAzuraCast(data);
@@ -205,11 +226,13 @@ const fetchIcecastCORS = async (
   const target = `${origin}/status-json.xsl`;
   let data: any = null;
 
-  try {
-    const res = await fetchWithTimeout(target);
-    if (res.ok) data = await res.json();
-  } catch {
-    // ignore direct failure
+  if (canAttemptDirectFetch(target)) {
+    try {
+      const res = await fetchWithTimeout(target);
+      if (res.ok) data = await res.json();
+    } catch {
+      // ignore direct failure
+    }
   }
 
   if (!data && apiBase && apiAvailable) {
@@ -247,11 +270,13 @@ const fetchShoutcastCORS = async (
   const target = `${origin}/7.html`;
   let text: string | null = null;
 
-  try {
-    const res = await fetchWithTimeout(target);
-    if (res.ok) text = await res.text();
-  } catch {
-    // ignore
+  if (canAttemptDirectFetch(target)) {
+    try {
+      const res = await fetchWithTimeout(target);
+      if (res.ok) text = await res.text();
+    } catch {
+      // ignore
+    }
   }
 
   if (!text && apiBase && apiAvailable) {
@@ -300,7 +325,7 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
     if (shoutcast) return shoutcast;
 
     // 3. Try AzuraCast API (specific to AzuraCast hosts)
-    const azura = await fetchAzuraCast(urlObj.host);
+    const azura = await fetchAzuraCast(urlObj.host, apiBase, apiAvailable);
     if (azura) return azura;
 
   } catch {

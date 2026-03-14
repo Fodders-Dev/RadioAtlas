@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 
 type StationDetailsProps = {
@@ -9,6 +10,7 @@ type StationDetailsProps = {
 };
 
 export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
+  const { t } = useLocale();
   const {
     player,
     stations,
@@ -67,7 +69,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         className="details-backdrop"
         onClick={onClose}
         type="button"
-        aria-label="Close details"
+        aria-label={t('details.closeAria')}
       />
       <div className="details-card">
         <div className="details-header">
@@ -76,7 +78,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
             <div className="details-sub">{location}</div>
           </div>
           <button className="chip" onClick={onClose} type="button">
-            Close
+            {t('details.close')}
           </button>
         </div>
 
@@ -84,32 +86,32 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
 
         <div className="details-actions">
           <button className="player-btn primary" onClick={handlePlay} type="button">
-            {player.isPlaying ? 'Pause' : 'Play'}
+            {player.isPlaying ? t('common.pause') : t('common.play')}
           </button>
           {nowPlaying && (
             <button className="player-btn" onClick={copyTrack} type="button">
-              Copy track
+              {t('details.copyTrack')}
             </button>
           )}
           <button
             className={`icon-btn ${liked ? 'active' : ''}`}
             onClick={() => toggleFavorite(current)}
             type="button"
-            aria-label={liked ? 'Unfavorite' : 'Favorite'}
+            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
             </svg>
           </button>
           <button className="player-btn" onClick={() => shareStation(current)} type="button">
-            Share
+            {t('common.share')}
           </button>
           <button className="player-btn" onClick={() => openExternal(current)} type="button">
-            Stream
+            {t('common.stream')}
           </button>
           {homepage && (
             <button className="player-btn" onClick={openHomepage} type="button">
-              Site
+              {t('common.site')}
             </button>
           )}
         </div>
@@ -117,23 +119,23 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         <div className="details-grid">
           {(nowPlaying || nowPlayingStatus === 'unavailable') && (
             <div className="details-row">
-              <span>Now playing</span>
+              <span>{t('details.nowPlaying')}</span>
               {nowPlaying ? (
                 <button
                   className="track-copy"
                   onClick={copyTrack}
                   type="button"
-                  title="Copy track"
+                  title={t('details.openTrackCopy')}
                 >
                   {nowPlaying}
                 </button>
               ) : (
-                <div>Unavailable</div>
+                <div>{t('common.unavailable')}</div>
               )}
             </div>
           )}
           <div className="details-row">
-            <span>Stream URL</span>
+            <span>{t('details.streamUrl')}</span>
             <a
               className="details-link"
               href={current.url_resolved}
@@ -146,7 +148,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
           </div>
           {homepage && (
             <div className="details-row">
-              <span>Homepage</span>
+              <span>{t('details.homepage')}</span>
               <a
                 className="details-link"
                 href={homepage}
@@ -159,22 +161,22 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
             </div>
           )}
           <div className="details-row">
-            <span>Country</span>
-            <div>{info.country || 'Unknown'}</div>
+            <span>{t('details.country')}</span>
+            <div>{info.country || t('common.unknown')}</div>
           </div>
           <div className="details-row">
-            <span>Region</span>
-            <div>{info.state || 'Unknown'}</div>
+            <span>{t('details.region')}</span>
+            <div>{info.state || t('details.unknownRegion')}</div>
           </div>
           {codec && (
             <div className="details-row">
-              <span>Codec</span>
+              <span>{t('details.codec')}</span>
               <div>{codec}</div>
             </div>
           )}
           {bitrate !== undefined && bitrate !== null && (
             <div className="details-row">
-              <span>Bitrate</span>
+              <span>{t('details.bitrate')}</span>
               <div>{bitrate} kbps</div>
             </div>
           )}

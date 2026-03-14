@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
 import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { getApiBase } from '../lib/apiBase';
 import { checkApiAvailability, markApiUnavailable } from '../lib/apiAvailability';
+import { resolveContinent } from '../lib/geoResolver';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { toLite } from '../lib/stationUtils';
-import type { StationLite } from '../types';
+import type { ContinentId, CountryBucket, StationLite } from '../types';
 
 type ExternalLink = {
   id: string;
@@ -49,6 +51,19 @@ const BLOCKED_HOSTS = [
   'youtube-nocookie.com'
 ];
 
+const CONTINENT_ORDER: ContinentId[] = [
+  'Europe',
+  'Asia',
+  'North America',
+  'South America',
+  'Africa',
+  'Oceania',
+  'Antarctica',
+  'Other'
+];
+
+const normalizeCountryKey = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+
 const getHost = (value: string) => {
   try {
     return new URL(value).host.toLowerCase();
@@ -57,14 +72,9 @@ const getHost = (value: string) => {
   }
 };
 
-const isBlocked = (value: string) =>
-  BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
-
-const isPlaylistUrl = (value: string) =>
-  /\.(m3u8?|pls)(\?|#|$)/i.test(value);
-
-const isDirectAudioUrl = (value: string) =>
-  /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(value);
+const isBlocked = (value: string) => BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
+const isPlaylistUrl = (value: string) => /\.(m3u8?|pls)(\?|#|$)/i.test(value);
+const isDirectAudioUrl = (value: string) => /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(value);
 
 const stripTrackingParams = (value: string) => {
   try {
@@ -104,8 +114,7 @@ const pickBestStream = (streams: ExtractAudioStream[]) => {
   return streams
     .filter((stream) => Boolean(stream.url))
     .sort((a, b) => {
-      const score = (item: ExtractAudioStream) =>
-        Math.max(item.averageBitrate || 0, item.bitrate || 0);
+      const score = (item: ExtractAudioStream) => Math.max(item.averageBitrate || 0, item.bitrate || 0);
       return score(b) - score(a);
     })[0];
 };
@@ -167,30 +176,28 @@ const parsePls = (text: string, baseUrl: string) => {
       titles.set(Number(titleMatch[1]), titleMatch[2].trim());
     }
   });
-  return Array.from(urls.entries()).map(([idx, url]) => ({
-    url,
-    name: titles.get(idx)
-  }));
+  return Array.from(urls.entries()).map(([idx, url]) => ({ url, name: titles.get(idx) }));
 };
 
-export const Search = () => {
+export const Discover = () => {
   const { stations, playStation, player, recent } = useRadio();
+  const { t } = useLocale();
   const [mode, setMode] = useState<'stations' | 'links'>('stations');
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(200);
   const [countryFilter, setCountryFilter] = useState('All');
   const [tagFilter, setTagFilter] = useState('All');
   const [languageFilter, setLanguageFilter] = useState('All');
+  const [continentFilter, setContinentFilter] = useState<ContinentId | 'All'>('All');
+  const [countryQuery, setCountryQuery] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkName, setLinkName] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkLoading, setLinkLoading] = useState(false);
-  const [links, setLinks] = useLocalStorage<ExternalLink[]>(
-    'radio:links',
-    []
-  );
+  const [links, setLinks] = useLocalStorage<ExternalLink[]>('radio:links', []);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const debounced = useDebounce(query, 250);
+  const debouncedCountryQuery = useDebounce(countryQuery, 180);
   const showStations = mode === 'stations';
   const apiBase = getApiBase();
   const [apiOnline, setApiOnline] = useState(true);
@@ -233,24 +240,44 @@ export const Search = () => {
 
   useEffect(() => {
     setVisibleCount(200);
-  }, [stations.length, debounced, countryFilter, tagFilter, languageFilter]);
+  }, [stations.length, debounced, countryFilter, tagFilter, languageFilter, continentFilter]);
 
-  const { countries, tags, languages } = useMemo(() => {
+  const { countries, tags, languages, countryBuckets, continentCounts } = useMemo(() => {
     const countryMap = new Map<string, number>();
     const tagMap = new Map<string, number>();
     const languageMap = new Map<string, number>();
+    const bucketMap = new Map<string, CountryBucket>();
+    const continentMap = new Map<ContinentId, number>();
 
     stations.forEach((station) => {
-      const country = station.country?.trim();
-      if (country) {
-        countryMap.set(country, (countryMap.get(country) || 0) + 1);
+      const country = station.country?.trim() || 'Unknown';
+      const countryKey = normalizeCountryKey(country);
+      const continent = resolveContinent(station.country);
+      const lite = toLite(station);
+
+      countryMap.set(country, (countryMap.get(country) || 0) + 1);
+      continentMap.set(continent, (continentMap.get(continent) || 0) + 1);
+
+      const existingBucket = bucketMap.get(countryKey);
+      if (existingBucket) {
+        existingBucket.count += 1;
+        existingBucket.stations.push(lite);
+      } else {
+        bucketMap.set(countryKey, {
+          key: countryKey,
+          country,
+          continent,
+          count: 1,
+          stations: [lite]
+        });
       }
+
       const language = station.language?.trim();
       if (language) {
         languageMap.set(language, (languageMap.get(language) || 0) + 1);
       }
-      const tagString = station.tags || '';
-      tagString.split(',').forEach((tag) => {
+
+      (station.tags || '').split(',').forEach((tag) => {
         const clean = tag.trim().toLowerCase();
         if (!clean) return;
         tagMap.set(clean, (tagMap.get(clean) || 0) + 1);
@@ -263,10 +290,25 @@ export const Search = () => {
         .slice(0, limit)
         .map(([value]) => value);
 
+    const orderedBuckets = Array.from(bucketMap.values())
+      .map((bucket) => ({
+        ...bucket,
+        stations: bucket.stations.sort((left, right) => left.name.localeCompare(right.name))
+      }))
+      .sort((a, b) => {
+        if (a.count !== b.count) return b.count - a.count;
+        return a.country.localeCompare(b.country);
+      });
+
     return {
-      countries: ['All', ...top(countryMap, 60)],
+      countries: ['All', ...top(countryMap, 80)],
       tags: ['All', ...top(tagMap, 80)],
-      languages: ['All', ...top(languageMap, 40)]
+      languages: ['All', ...top(languageMap, 40)],
+      countryBuckets: orderedBuckets,
+      continentCounts: CONTINENT_ORDER.map((continent) => ({
+        id: continent,
+        count: continentMap.get(continent) || 0
+      })).filter((item) => item.count > 0)
     };
   }, [stations]);
 
@@ -282,33 +324,30 @@ export const Search = () => {
     if (!languages.includes(languageFilter)) setLanguageFilter('All');
   }, [languages, languageFilter]);
 
+  const visibleCountryBuckets = useMemo(() => {
+    const q = debouncedCountryQuery.trim().toLowerCase();
+    return countryBuckets
+      .filter((bucket) => continentFilter === 'All' || bucket.continent === continentFilter)
+      .filter((bucket) => (q ? bucket.country.toLowerCase().includes(q) : true));
+  }, [continentFilter, countryBuckets, debouncedCountryQuery]);
+
+  const featuredCountries = useMemo(() => visibleCountryBuckets.slice(0, 12), [visibleCountryBuckets]);
+  const featuredTags = useMemo(() => tags.filter((tag) => tag !== 'All').slice(0, 12), [tags]);
+
   const filtered = useMemo(() => {
     const q = debounced.trim().toLowerCase();
-    return stations
-      .filter((station) => {
-        const haystack = [
-          station.name,
-          station.tags,
-          station.country,
-          station.state,
-          station.language
-        ]
-          .join(' ')
-          .toLowerCase();
-        if (q && !haystack.includes(q)) return false;
-        if (countryFilter !== 'All' && station.country !== countryFilter) {
-          return false;
-        }
-        if (languageFilter !== 'All' && station.language !== languageFilter) {
-          return false;
-        }
-        if (tagFilter !== 'All') {
-          const tagsLower = (station.tags || '').toLowerCase();
-          if (!tagsLower.includes(tagFilter)) return false;
-        }
-        return true;
-      });
-  }, [debounced, stations, countryFilter, tagFilter, languageFilter]);
+    return stations.filter((station) => {
+      const haystack = [station.name, station.tags, station.country, station.state, station.language]
+        .join(' ')
+        .toLowerCase();
+      if (q && !haystack.includes(q)) return false;
+      if (countryFilter !== 'All' && station.country !== countryFilter) return false;
+      if (languageFilter !== 'All' && station.language !== languageFilter) return false;
+      if (continentFilter !== 'All' && resolveContinent(station.country) !== continentFilter) return false;
+      if (tagFilter !== 'All' && !(station.tags || '').toLowerCase().includes(tagFilter)) return false;
+      return true;
+    });
+  }, [debounced, stations, countryFilter, tagFilter, languageFilter, continentFilter]);
 
   const loadMore = useCallback(() => {
     setVisibleCount((prev) => Math.min(prev + 200, filtered.length));
@@ -332,12 +371,12 @@ export const Search = () => {
   const ensureApiAvailable = async () => {
     if (!apiBase) {
       setApiOnline(false);
-      setLinkError('API unavailable');
+      setLinkError(t('discover.apiUnavailable'));
       return false;
     }
     const ok = await checkApiOnline();
     if (!ok) {
-      setLinkError('API unavailable');
+      setLinkError(t('discover.apiUnavailable'));
     }
     return ok;
   };
@@ -359,11 +398,11 @@ export const Search = () => {
     setLinkError(null);
     const normalized = normalizeUrl(linkUrl);
     if (!normalized) {
-      setLinkError('Enter a valid URL');
+      setLinkError(t('discover.enterValidUrl'));
       return;
     }
     if (isBlocked(normalized)) {
-      setLinkError('YouTube links are blocked in this mode');
+      setLinkError(t('discover.youtubeBlocked'));
       return;
     }
     if (isPlaylistUrl(normalized)) {
@@ -372,7 +411,7 @@ export const Search = () => {
     }
     if (!isDirectAudioUrl(normalized)) {
       if (!apiBase) {
-        setLinkError('Not a direct audio URL. Configure API and extract.');
+        setLinkError(t('discover.extractorMissing'));
         return;
       }
       void extractLinkFor(normalized, linkName.trim());
@@ -388,11 +427,11 @@ export const Search = () => {
     setLinkError(null);
     const normalized = normalizeUrl(source);
     if (!normalized) {
-      setLinkError('Enter a valid playlist URL');
+      setLinkError(t('discover.enterPlaylistUrl'));
       return;
     }
     if (isBlocked(normalized)) {
-      setLinkError('YouTube links are blocked in this mode');
+      setLinkError(t('discover.youtubeBlocked'));
       return;
     }
 
@@ -429,7 +468,7 @@ export const Search = () => {
 
       if (!response) {
         if (apiBase && !apiReady) {
-          throw new Error('API unavailable');
+          throw new Error(t('discover.apiUnavailable'));
         }
         throw new Error(`Playlist fetch failed (${lastStatus || 0})`);
       }
@@ -441,15 +480,12 @@ export const Search = () => {
         : parseM3u(text, normalized);
 
       const cleanItems = rawItems
-        .map((item) => ({
-          url: normalizeUrl(item.url),
-          name: item.name
-        }))
+        .map((item) => ({ url: normalizeUrl(item.url), name: item.name }))
         .filter((item) => item.url && !isBlocked(item.url))
         .slice(0, 200);
 
       if (!cleanItems.length) {
-        setLinkError('No playable URLs found in the playlist');
+        setLinkError(t('discover.noPlayableUrls'));
         return;
       }
 
@@ -464,7 +500,7 @@ export const Search = () => {
       setLinkUrl('');
       setLinkName('');
     } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Playlist import failed');
+      setLinkError(err instanceof Error ? err.message : t('common.importPlaylist'));
     } finally {
       setLinkLoading(false);
     }
@@ -473,28 +509,23 @@ export const Search = () => {
   const extractLinkFor = async (sourceUrl: string, nameOverride?: string) => {
     const normalized = normalizeUrl(sourceUrl);
     if (!apiBase) {
-      setLinkError('API unavailable');
+      setLinkError(t('discover.apiUnavailable'));
       return;
     }
     const canUseApi = await ensureApiAvailable();
-    if (!canUseApi) {
-      return;
-    }
+    if (!canUseApi) return;
     setLinkLoading(true);
     try {
-      const response = await fetch(
-        `${apiBase}/extract?url=${encodeURIComponent(normalized)}`
-      );
+      const response = await fetch(`${apiBase}/extract?url=${encodeURIComponent(normalized)}`);
       const data = (await response.json()) as ExtractResponse;
       if (!response.ok || data?.type === 'error') {
         throw new Error(data?.error || `Extractor error (${response.status})`);
       }
 
       if (data.type === 'playlist') {
-        const items =
-          data.items?.filter((item) => item.url && !isBlocked(item.url)) || [];
+        const items = data.items?.filter((item) => item.url && !isBlocked(item.url)) || [];
         if (!items.length) {
-          setLinkError('No playable items found');
+          setLinkError(t('discover.noPlayableItems'));
           return;
         }
         addLinks(
@@ -508,11 +539,10 @@ export const Search = () => {
       } else {
         const best = pickBestStream(data.audioStreams || []);
         if (!best?.url) {
-          setLinkError('No playable audio streams found');
+          setLinkError(t('discover.noPlayableStreams'));
           return;
         }
-        const name =
-          nameOverride?.trim() || data.title?.trim() || deriveName(normalized);
+        const name = nameOverride?.trim() || data.title?.trim() || deriveName(normalized);
         addLinks([{ id: makeId(), name, url: best.url, addedAt: Date.now() }]);
       }
 
@@ -521,7 +551,7 @@ export const Search = () => {
     } catch (err) {
       setApiOnline(false);
       markApiUnavailable(apiBase);
-      setLinkError(err instanceof Error ? err.message : 'Extraction failed');
+      setLinkError(err instanceof Error ? err.message : t('common.extractStreams'));
     } finally {
       setLinkLoading(false);
     }
@@ -531,15 +561,15 @@ export const Search = () => {
     setLinkError(null);
     const normalized = normalizeUrl(linkUrl);
     if (!normalized) {
-      setLinkError('Enter a valid URL');
+      setLinkError(t('discover.enterValidUrl'));
       return;
     }
     if (isBlocked(normalized)) {
-      setLinkError('YouTube links are blocked in this mode');
+      setLinkError(t('discover.youtubeBlocked'));
       return;
     }
     if (!apiBase) {
-      setLinkError('Extractor API not configured');
+      setLinkError(t('discover.extractorNotConfigured'));
       return;
     }
     await extractLinkFor(normalized, linkName.trim());
@@ -553,7 +583,7 @@ export const Search = () => {
         setLinkUrl(text.trim());
       }
     } catch {
-      setLinkError('Clipboard access denied');
+      setLinkError(t('discover.clipboardDenied'));
     }
   };
 
@@ -561,54 +591,43 @@ export const Search = () => {
     setLinks((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const linkRecent = useMemo(
-    () => recent.filter((item) => item.stationuuid.startsWith('ext_')),
-    [recent]
-  );
+  const linkRecent = useMemo(() => recent.filter((item) => item.stationuuid.startsWith('ext_')), [recent]);
 
   return (
     <section className="screen screen-search">
-      <div className="section search-heading">
-        <div className="section-title">Search</div>
-        <div className="section-subtitle">
-          {showStations
-            ? 'Full catalog with filters.'
-            : 'Save audio links or playlists. Non-direct links are extracted. YouTube is blocked.'}
-        </div>
+      <div className="section search-heading discover-heading">
+        <div className="section-title">{t('discover.title')}</div>
+        <div className="section-subtitle">{t('discover.subtitle')}</div>
         <div className="chip-row">
           <button
             className={`chip ${showStations ? 'active' : ''}`}
             type="button"
             onClick={() => setMode('stations')}
           >
-            Stations
+            {t('discover.stationsMode')}
           </button>
-        <button
-          className={`chip ${showStations ? '' : 'active'}`}
-          type="button"
-          onClick={() => setMode('links')}
-        >
-            Links
+          <button
+            className={`chip ${showStations ? '' : 'active'}`}
+            type="button"
+            onClick={() => setMode('links')}
+          >
+            {t('discover.linksMode')}
           </button>
         </div>
       </div>
 
       {showStations ? (
         <>
-          <div className="section search-controls">
+          <div className="section search-controls discover-search-controls">
             <div className="search-bar">
               <input
-                placeholder="Search by name, tag, country, language"
+                placeholder={t('discover.searchPlaceholder')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
               {query && (
-                <button
-                  className="clear-btn"
-                  type="button"
-                  onClick={() => setQuery('')}
-                >
-                  Clear
+                <button className="clear-btn" type="button" onClick={() => setQuery('')}>
+                  {t('common.clear')}
                 </button>
               )}
             </div>
@@ -618,9 +637,10 @@ export const Search = () => {
                 value={countryFilter}
                 onChange={(event) => setCountryFilter(event.target.value)}
               >
-                {countries.map((country) => (
+                <option value="All">{t('discover.regionAll')}</option>
+                {countries.filter((country) => country !== 'All').map((country) => (
                   <option key={country} value={country}>
-                    {country === 'All' ? 'All countries' : country}
+                    {country}
                   </option>
                 ))}
               </select>
@@ -629,9 +649,10 @@ export const Search = () => {
                 value={tagFilter}
                 onChange={(event) => setTagFilter(event.target.value)}
               >
-                {tags.map((tag) => (
+                <option value="All">{t('discover.tagTitle')}</option>
+                {tags.filter((tag) => tag !== 'All').map((tag) => (
                   <option key={tag} value={tag}>
-                    {tag === 'All' ? 'All genres' : tag}
+                    {tag}
                   </option>
                 ))}
               </select>
@@ -640,26 +661,108 @@ export const Search = () => {
                 value={languageFilter}
                 onChange={(event) => setLanguageFilter(event.target.value)}
               >
-                {languages.map((lang) => (
+                <option value="All">{t('discover.regionAll')}</option>
+                {languages.filter((lang) => lang !== 'All').map((lang) => (
                   <option key={lang} value={lang}>
-                    {lang === 'All' ? 'All languages' : lang}
+                    {lang}
                   </option>
                 ))}
               </select>
             </div>
             <div className="section-subtitle">
               {debounced.trim()
-                ? `Results: ${filtered.length}`
-                : `All stations: ${stations.length}`}
+                ? t('discover.matches', { count: filtered.length })
+                : t('discover.allStations', { count: stations.length })}
             </div>
           </div>
+
+          <div className="home-module-grid discover-module-grid">
+            <div className="section home-feature-card discover-region-card">
+              <div className="section-title">{t('discover.regionTitle')}</div>
+              <div className="section-subtitle">{t('discover.regionSubtitle')}</div>
+              <div className="chip-row">
+                <button
+                  className={`chip ${continentFilter === 'All' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setContinentFilter('All')}
+                >
+                  {t('discover.regionAll')}
+                </button>
+                {continentCounts.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`chip ${continentFilter === item.id ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setContinentFilter(item.id)}
+                  >
+                    {item.id} · {item.count}
+                  </button>
+                ))}
+              </div>
+              <div className="search-bar discover-country-search">
+                <input
+                  placeholder={t('discover.countrySearchPlaceholder')}
+                  value={countryQuery}
+                  onChange={(event) => setCountryQuery(event.target.value)}
+                />
+                {countryQuery && (
+                  <button className="clear-btn" type="button" onClick={() => setCountryQuery('')}>
+                    {t('common.clear')}
+                  </button>
+                )}
+              </div>
+              <div className="home-search-meta">
+                {t('discover.countriesInRegion', { count: visibleCountryBuckets.length })}
+              </div>
+            </div>
+
+            <div className="section home-feature-card discover-tag-card">
+              <div className="section-title">{t('discover.tagTitle')}</div>
+              <div className="section-subtitle">{t('discover.tagSubtitle')}</div>
+              <div className="chip-row discover-tag-grid">
+                {featuredTags.map((tag) => (
+                  <button
+                    key={tag}
+                    className={`chip ${tagFilter === tag ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="section home-stack-card discover-country-card">
+            <div className="section-title">{t('discover.countryTitle')}</div>
+            <div className="section-subtitle">{t('discover.countrySubtitle')}</div>
+            {featuredCountries.length ? (
+              <div className="browse-list discover-country-list">
+                {featuredCountries.map((bucket) => (
+                  <button
+                    key={bucket.key}
+                    className="browse-list-item"
+                    type="button"
+                    onClick={() => setCountryFilter(bucket.country)}
+                  >
+                    <div className="browse-title">{bucket.country}</div>
+                    <div className="browse-meta">{bucket.count}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">{t('stationTable.empty')}</div>
+            )}
+          </div>
+
           <div className="search-results-shell">
-            <StationTable stations={results} sourceId="search-stations" />
+            <StationTable stations={results} sourceId="discover-stations" />
           </div>
           {visibleCount < filtered.length && (
             <div className="section">
               <button className="chip" type="button" onClick={loadMore}>
-                Load more
+                {t('discover.loadMore')}
               </button>
             </div>
           )}
@@ -667,26 +770,28 @@ export const Search = () => {
         </>
       ) : (
         <>
-          <div className="section">
+          <div className="section home-search-card">
+            <div className="section-title">{t('discover.linksTitle')}</div>
+            <div className="section-subtitle">{t('discover.linksSubtitle')}</div>
             <div className="settings-card stack">
               <input
                 className="settings-input"
-                placeholder="Audio URL or playlist (.m3u/.pls)"
+                placeholder={t('discover.audioPlaceholder')}
                 value={linkUrl}
                 onChange={(event) => setLinkUrl(event.target.value)}
               />
               <input
                 className="settings-input"
-                placeholder="Optional title"
+                placeholder={t('discover.titlePlaceholder')}
                 value={linkName}
                 onChange={(event) => setLinkName(event.target.value)}
               />
               <div className="settings-actions">
                 <button className="chip" type="button" onClick={handlePaste}>
-                  Paste
+                  {t('common.paste')}
                 </button>
                 <button className="chip" type="button" onClick={addSingleLink}>
-                  Add link
+                  {t('common.addLink')}
                 </button>
                 <button
                   className="chip"
@@ -694,7 +799,7 @@ export const Search = () => {
                   onClick={extractLink}
                   disabled={linkLoading || !apiBase || !apiOnline}
                 >
-                  Extract streams
+                  {t('common.extractStreams')}
                 </button>
                 <button
                   className="chip"
@@ -702,26 +807,21 @@ export const Search = () => {
                   onClick={() => importPlaylist(linkUrl)}
                   disabled={linkLoading}
                 >
-                  {linkLoading ? 'Importing...' : 'Import playlist'}
+                  {linkLoading ? t('common.importing') : t('common.importPlaylist')}
                 </button>
               </div>
             </div>
-            {(!apiBase || !apiOnline) && (
-              <div className="error">
-                Extractor is offline. Check API URL in Settings.
-              </div>
-            )}
+            {(!apiBase || !apiOnline) && <div className="error">{t('discover.extractorOffline')}</div>}
             {linkError && <div className="error">{linkError}</div>}
           </div>
 
-          <div className="section">
-            <div className="section-title">Saved links</div>
+          <div className="section home-stack-card">
+            <div className="section-title">{t('discover.linksSaved')}</div>
             {links.length ? (
               <div className="track-list">
                 {links.map((link) => {
                   const station = toExternalStation(link);
-                  const active =
-                    player.current?.stationuuid === station.stationuuid;
+                  const active = player.current?.stationuuid === station.stationuuid;
                   const isLong = link.name.length > 28;
                   return (
                     <div className="track-card" key={link.id}>
@@ -740,20 +840,20 @@ export const Search = () => {
                               ? player.toggle()
                               : playStation(station, {
                                   playlist: links.map(toExternalStation),
-                                  sourceId: 'search-links'
+                                  sourceId: 'discover-links'
                                 })
                           }
-                          aria-label="Play link"
+                          aria-label={t('discover.playLink')}
                         >
-                          {active && player.isPlaying ? 'Pause' : 'Play'}
+                          {active && player.isPlaying ? t('common.pause') : t('common.play')}
                         </button>
                         <button
                           className="link-btn"
                           type="button"
                           onClick={() => handleRemove(link.id)}
-                          aria-label="Remove link"
+                          aria-label={t('common.remove')}
                         >
-                          Remove
+                          {t('common.remove')}
                         </button>
                       </div>
                     </div>
@@ -761,18 +861,22 @@ export const Search = () => {
                 })}
               </div>
             ) : (
-              <div className="empty-state">No saved links yet.</div>
+              <div className="empty-state">{t('discover.linksEmpty')}</div>
             )}
           </div>
 
-          {linkRecent.length > 0 && (
-            <div className="section">
-              <div className="section-title">Recently played links</div>
-              <StationTable stations={linkRecent} compact sourceId="search-links-recent" />
-            </div>
-          )}
+          <div className="section home-stack-card">
+            <div className="section-title">{t('discover.linksRecent')}</div>
+            {linkRecent.length ? (
+              <StationTable stations={linkRecent} compact sourceId="discover-links-recent" />
+            ) : (
+              <div className="empty-state">{t('discover.linksRecentEmpty')}</div>
+            )}
+          </div>
         </>
       )}
     </section>
   );
 };
+
+export const Search = Discover;

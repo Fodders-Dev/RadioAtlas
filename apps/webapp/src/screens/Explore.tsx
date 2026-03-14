@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Globe } from '../components/Globe';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
-import { useRadio } from '../state/RadioContext';
-import { toLite } from '../lib/stationUtils';
 import { resolveStationCoords } from '../lib/geoResolver';
+import { toLite } from '../lib/stationUtils';
+import { useLocale } from '../state/LocaleContext';
+import { useRadio } from '../state/RadioContext';
 
 export const Explore = () => {
-  const { stations, playStation, player } = useRadio();
+  const { stations, playStation, player, favorites, recent, queue } = useRadio();
+  const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [pickList, setPickList] = useState<ReturnType<typeof toLite>[]>([]);
@@ -58,9 +60,9 @@ export const Explore = () => {
 
   const visiblePoints = useMemo(() => {
     const isMobile = viewportWidth < 720;
-    const cap = isMobile ? 12000 : 30000;
-    const base = isMobile ? 2200 : 6000;
-    const factor = isMobile ? 900 : 1600;
+    const cap = isMobile ? 5200 : 18000;
+    const base = isMobile ? 1400 : 3600;
+    const factor = isMobile ? 560 : 1100;
     const computed = Math.round(base + Math.pow(zoomLevel, 1.8) * factor);
     const maxPoints = Math.min(globePoints.length, Math.min(cap, computed));
     let slice = globePoints.slice(0, maxPoints);
@@ -77,9 +79,7 @@ export const Explore = () => {
   const focusPoint = useMemo(() => {
     const current = player.current;
     if (!current) return null;
-    const full =
-      stations.find((station) => station.stationuuid === current.stationuuid) ??
-      current;
+    const full = stations.find((station) => station.stationuuid === current.stationuuid) ?? current;
     return resolveStationCoords(full);
   }, [player.current?.stationuuid, stations]);
 
@@ -120,36 +120,57 @@ export const Explore = () => {
 
   const trending = useMemo(() => stations.slice(0, 20).map(toLite), [stations]);
   const visibleCollection = query ? searchResults : trending;
+  const listeningNow = useMemo(() => {
+    const queued = queue.items.slice(0, 4);
+    if (queued.length) return queued;
+    if (recent.length) return recent.slice(0, 4);
+    return trending.slice(0, 4);
+  }, [queue.items, recent, trending]);
+  const favoritePreview = useMemo(() => favorites.slice(0, 4), [favorites]);
+  const recentPreview = useMemo(() => recent.slice(0, 4), [recent]);
+  const leadStation = player.current ?? listeningNow[0] ?? null;
+  const queueSourceLabel =
+    queue.sourceLabel || (query ? t('explore.searchPicks') : t('explore.trendingPicks'));
+  const liveStats = useMemo(
+    () => [
+      { label: t('explore.mapped'), value: globePoints.length.toLocaleString() },
+      { label: t('explore.favorites'), value: favorites.length.toString() },
+      { label: t('explore.queue'), value: queue.items.length.toString() }
+    ],
+    [favorites.length, globePoints.length, queue.items.length, t]
+  );
 
   return (
     <section className="screen screen-explore">
-      <div className="hero">
-        <div>
-          <h1>Explore the airwaves</h1>
-          <p>Spin the globe and jump into a live stream from anywhere.</p>
+      <div className="hero home-hero">
+        <div className="hero-copy">
+          <div className="home-kicker">{t('explore.kicker')}</div>
+          <h1>{t('explore.title')}</h1>
+          <p>{t('explore.subtitle')}</p>
+          <div className="home-stat-row">
+            {liveStats.map((item) => (
+              <div key={item.label} className="home-stat-card">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="hero-pill">Global live map</div>
+        <div className="hero-pill">{t('explore.heroPill')}</div>
       </div>
 
       <div className="explore-layout">
         <div className="explore-main-column">
-          <div className="section explore-search-card">
-            <div className="section-title">Quick search</div>
-            <div className="search-bar">
-              <input
-                placeholder="Search stations by name"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              {query && (
-                <button className="clear-btn" type="button" onClick={() => setQuery('')}>
-                  Clear
-                </button>
-              )}
+          <div className="globe-wrap globe-home-card">
+            <div className="globe-card-head">
+              <div>
+                <div className="section-title">{t('explore.globeTitle')}</div>
+                <div className="section-subtitle">{t('explore.globeSubtitle')}</div>
+              </div>
+              <div className="globe-chip">
+                {player.current ? t('explore.globeFocused') : t('explore.globeTap')}
+              </div>
             </div>
-          </div>
-
-          <div className="globe-wrap">
             <Globe
               points={visiblePoints}
               activeId={player.current?.stationuuid}
@@ -164,7 +185,11 @@ export const Explore = () => {
                 if (picked) {
                   playStation(picked, {
                     playlist: pickList.length ? pickList : visibleCollection,
-                    sourceId: pickList.length ? 'explore-pick' : query ? 'explore-search' : 'explore-trending'
+                    sourceId: pickList.length
+                      ? 'explore-pick'
+                      : query
+                        ? 'explore-search'
+                        : 'explore-trending'
                   });
                   setPickList([]);
                 }
@@ -172,17 +197,103 @@ export const Explore = () => {
             />
             <div className="globe-scroll-hint">
               {pickList.length
-                ? `${pickList.length} stations near this point в†“`
-                : 'Tap a glow point to tune in в†“'}
+                ? t('explore.picksOpen', { count: pickList.length })
+                : t('explore.picksHint')}
+            </div>
+          </div>
+
+          <div className="home-module-grid">
+            <div className="section explore-search-card home-search-card" data-home-section="search">
+              <div className="section-title">{t('explore.quickSearchTitle')}</div>
+              <div className="section-subtitle">{t('explore.quickSearchSubtitle')}</div>
+              <div className="search-bar">
+                <input
+                  placeholder={t('explore.quickSearchPlaceholder')}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                {query && (
+                  <button className="clear-btn" type="button" onClick={() => setQuery('')}>
+                    {t('common.clear')}
+                  </button>
+                )}
+              </div>
+              <div className="home-search-meta">
+                {query
+                  ? t('explore.quickSearchMatches', { count: searchResults.length })
+                  : t('explore.quickSearchIdle')}
+              </div>
+            </div>
+
+            <div className="section home-feature-card" data-home-section="listening-now">
+              <div className="section-title">{t('explore.resumeTitle')}</div>
+              <div className="section-subtitle">
+                {leadStation
+                  ? t('explore.resumeReady', {
+                      station: leadStation.name,
+                      source: queueSourceLabel.toLowerCase()
+                    })
+                  : t('explore.resumeEmpty')}
+              </div>
+              <div className="home-action-row">
+                <button
+                  className="chip active"
+                  type="button"
+                  onClick={() => {
+                    if (player.current) {
+                      void player.toggle();
+                      return;
+                    }
+                    if (leadStation) {
+                      playStation(leadStation, {
+                        playlist: listeningNow,
+                        sourceId: queue.sourceId || 'explore-home'
+                      });
+                    }
+                  }}
+                  disabled={!leadStation}
+                >
+                  {player.current
+                    ? player.isPlaying
+                      ? t('common.pause')
+                      : t('explore.resumeCurrent')
+                    : t('explore.resumeStation')}
+                </button>
+                <button
+                  className="chip"
+                  type="button"
+                  onClick={() => {
+                    const next = listeningNow[1] ?? listeningNow[0];
+                    if (next) {
+                      playStation(next, {
+                        playlist: listeningNow,
+                        sourceId: queue.sourceId || 'explore-home'
+                      });
+                    }
+                  }}
+                  disabled={!listeningNow.length}
+                >
+                  {t('explore.nextPick')}
+                </button>
+              </div>
+              <div className="home-mini-list">
+                {listeningNow.length ? (
+                  <StationTable
+                    stations={listeningNow}
+                    compact
+                    sourceId={queue.sourceId || 'explore-home'}
+                  />
+                ) : (
+                  <div className="empty-state">{t('explore.noQueue')}</div>
+                )}
+              </div>
             </div>
           </div>
 
           {pickList.length > 1 && (
-            <div className="section" ref={pickListRef}>
-              <div className="section-title">Pick a station nearby ({pickList.length})</div>
-              <div className="section-subtitle">
-                Nearest matches are listed first. Choose one to start playback.
-              </div>
+            <div className="section nearby-picks-card" data-home-section="nearby" ref={pickListRef}>
+              <div className="section-title">{t('explore.nearbyTitle', { count: pickList.length })}</div>
+              <div className="section-subtitle">{t('explore.nearbySubtitle')}</div>
               <div className="pick-panel">
                 {pickList.map((station) => (
                   <button
@@ -200,12 +311,12 @@ export const Explore = () => {
                     <div className="pick-name">{station.name}</div>
                     <div className="pick-meta">
                       {[station.state, station.country].filter(Boolean).join(', ') ||
-                        'Unknown location'}
+                        t('explore.unknownLocation')}
                     </div>
                   </button>
                 ))}
                 <button className="pick-dismiss" type="button" onClick={() => setPickList([])}>
-                  Close
+                  {t('explore.dismissNearby')}
                 </button>
               </div>
             </div>
@@ -213,17 +324,41 @@ export const Explore = () => {
         </div>
 
         <div className="explore-side-column">
-          {query ? (
-            <div className="section">
-              <div className="section-title">Search results</div>
-              <StationTable stations={searchResults} sourceId="explore-search" />
+          <div className="section home-stack-card" data-home-section={query ? 'search-results' : 'trending'}>
+            <div className="section-title">
+              {query ? t('explore.resultTitle') : t('explore.trendingTitle')}
             </div>
-          ) : (
-            <div className="section">
-              <div className="section-title">Trending right now</div>
-              <StationTable stations={trending} compact sourceId="explore-trending" />
+            <div className="section-subtitle">
+              {query
+                ? t('explore.resultSubtitle')
+                : t('explore.trendingSubtitle')}
             </div>
-          )}
+            <StationTable
+              stations={query ? searchResults : trending}
+              compact={!query}
+              sourceId={query ? 'explore-search' : 'explore-trending'}
+            />
+          </div>
+
+          <div className="section home-stack-card" data-home-section="favorites">
+            <div className="section-title">{t('explore.favoritesTitle')}</div>
+            <div className="section-subtitle">{t('explore.favoritesSubtitle')}</div>
+            {favoritePreview.length ? (
+              <StationTable stations={favoritePreview} compact sourceId="favorites" />
+            ) : (
+              <div className="empty-state">{t('explore.favoritesEmpty')}</div>
+            )}
+          </div>
+
+          <div className="section home-stack-card" data-home-section="recent">
+            <div className="section-title">{t('explore.recentTitle')}</div>
+            <div className="section-subtitle">{t('explore.recentSubtitle')}</div>
+            {recentPreview.length ? (
+              <StationTable stations={recentPreview} compact sourceId="recent" />
+            ) : (
+              <div className="empty-state">{t('explore.recentEmpty')}</div>
+            )}
+          </div>
         </div>
       </div>
     </section>

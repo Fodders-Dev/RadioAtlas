@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
+import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { SkinPicker } from '../components/SkinPicker';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
@@ -13,6 +14,7 @@ export const Settings = () => {
     debugLogs,
     winamp
   } = useRadio();
+  const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
   const apiBase = getApiBase();
@@ -30,7 +32,7 @@ export const Settings = () => {
     }
     const ok = setApiBase(value);
     if (!ok) {
-      window.alert('Invalid API URL. Use https://...');
+      window.alert(t('settings.invalidApi'));
       return;
     }
     window.location.reload();
@@ -45,32 +47,28 @@ export const Settings = () => {
   return (
     <section className="screen screen-settings">
       <div className="section">
-        <div className="section-title">Background Audio</div>
+        <div className="section-title">{t('settings.backgroundTitle')}</div>
         <div className="settings-card">
           <div>
-            <div className="settings-label">Open in System Browser</div>
-            <div className="settings-desc">
-              Recommended for reliable background playback.
-            </div>
+            <div className="settings-label">{t('settings.openBrowserLabel')}</div>
+            <div className="settings-desc">{t('settings.openBrowserDesc')}</div>
           </div>
           <button
             className="chip active"
             onClick={openWebAppExternally}
             type="button"
           >
-            Open App
+            {t('common.openApp')}
           </button>
         </div>
       </div>
 
       <div className="section">
-        <div className="section-title">Player Skin</div>
+        <div className="section-title">{t('settings.skinTitle')}</div>
         <div className="settings-card stack">
           <div>
-            <div className="settings-label">Winamp Skin Mode</div>
-            <div className="settings-desc">
-              Search skins.webamp.org and persist the one you choose.
-            </div>
+            <div className="settings-label">{t('settings.skinModeLabel')}</div>
+            <div className="settings-desc">{t('settings.skinModeDesc')}</div>
           </div>
           <SkinPicker />
           <div className="settings-actions">
@@ -79,80 +77,100 @@ export const Settings = () => {
               type="button"
               onClick={() => winamp.setExpanded(!winamp.expanded)}
             >
-              {winamp.expanded ? 'Close fullscreen player' : 'Open fullscreen player'}
+              {winamp.expanded ? t('settings.closeFullscreen') : t('settings.openFullscreen')}
             </button>
           </div>
         </div>
       </div>
 
       <div className="section">
-        <div className="section-title">Settings</div>
+        <div className="section-title">{t('settings.generalTitle')}</div>
         <div className="settings-card stack">
           <div>
-            <div className="settings-label">API base</div>
-            <div className="settings-desc">
-              Proxy for stations without VPN (trycloudflare or server URL).
-            </div>
+            <div className="settings-label">{t('locale.language')}</div>
+            <div className="settings-desc">{t('locale.languageDesc')}</div>
+          </div>
+          <div className="settings-actions">
+            <button
+              className={`chip ${locale === 'ru' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setLocale('ru')}
+            >
+              {t('locale.russian')}
+            </button>
+            <button
+              className={`chip ${locale === 'en' ? 'active' : ''}`}
+              type="button"
+              onClick={() => setLocale('en')}
+            >
+              {t('locale.english')}
+            </button>
+          </div>
+        </div>
+        <div className="settings-card stack">
+          <div>
+            <div className="settings-label">{t('settings.apiBaseLabel')}</div>
+            <div className="settings-desc">{t('settings.apiBaseDesc')}</div>
           </div>
           <input
             className="settings-input"
             value={apiUrl}
             onChange={(event) => setApiUrl(event.target.value)}
-            placeholder="https://your-api.example"
+            placeholder={t('settings.apiPlaceholder')}
             type="url"
           />
           <div className="settings-actions">
             <button className="chip" onClick={handleSaveApi} type="button">
-              Save & reload
+              {t('common.saveReload')}
             </button>
             <button className="chip" onClick={handleResetApi} type="button">
-              Reset
+              {t('common.reset')}
             </button>
           </div>
         </div>
         <div className="settings-card">
           <div>
-            <div className="settings-label">Cache</div>
-            <div className="settings-desc">Refresh catalog and globe data.</div>
+            <div className="settings-label">{t('settings.cacheLabel')}</div>
+            <div className="settings-desc">{t('settings.cacheDesc')}</div>
           </div>
           <button className="chip" onClick={clearCache} type="button">
-            Clear cache
+            {t('settings.clearCache')}
           </button>
         </div>
         <div className="settings-card">
           <div>
-            <div className="settings-label">Favorites</div>
-            <div className="settings-desc">Reset saved stations.</div>
+            <div className="settings-label">{t('settings.favoritesLabel')}</div>
+            <div className="settings-desc">{t('settings.favoritesDesc')}</div>
           </div>
           <button className="chip" onClick={clearFavorites} type="button">
-            Clear favorites
+            {t('settings.clearFavorites')}
           </button>
         </div>
         <div className="settings-card">
           <div>
-            <div className="settings-label">Recently played</div>
-            <div className="settings-desc">Clear local playback history.</div>
+            <div className="settings-label">{t('settings.recentLabel')}</div>
+            <div className="settings-desc">{t('settings.recentDesc')}</div>
           </div>
           <button className="chip" onClick={clearRecent} type="button">
-            Clear recent
+            {t('settings.clearRecent')}
           </button>
         </div>
       </div>
 
       <div className="section">
-        <div className="section-title">Diagnostics</div>
+        <div className="section-title">{t('settings.diagnosticsTitle')}</div>
         <div className="settings-card stack">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div>
-              <div className="settings-label">Debug Mode</div>
-              <div className="settings-desc">View logs and system info.</div>
+              <div className="settings-label">{t('settings.debugLabel')}</div>
+              <div className="settings-desc">{t('settings.debugDesc')}</div>
             </div>
             <button
               className="chip"
               onClick={() => setShowDebug(!showDebug)}
               type="button"
             >
-              {showDebug ? 'Hide' : 'Show'}
+              {showDebug ? t('common.hide') : t('common.show')}
             </button>
           </div>
           {showDebug && (
@@ -208,7 +226,7 @@ export const Settings = () => {
                   ? debugLogs.map((log: string, i: number) => (
                     <div key={i}>{log}</div>
                   ))
-                  : 'No logs yet...'}
+                  : t('settings.noLogs')}
               </div>
             </div>
           )}

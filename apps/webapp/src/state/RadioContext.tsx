@@ -14,6 +14,7 @@ import { useLocalStorage } from '../lib/useLocalStorage';
 import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
+import { useLocale } from './LocaleContext';
 import { getApiBase } from '../lib/apiBase';
 import { applySkinPalette, applySkinThemeFromUrl } from '../lib/skinTheme';
 import { fetchMuseumSkinByMd5 } from '../lib/skinMuseum';
@@ -189,21 +190,22 @@ const normalizeStations = (stations: Array<Station | StationLite>) =>
 const getQueueSourceLabel = (
   sourceId: string | null | undefined,
   sourceLabel: string | null | undefined,
-  items: StationLite[]
+  items: StationLite[],
+  t: (key: string, vars?: Record<string, string | number>) => string
 ) => {
   if (sourceLabel?.trim()) return sourceLabel.trim();
   if (!sourceId) {
-    return items.length === 1 ? items[0]?.name || 'Playback queue' : 'Playback queue';
+    return items.length === 1 ? items[0]?.name || t('radio.queueDefault') : t('radio.queueDefault');
   }
-  if (sourceId === 'favorites') return 'Favorites';
-  if (sourceId === 'recent') return 'Recently played';
-  if (sourceId === 'search-stations') return 'Search results';
-  if (sourceId === 'search-links') return 'Saved links';
-  if (sourceId === 'search-links-recent') return 'Recent links';
-  if (sourceId === 'explore-trending') return 'Trending stations';
-  if (sourceId === 'explore-search') return 'Explore search';
-  if (sourceId === 'explore-pick') return 'Nearby picks';
-  if (sourceId.startsWith('browse-')) return 'Browse results';
+  if (sourceId === 'favorites') return t('radio.favorites');
+  if (sourceId === 'recent') return t('radio.recent');
+  if (sourceId === 'search-stations' || sourceId === 'discover-stations') return t('radio.searchResults');
+  if (sourceId === 'search-links' || sourceId === 'discover-links') return t('radio.savedLinks');
+  if (sourceId === 'search-links-recent' || sourceId === 'discover-links-recent') return t('radio.recentLinks');
+  if (sourceId === 'explore-trending') return t('radio.trending');
+  if (sourceId === 'explore-search') return t('radio.exploreSearch');
+  if (sourceId === 'explore-pick') return t('radio.nearby');
+  if (sourceId.startsWith('browse-')) return t('radio.discoverResults');
   if (sourceId.startsWith('station-')) return items[0]?.name || 'Single station';
   return sourceId
     .split(/[-_]/g)
@@ -225,6 +227,7 @@ const clampQueueIndex = (items: StationLite[], index: number) => {
 };
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
+  const { t } = useLocale();
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -328,7 +331,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       sourceLabel: getQueueSourceLabel(
         nextSnapshot.sourceId,
         nextSnapshot.sourceLabel,
-        sanitizedItems
+        sanitizedItems,
+        t
       )
     };
 
@@ -357,7 +361,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         sourceLabel: getQueueSourceLabel(
           options?.sourceId ?? 'playback-context',
           options?.sourceLabel,
-          items
+          items,
+          t
         )
       };
     }
@@ -374,7 +379,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         sourceLabel: getQueueSourceLabel(
           options?.sourceId ?? currentQueue.sourceId,
           options?.sourceLabel ?? currentQueue.sourceLabel,
-          currentQueue.items
+          currentQueue.items,
+          t
         )
       };
     }
@@ -385,7 +391,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       items,
       currentIndex: items.length ? 0 : -1,
       sourceId,
-      sourceLabel: getQueueSourceLabel(sourceId, options?.sourceLabel ?? station.name, items)
+      sourceLabel: getQueueSourceLabel(sourceId, options?.sourceLabel ?? station.name, items, t)
     };
   };
 
@@ -457,7 +463,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
       setActiveSkin(fallback);
       setStoredSkin({ source: 'preset', id: fallback.id });
-      notify('Saved skin unavailable. Reverted to Winamp Base 2.91.');
+      notify(t('toast.savedSkinFallback'));
     };
 
     void restoreSkin();
@@ -558,7 +564,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     const lite = toLite(station);
     if (!lite.url_resolved) {
-      notify('Missing stream URL');
+      notify(t('toast.missingStream'));
       return false;
     }
 
@@ -568,7 +574,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       if (!options?.suppressErrorToast) {
-        notify(result.error || 'Playback failed');
+        notify(result.error || t('toast.playbackFailed'));
       }
       return false;
     }
@@ -608,7 +614,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (station) {
       void playStationInternal(station, {
         sourceId: 'deep-link',
-        sourceLabel: 'Deep link'
+        sourceLabel: t('radio.deepLink')
       });
       startHandledRef.current = true;
       return;
@@ -734,7 +740,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           }
         : resolveQueueSnapshot(previousStation, {
             sourceId: 'history',
-            sourceLabel: 'History'
+            sourceLabel: t('radio.history')
           });
 
     void playStationInternal(previousStation, {
@@ -809,7 +815,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         const ok = await playStationInternal(randomStation, {
           queueSnapshot: resolveQueueSnapshot(randomStation, {
             sourceId: 'all-stations',
-            sourceLabel: 'All stations'
+            sourceLabel: t('radio.allStations')
           }),
           suppressErrorToast: true
         });
@@ -822,7 +828,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     void (async () => {
       if (await playFromQueue()) return;
       if (await playFromGlobalPool()) return;
-      notify('No playable station in catalog');
+      notify(t('toast.noPlayable'));
     })();
   };
 
@@ -847,7 +853,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           }
         : resolveQueueSnapshot(latestStation, {
             sourceId: currentQueue.sourceId ?? 'resume',
-            sourceLabel: currentQueue.sourceLabel ?? 'Resume'
+            sourceLabel: currentQueue.sourceLabel ?? t('radio.resume')
           });
 
     void playStationInternal(latestStation, {
@@ -917,7 +923,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
-        notify('Share dialog opened');
+        notify(t('toast.shareDialog'));
         return;
       } catch {
         // ignore
@@ -926,7 +932,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       await navigator.clipboard.writeText(`${title} ${url}`);
-      notify('Link copied');
+      notify(t('toast.linkCopied'));
       return;
     } catch {
       // ignore
@@ -937,34 +943,34 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     if (tg?.openLink) {
       tg.openLink(shareUrl);
-      notify('Share opened');
+      notify(t('toast.shareOpened'));
       return;
     }
 
     try {
       const popup = window.open(shareUrl, '_blank', 'noopener,noreferrer');
       if (popup) {
-        notify('Share opened');
+        notify(t('toast.shareOpened'));
         return;
       }
     } catch {
       // ignore
     }
 
-    notify('Share failed');
+    notify(t('toast.shareFailed'));
   };
 
   const clearFavorites = () => setFavorites([]);
   const clearRecent = () => setRecent([]);
   const clearCache = () => {
     clearStationsCache();
-    notify('Cache cleared');
+    notify(t('toast.cacheCleared'));
   };
 
   const copyTrack = async () => {
     const station = player.current;
     if (!station || !nowPlaying) {
-      notify('No track info');
+      notify(t('toast.noTrackInfo'));
       return;
     }
     try {
@@ -977,9 +983,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         timestamp: Date.now()
       };
       setTrackHistory((prev) => [entry, ...prev].slice(0, MAX_TRACK_HISTORY));
-      notify('Track copied');
+      notify(t('toast.trackCopied'));
     } catch {
-      notify('Copy failed');
+      notify(t('toast.copyFailed'));
     }
   };
 
@@ -987,7 +993,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const preset = findPresetSkin(skinId);
     setActiveSkin({ ...preset, source: 'preset' });
     setStoredSkin({ source: 'preset', id: preset.id });
-    notify(`Skin: ${preset.name}`);
+    notify(t('toast.skinApplied', { name: preset.name }));
   };
 
   const selectSkin = (skin: WinampMuseumSkin) => {
@@ -997,7 +1003,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       md5: skin.md5,
       name: skin.name
     });
-    notify(`Skin: ${skin.name}`);
+    notify(t('toast.skinApplied', { name: skin.name }));
   };
 
   const queue = useMemo<QueueState>(

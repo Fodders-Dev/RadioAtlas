@@ -176,7 +176,9 @@ const buildUrlVariants = (url: string) => {
     } catch {
       // ignore invalid URL
     }
-    pushUnique(directPreferred, url.replace(/^http:\/\//, 'https://'));
+    if (isDirectAudioUrl(url)) {
+      pushUnique(directPreferred, url.replace(/^http:\/\//, 'https://'));
+    }
   } else {
     pushUnique(directPreferred, url);
   }
@@ -217,9 +219,11 @@ const buildCandidates = ({
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
   if (url.startsWith('http://')) {
-    directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
     if (isHttpLocal) {
+      directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
       pushUnique(candidates, url);
+    } else if (directPreferred.length) {
+      directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
     }
     if (canUseProxy) {
       proxyInputs.forEach((candidate) => {

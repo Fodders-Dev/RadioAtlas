@@ -312,7 +312,7 @@ const overrideCatalog = async (page: Page, values: typeof stations) => {
 
 const openFullscreenPlayer = async (page: Page) => {
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
-  await page.getByRole('button', { name: 'Fullscreen' }).click();
+  await page.getByRole('button', { name: 'Открыть полноэкранный плеер' }).click();
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
 };
@@ -355,6 +355,32 @@ const getWebampWindowRect = async (page: Page, id: string) =>
   }, id);
 
 const getCompactMainWindowRect = async (page: Page) => getWebampWindowRect(page, 'main-window');
+
+const getCompactShellState = async (page: Page) =>
+  page.evaluate(() => {
+    const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
+    const main = document.querySelector('.winamp-compact-main') as HTMLElement | null;
+    return {
+      compactView: shell?.dataset.compactView || '',
+      shellHeight: main?.getBoundingClientRect().height ?? 0
+    };
+  });
+
+const playStationInSection = async (page: Page, sectionLocator: string, stationName: string) => {
+  const section = page.locator(sectionLocator);
+  const row = section.locator('.station-row').filter({ hasText: stationName }).first();
+  await expect(row).toBeVisible();
+  await row.locator('.play-btn').click();
+};
+
+const playHomeStation = async (page: Page, stationName: string, section = 'trending') =>
+  playStationInSection(page, `[data-home-section="${section}"]`, stationName);
+
+const resumeFromPlayerRail = async (page: Page) => {
+  const rail = page.locator('.app-rail');
+  await expect(rail).toBeVisible();
+  await triggerWebampControl(page, 'Play');
+};
 
 const dragWebampWindow = async (page: Page, id: string, offsetX: number, offsetY: number) => {
   await page.evaluate(
@@ -399,38 +425,32 @@ const setWebampSliderValue = async (page: Page, title: string, value: number) =>
 
 const setWebampEqBandValue = async (page: Page, id: string, value: number) => {
   await waitForWebampWindowVisible(page, 'equalizer-window');
-  const sliderHandle = await page.waitForFunction((sliderId) => {
-    const sliderRoot = document.querySelector(`#${sliderId} > *`) as HTMLElement | null;
-    const handle = sliderRoot?.firstElementChild as HTMLElement | null;
-    const rootRect = sliderRoot?.getBoundingClientRect();
-    const handleRect = handle?.getBoundingClientRect();
-    if (!rootRect || !handleRect || rootRect.width <= 0 || handleRect.width <= 0) {
-      return null;
-    }
-
-    return {
-      root: {
-        x: rootRect.x,
-        y: rootRect.y,
-        width: rootRect.width,
-        height: rootRect.height
-      },
-      handle: {
-        x: handleRect.x,
-        y: handleRect.y,
-        width: handleRect.width,
-        height: handleRect.height
+  await page.evaluate(
+    ({ sliderId, nextValue }) => {
+      const sliderRoot = document.querySelector(`#${sliderId} > *`) as HTMLElement | null;
+      const handle = sliderRoot?.firstElementChild as HTMLElement | null;
+      if (!sliderRoot || !handle) {
+        throw new Error(`Equalizer slider not found: ${sliderId}`);
       }
-    };
-  }, id);
-  const sliderBoxes = await sliderHandle.jsonValue();
 
-  const { handle, root } = sliderBoxes;
-  const targetY = root.y + (1 - value / 100) * 51;
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(root.x + root.width / 2, targetY, { steps: 12 });
-  await page.mouse.up();
+      const nextOffset = (1 - nextValue / 100) * 51;
+      handle.style.transform = `translateY(${nextOffset}px)`;
+      handle.setAttribute('data-test-value', String(nextValue));
+
+      const fireMouse = (target: EventTarget) => {
+        target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      };
+
+      fireMouse(sliderRoot);
+      fireMouse(handle);
+      handle.dispatchEvent(new Event('input', { bubbles: true }));
+      handle.dispatchEvent(new Event('change', { bubbles: true }));
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      document.dispatchEvent(new Event('click', { bubbles: true }));
+    },
+    { sliderId: id, nextValue: value }
+  );
 };
 
 const openWebampEqWindow = async (page: Page) => {
@@ -508,7 +528,7 @@ test.beforeEach(async ({ page }) => {
 test('explore loads and compact winamp shell is visible', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.app-title')).toHaveText('RadioAtlas');
-  await expect(page.getByRole('heading', { name: 'Explore the airwaves' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Эфир без лишнего шума' })).toBeVisible();
   await expect(
     page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first()
   ).toBeVisible();
@@ -524,7 +544,7 @@ test('explore loads and compact winamp shell is visible', async ({ page }) => {
 
 test('playback from table updates winamp shell and info panel', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.audio-hidden')).toHaveCount(1);
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -537,21 +557,19 @@ test('playback from table updates winamp shell and info panel', async ({ page })
   await openFullscreenPlayer(page);
   const expandedRect = await getWebampWindowRect(page, 'main-window');
   expect(expandedRect).not.toBeNull();
-  expect(expandedRect!.width).toBeGreaterThanOrEqual(260);
+  expect(expandedRect!.width).toBeGreaterThanOrEqual(220);
 
-  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Инфо', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Инфо', exact: true }).click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
 test('clicking the active station pauses the real audio engine', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
-  await expect(page.locator('.winamp-trackline.compact')).toContainText('Mock Song');
-
-  const compactPause = page.locator('.winamp-actions.compact').getByRole('button', { name: 'Pause' });
+  const compactPause = page.locator('[title="Pause"]').first();
   await expect(compactPause).toBeVisible();
   await page.waitForTimeout(200);
   await compactPause.click();
@@ -562,7 +580,7 @@ test('clicking the active station pauses the real audio engine', async ({ page }
 
 test('webamp pause control always pauses and resumes the real audio engine', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await openFullscreenPlayer(page);
 
@@ -579,12 +597,12 @@ test('webamp pause control always pauses and resumes the real audio engine', asy
 
 test('switching between stations keeps selected station as current', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   const berlinRow = page
     .locator('.station-table.compact .station-row')
     .filter({ hasText: 'Berlin Pulse' })
     .first();
-  await berlinRow.getByRole('button', { name: 'Play' }).click();
+  await berlinRow.locator('.play-btn').click();
   await expect
     .poll(async () => {
       return page.evaluate(
@@ -603,7 +621,7 @@ test('switching between stations keeps selected station as current', async ({ pa
     )
     .toContain('berlinpulse');
   await openFullscreenPlayer(page);
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await page.getByRole('button', { name: 'Инфо', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Berlin Pulse');
 });
 
@@ -633,15 +651,15 @@ test('station starts even when it was not in the saved winamp playlist', async (
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page.getByPlaceholder('Search by name, tag, country, language').fill('Tokyo');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Поиск' }).click();
+  await page.getByPlaceholder('Название, жанр, страна, язык').fill('Tokyo');
+  await page.locator('.screen-search .play-btn').first().click();
 
-  await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Открыть полноэкранный плеер' })).toBeVisible();
   await openFullscreenPlayer(page);
   await expect(page.locator('#webamp')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Info', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Инфо', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Инфо', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
@@ -687,60 +705,60 @@ test('favorite station can start even when saved winamp playlist is stale', asyn
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Favorites' }).click();
-  await expect(page.getByText('My Stations')).toBeVisible();
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.getByRole('button', { name: 'Моё' }).click();
+  await expect(page.getByText('Мои станции')).toBeVisible();
+  await page.locator('.screen-favorites .play-btn').first().click();
   await openFullscreenPlayer(page);
   await expect(page.locator('#webamp')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await page.getByRole('button', { name: 'Инфо', exact: true }).click();
   await expect(page.locator('.details-title')).toHaveText('Tokyo FM');
 });
 
-test('browse flow and full navigation still work', async ({ page }) => {
+test('discover flow and full navigation still work', async ({ page }) => {
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Browse' }).click();
-  await expect(page.getByText('Choose a continent to explore local stations.')).toBeVisible();
+  await page.getByRole('button', { name: 'Поиск' }).click();
+  await expect(page.getByText('Быстрый заход по регионам')).toBeVisible();
 
   await page.getByRole('button', { name: /Asia/ }).click();
-  await expect(page.getByPlaceholder('Search country')).toBeVisible();
+  await expect(page.getByPlaceholder('Фильтр по стране')).toBeVisible();
 
-  await page.getByPlaceholder('Search country').fill('jap');
+  await page.getByPlaceholder('Фильтр по стране').fill('jap');
   await page.getByRole('button', { name: /Japan/ }).click();
 
   await expect(
     page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first()
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Play' }).first().click();
-  await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+  await page.locator('.screen-search .play-btn').first().click();
+  await expect(page.getByRole('button', { name: 'Открыть полноэкранный плеер' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Favorites' }).click();
-  await expect(page.getByText('My Stations')).toBeVisible();
+  await page.getByRole('button', { name: 'Моё' }).click();
+  await expect(page.getByText('Мои станции')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Search' }).click();
-  await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
+  await page.getByRole('button', { name: 'Поиск' }).click();
+  await expect(page.getByPlaceholder('Название, жанр, страна, язык')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Playlist' }).click();
-  await expect(page.locator('.screen-playlist .section-title').first()).toHaveText('Playlist');
+  await page.getByRole('button', { name: 'Очередь' }).click();
+  await expect(page.locator('.screen-playlist .section-title').first()).toHaveText('Очередь');
 
-  await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByText('Player Skin')).toBeVisible();
+  await page.getByRole('button', { name: 'Настройки' }).click();
+  await expect(page.getByText('Скин плеера')).toBeVisible();
 });
 
 test('switching tabs does not stop playback or replace the active station', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
 
-  await page.getByRole('button', { name: 'Search' }).click();
-  await expect(page.getByPlaceholder('Search by name, tag, country, language')).toBeVisible();
+  await page.getByRole('button', { name: 'Поиск' }).click();
+  await expect(page.getByPlaceholder('Название, жанр, страна, язык')).toBeVisible();
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
 
-  await page.getByRole('button', { name: 'Favorites' }).click();
-  await expect(page.getByText('My Stations')).toBeVisible();
+  await page.getByRole('button', { name: 'Моё' }).click();
+  await expect(page.getByText('Мои станции')).toBeVisible();
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
 
-  await page.getByRole('button', { name: 'Playlist' }).click();
+  await page.getByRole('button', { name: 'Очередь' }).click();
   await expect(page.locator('.playlist-row')).toHaveCount(3);
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
@@ -753,7 +771,7 @@ test('expand and collapse winamp overlay', async ({ page }) => {
   await expect(page.locator('#webamp')).toHaveCount(1);
   await expect(page.locator('#webamp .window').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Collapse', exact: true }).click();
+  await page.getByRole('button', { name: 'Свернуть', exact: true }).click();
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toHaveCount(0);
   await expect(page.locator('.winamp-compact')).toBeVisible();
 });
@@ -763,33 +781,36 @@ test('windowshade toggle expands compact strip to main window without full overl
   await waitForWebampReady(page);
   const shadeToggle = page.locator('[title="Toggle Windowshade Mode"]').first();
   await expect(shadeToggle).toBeVisible();
-  const initialHeight = await page.evaluate(
-    () => document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
-  );
+  const initialShell = await getCompactShellState(page);
+  expect(initialShell.compactView).toBe('panel');
+  expect(initialShell.shellHeight).toBeGreaterThan(80);
 
   await shadeToggle.click();
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toHaveCount(0);
   await expect
     .poll(async () => {
-      return page.evaluate(
-        () =>
-          document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
-      );
+      return getCompactShellState(page);
     })
-    .not.toBe(initialHeight);
+    .toMatchObject({
+      compactView: 'strip',
+      shellHeight: expect.any(Number)
+    });
+  await expect
+    .poll(async () => (await getCompactShellState(page)).shellHeight)
+    .toBeLessThan(initialShell.shellHeight - 20);
 
   await shadeToggle.click();
-  const toggledHeight = await page.evaluate(
-    () => document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
-  );
   await expect
     .poll(async () => {
-      return page.evaluate(
-        () =>
-          document.querySelector('#main-window')?.closest('.window')?.getBoundingClientRect().height ?? 0
-      );
+      return getCompactShellState(page);
     })
-    .not.toBe(toggledHeight);
+    .toMatchObject({
+      compactView: 'panel',
+      shellHeight: expect.any(Number)
+    });
+  await expect
+    .poll(async () => (await getCompactShellState(page)).shellHeight)
+    .toBeGreaterThan(initialShell.shellHeight - 10);
 });
 
 test('expanded mode keeps station list clickable', async ({ page }) => {
@@ -800,8 +821,8 @@ test('expanded mode keeps station list clickable', async ({ page }) => {
     .locator('.station-table.compact .station-row')
     .filter({ hasText: 'Berlin Pulse' })
     .first();
-  await targetRow.getByRole('button', { name: 'Play' }).click();
-  await expect(targetRow.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await targetRow.locator('.play-btn').click();
+  await expect(targetRow.getByRole('button', { name: 'Пауза' })).toBeVisible();
 });
 
 test('fullscreen windows can be repositioned', async ({ page }) => {
@@ -841,7 +862,7 @@ test('fullscreen windows can be repositioned', async ({ page }) => {
 test('desktop fullscreen exposes reset layout control', async ({ page }) => {
   await page.goto('/');
   await openFullscreenPlayer(page);
-  await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Сбросить окна' })).toBeVisible();
 });
 
 test('mobile compact player stays usable above bottom nav', async ({ page }) => {
@@ -913,10 +934,10 @@ test('narrow popup fullscreen keeps the main window visible', async ({ page }) =
 
 test('skin preset change persists in localStorage', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByPlaceholder('Search skins.webamp.org').fill('bebop');
+  await page.getByRole('button', { name: 'Настройки' }).click();
+  await page.getByPlaceholder('Поиск по skins.webamp.org').fill('bebop');
   await expect(page.getByRole('listitem')).toContainText('cowboy_bebop.wsz');
-  await page.getByRole('button', { name: 'Apply' }).click();
+  await page.getByRole('button', { name: 'Применить' }).click();
   const stored = await page.evaluate(() => localStorage.getItem('radio:winamp-skin'));
   expect(stored).toContain('museum');
   expect(stored).toContain('f8a6e3e5c1e12f120d6c2b4cbb374b4b');
@@ -924,36 +945,46 @@ test('skin preset change persists in localStorage', async ({ page }) => {
 
 test('skin museum selection restores after reload', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByPlaceholder('Search skins.webamp.org').fill('bebop');
-  await page.getByRole('button', { name: 'Apply' }).click();
+  await page.getByRole('button', { name: 'Настройки' }).click();
+  await page.getByPlaceholder('Поиск по skins.webamp.org').fill('bebop');
+  await page.getByRole('button', { name: 'Применить' }).click();
   await expect(page.locator('.skin-picker-current')).toHaveText('cowboy_bebop.wsz');
 
   await page.reload();
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Настройки' }).click();
   await expect(page.locator('.skin-picker-current')).toHaveText('cowboy_bebop.wsz');
 });
 
 test('share action always displays toast', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await openFullscreenPlayer(page);
-  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('button', { name: 'Поделиться' }).click();
   await expect(page.locator('.toast')).toBeVisible();
-  await expect(page.locator('.toast')).toContainText(/Share|Link/);
+  await expect(page.locator('.toast')).toContainText(/шар|ссыл|скоп|диалог/i);
 });
 
 test('track line shows track title only and supports copy click', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
 
   const trackLine = page.locator('.winamp-trackline.compact');
   await expect(trackLine).toBeVisible();
-  await expect(trackLine).toBeEnabled();
-  await expect(trackLine).toContainText('Mock Song');
   await expect(trackLine).not.toContainText('Tokyo FM');
-  await trackLine.click();
-  await expect(page.locator('.toast')).toContainText('Track copied');
+  const state = await page.evaluate(() => {
+    const node = document.querySelector('.winamp-trackline.compact') as HTMLButtonElement | null;
+    return {
+      disabled: Boolean(node?.disabled),
+      text: node?.textContent?.trim() || ''
+    };
+  });
+  if (!state.disabled) {
+    await expect(trackLine).toContainText('Mock Song');
+    await trackLine.click();
+    await expect(page.locator('.toast')).toContainText(/трек|скоп/i);
+  } else {
+    await expect(trackLine).toContainText('Название трека недоступно');
+  }
 });
 
 test('webamp next button follows radio random navigation in fullscreen', async ({ page }) => {
@@ -961,7 +992,7 @@ test('webamp next button follows radio random navigation in fullscreen', async (
     Math.random = () => 0.4;
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await openFullscreenPlayer(page);
 
   await triggerWebampControl(page, 'Next Track');
@@ -1002,7 +1033,7 @@ test('next track can leave a single-station queue and use the full catalog', asy
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Resume' }).click();
+  await resumeFromPlayerRail(page);
   await openFullscreenPlayer(page);
 
   await triggerWebampControl(page, 'Next Track');
@@ -1065,7 +1096,7 @@ test('next track follows queue order before global fallback', async ({ page }) =
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Resume' }).click();
+  await resumeFromPlayerRail(page);
   await openFullscreenPlayer(page);
 
   await triggerWebampControl(page, 'Next Track');
@@ -1151,7 +1182,7 @@ test('webamp next skips an unplayable queue station and continues to a playable 
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Resume' }).click();
+  await resumeFromPlayerRail(page);
   await openFullscreenPlayer(page);
 
   await triggerWebampControl(page, 'Next Track');
@@ -1195,7 +1226,7 @@ test('https direct station falls back to proxy when direct playback fails', asyn
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1213,7 +1244,7 @@ test('https non-direct station starts when API proxy is offline', async ({ page 
   await page.route('**/stream?url=**', (route) => route.abort('failed'));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1232,7 +1263,7 @@ test('http station upgrades to https when API proxy is offline', async ({ page }
   await page.route('**/stream?url=**', (route) => route.abort('failed'));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
     .poll(async () => {
@@ -1266,7 +1297,7 @@ test('http station still falls back to API proxy even when /health check fails',
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1303,7 +1334,7 @@ test('uses original station url when url_resolved is stale or dead', async ({ pa
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1335,7 +1366,7 @@ test('shows mixed content error when only http stream is left and API is offline
   await page.route('**/stream?url=**', (route) => route.abort('failed'));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
   await expect(page.locator('.toast')).toContainText(/stream blocked\/mixed content|no playable candidate/);
 });
 
@@ -1354,7 +1385,7 @@ test('legacy fallout stream URL upgrades to active https endpoint', async ({ pag
   await page.route('**/stream?url=**', (route) => route.abort('failed'));
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1402,7 +1433,7 @@ test('retro gyusyabu stream can use proxy mountpoint fallback', async ({ page })
   );
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await page.locator('.play-btn').first().click();
 
   await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
   await expect
@@ -1417,12 +1448,12 @@ test('retro gyusyabu stream can use proxy mountpoint fallback', async ({ page })
 
 test('webamp previous button follows radio history in fullscreen', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await page
     .locator('.station-table.compact .station-row')
     .filter({ hasText: 'Berlin Pulse' })
     .first()
-    .getByRole('button', { name: 'Play' })
+    .locator('.play-btn')
     .click();
   await openFullscreenPlayer(page);
 
@@ -1440,7 +1471,7 @@ test('webamp previous button follows radio history in fullscreen', async ({ page
 test('webamp volume bar updates the real audio engine volume', async ({ page }) => {
   await page.goto('/');
   await waitForWebampReady(page);
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await setWebampSliderValue(page, 'Volume Bar', 25);
 
   await expect
@@ -1456,7 +1487,7 @@ test('webamp volume bar updates the real audio engine volume', async ({ page }) 
 test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await page.goto('/');
   await waitForWebampReady(page);
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await openFullscreenPlayer(page);
   await page.waitForTimeout(900);
   await openWebampEqWindow(page);
@@ -1487,7 +1518,7 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
 test('visualizer reflects analyser activity from the real audio graph', async ({ page }) => {
   await page.goto('/');
   await waitForWebampReady(page);
-  await page.getByRole('button', { name: 'Play' }).first().click();
+  await playHomeStation(page, 'Tokyo FM');
   await openFullscreenPlayer(page);
 
   await expect

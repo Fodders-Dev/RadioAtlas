@@ -5,18 +5,17 @@ import { StationDetails } from './components/StationDetails';
 import { Toast } from './components/Toast';
 import { Explore } from './screens/Explore';
 import { Favorites } from './screens/Favorites';
-import { Browse } from './screens/Browse';
-import { Search } from './screens/Search';
+import { Discover } from './screens/Search';
 import { Playlist } from './screens/Playlist';
 import { Settings } from './screens/Settings';
 import { useRadio } from './state/RadioContext';
+import { useLocale } from './state/LocaleContext';
 import { buildLabel } from './lib/buildInfo';
 
 const TAB_COMPONENTS: Record<NavTab, () => JSX.Element> = {
   Explore: () => <Explore />,
   Favorites: () => <Favorites />,
-  Browse: () => <Browse />,
-  Search: () => <Search />,
+  Discover: () => <Discover />,
   Playlist: () => <Playlist />,
   Settings: () => <Settings />
 };
@@ -24,7 +23,6 @@ const TAB_COMPONENTS: Record<NavTab, () => JSX.Element> = {
 const MOBILE_SWIPE_MAX_WIDTH = 720;
 const SWIPE_THRESHOLD = 56;
 const SWIPE_DOMINANCE_RATIO = 1.25;
-const DEFAULT_PLAYER_SAFE_HEIGHT = 164;
 const SWIPE_TRANSITION_MS = 280;
 const SWIPE_IGNORE_SELECTOR = [
   'input',
@@ -51,9 +49,9 @@ type SwipeTransitionState = {
 const App = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('Explore');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [playerSafeHeight, setPlayerSafeHeight] = useState(DEFAULT_PLAYER_SAFE_HEIGHT);
   const [swipeTransition, setSwipeTransition] = useState<SwipeTransitionState | null>(null);
   const { loading, error, toast, player, winamp } = useRadio();
+  const { t } = useLocale();
   const versionLabel = buildLabel();
   const mainRef = useRef<HTMLElement | null>(null);
   const swipeTransitionTimeoutRef = useRef<number | null>(null);
@@ -83,56 +81,6 @@ const App = () => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    let resizeObserver: ResizeObserver | null = null;
-    let mutationObserver: MutationObserver | null = null;
-    const timeouts: number[] = [];
-
-    const syncPlayerSafeHeight = () => {
-      const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
-      if (!shell || shell.classList.contains('fullscreen-ui')) return;
-      const nextHeight = Math.max(108, Math.round(shell.getBoundingClientRect().height));
-      setPlayerSafeHeight((prev) => (Math.abs(prev - nextHeight) > 1 ? nextHeight : prev));
-    };
-
-    const connectResizeObserver = () => {
-      resizeObserver?.disconnect();
-      if (typeof ResizeObserver === 'undefined') return;
-      const shell = document.querySelector('.winamp-compact') as HTMLElement | null;
-      if (!shell) return;
-      resizeObserver = new ResizeObserver(syncPlayerSafeHeight);
-      resizeObserver.observe(shell);
-    };
-
-    syncPlayerSafeHeight();
-    connectResizeObserver();
-
-    if (typeof MutationObserver !== 'undefined') {
-      mutationObserver = new MutationObserver(() => {
-        syncPlayerSafeHeight();
-        connectResizeObserver();
-      });
-      mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style']
-      });
-    }
-
-    window.addEventListener('resize', syncPlayerSafeHeight);
-    timeouts.push(window.setTimeout(syncPlayerSafeHeight, 120));
-    timeouts.push(window.setTimeout(syncPlayerSafeHeight, 360));
-    timeouts.push(window.setTimeout(syncPlayerSafeHeight, 920));
-
-    return () => {
-      resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
-      window.removeEventListener('resize', syncPlayerSafeHeight);
-      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    };
-  }, [activeTab, winamp.expanded]);
 
   const changeTab = (nextTab: NavTab, animateSwipe = false) => {
     if (nextTab === activeTab && !swipeTransition) return;
@@ -204,9 +152,6 @@ const App = () => {
     goToAdjacentTab(deltaX < 0 ? 1 : -1);
   };
 
-  const appStyle = {
-    ['--player-safe-height' as '--player-safe-height']: `${playerSafeHeight}px`
-  };
   const transitionDirectionClass =
     swipeTransition?.direction === -1 ? 'swipe-dir-prev' : 'swipe-dir-next';
   const ActiveScreen = TAB_COMPONENTS[activeTab];
@@ -214,41 +159,44 @@ const App = () => {
   return (
     <div
       className="app"
-      style={appStyle}
       data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
+      data-active-tab={activeTab}
     >
       <header className="app-header">
         <div>
-          <div className="app-title">RadioAtlas</div>
-          <div className="app-subtitle">
-            Find, favorite, and travel the world by sound.
-          </div>
+          <div className="app-title">{t('app.title')}</div>
+          <div className="app-subtitle">{t('app.subtitle')}</div>
         </div>
         <div className="app-badge" title={versionLabel}>
-          Live | {versionLabel}
+          {t('app.liveBadge')} | {versionLabel}
         </div>
       </header>
 
-      <main
-        className="app-main"
-        ref={mainRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {loading && <div className="loading">Loading stations...</div>}
-        {error && <div className="error">{error}</div>}
-        <div
-          className={`tab-stage ${swipeTransition ? `transitioning ${transitionDirectionClass}` : ''}`}
+      <div className="app-shell">
+        <main
+          className="app-main"
+          ref={mainRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          <div className="tab-pane tab-pane-active">
-            <ActiveScreen />
+          {loading && <div className="loading">Loading stations...</div>}
+          {error && <div className="error">{error}</div>}
+          <div
+            className={`tab-stage ${swipeTransition ? `transitioning ${transitionDirectionClass}` : ''}`}
+          >
+            <div className="tab-pane tab-pane-active">
+              <ActiveScreen />
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+
+        <aside className="app-rail" aria-label="Player rail">
+          <WinampPlayerShell onDetails={() => setDetailsOpen(true)} />
+        </aside>
+      </div>
 
       <BottomNav active={activeTab} onChange={(tab) => changeTab(tab)} />
-      <WinampPlayerShell onDetails={() => setDetailsOpen(true)} />
       <StationDetails open={detailsOpen} onClose={() => setDetailsOpen(false)} />
       <Toast message={toast} />
     </div>

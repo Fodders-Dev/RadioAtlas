@@ -1,6 +1,7 @@
 import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
+import { useLocale } from '../state/LocaleContext';
 
 type StationTableProps = {
   stations: StationLite[];
@@ -10,20 +11,21 @@ type StationTableProps = {
 
 export const StationTable = ({ stations, compact, sourceId }: StationTableProps) => {
   const { playStation, toggleFavorite, isFavorite, player } = useRadio();
+  const { t } = useLocale();
 
   if (!stations.length) {
-    return <div className="empty-state">No stations yet.</div>;
+    return <div className="empty-state">{t('stationTable.empty')}</div>;
   }
 
   return (
     <div className={`station-table ${compact ? 'compact' : ''}`}>
       {!compact && (
         <div className="station-row header">
-          <div>Play</div>
-          <div>Name</div>
-          <div>Location</div>
-          <div>Tags</div>
-          <div>Favorite</div>
+          <div>{t('stationTable.playColumn')}</div>
+          <div>{t('stationTable.nameColumn')}</div>
+          <div>{t('stationTable.locationColumn')}</div>
+          <div>{t('stationTable.tagsColumn')}</div>
+          <div>{t('stationTable.favoriteColumn')}</div>
         </div>
       )}
       {stations.map((station) => {
@@ -47,26 +49,26 @@ export const StationTable = ({ stations, compact, sourceId }: StationTableProps)
               }
               type="button"
             >
-              {active && player.isPlaying ? 'Pause' : 'Play'}
+              {active && player.isPlaying ? t('common.pause') : t('common.play')}
             </button>
             <div className="station-name">
-              <div className={`station-title ${isLong ? 'marquee' : ''}`}>
-                <span className="marquee-text">{station.name}</span>
-              </div>
-              {compact && (
-                <div className="station-fav">
+              <div className="station-name-head">
+                <div className={`station-title ${isLong ? 'marquee' : ''}`}>
+                  <span className="marquee-text">{station.name}</span>
+                </div>
+                {compact && (
                   <button
-                    className={`icon-btn ${liked ? 'active' : ''}`}
+                    className={`icon-btn station-fav-btn ${liked ? 'active' : ''}`}
                     onClick={() => toggleFavorite(station)}
                     type="button"
-                    aria-label={liked ? 'Unfavorite' : 'Favorite'}
+                    aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
                     </svg>
                   </button>
-                </div>
-              )}
+                )}
+              </div>
               {compact && (
                 <div className="station-location">{stationLocation(station)}</div>
               )}
@@ -80,7 +82,7 @@ export const StationTable = ({ stations, compact, sourceId }: StationTableProps)
                 className={`icon-btn ${liked ? 'active' : ''}`}
                 onClick={() => toggleFavorite(station)}
                 type="button"
-                aria-label={liked ? 'Unfavorite' : 'Favorite'}
+                aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />

@@ -155,7 +155,7 @@ export const Browse = () => {
           {step === 'countries' &&
             `Pick a country in ${selectedContinent}. ${filteredCountries.length} found.`}
           {step === 'stations' &&
-            `${selectedCountry?.country || 'Country'} · ${selectedCountry?.count || 0} stations.`}
+            `${selectedCountry?.country || 'Country'} - ${selectedCountry?.count || 0} stations.`}
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export const Browse = () => {
             >
               <div className="browse-title">{continent.id}</div>
               <div className="browse-meta">
-                {continent.countryCount} countries · {continent.stationCount} stations
+                {continent.countryCount} countries - {continent.stationCount} stations
               </div>
               <div className="browse-hint">{CONTINENT_HINTS[continent.id]}</div>
             </button>
@@ -260,4 +260,5 @@ export const Browse = () => {
     </section>
   );
 };
+
 
