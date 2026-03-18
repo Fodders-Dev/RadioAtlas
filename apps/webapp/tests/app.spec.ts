@@ -1388,7 +1388,7 @@ test('explicit same-origin api query makes http stations use proxy first even on
     .toContain('/api/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
 });
 
-test('explicit same-origin api query makes https stations use proxy first for audio graph', async ({
+test('https stations stay direct-first even when same-origin api is available', async ({
   page
 }) => {
   await page.route('**/api/health', (route) =>
@@ -1398,13 +1398,15 @@ test('explicit same-origin api query makes https stations use proxy first for au
       body: JSON.stringify({ ok: true })
     })
   );
-  await page.route('https://stream.example.com/tokyo', (route) => route.abort('failed'));
-  await page.route('**/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo', (route) =>
+  await page.route('https://stream.example.com/tokyo', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'audio/wav',
       body: mockStreamAudio
     })
+  );
+  await page.route('**/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo', (route) =>
+    route.abort('failed')
   );
 
   await page.goto('/?api=/api');
@@ -1418,7 +1420,7 @@ test('explicit same-origin api query makes https stations use proxy first for au
         return audio?.src || '';
       })
     )
-    .toContain('/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo');
+    .toContain('https://stream.example.com/tokyo');
 });
 
 test('uses original station url when url_resolved is stale or dead', async ({ page }) => {
@@ -1696,6 +1698,22 @@ test('webamp volume bar updates the real audio engine volume', async ({ page }) 
     .toBe(0.25);
 });
 
+test('webamp balance slider updates the real audio engine balance', async ({ page }) => {
+  await page.goto('/');
+  await waitForWebampReady(page);
+  await playHomeStation(page, 'Tokyo FM');
+  await setWebampSliderValue(page, 'Balance', -100);
+
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.dataset.raBalance || '';
+      });
+    })
+    .toBe('-100');
+});
+
 test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await page.addInitScript(() => {
     (window as Window & { __RA_FORCE_AUDIO_GRAPH__?: boolean }).__RA_FORCE_AUDIO_GRAPH__ = true;
@@ -1780,6 +1798,39 @@ test('visualizer reflects analyser activity from the real audio graph', async ({
 
   await expect(page.locator('#main-window .ra-visualizer-overlay')).toBeVisible();
   await expect(page.locator('#main-window .ra-visualizer-overlay-bar')).toHaveCount(24);
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const main = document.getElementById('main-window');
+        const overlay = document.querySelector('#main-window .ra-visualizer-overlay');
+        if (!main || !overlay) return null;
+        const mainRect = main.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        return {
+          leftOffset: Number((overlayRect.left - mainRect.left).toFixed(1)),
+          relativeWidth: Number((mainRect.width * 0.4).toFixed(1))
+        };
+      });
+    })
+    .toEqual({
+      leftOffset: expect.any(Number),
+      relativeWidth: expect.any(Number)
+    });
+  const overlayGeometry = await page.evaluate(() => {
+    const main = document.getElementById('main-window');
+    const overlay = document.querySelector('#main-window .ra-visualizer-overlay');
+    if (!main || !overlay) return null;
+    const mainRect = main.getBoundingClientRect();
+    const overlayRect = overlay.getBoundingClientRect();
+    return {
+      leftOffset: overlayRect.left - mainRect.left,
+      rightEdge: overlayRect.right - mainRect.left,
+      mainWidth: mainRect.width
+    };
+  });
+  expect(overlayGeometry).not.toBeNull();
+  expect(overlayGeometry!.leftOffset).toBeLessThan(overlayGeometry!.mainWidth * 0.3);
+  expect(overlayGeometry!.rightEdge).toBeLessThan(overlayGeometry!.mainWidth * 0.45);
 });
 
 

@@ -123,6 +123,7 @@ const toAssetUrl = (value: string) => {
 };
 const toWebampVolume = (value: number) => Math.round(clamp(value, 0, 1) * 100);
 const toPlayerVolume = (value: number) => clamp(value / 100, 0, 1);
+const toWebampBalance = (value: number) => Math.round(clamp(value, -100, 100));
 const SILENT_WEBAMP_TRACK_URL =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 const getSliderValue = (node: Element | null) => {
@@ -749,6 +750,7 @@ export const WinampPlayerShell = ({
   const retryCountRef = useRef(0);
   const playlistSignatureRef = useRef('');
   const lastAppliedVolumeRef = useRef<number | null>(null);
+  const lastAppliedBalanceRef = useRef<number | null>(null);
   const suppressVolumeSyncUntilRef = useRef(0);
   const expandedRecoveryAttemptsRef = useRef(0);
   const compactRecoveryAttemptsRef = useRef(0);
@@ -1729,11 +1731,26 @@ export const WinampPlayerShell = ({
     suppressVolumeSyncUntilRef.current = Date.now() + 160;
     try {
       instance.setVolume?.(nextVolume);
-      instance.setBalance?.(0);
     } catch (error) {
       console.error('Winamp volume sync failed', error);
     }
   }, [player.volume, webampReady]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
+    if (!instance || !webampReady) return;
+
+    const nextBalance = toWebampBalance(player.balance);
+    if (lastAppliedBalanceRef.current === nextBalance) return;
+
+    lastAppliedBalanceRef.current = nextBalance;
+    suppressVolumeSyncUntilRef.current = Date.now() + 160;
+    try {
+      instance.setBalance?.(nextBalance);
+    } catch (error) {
+      console.error('Winamp balance sync failed', error);
+    }
+  }, [player.balance, webampReady]);
 
   useEffect(() => {
     if (!webampReady) return;
@@ -1757,13 +1774,12 @@ export const WinampPlayerShell = ({
 
       const balanceNode = target.closest('[title="Balance"]');
       if (!balanceNode) return;
-      const instance = webampRef.current;
-      suppressVolumeSyncUntilRef.current = Date.now() + 160;
-      try {
-        instance?.setBalance?.(0);
-      } catch {
-        // ignore
-      }
+      const value = getSliderValue(balanceNode);
+      if (value === null) return;
+      const nextBalance = toWebampBalance(value);
+      if (Math.abs(player.balance - nextBalance) < 0.5) return;
+      lastAppliedBalanceRef.current = nextBalance;
+      player.setBalance(nextBalance);
     };
 
     document.addEventListener('input', onSliderChange, true);

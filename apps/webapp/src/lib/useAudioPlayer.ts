@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
-import { getApiBase, hasExplicitApiBase } from './apiBase';
+import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
@@ -73,8 +73,10 @@ const isDirectAudioUrl = (url: string) =>
   /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(url);
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
+const clampBalance = (value: number) => Math.min(100, Math.max(-100, value));
 const sliderToDb = (value: number) => ((clampPercent(value) - EQ_CENTER) / EQ_CENTER) * EQ_RANGE_DB;
 const dbToGain = (value: number) => 10 ** (value / 20);
+const balanceToPan = (value: number) => clampBalance(value) / 100;
 const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
 const createEmptySpectrum = () => Array.from({ length: VISUALIZER_BARS }, () => 0);
 const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, () => 0);
@@ -83,14 +85,6 @@ const shouldForceAudioGraph = () =>
 
 const buildProxyUrl = (url: string, apiBase: string) =>
   `${normalizeBase(apiBase)}/stream?url=${encodeURIComponent(url)}`;
-
-const isSecureProxyContext = () => {
-  if (typeof window === 'undefined') return false;
-  return window.location.protocol === 'https:';
-};
-
-const shouldPreferProxy = (apiBase: string) =>
-  Boolean(normalizeBase(apiBase)) && (isSecureProxyContext() || hasExplicitApiBase());
 
 const isExternalStation = (station: StationLite) =>
   station.stationuuid.startsWith('ext_') ||
@@ -227,9 +221,7 @@ const buildCandidates = ({
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
-  const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
-  const shouldForceProxyForHttp =
-    url.startsWith('http://') && shouldPreferProxyCandidate;
+  const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
@@ -250,13 +242,8 @@ const buildCandidates = ({
       });
     }
   } else {
-    if (shouldPreferProxyCandidate) {
-      proxyInputs.forEach((candidate) => {
-        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
-      });
-    }
-    pushUnique(candidates, url);
-    if (canUseProxy && !shouldPreferProxyCandidate) {
+    directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
+    if (canUseProxy) {
       proxyInputs.forEach((candidate) => {
         pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
       });
@@ -299,6 +286,7 @@ export const useAudioPlayer = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const preampGainRef = useRef<GainNode | null>(null);
+  const stereoPannerRef = useRef<StereoPannerNode | null>(null);
   const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const visualizerFrameRef = useRef<number | null>(null);
@@ -311,6 +299,7 @@ export const useAudioPlayer = ({
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
+  const [balance, setBalance] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [eqEnabled, setEqEnabled] = useState(true);
   const [eqPreamp, setEqPreamp] = useState(EQ_CENTER);
@@ -364,6 +353,13 @@ export const useAudioPlayer = ({
     });
   };
 
+  const applyBalanceToGraph = () => {
+    const pannerNode = stereoPannerRef.current;
+    if (pannerNode) {
+      pannerNode.pan.value = balanceToPan(balance);
+    }
+  };
+
   const ensureAudioGraph = () => {
     if (audioGraphFailedRef.current) return null;
     if (audioContextRef.current) return audioContextRef.current;
@@ -385,6 +381,8 @@ export const useAudioPlayer = ({
       const source = context.createMediaElementSource(audio);
       const preamp = context.createGain();
       const analyser = context.createAnalyser();
+      const panner =
+        typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null;
       analyser.fftSize = 128;
       analyser.smoothingTimeConstant = 0.72;
       const filters = EQ_BANDS.map((frequency, index) => {
@@ -404,11 +402,17 @@ export const useAudioPlayer = ({
         currentNode = filter;
       });
       currentNode.connect(analyser);
-      analyser.connect(context.destination);
+      if (panner) {
+        analyser.connect(panner);
+        panner.connect(context.destination);
+      } else {
+        analyser.connect(context.destination);
+      }
 
       audioContextRef.current = context;
       mediaSourceRef.current = source;
       preampGainRef.current = preamp;
+      stereoPannerRef.current = panner;
       eqFiltersRef.current = filters;
       analyserRef.current = analyser;
       setVisualizer((prev) => ({
@@ -419,6 +423,7 @@ export const useAudioPlayer = ({
     } catch (error) {
       audioGraphFailedRef.current = true;
       analyserRef.current = null;
+      stereoPannerRef.current = null;
       setVisualizer({
         active: false,
         available: false,
@@ -506,6 +511,7 @@ export const useAudioPlayer = ({
         }
         ensureAudioGraph();
         applyEqToGraph();
+        applyBalanceToGraph();
         await resumeAudioContext();
         if (!isSessionCurrent(sessionId)) {
           audio.pause();
@@ -759,6 +765,8 @@ export const useAudioPlayer = ({
       preampGainRef.current = null;
       eqFiltersRef.current.forEach((filter) => filter.disconnect());
       eqFiltersRef.current = [];
+      stereoPannerRef.current?.disconnect();
+      stereoPannerRef.current = null;
       analyserRef.current?.disconnect();
       analyserRef.current = null;
       if (visualizerFrameRef.current !== null) {
@@ -790,6 +798,12 @@ export const useAudioPlayer = ({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.dataset.raBalance = String(Math.round(balance));
+  }, [balance]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
     audio.dataset.raEqEnabled = eqEnabled ? 'true' : 'false';
     audio.dataset.raEqPreamp = String(Math.round(eqPreamp));
     audio.dataset.raEqBands = eqBands.map((value) => Math.round(value)).join(',');
@@ -814,6 +828,14 @@ export const useAudioPlayer = ({
     ensureAudioGraph();
     applyEqToGraph();
   }, [eqBands, eqEnabled, eqPreamp]);
+
+  useEffect(() => {
+    if (!audioContextRef.current && !shouldForceAudioGraph()) {
+      return;
+    }
+    ensureAudioGraph();
+    applyBalanceToGraph();
+  }, [balance]);
 
   useEffect(() => {
     if (visualizerFrameRef.current !== null) {
@@ -1043,6 +1065,7 @@ export const useAudioPlayer = ({
       }
       ensureAudioGraph();
       applyEqToGraph();
+      applyBalanceToGraph();
       await resumeAudioContext();
       await audio.play();
       return true;
@@ -1079,6 +1102,7 @@ export const useAudioPlayer = ({
     status,
     isPlaying,
     volume,
+    balance,
     eq: {
       enabled: eqEnabled,
       preamp: eqPreamp,
@@ -1087,6 +1111,7 @@ export const useAudioPlayer = ({
     visualizer,
     errorMessage,
     setVolume,
+    setBalance: (value: number) => setBalance(clampBalance(value)),
     setEqBand,
     setEqEnabled,
     setEqPreamp: (value: number) => setEqPreamp(clampPercent(value)),

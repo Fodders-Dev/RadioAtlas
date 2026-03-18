@@ -1068,9 +1068,9 @@ input {
 
 .ra-visualizer-overlay {
   position: absolute;
-  left: 108px;
+  left: 24px;
   top: 42px;
-  width: 72px;
+  width: 76px;
   height: 14px;
   display: flex;
   align-items: flex-end;
@@ -1673,9 +1673,9 @@ input {
   }
 
   .ra-visualizer-overlay {
-    left: 108px;
+    left: 24px;
     top: 42px;
-    width: 70px;
+    width: 76px;
   }
 
   .details-grid {
