@@ -601,6 +601,33 @@ test('clicking the active station pauses the real audio engine', async ({ page }
     .toBe('paused');
 });
 
+test('compact winamp stays visible after playback starts without dom mutation errors', async ({
+  page
+}) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  await page.goto('/');
+  await waitForWebampReady(page);
+  await playHomeStation(page, 'Tokyo FM');
+  await waitForWebampWindowVisible(page, 'main-window');
+  await expect(page.locator('[title="Pause"]').first()).toBeVisible();
+  await expect(page.locator('.winamp-trackline.compact')).toContainText(/Tokyo FM|Mock Song/);
+  await expect(page.locator('.winamp-trackline.compact')).not.toContainText('Название трека недоступно');
+
+  await page.waitForTimeout(1200);
+  await waitForWebampWindowVisible(page, 'main-window');
+  expect(
+    consoleErrors.filter(
+      (entry) => entry.includes('NotFoundError') || entry.includes('removeChild') || entry.includes('insertBefore')
+    )
+  ).toEqual([]);
+});
+
 test('webamp pause control always pauses and resumes the real audio engine', async ({ page }) => {
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
@@ -1014,7 +1041,6 @@ test('track line shows track title only and supports copy click', async ({ page 
 
   const trackLine = page.locator('.winamp-trackline.compact');
   await expect(trackLine).toBeVisible();
-  await expect(trackLine).not.toContainText('Tokyo FM');
   const state = await page.evaluate(() => {
     const node = document.querySelector('.winamp-trackline.compact') as HTMLButtonElement | null;
     return {
@@ -1024,11 +1050,57 @@ test('track line shows track title only and supports copy click', async ({ page 
   });
   if (!state.disabled) {
     await expect(trackLine).toContainText('Mock Song');
+    await expect(trackLine).not.toContainText('Tokyo FM');
     await trackLine.click();
     await expect(page.locator('.toast')).toContainText(/трек|скоп/i);
   } else {
-    await expect(trackLine).toContainText('Название трека недоступно');
+    await expect(trackLine).toContainText('Tokyo FM');
+    await expect(trackLine).not.toContainText('Название трека недоступно');
   }
+});
+
+test('track line falls back to station name when metadata is unavailable', async ({ page }) => {
+  await page.route('**/metadata?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        nowPlaying: '',
+        source: 'test'
+      })
+    })
+  );
+  await page.route('**/fetch?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/plain; charset=utf-8',
+      body: ''
+    })
+  );
+  await page.route('**/status-json.xsl', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        icestats: {
+          source: {
+            listenurl: 'https://stream.example.com/tokyo',
+            title: ''
+          }
+        }
+      })
+    })
+  );
+
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+
+  const trackLine = page.locator('.winamp-trackline.compact');
+  await expect(trackLine).toBeVisible();
+  await expect(trackLine).toContainText('Tokyo FM');
+  await expect(trackLine).not.toContainText('Название трека недоступно');
+  await expect(trackLine).toBeDisabled();
 });
 
 test('webamp next button follows radio random navigation in fullscreen', async ({ page }) => {

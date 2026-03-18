@@ -2023,13 +2023,27 @@ input {
 
 .winamp-compact-topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
 }
 
 .winamp-compact-topbar .winamp-trackline {
   min-width: 0;
+}
+
+.winamp-timecode {
+  min-width: 52px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--trackline-bg);
+  color: var(--trackline-text);
+  text-shadow: 0 0 8px var(--trackline-glow);
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .home-stack-card .empty-state,
