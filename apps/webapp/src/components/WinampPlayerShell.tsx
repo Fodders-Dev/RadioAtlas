@@ -138,6 +138,42 @@ const getSliderValue = (node: Element | null) => {
   return Number.isFinite(valueAttr) ? valueAttr : null;
 };
 
+const formatElapsedTime = (value: number) => {
+  const safeSeconds = Math.max(0, Math.floor(value));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+};
+
+const syncWebampTitleDisplay = (text: string) => {
+  const titleNode = document.querySelector('[title="Song Title"]') as HTMLElement | null;
+  const trackRoot = titleNode?.firstElementChild as HTMLElement | null;
+  if (!titleNode || !trackRoot) return;
+  const nextText = text.trim();
+  if (!nextText) return;
+  if (trackRoot.dataset.raTitleText === nextText) return;
+  trackRoot.dataset.raTitleText = nextText;
+  trackRoot.style.transform = 'translateX(0px)';
+  trackRoot.replaceChildren(
+    ...Array.from(nextText).map((char) => {
+      const span = document.createElement('span');
+      const code = char.codePointAt(0) ?? 32;
+      span.className = `character character-${code}`;
+      span.textContent = char;
+      return span;
+    })
+  );
+};
+
+const syncWebampSeekDisplay = (elapsedSeconds: number) => {
+  const seekNode = document.querySelector('[title="Seeking Bar"]') as HTMLInputElement | null;
+  if (!seekNode) return;
+  const nextValue = String(Math.max(0, Math.floor(elapsedSeconds) % 100));
+  if (seekNode.value === nextValue) return;
+  seekNode.value = nextValue;
+  seekNode.setAttribute('value', nextValue);
+};
+
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
     // Webamp is a UI shell in this app, so its internal decoder should never own
@@ -1719,6 +1755,14 @@ export const WinampPlayerShell = ({
       // ignore
     }
   }, [webampReady, player.current?.stationuuid, player.isPlaying]);
+
+  useEffect(() => {
+    if (!webampReady) return;
+    const titleSource = trackTitle || current?.name || playablePlaylist[0]?.name || 'RadioAtlas';
+    const titleText = `${titleSource} (${formatElapsedTime(player.currentTime)})`;
+    syncWebampTitleDisplay(titleText);
+    syncWebampSeekDisplay(player.currentTime);
+  }, [current?.name, playablePlaylist, player.currentTime, trackTitle, webampReady]);
 
   useEffect(() => {
     const instance = webampRef.current;

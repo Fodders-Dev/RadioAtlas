@@ -1388,7 +1388,7 @@ test('explicit same-origin api query makes http stations use proxy first even on
     .toContain('/api/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
 });
 
-test('https stations stay direct-first even when same-origin api is available', async ({
+test('https stations use proxy first when same-origin api is available', async ({
   page
 }) => {
   await page.route('**/api/health', (route) =>
@@ -1398,15 +1398,13 @@ test('https stations stay direct-first even when same-origin api is available', 
       body: JSON.stringify({ ok: true })
     })
   );
-  await page.route('https://stream.example.com/tokyo', (route) =>
+  await page.route('https://stream.example.com/tokyo', (route) => route.abort('failed'));
+  await page.route('**/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'audio/wav',
       body: mockStreamAudio
     })
-  );
-  await page.route('**/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo', (route) =>
-    route.abort('failed')
   );
 
   await page.goto('/?api=/api');
@@ -1420,7 +1418,7 @@ test('https stations stay direct-first even when same-origin api is available', 
         return audio?.src || '';
       })
     )
-    .toContain('https://stream.example.com/tokyo');
+    .toContain('/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo');
 });
 
 test('uses original station url when url_resolved is stale or dead', async ({ page }) => {
@@ -1712,6 +1710,21 @@ test('webamp balance slider updates the real audio engine balance', async ({ pag
       });
     })
     .toBe('-100');
+});
+
+test('audio element opts into anonymous CORS for proxied analysis', async ({ page }) => {
+  await page.goto('/?api=/api');
+  await waitForWebampReady(page);
+  await playHomeStation(page, 'Tokyo FM');
+
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.crossOrigin || '';
+      });
+    })
+    .toBe('anonymous');
 });
 
 test('webamp equalizer updates the real player EQ state', async ({ page }) => {

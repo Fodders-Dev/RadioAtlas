@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
-import { getApiBase } from './apiBase';
+import { getApiBase, hasExplicitApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 export type PlayerStatus = 'idle' | 'buffering' | 'playing' | 'paused' | 'error';
@@ -85,6 +85,14 @@ const shouldForceAudioGraph = () =>
 
 const buildProxyUrl = (url: string, apiBase: string) =>
   `${normalizeBase(apiBase)}/stream?url=${encodeURIComponent(url)}`;
+
+const isSecureProxyContext = () => {
+  if (typeof window === 'undefined') return false;
+  return window.location.protocol === 'https:';
+};
+
+const shouldPreferProxy = (apiBase: string) =>
+  Boolean(normalizeBase(apiBase)) && (isSecureProxyContext() || hasExplicitApiBase());
 
 const isExternalStation = (station: StationLite) =>
   station.stationuuid.startsWith('ext_') ||
@@ -221,6 +229,7 @@ const buildCandidates = ({
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
+  const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
   const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
@@ -242,8 +251,13 @@ const buildCandidates = ({
       });
     }
   } else {
+    if (shouldPreferProxyCandidate) {
+      proxyInputs.forEach((candidate) => {
+        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
+      });
+    }
     directPreferred.forEach((candidate) => pushUnique(candidates, candidate));
-    if (canUseProxy) {
+    if (canUseProxy && !shouldPreferProxyCandidate) {
       proxyInputs.forEach((candidate) => {
         pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
       });
@@ -300,6 +314,7 @@ export const useAudioPlayer = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [balance, setBalance] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [eqEnabled, setEqEnabled] = useState(true);
   const [eqPreamp, setEqPreamp] = useState(EQ_CENTER);
@@ -617,6 +632,7 @@ export const useAudioPlayer = ({
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     audio.preload = 'auto';
     audio.controls = false;
+    audio.crossOrigin = 'anonymous';
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
     audio.setAttribute('autoplay', 'false');
@@ -662,6 +678,9 @@ export const useAudioPlayer = ({
         setStatus((prev) => (prev === 'error' ? prev : 'paused'));
       }
       pushEvent('audio: pause');
+    };
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime || 0);
     };
     const handleWaiting = () => {
       const activeSession = playbackSessionRef.current;
@@ -730,6 +749,7 @@ export const useAudioPlayer = ({
 
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('stalled', handleWaiting);
     audio.addEventListener('error', handleError);
@@ -751,6 +771,7 @@ export const useAudioPlayer = ({
       audio.src = '';
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('stalled', handleWaiting);
       audio.removeEventListener('error', handleError);
@@ -935,6 +956,7 @@ export const useAudioPlayer = ({
     audio.pause();
     audio.removeAttribute('src');
     audio.currentTime = 0;
+    setCurrentTime(0);
     audio.load();
 
     const apiBase = normalizeBase(getApiBase());
@@ -1085,6 +1107,7 @@ export const useAudioPlayer = ({
     audio.pause();
     audio.removeAttribute('src');
     audio.currentTime = 0;
+    setCurrentTime(0);
     cleanupHls();
     clearReconnect();
     clearWaitingTimeout();
@@ -1103,6 +1126,7 @@ export const useAudioPlayer = ({
     isPlaying,
     volume,
     balance,
+    currentTime,
     eq: {
       enabled: eqEnabled,
       preamp: eqPreamp,
