@@ -22,12 +22,17 @@ type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
   dispose: () => void;
   setTracksToPlay?: (tracks: WebampTrack[]) => void;
+  play?: () => void;
   setVolume?: (volume: number) => void;
   setBalance?: (balance: number) => void;
   store?: {
     dispatch?: (action: { type: string; [key: string]: unknown }) => void;
     getState?: () => {
+      playlist?: {
+        currentTrack?: number | null;
+      };
       media?: {
+        status?: 'STOPPED' | 'PLAYING' | 'PAUSED' | 'ENDED';
         timeMode?: 'ELAPSED' | 'REMAINING';
       };
     };
@@ -53,6 +58,8 @@ type ExpandedViewportBounds = {
 type WinampDevApi = {
   moveExpandedWindow: (id: ExpandedWindowId, deltaX: number, deltaY: number) => boolean;
   resetExpandedLayout: () => void;
+  getStoreState: () => unknown;
+  dispatchStoreAction: (action: { type: string; [key: string]: unknown }) => void;
 };
 type ExpandedWindowMetric = {
   id: ExpandedWindowId;
@@ -132,8 +139,8 @@ const toAssetUrl = (value: string) => {
 const toWebampVolume = (value: number) => Math.round(clamp(value, 0, 1) * 100);
 const toPlayerVolume = (value: number) => clamp(value / 100, 0, 1);
 const toWebampBalance = (value: number) => Math.round(clamp(value, -100, 100));
-const SILENT_WEBAMP_TRACK_URL =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+const SILENT_WEBAMP_TRACK_PATH = '/audio/winamp-silence-4h.opus';
+const LIVE_STREAM_FAKE_DURATION_SECONDS = 60 * 60 * 12;
 const getSliderValue = (node: Element | null) => {
   if (!node) return null;
   if (node instanceof HTMLInputElement) {
@@ -155,9 +162,9 @@ const formatElapsedTime = (value: number) => {
 
 const buildTracks = (playlist: StationLite[]): WebampTrack[] =>
   playlist.map((station) => ({
-    // Webamp is a UI shell in this app, so its internal decoder should never own
-    // real station networking or bypass the playback engine's proxy policy.
-    url: SILENT_WEBAMP_TRACK_URL,
+    // Webamp stays on a same-origin silent asset so its own transport/timer/status
+    // remain alive without touching real station networking.
+    url: toAssetUrl(SILENT_WEBAMP_TRACK_PATH),
     metaData: {
       title: station.name,
       artist: stationLocation(station)
@@ -1222,7 +1229,11 @@ export const WinampPlayerShell = ({
     };
     hostWindow.__radioAtlasWinamp = {
       moveExpandedWindow: offsetExpandedWindow,
-      resetExpandedLayout
+      resetExpandedLayout,
+      getStoreState: () => webampRef.current?.store?.getState?.() ?? null,
+      dispatchStoreAction: (action) => {
+        webampRef.current?.store?.dispatch?.(action);
+      }
     };
     return () => {
       delete hostWindow.__radioAtlasWinamp;
@@ -1724,32 +1735,70 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     if (!webampReady) return;
-    // Webamp is used as UI shell; keep its internal decoder silent to avoid stale stream bleed-through.
     const instance = webampRef.current;
-    try {
-      instance?.pause?.();
-    } catch {
-      // ignore
+    const status = instance?.store?.getState?.()?.media?.status;
+    if (!instance) return;
+
+    if (!player.current) {
+      lastElapsedTimeSyncRef.current = null;
+      if (status && status !== 'STOPPED') {
+        try {
+          instance.stop?.();
+        } catch {
+          // ignore
+        }
+      }
+      return;
     }
-    try {
-      instance?.stop?.();
-    } catch {
-      // ignore
+
+    if (player.isPlaying) {
+      if (status !== 'PLAYING') {
+        try {
+          instance.play?.();
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+
+    if (status === 'PLAYING') {
+      try {
+        instance.pause?.();
+      } catch {
+        // ignore
+      }
     }
   }, [webampReady, player.current?.stationuuid, player.isPlaying]);
 
   useEffect(() => {
     const instance = webampRef.current;
-    if (!instance?.store?.dispatch || !webampReady) return;
+    if (!instance?.store?.dispatch || !instance.store.getState || !webampReady) return;
 
     const nextElapsed = Math.max(0, Math.floor(player.currentTime));
     if (lastElapsedTimeSyncRef.current === nextElapsed) return;
 
     lastElapsedTimeSyncRef.current = nextElapsed;
+    const currentTrackId = instance.store.getState().playlist?.currentTrack;
+    const scrubPosition =
+      LIVE_STREAM_FAKE_DURATION_SECONDS > 0
+        ? Math.min(100, (nextElapsed / LIVE_STREAM_FAKE_DURATION_SECONDS) * 100)
+        : 0;
     try {
       instance.store.dispatch({
         type: 'UPDATE_TIME_ELAPSED',
         elapsed: nextElapsed
+      });
+      if (currentTrackId !== null && currentTrackId !== undefined) {
+        instance.store.dispatch({
+          type: 'SET_MEDIA_DURATION',
+          id: currentTrackId,
+          duration: LIVE_STREAM_FAKE_DURATION_SECONDS
+        });
+      }
+      instance.store.dispatch({
+        type: 'SET_SCRUB_POSITION',
+        position: scrubPosition
       });
     } catch (error) {
       console.error('Winamp elapsed time sync failed', error);

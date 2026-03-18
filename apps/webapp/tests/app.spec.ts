@@ -1103,6 +1103,117 @@ test('track line falls back to station name when metadata is unavailable', async
   await expect(trackLine).toBeDisabled();
 });
 
+test('webamp internal timer and seek move with live radio playback', async ({ page }) => {
+  await page.goto('/');
+  await waitForWebampReady(page);
+  await playHomeStation(page, 'Tokyo FM');
+
+  const readTimerState = async () =>
+    page.evaluate(() => {
+      const api = (
+        window as Window & {
+          __radioAtlasWinamp?: {
+            getStoreState: () => {
+              media?: {
+                status?: string;
+                timeElapsed?: number;
+              };
+            } | null;
+          };
+        }
+      ).__radioAtlasWinamp;
+      const state = api?.getStoreState?.();
+      const timeNode = document.getElementById('time');
+      const title = (document.querySelector('[title="Song Title"]')?.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const digitClasses = Array.from(timeNode?.querySelectorAll('.digit') || []).map((node) =>
+        Array.from(node.classList).find((value) => value.startsWith('digit-')) || ''
+      );
+      return {
+        isStopped: state?.media?.status === 'STOPPED',
+        timerVisible: timeNode ? window.getComputedStyle(timeNode).display !== 'none' : false,
+        elapsed: Math.floor(Number(state?.media?.timeElapsed || 0)),
+        status: state?.media?.status || '',
+        title,
+        digitClasses
+      };
+    });
+
+  await expect.poll(readTimerState).toMatchObject({
+    isStopped: false,
+    timerVisible: true,
+    title: expect.stringContaining('Tokyo FM')
+  });
+
+  await page.evaluate(() => {
+    const api = (
+      window as Window & {
+        __radioAtlasWinamp?: {
+          dispatchStoreAction: (action: { type: string; elapsed?: number }) => void;
+        };
+      }
+    ).__radioAtlasWinamp;
+    api?.dispatchStoreAction({
+      type: 'UPDATE_TIME_ELAPSED',
+      elapsed: 3
+    });
+  });
+
+  await expect
+    .poll(async () => {
+      const state = await readTimerState();
+      return {
+        elapsed: state.elapsed,
+        hasNonZeroDigit: state.digitClasses.some((value) => value !== 'digit-0')
+      };
+    })
+    .toEqual({
+      elapsed: expect.any(Number),
+      hasNonZeroDigit: true
+    });
+
+  await page
+    .locator('.station-table.compact .station-row')
+    .filter({ hasText: 'Berlin Pulse' })
+    .first()
+    .locator('.play-btn')
+    .click();
+
+  await expect.poll(readTimerState).toMatchObject({
+    isStopped: false,
+    timerVisible: true,
+    title: expect.stringContaining('Berlin Pulse')
+  });
+
+  await page.evaluate(() => {
+    const api = (
+      window as Window & {
+        __radioAtlasWinamp?: {
+          dispatchStoreAction: (action: { type: string; elapsed?: number }) => void;
+        };
+      }
+    ).__radioAtlasWinamp;
+    api?.dispatchStoreAction({
+      type: 'UPDATE_TIME_ELAPSED',
+      elapsed: 5
+    });
+  });
+
+  await expect
+    .poll(async () => {
+      const state = await readTimerState();
+      return {
+        elapsed: state.elapsed,
+        hasNonZeroDigit: state.digitClasses.some((value) => value !== 'digit-0')
+      };
+    })
+    .toEqual({
+      elapsed: expect.any(Number),
+      hasNonZeroDigit: true
+    });
+});
+
 test('webamp next button follows radio random navigation in fullscreen', async ({ page }) => {
   await page.addInitScript(() => {
     Math.random = () => 0.4;
