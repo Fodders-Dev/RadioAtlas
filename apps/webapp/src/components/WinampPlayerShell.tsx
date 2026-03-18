@@ -764,6 +764,7 @@ export const WinampPlayerShell = ({
   const expandedRef = useRef(winamp.expanded);
   const figmaCaptureMode =
     typeof window !== 'undefined' && window.location.hash.includes('figmacapture=');
+  const overlayScrollRestoreRef = useRef<number | null>(null);
 
   const current = player.current;
 
@@ -1238,11 +1239,19 @@ export const WinampPlayerShell = ({
     if (!winamp.expanded) return;
     const previousOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
+    const restoreScroll =
+      overlayScrollRestoreRef.current === null ? window.scrollY : overlayScrollRestoreRef.current;
+    overlayScrollRestoreRef.current = restoreScroll;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     return () => {
       document.body.style.overflow = previousOverflow;
       document.documentElement.style.overflow = previousRootOverflow;
+      if (overlayScrollRestoreRef.current !== null) {
+        window.scrollTo({ top: overlayScrollRestoreRef.current, left: 0, behavior: 'auto' });
+        overlayScrollRestoreRef.current = null;
+      }
     };
   }, [winamp.expanded]);
 

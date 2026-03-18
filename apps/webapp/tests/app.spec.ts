@@ -194,6 +194,13 @@ const mockStations = async (page: Page) => {
       })
     })
   );
+  await page.route('**/api/stream?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/mpeg',
+      body: ''
+    })
+  );
   await page.route('**/extract?url=**', (route) =>
     route.fulfill({
       status: 200,
