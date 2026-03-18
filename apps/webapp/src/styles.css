@@ -16,6 +16,37 @@
   --nav-gap: 12px;
   --player-safe-height: 164px;
   --player-bottom-offset: 20px;
+  --shell-ambient-a: color-mix(in srgb, var(--accent) 16%, transparent);
+  --shell-ambient-b: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  --surface-base: color-mix(in srgb, var(--panel) 88%, var(--bg));
+  --surface-raised: color-mix(in srgb, var(--panel-2) 84%, var(--bg-2));
+  --surface-overlay: color-mix(in srgb, var(--bg) 78%, var(--panel));
+  --surface-overlay-strong: color-mix(in srgb, var(--bg) 88%, var(--panel));
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-softer: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 34%, var(--border));
+  --text-strong: color-mix(in srgb, var(--text) 92%, white 8%);
+  --text-soft: color-mix(in srgb, var(--muted) 72%, var(--text));
+  --shadow-soft: color-mix(in srgb, var(--bg) 36%, transparent);
+  --shadow-strong: color-mix(in srgb, var(--bg) 58%, transparent);
+  --trackline-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-2) 82%, var(--accent) 18%),
+      color-mix(in srgb, var(--bg) 88%, var(--panel))
+    ),
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--text) 6%, transparent) 0,
+      color-mix(in srgb, var(--text) 6%, transparent) 2px,
+      transparent 2px,
+      transparent 4px
+    );
+  --trackline-text: color-mix(in srgb, var(--accent) 66%, white 34%);
+  --trackline-glow: color-mix(in srgb, var(--accent) 46%, transparent);
+  --visualizer-start: color-mix(in srgb, white 70%, var(--accent) 30%);
+  --visualizer-mid: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+  --visualizer-end: color-mix(in srgb, var(--accent-2) 72%, var(--bg-2) 28%);
   --player-stack-offset: calc(
     var(--player-safe-height) + var(--nav-height) + var(--nav-gap) +
       var(--player-bottom-offset) + env(safe-area-inset-bottom)
@@ -83,9 +114,9 @@ input {
 }
 
 .app-badge {
-  background: rgba(246, 201, 69, 0.18);
+  background: var(--accent-soft);
   color: var(--accent);
-  border: 1px solid rgba(246, 201, 69, 0.4);
+  border: 1px solid var(--accent-border);
   padding: 6px 12px;
   border-radius: 999px;
   display: inline-flex;
@@ -248,8 +279,8 @@ input {
 }
 
 .globe-wrap {
-  background: linear-gradient(140deg, rgba(246, 201, 69, 0.08), rgba(15, 26, 25, 0.9));
-  border: 1px solid rgba(246, 201, 69, 0.2);
+  background: linear-gradient(140deg, var(--accent-softer), color-mix(in srgb, var(--panel) 92%, var(--bg)));
+  border: 1px solid var(--accent-border);
   border-radius: 22px;
   padding: 12px;
 }
@@ -274,8 +305,8 @@ input {
   width: 100%;
   height: 100%;
   border-radius: 20px;
-  background: rgba(7, 13, 12, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--surface-overlay) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   touch-action: none;
 }
 
@@ -329,8 +360,8 @@ input {
 }
 
 .station-row.active {
-  border-color: rgba(246, 201, 69, 0.5);
-  box-shadow: 0 0 0 1px rgba(246, 201, 69, 0.2);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .station-table.compact .station-row {
@@ -409,7 +440,7 @@ input {
 .chip,
 .clear-btn {
   border: none;
-  background: rgba(246, 201, 69, 0.12);
+  background: var(--accent-soft);
   color: var(--accent);
   padding: 6px 10px;
   border-radius: 10px;
@@ -440,7 +471,7 @@ input {
 .player-btn:hover,
 .chip:hover,
 .clear-btn:hover {
-  background: rgba(246, 201, 69, 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .link-btn {
@@ -454,17 +485,17 @@ input {
 }
 
 .chip.active {
-  background: rgba(246, 201, 69, 0.2);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
   color: var(--accent);
 }
 
 .player-btn.primary {
   background: var(--accent);
-  color: #2b1a00;
+  color: color-mix(in srgb, var(--bg) 74%, black);
 }
 
 .player-btn.active {
-  background: rgba(246, 201, 69, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .search-bar {
@@ -517,8 +548,8 @@ input {
 }
 
 .pick-item:hover {
-  border-color: rgba(246, 201, 69, 0.35);
-  background: rgba(246, 201, 69, 0.08);
+  border-color: var(--accent-border);
+  background: var(--accent-softer);
 }
 
 .pick-name {
@@ -580,8 +611,8 @@ input {
 
 .browse-card:hover,
 .browse-list-item:hover {
-  border-color: rgba(246, 201, 69, 0.35);
-  background: rgba(246, 201, 69, 0.08);
+  border-color: var(--accent-border);
+  background: var(--accent-softer);
 }
 
 .browse-list {
@@ -945,19 +976,11 @@ input {
 
 .winamp-trackline {
   width: min(720px, calc(100% - 4px));
-  border: 1px solid rgba(246, 201, 69, 0.34);
+  border: 1px solid var(--accent-border);
   border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(41, 45, 83, 0.86), rgba(15, 17, 35, 0.9)),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.02) 0,
-      rgba(255, 255, 255, 0.02) 2px,
-      rgba(0, 0, 0, 0) 2px,
-      rgba(0, 0, 0, 0) 4px
-    );
-  color: #9eff8d;
-  text-shadow: 0 0 8px rgba(48, 255, 61, 0.45);
+  background: var(--trackline-bg);
+  color: var(--trackline-text);
+  text-shadow: 0 0 8px var(--trackline-glow);
   font-size: 11px;
   letter-spacing: 0.18px;
   line-height: 1;
@@ -980,7 +1003,7 @@ input {
 
 .winamp-trackline:disabled {
   opacity: 0.66;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-soft);
   text-shadow: none;
   cursor: default;
 }
@@ -997,8 +1020,8 @@ input {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top, rgba(34, 52, 74, 0.34), rgba(4, 8, 18, 0.92) 68%),
-    rgba(3, 6, 12, 0.88);
+    radial-gradient(circle at top, var(--shell-ambient-b), transparent 54%),
+    linear-gradient(180deg, var(--surface-overlay-strong), color-mix(in srgb, var(--bg) 94%, black));
   z-index: 0;
   pointer-events: none;
 }
@@ -1030,8 +1053,8 @@ input {
   right: 10px;
   bottom: calc(8px + env(safe-area-inset-bottom));
   z-index: 1702;
-  background: rgba(8, 10, 18, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--surface-overlay) 88%, transparent);
+  border: 1px solid var(--accent-border);
   border-radius: 10px;
   padding: 6px;
   backdrop-filter: blur(8px);
@@ -1066,8 +1089,13 @@ input {
   min-width: 1px;
   height: calc(10% + (var(--ra-level, 0) * 90%));
   border-radius: 999px 999px 0 0;
-  background: linear-gradient(180deg, #f7f58f 0%, #9dff70 55%, #31a23f 100%);
-  box-shadow: 0 0 6px rgba(111, 255, 121, 0.28);
+  background: linear-gradient(
+    180deg,
+    var(--visualizer-start) 0%,
+    var(--visualizer-mid) 55%,
+    var(--visualizer-end) 100%
+  );
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .skin-picker {
@@ -1192,8 +1220,8 @@ input {
   left: 50%;
   bottom: calc(var(--player-stack-offset) + 18px);
   transform: translateX(-50%);
-  background: rgba(246, 201, 69, 0.9);
-  color: #2b1a00;
+  background: color-mix(in srgb, var(--accent) 78%, var(--panel));
+  color: color-mix(in srgb, var(--bg) 74%, black);
   padding: 8px 16px;
   border-radius: 999px;
   font-weight: 600;
@@ -1222,8 +1250,8 @@ input {
   position: relative;
   width: min(560px, calc(100% - 24px));
   margin: 0 12px calc(var(--player-stack-offset) + 26px);
-  background: rgba(16, 28, 27, 0.96);
-  border: 1px solid rgba(246, 201, 69, 0.3);
+  background: color-mix(in srgb, var(--surface-overlay) 92%, transparent);
+  border: 1px solid var(--accent-border);
   border-radius: 22px;
   padding: 16px;
   display: flex;
@@ -1622,8 +1650,8 @@ input {
 
   .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] {
     background:
-      linear-gradient(180deg, rgba(6, 10, 19, 0.98), rgba(9, 15, 28, 0.98)),
-      radial-gradient(circle at top, rgba(56, 89, 124, 0.22), transparent 52%);
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay) 98%, var(--bg)), var(--bg)),
+      radial-gradient(circle at top, var(--shell-ambient-b), transparent 52%);
   }
 
   .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-header-actions {
@@ -1633,14 +1661,14 @@ input {
 
   .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-backdrop {
     background:
-      linear-gradient(180deg, rgba(5, 9, 18, 1), rgba(8, 12, 24, 0.98)),
-      radial-gradient(circle at top, rgba(52, 82, 112, 0.24), transparent 55%);
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay) 98%, var(--bg)), var(--bg)),
+      radial-gradient(circle at top, var(--shell-ambient-b), transparent 55%);
   }
 
   .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] .winamp-overlay-footer {
     left: 8px;
     right: 8px;
-    background: rgba(7, 10, 18, 0.92);
+    background: color-mix(in srgb, var(--surface-overlay) 96%, transparent);
     border-radius: 14px;
   }
 
@@ -1690,8 +1718,8 @@ input {
 
 .icon-btn.active {
   color: var(--accent);
-  background: rgba(246, 201, 69, 0.18);
-  border-color: rgba(246, 201, 69, 0.4);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
 }
 
 .icon-btn:disabled {
@@ -1708,9 +1736,9 @@ input {
 
 .app {
   background:
-    radial-gradient(circle at top left, rgba(246, 201, 69, 0.08), transparent 26%),
-    radial-gradient(circle at top right, rgba(70, 134, 212, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(9, 14, 28, 0.98), rgba(10, 16, 28, 1));
+    radial-gradient(circle at top left, var(--shell-ambient-a), transparent 28%),
+    radial-gradient(circle at top right, var(--shell-ambient-b), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 96%, var(--panel)), var(--bg));
 }
 
 .app[data-winamp-expanded='true'] {
@@ -1758,9 +1786,9 @@ input {
   bottom: auto;
   width: min(1180px, calc(100% - 36px));
   margin: 0 auto 18px;
-  background: rgba(11, 18, 32, 0.86);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  background: color-mix(in srgb, var(--surface-overlay) 92%, transparent);
+  border-color: var(--border);
+  box-shadow: 0 18px 36px var(--shadow-soft);
 }
 
 .nav-item {
@@ -1769,7 +1797,7 @@ input {
 }
 
 .nav-item.active {
-  background: rgba(246, 201, 69, 0.08);
+  background: var(--accent-softer);
 }
 
 .screen {
@@ -1781,13 +1809,17 @@ input {
   align-items: stretch;
   gap: 16px;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 28px;
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
-    radial-gradient(circle at top left, rgba(246, 201, 69, 0.12), transparent 34%),
-    rgba(10, 18, 32, 0.82);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--text) 7%, transparent),
+      color-mix(in srgb, var(--text) 2%, transparent)
+    ),
+    radial-gradient(circle at top left, var(--shell-ambient-a), transparent 34%),
+    color-mix(in srgb, var(--surface-base) 88%, transparent);
+  box-shadow: 0 18px 48px var(--shadow-soft);
 }
 
 .hero-copy {
@@ -1814,8 +1846,8 @@ input {
   gap: 4px;
   padding: 12px 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
 }
 
 .home-stat-card span {
@@ -1827,7 +1859,7 @@ input {
 
 .home-stat-card strong {
   font-size: 20px;
-  color: var(--text);
+  color: var(--text-strong);
 }
 
 .explore-layout {
@@ -1847,10 +1879,14 @@ input {
 .home-search-card {
   border-radius: 24px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
-    rgba(11, 18, 32, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18);
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text) 5%, transparent),
+      color-mix(in srgb, var(--text) 2%, transparent)
+    ),
+    color-mix(in srgb, var(--surface-base) 90%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 36px var(--shadow-soft);
 }
 
 .globe-home-card {
@@ -1869,8 +1905,8 @@ input {
   flex: 0 0 auto;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(246, 201, 69, 0.1);
-  border: 1px solid rgba(246, 201, 69, 0.2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
@@ -1884,8 +1920,8 @@ input {
 .globe canvas {
   border-radius: 28px;
   background:
-    radial-gradient(circle at top, rgba(54, 74, 106, 0.3), rgba(6, 10, 20, 0.88) 72%),
-    rgba(6, 10, 20, 0.92);
+    radial-gradient(circle at top, var(--shell-ambient-b), transparent 54%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay) 84%, var(--panel)), var(--bg));
 }
 
 .globe-overlay {
@@ -1895,13 +1931,13 @@ input {
   gap: 6px;
   padding: 12px 14px;
   border-radius: 18px;
-  background: rgba(8, 12, 24, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--surface-overlay) 90%, transparent);
+  border: 1px solid var(--border);
   backdrop-filter: blur(8px);
 }
 
 .globe-controls .chip {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
 }
 
 .globe-scroll-hint {
@@ -1959,7 +1995,7 @@ input {
   gap: 7px;
   align-items: center;
   padding: 7px 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
 }
 
 .station-table.compact .play-btn {
@@ -2012,11 +2048,11 @@ input {
   gap: 9px;
   align-items: stretch;
   border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--accent-border);
   background:
-    radial-gradient(circle at top left, rgba(246, 201, 69, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(9, 15, 28, 0.96), rgba(7, 11, 20, 0.98));
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+    radial-gradient(circle at top left, var(--shell-ambient-a), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-base) 94%, var(--panel)), var(--surface-overlay));
+  box-shadow: 0 20px 48px var(--shadow-strong);
   pointer-events: auto;
 }
 
@@ -2100,7 +2136,7 @@ input {
   gap: 10px;
   padding: 10px;
   border-radius: 20px;
-  background: rgba(8, 10, 18, 0.84);
+  background: color-mix(in srgb, var(--surface-overlay) 94%, transparent);
 }
 
 .winamp-overlay-summary {
@@ -2123,8 +2159,8 @@ input {
   gap: 6px;
   padding: 12px 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(12, 18, 32, 0.78);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
 }
 
 .winamp-overlay-label {

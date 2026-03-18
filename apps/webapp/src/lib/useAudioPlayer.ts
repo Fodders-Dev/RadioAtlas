@@ -227,8 +227,9 @@ const buildCandidates = ({
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant;
+  const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
   const shouldForceProxyForHttp =
-    url.startsWith('http://') && canUseProxy && shouldPreferProxy(normalizedBase);
+    url.startsWith('http://') && shouldPreferProxyCandidate;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
 
@@ -249,8 +250,13 @@ const buildCandidates = ({
       });
     }
   } else {
+    if (shouldPreferProxyCandidate) {
+      proxyInputs.forEach((candidate) => {
+        pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
+      });
+    }
     pushUnique(candidates, url);
-    if (canUseProxy) {
+    if (canUseProxy && !shouldPreferProxyCandidate) {
       proxyInputs.forEach((candidate) => {
         pushUnique(candidates, buildProxyUrl(candidate, normalizedBase));
       });
@@ -498,6 +504,8 @@ export const useAudioPlayer = ({
           audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
         }
+        ensureAudioGraph();
+        applyEqToGraph();
         await resumeAudioContext();
         if (!isSessionCurrent(sessionId)) {
           audio.pause();
@@ -800,7 +808,7 @@ export const useAudioPlayer = ({
   }, [visualizer]);
 
   useEffect(() => {
-    if (!shouldForceAudioGraph()) {
+    if (!audioContextRef.current && !shouldForceAudioGraph()) {
       return;
     }
     ensureAudioGraph();
@@ -1033,6 +1041,8 @@ export const useAudioPlayer = ({
         );
         return result.ok;
       }
+      ensureAudioGraph();
+      applyEqToGraph();
       await resumeAudioContext();
       await audio.play();
       return true;

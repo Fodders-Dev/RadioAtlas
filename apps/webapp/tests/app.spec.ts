@@ -439,7 +439,7 @@ const setWebampSliderValue = async (page: Page, title: string, value: number) =>
 };
 
 const setWebampEqBandValue = async (page: Page, id: string, value: number) => {
-  await waitForWebampWindowVisible(page, 'equalizer-window');
+  await openWebampEqWindow(page);
   await page.evaluate(
     ({ sliderId, nextValue }) => {
       const sliderRoot = document.querySelector(`#${sliderId} > *`) as HTMLElement | null;
@@ -449,23 +449,31 @@ const setWebampEqBandValue = async (page: Page, id: string, value: number) => {
       }
 
       const nextOffset = (1 - nextValue / 100) * 51;
-      handle.style.transform = `translateY(${nextOffset}px)`;
-      handle.setAttribute('data-test-value', String(nextValue));
-
       const fireMouse = (target: EventTarget) => {
         target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
         target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       };
 
-      fireMouse(sliderRoot);
-      fireMouse(handle);
-      handle.dispatchEvent(new Event('input', { bubbles: true }));
-      handle.dispatchEvent(new Event('change', { bubbles: true }));
-      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      document.dispatchEvent(new Event('click', { bubbles: true }));
+      const applyValue = () => {
+        handle.style.transform = `translateY(${nextOffset}px)`;
+        handle.setAttribute('data-test-value', String(nextValue));
+        fireMouse(sliderRoot);
+        fireMouse(handle);
+        handle.dispatchEvent(new Event('input', { bubbles: true }));
+        handle.dispatchEvent(new Event('change', { bubbles: true }));
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        document.dispatchEvent(new Event('click', { bubbles: true }));
+      };
+
+      applyValue();
+      window.setTimeout(applyValue, 32);
+      window.requestAnimationFrame(() => {
+        applyValue();
+      });
     },
     { sliderId: id, nextValue: value }
   );
+  await page.waitForTimeout(120);
 };
 
 const openWebampEqWindow = async (page: Page) => {
@@ -1380,6 +1388,39 @@ test('explicit same-origin api query makes http stations use proxy first even on
     .toContain('/api/stream?url=http%3A%2F%2Fstream.example.com%2Fhttp-upgrade.mp3');
 });
 
+test('explicit same-origin api query makes https stations use proxy first for audio graph', async ({
+  page
+}) => {
+  await page.route('**/api/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    })
+  );
+  await page.route('https://stream.example.com/tokyo', (route) => route.abort('failed'));
+  await page.route('**/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'audio/wav',
+      body: mockStreamAudio
+    })
+  );
+
+  await page.goto('/?api=/api');
+  await playHomeStation(page, 'Tokyo FM');
+
+  await expect(page.locator('.audio-hidden')).toHaveAttribute('data-ra-state', 'playing');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.src || '';
+      })
+    )
+    .toContain('/api/stream?url=https%3A%2F%2Fstream.example.com%2Ftokyo');
+});
+
 test('uses original station url when url_resolved is stale or dead', async ({ page }) => {
   await overrideCatalog(page, [staleResolvedStation]);
   await page.addInitScript(() => {
@@ -1667,6 +1708,15 @@ test('webamp equalizer updates the real player EQ state', async ({ page }) => {
   await openWebampEqWindow(page);
 
   await setWebampEqBandValue(page, 'preamp', 100);
+  await expect
+    .poll(async () => {
+      return page.evaluate(() => {
+        const audio = document.querySelector('.audio-hidden') as HTMLAudioElement | null;
+        return audio?.dataset.raEqPreamp || '';
+      });
+    })
+    .toBe('100');
+
   await setWebampEqBandValue(page, 'band-600', 100);
 
   await expect

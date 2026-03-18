@@ -1782,6 +1782,7 @@ export const WinampPlayerShell = ({
 
     let frameId: number | null = null;
     let mutationObserver: MutationObserver | null = null;
+    let intervalId: number | null = null;
 
     const syncEq = () => {
       frameId = null;
@@ -1794,6 +1795,7 @@ export const WinampPlayerShell = ({
     };
 
     queueEqSync();
+    intervalId = window.setInterval(queueEqSync, 120);
 
     if (typeof MutationObserver !== 'undefined') {
       mutationObserver = new MutationObserver(queueEqSync);
@@ -1805,6 +1807,8 @@ export const WinampPlayerShell = ({
       });
     }
 
+    document.addEventListener('input', queueEqSync, true);
+    document.addEventListener('change', queueEqSync, true);
     document.addEventListener('mouseup', queueEqSync, true);
     document.addEventListener('touchend', queueEqSync, true);
     document.addEventListener('click', queueEqSync, true);
@@ -1813,7 +1817,12 @@ export const WinampPlayerShell = ({
       if (frameId !== null) {
         window.cancelAnimationFrame(frameId);
       }
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
       mutationObserver?.disconnect();
+      document.removeEventListener('input', queueEqSync, true);
+      document.removeEventListener('change', queueEqSync, true);
       document.removeEventListener('mouseup', queueEqSync, true);
       document.removeEventListener('touchend', queueEqSync, true);
       document.removeEventListener('click', queueEqSync, true);
