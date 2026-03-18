@@ -26,6 +26,11 @@ type WebampInstance = {
   setBalance?: (balance: number) => void;
   store?: {
     dispatch?: (action: { type: string; [key: string]: unknown }) => void;
+    getState?: () => {
+      media?: {
+        timeMode?: 'ELAPSED' | 'REMAINING';
+      };
+    };
   };
   pause?: () => void;
   stop?: () => void;
@@ -1026,7 +1031,6 @@ export const WinampPlayerShell = ({
   const displayTrackTitle =
     trackTitle || current?.name || playablePlaylist[0]?.name || t('winamp.trackUnavailable');
   const canCopyTrackTitle = Boolean(trackTitle);
-  const elapsedTimeLabel = formatElapsedTime(player.currentTime);
   const stopCompactInteraction = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
   };
@@ -1754,6 +1758,22 @@ export const WinampPlayerShell = ({
 
   useEffect(() => {
     const instance = webampRef.current;
+    if (!instance?.store?.dispatch || !instance.store.getState || !webampReady) return;
+
+    const timeMode = instance.store.getState().media?.timeMode;
+    if (timeMode !== 'REMAINING') return;
+
+    try {
+      instance.store.dispatch({
+        type: 'TOGGLE_TIME_MODE'
+      });
+    } catch (error) {
+      console.error('Winamp time mode sync failed', error);
+    }
+  }, [webampReady, winamp.activeSkin.url]);
+
+  useEffect(() => {
+    const instance = webampRef.current;
     if (!instance || !webampReady) return;
 
     const nextVolume = toWebampVolume(player.volume);
@@ -2164,9 +2184,6 @@ export const WinampPlayerShell = ({
         <>
           <div className="winamp-compact-topbar">
             {trackLine('compact')}
-            <div className="winamp-timecode" aria-label="Elapsed time">
-              {elapsedTimeLabel}
-            </div>
             {actionStrip('compact')}
           </div>
         </>

@@ -398,8 +398,8 @@ export const useAudioPlayer = ({
       const analyser = context.createAnalyser();
       const panner =
         typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null;
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.72;
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.58;
       const filters = EQ_BANDS.map((frequency, index) => {
         const filter = context.createBiquadFilter();
         filter.frequency.value = frequency;
@@ -887,7 +887,7 @@ export const useAudioPlayer = ({
     let lastFrameAt = 0;
 
     const updateFrame = (now: number) => {
-      if (now - lastFrameAt < 48) {
+      if (now - lastFrameAt < 32) {
         visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
         return;
       }
@@ -906,7 +906,10 @@ export const useAudioPlayer = ({
         for (let cursor = start; cursor < end; cursor += 1) {
           peak = Math.max(peak, frequencyData[cursor] ?? 0);
         }
-        return Number((peak / 255).toFixed(3));
+        const normalizedPeak = peak / 255;
+        const emphasized = Math.pow(normalizedPeak, 0.62);
+        const lowBandBoost = 1 + Math.max(0, 0.28 - index * 0.012);
+        return Number(Math.min(1, emphasized * lowBandBoost).toFixed(3));
       });
 
       const nextWaveform = Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, (_, index) => {

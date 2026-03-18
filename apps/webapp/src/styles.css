@@ -1071,12 +1071,12 @@ input {
   left: 24px;
   top: 42px;
   width: 76px;
-  height: 14px;
+  height: 16px;
   display: flex;
   align-items: flex-end;
   gap: 1px;
   pointer-events: none;
-  opacity: 0.96;
+  opacity: 0.98;
   z-index: 3;
 }
 
@@ -1087,7 +1087,7 @@ input {
 .ra-visualizer-overlay-bar {
   flex: 1 1 auto;
   min-width: 1px;
-  height: calc(10% + (var(--ra-level, 0) * 90%));
+  height: calc(12% + (var(--ra-level, 0) * 88%));
   border-radius: 999px 999px 0 0;
   background: linear-gradient(
     180deg,
@@ -1095,7 +1095,9 @@ input {
     var(--visualizer-mid) 55%,
     var(--visualizer-end) 100%
   );
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow:
+    0 0 7px color-mix(in srgb, var(--accent) 38%, transparent),
+    0 0 2px color-mix(in srgb, white 22%, transparent);
 }
 
 .skin-picker {
@@ -2023,27 +2025,13 @@ input {
 
 .winamp-compact-topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
 }
 
 .winamp-compact-topbar .winamp-trackline {
   min-width: 0;
-}
-
-.winamp-timecode {
-  min-width: 52px;
-  padding: 7px 10px;
-  border: 1px solid var(--accent-border);
-  border-radius: 10px;
-  background: var(--trackline-bg);
-  color: var(--trackline-text);
-  text-shadow: 0 0 8px var(--trackline-glow);
-  font-size: 11px;
-  line-height: 1;
-  text-align: center;
-  white-space: nowrap;
 }
 
 .home-stack-card .empty-state,
