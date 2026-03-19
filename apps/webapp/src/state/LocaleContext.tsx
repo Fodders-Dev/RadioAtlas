@@ -9,11 +9,16 @@ const dictionaries = {
   ru: {
     app: {
       title: 'RadioAtlas',
-      subtitle: 'Ищи станции, собирай избранное и путешествуй по миру через эфир.',
+      subtitle: 'Музыка мира в прямом эфире.',
       liveBadge: 'Эфир',
       liveVersion: 'Сборка'
     },
     nav: {
+      home: 'Главная',
+      search: 'Поиск',
+      globe: 'Глобус',
+      library: 'Медиатека',
+      settings: 'Настройки',
       Explore: 'Главная',
       Favorites: 'Моё',
       Discover: 'Поиск',
@@ -111,6 +116,76 @@ const dictionaries = {
       searchPicks: 'Подборка из поиска',
       trendingPicks: 'Подборка главной',
       unknownLocation: 'Локация не указана'
+    },
+    home: {
+      kicker: 'Live radio',
+      title: 'Радио мира',
+      subtitle:
+        'Станция, поиск, глобус и очередь в одном спокойном shell. Winamp живет отдельно.',
+      openGlobe: 'Открыть глобус',
+      openSearch: 'Открыть поиск',
+      openLibrary: 'Открыть медиатеку',
+      quickMix: 'Быстрый микс',
+      quickMixCopy: 'Название, жанр, страна или язык прямо с главного экрана.',
+      globeTeaser: 'География эфира',
+      globeTeaserCopy: 'Вращай карту и забирай ближайшие станции, не выпадая из сессии.',
+      resumeTitle: 'Сейчас и очередь',
+      libraryTitle: 'Снимок медиатеки',
+      libraryFavoritesCopy: 'Лайкнутые станции для быстрого возврата.',
+      libraryRecentCopy: 'Последние сессии без лишнего шума.',
+      libraryQueueCopy: 'Текущая очередь и ближайшие переходы.',
+      globeMode: 'Geo discovery'
+    },
+    globe: {
+      heroSubtitle: 'Сначала выбери область на сфере, потом спокойно открой станции внутри неё.',
+      tapArea: 'Нажми на область с эфиром',
+      controlsHint: 'Тяни, чтобы вращать, масштабируй и нажимай на область',
+      status: 'Зон: {areas} / геоточек: {mapped} / всего станций: {total}',
+      areaSubtitle: '{count} станций',
+      mixedArea: 'Смешанная зона',
+      idleTitle: 'Выбери точку на глобусе',
+      idleCopy: 'Когда нажмёшь на зону с эфиром, здесь появятся ближайшие станции.',
+      idleEmpty: 'Пока ничего не выбрано.',
+      selectedTitle: '{place} ({count})',
+      selectedCopy: 'Масштабируй дальше для более точного выбора. Сейчас открыт список для: {place}.',
+      clearSelection: 'Сбросить',
+      selectionArea: 'Область',
+      selectionCount: 'Станций',
+      selectionZoom: 'Масштаб',
+      areaSummaryTitle: 'Текущая зона',
+      areaSummaryCopy: '{place} · {subtitle}',
+      mappedAreas: 'Зон на карте',
+      liveQueue: 'Что играет рядом'
+    },
+    search: {
+      kicker: 'Search / links / regions',
+      topbarSubtitle: 'Станции и внешние потоки.',
+      showFilters: 'Показать фильтры',
+      hideFilters: 'Скрыть фильтры'
+    },
+    library: {
+      kicker: 'Личное пространство',
+      title: 'Медиатека',
+      subtitle: 'Избранное, очередь, недавнее и история теперь собраны в одном месте.',
+      topbarSubtitle: 'Избранное, очередь, история.',
+      trackJournal: 'Сюда попадают скопированные названия треков.',
+      stationHistory: 'История живых станций для быстрого возврата в эфир.',
+      tabs: {
+        favorites: 'Избранное',
+        queue: 'Очередь',
+        recent: 'Недавнее',
+        history: 'История'
+      }
+    },
+    dock: {
+      peekLabel: 'Плеер готов',
+      peekHint: 'Нажми, чтобы раскрыть',
+      queueCount: 'В очереди: {count}',
+      liveNow: 'Сейчас в эфире',
+      ready: 'Плеер',
+      emptyTitle: 'Выбери станцию',
+      emptySubtitle: 'Добавь станцию с главной, поиска или глобуса.',
+      openWinamp: 'Winamp'
     },
     favoritesScreen: {
       profileTitle: 'Профиль',
@@ -232,6 +307,7 @@ const dictionaries = {
     winamp: {
       fullscreen: 'Открыть полноэкранный плеер',
       collapse: 'Свернуть',
+      closeWinamp: 'Вернуться в приложение',
       resetLayout: 'Сбросить окна',
       nowTuned: 'Сейчас в эфире',
       upNext: 'Дальше в очереди',
@@ -283,11 +359,16 @@ const dictionaries = {
   en: {
     app: {
       title: 'RadioAtlas',
-      subtitle: 'Find stations, keep favorites close, and travel the world by sound.',
+      subtitle: 'World music, live.',
       liveBadge: 'Live',
       liveVersion: 'Build'
     },
     nav: {
+      home: 'Home',
+      search: 'Search',
+      globe: 'Globe',
+      library: 'Library',
+      settings: 'Settings',
       Explore: 'Home',
       Favorites: 'Library',
       Discover: 'Discover',
@@ -384,6 +465,76 @@ const dictionaries = {
       searchPicks: 'Search picks',
       trendingPicks: 'Home picks',
       unknownLocation: 'Unknown location'
+    },
+    home: {
+      kicker: 'Live radio',
+      title: 'World radio',
+      subtitle:
+        'Station, search, globe, and queue in one calmer shell. Winamp stays separate.',
+      openGlobe: 'Open globe',
+      openSearch: 'Open search',
+      openLibrary: 'Open library',
+      quickMix: 'Quick mix',
+      quickMixCopy: 'Station, genre, country, or language right from home.',
+      globeTeaser: 'Geography of live radio',
+      globeTeaserCopy: 'Spin the map and pull nearby stations into the session.',
+      resumeTitle: 'Now playing and queue',
+      libraryTitle: 'Library snapshot',
+      libraryFavoritesCopy: 'Liked stations for a fast jump back in.',
+      libraryRecentCopy: 'Recent sessions without extra noise.',
+      libraryQueueCopy: 'Current queue and the next handoffs.',
+      globeMode: 'Geo discovery'
+    },
+    globe: {
+      heroSubtitle: 'Pick an area first, then open the stations inside it.',
+      tapArea: 'Tap a live area',
+      controlsHint: 'Drag to spin, zoom in, then tap an area',
+      status: 'Areas: {areas} / mapped points: {mapped} / total stations: {total}',
+      areaSubtitle: '{count} stations',
+      mixedArea: 'Mixed area',
+      idleTitle: 'Pick a point on the globe',
+      idleCopy: 'Once you tap an active zone, nearby stations will appear here.',
+      idleEmpty: 'Nothing selected yet.',
+      selectedTitle: '{place} ({count})',
+      selectedCopy: 'Zoom in for a tighter split. Right now this list is focused on: {place}.',
+      clearSelection: 'Clear',
+      selectionArea: 'Area',
+      selectionCount: 'Stations',
+      selectionZoom: 'Zoom',
+      areaSummaryTitle: 'Selected area',
+      areaSummaryCopy: '{place} · {subtitle}',
+      mappedAreas: 'Areas on map',
+      liveQueue: 'Live queue nearby'
+    },
+    search: {
+      kicker: 'Search / links / regions',
+      topbarSubtitle: 'Stations and external streams.',
+      showFilters: 'Show filters',
+      hideFilters: 'Hide filters'
+    },
+    library: {
+      kicker: 'Personal space',
+      title: 'Library',
+      subtitle: 'Favorites, queue, recents, and history now live in one place.',
+      topbarSubtitle: 'Favorites, queue, history.',
+      trackJournal: 'Copied track names land here for quick reuse.',
+      stationHistory: 'Live station history for returning to the right mood fast.',
+      tabs: {
+        favorites: 'Favorites',
+        queue: 'Queue',
+        recent: 'Recent',
+        history: 'History'
+      }
+    },
+    dock: {
+      peekLabel: 'Player ready',
+      peekHint: 'Tap to expand',
+      queueCount: 'Queued: {count}',
+      liveNow: 'Live now',
+      ready: 'Player',
+      emptyTitle: 'Pick a station',
+      emptySubtitle: 'Add a station from Home, Search, or Globe.',
+      openWinamp: 'Winamp'
     },
     favoritesScreen: {
       profileTitle: 'Profile',
@@ -504,6 +655,7 @@ const dictionaries = {
     winamp: {
       fullscreen: 'Open fullscreen player',
       collapse: 'Collapse',
+      closeWinamp: 'Back to app',
       resetLayout: 'Reset layout',
       nowTuned: 'Now tuned',
       upNext: 'Up next',

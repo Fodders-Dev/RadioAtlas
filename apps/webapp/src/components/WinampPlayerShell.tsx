@@ -2218,14 +2218,23 @@ export const WinampPlayerShell = ({
           ) : null}
           <div className="winamp-overlay-header">
             <div className="winamp-overlay-header-actions">
+              <button
+                className="winamp-close-btn"
+                type="button"
+                onClick={() => winamp.setExpanded(false)}
+                aria-label={t('winamp.closeWinamp')}
+                title={t('winamp.closeWinamp')}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6 6.4 5Z" />
+                </svg>
+                <span>{t('winamp.closeWinamp')}</span>
+              </button>
               {expandedLayoutMode === 'desktop' ? (
                 <button className="chip" type="button" onClick={resetExpandedLayout}>
                   {t('winamp.resetLayout')}
                 </button>
               ) : null}
-              <button className="chip active" type="button" onClick={() => winamp.setExpanded(false)}>
-                {t('winamp.collapse')}
-              </button>
             </div>
           </div>
         </>

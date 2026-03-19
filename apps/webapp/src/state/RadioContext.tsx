@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import type { ReactNode } from 'react';
 import type {
   ActiveWinampSkin,
+  AppSection,
+  LibraryTab,
+  PlayerPresentation,
   Station,
   StationLite,
   WinampMuseumSkin,
@@ -58,10 +61,17 @@ type LayoutWindowVisibility = {
 type WindowPositions = Partial<Record<ExpandedWindowId, { x: number; y: number }>>;
 
 type StoredWinampLayout = {
-  version: 2;
-  compactMode: CompactMode;
+  version: 3;
   windowPositions: WindowPositions;
   windowVisibility: LayoutWindowVisibility;
+};
+
+type StoredShellState = {
+  version: 1;
+  activeSection: AppSection;
+  playerPresentation: PlayerPresentation;
+  libraryTab: LibraryTab;
+  detailsOpen: boolean;
 };
 
 type QueueState = QueueSnapshot & {
@@ -114,6 +124,14 @@ type RadioContextValue = {
   player: ReturnType<typeof useAudioPlayer>;
   queue: QueueState;
   winamp: WinampState;
+  activeSection: AppSection;
+  setActiveSection: (section: AppSection) => void;
+  playerPresentation: PlayerPresentation;
+  setPlayerPresentation: (presentation: PlayerPresentation) => void;
+  libraryTab: LibraryTab;
+  setLibraryTab: (tab: LibraryTab) => void;
+  detailsOpen: boolean;
+  setDetailsOpen: (value: boolean) => void;
   playStation: (station: Station | StationLite, options?: PlayStationOptions) => void;
   playPrevious: () => void;
   playNext: () => void;
@@ -147,13 +165,19 @@ const DEFAULT_QUEUE: QueueSnapshot = {
   sourceLabel: null
 };
 const DEFAULT_LAYOUT: StoredWinampLayout = {
-  version: 2,
-  compactMode: 'panel',
+  version: 3,
   windowPositions: {},
   windowVisibility: {
     'equalizer-window': true,
     'playlist-window': true
   }
+};
+const DEFAULT_SHELL_STATE: StoredShellState = {
+  version: 1,
+  activeSection: 'home',
+  playerPresentation: 'peek',
+  libraryTab: 'favorites',
+  detailsOpen: false
 };
 
 const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
@@ -261,12 +285,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     DEFAULT_STORED_SKIN
   );
   const [storedLayout, setStoredLayout] = useLocalStorage<StoredWinampLayout>(
-    'radio:winamp-layout:v2',
+    'radio:winamp-layout:v3',
     DEFAULT_LAYOUT
+  );
+  const [storedShellState, setStoredShellState] = useLocalStorage<StoredShellState>(
+    'radio:shell-state:v1',
+    DEFAULT_SHELL_STATE
   );
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const [winampExpanded, setWinampExpanded] = useState(false);
   const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
     toActiveSkin(storedSkin.id)
   );
@@ -292,6 +319,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
+  const activeSection = storedShellState.activeSection;
+  const playerPresentation = storedShellState.playerPresentation;
+  const libraryTab = storedShellState.libraryTab;
+  const detailsOpen = storedShellState.detailsOpen;
+  const winampExpanded = playerPresentation === 'expanded';
 
   useEffect(() => {
     queueRef.current = storedQueue;
@@ -306,9 +338,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [playbackHistoryCursor]);
 
   useEffect(() => {
-    if (storedLayout?.version === 2) return;
-    setStoredLayout(DEFAULT_LAYOUT);
+    if (storedLayout?.version === 3) return;
+    setStoredLayout({
+      version: 3,
+      windowPositions: storedLayout?.windowPositions ?? DEFAULT_LAYOUT.windowPositions,
+      windowVisibility: storedLayout?.windowVisibility ?? DEFAULT_LAYOUT.windowVisibility
+    });
   }, [setStoredLayout, storedLayout]);
+
+  useEffect(() => {
+    if (storedShellState?.version === 1) return;
+    setStoredShellState(DEFAULT_SHELL_STATE);
+  }, [setStoredShellState, storedShellState]);
 
   useEffect(() => {
     if (!playbackHistoryEntries.length) {
@@ -540,6 +581,36 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  useEffect(() => {
+    if (player.current && playerPresentation === 'peek') {
+      setStoredShellState((prev) => ({
+        ...prev,
+        playerPresentation: 'bar'
+      }));
+    }
+    if (!player.current && playerPresentation === 'expanded') {
+      setStoredShellState((prev) => ({
+        ...prev,
+        playerPresentation: 'peek',
+        detailsOpen: false
+      }));
+    }
+  }, [player.current, playerPresentation, setStoredShellState]);
+
+  const setActiveSection = (section: AppSection) =>
+    setStoredShellState((prev) => (prev.activeSection === section ? prev : { ...prev, activeSection: section }));
+
+  const setPlayerPresentation = (presentation: PlayerPresentation) =>
+    setStoredShellState((prev) =>
+      prev.playerPresentation === presentation ? prev : { ...prev, playerPresentation: presentation }
+    );
+
+  const setLibraryTab = (tab: LibraryTab) =>
+    setStoredShellState((prev) => (prev.libraryTab === tab ? prev : { ...prev, libraryTab: tab }));
+
+  const setDetailsOpen = (value: boolean) =>
+    setStoredShellState((prev) => (prev.detailsOpen === value ? prev : { ...prev, detailsOpen: value }));
+
   const openExternal = (station: Station | StationLite) => {
     const url = station.url_resolved;
     const tg = window.Telegram?.WebApp;
@@ -583,6 +654,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const nextQueue =
       options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
     updateQueue(nextQueue);
+    setStoredShellState((prev) => ({
+      ...prev,
+      playerPresentation: prev.playerPresentation === 'expanded' ? 'expanded' : 'bar',
+      detailsOpen: false
+    }));
 
     if (options?.addToRecent !== false) {
       addRecent(playedStation);
@@ -1079,12 +1155,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const winamp = useMemo<WinampState>(
     () => ({
       expanded: winampExpanded,
-      setExpanded: setWinampExpanded,
-      compactMode: storedLayout.compactMode,
-      setCompactMode: (mode) =>
-        setStoredLayout((prev) =>
-          prev.compactMode === mode ? prev : { ...prev, compactMode: mode }
-        ),
+      setExpanded: (value) =>
+        setStoredShellState((prev) => ({
+          ...prev,
+          playerPresentation: value ? 'expanded' : 'bar'
+        })),
+      compactMode: 'panel',
+      setCompactMode: () => {},
       windowPositions: storedLayout.windowPositions,
       setWindowPosition: (id, position) =>
         setStoredLayout((prev) => {
@@ -1126,7 +1203,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       setSkin,
       selectSkin
     }),
-    [activeSkin, setStoredLayout, storedLayout, winampExpanded]
+    [activeSkin, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
 
   const value: RadioContextValue = {
@@ -1143,6 +1220,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     player,
     queue,
     winamp,
+    activeSection,
+    setActiveSection,
+    playerPresentation,
+    setPlayerPresentation,
+    libraryTab,
+    setLibraryTab,
+    detailsOpen,
+    setDetailsOpen,
     playStation,
     playPrevious,
     playNext,

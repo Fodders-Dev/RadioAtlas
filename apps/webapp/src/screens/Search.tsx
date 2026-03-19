@@ -183,6 +183,7 @@ export const Discover = () => {
   const { stations, playStation, player, recent } = useRadio();
   const { t } = useLocale();
   const [mode, setMode] = useState<'stations' | 'links'>('stations');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(200);
   const [countryFilter, setCountryFilter] = useState('All');
@@ -331,8 +332,8 @@ export const Discover = () => {
       .filter((bucket) => (q ? bucket.country.toLowerCase().includes(q) : true));
   }, [continentFilter, countryBuckets, debouncedCountryQuery]);
 
-  const featuredCountries = useMemo(() => visibleCountryBuckets.slice(0, 12), [visibleCountryBuckets]);
-  const featuredTags = useMemo(() => tags.filter((tag) => tag !== 'All').slice(0, 12), [tags]);
+  const featuredCountries = useMemo(() => visibleCountryBuckets.slice(0, 8), [visibleCountryBuckets]);
+  const featuredTags = useMemo(() => tags.filter((tag) => tag !== 'All').slice(0, 8), [tags]);
 
   const filtered = useMemo(() => {
     const q = debounced.trim().toLowerCase();
@@ -594,10 +595,8 @@ export const Discover = () => {
   const linkRecent = useMemo(() => recent.filter((item) => item.stationuuid.startsWith('ext_')), [recent]);
 
   return (
-    <section className="screen screen-search">
-      <div className="section search-heading discover-heading">
-        <div className="section-title">{t('discover.title')}</div>
-        <div className="section-subtitle">{t('discover.subtitle')}</div>
+    <section className="screen screen-search screen-search-v2">
+      <div className="glass-card search-shell-header">
         <div className="chip-row">
           <button
             className={`chip ${showStations ? 'active' : ''}`}
@@ -618,7 +617,7 @@ export const Discover = () => {
 
       {showStations ? (
         <>
-          <div className="section search-controls discover-search-controls">
+          <div className="glass-card search-primary-card">
             <div className="search-bar">
               <input
                 placeholder={t('discover.searchPlaceholder')}
@@ -631,129 +630,121 @@ export const Discover = () => {
                 </button>
               )}
             </div>
-            <div className="filters">
-              <select
-                className="filter-select"
-                value={countryFilter}
-                onChange={(event) => setCountryFilter(event.target.value)}
+            <div className="search-toolbar-row">
+              <button
+                className={`chip ${filtersOpen ? 'active' : ''}`}
+                type="button"
+                onClick={() => setFiltersOpen((prev) => !prev)}
               >
-                <option value="All">{t('discover.regionAll')}</option>
-                {countries.filter((country) => country !== 'All').map((country) => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="filter-select"
-                value={tagFilter}
-                onChange={(event) => setTagFilter(event.target.value)}
-              >
-                <option value="All">{t('discover.tagTitle')}</option>
-                {tags.filter((tag) => tag !== 'All').map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="filter-select"
-                value={languageFilter}
-                onChange={(event) => setLanguageFilter(event.target.value)}
-              >
-                <option value="All">{t('discover.regionAll')}</option>
-                {languages.filter((lang) => lang !== 'All').map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="section-subtitle">
+                {filtersOpen ? t('search.hideFilters') : t('search.showFilters')}
+              </button>
+              <div className="section-subtitle">
               {debounced.trim()
                 ? t('discover.matches', { count: filtered.length })
                 : t('discover.allStations', { count: stations.length })}
-            </div>
-          </div>
-
-          <div className="home-module-grid discover-module-grid">
-            <div className="section home-feature-card discover-region-card">
-              <div className="section-title">{t('discover.regionTitle')}</div>
-              <div className="section-subtitle">{t('discover.regionSubtitle')}</div>
-              <div className="chip-row">
-                <button
-                  className={`chip ${continentFilter === 'All' ? 'active' : ''}`}
-                  type="button"
-                  onClick={() => setContinentFilter('All')}
-                >
-                  {t('discover.regionAll')}
-                </button>
-                {continentCounts.map((item) => (
-                  <button
-                    key={item.id}
-                    className={`chip ${continentFilter === item.id ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setContinentFilter(item.id)}
-                  >
-                    {item.id} · {item.count}
-                  </button>
-                ))}
-              </div>
-              <div className="search-bar discover-country-search">
-                <input
-                  placeholder={t('discover.countrySearchPlaceholder')}
-                  value={countryQuery}
-                  onChange={(event) => setCountryQuery(event.target.value)}
-                />
-                {countryQuery && (
-                  <button className="clear-btn" type="button" onClick={() => setCountryQuery('')}>
-                    {t('common.clear')}
-                  </button>
-                )}
-              </div>
-              <div className="home-search-meta">
-                {t('discover.countriesInRegion', { count: visibleCountryBuckets.length })}
               </div>
             </div>
 
-            <div className="section home-feature-card discover-tag-card">
-              <div className="section-title">{t('discover.tagTitle')}</div>
-              <div className="section-subtitle">{t('discover.tagSubtitle')}</div>
-              <div className="chip-row discover-tag-grid">
-                {featuredTags.map((tag) => (
-                  <button
-                    key={tag}
-                    className={`chip ${tagFilter === tag ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
+            {filtersOpen ? (
+              <div className="search-filters-drawer">
+                <div className="filters">
+                  <select
+                    className="filter-select"
+                    value={countryFilter}
+                    onChange={(event) => setCountryFilter(event.target.value)}
                   >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="section home-stack-card discover-country-card">
-            <div className="section-title">{t('discover.countryTitle')}</div>
-            <div className="section-subtitle">{t('discover.countrySubtitle')}</div>
-            {featuredCountries.length ? (
-              <div className="browse-list discover-country-list">
-                {featuredCountries.map((bucket) => (
-                  <button
-                    key={bucket.key}
-                    className="browse-list-item"
-                    type="button"
-                    onClick={() => setCountryFilter(bucket.country)}
+                    <option value="All">{t('discover.regionAll')}</option>
+                    {countries.filter((country) => country !== 'All').map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="filter-select"
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
                   >
-                    <div className="browse-title">{bucket.country}</div>
-                    <div className="browse-meta">{bucket.count}</div>
+                    <option value="All">{t('discover.tagTitle')}</option>
+                    {tags.filter((tag) => tag !== 'All').map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="filter-select"
+                    value={languageFilter}
+                    onChange={(event) => setLanguageFilter(event.target.value)}
+                  >
+                    <option value="All">{t('discover.regionAll')}</option>
+                    {languages.filter((lang) => lang !== 'All').map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="chip-row search-filter-chip-row">
+                  <button
+                    className={`chip ${continentFilter === 'All' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setContinentFilter('All')}
+                  >
+                    {t('discover.regionAll')}
                   </button>
-                ))}
+                  {continentCounts.map((item) => (
+                    <button
+                      key={item.id}
+                      className={`chip ${continentFilter === item.id ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setContinentFilter(item.id)}
+                    >
+                      {item.id} · {item.count}
+                    </button>
+                  ))}
+                </div>
+                <div className="chip-row search-filter-chip-row">
+                  {featuredTags.map((tag) => (
+                    <button
+                      key={tag}
+                      className={`chip ${tagFilter === tag ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <div className="search-bar discover-country-search">
+                  <input
+                    placeholder={t('discover.countrySearchPlaceholder')}
+                    value={countryQuery}
+                    onChange={(event) => setCountryQuery(event.target.value)}
+                  />
+                  {countryQuery && (
+                    <button className="clear-btn" type="button" onClick={() => setCountryQuery('')}>
+                      {t('common.clear')}
+                    </button>
+                  )}
+                </div>
+                {featuredCountries.length ? (
+                  <div className="browse-list discover-country-list search-country-grid">
+                    {featuredCountries.map((bucket) => (
+                      <button
+                        key={bucket.key}
+                        className="browse-list-item"
+                        type="button"
+                        onClick={() => setCountryFilter(bucket.country)}
+                      >
+                        <div className="browse-title">{bucket.country}</div>
+                        <div className="browse-meta">{bucket.count}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ) : (
-              <div className="empty-state">{t('stationTable.empty')}</div>
-            )}
+            ) : null}
           </div>
 
           <div className="search-results-shell">
@@ -770,7 +761,7 @@ export const Discover = () => {
         </>
       ) : (
         <>
-          <div className="section home-search-card">
+          <div className="glass-card home-search-card">
             <div className="section-title">{t('discover.linksTitle')}</div>
             <div className="section-subtitle">{t('discover.linksSubtitle')}</div>
             <div className="settings-card stack">
@@ -815,7 +806,7 @@ export const Discover = () => {
             {linkError && <div className="error">{linkError}</div>}
           </div>
 
-          <div className="section home-stack-card">
+          <div className="glass-card home-stack-card">
             <div className="section-title">{t('discover.linksSaved')}</div>
             {links.length ? (
               <div className="track-list">
@@ -865,7 +856,7 @@ export const Discover = () => {
             )}
           </div>
 
-          <div className="section home-stack-card">
+          <div className="glass-card home-stack-card">
             <div className="section-title">{t('discover.linksRecent')}</div>
             {linkRecent.length ? (
               <StationTable stations={linkRecent} compact sourceId="discover-links-recent" />

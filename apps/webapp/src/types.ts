@@ -28,6 +28,12 @@ export type ContinentId =
 
 export type BrowseState = 'continents' | 'countries' | 'stations';
 
+export type AppSection = 'home' | 'search' | 'globe' | 'library';
+
+export type PlayerPresentation = 'peek' | 'bar' | 'expanded';
+
+export type LibraryTab = 'favorites' | 'queue' | 'recent' | 'history' | 'settings';
+
 export type CountryBucket = {
   key: string;
   country: string;

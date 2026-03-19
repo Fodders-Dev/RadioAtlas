@@ -58,6 +58,11 @@ const MAX_SAMPLE_TRIES = 6000;
 
 const clampLat = (value: number) => Math.max(-85, Math.min(85, value));
 const clampLon = (value: number) => Math.max(-180, Math.min(180, value));
+const wrapLon = (value: number) => {
+  if (value > 180) return value - 360;
+  if (value < -180) return value + 360;
+  return value;
+};
 
 const toFiniteNumber = (value: unknown): number | null => {
   if (value === null || value === undefined) return null;
@@ -129,12 +134,14 @@ const buildSamplePool = (
     [number, number],
     [number, number]
   ];
+  const lonSpan = maxLon >= minLon ? maxLon - minLon : maxLon + 360 - minLon;
 
   if (
     !Number.isFinite(minLon) ||
     !Number.isFinite(maxLon) ||
     !Number.isFinite(minLat) ||
-    !Number.isFinite(maxLat)
+    !Number.isFinite(maxLat) ||
+    !Number.isFinite(lonSpan)
   ) {
     return centroid ? [centroid] : [];
   }
@@ -148,7 +155,7 @@ const buildSamplePool = (
   let tries = 0;
   while (points.length < POINTS_PER_COUNTRY && tries < MAX_SAMPLE_TRIES) {
     tries += 1;
-    const lon = minLon + (maxLon - minLon) * random();
+    const lon = wrapLon(minLon + lonSpan * random());
     const lat = minLat + (maxLat - minLat) * random();
     if (!geoContains(countryFeature, [lon, lat])) continue;
     points.push([clampLat(lat), clampLon(lon)]);
@@ -193,7 +200,14 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
     const lat = toFiniteNumber(station.geo_lat);
     const lon = toFiniteNumber(station.geo_long);
 
-    if (lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    const hasStationCoords =
+      lat !== null &&
+      lon !== null &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lon) <= 180 &&
+      !(Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001);
+
+    if (hasStationCoords) {
       return { lat: clampLat(lat), lon: clampLon(lon), source: 'station' };
     }
 
@@ -266,4 +280,3 @@ export const resolveContinent = (country?: string | null): ContinentId => {
   const coords = resolveCountryCoords(country);
   return coords?.continent ?? 'Other';
 };
-

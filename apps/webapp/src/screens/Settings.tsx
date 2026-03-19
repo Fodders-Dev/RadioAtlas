@@ -45,7 +45,7 @@ export const Settings = () => {
   };
 
   return (
-    <section className="screen screen-settings">
+    <div className="screen screen-settings settings-panel">
       <div className="section">
         <div className="section-title">{t('settings.backgroundTitle')}</div>
         <div className="settings-card">
@@ -232,6 +232,6 @@ export const Settings = () => {
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 };

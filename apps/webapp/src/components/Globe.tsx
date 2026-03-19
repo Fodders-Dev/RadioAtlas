@@ -9,11 +9,13 @@ type GlobePoint = {
   lat: number;
   lon: number;
   label: string;
+  count?: number;
 };
 
 type GlobeProps = {
   points: GlobePoint[];
   activeId?: string;
+  selectedId?: string;
   focusPoint?: { lat: number; lon: number };
   onPick?: (id: string) => void;
   onPickCandidates?: (ids: string[]) => void;
@@ -21,6 +23,8 @@ type GlobeProps = {
   geoCount?: number;
   zoomLevel?: number;
   onZoomChange?: (value: number) => void;
+  hintText?: string;
+  statusText?: string;
 };
 
 const MIN_ZOOM = 0.5;
@@ -33,13 +37,16 @@ const TILT_LIMIT = 80;
 export const Globe = ({
   points,
   activeId,
+  selectedId,
   focusPoint,
   onPick,
   onPickCandidates,
   totalCount,
   geoCount,
   zoomLevel,
-  onZoomChange
+  onZoomChange,
+  hintText,
+  statusText
 }: GlobeProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -262,16 +269,30 @@ export const Globe = ({
         const coords = projection([point.lon, point.lat]);
         if (!coords) return;
         const [x, y] = coords;
+        const density = Math.min(4.5, Math.sqrt(point.count ?? 1));
+        const pointRadius = baseDot + Math.max(0, density - 1) * 0.85;
+        const isSelected = point.id === selectedId;
         ctx.beginPath();
         const isActive = point.id === activeId;
-        ctx.fillStyle = isActive ? '#f6c945' : 'rgba(246, 201, 69, 0.7)';
-        ctx.arc(x, y, isActive ? activeDot : baseDot, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected
+          ? 'rgba(184, 255, 244, 0.96)'
+          : isActive
+            ? '#f6c945'
+            : 'rgba(246, 201, 69, 0.74)';
+        ctx.arc(x, y, isActive ? Math.max(activeDot, pointRadius + 1.4) : pointRadius, 0, Math.PI * 2);
         ctx.fill();
+        if (isSelected) {
+          ctx.strokeStyle = 'rgba(184, 255, 244, 0.5)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(x, y, pointRadius + 5.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         if (isActive && pulse > 0.01) {
           ctx.strokeStyle = `rgba(246, 201, 69, ${0.4 + pulse * 0.4})`;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.arc(x, y, activeDot + 6 + pulse * 6, 0, Math.PI * 2);
+          ctx.arc(x, y, Math.max(activeDot + 6, pointRadius + 6) + pulse * 6, 0, Math.PI * 2);
           ctx.stroke();
         }
       });
@@ -437,11 +458,10 @@ export const Globe = ({
       />
       <div className="globe-overlay">
         <div className="globe-count">
-          Showing {points.length}
-          {typeof geoCount === 'number' ? ` / ${geoCount} mapped` : ''}
-          {typeof totalCount === 'number' ? ` / ${totalCount} total` : ''}
+          {statusText ||
+            `Showing ${points.length}${typeof geoCount === 'number' ? ` / ${geoCount} mapped` : ''}${typeof totalCount === 'number' ? ` / ${totalCount} total` : ''}`}
         </div>
-        <div className="globe-hint">Drag to spin / scroll to zoom / tap a dot</div>
+        <div className="globe-hint">{hintText || 'Drag to spin / scroll to zoom / tap a dot'}</div>
         <div className="globe-controls">
           <button
             className="chip"
