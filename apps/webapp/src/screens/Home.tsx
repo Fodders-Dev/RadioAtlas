@@ -38,19 +38,6 @@ export const Home = () => {
       .map(toLite);
   }, [debounced, stations, trending]);
 
-  const topRegions = useMemo(() => {
-    const counts = new Map<string, number>();
-    stations.forEach((station) => {
-      const region = station.country?.trim();
-      if (!region) return;
-      counts.set(region, (counts.get(region) || 0) + 1);
-    });
-    return Array.from(counts.entries())
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 4)
-      .map(([value]) => value);
-  }, [stations]);
-
   const previewTab = (libraryTab === 'history' ? 'recent' : libraryTab) as Exclude<LibraryTab, 'history'>;
   const previewStations =
     previewTab === 'favorites' ? favoritePreview : previewTab === 'recent' ? recentPreview : queuePreview;
@@ -111,42 +98,6 @@ export const Home = () => {
             </div>
           </div>
 
-          <div className="glass-card home-globe-card">
-            <div className="globe-card-head">
-              <div>
-                <div className="section-title">{t('home.globeTeaser')}</div>
-                <div className="section-subtitle">{t('home.globeTeaserCopy')}</div>
-              </div>
-              <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-                {t('home.openGlobe')}
-              </button>
-            </div>
-            <div className="globe-preview-surface">
-              <div className="globe-preview-orb" />
-              <div className="globe-preview-orb secondary" />
-              <div className="globe-preview-overlay">
-                <div className="globe-preview-stat">
-                  <span>{t('explore.mapped')}</span>
-                  <strong>2 200</strong>
-                </div>
-                <div className="globe-preview-stat">
-                  <span>{t('home.globeMode')}</span>
-                  <strong>{stations.length.toLocaleString()}</strong>
-                </div>
-                <div className="globe-preview-stat">
-                  <span>{t('explore.queue')}</span>
-                  <strong>{queue.items.length}</strong>
-                </div>
-              </div>
-            </div>
-            <div className="chip-row">
-              {topRegions.map((region) => (
-                <span key={region} className="globe-preview-pill">
-                  {region}
-                </span>
-              ))}
-            </div>
-          </div>
         </div>
 
         <aside className="home-side-stack">

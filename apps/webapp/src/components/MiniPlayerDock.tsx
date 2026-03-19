@@ -3,7 +3,7 @@ import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 
-type DockTrayMode = 'history' | 'volume' | null;
+type DockTrayMode = 'volume' | null;
 
 export const MiniPlayerDock = () => {
   const { t } = useLocale();
@@ -12,7 +12,6 @@ export const MiniPlayerDock = () => {
     nowPlaying,
     nowPlayingStatus,
     queue,
-    trackHistory,
     playNext,
     copyTrack,
     playerPresentation,
@@ -20,8 +19,6 @@ export const MiniPlayerDock = () => {
     setDetailsOpen,
     toggleFavorite,
     isFavorite,
-    setActiveSection,
-    setLibraryTab,
     winamp
   } = useRadio();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
@@ -29,19 +26,16 @@ export const MiniPlayerDock = () => {
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
-  const subtitle = current ? stationLocation(current) : t('dock.emptySubtitle');
   const queueCount = Math.max(queue.items.length, 0);
   const activeTrack = nowPlaying?.trim() || '';
-  const primaryTitle = activeTrack || current?.name || t('dock.emptyTitle');
-  const secondaryTitle = activeTrack
-    ? current?.name || t('dock.emptySubtitle')
-    : nowPlayingStatus === 'loading'
-      ? t('common.loading')
-      : nowPlayingStatus === 'unavailable'
-        ? t('dock.currentTrackUnavailable')
-        : subtitle;
-  const tertiaryCopy = activeTrack && current ? subtitle : '';
-  const historyPreview = trackHistory.slice(0, 5);
+  const stationTitle = current?.name || t('dock.emptyTitle');
+  const trackTitle = activeTrack
+    ? activeTrack
+    : current
+      ? nowPlayingStatus === 'loading'
+        ? t('common.loading')
+        : t('dock.currentTrackUnavailable')
+      : t('dock.emptySubtitle');
   const volumePercent = Math.round(player.volume * 100);
 
   useEffect(() => {
@@ -85,122 +79,43 @@ export const MiniPlayerDock = () => {
       data-tray-open={trayMode ? 'true' : 'false'}
     >
       {trayMode ? (
-        <div className="player-dock-tray" role="region" aria-label={trayMode === 'volume' ? t('dock.volume') : t('dock.copiedTracks')}>
-          {trayMode === 'volume' ? (
-            <div className="player-dock-tray-panel">
-              <div className="player-dock-tray-head">
-                <div>
-                  <div className="player-dock-tray-title">{t('dock.volume')}</div>
-                  <div className="player-dock-tray-subtitle">{volumePercent}%</div>
-                </div>
-                <button
-                  className="dock-mini-btn"
-                  type="button"
-                  onClick={() =>
-                    player.setVolume(player.volume > 0.01 ? 0 : lastAudibleVolumeRef.current || 0.8)
-                  }
-                  aria-label={t('dock.volume')}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    {player.volume > 0.01 ? (
-                      <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Zm1.5 0c0 2.42-1.18 4.56-3 5.88v-1.95a5.49 5.49 0 0 0 0-7.86V6.12c1.82 1.32 3 3.46 3 5.88Z" />
-                    ) : (
-                      <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
-                    )}
-                  </svg>
-                </button>
+        <div className="player-dock-tray" role="region" aria-label={t('dock.volume')}>
+          <div className="player-dock-tray-panel">
+            <div className="player-dock-tray-head">
+              <div>
+                <div className="player-dock-tray-title">{t('dock.volume')}</div>
+                <div className="player-dock-tray-subtitle">{volumePercent}%</div>
               </div>
-              <label className="player-dock-volume" aria-label={t('dock.volume')}>
+              <button
+                className="dock-mini-btn"
+                type="button"
+                onClick={() =>
+                  player.setVolume(player.volume > 0.01 ? 0 : lastAudibleVolumeRef.current || 0.8)
+                }
+                aria-label={t('dock.volume')}
+              >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 9v6h4l5 4V5l-5 4H5Z" />
+                  {player.volume > 0.01 ? (
+                    <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Zm1.5 0c0 2.42-1.18 4.56-3 5.88v-1.95a5.49 5.49 0 0 0 0-7.86V6.12c1.82 1.32 3 3.46 3 5.88Z" />
+                  ) : (
+                    <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
+                  )}
                 </svg>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volumePercent}
-                  onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
-                />
-              </label>
+              </button>
             </div>
-          ) : (
-            <div className="player-dock-tray-panel">
-              <div className="player-dock-tray-head">
-                <div>
-                  <div className="player-dock-tray-title">{t('dock.copiedTracks')}</div>
-                  <div className="player-dock-tray-subtitle">
-                    {trackHistory.length
-                      ? t('library.trackJournalCount', { count: trackHistory.length })
-                      : t('dock.copiedTracksEmpty')}
-                  </div>
-                </div>
-                <button
-                  className="dock-mini-btn"
-                  type="button"
-                  onClick={() => {
-                    setActiveSection('library');
-                    setLibraryTab('history');
-                  }}
-                >
-                  {t('dock.copiedTracksOpen')}
-                </button>
-              </div>
-              <div className="player-dock-tray-actions">
-                <button
-                  className="dock-mini-btn"
-                  type="button"
-                  onClick={() => {
-                    if (activeTrack) {
-                      void copyTrack();
-                    }
-                  }}
-                  disabled={!activeTrack}
-                >
-                  {t('dock.copyCurrentTrack')}
-                </button>
-                <button
-                  className={`dock-mini-btn ${liked ? 'active' : ''}`}
-                  type="button"
-                  onClick={() => current && toggleFavorite(current)}
-                  disabled={!current}
-                >
-                  {liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-                </button>
-                <button
-                  className="dock-mini-btn"
-                  type="button"
-                  onClick={() => {
-                    setActiveSection('library');
-                    setLibraryTab('queue');
-                  }}
-                >
-                  {t('dock.queueOpen')}
-                </button>
-                {trackHistory.length ? (
-                  <button className="dock-mini-btn" type="button" onClick={() => void navigator.clipboard.writeText(trackHistory.map((item) => item.track).join('\n'))}>
-                    {t('common.copy')}
-                  </button>
-                ) : null}
-              </div>
-              {historyPreview.length ? (
-                <div className="player-dock-track-list">
-                  {historyPreview.map((item) => (
-                    <button
-                      key={item.id}
-                      className="player-dock-track-item"
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(item.track)}
-                    >
-                      <div className="player-dock-track-title">{item.track}</div>
-                      <div className="player-dock-track-meta">{item.stationName}</div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="player-dock-empty">{t('dock.copiedTracksEmpty')}</div>
-              )}
-            </div>
-          )}
+            <label className="player-dock-volume" aria-label={t('dock.volume')}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 9v6h4l5 4V5l-5 4H5Z" />
+              </svg>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volumePercent}
+                onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
+              />
+            </label>
+          </div>
         </div>
       ) : null}
 
@@ -216,22 +131,40 @@ export const MiniPlayerDock = () => {
         <span />
       </button>
 
-      <button
-        className="player-dock-meta"
-        type="button"
-        onClick={() => {
-          if (current) {
-            setDetailsOpen(true);
-          }
-        }}
-      >
-        <div className="player-dock-kicker">
-          {activeTrack ? t('dock.trackLive') : current ? t('dock.liveNow') : t('dock.ready')}
-        </div>
-        <div className="player-dock-title">{primaryTitle}</div>
-        <div className="player-dock-copy">{secondaryTitle}</div>
-        {tertiaryCopy ? <div className="player-dock-subcopy">{tertiaryCopy}</div> : null}
-      </button>
+      <div className="player-dock-meta">
+        <button
+          className="player-dock-station"
+          type="button"
+          onClick={() => {
+            if (current) {
+              setDetailsOpen(true);
+            }
+          }}
+          disabled={!current}
+          title={current ? stationLocation(current) : undefined}
+        >
+          <div className="player-dock-title">{stationTitle}</div>
+        </button>
+        <button
+          className={`player-dock-track-button ${activeTrack ? 'active' : ''}`}
+          type="button"
+          onClick={() => {
+            if (activeTrack) {
+              void copyTrack();
+            }
+          }}
+          disabled={!activeTrack}
+          aria-label={activeTrack ? t('dock.copyCurrentTrack') : trackTitle}
+          title={activeTrack ? t('dock.copyCurrentTrack') : trackTitle}
+        >
+          <span className="player-dock-track-button-text">{trackTitle}</span>
+          {activeTrack ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H10V7h9v14Z" />
+            </svg>
+          ) : null}
+        </button>
+      </div>
 
       <div className="player-dock-actions">
         <button
@@ -259,6 +192,17 @@ export const MiniPlayerDock = () => {
           </svg>
         </button>
         <button
+          className={`dock-icon-btn ${liked ? 'active' : ''}`}
+          type="button"
+          onClick={() => current && toggleFavorite(current)}
+          disabled={!current}
+          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+          </svg>
+        </button>
+        <button
           className={`dock-icon-btn ${trayMode === 'volume' ? 'active' : ''}`}
           type="button"
           onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
@@ -266,16 +210,6 @@ export const MiniPlayerDock = () => {
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
-          </svg>
-        </button>
-        <button
-          className={`dock-icon-btn ${trayMode === 'history' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setTrayMode((prev) => (prev === 'history' ? null : 'history'))}
-          aria-label={t('dock.more')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 10h14v2H5zm0-5h14v2H5zm0 10h14v2H5z" />
           </svg>
         </button>
         <button

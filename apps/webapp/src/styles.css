@@ -257,12 +257,17 @@ input {
 .section-title {
   font-size: 15px;
   font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .section-subtitle {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .loading,
@@ -315,23 +320,21 @@ input {
   position: absolute;
   bottom: 12px;
   left: 12px;
+  right: 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
-}
-
-.globe-controls {
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  pointer-events: none;
 }
 
 .globe-count {
   font-weight: 600;
   color: var(--accent);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .station-table {
@@ -1968,6 +1971,10 @@ input {
   gap: 12px;
 }
 
+.globe-card-head > * {
+  min-width: 0;
+}
+
 .globe-chip {
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -1996,15 +2003,11 @@ input {
   right: 16px;
   bottom: 16px;
   gap: 6px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--surface-overlay) 90%, transparent);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(8px);
-}
-
-.globe-controls .chip {
-  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
 }
 
 .globe-scroll-hint {
@@ -2539,11 +2542,38 @@ body {
   inset: 1px;
   border-radius: inherit;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 30%),
+    linear-gradient(180deg, rgba(7, 16, 29, 0.18), rgba(7, 16, 29, 0.06) 20%, transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 30%),
     radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.16), transparent 26%),
     radial-gradient(circle at 100% 100%, rgba(150, 196, 255, 0.08), transparent 24%);
   pointer-events: none;
-  opacity: 0.78;
+  opacity: 0.82;
+}
+
+.app-topbar-title,
+.section-title,
+.shell-hero h1,
+.player-dock-title,
+.track-title,
+.playlist-name,
+.playlist-history-name {
+  color: #f4f9ff;
+  text-shadow: 0 1px 1px rgba(5, 12, 22, 0.42), 0 8px 20px rgba(5, 12, 22, 0.18);
+}
+
+.app-topbar-subtitle,
+.section-subtitle,
+.shell-hero p,
+.track-meta,
+.playlist-meta,
+.playlist-history-meta,
+.station-location,
+.station-tags,
+.home-search-meta,
+.globe-overlay,
+.player-peek-meta {
+  color: rgba(223, 234, 247, 0.9);
+  text-shadow: 0 1px 1px rgba(5, 12, 22, 0.3);
 }
 
 .app-navigation-desktop {
@@ -3089,40 +3119,30 @@ body {
 .player-dock-collapse {
   border: none;
   background: transparent;
-  width: 22px;
+  width: 12px;
+  min-width: 12px;
   height: 26px;
-  display: grid;
-  align-content: center;
-  gap: 4px;
   cursor: pointer;
   padding: 0;
-}
-
-.player-dock-collapse span {
-  display: block;
-  width: 16px;
-  height: 2px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .player-dock-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.player-dock-station {
   border: none;
   background: transparent;
   color: inherit;
   text-align: left;
-  display: grid;
-  gap: 0;
   min-width: 0;
+  padding: 0;
   cursor: pointer;
-}
-
-.player-dock-kicker {
-  color: #7de2d5;
-  font-size: 8px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  overflow: hidden;
 }
 
 .player-dock-title {
@@ -3132,22 +3152,51 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 
-.player-dock-copy {
-  color: var(--muted);
+.player-dock-track-button {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(226, 237, 249, 0.92);
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+
+.player-dock-track-button.active {
+  color: #f8fdff;
+  border-color: rgba(177, 243, 232, 0.28);
+  background: rgba(174, 240, 228, 0.09);
+}
+
+.player-dock-track-button:disabled {
+  cursor: default;
+}
+
+.player-dock-track-button-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  max-width: 100%;
 }
 
-.player-dock-subcopy {
-  color: color-mix(in srgb, var(--muted) 88%, white);
-  font-size: 9px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.player-dock-track-button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: currentColor;
 }
 
 .player-dock-actions {
@@ -3585,16 +3634,11 @@ body {
     gap: 2px;
   }
 
-  .player-dock-kicker {
-    font-size: 8px;
-  }
-
   .player-dock-title {
     font-size: 11px;
   }
 
-  .player-dock-copy,
-  .player-dock-subcopy {
+  .player-dock-track-button-text {
     font-size: 9px;
   }
 
@@ -3602,10 +3646,6 @@ body {
   .dock-expand-btn {
     min-width: 30px;
     height: 30px;
-  }
-
-  .player-dock-subcopy {
-    display: none;
   }
 
   .player-dock-tray-actions {
@@ -3727,6 +3767,19 @@ body {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+  word-break: break-word;
+}
+
+.station-table.compact .station-location,
+.playlist-history-name,
+.playlist-history-meta,
+.playlist-name,
+.playlist-meta,
+.globe-preview-pill,
+.globe-selection-pill strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .browse-list-item,

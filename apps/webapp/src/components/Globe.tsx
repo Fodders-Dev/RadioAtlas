@@ -376,14 +376,6 @@ export const Globe = ({
     }
   };
 
-  const handleReset = () => {
-    rotationRef.current = [0, -15, 0];
-    targetRotationRef.current = null;
-    focusPulseRef.current = 0;
-    setScale(1);
-    onZoomChange?.(1);
-  };
-
   const pickStation = (event: MouseEvent<HTMLCanvasElement>) => {
     if ((!onPick && !onPickCandidates) || !projectionRef.current || !canvasRef.current) {
       return;
@@ -462,40 +454,6 @@ export const Globe = ({
             `Showing ${points.length}${typeof geoCount === 'number' ? ` / ${geoCount} mapped` : ''}${typeof totalCount === 'number' ? ` / ${totalCount} total` : ''}`}
         </div>
         <div className="globe-hint">{hintText || 'Drag to spin / scroll to zoom / tap a dot'}</div>
-        <div className="globe-controls">
-          <button
-            className="chip"
-            onClick={() => setAutoRotate((prev) => !prev)}
-            type="button"
-          >
-            {autoRotate ? 'Pause' : 'Spin'}
-          </button>
-          <button
-            className="chip"
-            onClick={() => {
-              const next = clamp(scale + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM);
-              setScale(next);
-              onZoomChange?.(next);
-            }}
-            type="button"
-          >
-            +
-          </button>
-          <button
-            className="chip"
-            onClick={() => {
-              const next = clamp(scale - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM);
-              setScale(next);
-              onZoomChange?.(next);
-            }}
-            type="button"
-          >
-            -
-          </button>
-          <button className="chip" onClick={handleReset} type="button">
-            Reset
-          </button>
-        </div>
       </div>
     </div>
   );
