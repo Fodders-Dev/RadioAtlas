@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
@@ -16,10 +17,12 @@ export const Library = () => {
     player,
     clearFavorites,
     clearRecent,
+    clearTrackHistory,
     libraryTab,
     setLibraryTab
   } = useRadio();
   const { locale, t } = useLocale();
+  const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
 
   const formatTime = (value: number) =>
     new Date(value).toLocaleString(locale, {
@@ -125,31 +128,69 @@ export const Library = () => {
       {libraryTab === 'history' ? (
         <div className="library-history-grid">
           <div className="glass-card">
-            <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
-            <div className="section-subtitle">{t('library.trackJournal')}</div>
-            {trackHistory.length ? (
-              <div className="track-list">
-                {trackHistory.slice(0, 40).map((item) => (
-                  <div key={item.id} className="track-card">
-                    <div>
-                      <div className="track-title">{item.track}</div>
-                      <div className="track-meta">
-                        {item.stationName} · {formatTime(item.timestamp)}
-                      </div>
-                    </div>
-                    <button
-                      className="chip"
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(item.track)}
-                    >
-                      {t('common.copy')}
-                    </button>
-                  </div>
-                ))}
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
+                <div className="section-subtitle">
+                  {trackJournalExpanded
+                    ? t('library.trackJournal')
+                    : t('library.trackJournalCollapsed')}
+                </div>
               </div>
-            ) : (
-              <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
-            )}
+              <div className="chip-row">
+                {trackHistory.length ? (
+                  <button className="chip" type="button" onClick={clearTrackHistory}>
+                    {t('common.clear')}
+                  </button>
+                ) : null}
+                <button
+                  className={`chip ${trackJournalExpanded ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setTrackJournalExpanded((prev) => !prev)}
+                >
+                  {trackJournalExpanded
+                    ? t('library.trackJournalCollapse')
+                    : t('library.trackJournalExpand')}
+                </button>
+              </div>
+            </div>
+            <div className="library-journal-summary">
+              <div className="globe-selection-pill">
+                <span>{t('favoritesScreen.journalTitle')}</span>
+                <strong>{t('library.trackJournalCount', { count: trackHistory.length })}</strong>
+              </div>
+              {trackHistory[0] ? (
+                <div className="globe-selection-pill">
+                  <span>{t('common.song')}</span>
+                  <strong title={trackHistory[0].track}>{trackHistory[0].track}</strong>
+                </div>
+              ) : null}
+            </div>
+            {trackJournalExpanded ? (
+              trackHistory.length ? (
+                <div className="track-list track-list-scroll">
+                  {trackHistory.map((item) => (
+                    <div key={item.id} className="track-card">
+                      <div>
+                        <div className="track-title">{item.track}</div>
+                        <div className="track-meta">
+                          {item.stationName} · {formatTime(item.timestamp)}
+                        </div>
+                      </div>
+                      <button
+                        className="chip"
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(item.track)}
+                      >
+                        {t('common.copy')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
+              )
+            ) : null}
           </div>
 
           <div className="glass-card">

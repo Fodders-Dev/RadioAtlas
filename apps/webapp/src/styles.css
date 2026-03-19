@@ -728,6 +728,12 @@ input {
   gap: 8px;
 }
 
+.track-list-scroll {
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  padding-right: 4px;
+}
+
 .track-card {
   display: flex;
   justify-content: space-between;
@@ -2456,13 +2462,13 @@ input {
 
 :root {
   --sidebar-width-v2: 244px;
-  --mobile-nav-height-v2: 78px;
-  --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 24px + env(safe-area-inset-bottom));
-  --glass-bg: rgba(170, 218, 255, 0.1);
-  --glass-bg-strong: rgba(19, 30, 47, 0.34);
-  --glass-border: rgba(241, 248, 255, 0.18);
-  --glass-highlight: rgba(255, 255, 255, 0.32);
-  --glass-shadow: 0 18px 42px rgba(3, 10, 20, 0.18);
+  --mobile-nav-height-v2: 68px;
+  --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + env(safe-area-inset-bottom));
+  --glass-bg: rgba(216, 231, 255, 0.048);
+  --glass-bg-strong: rgba(16, 25, 40, 0.11);
+  --glass-border: rgba(245, 250, 255, 0.28);
+  --glass-highlight: rgba(255, 255, 255, 0.42);
+  --glass-shadow: 0 18px 42px rgba(3, 10, 20, 0.08);
 }
 
 body {
@@ -2509,11 +2515,13 @@ body {
   border-radius: 18px;
   border: 1px solid var(--glass-border);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.1) 22%, rgba(255, 255, 255, 0.03) 56%, rgba(255, 255, 255, 0.015)),
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.3), transparent 40%),
+    radial-gradient(circle at 82% 100%, rgba(136, 203, 255, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.12) 22%, rgba(255, 255, 255, 0.032) 58%, rgba(255, 255, 255, 0.012)),
     var(--glass-bg);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(30px) saturate(175%);
-  -webkit-backdrop-filter: blur(30px) saturate(175%);
+  backdrop-filter: blur(38px) saturate(205%);
+  -webkit-backdrop-filter: blur(38px) saturate(205%);
 }
 
 .glass-card::before {
@@ -2646,8 +2654,9 @@ body {
   gap: 12px;
   padding: 11px 13px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.025)),
-    rgba(20, 33, 50, 0.22);
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.02)),
+    rgba(20, 33, 50, 0.1);
 }
 
 .app-topbar-copy {
@@ -2689,8 +2698,8 @@ body {
 .app-build-pill {
   border-radius: 999px;
   padding: 7px 10px;
-  background: rgba(214, 237, 255, 0.08);
-  border: 1px solid rgba(214, 237, 255, 0.16);
+  background: rgba(214, 237, 255, 0.06);
+  border: 1px solid rgba(214, 237, 255, 0.18);
   color: #b8fff4;
   font-size: 9px;
   font-weight: 800;
@@ -2699,7 +2708,7 @@ body {
 .mobile-settings-trigger {
   grid-template-columns: 16px auto;
   width: auto;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .app-stage-v2 {
@@ -2770,8 +2779,8 @@ body {
   min-height: 72px;
   padding: 10px 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.024);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: grid;
   gap: 4px;
 }
@@ -2814,8 +2823,8 @@ body {
   background:
     radial-gradient(circle at 30% 35%, rgba(99, 245, 224, 0.2), transparent 30%),
     radial-gradient(circle at 72% 32%, rgba(109, 154, 255, 0.18), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025)),
-    rgba(11, 19, 30, 0.44);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(11, 19, 30, 0.22);
 }
 
 .globe-preview-orb {
@@ -2860,8 +2869,8 @@ body {
   padding: 8px 10px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(16, 28, 42, 0.26);
-  backdrop-filter: blur(16px);
+  background: rgba(16, 28, 42, 0.12);
+  backdrop-filter: blur(22px);
 }
 
 .globe-preview-stat span {
@@ -2883,7 +2892,7 @@ body {
   padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-soft);
   font-size: 11px;
   white-space: nowrap;
@@ -2914,8 +2923,8 @@ body {
   padding: 8px 10px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.034);
+  backdrop-filter: blur(20px);
   display: grid;
   gap: 3px;
 }
@@ -3002,6 +3011,13 @@ body {
   flex-shrink: 0;
 }
 
+.library-journal-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .player-dock {
   position: fixed;
   left: 12px;
@@ -3020,14 +3036,17 @@ body {
   gap: 10px;
   border: 1px solid rgba(214, 246, 255, 0.18);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05)),
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.2), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.05)),
     var(--glass-bg-strong);
   color: var(--text);
   border-radius: 16px;
   padding: 7px 12px;
-  backdrop-filter: blur(32px) saturate(175%);
+  backdrop-filter: blur(34px) saturate(190%);
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
   cursor: pointer;
   min-width: 0;
+  box-shadow: 0 14px 30px rgba(2, 10, 18, 0.08);
 }
 
 .player-peek-pill {
@@ -3053,30 +3072,35 @@ body {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 8px 9px;
-  border-radius: 17px;
-  border: 1px solid rgba(214, 246, 255, 0.18);
+  padding: 7px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(244, 249, 255, 0.26);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+    radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.2), transparent 38%),
+    radial-gradient(circle at 80% 100%, rgba(130, 202, 255, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.06)),
     var(--glass-bg-strong);
-  box-shadow: 0 16px 34px rgba(2, 10, 16, 0.16);
-  backdrop-filter: blur(34px) saturate(180%);
+  box-shadow: 0 18px 40px rgba(2, 10, 16, 0.1);
+  backdrop-filter: blur(36px) saturate(195%);
+  -webkit-backdrop-filter: blur(36px) saturate(195%);
+  position: fixed;
 }
 
 .player-dock-collapse {
   border: none;
   background: transparent;
-  width: 30px;
-  height: 36px;
+  width: 22px;
+  height: 26px;
   display: grid;
   align-content: center;
   gap: 4px;
   cursor: pointer;
+  padding: 0;
 }
 
 .player-dock-collapse span {
   display: block;
-  width: 18px;
+  width: 16px;
   height: 2px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.5);
@@ -3088,14 +3112,14 @@ body {
   color: inherit;
   text-align: left;
   display: grid;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
   cursor: pointer;
 }
 
 .player-dock-kicker {
   color: #7de2d5;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -3113,39 +3137,48 @@ body {
 .player-dock-copy {
   color: var(--muted);
   font-size: 10px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+
+.player-dock-subcopy {
+  color: color-mix(in srgb, var(--muted) 88%, white);
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-dock-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  justify-self: end;
 }
 
 .dock-icon-btn,
-.dock-expand-btn {
+.dock-expand-btn,
+.dock-mini-btn {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
   color: var(--text);
-  border-radius: 10px;
+  border-radius: 999px;
   min-width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
   cursor: pointer;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .dock-icon-btn.active,
-.dock-expand-btn {
-  background: rgba(125, 226, 213, 0.14);
-  color: #b6fff5;
-  border-color: rgba(125, 226, 213, 0.2);
+.dock-expand-btn,
+.dock-mini-btn.active {
+  background: rgba(174, 240, 228, 0.14);
+  color: #dffff9;
+  border-color: rgba(174, 240, 228, 0.24);
 }
 
 .dock-expand-btn {
@@ -3153,6 +3186,134 @@ body {
   width: auto;
   font-weight: 800;
   font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dock-expand-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.dock-mini-btn {
+  min-width: 0;
+  height: 28px;
+  padding: 0 11px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dock-mini-btn svg,
+.dock-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.player-dock-tray {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+}
+
+.player-dock-tray-panel {
+  border-radius: 20px;
+  border: 1px solid rgba(244, 249, 255, 0.24);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06)),
+    rgba(18, 29, 45, 0.1);
+  box-shadow: 0 16px 34px rgba(2, 10, 16, 0.1);
+  backdrop-filter: blur(42px) saturate(210%);
+  -webkit-backdrop-filter: blur(42px) saturate(210%);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.player-dock-tray-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.player-dock-tray-title {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.player-dock-tray-subtitle {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.player-dock-tray-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.player-dock-volume {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.player-dock-volume svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  color: var(--muted);
+}
+
+.player-dock-volume input[type='range'] {
+  width: 100%;
+  accent-color: #bcfff5;
+}
+
+.player-dock-track-list {
+  display: grid;
+  gap: 6px;
+  max-height: 192px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.player-dock-track-item {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  border-radius: 15px;
+  padding: 8px 10px;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.player-dock-track-title {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-dock-track-meta,
+.player-dock-empty {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.dock-expand-btn-label {
+  line-height: 1;
 }
 
 .settings-sheet {
@@ -3178,8 +3339,13 @@ body {
   overflow: auto;
   border-radius: 28px;
   border: 1px solid var(--glass-border);
-  background: rgba(10, 18, 24, 0.92);
-  box-shadow: 0 28px 60px rgba(2, 8, 12, 0.55);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.07)),
+    rgba(11, 18, 28, 0.3);
+  box-shadow: 0 28px 60px rgba(2, 8, 12, 0.2);
+  backdrop-filter: blur(38px) saturate(205%);
+  -webkit-backdrop-filter: blur(38px) saturate(205%);
   padding: 18px;
 }
 
@@ -3230,8 +3396,9 @@ body {
     border-radius: 22px;
     border: 1px solid var(--glass-border);
     background:
+      radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.22), transparent 34%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.025)),
-      rgba(19, 32, 48, 0.24);
+      rgba(19, 32, 48, 0.12);
     box-shadow: var(--glass-shadow);
     backdrop-filter: blur(36px) saturate(180%);
     padding: 12px;
@@ -3271,14 +3438,15 @@ body {
     z-index: 85;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 7px;
-    padding: 7px;
+    gap: 6px;
+    padding: 6px;
     height: var(--mobile-nav-height-v2);
     border-radius: 20px;
     border: 1px solid var(--glass-border);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)),
-      rgba(19, 32, 48, 0.24);
+      radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.22), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+      rgba(19, 32, 48, 0.12);
     backdrop-filter: blur(36px) saturate(180%);
     box-shadow: var(--glass-shadow);
   }
@@ -3289,7 +3457,7 @@ body {
     color: var(--text);
     display: grid;
     place-items: center;
-    gap: 4px;
+    gap: 3px;
     border-radius: 15px;
     font-size: 9px;
     font-weight: 700;
@@ -3306,7 +3474,7 @@ body {
   }
 
   .mobile-nav-item.active {
-    background: rgba(214, 237, 255, 0.1);
+    background: rgba(214, 237, 255, 0.08);
     color: #b9fff5;
   }
 
@@ -3327,17 +3495,15 @@ body {
   }
 
   .player-dock-bar {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .player-dock-actions {
-    justify-content: space-between;
-    flex-wrap: wrap;
+    gap: 4px;
   }
 
   .player-dock-copy {
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
+    max-width: 100%;
   }
 }
 
@@ -3396,13 +3562,58 @@ body {
   }
 
   .player-dock-bar {
-    bottom: calc(var(--dock-offset-v2) - 4px);
-    padding: 8px 9px;
-    border-radius: 16px;
+    bottom: calc(var(--dock-offset-v2) - 3px);
+    padding: 7px 8px;
+    border-radius: 18px;
   }
 
   .dock-expand-btn {
-    width: 100%;
+    min-width: 32px;
+    padding: 0;
+  }
+
+  .dock-expand-btn-label {
+    display: none;
+  }
+
+  .player-dock-tray-panel {
+    border-radius: 20px;
+    padding: 10px;
+  }
+
+  .player-dock-meta {
+    gap: 2px;
+  }
+
+  .player-dock-kicker {
+    font-size: 8px;
+  }
+
+  .player-dock-title {
+    font-size: 11px;
+  }
+
+  .player-dock-copy,
+  .player-dock-subcopy {
+    font-size: 9px;
+  }
+
+  .dock-icon-btn,
+  .dock-expand-btn {
+    min-width: 30px;
+    height: 30px;
+  }
+
+  .player-dock-subcopy {
+    display: none;
+  }
+
+  .player-dock-tray-actions {
+    gap: 5px;
+  }
+
+  .player-dock-track-list {
+    max-height: 160px;
   }
 
   .settings-sheet-card {

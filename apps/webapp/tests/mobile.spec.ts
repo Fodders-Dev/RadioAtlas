@@ -23,7 +23,7 @@ test('mobile shell keeps dock and bottom nav separately tappable', async ({ page
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
 
-  await page.getByRole('button', { name: 'Свернуть' }).click();
+  await page.locator('.winamp-overlay-header .winamp-close-btn').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 });
 

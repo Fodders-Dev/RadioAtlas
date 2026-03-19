@@ -144,6 +144,7 @@ type RadioContextValue = {
   openWebAppExternally: () => void;
   clearFavorites: () => void;
   clearRecent: () => void;
+  clearTrackHistory: () => void;
   clearCache: () => void;
   debugLogs: string[];
 };
@@ -1038,6 +1039,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const clearFavorites = () => setFavorites([]);
   const clearRecent = () => setRecent([]);
+  const clearTrackHistory = () => setTrackHistory([]);
   const clearCache = () => {
     clearStationsCache();
     notify(t('toast.cacheCleared'));
@@ -1058,7 +1060,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         track: nowPlaying,
         timestamp: Date.now()
       };
-      setTrackHistory((prev) => [entry, ...prev].slice(0, MAX_TRACK_HISTORY));
+      setTrackHistory((prev) => {
+        const deduped =
+          prev[0]?.stationId === entry.stationId && prev[0]?.track === entry.track
+            ? prev.slice(1)
+            : prev.filter(
+                (item) =>
+                  item.stationId !== entry.stationId ||
+                  item.track !== entry.track ||
+                  entry.timestamp - item.timestamp > 1000 * 60 * 10
+              );
+        return [entry, ...deduped].slice(0, MAX_TRACK_HISTORY);
+      });
       notify(t('toast.trackCopied'));
     } catch {
       notify(t('toast.copyFailed'));
@@ -1240,6 +1253,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     shareStation,
     clearFavorites,
     clearRecent,
+    clearTrackHistory,
     clearCache,
     debugLogs
   };

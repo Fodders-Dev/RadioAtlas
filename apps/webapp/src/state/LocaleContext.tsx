@@ -169,6 +169,10 @@ const dictionaries = {
       subtitle: 'Избранное, очередь, недавнее и история теперь собраны в одном месте.',
       topbarSubtitle: 'Избранное, очередь, история.',
       trackJournal: 'Сюда попадают скопированные названия треков.',
+      trackJournalCollapsed: 'Журнал можно раскрыть только когда он нужен, без бесконечной простыни.',
+      trackJournalCount: 'Скопировано: {count}',
+      trackJournalExpand: 'Показать журнал',
+      trackJournalCollapse: 'Свернуть журнал',
       stationHistory: 'История живых станций для быстрого возврата в эфир.',
       tabs: {
         favorites: 'Избранное',
@@ -182,10 +186,19 @@ const dictionaries = {
       peekHint: 'Нажми, чтобы раскрыть',
       queueCount: 'В очереди: {count}',
       liveNow: 'Сейчас в эфире',
+      trackLive: 'Сейчас играет',
       ready: 'Плеер',
       emptyTitle: 'Выбери станцию',
       emptySubtitle: 'Добавь станцию с главной, поиска или глобуса.',
-      openWinamp: 'Winamp'
+      openWinamp: 'Winamp',
+      more: 'Ещё',
+      volume: 'Громкость',
+      copiedTracks: 'Скопированные треки',
+      copiedTracksEmpty: 'Скопируй название трека, и оно останется здесь.',
+      copiedTracksOpen: 'Открыть журнал',
+      queueOpen: 'Открыть очередь',
+      copyCurrentTrack: 'Копировать текущий трек',
+      currentTrackUnavailable: 'Название трека пока недоступно'
     },
     favoritesScreen: {
       profileTitle: 'Профиль',
@@ -518,6 +531,10 @@ const dictionaries = {
       subtitle: 'Favorites, queue, recents, and history now live in one place.',
       topbarSubtitle: 'Favorites, queue, history.',
       trackJournal: 'Copied track names land here for quick reuse.',
+      trackJournalCollapsed: 'The journal stays collapsed until you actually need it.',
+      trackJournalCount: 'Copied: {count}',
+      trackJournalExpand: 'Show journal',
+      trackJournalCollapse: 'Hide journal',
       stationHistory: 'Live station history for returning to the right mood fast.',
       tabs: {
         favorites: 'Favorites',
@@ -531,10 +548,19 @@ const dictionaries = {
       peekHint: 'Tap to expand',
       queueCount: 'Queued: {count}',
       liveNow: 'Live now',
+      trackLive: 'Now playing',
       ready: 'Player',
       emptyTitle: 'Pick a station',
       emptySubtitle: 'Add a station from Home, Search, or Globe.',
-      openWinamp: 'Winamp'
+      openWinamp: 'Winamp',
+      more: 'More',
+      volume: 'Volume',
+      copiedTracks: 'Copied tracks',
+      copiedTracksEmpty: 'Copy a track title and it will stay here.',
+      copiedTracksOpen: 'Open journal',
+      queueOpen: 'Open queue',
+      copyCurrentTrack: 'Copy current track',
+      currentTrackUnavailable: 'Track title is not available yet'
     },
     favoritesScreen: {
       profileTitle: 'Profile',
