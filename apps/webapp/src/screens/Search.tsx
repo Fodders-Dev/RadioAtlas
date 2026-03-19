@@ -182,6 +182,9 @@ const parsePls = (text: string, baseUrl: string) => {
 export const Discover = () => {
   const { stations, playStation, player, recent } = useRadio();
   const { t } = useLocale();
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
   const [mode, setMode] = useState<'stations' | 'links'>('stations');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -218,6 +221,14 @@ export const Discover = () => {
       setLinkError(null);
     }
   }, [linkUrl, linkName, mode, linkError]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -363,6 +374,7 @@ export const Discover = () => {
     const limit = Math.min(visibleCount, filtered.length);
     return filtered.slice(0, limit).map(toLite);
   }, [filtered, visibleCount]);
+  const compactResults = viewportWidth < 720;
 
   const makeId = () =>
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -748,7 +760,7 @@ export const Discover = () => {
           </div>
 
           <div className="search-results-shell">
-            <StationTable stations={results} sourceId="discover-stations" />
+            <StationTable stations={results} sourceId="discover-stations" compact={compactResults} />
           </div>
           {visibleCount < filtered.length && (
             <div className="section">

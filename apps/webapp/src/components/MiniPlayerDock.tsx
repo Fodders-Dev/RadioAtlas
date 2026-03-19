@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
+import { StationArtwork } from './StationArtwork';
 
 type DockTrayMode = 'volume' | null;
 
@@ -78,6 +79,10 @@ export const MiniPlayerDock = () => {
       data-has-station={current ? 'true' : 'false'}
       data-tray-open={trayMode ? 'true' : 'false'}
     >
+      <div className="player-dock-media">
+        <StationArtwork station={current} size="dock" />
+      </div>
+
       {trayMode ? (
         <div className="player-dock-tray" role="region" aria-label={t('dock.volume')}>
           <div className="player-dock-tray-panel">
@@ -118,18 +123,6 @@ export const MiniPlayerDock = () => {
           </div>
         </div>
       ) : null}
-
-      <button
-        className="player-dock-collapse"
-        type="button"
-        onClick={() => {
-          setTrayMode(null);
-          setPlayerPresentation('peek');
-        }}
-      >
-        <span />
-        <span />
-      </button>
 
       <div className="player-dock-meta">
         <button

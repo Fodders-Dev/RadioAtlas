@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
@@ -19,10 +19,22 @@ export const Library = () => {
     clearRecent,
     clearTrackHistory,
     libraryTab,
-    setLibraryTab
+    setLibraryTab,
+    setActiveSection
   } = useRadio();
   const { locale, t } = useLocale();
   const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const compactRows = viewportWidth < 720;
 
   const formatTime = (value: number) =>
     new Date(value).toLocaleString(locale, {
@@ -36,7 +48,25 @@ export const Library = () => {
   return (
     <section className="screen screen-library-v2">
       <div className="glass-card library-header-card">
-        <div className="section-title">{t('library.title')}</div>
+        <div className="library-header-copy">
+          <div className="shell-kicker">{t('library.kicker')}</div>
+          <div className="section-title">{t('library.title')}</div>
+          <div className="section-subtitle">{t('library.subtitle')}</div>
+          <div className="library-header-stats">
+            <div className="globe-selection-pill">
+              <span>{t('library.tabs.favorites')}</span>
+              <strong>{favorites.length}</strong>
+            </div>
+            <div className="globe-selection-pill">
+              <span>{t('playlist.title')}</span>
+              <strong>{queue.items.length}</strong>
+            </div>
+            <div className="globe-selection-pill">
+              <span>{t('library.tabs.history')}</span>
+              <strong>{trackHistory.length}</strong>
+            </div>
+          </div>
+        </div>
         <div className="chip-row">
           {TAB_ORDER.map((tab) => (
             <button
@@ -62,7 +92,22 @@ export const Library = () => {
               {t('settings.clearFavorites')}
             </button>
           </div>
-          <StationTable stations={favorites} sourceId="favorites" />
+          {favorites.length ? (
+            <StationTable stations={favorites} compact={compactRows} sourceId="favorites" />
+          ) : (
+            <div className="empty-state library-empty-state">
+              <div className="library-empty-title">{t('library.emptyFavoritesTitle')}</div>
+              <div className="section-subtitle">{t('library.emptyFavoritesCopy')}</div>
+              <div className="hero-chip-row">
+                <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
+                  {t('home.openSearch')}
+                </button>
+                <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
+                  {t('home.openGlobe')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -105,7 +150,18 @@ export const Library = () => {
               })}
             </div>
           ) : (
-            <div className="empty-state">{t('playlist.empty')}</div>
+            <div className="empty-state library-empty-state">
+              <div className="library-empty-title">{t('library.emptyQueueTitle')}</div>
+              <div className="section-subtitle">{t('playlist.empty')}</div>
+              <div className="hero-chip-row">
+                <button className="chip active" type="button" onClick={() => setActiveSection('home')}>
+                  {t('nav.home')}
+                </button>
+                <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
+                  {t('home.openGlobe')}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ) : null}
@@ -121,7 +177,7 @@ export const Library = () => {
               {t('settings.clearRecent')}
             </button>
           </div>
-          <StationTable stations={recent} sourceId="recent" />
+          <StationTable stations={recent} compact={compactRows} sourceId="recent" />
         </div>
       ) : null}
 
@@ -171,7 +227,7 @@ export const Library = () => {
                 <div className="track-list track-list-scroll">
                   {trackHistory.map((item) => (
                     <div key={item.id} className="track-card">
-                      <div>
+                      <div className="track-card-copy">
                         <div className="track-title">{item.track}</div>
                         <div className="track-meta">
                           {item.stationName} · {formatTime(item.timestamp)}

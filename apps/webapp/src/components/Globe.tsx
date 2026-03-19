@@ -78,14 +78,6 @@ export const Globe = ({
     return mesh(data, data.objects.countries, (a: any, b: any) => a !== b);
   }, []);
 
-  const timezones = useMemo(() => {
-    const zones: { lon: number; offset: number }[] = [];
-    for (let offset = -12; offset <= 12; offset += 1) {
-      zones.push({ lon: offset * 15, offset });
-    }
-    return zones;
-  }, []);
-
   const clamp = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
 
@@ -212,40 +204,6 @@ export const Globe = ({
         ctx.stroke();
       }
 
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-      ctx.lineWidth = 0.6;
-      timezones.forEach(({ lon }) => {
-        const line = {
-          type: 'LineString',
-          coordinates: [
-            [lon, -90],
-            [lon, 90]
-          ]
-        };
-        ctx.beginPath();
-        path(line as any);
-        ctx.stroke();
-      });
-      ctx.restore();
-
-      ctx.save();
-      ctx.fillStyle = 'rgba(246, 201, 69, 0.55)';
-      ctx.font = '11px "Space Grotesk", sans-serif';
-      const utcMs = Date.now() + new Date().getTimezoneOffset() * 60000;
-      timezones.forEach(({ lon, offset }) => {
-        if (lon % 30 !== 0) return;
-        const distance = geoDistance([lon, 0], center);
-        if (distance > Math.PI / 2) return;
-        const coords = projection([lon, 0]);
-        if (!coords) return;
-        const time = new Date(utcMs + offset * 3600000);
-        const hours = String(time.getUTCHours()).padStart(2, '0');
-        const minutes = String(time.getUTCMinutes()).padStart(2, '0');
-        ctx.fillText(`${hours}:${minutes}`, coords[0] + 4, coords[1] - 6);
-      });
-      ctx.restore();
-
       ctx.beginPath();
       path(geoGraticule10());
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -302,7 +260,7 @@ export const Globe = ({
 
     frame = window.requestAnimationFrame(draw);
     return () => window.cancelAnimationFrame(frame);
-  }, [size, points, activeId, land, borders, timezones, autoRotate, scale]);
+  }, [size, points, activeId, land, borders, autoRotate, scale]);
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     event.preventDefault();

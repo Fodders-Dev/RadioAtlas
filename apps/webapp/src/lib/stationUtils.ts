@@ -1,5 +1,19 @@
 import type { Station, StationLite } from '../types';
 
+const COUNTRY_LABELS: Record<string, string> = {
+  'The United Kingdom Of Great Britain And Northern Ireland': 'United Kingdom',
+  'The United States Of America': 'USA',
+  'The Russian Federation': 'Russia',
+  'Islamic Republic Of Iran': 'Iran',
+  'Syrian Arab Republic': 'Syria'
+};
+
+const formatLocationPart = (value?: string) => {
+  const cleaned = value?.trim();
+  if (!cleaned) return '';
+  return COUNTRY_LABELS[cleaned] || cleaned;
+};
+
 export const toLite = (station: Station | StationLite): StationLite => ({
   stationuuid: station.stationuuid,
   name: station.name,
@@ -14,7 +28,7 @@ export const toLite = (station: Station | StationLite): StationLite => ({
 });
 
 export const stationLocation = (station: Station | StationLite) => {
-  const parts = [station.state, station.country].filter(Boolean);
+  const parts = [formatLocationPart(station.state), formatLocationPart(station.country)].filter(Boolean);
   return parts.length ? parts.join(', ') : 'Unknown location';
 };
 

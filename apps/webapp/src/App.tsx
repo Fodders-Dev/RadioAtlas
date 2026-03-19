@@ -29,6 +29,9 @@ const App = () => {
     error,
     toast,
     player,
+    stations,
+    favorites,
+    queue,
     winamp,
     activeSection,
     setActiveSection,
@@ -55,19 +58,23 @@ const App = () => {
     () => ({
       home: {
         title: t('nav.home'),
-        subtitle: t('app.subtitle')
+        subtitle: t('home.topbarSubtitle'),
+        context: t('home.topbarContext')
       },
       search: {
         title: t('nav.search'),
-        subtitle: t('search.topbarSubtitle')
+        subtitle: t('search.topbarSubtitle'),
+        context: t('search.kicker')
       },
       globe: {
         title: t('nav.globe'),
-        subtitle: t('explore.globeSubtitle')
+        subtitle: t('explore.globeSubtitle'),
+        context: t('globe.heroSubtitle')
       },
       library: {
         title: t('nav.library'),
-        subtitle: t('library.topbarSubtitle')
+        subtitle: t('library.topbarSubtitle'),
+        context: t('library.kicker')
       }
     }),
     [t]
@@ -86,11 +93,26 @@ const App = () => {
       <AppNavigation active={activeSection} onChange={setActiveSection} onSettings={() => setSettingsOpen(true)} />
 
       <div className="app-content-shell">
-        <header className="glass-card app-topbar-v2">
+        <header className="glass-card app-topbar-v2 motion-rise">
           <div className="app-topbar-copy">
-            <div className="shell-kicker">{t('app.liveBadge')}</div>
+            <div className="app-topbar-brandline">
+              <div className="app-brand-pill" title={t('app.title')}>
+                <span className="app-brand-mark">R++</span>
+                <span>{t('app.title')}</span>
+              </div>
+              <div className="app-topbar-context">{meta.context}</div>
+            </div>
             <div className="app-topbar-title">{meta.title}</div>
             <div className="app-topbar-subtitle">{meta.subtitle}</div>
+            <div className="app-topbar-meta-row">
+              <div className="app-topbar-stat">{t('app.catalogCount', { count: stations.length })}</div>
+              <div className="app-topbar-stat">{t('app.favoritesCount', { count: favorites.length })}</div>
+              <div className={`app-topbar-stat ${player.current ? 'active' : ''}`}>
+                {player.current
+                  ? player.current.name
+                  : t('app.queueCount', { count: queue.items.length })}
+              </div>
+            </div>
           </div>
           <div className="app-topbar-actions">
             <div className="app-build-pill" title={versionLabel}>

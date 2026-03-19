@@ -79,7 +79,7 @@ const distanceSq = (left: { lat: number; lon: number }, right: { lat: number; lo
 
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { stations, playStation, player, queue, recent, favorites } = useRadio();
+  const { stations, player, queue, recent, favorites, setActiveSection } = useRadio();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const picksRef = useRef<HTMLDivElement | null>(null);
@@ -220,9 +220,17 @@ export const GlobeScreen = () => {
     return stations.slice(0, 6).map(toLite);
   }, [queue.currentIndex, queue.items, recent, stations]);
 
+  const spotlightAreas = useMemo(() => globeAreas.slice(0, 6), [globeAreas]);
+
   useEffect(() => {
     if (!selectedArea) return;
-    picksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (typeof window === 'undefined' || window.innerWidth > 860) return;
+    const rect = picksRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const isOutsideViewport = rect.top < 72 || rect.bottom > window.innerHeight - 180;
+    if (isOutsideViewport) {
+      picksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [selectedArea]);
 
   useEffect(() => {
@@ -253,7 +261,7 @@ export const GlobeScreen = () => {
       <div className="glass-card globe-shell-card">
         <div className="globe-card-head">
           <div>
-            <div className="shell-kicker">{t('home.globeMode')}</div>
+            <div className="shell-kicker">{t('globe.kicker')}</div>
             <div className="section-title">{t('explore.globeTitle')}</div>
             <div className="section-subtitle">{t('globe.heroSubtitle')}</div>
           </div>
@@ -339,21 +347,58 @@ export const GlobeScreen = () => {
                 />
               </>
             ) : (
-              <div className="empty-state">{t('globe.idleEmpty')}</div>
+              <div className="globe-discovery-stack">
+                <div className="globe-selection-meta">
+                  <div className="globe-selection-pill">
+                    <span>{t('globe.mappedAreas')}</span>
+                    <strong>{globeAreas.length}</strong>
+                  </div>
+                  <div className="globe-selection-pill">
+                    <span>{t('globe.selectionCount')}</span>
+                    <strong>{resolvedStations.length}</strong>
+                  </div>
+                </div>
+                <div className="section-subtitle">{t('globe.idleEmpty')}</div>
+                <div className="hero-chip-row">
+                  <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
+                    {t('home.openSearch')}
+                  </button>
+                  <button className="chip" type="button" onClick={() => setActiveSection('home')}>
+                    {t('nav.home')}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
 
         <aside className="home-side-stack">
-          {selectedArea && (
-            <div className="glass-card globe-area-summary-card">
-              <div className="section-title">{t('globe.areaSummaryTitle')}</div>
-              <div className="section-subtitle">
-                {t('globe.areaSummaryCopy', {
-                  place: selectedArea.label,
-                  subtitle: selectedArea.subtitle
-                })}
-              </div>
+          <div className="glass-card globe-area-summary-card">
+            <div className="section-title">
+              {selectedArea ? t('globe.areaSummaryTitle') : t('globe.hotAreasTitle')}
+            </div>
+            <div className="section-subtitle">
+              {selectedArea
+                ? t('globe.areaSummaryCopy', {
+                    place: selectedArea.label,
+                    subtitle: selectedArea.subtitle
+                  })
+                : t('globe.hotAreasCopy')}
+            </div>
+            <div className="globe-hotspot-grid compact">
+              {spotlightAreas.map((area) => (
+                <button
+                  key={area.id}
+                  className={`globe-hotspot-btn ${selectedArea?.id === area.id ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => handleSelectArea(area.id)}
+                >
+                  <span title={area.label}>{area.label}</span>
+                  <strong>{t('globe.hotspotCount', { count: area.count })}</strong>
+                </button>
+              ))}
+            </div>
+            {selectedArea ? (
               <div className="globe-selection-meta compact">
                 <div className="globe-selection-pill">
                   <span>{t('globe.selectionCount')}</span>
@@ -364,8 +409,8 @@ export const GlobeScreen = () => {
                   <strong>{globeAreas.length}</strong>
                 </div>
               </div>
-            </div>
-          )}
+            ) : null}
+          </div>
 
           <div className="glass-card">
             <div className="section-title">{t('globe.liveQueue')}</div>
