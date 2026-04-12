@@ -12,3 +12,6 @@ test-results/
 apps/extractor/bin/
 apps/webapp/vite-plan*.log
 apps/webapp/vite-*.log
+apps/api/data/
+apps/api/dev-*.log
+output/

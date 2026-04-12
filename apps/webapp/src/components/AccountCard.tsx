@@ -14,6 +14,7 @@ export const AccountCard = () => {
     error,
     isTelegramMiniApp,
     canOpenTelegram,
+    hasGoogleClient,
     signInWithTelegram,
     createTelegramInvoice,
     signOut,
@@ -106,6 +107,36 @@ export const AccountCard = () => {
 
       {error ? <div className="error">{error}</div> : null}
 
+      {status !== 'authenticated' ? (
+        <div className="account-onboarding-panel">
+          <div className="account-onboarding-copy">
+            <div className="section-title">{t('account.onboardingTitle')}</div>
+            <div className="section-subtitle">{t('account.onboardingCopy')}</div>
+          </div>
+          <div className="hero-chip-row account-actions">
+            <button className="chip active" type="button" onClick={openAccountSheet}>
+              {t('account.signInAndSync')}
+            </button>
+            {isTelegramMiniApp || canOpenTelegram ? (
+              <button
+                className="chip"
+                type="button"
+                onClick={() => {
+                  void signInWithTelegram();
+                }}
+              >
+                {t('account.telegramAction')}
+              </button>
+            ) : null}
+            {hasGoogleClient ? (
+              <button className="chip" type="button" onClick={openAccountSheet}>
+                {t('account.googleAction')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="hero-chip-row account-actions">
         {status === 'authenticated' ? (
           <>
@@ -131,24 +162,11 @@ export const AccountCard = () => {
           </>
         ) : (
           <>
-            <button
-              className="chip active"
-              type="button"
-              onClick={() => {
-                void signInWithTelegram();
-              }}
-              disabled={!isTelegramMiniApp && !canOpenTelegram}
-            >
-              {t('account.telegramAction')}
-            </button>
-            {!isTelegramMiniApp ? (
+            {!isTelegramMiniApp && canOpenTelegram ? (
               <button className="chip" type="button" onClick={openTelegramAccess}>
                 {t('account.openTelegram')}
               </button>
             ) : null}
-            <button className="chip" type="button" onClick={openAccountSheet}>
-              {t('account.manage')}
-            </button>
           </>
         )}
       </div>

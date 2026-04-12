@@ -10,10 +10,27 @@ const webAppUrl = process.env.WEBAPP_URL;
 const apiUrl = (process.env.API_URL || '').replace(/\/+$/, '');
 const bot = new Bot(token);
 
+const withSharedApi = (value: string) => {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    if (apiUrl) {
+      url.searchParams.set('api', apiUrl);
+    }
+    return url.toString();
+  } catch {
+    return value;
+  }
+};
+
 const withMiniAppParam = (param: string) => {
   if (!webAppUrl) return '';
-  const divider = webAppUrl.includes('?') ? '&' : '?';
-  return `${webAppUrl}${divider}start=${encodeURIComponent(param)}`;
+  const url = new URL(webAppUrl);
+  url.searchParams.set('start', param);
+  if (apiUrl) {
+    url.searchParams.set('api', apiUrl);
+  }
+  return url.toString();
 };
 
 const miniAppKeyboard = (label: string, param: string) =>
@@ -31,7 +48,7 @@ bot.command('start', async (ctx) => {
   ].filter(Boolean);
 
   const keyboard = webAppUrl
-    ? new InlineKeyboard().webApp('Открыть радио', webAppUrl)
+    ? new InlineKeyboard().webApp('Открыть радио', withSharedApi(webAppUrl))
     : undefined;
 
   await ctx.reply(lines.join('\n'), {

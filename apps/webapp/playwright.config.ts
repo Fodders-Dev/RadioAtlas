@@ -1,7 +1,9 @@
 import { defineConfig } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 const PORT = 5173;
 const API_PORT = 4311;
+const ACCOUNT_STORE_PATH = fileURLToPath(new URL('../api/data/playwright-account-store.sqlite', import.meta.url));
 
 export default defineConfig({
   testDir: './tests',
@@ -24,7 +26,8 @@ export default defineConfig({
         ...process.env,
         PORT: String(API_PORT),
         GOOGLE_CLIENT_ID: 'test-google-client',
-        ENABLE_TEST_AUTH_FIXTURES: '1'
+        ENABLE_TEST_AUTH_FIXTURES: '1',
+        ACCOUNT_STORE_PATH
       }
     },
     {

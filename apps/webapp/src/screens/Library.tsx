@@ -32,7 +32,7 @@ export const Library = () => {
     libraryTab,
     setLibraryTab
   } = useRadio();
-  const { profile, library: cloudLibrary } = useSession();
+  const { status: sessionStatus, profile, library: cloudLibrary, openAccountSheet } = useSession();
   const { locale, t } = useLocale();
   const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -149,6 +149,11 @@ export const Library = () => {
             <div className="empty-state library-empty-state">
               <div className="library-empty-title">{t('library.emptyFavoritesTitle')}</div>
               <div className="section-subtitle">{t('library.emptyFavoritesCopy')}</div>
+              {sessionStatus !== 'authenticated' ? (
+                <button className="chip active" type="button" onClick={openAccountSheet}>
+                  {t('account.signInAndSync')}
+                </button>
+              ) : null}
             </div>
           )}
         </div>

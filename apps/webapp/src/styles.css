@@ -3749,6 +3749,23 @@ body {
   gap: 8px;
 }
 
+.account-onboarding-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(214, 246, 255, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    rgba(14, 31, 53, 0.34);
+}
+
+.account-onboarding-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .account-sheet-panel {
   gap: 16px;
 }
@@ -4008,8 +4025,27 @@ body {
   min-width: 0;
 }
 
+.library-section-head > :first-child {
+  flex: 1 1 auto;
+}
+
 .library-section-head .chip {
   flex-shrink: 0;
+}
+
+.library-section-head .section-title,
+.library-section-head .section-subtitle {
+  max-width: 100%;
+}
+
+.library-section-head .section-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .glass-card,
@@ -5186,13 +5222,16 @@ body {
   }
 
   .station-compact-shell {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
   }
 
   .station-compact-actions {
-    width: 100%;
-    justify-content: flex-start;
+    width: auto;
+    justify-content: flex-end;
+    align-self: center;
+    gap: 6px;
   }
 
   .station-table.compact .station-compact-play,
@@ -5201,6 +5240,11 @@ body {
     min-width: 36px;
     height: 36px;
     min-height: 36px;
+  }
+
+  .station-compact-main {
+    align-items: center;
+    gap: 8px;
   }
 }
 

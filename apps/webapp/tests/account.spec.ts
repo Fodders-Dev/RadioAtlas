@@ -1,8 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ACCOUNT_FIXTURE_API_BASE, installGoogleAuthFixture } from './authFixture';
 import {
-  ACCOUNT_FIXTURE_API_BASE,
   applyConflictSession,
-  installGoogleAuthFixture,
   openConflictPreview,
   seedConflictFixture,
   type ConflictMergeStrategy,

@@ -12,7 +12,7 @@ test('desktop shell keeps navigation, queue, and expanded winamp flow intact', a
   await expect(page.locator('.app-navigation-desktop')).toBeVisible();
   await expect(page.locator('.app-topbar-title')).toHaveText('Главная');
   await expect(page.locator('.home-search-card .section-title')).toHaveText('Найти станцию');
-  await expect(page.locator('.account-card .section-title')).toHaveText('Аккаунт и синхронизация');
+  await expect(page.locator('.account-card > .library-section-head .section-title')).toHaveText('Аккаунт и синхронизация');
 
   await playHomeStation(page, 'Tokyo FM');
 

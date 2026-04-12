@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
+  CloudLibrary,
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
@@ -442,6 +443,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2000);
+  };
+
+  const syncCloudLibraryImmediately = (
+    nextLibrary: Omit<CloudLibrary, 'updatedAt'>
+  ) => {
+    if (sessionStatus !== 'authenticated' || !sessionProfile?.id) return;
+    void replaceCloudLibrary(nextLibrary);
   };
 
   const resolvePlaybackToastMessage = (message: string | null | undefined) => {
@@ -1162,11 +1170,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleFavorite = (station: Station | StationLite) => {
     const lite = toLite(station);
-    setFavorites((prev) => {
-      if (prev.some((item) => item.stationuuid === lite.stationuuid)) {
-        return prev.filter((item) => item.stationuuid !== lite.stationuuid);
-      }
-      return [lite, ...prev];
+    const nextFavorites = favorites.some((item) => item.stationuuid === lite.stationuuid)
+      ? favorites.filter((item) => item.stationuuid !== lite.stationuuid)
+      : [lite, ...favorites];
+    setFavorites(nextFavorites);
+    syncCloudLibraryImmediately({
+      favorites: nextFavorites,
+      recent: recent.slice(0, MAX_RECENT),
+      trackHistory: trackHistory.slice(0, MAX_TRACK_HISTORY),
+      collections,
+      followedStations,
+      followedRegions,
+      alerts
     });
   };
 
@@ -1434,7 +1449,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(t('toast.shareFailed'));
   };
 
-  const clearFavorites = () => setFavorites([]);
+  const clearFavorites = () => {
+    setFavorites([]);
+    syncCloudLibraryImmediately({
+      favorites: [],
+      recent: recent.slice(0, MAX_RECENT),
+      trackHistory: trackHistory.slice(0, MAX_TRACK_HISTORY),
+      collections,
+      followedStations,
+      followedRegions,
+      alerts
+    });
+  };
   const clearRecent = () => setRecent([]);
   const clearTrackHistory = () => setTrackHistory([]);
   const createCollection = (name: string) => {

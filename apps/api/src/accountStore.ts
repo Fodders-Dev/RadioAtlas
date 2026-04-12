@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export type SyncedStation = {
@@ -776,12 +777,19 @@ const mapAuditEvent = (row: Record<string, unknown>): AccountAuditEvent => ({
   createdAt: safeNumber(row.created_at) ?? Date.now()
 });
 
-const databaseFilePath = fileURLToPath(DB_URL);
+const defaultDatabaseFilePath = fileURLToPath(DB_URL);
+const configuredDatabaseFilePath = (() => {
+  const configured = String(process.env.ACCOUNT_STORE_PATH || '').trim();
+  if (!configured) return defaultDatabaseFilePath;
+  return isAbsolute(configured) ? configured : resolve(process.cwd(), configured);
+})();
+const databaseFilePath = configuredDatabaseFilePath;
+const databaseDirPath = dirname(databaseFilePath);
 
 const getDb = async () => {
   if (!dbPromise) {
     dbPromise = (async () => {
-      await mkdir(DATA_DIR_URL, { recursive: true });
+      await mkdir(databaseDirPath, { recursive: true });
       const sqliteModuleName = 'node:sqlite';
       const sqlite = await import(sqliteModuleName);
       const db = new sqlite.DatabaseSync(databaseFilePath) as DatabaseLike;
