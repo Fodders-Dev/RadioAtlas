@@ -1541,14 +1541,34 @@ input {
   left: 50%;
   bottom: calc(var(--player-stack-offset) + 18px);
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--accent) 78%, var(--panel));
-  color: color-mix(in srgb, var(--bg) 74%, black);
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-weight: 600;
+  width: min(calc(100vw - 24px), 420px);
+  padding: 10px 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, rgba(255, 255, 255, 0.18));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
+    color-mix(in srgb, var(--surface-overlay-strong) 92%, rgba(6, 12, 22, 0.92));
+  color: var(--text-strong);
+  box-shadow:
+    0 16px 40px rgba(6, 11, 19, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px) saturate(150%);
+  font-weight: 650;
   font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
   z-index: 1805;
   pointer-events: none;
+  white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .toast {
+    top: calc(env(safe-area-inset-top) + 76px);
+    bottom: auto;
+    width: min(calc(100vw - 20px), 360px);
+    border-radius: 16px;
+  }
 }
 
 .details-overlay {
@@ -3607,21 +3627,11 @@ body {
   gap: 12px;
 }
 
-.library-toolbar-card {
-  display: grid;
-  gap: 12px;
-}
-
-.library-toolbar-head {
+.library-tab-strip {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.library-toolbar-actions,
-.library-toolbar-tabs {
-  width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 2px 0;
 }
 
 .search-shell-header .chip-row,
@@ -4734,11 +4744,6 @@ body {
     flex-direction: column;
   }
 
-  .library-toolbar-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .search-shell-controls,
   .search-mode-switcher {
     width: 100%;
@@ -4752,10 +4757,6 @@ body {
 
   .search-shell-header .chip-row,
   .library-header-card .chip-row {
-    justify-content: flex-start;
-  }
-
-  .library-toolbar-actions {
     justify-content: flex-start;
   }
 

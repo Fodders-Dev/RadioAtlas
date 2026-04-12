@@ -3,7 +3,6 @@ import { StationTable } from '../components/StationTable';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
-import { useSession } from '../state/SessionContext';
 import type { LibraryTab } from '../types';
 
 const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'history'];
@@ -22,7 +21,6 @@ export const Library = () => {
     libraryTab,
     setLibraryTab
   } = useRadio();
-  const { status: sessionStatus, syncState, openAccountSheet } = useSession();
   const { locale, t } = useLocale();
   const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -48,54 +46,17 @@ export const Library = () => {
 
   return (
     <section className="screen screen-library-v2">
-      <div className="glass-card library-toolbar-card">
-        <div className="library-toolbar-head">
-          <div className="library-header-stats">
-            <div className="globe-selection-pill">
-              <span>{t('library.tabs.favorites')}</span>
-              <strong>{favorites.length}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('playlist.title')}</span>
-              <strong>{queue.items.length}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('library.tabs.history')}</span>
-              <strong>{trackHistory.length}</strong>
-            </div>
-            <div className={`globe-selection-pill ${sessionStatus === 'authenticated' ? 'active' : ''}`}>
-              <span>{t('account.syncStatus')}</span>
-              <strong>
-                {sessionStatus === 'authenticated'
-                  ? t(`account.syncStates.${syncState}`)
-                  : t('account.local')}
-              </strong>
-            </div>
-          </div>
-          <div className="chip-row library-toolbar-actions">
-            <button className="chip" type="button" onClick={openAccountSheet}>
-              {t('account.manage')}
-            </button>
-            <button className="chip" type="button" onClick={() => setLibraryTab('history')}>
-              {t('library.openHistoryAction')}
-            </button>
-            <button className="chip" type="button" onClick={() => setLibraryTab(player.current ? 'queue' : 'recent')}>
-              {player.current ? t('library.openQueueAction') : t('library.openRecentAction')}
-            </button>
-          </div>
-        </div>
-        <div className="chip-row library-toolbar-tabs">
-          {TAB_ORDER.map((tab) => (
-            <button
-              key={tab}
-              className={`chip ${libraryTab === tab ? 'active' : ''}`}
-              type="button"
-              onClick={() => setLibraryTab(tab)}
-            >
-              {t(`library.tabs.${tab}`)}
-            </button>
-          ))}
-        </div>
+      <div className="library-tab-strip" role="tablist" aria-label={t('library.title')}>
+        {TAB_ORDER.map((tab) => (
+          <button
+            key={tab}
+            className={`chip ${libraryTab === tab ? 'active' : ''}`}
+            type="button"
+            onClick={() => setLibraryTab(tab)}
+          >
+            {t(`library.tabs.${tab}`)}
+          </button>
+        ))}
       </div>
 
       {libraryTab === 'favorites' ? (

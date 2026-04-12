@@ -354,6 +354,23 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     window.setTimeout(() => setToast(null), 2000);
   };
 
+  const resolvePlaybackToastMessage = (message: string | null | undefined) => {
+    switch (message) {
+      case 'stream blocked/mixed content':
+        return t('toast.mixedContent');
+      case 'api unavailable':
+        return t('toast.apiUnavailable');
+      case 'media source not supported':
+        return t('toast.unsupportedTransport');
+      case 'media network error':
+        return t('toast.streamUnavailable');
+      case 'no playable candidate':
+        return t('toast.noPlayable');
+      default:
+        return message || t('toast.playbackFailed');
+    }
+  };
+
   const player = useAudioPlayer({
     onEvent: logDebug
   });
@@ -789,7 +806,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       if (!options?.suppressErrorToast) {
-        notify(result.error || t('toast.playbackFailed'));
+        notify(resolvePlaybackToastMessage(result.error));
       }
       return false;
     }
