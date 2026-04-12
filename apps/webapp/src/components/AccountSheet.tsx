@@ -111,6 +111,9 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const canUnlinkProvider = (profile?.providers.length || 0) > 1;
   const premiumProducts = billingProducts.filter((product) => product.kind === 'premium' || product.kind === 'gift-premium');
   const donationProducts = billingProducts.filter((product) => product.kind === 'donation');
+  const shouldShowMergeControls = Boolean(profile?.providers.length || pendingLinkPreview);
+  const shouldShowBilling = Boolean(profile && billingProducts.length);
+  const shouldShowAudit = Boolean(profile && auditTrail.length);
 
   useEffect(() => {
     if (!open || status !== 'authenticated') return;
@@ -255,72 +258,63 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
             ))}
           </div>
           {error ? <div className="error">{error}</div> : null}
+          <div className="settings-actions account-sheet-hero-actions">
+            {!profile ? (
+              <>
+                <button
+                  className="chip active"
+                  type="button"
+                  onClick={() => {
+                    void handleTelegramLink();
+                  }}
+                  disabled={linkBusy}
+                >
+                  {t('account.telegramAction')}
+                </button>
+                {hasGoogleClient ? (
+                  <div className="account-google-slot account-google-slot-inline" ref={googleButtonRef} />
+                ) : (
+                  <button className="chip" type="button" disabled>
+                    {t('account.googleTitle')}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button className="chip active" type="button" onClick={onClose}>
+                  {t('common.close')}
+                </button>
+                <button className="chip" type="button" onClick={signOut}>
+                  {t('account.signOut')}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.billingTitle')}</div>
-              <div className="section-subtitle">{t('account.billingCopy')}</div>
-            </div>
-          </div>
-          <div className="account-policy-list">
-            {(profile?.entitlements || []).map((entitlement) => (
-              <div key={entitlement} className="account-policy-item">
-                {t(`account.entitlements.${entitlement}`)}
+        {shouldShowMergeControls ? (
+          <div className="glass-card account-provider-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('account.mergeResolutionTitle')}</div>
+                <div className="section-subtitle">{t('account.mergeResolutionCopy')}</div>
               </div>
-            ))}
-            {!profile?.entitlements.length ? (
-              <div className="account-policy-item">{t('account.entitlements.cloud-sync')}</div>
-            ) : null}
-          </div>
-          <div className="account-billing-grid">
-            {premiumProducts.map((product) => (
-              <button
-                key={product.id}
-                className="account-strategy-option"
-                type="button"
-                onClick={() => void openInvoice(product.id)}
-              >
-                <span>{product.title}</span>
-                <strong>{product.amount} {product.currency}</strong>
-              </button>
-            ))}
-            {donationProducts.map((product) => (
-              <button
-                key={product.id}
-                className="account-strategy-option"
-                type="button"
-                onClick={() => void openInvoice(product.id)}
-              >
-                <span>{product.title}</span>
-                <strong>{product.amount} {product.currency}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.mergeResolutionTitle')}</div>
-              <div className="section-subtitle">{t('account.mergeResolutionCopy')}</div>
+            </div>
+            <div className="account-strategy-grid">
+              {(['combine', 'prefer-current', 'prefer-incoming'] as LibraryMergeStrategy[]).map((option) => (
+                <button
+                  key={option}
+                  className={`account-strategy-option ${mergeStrategy === option ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setMergeStrategy(option)}
+                >
+                  <span>{t(`account.mergeStrategies.${option}.title`)}</span>
+                  <strong>{t(`account.mergeStrategies.${option}.copy`)}</strong>
+                </button>
+              ))}
             </div>
           </div>
-          <div className="account-strategy-grid">
-            {(['combine', 'prefer-current', 'prefer-incoming'] as LibraryMergeStrategy[]).map((option) => (
-              <button
-                key={option}
-                className={`account-strategy-option ${mergeStrategy === option ? 'active' : ''}`}
-                type="button"
-                onClick={() => setMergeStrategy(option)}
-              >
-                <span>{t(`account.mergeStrategies.${option}.title`)}</span>
-                <strong>{t(`account.mergeStrategies.${option}.copy`)}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
+        ) : null}
 
         {pendingLinkPreview?.requiresConfirmation ? (
           <div className="glass-card account-provider-card">
@@ -451,11 +445,6 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
               {t('account.connectedAs')}: {telegramProvider.username ? `@${telegramProvider.username}` : telegramProvider.displayName}
             </div>
           ) : null}
-          {!profile && !isTelegramMiniApp ? (
-            <div className="section-subtitle">
-              {t('account.telegramGuestHint')}
-            </div>
-          ) : null}
           {telegramHint ? <div className="section-subtitle">{telegramHint}</div> : null}
         </div>
 
@@ -489,38 +478,67 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
               {t('account.connectedAs')}: {googleProvider.email || googleProvider.displayName}
             </div>
           ) : null}
-          {hasGoogleClient && !googleProvider ? (
+          {hasGoogleClient && !googleProvider && profile ? (
             <div className="account-google-slot" ref={googleButtonRef} />
           ) : (
-            !googleProvider ? <div className="section-subtitle">{t('account.googleUnavailable')}</div> : null
+            !googleProvider && profile ? <div className="section-subtitle">{t('account.googleUnavailable')}</div> : null
           )}
         </div>
 
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.mergePolicyTitle')}</div>
-              <div className="section-subtitle">{t('account.mergePolicyCopy')}</div>
+        {shouldShowBilling ? (
+          <div className="glass-card account-provider-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('account.billingTitle')}</div>
+                <div className="section-subtitle">{t('account.billingCopy')}</div>
+              </div>
+            </div>
+            <div className="account-policy-list compact">
+              {(profile?.entitlements || []).map((entitlement) => (
+                <div key={entitlement} className="account-policy-item">
+                  {t(`account.entitlements.${entitlement}`)}
+                </div>
+              ))}
+              {!profile?.entitlements.length ? (
+                <div className="account-policy-item">{t('account.entitlements.cloud-sync')}</div>
+              ) : null}
+            </div>
+            <div className="account-billing-grid">
+              {premiumProducts.map((product) => (
+                <button
+                  key={product.id}
+                  className="account-strategy-option"
+                  type="button"
+                  onClick={() => void openInvoice(product.id)}
+                >
+                  <span>{product.title}</span>
+                  <strong>{product.amount} {product.currency}</strong>
+                </button>
+              ))}
+              {donationProducts.map((product) => (
+                <button
+                  key={product.id}
+                  className="account-strategy-option"
+                  type="button"
+                  onClick={() => void openInvoice(product.id)}
+                >
+                  <span>{product.title}</span>
+                  <strong>{product.amount} {product.currency}</strong>
+                </button>
+              ))}
             </div>
           </div>
-          <div className="account-policy-list">
-            <div className="account-policy-item">{t('account.mergePolicyFavorites')}</div>
-            <div className="account-policy-item">{t('account.mergePolicyRecent')}</div>
-            <div className="account-policy-item">{t('account.mergePolicyHistory')}</div>
-            <div className="account-policy-item">{t('account.mergePolicyProviders')}</div>
-          </div>
-        </div>
+        ) : null}
 
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.auditTitle')}</div>
-              <div className="section-subtitle">{t('account.auditCopy')}</div>
+        {shouldShowAudit ? (
+          <div className="glass-card account-provider-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('account.auditTitle')}</div>
+              </div>
             </div>
-          </div>
-          {auditTrail.length ? (
             <div className="account-audit-list">
-              {auditTrail.map((event) => (
+              {auditTrail.slice(0, 5).map((event) => (
                 <div key={event.id} className="account-audit-item">
                   <div className="account-audit-title">
                     {getAuditLabel(event, t)}
@@ -530,19 +548,6 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="section-subtitle">{t('account.auditEmpty')}</div>
-          )}
-        </div>
-
-        {profile ? (
-          <div className="settings-actions">
-            <button className="chip active" type="button" onClick={onClose}>
-              {t('common.close')}
-            </button>
-            <button className="chip" type="button" onClick={signOut}>
-              {t('account.signOut')}
-            </button>
           </div>
         ) : null}
       </div>
