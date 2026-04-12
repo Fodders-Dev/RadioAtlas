@@ -32,7 +32,7 @@ test('mobile library queue survives navigation after playback starts', async ({ 
 
   await playHomeStation(page, 'Tokyo FM');
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Медиатека' }).click();
-  await page.getByRole('button', { name: 'Очередь' }).click();
+  await page.getByRole('button', { name: 'Очередь', exact: true }).click();
 
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();

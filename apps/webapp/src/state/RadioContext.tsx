@@ -362,6 +362,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
+  const nowPlayingStateRef = useRef(nowPlayingState);
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
   const libraryTab = storedShellState.libraryTab;
@@ -379,6 +380,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     historyCursorRef.current = playbackHistoryCursor;
   }, [playbackHistoryCursor]);
+
+  useEffect(() => {
+    nowPlayingStateRef.current = nowPlayingState;
+  }, [nowPlayingState]);
 
   useEffect(() => {
     if (sessionStatus !== 'authenticated') {
@@ -873,14 +878,32 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const applySnapshot = (snapshot: NowPlayingSnapshot) => {
       if (!active) return;
-      setNowPlayingState(snapshot);
-      if (snapshot.track) {
+      const previousSnapshot = nowPlayingStateRef.current;
+      const preserveFreshSseTrack =
+        !snapshot.track &&
+        previousSnapshot.track &&
+        previousSnapshot.source === 'nightride-sse' &&
+        previousSnapshot.updatedAt !== null &&
+        Date.now() - previousSnapshot.updatedAt < Math.max(basePollMs * 2, 12000);
+      const effectiveSnapshot = preserveFreshSseTrack
+        ? {
+            ...snapshot,
+            track: previousSnapshot.track,
+            status: 'ready',
+            source: previousSnapshot.source,
+            failureKind: null,
+            updatedAt: previousSnapshot.updatedAt
+          }
+        : snapshot;
+      nowPlayingStateRef.current = effectiveSnapshot;
+      setNowPlayingState(effectiveSnapshot);
+      if (effectiveSnapshot.track) {
         attempt = 0;
-        setNowPlaying(snapshot.track);
+        setNowPlaying(effectiveSnapshot.track);
         setNowPlayingStatus('ready');
       } else {
         setNowPlaying(null);
-        setNowPlayingStatus(snapshot.status === 'loading' ? 'loading' : 'unavailable');
+        setNowPlayingStatus(effectiveSnapshot.status === 'loading' ? 'loading' : 'unavailable');
       }
     };
 

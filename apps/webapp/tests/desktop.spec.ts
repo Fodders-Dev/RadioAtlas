@@ -30,7 +30,7 @@ test('desktop shell keeps navigation, queue, and expanded winamp flow intact', a
 
   await page.getByRole('button', { name: 'Медиатека' }).first().click();
   await expect(page.locator('.app-topbar-title')).toHaveText('Медиатека');
-  await page.getByRole('button', { name: 'Очередь' }).click();
+  await page.getByRole('button', { name: 'Очередь', exact: true }).click();
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
 });
 
@@ -105,6 +105,18 @@ test('metadata state recovers from unavailable to live track without losing play
 
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const sources = (
+          window as typeof window & {
+            __RA_TEST_EVENT_SOURCES__?: Array<unknown>;
+          }
+        ).__RA_TEST_EVENT_SOURCES__;
+        return sources?.length || 0;
+      })
+    )
+    .toBeGreaterThan(0);
   await page.evaluate(() => {
     const sources = (
       window as typeof window & {

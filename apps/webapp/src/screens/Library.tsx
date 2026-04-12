@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
+import { useEffect, useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
@@ -23,7 +22,7 @@ export const Library = () => {
     libraryTab,
     setLibraryTab
   } = useRadio();
-  const { status: sessionStatus, syncState, profile, library } = useSession();
+  const { status: sessionStatus, syncState, openAccountSheet } = useSession();
   const { locale, t } = useLocale();
   const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -37,23 +36,6 @@ export const Library = () => {
   }, []);
 
   const compactRows = viewportWidth < 720;
-  const libraryDiscovery = useMemo(
-    () =>
-      createLibraryDiscoveryFeed({
-        current: player.current,
-        queuePreview: queue.items.slice(
-          Math.max(queue.currentIndex, 0),
-          Math.max(queue.currentIndex, 0) + 4
-        ),
-        recent,
-        favorites,
-        playbackHistory,
-        trackHistory,
-        linkedProviders: profile?.linkedProviders || [],
-        libraryUpdatedAt: library?.updatedAt || null
-      }),
-    [favorites, library?.updatedAt, playbackHistory, player.current, profile?.linkedProviders, queue.currentIndex, queue.items, recent, trackHistory]
-  );
 
   const formatTime = (value: number) =>
     new Date(value).toLocaleString(locale, {
@@ -66,11 +48,8 @@ export const Library = () => {
 
   return (
     <section className="screen screen-library-v2">
-      <div className="glass-card library-header-card">
-        <div className="library-header-copy">
-          <div className="shell-kicker">{t('library.kicker')}</div>
-          <div className="section-title">{t('library.title')}</div>
-          <div className="section-subtitle">{t('library.subtitle')}</div>
+      <div className="glass-card library-toolbar-card">
+        <div className="library-toolbar-head">
           <div className="library-header-stats">
             <div className="globe-selection-pill">
               <span>{t('library.tabs.favorites')}</span>
@@ -93,8 +72,19 @@ export const Library = () => {
               </strong>
             </div>
           </div>
+          <div className="chip-row library-toolbar-actions">
+            <button className="chip" type="button" onClick={openAccountSheet}>
+              {t('account.manage')}
+            </button>
+            <button className="chip" type="button" onClick={() => setLibraryTab('history')}>
+              {t('library.openHistoryAction')}
+            </button>
+            <button className="chip" type="button" onClick={() => setLibraryTab(player.current ? 'queue' : 'recent')}>
+              {player.current ? t('library.openQueueAction') : t('library.openRecentAction')}
+            </button>
+          </div>
         </div>
-        <div className="chip-row">
+        <div className="chip-row library-toolbar-tabs">
           {TAB_ORDER.map((tab) => (
             <button
               key={tab}
@@ -105,92 +95,6 @@ export const Library = () => {
               {t(`library.tabs.${tab}`)}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="library-overview-grid">
-        <div className="glass-card library-overview-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('library.returnToAirTitle')}</div>
-              <div className="section-subtitle">{t('library.returnToAirCopy')}</div>
-            </div>
-            <button className="chip" type="button" onClick={() => setLibraryTab('recent')}>
-              {t('library.tabs.recent')}
-            </button>
-          </div>
-          {libraryDiscovery.returnToAir.length ? (
-            <StationTable stations={libraryDiscovery.returnToAir} compact sourceId="library-return-to-air" />
-          ) : (
-            <div className="empty-state library-empty-state">
-              <div className="library-empty-title">{t('library.returnToAirEmptyTitle')}</div>
-              <div className="section-subtitle">{t('library.returnToAirEmptyCopy')}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="glass-card library-overview-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('library.cloudTitle')}</div>
-              <div className="section-subtitle">
-                {sessionStatus === 'authenticated'
-                  ? t('library.cloudReadyCopy', { status: t(`account.syncStates.${syncState}`) })
-                  : t('library.cloudLocalCopy')}
-              </div>
-            </div>
-            <button className="chip" type="button" onClick={() => setLibraryTab('history')}>
-              {t('library.tabs.history')}
-            </button>
-          </div>
-          <div className="library-overview-pills">
-            <div className={`globe-selection-pill ${libraryDiscovery.cloudSummary.mode === 'cloud' ? 'active' : ''}`}>
-              <span>{t('account.syncStatus')}</span>
-              <strong>
-                {sessionStatus === 'authenticated'
-                  ? t(`account.syncStates.${syncState}`)
-                  : t('account.local')}
-              </strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('library.cloudProviders')}</span>
-              <strong>
-                {libraryDiscovery.cloudSummary.providerKinds.length
-                  ? libraryDiscovery.cloudSummary.providerKinds.map((kind) => t(`account.providers.${kind}`)).join(' · ')
-                  : t('account.local')}
-              </strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('library.cloudLastSync')}</span>
-              <strong>
-                {libraryDiscovery.cloudSummary.updatedAt
-                  ? formatTime(libraryDiscovery.cloudSummary.updatedAt)
-                  : t('common.unavailable')}
-              </strong>
-            </div>
-          </div>
-          {libraryDiscovery.journalPreview.length ? (
-            <div className="library-mini-track-list">
-              {libraryDiscovery.journalPreview.map((item) => (
-                <button
-                  key={item.id}
-                  className="library-mini-track"
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(item.track)}
-                >
-                  <strong title={item.track}>{item.track}</strong>
-                  <span title={item.stationName}>{item.stationName}</span>
-                </button>
-              ))}
-            </div>
-          ) : libraryDiscovery.favoritesPreview.length ? (
-            <StationTable stations={libraryDiscovery.favoritesPreview} compact sourceId="library-favorites-preview" />
-          ) : (
-            <div className="empty-state library-empty-state">
-              <div className="library-empty-title">{t('library.cloudEmptyTitle')}</div>
-              <div className="section-subtitle">{t('library.cloudEmptyCopy')}</div>
-            </div>
-          )}
         </div>
       </div>
 

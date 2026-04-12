@@ -2418,6 +2418,7 @@ input {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .station-table.compact .station-compact-play,
@@ -3606,6 +3607,23 @@ body {
   gap: 12px;
 }
 
+.library-toolbar-card {
+  display: grid;
+  gap: 12px;
+}
+
+.library-toolbar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.library-toolbar-actions,
+.library-toolbar-tabs {
+  width: 100%;
+}
+
 .search-shell-header .chip-row,
 .library-header-card .chip-row {
   justify-content: flex-end;
@@ -4716,6 +4734,11 @@ body {
     flex-direction: column;
   }
 
+  .library-toolbar-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .search-shell-controls,
   .search-mode-switcher {
     width: 100%;
@@ -4729,6 +4752,10 @@ body {
 
   .search-shell-header .chip-row,
   .library-header-card .chip-row {
+    justify-content: flex-start;
+  }
+
+  .library-toolbar-actions {
     justify-content: flex-start;
   }
 
@@ -5149,6 +5176,30 @@ body {
 
   .player-peek-handle.dormant {
     max-width: min(180px, calc(100vw - 96px));
+  }
+}
+
+@media (max-width: 520px) {
+  .station-table.compact .station-row {
+    padding: 8px 10px;
+  }
+
+  .station-compact-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .station-compact-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .station-table.compact .station-compact-play,
+  .station-table.compact .station-fav-btn {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
   }
 }
 
