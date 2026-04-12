@@ -1,19 +1,25 @@
 radioatlas.duckdns.org {
-  encode zstd gzip
+	encode zstd gzip
 
-  @api path /api /api/*
-  handle @api {
-    uri strip_prefix /api
-    reverse_proxy 127.0.0.1:3001
-  }
+	route {
+		handle_path /api/* {
+			reverse_proxy 127.0.0.1:3001
+		}
 
-  root * /opt/RadioAtlas/current/apps/webapp/dist
+		handle /api {
+			reverse_proxy 127.0.0.1:3001
+		}
 
-  @appRuntime {
-    path /assets/* /winamp-skins/* /catalog-fast.json /catalog-full.json /favicon* /manifest.json
-  }
-  header @appRuntime Cache-Control "public, max-age=86400"
+		handle {
+			root * /opt/RadioAtlas/current/apps/webapp/dist
 
-  try_files {path} /index.html
-  file_server
+			@appRuntime {
+				path /assets/* /winamp-skins/* /catalog-fast.json /catalog-full.json /favicon* /manifest.json
+			}
+			header @appRuntime Cache-Control "public, max-age=86400"
+
+			try_files {path} /index.html
+			file_server
+		}
+	}
 }
