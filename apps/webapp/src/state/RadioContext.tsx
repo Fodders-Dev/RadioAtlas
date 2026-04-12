@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import type { NowPlayingSnapshot } from '../domain/contracts';
 import type {
   ActiveWinampSkin,
   AppSection,
@@ -12,12 +13,13 @@ import type {
   WinampSkinSource
 } from '../types';
 import { fetchStations, clearStationsCache } from '../lib/radioBrowser';
-import { fetchNowPlaying, subscribeNowPlaying } from '../lib/nowPlaying';
+import { fetchNowPlayingSnapshot, shouldUseLowImpactMetadata, subscribeNowPlaying } from '../lib/nowPlaying';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
 import { useLocale } from './LocaleContext';
+import { useSession } from './SessionContext';
 import { getApiBase } from '../lib/apiBase';
 import { applySkinPalette, applySkinThemeFromUrl } from '../lib/skinTheme';
 import { fetchMuseumSkinByMd5 } from '../lib/skinMuseum';
@@ -119,6 +121,7 @@ type RadioContextValue = {
   toast: string | null;
   nowPlaying: string | null;
   nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
+  nowPlayingState: NowPlayingSnapshot;
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
   player: ReturnType<typeof useAudioPlayer>;
@@ -180,6 +183,14 @@ const DEFAULT_SHELL_STATE: StoredShellState = {
   libraryTab: 'favorites',
   detailsOpen: false
 };
+const IDLE_NOW_PLAYING_STATE: NowPlayingSnapshot = {
+  track: null,
+  status: 'idle',
+  source: 'none',
+  failureKind: null,
+  recommendedPollMs: 15000,
+  updatedAt: null
+};
 
 const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
   const preset = findPresetSkin(presetId);
@@ -211,6 +222,33 @@ const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefin
 
 const normalizeStations = (stations: Array<Station | StationLite>) =>
   mergeUniqueStations(stations.map((station) => toLite(station))).slice(0, MAX_QUEUE_ITEMS);
+
+const mergeTrackHistory = (...groups: TrackHistoryItem[][]) => {
+  const seen = new Set<string>();
+  return groups
+    .flat()
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .filter((item) => {
+      const key = `${item.stationId}:${item.track.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_TRACK_HISTORY);
+};
+
+const stationsMatch = (left: StationLite[], right: StationLite[]) =>
+  left.length === right.length &&
+  left.every((station, index) => station.stationuuid === right[index]?.stationuuid);
+
+const trackHistoryMatch = (left: TrackHistoryItem[], right: TrackHistoryItem[]) =>
+  left.length === right.length &&
+  left.every(
+    (item, index) =>
+      item.stationId === right[index]?.stationId &&
+      item.track === right[index]?.track &&
+      item.timestamp === right[index]?.timestamp
+  );
 
 const getQueueSourceLabel = (
   sourceId: string | null | undefined,
@@ -253,6 +291,8 @@ const clampQueueIndex = (items: StationLite[], index: number) => {
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLocale();
+  const { status: sessionStatus, profile: sessionProfile, library: cloudLibrary, replaceCloudLibrary } =
+    useSession();
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,6 +301,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [nowPlayingStatus, setNowPlayingStatus] = useState<
     'idle' | 'loading' | 'ready' | 'unavailable'
   >('idle');
+  const [nowPlayingState, setNowPlayingState] = useState<NowPlayingSnapshot>(IDLE_NOW_PLAYING_STATE);
   const [trackHistory, setTrackHistory] = useLocalStorage<TrackHistoryItem[]>(
     'radio:track-history',
     []
@@ -317,6 +358,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     onEvent: logDebug
   });
   const startHandledRef = useRef(false);
+  const hydratedCloudProfileRef = useRef<string | null>(null);
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -339,6 +381,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [playbackHistoryCursor]);
 
   useEffect(() => {
+    if (sessionStatus !== 'authenticated') {
+      hydratedCloudProfileRef.current = null;
+    }
+  }, [sessionStatus]);
+
+  useEffect(() => {
     if (storedLayout?.version === 3) return;
     setStoredLayout({
       version: 3,
@@ -351,6 +399,96 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (storedShellState?.version === 1) return;
     setStoredShellState(DEFAULT_SHELL_STATE);
   }, [setStoredShellState, storedShellState]);
+
+  useEffect(() => {
+    if (
+      sessionStatus !== 'authenticated' ||
+      !sessionProfile?.id ||
+      !cloudLibrary ||
+      hydratedCloudProfileRef.current === sessionProfile.id
+    ) {
+      return;
+    }
+
+    hydratedCloudProfileRef.current = sessionProfile.id;
+
+    const mergedFavorites = mergeUniqueStations(cloudLibrary.favorites, favorites);
+    const mergedRecent = mergeUniqueStations(cloudLibrary.recent, recent).slice(0, MAX_RECENT);
+    const mergedTrackHistory = mergeTrackHistory(cloudLibrary.trackHistory as TrackHistoryItem[], trackHistory);
+
+    if (!stationsMatch(mergedFavorites, favorites)) {
+      setFavorites(mergedFavorites);
+    }
+    if (!stationsMatch(mergedRecent, recent)) {
+      setRecent(mergedRecent);
+    }
+    if (!trackHistoryMatch(mergedTrackHistory, trackHistory)) {
+      setTrackHistory(mergedTrackHistory);
+    }
+
+    const remoteNeedsUpdate =
+      !stationsMatch(mergedFavorites, cloudLibrary.favorites) ||
+      !stationsMatch(mergedRecent, cloudLibrary.recent) ||
+      !trackHistoryMatch(mergedTrackHistory, cloudLibrary.trackHistory as TrackHistoryItem[]);
+
+    if (remoteNeedsUpdate) {
+      void replaceCloudLibrary({
+        favorites: mergedFavorites,
+        recent: mergedRecent,
+        trackHistory: mergedTrackHistory
+      });
+    }
+  }, [
+    cloudLibrary,
+    favorites,
+    recent,
+    replaceCloudLibrary,
+    sessionProfile?.id,
+    sessionStatus,
+    trackHistory,
+    setFavorites,
+    setRecent,
+    setTrackHistory
+  ]);
+
+  useEffect(() => {
+    if (
+      sessionStatus !== 'authenticated' ||
+      !sessionProfile?.id ||
+      hydratedCloudProfileRef.current !== sessionProfile.id
+    ) {
+      return;
+    }
+
+    const nextRecent = recent.slice(0, MAX_RECENT);
+    const nextTrackHistory = trackHistory.slice(0, MAX_TRACK_HISTORY);
+    const sameAsCloud =
+      stationsMatch(favorites, cloudLibrary?.favorites || []) &&
+      stationsMatch(nextRecent, cloudLibrary?.recent || []) &&
+      trackHistoryMatch(nextTrackHistory, (cloudLibrary?.trackHistory || []) as TrackHistoryItem[]);
+
+    if (sameAsCloud) return;
+
+    const timeout = window.setTimeout(() => {
+      void replaceCloudLibrary({
+        favorites,
+        recent: nextRecent,
+        trackHistory: nextTrackHistory
+      });
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    cloudLibrary?.favorites,
+    cloudLibrary?.recent,
+    cloudLibrary?.trackHistory,
+    favorites,
+    recent,
+    replaceCloudLibrary,
+    sessionProfile?.id,
+    sessionStatus,
+    trackHistory
+  ]);
 
   useEffect(() => {
     if (!playbackHistoryEntries.length) {
@@ -705,57 +843,124 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!station || !player.isPlaying) {
       setNowPlaying(null);
       setNowPlayingStatus('idle');
+      setNowPlayingState(IDLE_NOW_PLAYING_STATE);
       return;
     }
 
     let active = true;
-    let lastUpdate = 0;
+    let inFlight = false;
+    let attempt = 0;
+    let pollTimer: number | null = null;
+    const controller = new AbortController();
+    const lowImpactMetadata = shouldUseLowImpactMetadata();
+    const metadataPollOverride =
+      typeof window !== 'undefined' &&
+      typeof (window as typeof window & { __RA_METADATA_POLL_MS__?: number }).__RA_METADATA_POLL_MS__ === 'number'
+        ? Math.max(
+            100,
+            Number(
+              (window as typeof window & { __RA_METADATA_POLL_MS__?: number }).__RA_METADATA_POLL_MS__
+            )
+          )
+        : null;
+    const basePollMs = metadataPollOverride || (lowImpactMetadata ? 45000 : 15000);
     setNowPlayingStatus('loading');
+    setNowPlayingState({
+      ...IDLE_NOW_PLAYING_STATE,
+      status: 'loading',
+      recommendedPollMs: basePollMs
+    });
 
-    const applyTrack = (track: string | null) => {
+    const applySnapshot = (snapshot: NowPlayingSnapshot) => {
       if (!active) return;
-      if (track) {
-        lastUpdate = Date.now();
-        setNowPlaying(track);
+      setNowPlayingState(snapshot);
+      if (snapshot.track) {
+        attempt = 0;
+        setNowPlaying(snapshot.track);
         setNowPlayingStatus('ready');
-      } else if (Date.now() - lastUpdate > 20000) {
+      } else {
         setNowPlaying(null);
-        setNowPlayingStatus('unavailable');
+        setNowPlayingStatus(snapshot.status === 'loading' ? 'loading' : 'unavailable');
       }
     };
 
-    const unsubscribe = subscribeNowPlaying(station, applyTrack);
+    const scheduleNext = (baseMs: number, success: boolean) => {
+      if (!active) return;
+      const delay = success ? baseMs : Math.min(baseMs * 2 ** Math.min(attempt, 2), 90000);
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+      }
+      pollTimer = window.setTimeout(() => {
+        void update();
+      }, delay);
+    };
+
+    const unsubscribe = subscribeNowPlaying(station, (track) => {
+      applySnapshot({
+        track,
+        status: track ? 'ready' : 'unavailable',
+        source: 'nightride-sse',
+        failureKind: track ? null : 'metadata-unavailable',
+        recommendedPollMs: basePollMs,
+        updatedAt: track ? Date.now() : null
+      });
+    });
 
     const update = async () => {
+      if (inFlight || controller.signal.aborted) {
+        return;
+      }
+      inFlight = true;
       try {
-        const track = await fetchNowPlaying(station, logDebug);
-        if (track) {
-          logDebug(`Metadata: ${track}`);
-        } else if (Date.now() - lastUpdate > 20000) {
-          logDebug(`Metadata: null (API: ${getApiBase() || 'default'})`);
+        const snapshot = await fetchNowPlayingSnapshot(station, logDebug, {
+          signal: controller.signal,
+          lowImpact: lowImpactMetadata
+        });
+        const effectiveSnapshot = metadataPollOverride
+          ? { ...snapshot, recommendedPollMs: basePollMs }
+          : snapshot;
+        if (effectiveSnapshot.track) {
+          logDebug(`Metadata: ${effectiveSnapshot.track}`);
+        } else {
+          attempt += 1;
+          logDebug(
+            `Metadata: null (${effectiveSnapshot.failureKind || 'no-source'} / API: ${getApiBase() || 'default'})`
+          );
         }
-        applyTrack(track);
+        applySnapshot(effectiveSnapshot);
+        scheduleNext(effectiveSnapshot.recommendedPollMs, Boolean(effectiveSnapshot.track));
       } catch (metadataError) {
-        logDebug(
-          `Metadata Err: ${
-            metadataError instanceof Error ? metadataError.message : String(metadataError)
-          }`
-        );
+        if (!controller.signal.aborted) {
+          attempt += 1;
+          logDebug(
+            `Metadata Err: ${
+              metadataError instanceof Error ? metadataError.message : String(metadataError)
+            }`
+          );
+          const failedSnapshot: NowPlayingSnapshot = {
+            track: null,
+            status: 'unavailable',
+            source: 'none',
+            failureKind: 'unknown',
+            recommendedPollMs: basePollMs,
+            updatedAt: null
+          };
+          applySnapshot(failedSnapshot);
+          scheduleNext(failedSnapshot.recommendedPollMs, false);
+        }
+      } finally {
+        inFlight = false;
       }
     };
 
     void update();
-    const interval = window.setInterval(update, 15000);
-    const timeout = window.setTimeout(() => {
-      if (!lastUpdate) {
-        setNowPlayingStatus('unavailable');
-      }
-    }, 8000);
 
     return () => {
       active = false;
-      window.clearInterval(interval);
-      window.clearTimeout(timeout);
+      controller.abort();
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+      }
       unsubscribe?.();
     };
   }, [player.current?.stationuuid, player.isPlaying]);
@@ -1228,6 +1433,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     toast,
     nowPlaying,
     nowPlayingStatus,
+    nowPlayingState,
     trackHistory,
     playbackHistory: playbackHistoryEntries,
     player,

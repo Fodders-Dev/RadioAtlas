@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { stationLocation } from '../lib/stationUtils';
+import { loadWinampPlayerShell } from '../lib/screenLoaders';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
@@ -28,6 +29,7 @@ export const MiniPlayerDock = () => {
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
   const queueCount = Math.max(queue.items.length, 0);
+  const isDormantDock = !current && queueCount === 0;
   const activeTrack = nowPlaying?.trim() || '';
   const stationTitle = current?.name || t('dock.emptyTitle');
   const trackTitle = activeTrack
@@ -51,23 +53,38 @@ export const MiniPlayerDock = () => {
     }
   }, [playerPresentation]);
 
+  useEffect(() => {
+    if (!current) return;
+    const schedulePreload = () => {
+      void loadWinampPlayerShell();
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const handle = window.requestIdleCallback(schedulePreload, { timeout: 1400 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(schedulePreload, 420);
+    return () => window.clearTimeout(handle);
+  }, [current]);
+
   if (playerPresentation === 'expanded' && winamp.expanded) {
     return null;
   }
 
   if (playerPresentation === 'peek') {
     return (
-      <div className="player-dock player-dock-peek">
+      <div className="player-dock player-dock-peek" data-empty={isDormantDock ? 'true' : 'false'}>
         <button
-          className="player-peek-handle"
+          className={`player-peek-handle ${isDormantDock ? 'dormant' : ''}`}
           type="button"
           onClick={() => setPlayerPresentation('bar')}
         >
           <span className="player-peek-pill" />
-          <span>{current ? current.name : t('dock.peekLabel')}</span>
-          <span className="player-peek-meta">
-            {queueCount ? t('dock.queueCount', { count: queueCount }) : t('dock.peekHint')}
-          </span>
+          <span className="player-peek-label">{current ? current.name : t('dock.peekLabel')}</span>
+          {!isDormantDock ? (
+            <span className="player-peek-meta">
+              {queueCount ? t('dock.queueCount', { count: queueCount }) : t('dock.peekHint')}
+            </span>
+          ) : null}
         </button>
       </div>
     );
@@ -208,6 +225,8 @@ export const MiniPlayerDock = () => {
         <button
           className="dock-expand-btn"
           type="button"
+          onMouseEnter={() => void loadWinampPlayerShell()}
+          onFocus={() => void loadWinampPlayerShell()}
           onClick={() => {
             setTrayMode(null);
             setPlayerPresentation('expanded');

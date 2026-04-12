@@ -19,6 +19,36 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(buildTime),
     __APP_COMMIT__: JSON.stringify(commitHash)
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/src/components/WinampPlayerShell') || id.includes('/src/lib/winampBridge')) {
+            return 'winamp-shell';
+          }
+          if (id.includes('node_modules/jszip')) {
+            return 'webamp-zip-vendor';
+          }
+          if (id.includes('node_modules/webamp')) {
+            return 'webamp-core-vendor';
+          }
+          if (id.includes('node_modules/hls.js')) {
+            return 'hls-core-vendor';
+          }
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
+            return 'react-vendor';
+          }
+          if (id.includes('/src/lib/geoResolver') || id.includes('/src/assets/countries-110m.json')) {
+            return 'globe-geo-data';
+          }
+          if (id.includes('node_modules/d3-geo') || id.includes('node_modules/topojson-client')) {
+            return 'globe-vendor';
+          }
+          return undefined;
+        }
+      }
+    }
+  },
   server: {
     host: true,
     port: 5173,

@@ -1,6 +1,23 @@
 import 'dotenv/config';
 import express from 'express';
 import { Readable } from 'node:stream';
+import {
+  consumeLinkRequest,
+  createLinkRequest,
+  createSessionForAccount,
+  getAccountAuditTrail,
+  getAccountByToken,
+  type LibraryMergeStrategy,
+  linkGoogleIdentity,
+  linkTelegramIdentity,
+  previewGoogleLink,
+  previewTelegramLink,
+  recordAccountEvent,
+  unlinkProvider,
+  updateAccountLibrary
+} from './accountStore.js';
+import { verifyGoogleIdToken } from './googleAuth.js';
+import { validateTelegramInitData } from './telegramAuth.js';
 
 const API_URLS = [
   'https://de1.api.radio-browser.info/json/stations/search',
@@ -15,6 +32,9 @@ const PAGE_LIMIT = 10000;
 const FAST_LIMIT = 10000;
 const MAX_PAGES = 5;
 const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://127.0.0.1:4001';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
 const BLOCKED_HOSTS = [
   'youtube.com',
   'youtu.be',
@@ -47,11 +67,12 @@ type CacheEntry = {
 
 const app = express();
 app.set('trust proxy', 1);
+app.use(express.json({ limit: '1mb' }));
 
 const corsHeaders = (res: express.Response) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader(
     'Access-Control-Expose-Headers',
     'Content-Length, Content-Range, Accept-Ranges, Content-Type'
@@ -207,6 +228,456 @@ const rewriteM3U8 = (body: string, sourceUrl: string, proxyBase: string) => {
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
+
+const getBearerToken = (req: express.Request) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return '';
+  return header.slice('Bearer '.length).trim();
+};
+
+const toClientProfile = (account: NonNullable<Awaited<ReturnType<typeof getAccountByToken>>>) => ({
+  id: account.id,
+  displayName: account.displayName,
+  username: account.username,
+  email: account.email,
+  photoUrl: account.photoUrl,
+  isPremium: account.isPremium,
+  linkedProviders: account.providers.map((provider) => provider.kind),
+  providers: account.providers,
+  library: account.library
+});
+
+const buildSessionEnvelope = async (
+  token: string,
+  account: NonNullable<Awaited<ReturnType<typeof getAccountByToken>>>
+) => ({
+  token,
+  profile: toClientProfile(account),
+  auditTrail: await getAccountAuditTrail(account.id)
+});
+
+const parseMergeStrategy = (value: unknown): LibraryMergeStrategy => {
+  if (value === 'prefer-current' || value === 'prefer-incoming') {
+    return value;
+  }
+  return 'combine';
+};
+
+const encodeFixtureGoogleCredential = (identity: {
+  sub: string;
+  name?: string;
+  email?: string;
+  picture?: string;
+  email_verified?: boolean;
+}) =>
+  `fixture-google:${Buffer.from(JSON.stringify(identity), 'utf8').toString('base64url')}`;
+
+app.post('/auth/telegram', async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    res.status(503).json({ error: 'telegram auth is not configured' });
+    return;
+  }
+
+  const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
+  if (!initData.trim()) {
+    res.status(400).json({ error: 'initData is required' });
+    return;
+  }
+
+  try {
+    const validated = validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
+    const currentToken = getBearerToken(req);
+    const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+    const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+    const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
+    const linkRequest =
+      !currentAccount && linkCode
+        ? await consumeLinkRequest(linkCode)
+        : validated.startParam?.startsWith('link_')
+          ? await consumeLinkRequest(validated.startParam.slice('link_'.length))
+          : null;
+    const account = await linkTelegramIdentity(
+      validated.user,
+      currentAccount?.id || linkRequest?.accountId || null,
+      currentAccount ? requestedMergeStrategy : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+    );
+    const token = currentToken || (account ? await createSessionForAccount(account.id) : '');
+    await recordAccountEvent(
+      account!.id,
+      'sign_in',
+      { reusedSession: Boolean(currentToken) },
+      { kind: 'telegram', externalId: String(validated.user.id) }
+    );
+    res.json(await buildSessionEnvelope(token, account!));
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'telegram auth failed' });
+  }
+});
+
+app.post('/auth/telegram/preview', async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    res.status(503).json({ error: 'telegram auth is not configured' });
+    return;
+  }
+
+  const initData = typeof req.body?.initData === 'string' ? req.body.initData : '';
+  if (!initData.trim()) {
+    res.status(400).json({ error: 'initData is required' });
+    return;
+  }
+
+  try {
+    const validated = validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
+    const currentToken = getBearerToken(req);
+    const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+    const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+    const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
+    const linkRequest =
+      !currentAccount && linkCode
+        ? await consumeLinkRequest(linkCode)
+        : validated.startParam?.startsWith('link_')
+          ? await consumeLinkRequest(validated.startParam.slice('link_'.length))
+          : null;
+    const preview = await previewTelegramLink(
+      validated.user,
+      currentAccount?.id || linkRequest?.accountId || null,
+      currentAccount ? requestedMergeStrategy : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+    );
+    res.json({ preview });
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'telegram auth preview failed' });
+  }
+});
+
+app.post('/auth/google', async (req, res) => {
+  if (!GOOGLE_CLIENT_ID) {
+    res.status(503).json({ error: 'google auth is not configured' });
+    return;
+  }
+
+  const credential = typeof req.body?.credential === 'string' ? req.body.credential : '';
+  if (!credential.trim()) {
+    res.status(400).json({ error: 'credential is required' });
+    return;
+  }
+
+  try {
+    const identity = await verifyGoogleIdToken(credential, GOOGLE_CLIENT_ID);
+    const currentToken = getBearerToken(req);
+    const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+    const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+    const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
+    const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+    const account = await linkGoogleIdentity(
+      identity,
+      currentAccount?.id || linkRequest?.accountId || null,
+      currentAccount ? requestedMergeStrategy : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+    );
+    const token = currentToken || (account ? await createSessionForAccount(account.id) : '');
+    await recordAccountEvent(
+      account!.id,
+      'sign_in',
+      { reusedSession: Boolean(currentToken) },
+      { kind: 'google', externalId: identity.sub }
+    );
+    res.json(await buildSessionEnvelope(token, account!));
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'google auth failed' });
+  }
+});
+
+app.post('/auth/google/preview', async (req, res) => {
+  if (!GOOGLE_CLIENT_ID) {
+    res.status(503).json({ error: 'google auth is not configured' });
+    return;
+  }
+
+  const credential = typeof req.body?.credential === 'string' ? req.body.credential : '';
+  if (!credential.trim()) {
+    res.status(400).json({ error: 'credential is required' });
+    return;
+  }
+
+  try {
+    const identity = await verifyGoogleIdToken(credential, GOOGLE_CLIENT_ID);
+    const currentToken = getBearerToken(req);
+    const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+    const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+    const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
+    const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+    const preview = await previewGoogleLink(
+      identity,
+      currentAccount?.id || linkRequest?.accountId || null,
+      currentAccount ? requestedMergeStrategy : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+    );
+    res.json({ preview });
+  } catch (err) {
+    res.status(401).json({ error: err instanceof Error ? err.message : 'google auth preview failed' });
+  }
+});
+
+app.get('/me', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+
+  res.json({
+    profile: toClientProfile(account),
+    auditTrail: await getAccountAuditTrail(account.id)
+  });
+});
+
+app.put('/me/library', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+
+  const nextAccount = await updateAccountLibrary(account.id, req.body);
+  if (!nextAccount) {
+    res.status(404).json({ error: 'account not found' });
+    return;
+  }
+
+  res.json({
+    profile: toClientProfile(nextAccount),
+    auditTrail: await getAccountAuditTrail(nextAccount.id)
+  });
+});
+
+app.post('/me/link-request', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+
+  const request = await createLinkRequest(account.id, parseMergeStrategy(req.body?.mergeStrategy));
+  res.json({
+    code: request.code,
+    mergeStrategy: request.mergeStrategy,
+    expiresAt: request.expiresAt,
+    auditTrail: await getAccountAuditTrail(account.id)
+  });
+});
+
+app.delete('/me/providers/:kind', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+
+  const kind = req.params.kind;
+  if (kind !== 'telegram' && kind !== 'google') {
+    res.status(400).json({ error: 'provider kind is invalid' });
+    return;
+  }
+
+  try {
+    const nextAccount = await unlinkProvider(account.id, kind);
+    if (!nextAccount) {
+      res.status(404).json({ error: 'account not found' });
+      return;
+    }
+
+    res.json({
+      profile: toClientProfile(nextAccount),
+      auditTrail: await getAccountAuditTrail(nextAccount.id)
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'provider unlink failed' });
+  }
+});
+
+app.get('/me/audit', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 12), 50));
+  res.json({ auditTrail: await getAccountAuditTrail(account.id, limit) });
+});
+
+if (ENABLE_TEST_AUTH_FIXTURES) {
+  app.post('/test/auth/seed-conflict', async (req, res) => {
+    const mergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const currentTelegramUser = {
+      id: Number(String(Date.now()).slice(-9)),
+      first_name: 'Fixture',
+      last_name: 'Current',
+      username: `fixture_current_${stamp.replace(/[^a-z0-9]/gi, '').slice(0, 16)}`,
+      is_premium: true
+    };
+    const incomingGoogleIdentity = {
+      sub: `fixture-google-${stamp}`,
+      name: 'Fixture Incoming',
+      email: `fixture-incoming-${stamp}@example.com`,
+      email_verified: true
+    };
+
+    const currentAccount = await linkTelegramIdentity(currentTelegramUser, null, mergeStrategy);
+    const incomingAccount = await linkGoogleIdentity(incomingGoogleIdentity, null, mergeStrategy);
+
+    const currentLibrary = {
+      favorites: [
+        {
+          stationuuid: `fixture-current-fav-a-${stamp}`,
+          name: 'Current Favorite A',
+          url_resolved: 'https://stream.example.com/current-a',
+          favicon: '',
+          country: 'Russia',
+          state: 'Moscow',
+          tags: 'indie',
+          geo_lat: null,
+          geo_long: null
+        },
+        {
+          stationuuid: `fixture-current-fav-b-${stamp}`,
+          name: 'Current Favorite B',
+          url_resolved: 'https://stream.example.com/current-b',
+          favicon: '',
+          country: 'Germany',
+          state: 'Berlin',
+          tags: 'ambient',
+          geo_lat: null,
+          geo_long: null
+        }
+      ],
+      recent: [
+        {
+          stationuuid: `fixture-current-recent-${stamp}`,
+          name: 'Current Recent',
+          url_resolved: 'https://stream.example.com/current-recent',
+          favicon: '',
+          country: 'Japan',
+          state: 'Tokyo',
+          tags: 'city pop',
+          geo_lat: null,
+          geo_long: null
+        }
+      ],
+      trackHistory: [
+        {
+          id: `fixture-current-track-${stamp}`,
+          stationId: `fixture-current-fav-a-${stamp}`,
+          stationName: 'Current Favorite A',
+          track: 'Current Track',
+          timestamp: Date.now() - 1000
+        }
+      ],
+      updatedAt: Date.now()
+    };
+
+    const incomingLibrary = {
+      favorites: [
+        {
+          stationuuid: `fixture-incoming-fav-${stamp}`,
+          name: 'Incoming Favorite',
+          url_resolved: 'https://stream.example.com/incoming-fav',
+          favicon: '',
+          country: 'France',
+          state: 'Paris',
+          tags: 'electro',
+          geo_lat: null,
+          geo_long: null
+        }
+      ],
+      recent: [
+        {
+          stationuuid: `fixture-incoming-recent-a-${stamp}`,
+          name: 'Incoming Recent A',
+          url_resolved: 'https://stream.example.com/incoming-recent-a',
+          favicon: '',
+          country: 'Brazil',
+          state: 'Rio',
+          tags: 'samba',
+          geo_lat: null,
+          geo_long: null
+        },
+        {
+          stationuuid: `fixture-incoming-recent-b-${stamp}`,
+          name: 'Incoming Recent B',
+          url_resolved: 'https://stream.example.com/incoming-recent-b',
+          favicon: '',
+          country: 'USA',
+          state: 'New York',
+          tags: 'jazz',
+          geo_lat: null,
+          geo_long: null
+        }
+      ],
+      trackHistory: [
+        {
+          id: `fixture-incoming-track-${stamp}`,
+          stationId: `fixture-incoming-fav-${stamp}`,
+          stationName: 'Incoming Favorite',
+          track: 'Incoming Track',
+          timestamp: Date.now()
+        }
+      ],
+      updatedAt: Date.now()
+    };
+
+    const hydratedCurrent = await updateAccountLibrary(currentAccount!.id, currentLibrary);
+    const hydratedIncoming = await updateAccountLibrary(incomingAccount!.id, incomingLibrary);
+    const token = await createSessionForAccount(currentAccount!.id);
+
+    res.json({
+      token,
+      currentAccountId: hydratedCurrent?.id || currentAccount!.id,
+      incomingAccountId: hydratedIncoming?.id || incomingAccount!.id,
+      incomingCredential: encodeFixtureGoogleCredential(incomingGoogleIdentity),
+      mergeStrategy,
+      currentCounts: {
+        favorites: hydratedCurrent?.library.favorites.length || 0,
+        recent: hydratedCurrent?.library.recent.length || 0,
+        trackHistory: hydratedCurrent?.library.trackHistory.length || 0
+      },
+      incomingCounts: {
+        favorites: hydratedIncoming?.library.favorites.length || 0,
+        recent: hydratedIncoming?.library.recent.length || 0,
+        trackHistory: hydratedIncoming?.library.trackHistory.length || 0
+      }
+    });
+  });
+}
 
 app.get('/catalog', async (req, res) => {
   try {

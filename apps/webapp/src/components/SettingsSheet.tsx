@@ -5,9 +5,11 @@ type SettingsSheetProps = {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
+  kicker?: string;
+  title?: string;
 };
 
-export const SettingsSheet = ({ open, onClose, children }: SettingsSheetProps) => {
+export const SettingsSheet = ({ open, onClose, children, kicker, title }: SettingsSheetProps) => {
   const { t } = useLocale();
 
   if (!open) {
@@ -25,8 +27,8 @@ export const SettingsSheet = ({ open, onClose, children }: SettingsSheetProps) =
       <div className="settings-sheet-card">
         <div className="settings-sheet-head">
           <div>
-            <div className="settings-sheet-kicker">{t('nav.settings')}</div>
-            <div className="settings-sheet-title">{t('settings.generalTitle')}</div>
+            <div className="settings-sheet-kicker">{kicker || t('nav.settings')}</div>
+            <div className="settings-sheet-title">{title || t('settings.generalTitle')}</div>
           </div>
           <button className="chip" type="button" onClick={onClose}>
             {t('common.close')}

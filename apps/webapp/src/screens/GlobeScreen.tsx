@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Globe } from '../components/Globe';
+import { createGlobeDiscoveryFeed } from '../lib/discoveryFeed';
 import { StationTable } from '../components/StationTable';
 import { resolveStationCoords } from '../lib/geoResolver';
 import { toLite } from '../lib/stationUtils';
@@ -79,7 +80,7 @@ const distanceSq = (left: { lat: number; lon: number }, right: { lat: number; lo
 
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { stations, player, queue, recent, favorites, setActiveSection } = useRadio();
+  const { stations, player, favorites, recent, setActiveSection } = useRadio();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const picksRef = useRef<HTMLDivElement | null>(null);
@@ -210,17 +211,25 @@ export const GlobeScreen = () => {
     return resolveStationCoords(full);
   }, [player.current, selectedArea, stations]);
 
-  const fallbackPreview = useMemo(() => {
-    if (queue.items.length) {
-      return queue.items.slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 6);
-    }
-    if (recent.length) {
-      return recent.slice(0, 6);
-    }
-    return stations.slice(0, 6).map(toLite);
-  }, [queue.currentIndex, queue.items, recent, stations]);
-
-  const spotlightAreas = useMemo(() => globeAreas.slice(0, 6), [globeAreas]);
+  const contextualArea = selectedArea || (activeAreaId ? areaById.get(activeAreaId) || null : null);
+  const contextualPreview = useMemo(
+    () =>
+      contextualArea?.stations
+        .filter((station) => station.stationuuid !== player.current?.stationuuid)
+        .slice(0, 5) || [],
+    [contextualArea, player.current?.stationuuid]
+  );
+  const globeDiscovery = useMemo(
+    () =>
+      createGlobeDiscoveryFeed({
+        areas: globeAreas,
+        selectedAreaId,
+        activeAreaId: activeAreaId || null,
+        favorites,
+        recent
+      }),
+    [activeAreaId, favorites, globeAreas, recent, selectedAreaId]
+  );
 
   useEffect(() => {
     if (!selectedArea) return;
@@ -254,6 +263,10 @@ export const GlobeScreen = () => {
     if (!area) return;
     selectedAnchorRef.current = { lat: area.lat, lon: area.lon };
     setSelectedAreaId(id);
+  };
+
+  const handleSelectRoute = (id: string) => {
+    handleSelectArea(id);
   };
 
   return (
@@ -359,6 +372,21 @@ export const GlobeScreen = () => {
                   </div>
                 </div>
                 <div className="section-subtitle">{t('globe.idleEmpty')}</div>
+                <div className="globe-route-list">
+                  {globeDiscovery.countryRoutes.slice(0, 4).map((route) => (
+                    <button
+                      key={`inline-${route.id}`}
+                      className="globe-route-pill"
+                      type="button"
+                      onClick={() => handleSelectRoute(route.id)}
+                    >
+                      <span className="globe-route-pill-label" title={route.label}>
+                        {route.label}
+                      </span>
+                      <strong>{t('globe.hotspotCount', { count: route.count })}</strong>
+                    </button>
+                  ))}
+                </div>
                 <div className="hero-chip-row">
                   <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
                     {t('home.openSearch')}
@@ -374,19 +402,10 @@ export const GlobeScreen = () => {
 
         <aside className="home-side-stack">
           <div className="glass-card globe-area-summary-card">
-            <div className="section-title">
-              {selectedArea ? t('globe.areaSummaryTitle') : t('globe.hotAreasTitle')}
-            </div>
-            <div className="section-subtitle">
-              {selectedArea
-                ? t('globe.areaSummaryCopy', {
-                    place: selectedArea.label,
-                    subtitle: selectedArea.subtitle
-                  })
-                : t('globe.hotAreasCopy')}
-            </div>
+            <div className="section-title">{t('globe.hotAreasTitle')}</div>
+            <div className="section-subtitle">{t('globe.hotAreasCopy')}</div>
             <div className="globe-hotspot-grid compact">
-              {spotlightAreas.map((area) => (
+              {globeDiscovery.hotAreas.map((area) => (
                 <button
                   key={area.id}
                   className={`globe-hotspot-btn ${selectedArea?.id === area.id ? 'active' : ''}`}
@@ -398,24 +417,46 @@ export const GlobeScreen = () => {
                 </button>
               ))}
             </div>
-            {selectedArea ? (
-              <div className="globe-selection-meta compact">
-                <div className="globe-selection-pill">
-                  <span>{t('globe.selectionCount')}</span>
-                  <strong>{selectedArea.count}</strong>
-                </div>
-                <div className="globe-selection-pill">
-                  <span>{t('globe.mappedAreas')}</span>
-                  <strong>{globeAreas.length}</strong>
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <div className="glass-card">
-            <div className="section-title">{t('globe.liveQueue')}</div>
-            <div className="section-subtitle">{queue.sourceLabel || t('radio.queueDefault')}</div>
-            <StationTable stations={fallbackPreview} compact sourceId="globe-queue" />
+            <div className="section-title">{t('globe.countryRoutesTitle')}</div>
+            <div className="section-subtitle">{t('globe.countryRoutesCopy')}</div>
+            <div className="globe-route-list">
+              {globeDiscovery.countryRoutes.map((route) => (
+                <button
+                  key={route.id}
+                  className={`globe-route-pill ${selectedArea?.id === route.id ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => handleSelectRoute(route.id)}
+                >
+                  <span className="globe-route-pill-label" title={route.label}>
+                    {route.label}
+                  </span>
+                  <strong title={route.subtitle}>{route.subtitle}</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card">
+            <div className="section-title">
+              {contextualArea ? t('globe.contextualPicksTitle') : t('globe.liveQueue')}
+            </div>
+            <div className="section-subtitle">
+              {contextualArea
+                ? t('globe.contextualPicksCopy', { place: contextualArea.label })
+                : t('globe.liveQueueEmpty')}
+            </div>
+            {contextualPreview.length ? (
+              <StationTable stations={contextualPreview} compact sourceId="globe-contextual-picks" />
+            ) : globeDiscovery.fallbackStations.length ? (
+              <StationTable stations={globeDiscovery.fallbackStations} compact sourceId="globe-fallback-picks" />
+            ) : (
+              <div className="library-empty-state">
+                <div className="section-subtitle">{t('globe.liveQueueEmpty')}</div>
+              </div>
+            )}
           </div>
         </aside>
       </div>

@@ -1,9 +1,52 @@
+import type { NowPlayingFailureKind, NowPlayingSnapshot, NowPlayingSource } from '../domain/contracts';
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
 const textDecoder = new TextDecoder('utf-8');
+
+type FetchNowPlayingOptions = {
+  signal?: AbortSignal;
+  lowImpact?: boolean;
+};
+
+const buildSnapshot = (
+  track: string | null,
+  status: NowPlayingSnapshot['status'],
+  source: NowPlayingSource,
+  failureKind: NowPlayingFailureKind | null,
+  recommendedPollMs: number
+): NowPlayingSnapshot => ({
+  track,
+  status,
+  source,
+  failureKind,
+  recommendedPollMs,
+  updatedAt: track ? Date.now() : null
+});
+
+const isConstrainedApplePlayback = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const looksLikeIPad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  const isAppleMobile = /iPhone|iPad|iPod/i.test(ua) || looksLikeIPad;
+  const isAppleWebKit = /AppleWebKit/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+  return isAppleMobile && isAppleWebKit;
+};
+
+export const shouldUseLowImpactMetadata = () => isConstrainedApplePlayback();
+
+const bindAbort = (controller: AbortController, signal?: AbortSignal) => {
+  if (!signal) return () => {};
+  if (signal.aborted) {
+    controller.abort();
+    return () => {};
+  }
+  const abort = () => controller.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  return () => signal.removeEventListener('abort', abort);
+};
 
 const concat = (left: Uint8Array, right: Uint8Array) => {
   const merged = new Uint8Array(left.length + right.length);
@@ -26,10 +69,15 @@ const canAttemptDirectFetch = (url: string) => {
   }
 };
 
-const fetchIcy = async (url: string, timeoutMs = 6000): Promise<string | null> => {
+const fetchIcy = async (
+  url: string,
+  timeoutMs = 6000,
+  signal?: AbortSignal
+): Promise<string | null> => {
   if (!url || !url.startsWith('https://')) return null;
 
   const controller = new AbortController();
+  const unbindAbort = bindAbort(controller, signal);
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -77,6 +125,7 @@ const fetchIcy = async (url: string, timeoutMs = 6000): Promise<string | null> =
     return null;
   } finally {
     window.clearTimeout(timer);
+    unbindAbort();
     controller.abort();
   }
 
@@ -93,7 +142,8 @@ const parseAzuraCast = (data: any): string | null => {
 const fetchAzuraCast = async (
   host: string,
   apiBase: string,
-  apiAvailable: boolean
+  apiAvailable: boolean,
+  signal?: AbortSignal
 ): Promise<string | null> => {
   const endpoints = [
     `https://${host}/api/nowplaying/1`,
@@ -104,10 +154,11 @@ const fetchAzuraCast = async (
     try {
       let response: Response | null = null;
       if (canAttemptDirectFetch(endpoint)) {
-        response = await fetch(endpoint, { cache: 'no-store' });
+        response = await fetch(endpoint, { cache: 'no-store', signal });
       } else if (apiBase && apiAvailable) {
         response = await fetch(`${apiBase}/fetch?url=${encodeURIComponent(endpoint)}`, {
-          cache: 'no-store'
+          cache: 'no-store',
+          signal
         });
       } else {
         continue;
@@ -206,14 +257,16 @@ export const subscribeNowPlaying = (
   };
 };
 
-const fetchWithTimeout = async (url: string, ms = 4000) => {
+const fetchWithTimeout = async (url: string, ms = 4000, signal?: AbortSignal) => {
   const controller = new AbortController();
+  const unbindAbort = bindAbort(controller, signal);
   const id = setTimeout(() => controller.abort(), ms);
   try {
     const res = await fetch(url, { signal: controller.signal });
     return res;
   } finally {
     clearTimeout(id);
+    unbindAbort();
   }
 };
 
@@ -221,14 +274,15 @@ const fetchIcecastCORS = async (
   origin: string,
   path: string,
   apiBase: string,
-  apiAvailable: boolean
+  apiAvailable: boolean,
+  signal?: AbortSignal
 ): Promise<string | null> => {
   const target = `${origin}/status-json.xsl`;
   let data: any = null;
 
   if (canAttemptDirectFetch(target)) {
     try {
-      const res = await fetchWithTimeout(target);
+      const res = await fetchWithTimeout(target, 4000, signal);
       if (res.ok) data = await res.json();
     } catch {
       // ignore direct failure
@@ -237,7 +291,11 @@ const fetchIcecastCORS = async (
 
   if (!data && apiBase && apiAvailable) {
     try {
-      const res = await fetchWithTimeout(`${apiBase}/fetch?url=${encodeURIComponent(target)}`);
+      const res = await fetchWithTimeout(
+        `${apiBase}/fetch?url=${encodeURIComponent(target)}`,
+        4000,
+        signal
+      );
       if (res.ok) data = await res.json();
     } catch {
       markApiUnavailable(apiBase);
@@ -265,14 +323,15 @@ const fetchIcecastCORS = async (
 const fetchShoutcastCORS = async (
   origin: string,
   apiBase: string,
-  apiAvailable: boolean
+  apiAvailable: boolean,
+  signal?: AbortSignal
 ): Promise<string | null> => {
   const target = `${origin}/7.html`;
   let text: string | null = null;
 
   if (canAttemptDirectFetch(target)) {
     try {
-      const res = await fetchWithTimeout(target);
+      const res = await fetchWithTimeout(target, 4000, signal);
       if (res.ok) text = await res.text();
     } catch {
       // ignore
@@ -281,7 +340,11 @@ const fetchShoutcastCORS = async (
 
   if (!text && apiBase && apiAvailable) {
     try {
-      const res = await fetchWithTimeout(`${apiBase}/fetch?url=${encodeURIComponent(target)}`);
+      const res = await fetchWithTimeout(
+        `${apiBase}/fetch?url=${encodeURIComponent(target)}`,
+        4000,
+        signal
+      );
       if (res.ok) text = await res.text();
     } catch {
       markApiUnavailable(apiBase);
@@ -300,9 +363,16 @@ const fetchShoutcastCORS = async (
   return null;
 };
 
-export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: string) => void) => {
+export const fetchNowPlayingSnapshot = async (
+  station: StationLite,
+  logDebug?: (msg: string) => void,
+  options: FetchNowPlayingOptions = {}
+): Promise<NowPlayingSnapshot> => {
   const url = station.url_resolved;
-  if (!url) return null;
+  const pollMs = options.lowImpact ? 45000 : 15000;
+  if (!url) return buildSnapshot(null, 'unavailable', 'none', 'metadata-unavailable', pollMs);
+  const { signal, lowImpact = false } = options;
+  if (signal?.aborted) return buildSnapshot(null, 'idle', 'none', null, pollMs);
   const apiBase = getApiBase();
   const apiAvailable = apiBase
     ? await checkApiAvailability(apiBase, { timeoutMs: 1_000 })
@@ -317,31 +387,44 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
     const path = urlObj.pathname;
 
     // 1. Try generic Icecast JSON (fast, reliable if CORS allowed)
-    const icecast = await fetchIcecastCORS(origin, path, apiBase, apiAvailable);
-    if (icecast) return icecast;
+    const icecast = await fetchIcecastCORS(origin, path, apiBase, apiAvailable, signal);
+    if (icecast) return buildSnapshot(icecast, 'ready', 'icecast', null, pollMs);
 
     // 2. Try generic Shoutcast (fast, reliable if CORS allowed)
-    const shoutcast = await fetchShoutcastCORS(origin, apiBase, apiAvailable);
-    if (shoutcast) return shoutcast;
+    const shoutcast = await fetchShoutcastCORS(origin, apiBase, apiAvailable, signal);
+    if (shoutcast) return buildSnapshot(shoutcast, 'ready', 'shoutcast', null, pollMs);
 
     // 3. Try AzuraCast API (specific to AzuraCast hosts)
-    const azura = await fetchAzuraCast(urlObj.host, apiBase, apiAvailable);
-    if (azura) return azura;
+    const azura = await fetchAzuraCast(urlObj.host, apiBase, apiAvailable, signal);
+    if (azura) return buildSnapshot(azura, 'ready', 'azuracast', null, pollMs);
 
   } catch {
     // ignore URL parsing errors for base fetches
   }
 
+  if (lowImpact || signal?.aborted) {
+    if (logDebug) logDebug('[Metadata] low-impact mode: skipped stream probing');
+    return buildSnapshot(
+      null,
+      signal?.aborted ? 'idle' : 'unavailable',
+      'none',
+      lowImpact ? 'low-impact-skipped' : null,
+      pollMs
+    );
+  }
+
   // 4. Fallback: Try reading Icy Metadata from the stream itself
   // First, try client-side (unlikely to work without CORS)
-  const icy = await fetchIcy(url);
-  if (icy) return icy;
+  const icy = await fetchIcy(url, 6000, signal);
+  if (icy) return buildSnapshot(icy, 'ready', 'icy-stream', null, pollMs);
 
   // 5. Final Resort: Server-side Metadata Proxy
   // Ask our own API server to connect and parse the metadata for us
-  if (apiBase && apiAvailable) {
+  if (apiBase && apiAvailable && !signal?.aborted) {
     try {
-      const res = await fetch(`${apiBase}/metadata?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${apiBase}/metadata?url=${encodeURIComponent(url)}`, {
+        signal
+      });
 
       let data: any = null;
       if (res.ok) {
@@ -351,7 +434,8 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
           data.logs.forEach((l: string) => logDebug(`[SSR] ${l}`));
         }
 
-        if (data.title) return data.title;
+        const serverTrack = data.title || data.nowPlaying || null;
+        if (serverTrack) return buildSnapshot(serverTrack, 'ready', 'server-proxy', null, pollMs);
       } else {
         // try parsing error response
         try {
@@ -366,8 +450,24 @@ export const fetchNowPlaying = async (station: StationLite, logDebug?: (msg: str
     } catch (e) {
       markApiUnavailable(apiBase);
       if (logDebug) logDebug(`[SSR] Fetch Fail: ${e}`);
+      return buildSnapshot(null, 'unavailable', 'server-proxy', 'api-unavailable', pollMs);
     }
   }
 
-  return null;
+  return buildSnapshot(
+    null,
+    'unavailable',
+    'none',
+    apiBase && !apiAvailable ? 'api-unavailable' : 'metadata-unavailable',
+    pollMs
+  );
+};
+
+export const fetchNowPlaying = async (
+  station: StationLite,
+  logDebug?: (msg: string) => void,
+  options: FetchNowPlayingOptions = {}
+) => {
+  const snapshot = await fetchNowPlayingSnapshot(station, logDebug, options);
+  return snapshot.track;
 };

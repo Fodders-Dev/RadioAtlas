@@ -19,6 +19,57 @@ export const stations = [
     geo_long: 139.6917
   },
   {
+    stationuuid: 'uuid-osaka',
+    name: 'Osaka Nights',
+    url: 'https://stream.example.com/osaka',
+    url_resolved: 'https://stream.example.com/osaka',
+    homepage: 'https://osakanights.example.com',
+    favicon: '',
+    tags: 'jpop,night',
+    country: 'Japan',
+    countrycode: 'JP',
+    state: 'Osaka',
+    language: 'Japanese',
+    codec: 'MP3',
+    bitrate: 128,
+    geo_lat: 34.6937,
+    geo_long: 135.5023
+  },
+  {
+    stationuuid: 'uuid-kyoto',
+    name: 'Kyoto Groove',
+    url: 'https://stream.example.com/kyoto',
+    url_resolved: 'https://stream.example.com/kyoto',
+    homepage: 'https://kyotogroove.example.com',
+    favicon: '',
+    tags: 'jpop,groove',
+    country: 'Japan',
+    countrycode: 'JP',
+    state: 'Kyoto',
+    language: 'Japanese',
+    codec: 'AAC',
+    bitrate: 96,
+    geo_lat: 35.0116,
+    geo_long: 135.7681
+  },
+  {
+    stationuuid: 'uuid-sapporo',
+    name: 'Sapporo City Pop',
+    url: 'https://stream.example.com/sapporo',
+    url_resolved: 'https://stream.example.com/sapporo',
+    homepage: 'https://sapporocitypop.example.com',
+    favicon: '',
+    tags: 'jpop,citypop',
+    country: 'Japan',
+    countrycode: 'JP',
+    state: 'Hokkaido',
+    language: 'Japanese',
+    codec: 'MP3',
+    bitrate: 128,
+    geo_lat: 43.0618,
+    geo_long: 141.3545
+  },
+  {
     stationuuid: 'uuid-berlin',
     name: 'Berlin Pulse',
     url: 'https://stream.example.com/berlin',
@@ -36,6 +87,57 @@ export const stations = [
     geo_long: 13.405
   },
   {
+    stationuuid: 'uuid-hamburg',
+    name: 'Hamburg Transit',
+    url: 'https://stream.example.com/hamburg',
+    url_resolved: 'https://stream.example.com/hamburg',
+    homepage: 'https://hamburgtransit.example.com',
+    favicon: '',
+    tags: 'techno,industrial',
+    country: 'Germany',
+    countrycode: 'DE',
+    state: 'Hamburg',
+    language: 'German',
+    codec: 'AAC',
+    bitrate: 96,
+    geo_lat: 53.5511,
+    geo_long: 9.9937
+  },
+  {
+    stationuuid: 'uuid-munich',
+    name: 'Munich Drive',
+    url: 'https://stream.example.com/munich',
+    url_resolved: 'https://stream.example.com/munich',
+    homepage: 'https://munichdrive.example.com',
+    favicon: '',
+    tags: 'techno,drive',
+    country: 'Germany',
+    countrycode: 'DE',
+    state: 'Bavaria',
+    language: 'German',
+    codec: 'MP3',
+    bitrate: 128,
+    geo_lat: 48.1351,
+    geo_long: 11.582
+  },
+  {
+    stationuuid: 'uuid-cologne',
+    name: 'Cologne Wave',
+    url: 'https://stream.example.com/cologne',
+    url_resolved: 'https://stream.example.com/cologne',
+    homepage: 'https://colognewave.example.com',
+    favicon: '',
+    tags: 'techno,wave',
+    country: 'Germany',
+    countrycode: 'DE',
+    state: 'North Rhine-Westphalia',
+    language: 'German',
+    codec: 'AAC',
+    bitrate: 96,
+    geo_lat: 50.9375,
+    geo_long: 6.9603
+  },
+  {
     stationuuid: 'uuid-rio',
     name: 'Rio Beats',
     url: 'https://stream.example.com/rio',
@@ -51,6 +153,57 @@ export const stations = [
     bitrate: 128,
     geo_lat: -22.9068,
     geo_long: -43.1729
+  },
+  {
+    stationuuid: 'uuid-saopaulo',
+    name: 'Sao Paulo Samba',
+    url: 'https://stream.example.com/saopaulo',
+    url_resolved: 'https://stream.example.com/saopaulo',
+    homepage: 'https://saopaulosamba.example.com',
+    favicon: '',
+    tags: 'samba,latin',
+    country: 'Brazil',
+    countrycode: 'BR',
+    state: 'Sao Paulo',
+    language: 'Portuguese',
+    codec: 'MP3',
+    bitrate: 128,
+    geo_lat: -23.5558,
+    geo_long: -46.6396
+  },
+  {
+    stationuuid: 'uuid-bahia',
+    name: 'Bahia Groove',
+    url: 'https://stream.example.com/bahia',
+    url_resolved: 'https://stream.example.com/bahia',
+    homepage: 'https://bahiagroove.example.com',
+    favicon: '',
+    tags: 'samba,groove',
+    country: 'Brazil',
+    countrycode: 'BR',
+    state: 'Bahia',
+    language: 'Portuguese',
+    codec: 'AAC',
+    bitrate: 96,
+    geo_lat: -12.9714,
+    geo_long: -38.5014
+  },
+  {
+    stationuuid: 'uuid-brasilia',
+    name: 'Brasilia Nights',
+    url: 'https://stream.example.com/brasilia',
+    url_resolved: 'https://stream.example.com/brasilia',
+    homepage: 'https://brasilianights.example.com',
+    favicon: '',
+    tags: 'samba,night',
+    country: 'Brazil',
+    countrycode: 'BR',
+    state: 'Federal District',
+    language: 'Portuguese',
+    codec: 'MP3',
+    bitrate: 128,
+    geo_lat: -15.7939,
+    geo_long: -47.8828
   }
 ];
 
@@ -80,7 +233,7 @@ const createSilentWav = (durationMs = 200) => {
   return buffer;
 };
 
-const mockStreamAudio = createSilentWav();
+export const mockStreamAudio = createSilentWav();
 
 export const installMediaMocks = async (page: Page) => {
   await page.addInitScript(() => {
@@ -174,6 +327,8 @@ export const mockStations = async (page: Page) => {
 };
 
 export const playHomeStation = async (page: Page, name: string) => {
+  const searchInput = page.locator('.home-search-card input').first();
+  await searchInput.fill(name);
   const row = page.locator('.home-search-card .station-row').filter({ hasText: name }).first();
   await row.locator('.play-btn').click();
 };

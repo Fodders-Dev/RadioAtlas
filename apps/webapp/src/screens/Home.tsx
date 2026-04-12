@@ -1,4 +1,6 @@
-import { startTransition, useMemo, useState } from 'react';
+import { startTransition, useDeferredValue, useMemo, useState } from 'react';
+import { createDiscoveryFeed } from '../lib/discoveryFeed';
+import { AccountCard } from '../components/AccountCard';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
 import { toLite } from '../lib/stationUtils';
@@ -6,39 +8,11 @@ import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import type { StationLite } from '../types';
 
-const hashValue = (value: string) => {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 33 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-};
-
-const seededSort = <T,>(items: T[], seed: number, pickKey: (item: T) => string) =>
-  [...items].sort((left, right) => {
-    const leftScore = hashValue(`${pickKey(left)}:${seed}`);
-    const rightScore = hashValue(`${pickKey(right)}:${seed}`);
-    return leftScore - rightScore;
-  });
-
-const firstMeaningfulTag = (value: string) =>
-  value
-    .split(',')
-    .map((tag) => tag.trim())
-    .find((tag) => tag && tag.toLowerCase() !== 'no tags') || '';
-
-const uniqueStations = (stations: StationLite[]) => {
-  const seen = new Set<string>();
-  return stations.filter((station) => {
-    if (seen.has(station.stationuuid)) return false;
-    seen.add(station.stationuuid);
-    return true;
-  });
-};
-
 export const Home = () => {
   const {
     stations,
+    favorites,
+    recent,
     player,
     queue,
     setActiveSection
@@ -46,77 +20,53 @@ export const Home = () => {
   const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [showcaseSeed, setShowcaseSeed] = useState(() => Date.now());
-  const debounced = useDebounce(query, 220);
+  const deferredQuery = useDeferredValue(query);
+  const debounced = useDebounce(deferredQuery, 220);
   const catalog = useMemo(() => stations.map(toLite), [stations]);
   const queuePreview = useMemo(
     () => queue.items.slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4),
     [queue.currentIndex, queue.items]
   );
-
-  const discoveryDeck = useMemo(() => seededSort(catalog, showcaseSeed, (station) => station.stationuuid), [catalog, showcaseSeed]);
-
-  const freshSignals = useMemo(() => discoveryDeck.slice(0, 4), [discoveryDeck]);
-  const searchLaunch = useMemo(() => discoveryDeck.slice(4, 8), [discoveryDeck]);
-  const queueFallback = useMemo(() => discoveryDeck.slice(8, 12), [discoveryDeck]);
-
-  const countryBuckets = useMemo(() => {
-    const buckets = new Map<string, { label: string; stations: StationLite[] }>();
-    catalog.forEach((station) => {
-      const country = station.country?.trim();
-      if (!country) return;
-      const current = buckets.get(country);
-      if (current) {
-        current.stations.push(station);
-      } else {
-        buckets.set(country, { label: country, stations: [station] });
-      }
-    });
-    return Array.from(buckets.values()).filter((bucket) => bucket.stations.length >= 4);
+  const languageCount = useMemo(() => {
+    const labels = new Set(
+      catalog
+        .map((station) => station.language?.trim())
+        .filter((value): value is string => Boolean(value))
+    );
+    return labels.size;
   }, [catalog]);
-
-  const tagBuckets = useMemo(() => {
-    const buckets = new Map<string, StationLite[]>();
-    catalog.forEach((station) => {
-      const tag = firstMeaningfulTag(station.tags || '');
-      if (!tag) return;
-      const current = buckets.get(tag);
-      if (current) {
-        current.push(station);
-      } else {
-        buckets.set(tag, [station]);
-      }
-    });
-    return Array.from(buckets.entries())
-      .filter(([, bucket]) => bucket.length >= 4)
-      .map(([label, bucket]) => ({ label, stations: bucket }));
-  }, [catalog]);
-
-  const countrySpotlight = useMemo(() => {
-    const picked = seededSort(countryBuckets, showcaseSeed + 17, (bucket) => bucket.label)[0];
-    if (!picked) return null;
-    return {
-      label: picked.label,
-      stations: seededSort(uniqueStations(picked.stations), showcaseSeed + 29, (station) => station.stationuuid).slice(0, 4)
-    };
-  }, [countryBuckets, showcaseSeed]);
-
-  const genreSpotlight = useMemo(() => {
-    const picked = seededSort(tagBuckets, showcaseSeed + 41, (bucket) => bucket.label)[0];
-    if (!picked) return null;
-    return {
-      label: picked.label,
-      stations: seededSort(uniqueStations(picked.stations), showcaseSeed + 53, (station) => station.stationuuid).slice(0, 4)
-    };
-  }, [showcaseSeed, tagBuckets]);
-
-  const quickResults = useMemo(() => {
-    const q = debounced.trim().toLowerCase();
-    if (!q) return searchLaunch.length ? searchLaunch : freshSignals;
-    return stations
-      .filter((station) => [station.name, station.country, station.tags, station.language].join(' ').toLowerCase().includes(q))
-      .slice(0, 4)
-      .map(toLite);
-  }, [debounced, freshSignals, searchLaunch, stations]);
+  const countryCount = useMemo(
+    () =>
+      new Set(catalog.map((station) => station.country?.trim()).filter((value): value is string => Boolean(value)))
+        .size,
+    [catalog]
+  );
+  const genreCount = useMemo(
+    () =>
+      new Set(
+        catalog
+          .flatMap((station) => (station.tags || '').split(',').map((tag) => tag.trim()))
+          .filter(Boolean)
+      ).size,
+    [catalog]
+  );
+  const discoveryFeed = useMemo(
+    () =>
+      createDiscoveryFeed({
+        catalog,
+        favorites,
+        recent,
+        queuePreview,
+        showcaseSeed,
+        query: debounced,
+        metrics: {
+          countries: countryCount,
+          languages: languageCount,
+          genres: genreCount
+        }
+      }),
+    [catalog, countryCount, debounced, favorites, genreCount, languageCount, queuePreview, recent, showcaseSeed]
+  );
 
   const refreshShowcase = () => {
     startTransition(() => {
@@ -126,49 +76,13 @@ export const Home = () => {
 
   return (
     <section className="screen screen-home-v2">
-      <div className="shell-hero glass-card motion-rise">
-        <div className="shell-hero-copy">
-          <div className="shell-kicker">{t('home.kicker')}</div>
-          <h1>{t('home.title')}</h1>
-          <p>{t('home.subtitle')}</p>
-          <div className="hero-chip-row">
-            <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
-              {t('home.openSearch')}
-            </button>
-            <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-              {t('home.openGlobe')}
-            </button>
-            <button className="chip" type="button" onClick={refreshShowcase}>
-              {t('home.refreshFeed')}
-            </button>
-          </div>
-        </div>
-        <div className="home-hero-note">
-          <div className="globe-selection-pill">
-            <span>{t('home.freshSignalsTitle')}</span>
-            <strong>{freshSignals.length}</strong>
-          </div>
-          {countrySpotlight ? (
-            <div className="globe-selection-pill">
-              <span>{t('home.countrySpotlightPill')}</span>
-              <strong>{countrySpotlight.label}</strong>
-            </div>
-          ) : null}
-          {genreSpotlight ? (
-            <div className="globe-selection-pill">
-              <span>{t('home.genreSpotlightPill')}</span>
-              <strong>{genreSpotlight.label}</strong>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
       <div className="home-grid">
         <div className="home-main-stack">
-          <div className="glass-card home-search-card motion-rise motion-delay-1">
+          <div className="glass-card home-search-card home-search-card-primary motion-rise motion-delay-1" data-home-module="search-preview">
             <div className="library-section-head">
               <div>
-                <div className="section-title">{t('home.quickMix')}</div>
+                <div className="shell-kicker">{t('home.searchKicker')}</div>
+                <div className="section-title">{t('home.searchTitle')}</div>
                 <div className="section-subtitle">{t('home.quickMixCopy')}</div>
               </div>
               <button className="chip" type="button" onClick={() => setActiveSection('search')}>
@@ -188,14 +102,19 @@ export const Home = () => {
               ) : null}
             </div>
             <div className="home-mini-list">
-              <StationTable stations={quickResults} compact sourceId={query ? 'home-search' : 'home-trending'} />
+              <StationTable
+                stations={discoveryFeed.quickResults}
+                compact
+                sourceId={query ? 'home-search' : 'home-trending'}
+              />
             </div>
           </div>
 
           <div className="home-showcase-grid">
-            <div className="glass-card home-feature-card motion-rise motion-delay-2">
+            <div className="glass-card home-feature-card home-feature-card-primary motion-rise motion-delay-2" data-home-module="fresh-signals">
               <div className="library-section-head">
                 <div>
+                  <div className="shell-kicker">{t('home.discoveryKicker')}</div>
                   <div className="section-title">{t('home.freshSignalsTitle')}</div>
                   <div className="section-subtitle">{t('home.freshSignalsCopy')}</div>
                 </div>
@@ -204,49 +123,70 @@ export const Home = () => {
                 </button>
               </div>
               <div className="home-mini-list">
-                <StationTable stations={freshSignals} compact sourceId="home-fresh-signals" />
+                <StationTable
+                  stations={discoveryFeed.freshSignals.stations}
+                  compact
+                  sourceId={discoveryFeed.freshSignals.sourceId}
+                />
               </div>
             </div>
 
-            <div className="glass-card home-feature-card motion-rise motion-delay-3">
+            <div className="glass-card home-feature-card home-feature-card-secondary motion-rise motion-delay-3" data-home-module="country-spotlight">
               <div className="library-section-head">
                 <div>
+                  <div className="shell-kicker">{t('home.mapKicker')}</div>
                   <div className="section-title">
-                    {countrySpotlight
-                      ? t('home.countrySpotlightTitle', { country: countrySpotlight.label })
-                      : t('home.freshSignalsTitle')}
+                    {discoveryFeed.countrySpotlight
+                      ? t('home.countrySpotlightTitle', { country: discoveryFeed.countrySpotlight.label || '' })
+                      : t('home.countryFallbackTitle')}
                   </div>
                   <div className="section-subtitle">
-                    {countrySpotlight
+                    {discoveryFeed.countrySpotlight
                       ? t('home.countrySpotlightCopy')
-                      : t('home.freshSignalsCopy')}
+                      : t('home.countryFallbackCopy')}
                   </div>
                 </div>
                 <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
                   {t('home.openGlobe')}
                 </button>
               </div>
-              <div className="home-mini-list">
-                <StationTable
-                  stations={countrySpotlight?.stations || freshSignals}
-                  compact
-                  sourceId="home-country-spotlight"
-                />
-              </div>
+              {discoveryFeed.countrySpotlight?.stations.length ? (
+                <div className="home-mini-list">
+                  <StationTable
+                    stations={discoveryFeed.countrySpotlight.stations}
+                    compact
+                    sourceId={discoveryFeed.countrySpotlight.sourceId}
+                  />
+                </div>
+              ) : (
+                <div className="empty-state home-inline-empty">
+                  <strong>{t('home.countryFallbackTitle')}</strong>
+                  <span>{t('home.countryFallbackCopy')}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <aside className="home-side-stack">
-          <div className="glass-card motion-rise motion-delay-2">
-            <div className="section-title">{t('home.resumeTitle')}</div>
-            <div className="section-subtitle">
-              {player.current
-                ? t('explore.resumeReady', {
-                    station: player.current.name,
-                    source: queue.sourceLabel || t('radio.queueDefault')
-                  })
-                : t('explore.resumeEmpty')}
+          <AccountCard />
+
+          <div className="glass-card home-session-card motion-rise motion-delay-2" data-home-module="resume">
+            <div className="library-section-head">
+              <div>
+                <div className="shell-kicker">{t('home.sessionKicker')}</div>
+                <div className="section-title">{t('home.resumeTitle')}</div>
+                <div className="section-subtitle">
+                  {player.current
+                    ? t('explore.resumeReady', {
+                        station: player.current.name,
+                        source: queue.sourceLabel || t('radio.queueDefault')
+                      })
+                    : discoveryFeed.resumeStations.length
+                      ? t('home.resumeQueueCopy', { count: discoveryFeed.resumeStations.length })
+                    : t('explore.resumeEmpty')}
+                </div>
+              </div>
             </div>
             <div className="hero-chip-row">
               <button
@@ -265,40 +205,87 @@ export const Home = () => {
                 {t('home.openLibrary')}
               </button>
             </div>
-            <div className="home-mini-list">
-              <StationTable
-                stations={queuePreview.length ? queuePreview : queueFallback.length ? queueFallback : freshSignals}
-                compact
-                sourceId="home-queue"
-              />
-            </div>
+            {discoveryFeed.resumeStations.length || player.current ? (
+              <div className="home-mini-list">
+                <StationTable
+                  stations={
+                    discoveryFeed.resumeStations.length
+                      ? discoveryFeed.resumeStations
+                      : ([player.current].filter(Boolean) as StationLite[])
+                  }
+                  compact
+                  sourceId="home-return-to-air"
+                  buildQueue={queuePreview.length > 0 || recent.length > 0}
+                />
+              </div>
+            ) : (
+              <div className="empty-state home-inline-empty">
+                <strong>{t('home.resumeEmptyTitle')}</strong>
+                <span>{t('home.resumeEmptyCopy')}</span>
+              </div>
+            )}
           </div>
 
-          <div className="glass-card motion-rise motion-delay-4">
+          <div className="glass-card home-pulse-card home-pulse-card-accent motion-rise motion-delay-4" data-home-module="genre-spotlight">
             <div className="library-section-head">
               <div>
+                <div className="shell-kicker">{t('home.genreKicker')}</div>
                 <div className="section-title">
-                  {genreSpotlight
-                    ? t('home.genreSpotlightTitle', { genre: genreSpotlight.label })
-                    : t('home.freshSignalsTitle')}
+                  {discoveryFeed.genreSpotlight
+                    ? t('home.genreSpotlightTitle', { genre: discoveryFeed.genreSpotlight.label || '' })
+                    : t('home.catalogPulseTitle')}
                 </div>
                 <div className="section-subtitle">
-                  {genreSpotlight
+                  {discoveryFeed.genreSpotlight
                     ? t('home.genreSpotlightCopy')
-                    : t('home.freshSignalsCopy')}
+                    : t('home.catalogPulseCopy')}
                 </div>
               </div>
-              <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+            </div>
+            <div className="home-pulse-metrics">
+              <div className="globe-selection-pill">
+                <span>{t('home.catalogPulseCountries')}</span>
+                <strong>{discoveryFeed.metrics.countries}</strong>
+              </div>
+              <div className="globe-selection-pill">
+                <span>{t('home.catalogPulseLanguages')}</span>
+                <strong>{discoveryFeed.metrics.languages}</strong>
+              </div>
+              <div className="globe-selection-pill">
+                <span>{t('home.catalogPulseGenres')}</span>
+                <strong>{discoveryFeed.metrics.genres}</strong>
+              </div>
+            </div>
+            <div className="home-pulse-chipcloud">
+              {discoveryFeed.tagRadar.map((tag, index) => (
+                <button
+                  key={`${tag.label}-${index}`}
+                  className={`chip ${discoveryFeed.genreSpotlight?.label === tag.label ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setActiveSection('search')}
+                  title={`${tag.label} · ${tag.count}`}
+                >
+                  {tag.label}
+                </button>
+              ))}
+            </div>
+            <div className="hero-chip-row">
+              <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
                 {t('home.openSearch')}
               </button>
+              <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
+                {t('home.openGlobe')}
+              </button>
             </div>
-            <div className="home-mini-list">
-              <StationTable
-                stations={genreSpotlight?.stations || freshSignals}
-                compact
-                sourceId="home-genre-spotlight"
-              />
-            </div>
+            {discoveryFeed.genreSpotlight?.stations.length ? (
+              <div className="home-mini-list">
+                <StationTable
+                  stations={discoveryFeed.genreSpotlight.stations}
+                  compact
+                  sourceId={discoveryFeed.genreSpotlight.sourceId}
+                />
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

@@ -45,9 +45,10 @@ type AppNavigationProps = {
   active: AppSection;
   onChange: (section: AppSection) => void;
   onSettings: () => void;
+  onPreload?: (section: AppSection) => void;
 };
 
-export const AppNavigation = ({ active, onChange, onSettings }: AppNavigationProps) => {
+export const AppNavigation = ({ active, onChange, onSettings, onPreload }: AppNavigationProps) => {
   const { t } = useLocale();
 
   return (
@@ -64,11 +65,13 @@ export const AppNavigation = ({ active, onChange, onSettings }: AppNavigationPro
         <nav className="nav-list">
           {NAV_ITEMS.map((item) => (
             <button
-              key={item.id}
-              className={`nav-rail-item ${active === item.id ? 'active' : ''}`}
-              type="button"
-              onClick={() => onChange(item.id)}
-            >
+            key={item.id}
+            className={`nav-rail-item ${active === item.id ? 'active' : ''}`}
+            type="button"
+            onClick={() => onChange(item.id)}
+            onMouseEnter={() => onPreload?.(item.id)}
+            onFocus={() => onPreload?.(item.id)}
+          >
               <span className="nav-rail-icon">{item.icon}</span>
               <span>{t(`nav.${item.id}`)}</span>
             </button>
@@ -90,6 +93,8 @@ export const AppNavigation = ({ active, onChange, onSettings }: AppNavigationPro
             className={`mobile-nav-item ${active === item.id ? 'active' : ''}`}
             type="button"
             onClick={() => onChange(item.id)}
+            onTouchStart={() => onPreload?.(item.id)}
+            onFocus={() => onPreload?.(item.id)}
           >
             <span className="mobile-nav-icon">{item.icon}</span>
             <span>{t(`nav.${item.id}`)}</span>

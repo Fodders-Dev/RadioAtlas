@@ -30,6 +30,21 @@ const withTimeout = async (url: string, timeoutMs: number) => {
   }
 };
 
+const isHealthyApiResponse = async (response: Response) => {
+  if (!response.ok) return false;
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    return false;
+  }
+
+  try {
+    const payload = (await response.json()) as { ok?: unknown };
+    return payload?.ok === true;
+  } catch {
+    return false;
+  }
+};
+
 const isFresh = (state: ApiState) => {
   const ttl = state.ok ? OK_TTL_MS : FAIL_TTL_MS;
   return Date.now() - state.ts < ttl;
@@ -72,7 +87,7 @@ export const checkApiAvailability = async (
   state.inFlight = (async () => {
     try {
       const response = await withTimeout(buildHealthUrl(normalized), timeoutMs);
-      state.ok = response.ok;
+      state.ok = await isHealthyApiResponse(response);
       state.ts = Date.now();
       return state.ok;
     } catch {

@@ -24,12 +24,6 @@ const isSecureApiCandidate = () => {
 };
 
 const getDefaultApiBase = () => {
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3001';
-    }
-  }
   if (!isSecureApiCandidate()) return '';
   return '/api';
 };

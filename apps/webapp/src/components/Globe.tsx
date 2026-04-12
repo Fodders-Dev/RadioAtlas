@@ -180,8 +180,9 @@ export const Globe = ({
         size.height * 0.5,
         radius * 1.2
       );
-      gradient.addColorStop(0, '#1f3a36');
-      gradient.addColorStop(1, '#0b1514');
+      gradient.addColorStop(0, '#244b73');
+      gradient.addColorStop(0.52, '#16304f');
+      gradient.addColorStop(1, '#0a1320');
 
       ctx.beginPath();
       path({ type: 'Sphere' } as any);
@@ -190,27 +191,27 @@ export const Globe = ({
 
       ctx.beginPath();
       path(land as any);
-      ctx.fillStyle = 'rgba(36, 56, 52, 0.95)';
+      ctx.fillStyle = 'rgba(26, 52, 84, 0.94)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(246, 201, 69, 0.18)';
+      ctx.strokeStyle = 'rgba(172, 219, 255, 0.14)';
       ctx.lineWidth = 0.5;
       ctx.stroke();
 
       if (borders) {
         ctx.beginPath();
         path(borders as any);
-        ctx.strokeStyle = 'rgba(246, 201, 69, 0.35)';
+        ctx.strokeStyle = 'rgba(152, 208, 255, 0.24)';
         ctx.lineWidth = 0.4;
         ctx.stroke();
       }
 
       ctx.beginPath();
       path(geoGraticule10());
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.strokeStyle = 'rgba(220, 241, 255, 0.07)';
       ctx.lineWidth = 0.6;
       ctx.stroke();
 
-      ctx.strokeStyle = 'rgba(246, 201, 69, 0.35)';
+      ctx.strokeStyle = 'rgba(184, 232, 255, 0.2)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       path({ type: 'Sphere' } as any);
@@ -233,21 +234,21 @@ export const Globe = ({
         ctx.beginPath();
         const isActive = point.id === activeId;
         ctx.fillStyle = isSelected
-          ? 'rgba(184, 255, 244, 0.96)'
+          ? 'rgba(231, 254, 255, 0.98)'
           : isActive
-            ? '#f6c945'
-            : 'rgba(246, 201, 69, 0.74)';
+            ? '#88f1de'
+            : 'rgba(152, 220, 255, 0.76)';
         ctx.arc(x, y, isActive ? Math.max(activeDot, pointRadius + 1.4) : pointRadius, 0, Math.PI * 2);
         ctx.fill();
         if (isSelected) {
-          ctx.strokeStyle = 'rgba(184, 255, 244, 0.5)';
+          ctx.strokeStyle = 'rgba(198, 248, 255, 0.48)';
           ctx.lineWidth = 1.4;
           ctx.beginPath();
           ctx.arc(x, y, pointRadius + 5.5, 0, Math.PI * 2);
           ctx.stroke();
         }
         if (isActive && pulse > 0.01) {
-          ctx.strokeStyle = `rgba(246, 201, 69, ${0.4 + pulse * 0.4})`;
+          ctx.strokeStyle = `rgba(136, 241, 222, ${0.38 + pulse * 0.38})`;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.arc(x, y, Math.max(activeDot + 6, pointRadius + 6) + pulse * 6, 0, Math.PI * 2);

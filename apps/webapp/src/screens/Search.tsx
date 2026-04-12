@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StationTable } from '../components/StationTable';
+import { useDeferredValue } from 'react';
 import { useDebounce } from '../lib/useDebounce';
 import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import { useLocalStorage } from '../lib/useLocalStorage';
@@ -200,11 +201,13 @@ export const Discover = () => {
   const [linkLoading, setLinkLoading] = useState(false);
   const [links, setLinks] = useLocalStorage<ExternalLink[]>('radio:links', []);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const debounced = useDebounce(query, 250);
-  const debouncedCountryQuery = useDebounce(countryQuery, 180);
+  const deferredQuery = useDeferredValue(query);
+  const deferredCountryQuery = useDeferredValue(countryQuery);
+  const debounced = useDebounce(deferredQuery, 250);
+  const debouncedCountryQuery = useDebounce(deferredCountryQuery, 180);
   const showStations = mode === 'stations';
   const apiBase = getApiBase();
-  const [apiOnline, setApiOnline] = useState(true);
+  const [apiOnline, setApiOnline] = useState(() => Boolean(apiBase));
 
   const checkApiOnline = useCallback(async () => {
     if (!apiBase) {
@@ -231,24 +234,35 @@ export const Discover = () => {
   }, []);
 
   useEffect(() => {
-    let active = true;
+    if (!apiBase) {
+      setApiOnline(false);
+      return;
+    }
+    if (mode !== 'links') return;
 
+    let active = true;
     const refresh = async () => {
       const ok = await checkApiOnline();
-      if (!active) return;
-      setApiOnline(ok);
+      if (active) {
+        setApiOnline(ok);
+      }
+    };
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void refresh();
+      }
     };
 
     void refresh();
-    const timer = window.setInterval(() => {
-      void refresh();
-    }, 15_000);
+    window.addEventListener('focus', handleVisibility);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      window.removeEventListener('focus', handleVisibility);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [checkApiOnline]);
+  }, [apiBase, checkApiOnline, mode]);
 
   useEffect(() => {
     setVisibleCount(200);
@@ -609,21 +623,37 @@ export const Discover = () => {
   return (
     <section className="screen screen-search screen-search-v2">
       <div className="glass-card search-shell-header">
-        <div className="chip-row">
-          <button
-            className={`chip ${showStations ? 'active' : ''}`}
-            type="button"
-            onClick={() => setMode('stations')}
-          >
-            {t('discover.stationsMode')}
-          </button>
-          <button
-            className={`chip ${showStations ? '' : 'active'}`}
-            type="button"
-            onClick={() => setMode('links')}
-          >
-            {t('discover.linksMode')}
-          </button>
+        <div className="search-shell-copy">
+          <div className="shell-kicker">{t('search.kicker')}</div>
+          <div className="section-title">{t('nav.search')}</div>
+          <div className="section-subtitle">{t('search.topbarSubtitle')}</div>
+        </div>
+        <div className="search-shell-controls">
+          <div className="chip-row search-mode-switcher">
+            <button
+              className={`chip ${showStations ? 'active' : ''}`}
+              type="button"
+              onClick={() => setMode('stations')}
+            >
+              {t('discover.stationsMode')}
+            </button>
+            <button
+              className={`chip ${showStations ? '' : 'active'}`}
+              type="button"
+              onClick={() => setMode('links')}
+            >
+              {t('discover.linksMode')}
+            </button>
+          </div>
+          <div className="search-mode-summary">
+            {showStations
+              ? debounced.trim()
+                ? t('discover.matches', { count: filtered.length })
+                : t('discover.allStations', { count: stations.length })
+              : apiBase && apiOnline
+                ? t('common.active')
+                : t('common.unavailable')}
+          </div>
         </div>
       </div>
 
@@ -651,9 +681,9 @@ export const Discover = () => {
                 {filtersOpen ? t('search.hideFilters') : t('search.showFilters')}
               </button>
               <div className="section-subtitle">
-              {debounced.trim()
-                ? t('discover.matches', { count: filtered.length })
-                : t('discover.allStations', { count: stations.length })}
+                {continentFilter === 'All'
+                  ? t('discover.regionAll')
+                  : continentFilter}
               </div>
             </div>
 
