@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { NowPlayingSnapshot } from '../domain/contracts';
+import type {
+  FollowedRegion,
+  FollowedStation,
+  ListenerAlert,
+  NowPlayingSnapshot,
+  UserCollection
+} from '../domain/contracts';
 import type {
   ActiveWinampSkin,
   AppSection,
@@ -118,6 +124,10 @@ type RadioContextValue = {
   error: string | null;
   favorites: StationLite[];
   recent: StationLite[];
+  collections: UserCollection[];
+  followedStations: FollowedStation[];
+  followedRegions: FollowedRegion[];
+  alerts: ListenerAlert[];
   toast: string | null;
   nowPlaying: string | null;
   nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
@@ -148,6 +158,12 @@ type RadioContextValue = {
   clearFavorites: () => void;
   clearRecent: () => void;
   clearTrackHistory: () => void;
+  createCollection: (name: string) => void;
+  addStationToCollection: (collectionId: string, station: Station | StationLite) => void;
+  removeStationFromCollection: (collectionId: string, stationId: string) => void;
+  toggleFollowStation: (station: Station | StationLite) => void;
+  toggleFollowRegion: (region: { id: string; label: string; scope: 'country' | 'area' }) => void;
+  markAlertRead: (alertId: string) => void;
   clearCache: () => void;
   debugLogs: string[];
 };
@@ -250,6 +266,66 @@ const trackHistoryMatch = (left: TrackHistoryItem[], right: TrackHistoryItem[]) 
       item.timestamp === right[index]?.timestamp
   );
 
+const collectionsMatch = (left: UserCollection[], right: UserCollection[]) =>
+  left.length === right.length &&
+  left.every((item, index) => {
+    const candidate = right[index];
+    return (
+      item.id === candidate?.id &&
+      item.name === candidate?.name &&
+      item.description === candidate?.description &&
+      item.isPublic === candidate?.isPublic &&
+      item.pinned === candidate?.pinned &&
+      item.updatedAt === candidate?.updatedAt &&
+      item.stationIds.length === candidate?.stationIds.length &&
+      item.stationIds.every((stationId, stationIndex) => stationId === candidate?.stationIds[stationIndex])
+    );
+  });
+
+const followedStationsMatch = (left: FollowedStation[], right: FollowedStation[]) =>
+  left.length === right.length &&
+  left.every((item, index) => {
+    const candidate = right[index];
+    return (
+      item.stationId === candidate?.stationId &&
+      item.stationName === candidate?.stationName &&
+      item.country === candidate?.country &&
+      item.createdAt === candidate?.createdAt &&
+      item.pinned === candidate?.pinned &&
+      item.alerts.length === candidate?.alerts.length &&
+      item.alerts.every((alert, alertIndex) => alert === candidate?.alerts[alertIndex])
+    );
+  });
+
+const followedRegionsMatch = (left: FollowedRegion[], right: FollowedRegion[]) =>
+  left.length === right.length &&
+  left.every((item, index) => {
+    const candidate = right[index];
+    return (
+      item.id === candidate?.id &&
+      item.label === candidate?.label &&
+      item.scope === candidate?.scope &&
+      item.createdAt === candidate?.createdAt &&
+      item.pinned === candidate?.pinned
+    );
+  });
+
+const alertsMatch = (left: ListenerAlert[], right: ListenerAlert[]) =>
+  left.length === right.length &&
+  left.every((item, index) => {
+    const candidate = right[index];
+    return (
+      item.id === candidate?.id &&
+      item.kind === candidate?.kind &&
+      item.stationId === candidate?.stationId &&
+      item.regionId === candidate?.regionId &&
+      item.title === candidate?.title &&
+      item.body === candidate?.body &&
+      item.createdAt === candidate?.createdAt &&
+      item.readAt === candidate?.readAt
+    );
+  });
+
 const getQueueSourceLabel = (
   sourceId: string | null | undefined,
   sourceLabel: string | null | undefined,
@@ -291,8 +367,12 @@ const clampQueueIndex = (items: StationLite[], index: number) => {
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLocale();
-  const { status: sessionStatus, profile: sessionProfile, library: cloudLibrary, replaceCloudLibrary } =
-    useSession();
+  const {
+    status: sessionStatus,
+    profile: sessionProfile,
+    library: cloudLibrary,
+    replaceCloudLibrary
+  } = useSession();
   const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -314,6 +394,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:recent',
     []
   );
+  const [collections, setCollections] = useLocalStorage<UserCollection[]>('radio:collections:v1', []);
+  const [followedStations, setFollowedStations] = useLocalStorage<FollowedStation[]>(
+    'radio:follows:stations:v1',
+    []
+  );
+  const [followedRegions, setFollowedRegions] = useLocalStorage<FollowedRegion[]>(
+    'radio:follows:regions:v1',
+    []
+  );
+  const [alerts, setAlerts] = useLocalStorage<ListenerAlert[]>('radio:alerts:v1', []);
   const [storedQueue, setStoredQueue] = useLocalStorage<QueueSnapshot>(
     'radio:playback-queue:v2',
     DEFAULT_QUEUE
@@ -437,6 +527,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const mergedFavorites = mergeUniqueStations(cloudLibrary.favorites, favorites);
     const mergedRecent = mergeUniqueStations(cloudLibrary.recent, recent).slice(0, MAX_RECENT);
     const mergedTrackHistory = mergeTrackHistory(cloudLibrary.trackHistory as TrackHistoryItem[], trackHistory);
+    const mergedCollections = [...cloudLibrary.collections, ...collections]
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt)
+      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
+      .slice(0, 24);
+    const mergedFollowedStations = [...cloudLibrary.followedStations, ...followedStations]
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+      .filter(
+        (item, index, source) => source.findIndex((candidate) => candidate.stationId === item.stationId) === index
+      )
+      .slice(0, 80);
+    const mergedFollowedRegions = [...cloudLibrary.followedRegions, ...followedRegions]
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
+      .slice(0, 40);
+    const mergedAlerts = [...cloudLibrary.alerts, ...alerts]
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
+      .slice(0, 160);
 
     if (!stationsMatch(mergedFavorites, favorites)) {
       setFavorites(mergedFavorites);
@@ -447,28 +555,56 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!trackHistoryMatch(mergedTrackHistory, trackHistory)) {
       setTrackHistory(mergedTrackHistory);
     }
+    if (!collectionsMatch(mergedCollections, collections)) {
+      setCollections(mergedCollections);
+    }
+    if (!followedStationsMatch(mergedFollowedStations, followedStations)) {
+      setFollowedStations(mergedFollowedStations);
+    }
+    if (!followedRegionsMatch(mergedFollowedRegions, followedRegions)) {
+      setFollowedRegions(mergedFollowedRegions);
+    }
+    if (!alertsMatch(mergedAlerts, alerts)) {
+      setAlerts(mergedAlerts);
+    }
 
     const remoteNeedsUpdate =
       !stationsMatch(mergedFavorites, cloudLibrary.favorites) ||
       !stationsMatch(mergedRecent, cloudLibrary.recent) ||
-      !trackHistoryMatch(mergedTrackHistory, cloudLibrary.trackHistory as TrackHistoryItem[]);
+      !trackHistoryMatch(mergedTrackHistory, cloudLibrary.trackHistory as TrackHistoryItem[]) ||
+      !collectionsMatch(mergedCollections, cloudLibrary.collections) ||
+      !followedStationsMatch(mergedFollowedStations, cloudLibrary.followedStations) ||
+      !followedRegionsMatch(mergedFollowedRegions, cloudLibrary.followedRegions) ||
+      !alertsMatch(mergedAlerts, cloudLibrary.alerts);
 
     if (remoteNeedsUpdate) {
       void replaceCloudLibrary({
         favorites: mergedFavorites,
         recent: mergedRecent,
-        trackHistory: mergedTrackHistory
+        trackHistory: mergedTrackHistory,
+        collections: mergedCollections,
+        followedStations: mergedFollowedStations,
+        followedRegions: mergedFollowedRegions,
+        alerts: mergedAlerts
       });
     }
   }, [
+    alerts,
     cloudLibrary,
+    collections,
     favorites,
+    followedRegions,
+    followedStations,
     recent,
     replaceCloudLibrary,
     sessionProfile?.id,
     sessionStatus,
     trackHistory,
+    setAlerts,
+    setCollections,
     setFavorites,
+    setFollowedRegions,
+    setFollowedStations,
     setRecent,
     setTrackHistory
   ]);
@@ -487,7 +623,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const sameAsCloud =
       stationsMatch(favorites, cloudLibrary?.favorites || []) &&
       stationsMatch(nextRecent, cloudLibrary?.recent || []) &&
-      trackHistoryMatch(nextTrackHistory, (cloudLibrary?.trackHistory || []) as TrackHistoryItem[]);
+      trackHistoryMatch(nextTrackHistory, (cloudLibrary?.trackHistory || []) as TrackHistoryItem[]) &&
+      collectionsMatch(collections, cloudLibrary?.collections || []) &&
+      followedStationsMatch(followedStations, cloudLibrary?.followedStations || []) &&
+      followedRegionsMatch(followedRegions, cloudLibrary?.followedRegions || []) &&
+      alertsMatch(alerts, cloudLibrary?.alerts || []);
 
     if (sameAsCloud) return;
 
@@ -495,7 +635,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       void replaceCloudLibrary({
         favorites,
         recent: nextRecent,
-        trackHistory: nextTrackHistory
+        trackHistory: nextTrackHistory,
+        collections,
+        followedStations,
+        followedRegions,
+        alerts
       });
     }, 700);
 
@@ -504,12 +648,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     cloudLibrary?.favorites,
     cloudLibrary?.recent,
     cloudLibrary?.trackHistory,
+    cloudLibrary?.collections,
+    cloudLibrary?.followedStations,
+    cloudLibrary?.followedRegions,
+    cloudLibrary?.alerts,
     favorites,
     recent,
     replaceCloudLibrary,
     sessionProfile?.id,
     sessionStatus,
-    trackHistory
+    trackHistory,
+    collections,
+    followedStations,
+    followedRegions,
+    alerts
   ]);
 
   useEffect(() => {
@@ -1285,6 +1437,98 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const clearFavorites = () => setFavorites([]);
   const clearRecent = () => setRecent([]);
   const clearTrackHistory = () => setTrackHistory([]);
+  const createCollection = (name: string) => {
+    const normalized = name.trim();
+    if (!normalized) return;
+    const now = Date.now();
+    setCollections((prev) => [
+      {
+        id: `collection-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: normalized.slice(0, 48),
+        description: null,
+        stationIds: [],
+        isPublic: false,
+        updatedAt: now,
+        createdAt: now,
+        pinned: false
+      },
+      ...prev
+    ]);
+    setLibraryTab('collections');
+  };
+  const addStationToCollection = (collectionId: string, station: Station | StationLite) => {
+    const lite = toLite(station);
+    setCollections((prev) =>
+      prev.map((collection) =>
+        collection.id !== collectionId || collection.stationIds.includes(lite.stationuuid)
+          ? collection
+          : {
+              ...collection,
+              stationIds: [lite.stationuuid, ...collection.stationIds].slice(0, 128),
+              updatedAt: Date.now()
+            }
+      )
+    );
+  };
+  const removeStationFromCollection = (collectionId: string, stationId: string) => {
+    setCollections((prev) =>
+      prev.map((collection) =>
+        collection.id !== collectionId
+          ? collection
+          : {
+              ...collection,
+              stationIds: collection.stationIds.filter((item) => item !== stationId),
+              updatedAt: Date.now()
+            }
+      )
+    );
+  };
+  const toggleFollowStation = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    setFollowedStations((prev) => {
+      if (prev.some((item) => item.stationId === lite.stationuuid)) {
+        return prev.filter((item) => item.stationId !== lite.stationuuid);
+      }
+      return [
+        {
+          stationId: lite.stationuuid,
+          stationName: lite.name,
+          country: lite.country || '',
+          createdAt: Date.now(),
+          pinned: false,
+          alerts: ['back-online', 'track']
+        },
+        ...prev
+      ];
+    });
+  };
+  const toggleFollowRegion = (region: { id: string; label: string; scope: 'country' | 'area' }) => {
+    setFollowedRegions((prev) => {
+      if (prev.some((item) => item.id === region.id)) {
+        return prev.filter((item) => item.id !== region.id);
+      }
+      return [
+        {
+          ...region,
+          createdAt: Date.now(),
+          pinned: false
+        },
+        ...prev
+      ];
+    });
+  };
+  const markAlertRead = (alertId: string) => {
+    setAlerts((prev) =>
+      prev.map((alert) =>
+        alert.id === alertId && alert.readAt === null
+          ? {
+              ...alert,
+              readAt: Date.now()
+            }
+          : alert
+      )
+    );
+  };
   const clearCache = () => {
     clearStationsCache();
     notify(t('toast.cacheCleared'));
@@ -1470,6 +1714,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     error,
     favorites,
     recent,
+    collections,
+    followedStations,
+    followedRegions,
+    alerts,
     toast,
     nowPlaying,
     nowPlayingStatus,
@@ -1500,6 +1748,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     clearFavorites,
     clearRecent,
     clearTrackHistory,
+    createCollection,
+    addStationToCollection,
+    removeStationFromCollection,
+    toggleFollowStation,
+    toggleFollowRegion,
+    markAlertRead,
     clearCache,
     debugLogs
   };

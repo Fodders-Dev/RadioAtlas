@@ -1,5 +1,19 @@
 import type { StationLite } from '../types';
 
+export type PremiumStatus = 'free' | 'supporter' | 'premium';
+export type SupporterTier = 'none' | 'supporter' | 'patron';
+export type BillingProvider = 'telegram-stars' | 'manual' | null;
+export type SessionEntitlement =
+  | 'cloud-sync'
+  | 'collections'
+  | 'collection-folders'
+  | 'advanced-history'
+  | 'pinned-stations'
+  | 'pinned-regions'
+  | 'station-alerts'
+  | 'cosmetic-pack'
+  | 'sponsor-free';
+
 export type PlaybackFailureKind =
   | 'mixed-content'
   | 'api-unavailable'
@@ -49,10 +63,53 @@ export type SyncedTrackHistoryItem = {
   timestamp: number;
 };
 
+export type UserCollection = {
+  id: string;
+  name: string;
+  description: string | null;
+  stationIds: string[];
+  isPublic: boolean;
+  updatedAt: number;
+  createdAt: number;
+  pinned: boolean;
+};
+
+export type FollowedStation = {
+  stationId: string;
+  stationName: string;
+  country: string;
+  createdAt: number;
+  pinned: boolean;
+  alerts: Array<'back-online' | 'track' | 'live-show'>;
+};
+
+export type FollowedRegion = {
+  id: string;
+  label: string;
+  scope: 'country' | 'area';
+  createdAt: number;
+  pinned: boolean;
+};
+
+export type ListenerAlert = {
+  id: string;
+  kind: 'station-back-online' | 'track-available' | 'live-show' | 'region-activity';
+  stationId: string | null;
+  regionId: string | null;
+  title: string;
+  body: string;
+  createdAt: number;
+  readAt: number | null;
+};
+
 export type CloudLibrary = {
   favorites: StationLite[];
   recent: StationLite[];
   trackHistory: SyncedTrackHistoryItem[];
+  collections: UserCollection[];
+  followedStations: FollowedStation[];
+  followedRegions: FollowedRegion[];
+  alerts: ListenerAlert[];
   updatedAt: number;
 };
 
@@ -68,7 +125,12 @@ export type SessionAuditEventType =
   | 'session_created'
   | 'sign_in'
   | 'library_synced'
-  | 'link_request_created';
+  | 'link_request_created'
+  | 'entitlements_updated'
+  | 'billing_purchase_created'
+  | 'billing_purchase_confirmed'
+  | 'station_claimed'
+  | 'station_profile_updated';
 
 export type SessionProviderInfo = {
   kind: ProviderKind;
@@ -112,6 +174,10 @@ export type SessionProfile = {
   email: string | null;
   photoUrl: string | null;
   isPremium: boolean;
+  premiumStatus: PremiumStatus;
+  supporterTier: SupporterTier;
+  entitlements: SessionEntitlement[];
+  billingProvider: BillingProvider;
   linkedProviders: ProviderKind[];
   providers: SessionProviderInfo[];
 };
@@ -160,7 +226,10 @@ export type DiscoveryModuleKind =
   | 'country-spotlight'
   | 'resume'
   | 'genre-spotlight'
-  | 'catalog-pulse';
+  | 'catalog-pulse'
+  | 'revived-stations'
+  | 'session-delta'
+  | 'sponsored';
 
 export type DiscoveryStationModule = {
   kind: DiscoveryModuleKind;
@@ -188,7 +257,56 @@ export type DiscoveryFeed = {
   freshSignals: DiscoveryStationModule;
   countrySpotlight: DiscoveryStationModule | null;
   resumeStations: StationLite[];
+  resumeModules: DiscoveryStationModule[];
   genreSpotlight: DiscoveryStationModule | null;
+  revivedStations: DiscoveryStationModule | null;
+  sessionDelta: DiscoveryStationModule | null;
+  sponsoredModules: DiscoveryStationModule[];
   tagRadar: DiscoveryTagMetric[];
   metrics: DiscoveryMetrics;
+  freshnessStamp: number;
+};
+
+export type BillingProductId =
+  | 'support-small'
+  | 'support-big'
+  | 'premium-month'
+  | 'premium-year'
+  | 'premium-gift';
+
+export type BillingProduct = {
+  id: BillingProductId;
+  title: string;
+  description: string;
+  amount: number;
+  currency: 'XTR';
+  kind: 'donation' | 'premium' | 'gift-premium';
+};
+
+export type BillingInvoice = {
+  id: string;
+  productId: BillingProductId;
+  title: string;
+  amount: number;
+  currency: 'XTR';
+  invoiceLink: string;
+  createdAt: number;
+};
+
+export type StationProfileSummary = {
+  stationuuid: string;
+  displayName: string;
+  description: string | null;
+  artworkUrl: string | null;
+  websiteUrl: string | null;
+  socialLinks: Array<{ label: string; url: string }>;
+  scheduleNote: string | null;
+  editorialPitch: string | null;
+  ownerAccountId: string | null;
+  isVerified: boolean;
+  isPromoted: boolean;
+  claimedAt: number | null;
+  promotedUntil: number | null;
+  createdAt: number;
+  updatedAt: number;
 };

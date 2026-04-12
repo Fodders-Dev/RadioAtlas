@@ -61,6 +61,13 @@ export const StationTable = ({
                     <div className="station-title" title={station.name}>
                       <span className="marquee-text">{station.name}</span>
                     </div>
+                    {station.isVerified || station.promoted || station.isClaimed ? (
+                      <div className="chip-row station-inline-flags">
+                        {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
+                        {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
+                        {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                      </div>
+                    ) : null}
                     <div className="station-location" title={locationLabel}>
                       {locationLabel}
                     </div>
@@ -125,8 +132,17 @@ export const StationTable = ({
                 <div className="station-name">
                   <div className="station-name-head">
                     <StationArtwork station={station} size="md" />
-                    <div className="station-title" title={station.name}>
-                      <span className="marquee-text">{station.name}</span>
+                    <div className="station-name-stack">
+                      <div className="station-title" title={station.name}>
+                        <span className="marquee-text">{station.name}</span>
+                      </div>
+                      {station.isVerified || station.promoted || station.isClaimed ? (
+                        <div className="chip-row station-inline-flags">
+                          {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
+                          {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
+                          {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

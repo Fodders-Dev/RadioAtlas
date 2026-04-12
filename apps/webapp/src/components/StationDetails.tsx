@@ -1,8 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent } from 'react';
+import type { StationProfileSummary } from '../domain/contracts';
+import { getApiBase } from '../lib/apiBase';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
+import { useSession } from '../state/SessionContext';
 
 type StationDetailsProps = {
   open: boolean;
@@ -16,14 +19,22 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
     stations,
     nowPlaying,
     nowPlayingStatus,
-      copyTrack,
-      toggleFavorite,
-      isFavorite,
-      shareStation,
-      openExternal
-    } = useRadio();
+    copyTrack,
+    toggleFavorite,
+    isFavorite,
+    shareStation,
+    openExternal,
+    followedStations,
+    toggleFollowStation
+  } = useRadio();
+  const { status, openAccountSheet } = useSession();
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
+  const followed = current
+    ? followedStations.some((station) => station.stationId === current.stationuuid)
+    : false;
+  const [profileSummary, setProfileSummary] = useState<StationProfileSummary | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   const full = useMemo(() => {
     if (!current) return null;
@@ -38,6 +49,30 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
   const homepage = full?.homepage;
   const codec = full?.codec;
   const bitrate = full?.bitrate;
+  const apiBase = getApiBase();
+
+  useEffect(() => {
+    let cancelled = false;
+    setProfileSummary(null);
+    if (!current || !apiBase) return;
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBase}/stations/${current.stationuuid}/profile`);
+        if (!response.ok) return;
+        const data = (await response.json()) as { profile?: StationProfileSummary };
+        if (!cancelled) {
+          setProfileSummary(data.profile || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setProfileSummary(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, current?.stationuuid]);
 
   const handlePlay = () => {
     player.toggle();
@@ -105,6 +140,13 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
           </button>
           <button className="player-btn" onClick={() => shareStation(current)} type="button">
             {t('common.share')}
+          </button>
+          <button
+            className={`player-btn ${followed ? 'active' : ''}`}
+            onClick={() => toggleFollowStation(current)}
+            type="button"
+          >
+            {followed ? t('details.following') : t('details.follow')}
           </button>
           <button className="player-btn" onClick={() => openExternal(current)} type="button">
             {t('common.stream')}
@@ -180,7 +222,42 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
               <div>{bitrate} kbps</div>
             </div>
           )}
+          {profileSummary ? (
+            <div className="details-row">
+              <span>{t('details.stationProfile')}</span>
+              <div>
+                {profileSummary.isVerified ? t('stationTable.verified') : profileSummary.ownerAccountId ? t('stationTable.claimed') : t('details.unclaimed')}
+              </div>
+            </div>
+          ) : null}
+          {profileSummary?.description ? (
+            <div className="details-row">
+              <span>{t('details.description')}</span>
+              <div>{profileSummary.description}</div>
+            </div>
+          ) : null}
+          {profileSummary?.scheduleNote ? (
+            <div className="details-row">
+              <span>{t('details.schedule')}</span>
+              <div>{profileSummary.scheduleNote}</div>
+            </div>
+          ) : null}
         </div>
+        {status === 'authenticated' && !profileSummary?.ownerAccountId ? (
+          <div className="settings-actions">
+            <button
+              className="chip"
+              type="button"
+              onClick={() => {
+                setClaimError(t('details.claimViaAccount'));
+                openAccountSheet();
+              }}
+            >
+              {t('details.claimStation')}
+            </button>
+          </div>
+        ) : null}
+        {claimError ? <div className="section-subtitle">{claimError}</div> : null}
       </div>
     </div>
   );

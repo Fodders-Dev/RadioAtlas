@@ -1,13 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   AuditEvent,
+  BillingInvoice,
+  BillingProduct,
+  BillingProductId,
   CloudLibrary,
   LibraryMergeStrategy,
   MergePreview,
   ProviderKind,
   SessionProfile,
   SessionProviderInfo,
-  SyncedTrackHistoryItem
+  SyncedTrackHistoryItem,
+  UserCollection,
+  FollowedRegion,
+  FollowedStation,
+  ListenerAlert
 } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
 import type { StationLite } from '../types';
@@ -52,6 +59,7 @@ type SessionContextValue = {
   canOpenTelegram: boolean;
   hasGoogleClient: boolean;
   googleClientId: string;
+  billingProducts: BillingProduct[];
   signInWithTelegram: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
   signInWithGoogleCredential: (
     credential: string,
@@ -70,6 +78,16 @@ type SessionContextValue = {
   dismissPendingLink: () => void;
   signOut: () => void;
   replaceCloudLibrary: (library: Omit<CloudLibrary, 'updatedAt'>) => Promise<void>;
+  updateCollections: (collections: UserCollection[]) => Promise<void>;
+  updateFollows: (payload: {
+    followedStations: FollowedStation[];
+    followedRegions: FollowedRegion[];
+  }) => Promise<void>;
+  updateAlerts: (alerts: ListenerAlert[]) => Promise<void>;
+  createTelegramInvoice: (
+    productId: BillingProductId,
+    recipientAccountId?: string | null
+  ) => Promise<BillingInvoice | null>;
   openTelegramAccess: (linkCode?: string | null) => void;
   openAccountSheet: () => void;
   closeAccountSheet: () => void;
@@ -80,6 +98,21 @@ type SessionPayload = {
   profile: SessionProfile & { library: CloudLibrary };
   auditTrail: SessionAuditEvent[];
 };
+
+const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
+  id: profile.id,
+  displayName: profile.displayName,
+  username: profile.username,
+  email: profile.email,
+  photoUrl: profile.photoUrl,
+  isPremium: profile.isPremium,
+  premiumStatus: profile.premiumStatus,
+  supporterTier: profile.supporterTier,
+  entitlements: profile.entitlements,
+  billingProvider: profile.billingProvider,
+  linkedProviders: profile.linkedProviders,
+  providers: profile.providers
+});
 
 const SESSION_STORAGE_KEY = 'radio:session:v1';
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -116,6 +149,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [pendingLinkAction, setPendingLinkAction] = useState<PendingLinkAction | null>(null);
+  const [billingProducts, setBillingProducts] = useState<BillingProduct[]>([]);
   const apiBase = getApiBase();
   const telegramMiniApp = typeof window !== 'undefined' && isTelegramMiniApp();
   const googleClientId = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
@@ -125,16 +159,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   const applySessionPayload = useCallback((payload: SessionPayload) => {
     setStoredToken(payload.token);
-    setProfile({
-      id: payload.profile.id,
-      displayName: payload.profile.displayName,
-      username: payload.profile.username,
-      email: payload.profile.email,
-      photoUrl: payload.profile.photoUrl,
-      isPremium: payload.profile.isPremium,
-      linkedProviders: payload.profile.linkedProviders,
-      providers: payload.profile.providers
-    });
+    setProfile(mapProfile(payload.profile));
     setLibrary(payload.profile.library);
     setAuditTrail(payload.auditTrail || []);
     setStatus('authenticated');
@@ -432,16 +457,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           profile: SessionPayload['profile'];
           auditTrail?: SessionAuditEvent[];
         };
-        setProfile({
-          id: payload.profile.id,
-          displayName: payload.profile.displayName,
-          username: payload.profile.username,
-          email: payload.profile.email,
-          photoUrl: payload.profile.photoUrl,
-          isPremium: payload.profile.isPremium,
-          linkedProviders: payload.profile.linkedProviders,
-          providers: payload.profile.providers
-        });
+        setProfile(mapProfile(payload.profile));
         setLibrary(payload.profile.library);
         setAuditTrail(payload.auditTrail || []);
         setStatus('authenticated');
@@ -477,21 +493,157 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           auditTrail?: SessionAuditEvent[];
         };
         setLibrary(data.profile.library);
-        setProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                linkedProviders: data.profile.linkedProviders,
-                providers: data.profile.providers
-              }
-            : prev
-        );
+        setProfile(mapProfile(data.profile));
         setAuditTrail(data.auditTrail || []);
         setSyncState('synced');
         setError(null);
       } catch (err) {
         setSyncState('error');
         setError(err instanceof Error ? err.message : 'library sync failed');
+      }
+    },
+    [apiBase, profile]
+  );
+
+  const updateCollections = useCallback(
+    async (collections: UserCollection[]) => {
+      const token = getStoredToken();
+      if (!apiBase || !token || !profile) return;
+      setSyncState('syncing');
+      try {
+        const response = await fetch(`${apiBase}/me/collections`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ collections })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `collections sync failed (${response.status})`);
+        }
+        const data = (await response.json()) as {
+          profile: SessionPayload['profile'];
+          auditTrail?: SessionAuditEvent[];
+        };
+        setProfile(mapProfile(data.profile));
+        setLibrary(data.profile.library);
+        setAuditTrail(data.auditTrail || []);
+        setSyncState('synced');
+        setError(null);
+      } catch (err) {
+        setSyncState('error');
+        setError(err instanceof Error ? err.message : 'collections sync failed');
+      }
+    },
+    [apiBase, profile]
+  );
+
+  const updateFollows = useCallback(
+    async (payload: { followedStations: FollowedStation[]; followedRegions: FollowedRegion[] }) => {
+      const token = getStoredToken();
+      if (!apiBase || !token || !profile) return;
+      setSyncState('syncing');
+      try {
+        const response = await fetch(`${apiBase}/me/follows`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `follows sync failed (${response.status})`);
+        }
+        const data = (await response.json()) as {
+          profile: SessionPayload['profile'];
+          auditTrail?: SessionAuditEvent[];
+        };
+        setProfile(mapProfile(data.profile));
+        setLibrary(data.profile.library);
+        setAuditTrail(data.auditTrail || []);
+        setSyncState('synced');
+        setError(null);
+      } catch (err) {
+        setSyncState('error');
+        setError(err instanceof Error ? err.message : 'follows sync failed');
+      }
+    },
+    [apiBase, profile]
+  );
+
+  const updateAlerts = useCallback(
+    async (alerts: ListenerAlert[]) => {
+      const token = getStoredToken();
+      if (!apiBase || !token || !profile) return;
+      setSyncState('syncing');
+      try {
+        const response = await fetch(`${apiBase}/me/alerts`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ alerts })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `alerts sync failed (${response.status})`);
+        }
+        const data = (await response.json()) as {
+          profile: SessionPayload['profile'];
+          auditTrail?: SessionAuditEvent[];
+        };
+        setProfile(mapProfile(data.profile));
+        setLibrary(data.profile.library);
+        setAuditTrail(data.auditTrail || []);
+        setSyncState('synced');
+        setError(null);
+      } catch (err) {
+        setSyncState('error');
+        setError(err instanceof Error ? err.message : 'alerts sync failed');
+      }
+    },
+    [apiBase, profile]
+  );
+
+  const createTelegramInvoice = useCallback(
+    async (productId: BillingProductId, recipientAccountId?: string | null) => {
+      const token = getStoredToken();
+      if (!apiBase || !token || !profile) return null;
+      try {
+        const response = await fetch(`${apiBase}/billing/telegram/create-invoice`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ productId, recipientAccountId: recipientAccountId || null })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `invoice creation failed (${response.status})`);
+        }
+        const data = (await response.json()) as {
+          purchaseId: string;
+          product: BillingProduct;
+          invoiceLink: string;
+        };
+        return {
+          id: data.purchaseId,
+          productId: data.product.id,
+          title: data.product.title,
+          amount: data.product.amount,
+          currency: data.product.currency,
+          invoiceLink: data.invoiceLink,
+          createdAt: Date.now()
+        } satisfies BillingInvoice;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'invoice creation failed');
+        return null;
       }
     },
     [apiBase, profile]
@@ -560,6 +712,31 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setStatus('local');
   }, [apiBase, fetchProfile, signInWithTelegram]);
 
+  useEffect(() => {
+    if (!apiBase) {
+      setBillingProducts([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBase}/billing/telegram/products`);
+        if (!response.ok) return;
+        const data = (await response.json()) as { products?: BillingProduct[] };
+        if (!cancelled) {
+          setBillingProducts(Array.isArray(data.products) ? data.products : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setBillingProducts([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -575,6 +752,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       canOpenTelegram,
       hasGoogleClient,
       googleClientId,
+      billingProducts,
       signInWithTelegram,
       signInWithGoogleCredential,
       unlinkProvider,
@@ -585,6 +763,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       dismissPendingLink,
       signOut,
       replaceCloudLibrary,
+      updateCollections,
+      updateFollows,
+      updateAlerts,
+      createTelegramInvoice,
       openTelegramAccess,
       openAccountSheet: () => setAccountSheetOpen(true),
       closeAccountSheet: () => setAccountSheetOpen(false)
@@ -603,6 +785,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       canOpenTelegram,
       hasGoogleClient,
       googleClientId,
+      billingProducts,
       signInWithTelegram,
       signInWithGoogleCredential,
       unlinkProvider,
@@ -613,6 +796,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       dismissPendingLink,
       signOut,
       replaceCloudLibrary,
+      updateCollections,
+      updateFollows,
+      updateAlerts,
+      createTelegramInvoice,
       openTelegramAccess
     ]
   );
@@ -630,11 +817,18 @@ export const useSession = () => {
 
 export type { AccountMergePreview, LibraryCounts, SessionAuditEvent };
 export type {
+  BillingInvoice,
+  BillingProduct,
+  BillingProductId,
   CloudLibrary,
+  FollowedRegion,
+  FollowedStation,
   LibraryMergeStrategy,
+  ListenerAlert,
   MergePreviewParty,
   ProviderKind,
   SessionProfile,
   SessionProviderInfo,
-  SyncedTrackHistoryItem
+  SyncedTrackHistoryItem,
+  UserCollection
 } from '../domain/contracts';

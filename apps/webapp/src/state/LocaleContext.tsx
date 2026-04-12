@@ -77,7 +77,10 @@ const dictionaries = {
       tagsColumn: 'Жанры',
       favoriteColumn: 'Лайк',
       favorite: 'В лайки',
-      unfavorite: 'Убрать лайк'
+      unfavorite: 'Убрать лайк',
+      verified: 'Проверено',
+      promoted: 'Промо',
+      claimed: 'Заявлена'
     },
     explore: {
       kicker: 'RadioAtlas x Winamp',
@@ -160,7 +163,19 @@ const dictionaries = {
         catalogPulseCopy: 'Быстрый обзор того, чем сейчас живёт каталог: страны, языки и живые жанровые входы.',
         catalogPulseCountries: 'Стран',
         catalogPulseLanguages: 'Языков',
-        catalogPulseGenres: 'Жанров'
+        catalogPulseGenres: 'Жанров',
+        revivedKicker: 'Снова в эфире',
+        revivedTitle: 'К чему вернуться',
+        revivedCopy: 'Станции из твоих интересов и прошлых сессий, которые стоит вернуть в ротацию.',
+        deltaKicker: 'С прошлой сессии',
+        sessionDeltaTitle: 'Что изменилось',
+        sessionDeltaCopy: 'Срез по станциям, которые ещё не закрепились в избранном, но уже формируют новую сессию.',
+        sponsoredKicker: 'Поддержка станций',
+        sponsoredTitle: 'Промо-станции',
+        sponsoredCopy: 'Явно помеченный промо-блок. Не лезет в обычный поиск и не маскируется под органику.',
+        sponsoredBadge: 'Промо',
+        resumeShelfTitle: 'Продолжить эфир',
+        resumeShelfCopy: 'Быстрый путь назад в текущую сессию.'
       },
     account: {
         title: 'Аккаунт и синхронизация',
@@ -241,13 +256,37 @@ const dictionaries = {
           session_created: 'Создана сессия',
           sign_in: 'Успешный вход',
           library_synced: 'Библиотека синхронизирована',
-          link_request_created: 'Создан код привязки'
+          link_request_created: 'Создан код привязки',
+          entitlements_updated: 'Привилегии обновлены',
+          billing_purchase_created: 'Создан платёж',
+          billing_purchase_confirmed: 'Платёж подтверждён',
+          station_claimed: 'Станция заявлена',
+          station_profile_updated: 'Профиль станции обновлён'
         },
         signOut: 'Выйти',
         syncStatus: 'Синхронизация',
         providers: {
           telegram: 'Telegram',
           google: 'Google'
+        },
+        membership: 'Статус',
+        premiumBadge: 'Premium',
+        supporterBadge: 'Supporter',
+        freeBadge: 'Free',
+        getPremium: 'Взять Premium',
+        supportProject: 'Поддержать',
+        billingTitle: 'Stars и привилегии',
+        billingCopy: 'Telegram Stars остаются первым денежным слоем: донаты, Premium и подарки.',
+        entitlements: {
+          'cloud-sync': 'Облачный синк',
+          collections: 'Коллекции',
+          'collection-folders': 'Папки коллекций',
+          'advanced-history': 'Расширенная история',
+          'pinned-stations': 'Закреплённые станции',
+          'pinned-regions': 'Закреплённые регионы',
+          'station-alerts': 'Алерты по станциям',
+          'cosmetic-pack': 'Косметический пак',
+          'sponsor-free': 'Без промо-блоков'
         },
         syncStates: {
           idle: 'ожидание',
@@ -281,6 +320,8 @@ const dictionaries = {
       countryRoutesCopy: 'Короткие маршруты по странам, чтобы искать эфир не только вращением шара.',
       hotspotCount: '{count} станц.',
       mappedAreas: 'Зон на карте',
+      followRegion: 'Следить за зоной',
+      followingRegion: 'Зона в подписках',
       liveQueue: 'Что играет рядом',
       contextualPicksTitle: 'По соседству на карте',
       contextualPicksCopy: 'Короткий локальный срез внутри зоны {place}.',
@@ -324,8 +365,31 @@ const dictionaries = {
         favorites: 'Избранное',
         queue: 'Очередь',
         recent: 'Недавнее',
-        history: 'История'
-      }
+        history: 'История',
+        collections: 'Коллекции'
+      },
+      collectionsTitle: 'Коллекции и подписки',
+      collectionsCopy: 'Собирай свои наборы станций, а рядом держи регионы и алерты возврата.',
+      createCollection: 'Новая коллекция',
+      createCollectionPrompt: 'Название коллекции',
+      collectionEmpty: 'Эта коллекция пока пустая.',
+      collectionCount: 'Станций: {count}',
+      addCurrentToCollection: 'Добавить текущее',
+      removeFromCollection: 'Убрать',
+      collectionsEmptyTitle: 'Коллекций пока нет',
+      collectionsEmptyCopy: 'Создай первую коллекцию для любимых сетов, стран или настроений.',
+      followedStationsTitle: 'Подписки на станции',
+      followedStationsCopy: 'Отслеживай станции, чтобы потом включить алерты по возвращению в эфир и трекам.',
+      followedStationsEmpty: 'Подписок на станции пока нет.',
+      followedRegionsTitle: 'Подписки на регионы',
+      followedRegionsCopy: 'Сохраняй любимые зоны и страны прямо из глобуса.',
+      followedRegionsEmpty: 'Подписок на регионы пока нет.',
+      alertsTitle: 'Алерты',
+      alertsCopy: 'Здесь появятся сигналы по станциям и регионам, на которые ты подписан.',
+      alertsUnread: 'Новых',
+      alertsEmpty: 'Алертов пока нет.',
+      alertMarkRead: 'Прочитано',
+      alertRead: 'Уже прочитано'
     },
     dock: {
       peekLabel: 'Плеер готов',
@@ -461,7 +525,15 @@ const dictionaries = {
       codec: 'Кодек',
       bitrate: 'Битрейт',
       unknownRegion: 'Неизвестно',
-      openTrackCopy: 'Скопировать трек'
+      openTrackCopy: 'Скопировать трек',
+      follow: 'Следить',
+      following: 'В подписках',
+      stationProfile: 'Профиль станции',
+      unclaimed: 'Не заявлена',
+      description: 'Описание',
+      schedule: 'Расписание',
+      claimStation: 'Заявить станцию',
+      claimViaAccount: 'Заявка на профиль станции идёт через аккаунт и owner flow.'
     },
     winamp: {
       fullscreen: 'Открыть полноэкранный плеер',
@@ -590,7 +662,10 @@ const dictionaries = {
       tagsColumn: 'Tags',
       favoriteColumn: 'Favorite',
       favorite: 'Favorite',
-      unfavorite: 'Unfavorite'
+      unfavorite: 'Unfavorite',
+      verified: 'Verified',
+      promoted: 'Sponsored',
+      claimed: 'Claimed'
     },
     explore: {
       kicker: 'RadioAtlas x Winamp',
@@ -672,7 +747,19 @@ const dictionaries = {
           catalogPulseCopy: 'A quick read on what the catalog is carrying right now: countries, languages, and live genre entries.',
           catalogPulseCountries: 'Countries',
           catalogPulseLanguages: 'Languages',
-          catalogPulseGenres: 'Genres'
+          catalogPulseGenres: 'Genres',
+          revivedKicker: 'Back on air',
+          revivedTitle: 'Worth returning to',
+          revivedCopy: 'Stations from your interests and recent sessions that should come back into rotation.',
+          deltaKicker: 'Since last session',
+          sessionDeltaTitle: 'What changed',
+          sessionDeltaCopy: 'Stations that are shaping the current mood but are not pinned into favorites yet.',
+          sponsoredKicker: 'Station support',
+          sponsoredTitle: 'Sponsored stations',
+          sponsoredCopy: 'A clearly labeled promo block. It does not sneak into normal search results.',
+          sponsoredBadge: 'Sponsored',
+          resumeShelfTitle: 'Return to air',
+          resumeShelfCopy: 'A fast path back into the current session.'
         },
       account: {
           title: 'Account and sync',
@@ -753,13 +840,37 @@ const dictionaries = {
             session_created: 'Session created',
             sign_in: 'Successful sign-in',
             library_synced: 'Library synced',
-            link_request_created: 'Link code created'
+            link_request_created: 'Link code created',
+            entitlements_updated: 'Entitlements updated',
+            billing_purchase_created: 'Payment created',
+            billing_purchase_confirmed: 'Payment confirmed',
+            station_claimed: 'Station claimed',
+            station_profile_updated: 'Station profile updated'
           },
           signOut: 'Sign out',
           syncStatus: 'Sync',
           providers: {
             telegram: 'Telegram',
             google: 'Google'
+          },
+          membership: 'Membership',
+          premiumBadge: 'Premium',
+          supporterBadge: 'Supporter',
+          freeBadge: 'Free',
+          getPremium: 'Get Premium',
+          supportProject: 'Support',
+          billingTitle: 'Stars and perks',
+          billingCopy: 'Telegram Stars stay the first revenue layer: donations, Premium, and gifts.',
+          entitlements: {
+            'cloud-sync': 'Cloud sync',
+            collections: 'Collections',
+            'collection-folders': 'Collection folders',
+            'advanced-history': 'Advanced history',
+            'pinned-stations': 'Pinned stations',
+            'pinned-regions': 'Pinned regions',
+            'station-alerts': 'Station alerts',
+            'cosmetic-pack': 'Cosmetic pack',
+            'sponsor-free': 'No sponsored blocks'
           },
           syncStates: {
             idle: 'idle',
@@ -793,6 +904,8 @@ const dictionaries = {
       countryRoutesCopy: 'Quick country routes so discovery does not depend on pixel-perfect globe taps.',
       hotspotCount: '{count} st.',
       mappedAreas: 'Areas on map',
+      followRegion: 'Follow area',
+      followingRegion: 'Area followed',
       liveQueue: 'Live queue nearby',
       contextualPicksTitle: 'Live around this area',
       contextualPicksCopy: 'A short local slice inside {place}.',
@@ -836,8 +949,31 @@ const dictionaries = {
         favorites: 'Favorites',
         queue: 'Queue',
         recent: 'Recent',
-        history: 'History'
-      }
+        history: 'History',
+        collections: 'Collections'
+      },
+      collectionsTitle: 'Collections and follows',
+      collectionsCopy: 'Build station sets, keep favorite regions nearby, and surface alerts in one place.',
+      createCollection: 'New collection',
+      createCollectionPrompt: 'Collection name',
+      collectionEmpty: 'This collection is still empty.',
+      collectionCount: 'Stations: {count}',
+      addCurrentToCollection: 'Add current',
+      removeFromCollection: 'Remove',
+      collectionsEmptyTitle: 'No collections yet',
+      collectionsEmptyCopy: 'Create your first collection for moods, countries, or personal lineups.',
+      followedStationsTitle: 'Followed stations',
+      followedStationsCopy: 'Keep stations around so you can later enable return-to-air and track alerts.',
+      followedStationsEmpty: 'No followed stations yet.',
+      followedRegionsTitle: 'Followed regions',
+      followedRegionsCopy: 'Save favorite zones and countries straight from the globe.',
+      followedRegionsEmpty: 'No followed regions yet.',
+      alertsTitle: 'Alerts',
+      alertsCopy: 'Signals for followed stations and regions will appear here.',
+      alertsUnread: 'Unread',
+      alertsEmpty: 'No alerts yet.',
+      alertMarkRead: 'Mark read',
+      alertRead: 'Read'
     },
     dock: {
       peekLabel: 'Player ready',
@@ -972,7 +1108,15 @@ const dictionaries = {
       codec: 'Codec',
       bitrate: 'Bitrate',
       unknownRegion: 'Unknown',
-      openTrackCopy: 'Copy track'
+      openTrackCopy: 'Copy track',
+      follow: 'Follow',
+      following: 'Following',
+      stationProfile: 'Station profile',
+      unclaimed: 'Unclaimed',
+      description: 'Description',
+      schedule: 'Schedule',
+      claimStation: 'Claim station',
+      claimViaAccount: 'Station claims go through the account owner flow.'
     },
     winamp: {
       fullscreen: 'Open fullscreen player',

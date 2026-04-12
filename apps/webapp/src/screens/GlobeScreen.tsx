@@ -80,7 +80,7 @@ const distanceSq = (left: { lat: number; lon: number }, right: { lat: number; lo
 
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { stations, player, favorites, recent, setActiveSection } = useRadio();
+  const { stations, player, favorites, recent, followedRegions, toggleFollowRegion, setActiveSection } = useRadio();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const picksRef = useRef<HTMLDivElement | null>(null);
@@ -230,6 +230,9 @@ export const GlobeScreen = () => {
       }),
     [activeAreaId, favorites, globeAreas, recent, selectedAreaId]
   );
+  const isSelectedRegionFollowed = selectedArea
+    ? followedRegions.some((region) => region.id === selectedArea.id)
+    : false;
 
   useEffect(() => {
     if (!selectedArea) return;
@@ -353,6 +356,21 @@ export const GlobeScreen = () => {
                     <strong>{zoomLevel.toFixed(1)}x</strong>
                   </div>
                 </div>
+                <div className="hero-chip-row">
+                  <button
+                    className={`chip ${isSelectedRegionFollowed ? 'active' : ''}`}
+                    type="button"
+                    onClick={() =>
+                      toggleFollowRegion({
+                        id: selectedArea.id,
+                        label: selectedArea.label,
+                        scope: selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count }) ? 'area' : 'country'
+                      })
+                    }
+                  >
+                    {isSelectedRegionFollowed ? t('globe.followingRegion') : t('globe.followRegion')}
+                  </button>
+                </div>
                 <StationTable
                   stations={selectedArea.stations.slice(0, PLACE_LIST_LIMIT)}
                   compact
@@ -437,6 +455,20 @@ export const GlobeScreen = () => {
                 </button>
               ))}
             </div>
+            {followedRegions.length ? (
+              <div className="hero-chip-row">
+                {followedRegions.slice(0, 4).map((region) => (
+                  <button
+                    key={`followed-${region.id}`}
+                    className="chip"
+                    type="button"
+                    onClick={() => handleSelectRoute(region.id)}
+                  >
+                    {region.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="glass-card">

@@ -22,15 +22,78 @@ export type SyncedTrackHistoryItem = {
   timestamp: number;
 };
 
+export type UserCollection = {
+  id: string;
+  name: string;
+  description: string | null;
+  stationIds: string[];
+  isPublic: boolean;
+  updatedAt: number;
+  createdAt: number;
+  pinned: boolean;
+};
+
+export type FollowedStation = {
+  stationId: string;
+  stationName: string;
+  country: string;
+  createdAt: number;
+  pinned: boolean;
+  alerts: Array<'back-online' | 'track' | 'live-show'>;
+};
+
+export type FollowedRegion = {
+  id: string;
+  label: string;
+  scope: 'country' | 'area';
+  createdAt: number;
+  pinned: boolean;
+};
+
+export type ListenerAlert = {
+  id: string;
+  kind: 'station-back-online' | 'track-available' | 'live-show' | 'region-activity';
+  stationId: string | null;
+  regionId: string | null;
+  title: string;
+  body: string;
+  createdAt: number;
+  readAt: number | null;
+};
+
 export type SyncedLibrary = {
   favorites: SyncedStation[];
   recent: SyncedStation[];
   trackHistory: SyncedTrackHistoryItem[];
+  collections: UserCollection[];
+  followedStations: FollowedStation[];
+  followedRegions: FollowedRegion[];
+  alerts: ListenerAlert[];
   updatedAt: number;
 };
 
 export type ProviderKind = 'telegram' | 'google';
 export type LibraryMergeStrategy = 'combine' | 'prefer-current' | 'prefer-incoming';
+export type PremiumStatus = 'free' | 'supporter' | 'premium';
+export type SupporterTier = 'none' | 'supporter' | 'patron';
+export type BillingProvider = 'telegram-stars' | 'manual' | null;
+export type SessionEntitlement =
+  | 'cloud-sync'
+  | 'collections'
+  | 'collection-folders'
+  | 'advanced-history'
+  | 'pinned-stations'
+  | 'pinned-regions'
+  | 'station-alerts'
+  | 'cosmetic-pack'
+  | 'sponsor-free';
+
+export type BillingProductId =
+  | 'support-small'
+  | 'support-big'
+  | 'premium-month'
+  | 'premium-year'
+  | 'premium-gift';
 
 export type AccountProvider = {
   kind: ProviderKind;
@@ -50,6 +113,10 @@ export type StoredAccount = {
   email: string | null;
   photoUrl: string | null;
   isPremium: boolean;
+  premiumStatus: PremiumStatus;
+  supporterTier: SupporterTier;
+  entitlements: SessionEntitlement[];
+  billingProvider: BillingProvider;
   providers: AccountProvider[];
   library: SyncedLibrary;
   createdAt: number;
@@ -64,7 +131,12 @@ export type AccountAuditEventType =
   | 'session_created'
   | 'sign_in'
   | 'library_synced'
-  | 'link_request_created';
+  | 'link_request_created'
+  | 'entitlements_updated'
+  | 'billing_purchase_created'
+  | 'billing_purchase_confirmed'
+  | 'station_claimed'
+  | 'station_profile_updated';
 
 export type AccountAuditEvent = {
   id: string;
@@ -80,6 +152,10 @@ export type LibraryCounts = {
   favorites: number;
   recent: number;
   trackHistory: number;
+  collections: number;
+  followedStations: number;
+  followedRegions: number;
+  alerts: number;
 };
 
 export type MergePreviewParty = {
@@ -98,6 +174,48 @@ export type AccountMergePreview = {
   current: MergePreviewParty | null;
   incoming: MergePreviewParty | null;
   result: LibraryCounts;
+};
+
+export type BillingProduct = {
+  id: BillingProductId;
+  title: string;
+  description: string;
+  amount: number;
+  currency: 'XTR';
+  kind: 'donation' | 'premium' | 'gift-premium';
+};
+
+export type BillingPurchase = {
+  id: string;
+  accountId: string;
+  recipientAccountId: string | null;
+  productId: BillingProductId;
+  kind: BillingProduct['kind'];
+  amount: number;
+  currency: 'XTR';
+  status: 'pending' | 'paid' | 'failed';
+  provider: 'telegram-stars';
+  payload: string;
+  telegramChargeId: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type StationProfileRecord = {
+  stationuuid: string;
+  ownerAccountId: string | null;
+  displayName: string;
+  description: string | null;
+  artworkUrl: string | null;
+  websiteUrl: string | null;
+  socialLinks: Array<{ label: string; url: string }>;
+  scheduleNote: string | null;
+  editorialPitch: string | null;
+  isVerified: boolean;
+  isPromoted: boolean;
+  promotedUntil: number | null;
+  createdAt: number;
+  updatedAt: number;
 };
 
 type LinkRequest = {
@@ -149,6 +267,60 @@ const DB_URL = new URL('../data/account-store.sqlite', import.meta.url);
 const LEGACY_JSON_URL = new URL('../data/account-store.json', import.meta.url);
 const LINK_REQUEST_TTL_MS = 1000 * 60 * 10;
 const AUDIT_LIMIT_DEFAULT = 12;
+const PREMIUM_ENTITLEMENTS: SessionEntitlement[] = [
+  'cloud-sync',
+  'collections',
+  'collection-folders',
+  'advanced-history',
+  'pinned-stations',
+  'pinned-regions',
+  'station-alerts',
+  'cosmetic-pack',
+  'sponsor-free'
+];
+const SUPPORTER_ENTITLEMENTS: SessionEntitlement[] = ['cloud-sync', 'collections'];
+const BILLING_PRODUCTS: BillingProduct[] = [
+  {
+    id: 'support-small',
+    title: 'Support RadioAtlas',
+    description: 'A small Telegram Stars donation to keep the radio atlas alive.',
+    amount: 120,
+    currency: 'XTR',
+    kind: 'donation'
+  },
+  {
+    id: 'support-big',
+    title: 'Support RadioAtlas More',
+    description: 'A larger Telegram Stars donation for the project.',
+    amount: 360,
+    currency: 'XTR',
+    kind: 'donation'
+  },
+  {
+    id: 'premium-month',
+    title: 'RadioAtlas Premium',
+    description: 'Premium listening tools, collections, alerts, and supporter cosmetics for one month.',
+    amount: 250,
+    currency: 'XTR',
+    kind: 'premium'
+  },
+  {
+    id: 'premium-year',
+    title: 'RadioAtlas Premium Year',
+    description: 'Annual Premium access with all listener features unlocked.',
+    amount: 1800,
+    currency: 'XTR',
+    kind: 'premium'
+  },
+  {
+    id: 'premium-gift',
+    title: 'Gift RadioAtlas Premium',
+    description: 'Gift a month of Premium to another listener.',
+    amount: 300,
+    currency: 'XTR',
+    kind: 'gift-premium'
+  }
+];
 
 let dbPromise: Promise<DatabaseLike> | null = null;
 
@@ -201,6 +373,87 @@ const sanitizeTrackHistoryItem = (value: unknown): SyncedTrackHistoryItem | null
   };
 };
 
+const sanitizeCollection = (value: unknown): UserCollection | null => {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const name = safeText(item.name);
+  if (!name) return null;
+  const stationIds = Array.isArray(item.stationIds)
+    ? item.stationIds.map((entry) => safeText(entry)).filter(Boolean).slice(0, 128)
+    : [];
+  const updatedAt = safeNumber(item.updatedAt) ?? Date.now();
+  return {
+    id: safeText(item.id, randomUUID()),
+    name,
+    description: safeText(item.description) || null,
+    stationIds: Array.from(new Set(stationIds)),
+    isPublic: Boolean(item.isPublic),
+    updatedAt,
+    createdAt: safeNumber(item.createdAt) ?? updatedAt,
+    pinned: Boolean(item.pinned)
+  };
+};
+
+const sanitizeFollowedStation = (value: unknown): FollowedStation | null => {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const stationId = safeText(item.stationId);
+  const stationName = safeText(item.stationName);
+  if (!stationId || !stationName) return null;
+  const alerts = Array.isArray(item.alerts)
+    ? item.alerts
+        .map((entry) => safeText(entry))
+        .filter((entry): entry is FollowedStation['alerts'][number] =>
+          ['back-online', 'track', 'live-show'].includes(entry)
+        )
+    : [];
+  return {
+    stationId,
+    stationName,
+    country: safeText(item.country),
+    createdAt: safeNumber(item.createdAt) ?? Date.now(),
+    pinned: Boolean(item.pinned),
+    alerts: Array.from(new Set(alerts))
+  };
+};
+
+const sanitizeFollowedRegion = (value: unknown): FollowedRegion | null => {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const id = safeText(item.id);
+  const label = safeText(item.label);
+  if (!id || !label) return null;
+  return {
+    id,
+    label,
+    scope: safeText(item.scope) === 'area' ? 'area' : 'country',
+    createdAt: safeNumber(item.createdAt) ?? Date.now(),
+    pinned: Boolean(item.pinned)
+  };
+};
+
+const sanitizeAlert = (value: unknown): ListenerAlert | null => {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const kind = safeText(item.kind) as ListenerAlert['kind'];
+  if (!['station-back-online', 'track-available', 'live-show', 'region-activity'].includes(kind)) {
+    return null;
+  }
+  const title = safeText(item.title);
+  const body = safeText(item.body);
+  if (!title || !body) return null;
+  return {
+    id: safeText(item.id, randomUUID()),
+    kind,
+    stationId: safeText(item.stationId) || null,
+    regionId: safeText(item.regionId) || null,
+    title,
+    body,
+    createdAt: safeNumber(item.createdAt) ?? Date.now(),
+    readAt: safeNumber(item.readAt)
+  };
+};
+
 const uniqueStations = (items: SyncedStation[]) => {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -218,6 +471,50 @@ const uniqueTrackHistory = (items: SyncedTrackHistoryItem[]) => {
       const key = `${item.stationId}:${item.track.toLowerCase()}`;
       if (seen.has(key)) return false;
       seen.add(key);
+      return true;
+    });
+};
+
+const uniqueCollections = (items: UserCollection[]) => {
+  const seen = new Set<string>();
+  return items
+    .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt)
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+};
+
+const uniqueFollowedStations = (items: FollowedStation[]) => {
+  const seen = new Set<string>();
+  return items
+    .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+    .filter((item) => {
+      if (seen.has(item.stationId)) return false;
+      seen.add(item.stationId);
+      return true;
+    });
+};
+
+const uniqueFollowedRegions = (items: FollowedRegion[]) => {
+  const seen = new Set<string>();
+  return items
+    .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+};
+
+const uniqueAlerts = (items: ListenerAlert[]) => {
+  const seen = new Set<string>();
+  return items
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
       return true;
     });
 };
@@ -240,6 +537,26 @@ const sanitizeLibrary = (value: unknown): SyncedLibrary => {
         ? (payload.trackHistory.map(sanitizeTrackHistoryItem).filter(Boolean) as SyncedTrackHistoryItem[])
         : []
     ).slice(0, 200),
+    collections: uniqueCollections(
+      Array.isArray(payload.collections)
+        ? (payload.collections.map(sanitizeCollection).filter(Boolean) as UserCollection[])
+        : []
+    ).slice(0, 24),
+    followedStations: uniqueFollowedStations(
+      Array.isArray(payload.followedStations)
+        ? (payload.followedStations.map(sanitizeFollowedStation).filter(Boolean) as FollowedStation[])
+        : []
+    ).slice(0, 80),
+    followedRegions: uniqueFollowedRegions(
+      Array.isArray(payload.followedRegions)
+        ? (payload.followedRegions.map(sanitizeFollowedRegion).filter(Boolean) as FollowedRegion[])
+        : []
+    ).slice(0, 40),
+    alerts: uniqueAlerts(
+      Array.isArray(payload.alerts)
+        ? (payload.alerts.map(sanitizeAlert).filter(Boolean) as ListenerAlert[])
+        : []
+    ).slice(0, 160),
     updatedAt: Date.now()
   };
 };
@@ -280,6 +597,13 @@ const mergeLibraries = (
     favorites: uniqueStations([...primary.favorites, ...secondary.favorites]).slice(0, 200),
     recent: uniqueStations([...primary.recent, ...secondary.recent]).slice(0, 80),
     trackHistory: uniqueTrackHistory([...primary.trackHistory, ...secondary.trackHistory]).slice(0, 200),
+    collections: uniqueCollections([...primary.collections, ...secondary.collections]).slice(0, 24),
+    followedStations: uniqueFollowedStations([...primary.followedStations, ...secondary.followedStations]).slice(
+      0,
+      80
+    ),
+    followedRegions: uniqueFollowedRegions([...primary.followedRegions, ...secondary.followedRegions]).slice(0, 40),
+    alerts: uniqueAlerts([...primary.alerts, ...secondary.alerts]).slice(0, 160),
     updatedAt: Date.now()
   };
 };
@@ -290,8 +614,68 @@ const providerDisplayName = (provider: AccountProvider) =>
 const libraryCounts = (library: SyncedLibrary): LibraryCounts => ({
   favorites: library.favorites.length,
   recent: library.recent.length,
-  trackHistory: library.trackHistory.length
+  trackHistory: library.trackHistory.length,
+  collections: library.collections.length,
+  followedStations: library.followedStations.length,
+  followedRegions: library.followedRegions.length,
+  alerts: library.alerts.length
 });
+
+const EMPTY_LIBRARY_COUNTS: LibraryCounts = {
+  favorites: 0,
+  recent: 0,
+  trackHistory: 0,
+  collections: 0,
+  followedStations: 0,
+  followedRegions: 0,
+  alerts: 0
+};
+
+const normalizeEntitlements = (
+  value: unknown,
+  fallback: SessionEntitlement[] = []
+): SessionEntitlement[] => {
+  const source = Array.isArray(value) ? value : fallback;
+  return Array.from(
+    new Set(
+      source
+        .map((entry) => safeText(entry))
+        .filter((entry): entry is SessionEntitlement =>
+          [
+            'cloud-sync',
+            'collections',
+            'collection-folders',
+            'advanced-history',
+            'pinned-stations',
+            'pinned-regions',
+            'station-alerts',
+            'cosmetic-pack',
+            'sponsor-free'
+          ].includes(entry)
+        )
+    )
+  );
+};
+
+const parseSocialLinks = (value: unknown): Array<{ label: string; url: string }> => {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const item = entry as Record<string, unknown>;
+        const label = safeText(item.label);
+        const url = safeText(item.url);
+        if (!label || !url) return null;
+        return { label, url };
+      })
+      .filter(Boolean) as Array<{ label: string; url: string }>;
+  } catch {
+    return [];
+  }
+};
 
 const previewParty = (account: StoredAccount): MergePreviewParty => ({
   accountId: account.id,
@@ -323,6 +707,10 @@ const buildAccountSkeleton = (fields: Partial<StoredAccount>): StoredAccount => 
   email: fields.email || null,
   photoUrl: fields.photoUrl || null,
   isPremium: Boolean(fields.isPremium),
+  premiumStatus: fields.premiumStatus || (fields.isPremium ? 'premium' : 'free'),
+  supporterTier: fields.supporterTier || 'none',
+  entitlements: fields.entitlements || [],
+  billingProvider: fields.billingProvider ?? null,
   providers: fields.providers || [],
   library: fields.library || sanitizeLibrary(null),
   createdAt: fields.createdAt || Date.now(),
@@ -347,6 +735,22 @@ const mapAccount = (row: Record<string, unknown>, providers: AccountProvider[]):
   email: safeText(row.email) || null,
   photoUrl: safeText(row.photo_url) || null,
   isPremium: Boolean(row.is_premium),
+  premiumStatus: (safeText(row.premium_status) as PremiumStatus) || (Boolean(row.is_premium) ? 'premium' : 'free'),
+  supporterTier: (safeText(row.supporter_tier) as SupporterTier) || 'none',
+  entitlements: (() => {
+    const raw = safeText(row.entitlements_json);
+    if (!raw) return [];
+    try {
+      return Array.isArray(JSON.parse(raw))
+        ? (JSON.parse(raw) as unknown[])
+            .map((entry) => safeText(entry))
+            .filter(Boolean) as SessionEntitlement[]
+        : [];
+    } catch {
+      return [];
+    }
+  })(),
+  billingProvider: (safeText(row.billing_provider) as BillingProvider) || null,
   providers,
   library: deserializeLibrary(row.library_json),
   createdAt: safeNumber(row.created_at) ?? Date.now(),
@@ -392,6 +796,10 @@ const getDb = async () => {
           email TEXT,
           photo_url TEXT,
           is_premium INTEGER NOT NULL DEFAULT 0,
+          premium_status TEXT NOT NULL DEFAULT 'free',
+          supporter_tier TEXT NOT NULL DEFAULT 'none',
+          entitlements_json TEXT NOT NULL DEFAULT '[]',
+          billing_provider TEXT,
           library_json TEXT NOT NULL,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
@@ -443,12 +851,72 @@ const getDb = async () => {
         CREATE INDEX IF NOT EXISTS idx_sessions_account_id ON sessions(account_id);
         CREATE INDEX IF NOT EXISTS idx_link_requests_account_id ON link_requests(account_id);
         CREATE INDEX IF NOT EXISTS idx_audit_events_account_id_created_at ON audit_events(account_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS billing_purchases (
+          id TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL,
+          recipient_account_id TEXT,
+          product_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          currency TEXT NOT NULL,
+          status TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          telegram_charge_id TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS station_profiles (
+          stationuuid TEXT PRIMARY KEY,
+          owner_account_id TEXT,
+          display_name TEXT NOT NULL,
+          description TEXT,
+          artwork_url TEXT,
+          website_url TEXT,
+          social_links_json TEXT NOT NULL DEFAULT '[]',
+          schedule_note TEXT,
+          editorial_pitch TEXT,
+          is_verified INTEGER NOT NULL DEFAULT 0,
+          is_promoted INTEGER NOT NULL DEFAULT 0,
+          promoted_until INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (owner_account_id) REFERENCES accounts(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS promotion_events (
+          id TEXT PRIMARY KEY,
+          stationuuid TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          source_id TEXT,
+          account_id TEXT,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_billing_purchases_account_id ON billing_purchases(account_id);
+        CREATE INDEX IF NOT EXISTS idx_station_profiles_owner ON station_profiles(owner_account_id);
+        CREATE INDEX IF NOT EXISTS idx_promotion_events_station_created_at ON promotion_events(stationuuid, created_at DESC);
       `);
       try {
         db.exec(`ALTER TABLE link_requests ADD COLUMN merge_strategy TEXT NOT NULL DEFAULT 'combine';`);
       } catch {
         // column already exists
       }
+      try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN premium_status TEXT NOT NULL DEFAULT 'free';`);
+      } catch {}
+      try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN supporter_tier TEXT NOT NULL DEFAULT 'none';`);
+      } catch {}
+      try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN entitlements_json TEXT NOT NULL DEFAULT '[]';`);
+      } catch {}
+      try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN billing_provider TEXT;`);
+      } catch {}
       await migrateLegacyJsonIfNeeded(db);
       pruneExpiredLinkRequests(db);
       return db;
@@ -465,14 +933,19 @@ const countAccounts = (db: DatabaseLike) => {
 const upsertAccount = (db: DatabaseLike, account: StoredAccount) => {
   db.prepare(`
     INSERT INTO accounts (
-      id, display_name, username, email, photo_url, is_premium, library_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, display_name, username, email, photo_url, is_premium, premium_status, supporter_tier,
+      entitlements_json, billing_provider, library_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
       username = excluded.username,
       email = excluded.email,
       photo_url = excluded.photo_url,
       is_premium = excluded.is_premium,
+      premium_status = excluded.premium_status,
+      supporter_tier = excluded.supporter_tier,
+      entitlements_json = excluded.entitlements_json,
+      billing_provider = excluded.billing_provider,
       library_json = excluded.library_json,
       created_at = excluded.created_at,
       updated_at = excluded.updated_at
@@ -483,6 +956,10 @@ const upsertAccount = (db: DatabaseLike, account: StoredAccount) => {
     account.email,
     account.photoUrl,
     account.isPremium ? 1 : 0,
+    account.premiumStatus,
+    account.supporterTier,
+    JSON.stringify(account.entitlements),
+    account.billingProvider,
     serializeLibrary(account.library),
     account.createdAt,
     account.updatedAt
@@ -583,6 +1060,98 @@ const getAccountByProviderSync = (db: DatabaseLike, kind: ProviderKind, external
   return mapAccount(row, getAccountProviders(db, String(row.id)));
 };
 
+const mapStationProfile = (row: Record<string, unknown>): StationProfileRecord => ({
+  stationuuid: safeText(row.stationuuid),
+  ownerAccountId: safeText(row.owner_account_id) || null,
+  displayName: safeText(row.display_name, 'Claimed station'),
+  description: safeText(row.description) || null,
+  artworkUrl: safeText(row.artwork_url) || null,
+  websiteUrl: safeText(row.website_url) || null,
+  socialLinks: parseSocialLinks(row.social_links_json),
+  scheduleNote: safeText(row.schedule_note) || null,
+  editorialPitch: safeText(row.editorial_pitch) || null,
+  isVerified: Boolean(row.is_verified),
+  isPromoted: Boolean(row.is_promoted),
+  promotedUntil: safeNumber(row.promoted_until),
+  createdAt: safeNumber(row.created_at) ?? Date.now(),
+  updatedAt: safeNumber(row.updated_at) ?? Date.now()
+});
+
+const getStationProfileSync = (db: DatabaseLike, stationuuid: string) => {
+  const row = db.prepare('SELECT * FROM station_profiles WHERE stationuuid = ?').get(stationuuid);
+  return row ? mapStationProfile(row) : null;
+};
+
+const upsertStationProfileSync = (db: DatabaseLike, profile: StationProfileRecord) => {
+  db.prepare(`
+    INSERT INTO station_profiles (
+      stationuuid, owner_account_id, display_name, description, artwork_url, website_url, social_links_json,
+      schedule_note, editorial_pitch, is_verified, is_promoted, promoted_until, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(stationuuid) DO UPDATE SET
+      owner_account_id = excluded.owner_account_id,
+      display_name = excluded.display_name,
+      description = excluded.description,
+      artwork_url = excluded.artwork_url,
+      website_url = excluded.website_url,
+      social_links_json = excluded.social_links_json,
+      schedule_note = excluded.schedule_note,
+      editorial_pitch = excluded.editorial_pitch,
+      is_verified = excluded.is_verified,
+      is_promoted = excluded.is_promoted,
+      promoted_until = excluded.promoted_until,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at
+  `).run(
+    profile.stationuuid,
+    profile.ownerAccountId,
+    profile.displayName,
+    profile.description,
+    profile.artworkUrl,
+    profile.websiteUrl,
+    JSON.stringify(profile.socialLinks),
+    profile.scheduleNote,
+    profile.editorialPitch,
+    profile.isVerified ? 1 : 0,
+    profile.isPromoted ? 1 : 0,
+    profile.promotedUntil,
+    profile.createdAt,
+    profile.updatedAt
+  );
+};
+
+const getBillingProductById = (productId: BillingProductId) =>
+  BILLING_PRODUCTS.find((product) => product.id === productId) || null;
+
+const applyEntitlementPreset = (
+  account: StoredAccount,
+  status: PremiumStatus,
+  tier: SupporterTier,
+  entitlements: SessionEntitlement[],
+  billingProvider: BillingProvider
+): StoredAccount => ({
+  ...account,
+  isPremium: status === 'premium',
+  premiumStatus: status,
+  supporterTier: tier,
+  entitlements: normalizeEntitlements(entitlements),
+  billingProvider,
+  updatedAt: Date.now()
+});
+
+const recordPromotionEventSync = (
+  db: DatabaseLike,
+  stationuuid: string,
+  eventType: 'impression' | 'click' | 'play-start' | 'favorite-after-click',
+  sourceId?: string | null,
+  accountId?: string | null
+) => {
+  db.prepare(`
+    INSERT INTO promotion_events (id, stationuuid, event_type, source_id, account_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(randomUUID(), stationuuid, eventType, sourceId || null, accountId || null, Date.now());
+};
+
 const buildMergePreview = (
   providerKind: ProviderKind,
   providerLabel: string,
@@ -599,7 +1168,7 @@ const buildMergePreview = (
       requiresConfirmation: false,
       current: null,
       incoming: null,
-      result: { favorites: 0, recent: 0, trackHistory: 0 }
+      result: EMPTY_LIBRARY_COUNTS
     };
   }
 
@@ -691,6 +1260,20 @@ const mergeAccountsSync = (
     email: target.email || source.email,
     photoUrl: target.photoUrl || source.photoUrl,
     isPremium: target.isPremium || source.isPremium,
+    premiumStatus:
+      target.premiumStatus === 'premium' || source.premiumStatus === 'premium'
+        ? 'premium'
+        : target.premiumStatus === 'supporter' || source.premiumStatus === 'supporter'
+          ? 'supporter'
+          : 'free',
+    supporterTier:
+      target.supporterTier === 'patron' || source.supporterTier === 'patron'
+        ? 'patron'
+        : target.supporterTier === 'supporter' || source.supporterTier === 'supporter'
+          ? 'supporter'
+          : 'none',
+    entitlements: normalizeEntitlements([...target.entitlements, ...source.entitlements]),
+    billingProvider: target.billingProvider || source.billingProvider,
     updatedAt: Date.now()
   };
 
@@ -736,6 +1319,20 @@ const ensureProviderLinkedSync = (
     ...current,
     providers: nextProviders,
     ...deriveAccountIdentity(current, nextProviders),
+    premiumStatus: provider.isPremium
+      ? current.premiumStatus === 'premium'
+        ? 'premium'
+        : 'supporter'
+      : current.premiumStatus,
+    supporterTier: provider.isPremium
+      ? current.supporterTier === 'patron'
+        ? 'patron'
+        : 'supporter'
+      : current.supporterTier,
+    entitlements: normalizeEntitlements(
+      provider.isPremium ? [...current.entitlements, ...SUPPORTER_ENTITLEMENTS] : current.entitlements
+    ),
+    billingProvider: provider.isPremium ? current.billingProvider || 'telegram-stars' : current.billingProvider,
     updatedAt: Date.now()
   };
 
@@ -980,7 +1577,10 @@ export const linkTelegramIdentity = async (
       displayName: provider.displayName,
       username: provider.username,
       photoUrl: provider.photoUrl,
-      isPremium: provider.isPremium
+      isPremium: provider.isPremium,
+      premiumStatus: provider.isPremium ? 'supporter' : 'free',
+      supporterTier: provider.isPremium ? 'supporter' : 'none',
+      entitlements: provider.isPremium ? SUPPORTER_ENTITLEMENTS : []
     });
     saveAccount(db, nextAccount);
     recordAuditEventSync(db, accountId, 'account_created', { source: 'telegram' }, provider);
@@ -1026,7 +1626,8 @@ export const linkGoogleIdentity = async (
       id: accountId,
       displayName: provider.displayName,
       email: provider.email,
-      photoUrl: provider.photoUrl
+      photoUrl: provider.photoUrl,
+      entitlements: []
     });
     saveAccount(db, nextAccount);
     recordAuditEventSync(db, accountId, 'account_created', { source: 'google' }, provider);
@@ -1075,9 +1676,318 @@ export const updateAccountLibrary = async (accountId: string, library: unknown) 
   recordAuditEventSync(db, accountId, 'library_synced', {
     favorites: nextAccount.library.favorites.length,
     recent: nextAccount.library.recent.length,
-    trackHistory: nextAccount.library.trackHistory.length
+    trackHistory: nextAccount.library.trackHistory.length,
+    collections: nextAccount.library.collections.length,
+    followedStations: nextAccount.library.followedStations.length,
+    followedRegions: nextAccount.library.followedRegions.length,
+    alerts: nextAccount.library.alerts.length
   });
   return getAccountByIdSync(db, accountId);
+};
+
+const patchAccountLibrary = async (
+  accountId: string,
+  patch: Partial<Pick<SyncedLibrary, 'collections' | 'followedStations' | 'followedRegions' | 'alerts'>>
+) => {
+  const db = await getDb();
+  const current = getAccountByIdSync(db, accountId);
+  if (!current) return null;
+  const nextAccount: StoredAccount = {
+    ...current,
+    library: sanitizeLibrary({
+      ...current.library,
+      ...patch,
+      updatedAt: Date.now()
+    }),
+    updatedAt: Date.now()
+  };
+  saveAccount(db, nextAccount);
+  recordAuditEventSync(db, accountId, 'library_synced', {
+    favorites: nextAccount.library.favorites.length,
+    recent: nextAccount.library.recent.length,
+    trackHistory: nextAccount.library.trackHistory.length,
+    collections: nextAccount.library.collections.length,
+    followedStations: nextAccount.library.followedStations.length,
+    followedRegions: nextAccount.library.followedRegions.length,
+    alerts: nextAccount.library.alerts.length
+  });
+  return getAccountByIdSync(db, accountId);
+};
+
+export const updateAccountCollections = async (accountId: string, collections: unknown) =>
+  patchAccountLibrary(accountId, {
+    collections: sanitizeLibrary({ collections }).collections
+  });
+
+export const updateAccountFollows = async (
+  accountId: string,
+  follows: { followedStations?: unknown; followedRegions?: unknown }
+) =>
+  patchAccountLibrary(accountId, {
+    followedStations: sanitizeLibrary({ followedStations: follows.followedStations }).followedStations,
+    followedRegions: sanitizeLibrary({ followedRegions: follows.followedRegions }).followedRegions
+  });
+
+export const updateAccountAlerts = async (accountId: string, alerts: unknown) =>
+  patchAccountLibrary(accountId, {
+    alerts: sanitizeLibrary({ alerts }).alerts
+  });
+
+export const updateAccountEntitlements = async (
+  accountId: string,
+  input: {
+    premiumStatus: PremiumStatus;
+    supporterTier: SupporterTier;
+    entitlements: SessionEntitlement[];
+    billingProvider: BillingProvider;
+  }
+) => {
+  const db = await getDb();
+  const current = getAccountByIdSync(db, accountId);
+  if (!current) return null;
+  const nextAccount = applyEntitlementPreset(
+    current,
+    input.premiumStatus,
+    input.supporterTier,
+    input.entitlements,
+    input.billingProvider
+  );
+  saveAccount(db, nextAccount);
+  recordAuditEventSync(db, accountId, 'entitlements_updated', {
+    premiumStatus: nextAccount.premiumStatus,
+    supporterTier: nextAccount.supporterTier,
+    entitlements: nextAccount.entitlements
+  });
+  return getAccountByIdSync(db, accountId);
+};
+
+export const listBillingProducts = async () => BILLING_PRODUCTS;
+
+export const createBillingPurchase = async (
+  accountId: string,
+  productId: BillingProductId,
+  recipientAccountId?: string | null
+) => {
+  const db = await getDb();
+  const account = getAccountByIdSync(db, accountId);
+  const product = getBillingProductById(productId);
+  if (!account || !product) return null;
+  const purchaseId = randomUUID();
+  const payload = JSON.stringify({
+    purchaseId,
+    accountId,
+    recipientAccountId: recipientAccountId || null,
+    productId
+  });
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO billing_purchases (
+      id, account_id, recipient_account_id, product_id, kind, amount, currency, status, provider,
+      payload, telegram_charge_id, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    purchaseId,
+    accountId,
+    recipientAccountId || null,
+    product.id,
+    product.kind,
+    product.amount,
+    product.currency,
+    'pending',
+    'telegram-stars',
+    payload,
+    null,
+    now,
+    now
+  );
+  recordAuditEventSync(db, accountId, 'billing_purchase_created', {
+    purchaseId,
+    productId: product.id,
+    amount: product.amount,
+    kind: product.kind
+  });
+  return {
+    id: purchaseId,
+    accountId,
+    recipientAccountId: recipientAccountId || null,
+    product
+  };
+};
+
+export const confirmBillingPurchase = async (
+  purchaseId: string,
+  telegramChargeId?: string | null
+) => {
+  const db = await getDb();
+  const row = db.prepare('SELECT * FROM billing_purchases WHERE id = ? LIMIT 1').get(purchaseId);
+  if (!row) return null;
+  const purchase: BillingPurchase = {
+    id: String(row.id),
+    accountId: String(row.account_id),
+    recipientAccountId: safeText(row.recipient_account_id) || null,
+    productId: safeText(row.product_id) as BillingProductId,
+    kind: safeText(row.kind) as BillingProduct['kind'],
+    amount: safeNumber(row.amount) ?? 0,
+    currency: 'XTR',
+    status: safeText(row.status) as BillingPurchase['status'],
+    provider: 'telegram-stars',
+    payload: safeText(row.payload),
+    telegramChargeId: safeText(row.telegram_charge_id) || null,
+    createdAt: safeNumber(row.created_at) ?? Date.now(),
+    updatedAt: safeNumber(row.updated_at) ?? Date.now()
+  };
+  if (purchase.status === 'paid') {
+    return getAccountByIdSync(db, purchase.recipientAccountId || purchase.accountId);
+  }
+
+  db.prepare(`
+    UPDATE billing_purchases
+    SET status = 'paid', telegram_charge_id = ?, updated_at = ?
+    WHERE id = ?
+  `).run(telegramChargeId || null, Date.now(), purchaseId);
+
+  const targetAccountId = purchase.recipientAccountId || purchase.accountId;
+  const targetAccount = getAccountByIdSync(db, targetAccountId);
+  if (!targetAccount) return null;
+
+  let nextAccount = targetAccount;
+  if (purchase.productId === 'premium-month' || purchase.productId === 'premium-year' || purchase.productId === 'premium-gift') {
+    nextAccount = applyEntitlementPreset(
+      targetAccount,
+      'premium',
+      targetAccount.supporterTier === 'patron' ? 'patron' : 'supporter',
+      [...targetAccount.entitlements, ...PREMIUM_ENTITLEMENTS],
+      'telegram-stars'
+    );
+  } else {
+    nextAccount = applyEntitlementPreset(
+      targetAccount,
+      targetAccount.premiumStatus === 'premium' ? 'premium' : 'supporter',
+      purchase.productId === 'support-big' ? 'patron' : 'supporter',
+      [...targetAccount.entitlements, ...SUPPORTER_ENTITLEMENTS],
+      'telegram-stars'
+    );
+  }
+
+  saveAccount(db, nextAccount);
+  recordAuditEventSync(db, targetAccountId, 'billing_purchase_confirmed', {
+    purchaseId,
+    productId: purchase.productId,
+    amount: purchase.amount
+  });
+  return getAccountByIdSync(db, targetAccountId);
+};
+
+export const claimStationForAccount = async (
+  accountId: string,
+  stationuuid: string,
+  defaults: { displayName: string; websiteUrl?: string | null; description?: string | null; artworkUrl?: string | null }
+) => {
+  const db = await getDb();
+  const current = getStationProfileSync(db, stationuuid);
+  if (current?.ownerAccountId && current.ownerAccountId !== accountId) {
+    throw new Error('station is already claimed');
+  }
+  const nextProfile: StationProfileRecord = {
+    stationuuid,
+    ownerAccountId: accountId,
+    displayName: safeText(defaults.displayName, current?.displayName || 'Claimed station'),
+    description: safeText(defaults.description) || current?.description || null,
+    artworkUrl: safeText(defaults.artworkUrl) || current?.artworkUrl || null,
+    websiteUrl: safeText(defaults.websiteUrl) || current?.websiteUrl || null,
+    socialLinks: current?.socialLinks || [],
+    scheduleNote: current?.scheduleNote || null,
+    editorialPitch: current?.editorialPitch || null,
+    isVerified: current?.isVerified || false,
+    isPromoted: current?.isPromoted || false,
+    promotedUntil: current?.promotedUntil || null,
+    createdAt: current?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+  upsertStationProfileSync(db, nextProfile);
+  recordAuditEventSync(db, accountId, 'station_claimed', { stationuuid, displayName: nextProfile.displayName });
+  return getStationProfileSync(db, stationuuid);
+};
+
+export const getStationProfile = async (stationuuid: string) => {
+  const db = await getDb();
+  return getStationProfileSync(db, stationuuid);
+};
+
+export const updateStationProfile = async (
+  accountId: string,
+  stationuuid: string,
+  patch: Partial<Pick<StationProfileRecord, 'displayName' | 'description' | 'artworkUrl' | 'websiteUrl' | 'scheduleNote' | 'editorialPitch' | 'isPromoted' | 'promotedUntil'>> & {
+    socialLinks?: Array<{ label: string; url: string }>;
+  }
+) => {
+  const db = await getDb();
+  const current = getStationProfileSync(db, stationuuid);
+  if (!current || current.ownerAccountId !== accountId) {
+    throw new Error('station profile is not owned by this account');
+  }
+  const nextProfile: StationProfileRecord = {
+    ...current,
+    displayName: safeText(patch.displayName) || current.displayName,
+    description: safeText(patch.description) || current.description,
+    artworkUrl: safeText(patch.artworkUrl) || current.artworkUrl,
+    websiteUrl: safeText(patch.websiteUrl) || current.websiteUrl,
+    scheduleNote: safeText(patch.scheduleNote) || current.scheduleNote,
+    editorialPitch: safeText(patch.editorialPitch) || current.editorialPitch,
+    socialLinks: Array.isArray(patch.socialLinks)
+      ? patch.socialLinks
+          .map((entry) => ({ label: safeText(entry.label), url: safeText(entry.url) }))
+          .filter((entry) => entry.label && entry.url)
+      : current.socialLinks,
+    isPromoted: patch.isPromoted ?? current.isPromoted,
+    promotedUntil: patch.promotedUntil ?? current.promotedUntil,
+    updatedAt: Date.now()
+  };
+  upsertStationProfileSync(db, nextProfile);
+  recordAuditEventSync(db, accountId, 'station_profile_updated', { stationuuid });
+  return getStationProfileSync(db, stationuuid);
+};
+
+export const listCatalogProfileOverrides = async () => {
+  const db = await getDb();
+  return db.prepare('SELECT * FROM station_profiles').all().map(mapStationProfile);
+};
+
+export const recordPromotionEvent = async (
+  stationuuid: string,
+  eventType: 'impression' | 'click' | 'play-start' | 'favorite-after-click',
+  sourceId?: string | null,
+  accountId?: string | null
+) => {
+  const db = await getDb();
+  recordPromotionEventSync(db, stationuuid, eventType, sourceId, accountId);
+};
+
+export const getStationAnalytics = async (accountId: string, stationuuid: string) => {
+  const db = await getDb();
+  const profile = getStationProfileSync(db, stationuuid);
+  if (!profile || profile.ownerAccountId !== accountId) {
+    throw new Error('station profile is not owned by this account');
+  }
+  const rows = db
+    .prepare(`
+      SELECT event_type, COUNT(*) as count
+      FROM promotion_events
+      WHERE stationuuid = ?
+      GROUP BY event_type
+    `)
+    .all(stationuuid);
+  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+    acc[safeText(row.event_type)] = safeNumber(row.count) ?? 0;
+    return acc;
+  }, {});
+  return {
+    stationuuid,
+    impressions: counts.impression || 0,
+    clicks: counts.click || 0,
+    playStarts: counts['play-start'] || 0,
+    favoriteAfterClick: counts['favorite-after-click'] || 0
+  };
 };
 
 export const createLinkRequest = async (

@@ -6,6 +6,7 @@ import { useDebounce } from '../lib/useDebounce';
 import { toLite } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
+import { useSession } from '../state/SessionContext';
 import type { StationLite } from '../types';
 
 export const Home = () => {
@@ -13,10 +14,13 @@ export const Home = () => {
     stations,
     favorites,
     recent,
+    collections,
+    followedStations,
     player,
     queue,
     setActiveSection
   } = useRadio();
+  const { profile } = useSession();
   const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [showcaseSeed, setShowcaseSeed] = useState(() => Date.now());
@@ -57,15 +61,31 @@ export const Home = () => {
         favorites,
         recent,
         queuePreview,
+        followedStations,
+        collections,
         showcaseSeed,
         query: debounced,
         metrics: {
           countries: countryCount,
           languages: languageCount,
           genres: genreCount
-        }
+        },
+        includeSponsored: !profile?.entitlements.includes('sponsor-free')
       }),
-    [catalog, countryCount, debounced, favorites, genreCount, languageCount, queuePreview, recent, showcaseSeed]
+    [
+      catalog,
+      collections,
+      countryCount,
+      debounced,
+      favorites,
+      followedStations,
+      genreCount,
+      languageCount,
+      profile?.entitlements,
+      queuePreview,
+      recent,
+      showcaseSeed
+    ]
   );
 
   const refreshShowcase = () => {
@@ -165,6 +185,47 @@ export const Home = () => {
                 </div>
               )}
             </div>
+
+            {discoveryFeed.revivedStations?.stations.length ? (
+              <div className="glass-card home-feature-card motion-rise motion-delay-3" data-home-module="revived-stations">
+                <div className="library-section-head">
+                  <div>
+                    <div className="shell-kicker">{t('home.revivedKicker')}</div>
+                    <div className="section-title">{t('home.revivedTitle')}</div>
+                    <div className="section-subtitle">{t('home.revivedCopy')}</div>
+                  </div>
+                  <button className="chip" type="button" onClick={() => setActiveSection('library')}>
+                    {t('home.openLibrary')}
+                  </button>
+                </div>
+                <div className="home-mini-list">
+                  <StationTable
+                    stations={discoveryFeed.revivedStations.stations}
+                    compact
+                    sourceId={discoveryFeed.revivedStations.sourceId}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {discoveryFeed.sessionDelta?.stations.length ? (
+              <div className="glass-card home-feature-card motion-rise motion-delay-4" data-home-module="session-delta">
+                <div className="library-section-head">
+                  <div>
+                    <div className="shell-kicker">{t('home.deltaKicker')}</div>
+                    <div className="section-title">{t('home.sessionDeltaTitle')}</div>
+                    <div className="section-subtitle">{t('home.sessionDeltaCopy')}</div>
+                  </div>
+                </div>
+                <div className="home-mini-list">
+                  <StationTable
+                    stations={discoveryFeed.sessionDelta.stations}
+                    compact
+                    sourceId={discoveryFeed.sessionDelta.sourceId}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -225,6 +286,26 @@ export const Home = () => {
               </div>
             )}
           </div>
+
+          {discoveryFeed.sponsoredModules[0]?.stations.length ? (
+            <div className="glass-card home-session-card motion-rise motion-delay-3 sponsored-module" data-home-module="sponsored">
+              <div className="library-section-head">
+                <div>
+                  <div className="shell-kicker">{t('home.sponsoredKicker')}</div>
+                  <div className="section-title">{t('home.sponsoredTitle')}</div>
+                  <div className="section-subtitle">{t('home.sponsoredCopy')}</div>
+                </div>
+                <div className="chip active">{t('home.sponsoredBadge')}</div>
+              </div>
+              <div className="home-mini-list">
+                <StationTable
+                  stations={discoveryFeed.sponsoredModules[0].stations}
+                  compact
+                  sourceId={discoveryFeed.sponsoredModules[0].sourceId}
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div className="glass-card home-pulse-card home-pulse-card-accent motion-rise motion-delay-4" data-home-module="genre-spotlight">
             <div className="library-section-head">

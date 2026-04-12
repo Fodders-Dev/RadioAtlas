@@ -1,6 +1,14 @@
-import type { DiscoveryFeed, DiscoveryMetrics, DiscoveryStationModule } from '../domain/contracts';
+import type {
+  DiscoveryFeed,
+  DiscoveryMetrics,
+  DiscoveryStationModule,
+  FollowedRegion,
+  FollowedStation,
+  ProviderKind,
+  SyncedTrackHistoryItem,
+  UserCollection
+} from '../domain/contracts';
 import type { StationLite } from '../types';
-import type { ProviderKind, SyncedTrackHistoryItem } from '../domain/contracts';
 
 const hashValue = (value: string) => {
   let hash = 0;
@@ -23,10 +31,10 @@ const firstMeaningfulTag = (value: string) =>
     .map((tag) => tag.trim())
     .find((tag) => tag && tag.toLowerCase() !== 'no tags') || '';
 
-const uniqueStations = (stations: StationLite[]) => {
+const uniqueStations = (stations: Array<StationLite | null | undefined>) => {
   const seen = new Set<string>();
-  return stations.filter((station) => {
-    if (seen.has(station.stationuuid)) return false;
+  return stations.filter((station): station is StationLite => {
+    if (!station || seen.has(station.stationuuid)) return false;
     seen.add(station.stationuuid);
     return true;
   });
@@ -35,14 +43,21 @@ const uniqueStations = (stations: StationLite[]) => {
 const withoutStationIds = (stations: StationLite[], blockedIds: Set<string>) =>
   stations.filter((station) => !blockedIds.has(station.stationuuid));
 
-const withUniqueStationIds = (stations: StationLite[]) => {
-  const seen = new Set<string>();
-  return stations.filter((station) => {
-    if (seen.has(station.stationuuid)) return false;
-    seen.add(station.stationuuid);
-    return true;
-  });
-};
+const buildStationModule = (
+  kind: DiscoveryStationModule['kind'],
+  titleKey: string,
+  copyKey: string,
+  sourceId: string,
+  stations: StationLite[],
+  extras: Partial<DiscoveryStationModule> = {}
+): DiscoveryStationModule => ({
+  kind,
+  titleKey,
+  copyKey,
+  sourceId,
+  stations,
+  ...extras
+});
 
 type GlobeAreaLike = {
   id: string;
@@ -77,6 +92,10 @@ export type LibraryDiscoveryFeed = {
   returnToAir: StationLite[];
   favoritesPreview: StationLite[];
   journalPreview: SyncedTrackHistoryItem[];
+  collectionsPreview: UserCollection[];
+  followedStationsPreview: FollowedStation[];
+  followedRegionsPreview: FollowedRegion[];
+  unreadAlerts: number;
   cloudSummary: {
     mode: 'cloud' | 'local';
     providerKinds: ProviderKind[];
@@ -91,6 +110,10 @@ type CreateLibraryDiscoveryFeedInput = {
   favorites: StationLite[];
   playbackHistory: StationLite[];
   trackHistory: SyncedTrackHistoryItem[];
+  collections: UserCollection[];
+  followedStations: FollowedStation[];
+  followedRegions: FollowedRegion[];
+  alerts: Array<{ readAt: number | null }>;
   linkedProviders: ProviderKind[];
   libraryUpdatedAt: number | null;
 };
@@ -100,9 +123,12 @@ type DiscoveryFeedInput = {
   favorites: StationLite[];
   recent: StationLite[];
   queuePreview: StationLite[];
+  followedStations: FollowedStation[];
+  collections: UserCollection[];
   showcaseSeed: number;
   query: string;
   metrics: DiscoveryMetrics;
+  includeSponsored?: boolean;
 };
 
 export const createDiscoveryFeed = ({
@@ -110,16 +136,23 @@ export const createDiscoveryFeed = ({
   favorites,
   recent,
   queuePreview,
+  followedStations,
+  collections,
   showcaseSeed,
   query,
-  metrics
+  metrics,
+  includeSponsored = true
 }: DiscoveryFeedInput): DiscoveryFeed => {
-  const discoveryDeck = seededSort(catalog, showcaseSeed, (station) => station.stationuuid);
-  const freshSignals = discoveryDeck.slice(0, 4);
+  const promotedCatalog = catalog.filter((station) => station.promoted);
+  const organicCatalog = catalog.filter((station) => !station.promoted);
+  const baseCatalog = organicCatalog.length ? organicCatalog : catalog;
+  const discoveryDeck = seededSort(baseCatalog, showcaseSeed, (station) => station.stationuuid);
+  const freshSignalsPool = discoveryDeck.slice(0, 8);
+  const freshSignals = freshSignalsPool.slice(0, 4);
   const searchLaunch = discoveryDeck.slice(4, 8);
 
   const countryBuckets = Array.from(
-    catalog.reduce((map, station) => {
+    baseCatalog.reduce((map, station) => {
       const key = station.country?.trim();
       if (!key) return map;
       const bucket = map.get(key) || { label: key, stations: [] as StationLite[] };
@@ -129,10 +162,10 @@ export const createDiscoveryFeed = ({
     }, new Map<string, { label: string; stations: StationLite[] }>())
   )
     .map(([, bucket]) => bucket)
-    .filter((bucket) => bucket.stations.length >= 4);
+    .filter((bucket) => bucket.stations.length >= 3);
 
   const tagBuckets = Array.from(
-    catalog.reduce((map, station) => {
+    baseCatalog.reduce((map, station) => {
       const key = firstMeaningfulTag(station.tags || '');
       if (!key) return map;
       const bucket = map.get(key) || [];
@@ -141,12 +174,15 @@ export const createDiscoveryFeed = ({
       return map;
     }, new Map<string, StationLite[]>())
   )
-    .filter(([, bucket]) => bucket.length >= 4)
+    .filter(([, bucket]) => bucket.length >= 3)
     .map(([label, stations]) => ({ label, stations }));
 
   const blockedIds = new Set<string>();
-  freshSignals.forEach((station) => blockedIds.add(station.stationuuid));
-  searchLaunch.forEach((station) => blockedIds.add(station.stationuuid));
+  const blockStations = (stations: StationLite[]) => {
+    stations.forEach((station) => blockedIds.add(station.stationuuid));
+  };
+  blockStations(freshSignals);
+  blockStations(searchLaunch);
 
   const pickUniqueBucket = <T extends { label: string; stations: StationLite[] }>(
     buckets: T[],
@@ -158,7 +194,7 @@ export const createDiscoveryFeed = ({
       const uniquePool = seededSort(uniqueStations(bucket.stations), seed + limit + 11, (station) => station.stationuuid);
       const filtered = withoutStationIds(uniquePool, blockedIds).slice(0, limit);
       if (filtered.length) {
-        filtered.forEach((station) => blockedIds.add(station.stationuuid));
+        blockStations(filtered);
         return {
           bucket,
           stations: filtered
@@ -169,18 +205,44 @@ export const createDiscoveryFeed = ({
   };
 
   const countrySpotlight = pickUniqueBucket(countryBuckets, showcaseSeed + 17, 4);
-  const genreSpotlight = pickUniqueBucket(tagBuckets, showcaseSeed + 41, 3);
+  const genreSpotlight = pickUniqueBucket(tagBuckets, showcaseSeed + 41, 4);
+  const resumeStations = uniqueStations([...queuePreview, ...recent, ...favorites]).slice(0, 4);
 
-  const revisitPool = uniqueStations([...queuePreview, ...recent, ...favorites]).filter(
-    (station) => !blockedIds.has(station.stationuuid)
+  const followedPool = uniqueStations(
+    followedStations
+      .map((follow) => catalog.find((station) => station.stationuuid === follow.stationId) || null)
+      .filter(Boolean)
   );
-  const resumeStations = revisitPool.slice(0, 4);
+  const revivedStationsList = withoutStationIds(
+    seededSort(followedPool.length ? followedPool : favorites, showcaseSeed + 63, (station) => station.stationuuid),
+    blockedIds
+  ).slice(0, 4);
+  blockStations(revivedStationsList);
+
+  const collectionStationIds = new Set(collections.flatMap((collection) => collection.stationIds));
+  const sessionDeltaStations = withoutStationIds(
+    uniqueStations(
+      [...recent, ...queuePreview, ...catalog.filter((station) => collectionStationIds.has(station.stationuuid))]
+        .filter((station) => !favorites.some((favorite) => favorite.stationuuid === station.stationuuid))
+    ),
+    blockedIds
+  ).slice(0, 4);
+  blockStations(sessionDeltaStations);
+
+  const sponsoredStations = includeSponsored
+    ? seededSort(promotedCatalog, showcaseSeed + 91, (station) => station.stationuuid).slice(0, 3)
+    : [];
 
   const normalizedQuery = query.trim().toLowerCase();
   const quickResults = normalizedQuery
-    ? catalog.filter((station) =>
-        [station.name, station.country, station.tags].join(' ').toLowerCase().includes(normalizedQuery)
-      ).slice(0, 4)
+    ? catalog
+        .filter((station) =>
+          [station.name, station.country, station.tags, station.language]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery)
+        )
+        .slice(0, 4)
     : searchLaunch.length
       ? searchLaunch
       : freshSignals;
@@ -192,21 +254,53 @@ export const createDiscoveryFeed = ({
       count: bucket.stations.length
     }));
 
-  const buildStationModule = (
-    kind: DiscoveryStationModule['kind'],
-    titleKey: string,
-    copyKey: string,
-    sourceId: string,
-    stations: StationLite[],
-    extras: Partial<DiscoveryStationModule> = {}
-  ): DiscoveryStationModule => ({
-    kind,
-    titleKey,
-    copyKey,
-    sourceId,
-    stations,
-    ...extras
-  });
+  const resumeModules = [
+    buildStationModule(
+      'resume',
+      'home.resumeShelfTitle',
+      'home.resumeShelfCopy',
+      'home-resume',
+      resumeStations,
+      { accent: 'primary' }
+    )
+  ];
+
+  const revivedStations =
+    revivedStationsList.length > 0
+      ? buildStationModule(
+          'revived-stations',
+          'home.revivedTitle',
+          'home.revivedCopy',
+          'home-revived',
+          revivedStationsList,
+          { accent: 'secondary' }
+        )
+      : null;
+
+  const sessionDelta =
+    sessionDeltaStations.length > 0
+      ? buildStationModule(
+          'session-delta',
+          'home.sessionDeltaTitle',
+          'home.sessionDeltaCopy',
+          'home-session-delta',
+          sessionDeltaStations,
+          { accent: 'accent' }
+        )
+      : null;
+
+  const sponsoredModules = sponsoredStations.length
+    ? [
+        buildStationModule(
+          'sponsored',
+          'home.sponsoredTitle',
+          'home.sponsoredCopy',
+          'home-sponsored',
+          sponsoredStations,
+          { accent: 'accent', label: 'Sponsored' }
+        )
+      ]
+    : [];
 
   return {
     quickResults,
@@ -229,6 +323,7 @@ export const createDiscoveryFeed = ({
         )
       : null,
     resumeStations,
+    resumeModules,
     genreSpotlight: genreSpotlight
       ? buildStationModule(
           'genre-spotlight',
@@ -239,8 +334,12 @@ export const createDiscoveryFeed = ({
           { accent: 'accent', label: genreSpotlight.bucket.label }
         )
       : null,
+    revivedStations,
+    sessionDelta,
+    sponsoredModules,
     tagRadar,
-    metrics
+    metrics,
+    freshnessStamp: showcaseSeed
   };
 };
 
@@ -301,12 +400,10 @@ export const createGlobeDiscoveryFeed = ({
     .filter((area) => !blockedAreaIds.has(area.id))
     .slice(0, 3)
     .map((area) => area.id);
-  const fallbackStations = withUniqueStationIds([
+  const fallbackStations = uniqueStations([
     ...recent,
     ...favorites,
-    ...areas
-      .filter((area) => fallbackAreaIds.includes(area.id))
-      .flatMap((area) => area.stations)
+    ...areas.filter((area) => fallbackAreaIds.includes(area.id)).flatMap((area) => area.stations)
   ]).slice(0, 5);
 
   return {
@@ -323,17 +420,37 @@ export const createLibraryDiscoveryFeed = ({
   favorites,
   playbackHistory,
   trackHistory,
+  collections,
+  followedStations,
+  followedRegions,
+  alerts,
   linkedProviders,
   libraryUpdatedAt
 }: CreateLibraryDiscoveryFeedInput): LibraryDiscoveryFeed => {
-  const returnToAir = withUniqueStationIds(
-    [current, ...queuePreview, ...recent, ...playbackHistory.slice().reverse()].filter(Boolean) as StationLite[]
-  ).slice(0, 4);
+  const returnToAir = uniqueStations([
+    current,
+    ...queuePreview,
+    ...recent,
+    ...playbackHistory.slice().reverse()
+  ]).slice(0, 4);
 
   return {
     returnToAir,
-    favoritesPreview: withUniqueStationIds(favorites).slice(0, 3),
+    favoritesPreview: uniqueStations(favorites).slice(0, 3),
     journalPreview: trackHistory.slice(0, 3),
+    collectionsPreview: collections
+      .slice()
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt)
+      .slice(0, 3),
+    followedStationsPreview: followedStations
+      .slice()
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+      .slice(0, 4),
+    followedRegionsPreview: followedRegions
+      .slice()
+      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
+      .slice(0, 4),
+    unreadAlerts: alerts.filter((alert) => alert.readAt === null).length,
     cloudSummary: {
       mode: linkedProviders.length ? 'cloud' : 'local',
       providerKinds: linkedProviders,

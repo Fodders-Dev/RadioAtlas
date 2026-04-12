@@ -14,6 +14,13 @@ export type Station = {
   bitrate: number;
   geo_lat: number | null;
   geo_long: number | null;
+  stationArtwork?: string | null;
+  isClaimed?: boolean;
+  isVerified?: boolean;
+  promoted?: boolean;
+  description?: string | null;
+  websiteUrl?: string | null;
+  scheduleNote?: string | null;
 };
 
 export type ContinentId =
@@ -32,7 +39,7 @@ export type AppSection = 'home' | 'search' | 'globe' | 'library';
 
 export type PlayerPresentation = 'peek' | 'bar' | 'expanded';
 
-export type LibraryTab = 'favorites' | 'queue' | 'recent' | 'history' | 'settings';
+export type LibraryTab = 'favorites' | 'queue' | 'recent' | 'history' | 'collections' | 'settings';
 
 export type CountryBucket = {
   key: string;
@@ -53,6 +60,13 @@ export type StationLite = Pick<
   | 'tags'
   | 'geo_lat'
   | 'geo_long'
+  | 'stationArtwork'
+  | 'isClaimed'
+  | 'isVerified'
+  | 'promoted'
+  | 'description'
+  | 'websiteUrl'
+  | 'scheduleNote'
 > &
   Partial<Pick<Station, 'url'>>;
 

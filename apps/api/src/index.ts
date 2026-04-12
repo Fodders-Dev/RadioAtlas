@@ -2,19 +2,32 @@ import 'dotenv/config';
 import express from 'express';
 import { Readable } from 'node:stream';
 import {
+  claimStationForAccount,
+  confirmBillingPurchase,
+  createBillingPurchase,
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
   getAccountAuditTrail,
   getAccountByToken,
+  getStationAnalytics,
+  getStationProfile,
   type LibraryMergeStrategy,
+  listBillingProducts,
+  listCatalogProfileOverrides,
   linkGoogleIdentity,
   linkTelegramIdentity,
   previewGoogleLink,
   previewTelegramLink,
   recordAccountEvent,
+  recordPromotionEvent,
   unlinkProvider,
-  updateAccountLibrary
+  updateAccountAlerts,
+  updateAccountCollections,
+  updateAccountEntitlements,
+  updateAccountFollows,
+  updateAccountLibrary,
+  updateStationProfile
 } from './accountStore.js';
 import { verifyGoogleIdToken } from './googleAuth.js';
 import { validateTelegramInitData } from './telegramAuth.js';
@@ -35,6 +48,7 @@ const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://127.0.0.1:4001';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
+const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const BLOCKED_HOSTS = [
   'youtube.com',
   'youtu.be',
@@ -58,6 +72,13 @@ type Station = {
   bitrate: number;
   geo_lat: number | null;
   geo_long: number | null;
+  stationArtwork?: string | null;
+  isClaimed?: boolean;
+  isVerified?: boolean;
+  promoted?: boolean;
+  description?: string | null;
+  websiteUrl?: string | null;
+  scheduleNote?: string | null;
 };
 
 type CacheEntry = {
@@ -242,6 +263,10 @@ const toClientProfile = (account: NonNullable<Awaited<ReturnType<typeof getAccou
   email: account.email,
   photoUrl: account.photoUrl,
   isPremium: account.isPremium,
+  premiumStatus: account.premiumStatus,
+  supporterTier: account.supporterTier,
+  entitlements: account.entitlements,
+  billingProvider: account.billingProvider,
   linkedProviders: account.providers.map((provider) => provider.kind),
   providers: account.providers,
   library: account.library
@@ -261,6 +286,58 @@ const parseMergeStrategy = (value: unknown): LibraryMergeStrategy => {
     return value;
   }
   return 'combine';
+};
+
+const getTelegramApiUrl = (method: string) =>
+  `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`;
+
+const createTelegramInvoiceLink = async (input: {
+  title: string;
+  description: string;
+  payload: string;
+  amount: number;
+}) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error('telegram billing is not configured');
+  }
+  const response = await fetch(getTelegramApiUrl('createInvoiceLink'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      title: input.title,
+      description: input.description,
+      payload: input.payload,
+      currency: 'XTR',
+      prices: [{ label: input.title, amount: input.amount }]
+    })
+  });
+  const body = (await response.json()) as { ok: boolean; result?: string; description?: string };
+  if (!response.ok || !body.ok || !body.result) {
+    throw new Error(body.description || `invoice creation failed (${response.status})`);
+  }
+  return body.result;
+};
+
+const withStationProfiles = async (stations: Station[]) => {
+  const profiles = await listCatalogProfileOverrides();
+  if (!profiles.length) return stations;
+  const byId = new Map(profiles.map((profile) => [profile.stationuuid, profile]));
+  return stations.map((station) => {
+    const profile = byId.get(station.stationuuid);
+    if (!profile) return station;
+    return {
+      ...station,
+      stationArtwork: profile.artworkUrl || station.favicon || '',
+      isClaimed: Boolean(profile.ownerAccountId),
+      isVerified: profile.isVerified,
+      promoted: profile.isPromoted && (!profile.promotedUntil || profile.promotedUntil > Date.now()),
+      description: profile.description,
+      websiteUrl: profile.websiteUrl || station.homepage,
+      scheduleNote: profile.scheduleNote
+    };
+  });
 };
 
 const encodeFixtureGoogleCredential = (identity: {
@@ -460,6 +537,94 @@ app.put('/me/library', async (req, res) => {
   });
 });
 
+app.get('/me/entitlements', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  res.json({
+    premiumStatus: account.premiumStatus,
+    supporterTier: account.supporterTier,
+    entitlements: account.entitlements,
+    billingProvider: account.billingProvider
+  });
+});
+
+app.put('/me/collections', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  const nextAccount = await updateAccountCollections(account.id, req.body?.collections);
+  if (!nextAccount) {
+    res.status(404).json({ error: 'account not found' });
+    return;
+  }
+  res.json({
+    profile: toClientProfile(nextAccount),
+    auditTrail: await getAccountAuditTrail(nextAccount.id)
+  });
+});
+
+app.put('/me/follows', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  const nextAccount = await updateAccountFollows(account.id, {
+    followedStations: req.body?.followedStations,
+    followedRegions: req.body?.followedRegions
+  });
+  if (!nextAccount) {
+    res.status(404).json({ error: 'account not found' });
+    return;
+  }
+  res.json({
+    profile: toClientProfile(nextAccount),
+    auditTrail: await getAccountAuditTrail(nextAccount.id)
+  });
+});
+
+app.put('/me/alerts', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  const nextAccount = await updateAccountAlerts(account.id, req.body?.alerts);
+  if (!nextAccount) {
+    res.status(404).json({ error: 'account not found' });
+    return;
+  }
+  res.json({
+    profile: toClientProfile(nextAccount),
+    auditTrail: await getAccountAuditTrail(nextAccount.id)
+  });
+});
+
 app.post('/me/link-request', async (req, res) => {
   const token = getBearerToken(req);
   if (!token) {
@@ -532,6 +697,183 @@ app.get('/me/audit', async (req, res) => {
 
   const limit = Math.max(1, Math.min(Number(req.query.limit || 12), 50));
   res.json({ auditTrail: await getAccountAuditTrail(account.id, limit) });
+});
+
+app.get('/billing/telegram/products', async (_req, res) => {
+  res.json({ products: await listBillingProducts() });
+});
+
+app.post('/billing/telegram/create-invoice', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  const productId = typeof req.body?.productId === 'string' ? req.body.productId : '';
+  const recipientAccountId = typeof req.body?.recipientAccountId === 'string' ? req.body.recipientAccountId : null;
+  try {
+    const purchase = await createBillingPurchase(account.id, productId as any, recipientAccountId);
+    if (!purchase) {
+      res.status(400).json({ error: 'invalid billing product' });
+      return;
+    }
+    const invoiceLink = await createTelegramInvoiceLink({
+      title: purchase.product.title,
+      description: purchase.product.description,
+      payload: purchase.id,
+      amount: purchase.product.amount
+    });
+    res.json({
+      purchaseId: purchase.id,
+      product: purchase.product,
+      invoiceLink
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'invoice creation failed' });
+  }
+});
+
+app.post('/billing/telegram/webhook', async (req, res) => {
+  const purchaseId = typeof req.body?.purchaseId === 'string' ? req.body.purchaseId : '';
+  if (!purchaseId) {
+    res.status(400).json({ error: 'purchaseId is required' });
+    return;
+  }
+  try {
+    const account = await confirmBillingPurchase(
+      purchaseId,
+      typeof req.body?.telegramChargeId === 'string' ? req.body.telegramChargeId : null
+    );
+    if (!account) {
+      res.status(404).json({ error: 'purchase not found' });
+      return;
+    }
+    res.json({
+      profile: toClientProfile(account),
+      auditTrail: await getAccountAuditTrail(account.id)
+    });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'billing confirmation failed' });
+  }
+});
+
+app.post('/stations/:id/claim', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  try {
+    const profile = await claimStationForAccount(account.id, req.params.id, {
+      displayName: typeof req.body?.displayName === 'string' ? req.body.displayName : 'Claimed station',
+      websiteUrl: typeof req.body?.websiteUrl === 'string' ? req.body.websiteUrl : null,
+      description: typeof req.body?.description === 'string' ? req.body.description : null,
+      artworkUrl: typeof req.body?.artworkUrl === 'string' ? req.body.artworkUrl : null
+    });
+    res.json({ profile });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'station claim failed' });
+  }
+});
+
+app.get('/stations/:id/profile', async (req, res) => {
+  const profile = await getStationProfile(req.params.id);
+  if (!profile) {
+    res.status(404).json({ error: 'station profile not found' });
+    return;
+  }
+  res.json({ profile });
+});
+
+app.put('/stations/:id/profile', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  try {
+    const profile = await updateStationProfile(account.id, req.params.id, {
+      displayName: req.body?.displayName,
+      description: req.body?.description,
+      artworkUrl: req.body?.artworkUrl,
+      websiteUrl: req.body?.websiteUrl,
+      scheduleNote: req.body?.scheduleNote,
+      editorialPitch: req.body?.editorialPitch,
+      socialLinks: req.body?.socialLinks,
+      isPromoted: req.body?.isPromoted,
+      promotedUntil: req.body?.promotedUntil
+    });
+    res.json({ profile });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'station profile update failed' });
+  }
+});
+
+app.get('/stations/:id/analytics', async (req, res) => {
+  const token = getBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'authorization required' });
+    return;
+  }
+  const account = await getAccountByToken(token);
+  if (!account) {
+    res.status(401).json({ error: 'session is invalid' });
+    return;
+  }
+  try {
+    res.json({ analytics: await getStationAnalytics(account.id, req.params.id) });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'station analytics failed' });
+  }
+});
+
+app.post('/promotions/impression', async (req, res) => {
+  const stationuuid = typeof req.body?.stationuuid === 'string' ? req.body.stationuuid : '';
+  if (!stationuuid) {
+    res.status(400).json({ error: 'stationuuid is required' });
+    return;
+  }
+  const token = getBearerToken(req);
+  const account = token ? await getAccountByToken(token) : null;
+  await recordPromotionEvent(
+    stationuuid,
+    'impression',
+    typeof req.body?.sourceId === 'string' ? req.body.sourceId : null,
+    account?.id || null
+  );
+  res.json({ ok: true });
+});
+
+app.post('/promotions/click', async (req, res) => {
+  const stationuuid = typeof req.body?.stationuuid === 'string' ? req.body.stationuuid : '';
+  if (!stationuuid) {
+    res.status(400).json({ error: 'stationuuid is required' });
+    return;
+  }
+  const token = getBearerToken(req);
+  const account = token ? await getAccountByToken(token) : null;
+  await recordPromotionEvent(
+    stationuuid,
+    'click',
+    typeof req.body?.sourceId === 'string' ? req.body.sourceId : null,
+    account?.id || null
+  );
+  res.json({ ok: true });
 });
 
 if (ENABLE_TEST_AUTH_FIXTURES) {
@@ -682,7 +1024,7 @@ if (ENABLE_TEST_AUTH_FIXTURES) {
 app.get('/catalog', async (req, res) => {
   try {
     const mode = req.query.mode === 'fast' ? 'fast' : 'full';
-    const data = await getCatalog(mode);
+    const data = await withStationProfiles(await getCatalog(mode));
     res.json(data);
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : 'Failed' });

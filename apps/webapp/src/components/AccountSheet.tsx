@@ -84,6 +84,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     profile,
     auditTrail,
     error,
+    billingProducts,
     pendingLinkPreview,
     hasGoogleClient,
     googleClientId,
@@ -96,6 +97,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     previewGoogleCredentialLink,
     confirmPendingLink,
     dismissPendingLink,
+    createTelegramInvoice,
     signOut,
     openTelegramAccess
   } = useSession();
@@ -107,6 +109,8 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const telegramProvider = profile?.providers.find((provider) => provider.kind === 'telegram') || null;
   const googleProvider = profile?.providers.find((provider) => provider.kind === 'google') || null;
   const canUnlinkProvider = (profile?.providers.length || 0) > 1;
+  const premiumProducts = billingProducts.filter((product) => product.kind === 'premium' || product.kind === 'gift-premium');
+  const donationProducts = billingProducts.filter((product) => product.kind === 'donation');
 
   useEffect(() => {
     if (!open || status !== 'authenticated') return;
@@ -178,6 +182,17 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     }
   };
 
+  const openInvoice = async (productId: (typeof billingProducts)[number]['id']) => {
+    const invoice = await createTelegramInvoice(productId);
+    if (!invoice) return;
+    const telegram = window.Telegram?.WebApp;
+    if (telegram?.openInvoice) {
+      telegram.openInvoice(invoice.invoiceLink);
+      return;
+    }
+    window.open(invoice.invoiceLink, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <SettingsSheet
       open={open}
@@ -210,6 +225,18 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
               : t('account.sheetGuestCopy')}
           </div>
           <div className="account-stats">
+            {profile ? (
+              <div className="globe-selection-pill active">
+                <span>{t('account.membership')}</span>
+                <strong>
+                  {profile.premiumStatus === 'premium'
+                    ? t('account.premiumBadge')
+                    : profile.supporterTier !== 'none'
+                      ? t('account.supporterBadge')
+                      : t('account.freeBadge')}
+                </strong>
+              </div>
+            ) : null}
             <div className={`globe-selection-pill ${status === 'authenticated' ? 'active' : ''}`}>
               <span>{t('account.syncStatus')}</span>
               <strong>
@@ -228,6 +255,49 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
             ))}
           </div>
           {error ? <div className="error">{error}</div> : null}
+        </div>
+
+        <div className="glass-card account-provider-card">
+          <div className="library-section-head">
+            <div>
+              <div className="section-title">{t('account.billingTitle')}</div>
+              <div className="section-subtitle">{t('account.billingCopy')}</div>
+            </div>
+          </div>
+          <div className="account-policy-list">
+            {(profile?.entitlements || []).map((entitlement) => (
+              <div key={entitlement} className="account-policy-item">
+                {t(`account.entitlements.${entitlement}`)}
+              </div>
+            ))}
+            {!profile?.entitlements.length ? (
+              <div className="account-policy-item">{t('account.entitlements.cloud-sync')}</div>
+            ) : null}
+          </div>
+          <div className="account-billing-grid">
+            {premiumProducts.map((product) => (
+              <button
+                key={product.id}
+                className="account-strategy-option"
+                type="button"
+                onClick={() => void openInvoice(product.id)}
+              >
+                <span>{product.title}</span>
+                <strong>{product.amount} {product.currency}</strong>
+              </button>
+            ))}
+            {donationProducts.map((product) => (
+              <button
+                key={product.id}
+                className="account-strategy-option"
+                type="button"
+                onClick={() => void openInvoice(product.id)}
+              >
+                <span>{product.title}</span>
+                <strong>{product.amount} {product.currency}</strong>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="glass-card account-provider-card">

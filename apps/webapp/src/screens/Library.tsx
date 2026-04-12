@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StationTable } from '../components/StationTable';
+import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
-import type { LibraryTab } from '../types';
+import { useSession } from '../state/SessionContext';
+import type { LibraryTab, StationLite } from '../types';
 
-const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'history'];
+const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'history', 'collections'];
 
 export const Library = () => {
   const {
+    stations,
     favorites,
     recent,
+    collections,
+    followedStations,
+    followedRegions,
+    alerts,
     trackHistory,
     playbackHistory,
     queue,
@@ -18,9 +25,14 @@ export const Library = () => {
     clearFavorites,
     clearRecent,
     clearTrackHistory,
+    createCollection,
+    addStationToCollection,
+    removeStationFromCollection,
+    markAlertRead,
     libraryTab,
     setLibraryTab
   } = useRadio();
+  const { profile, library: cloudLibrary } = useSession();
   const { locale, t } = useLocale();
   const [trackJournalExpanded, setTrackJournalExpanded] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -34,6 +46,39 @@ export const Library = () => {
   }, []);
 
   const compactRows = viewportWidth < 720;
+  const stationMap = useMemo(() => new Map(stations.map((station) => [station.stationuuid, station])), [stations]);
+  const libraryFeed = useMemo(
+    () =>
+      createLibraryDiscoveryFeed({
+        current: player.current,
+        queuePreview: queue.items.slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4),
+        recent,
+        favorites,
+        playbackHistory,
+        trackHistory,
+        collections,
+        followedStations,
+        followedRegions,
+        alerts,
+        linkedProviders: profile?.linkedProviders || [],
+        libraryUpdatedAt: cloudLibrary?.updatedAt || null
+      }),
+    [
+      alerts,
+      cloudLibrary?.updatedAt,
+      collections,
+      favorites,
+      followedRegions,
+      followedStations,
+      playbackHistory,
+      player.current,
+      profile?.linkedProviders,
+      queue.currentIndex,
+      queue.items,
+      recent,
+      trackHistory
+    ]
+  );
 
   const formatTime = (value: number) =>
     new Date(value).toLocaleString(locale, {
@@ -43,6 +88,34 @@ export const Library = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+
+  const unreadAlerts = alerts.filter((alert) => alert.readAt === null);
+
+  const promptCreateCollection = () => {
+    const name = window.prompt(t('library.createCollectionPrompt'), '');
+    if (!name) return;
+    createCollection(name);
+  };
+
+  const renderCollectionStations = (collection: (typeof collections)[number]) => {
+    const collectionStations = collection.stationIds
+      .map((stationId) => stationMap.get(stationId))
+      .filter(Boolean) as StationLite[];
+
+    if (!collectionStations.length) {
+      return <div className="empty-state library-empty-state">{t('library.collectionEmpty')}</div>;
+    }
+
+    return (
+      <div className="library-collection-preview">
+        <StationTable
+          stations={collectionStations.slice(0, compactRows ? 3 : 4)}
+          compact
+          sourceId={`collection-${collection.id}`}
+        />
+      </div>
+    );
+  };
 
   return (
     <section className="screen screen-library-v2">
@@ -86,9 +159,7 @@ export const Library = () => {
           <div className="library-section-head">
             <div>
               <div className="section-title">{t('playlist.title')}</div>
-              <div className="section-subtitle">
-                {queue.sourceLabel || t('radio.queueDefault')}
-              </div>
+              <div className="section-subtitle">{queue.sourceLabel || t('radio.queueDefault')}</div>
             </div>
             <button className="chip" type="button" onClick={() => queue.clearQueue()} disabled={!queue.items.length}>
               {t('playlist.clearQueue')}
@@ -97,9 +168,7 @@ export const Library = () => {
           {queue.items.length ? (
             <div className="playlist-list">
               {queue.items.map((station, index) => {
-                const active =
-                  index === queue.currentIndex &&
-                  player.current?.stationuuid === station.stationuuid;
+                const active = index === queue.currentIndex && player.current?.stationuuid === station.stationuuid;
                 return (
                   <div key={station.stationuuid} className={`playlist-row ${active ? 'active' : ''}`}>
                     <div className="playlist-order">{index + 1}</div>
@@ -150,9 +219,7 @@ export const Library = () => {
               <div>
                 <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
                 <div className="section-subtitle">
-                  {trackJournalExpanded
-                    ? t('library.trackJournal')
-                    : t('library.trackJournalCollapsed')}
+                  {trackJournalExpanded ? t('library.trackJournal') : t('library.trackJournalCollapsed')}
                 </div>
               </div>
               <div className="chip-row">
@@ -166,9 +233,7 @@ export const Library = () => {
                   type="button"
                   onClick={() => setTrackJournalExpanded((prev) => !prev)}
                 >
-                  {trackJournalExpanded
-                    ? t('library.trackJournalCollapse')
-                    : t('library.trackJournalExpand')}
+                  {trackJournalExpanded ? t('library.trackJournalCollapse') : t('library.trackJournalExpand')}
                 </button>
               </div>
             </div>
@@ -195,11 +260,7 @@ export const Library = () => {
                           {item.stationName} · {formatTime(item.timestamp)}
                         </div>
                       </div>
-                      <button
-                        className="chip"
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(item.track)}
-                      >
+                      <button className="chip" type="button" onClick={() => navigator.clipboard.writeText(item.track)}>
                         {t('common.copy')}
                       </button>
                     </div>
@@ -229,6 +290,138 @@ export const Library = () => {
               </div>
             ) : (
               <div className="empty-state">{t('playlist.historyEmpty')}</div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {libraryTab === 'collections' ? (
+        <div className="library-collections-stack">
+          <div className="glass-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('library.collectionsTitle')}</div>
+                <div className="section-subtitle">{t('library.collectionsCopy')}</div>
+              </div>
+              <button className="chip active" type="button" onClick={promptCreateCollection}>
+                {t('library.createCollection')}
+              </button>
+            </div>
+            <div className="library-collection-grid">
+              {collections.length ? (
+                collections.map((collection) => (
+                  <div key={collection.id} className="library-collection-card">
+                    <div className="library-collection-head">
+                      <div>
+                        <div className="section-title">{collection.name}</div>
+                        <div className="section-subtitle">
+                          {t('library.collectionCount', { count: collection.stationIds.length })}
+                        </div>
+                      </div>
+                      <div className="chip-row">
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => {
+                            const station = player.current || favorites[0] || recent[0];
+                            if (station) {
+                              addStationToCollection(collection.id, station);
+                            }
+                          }}
+                        >
+                          {t('library.addCurrentToCollection')}
+                        </button>
+                      </div>
+                    </div>
+                    {renderCollectionStations(collection)}
+                    {collection.stationIds.length ? (
+                      <div className="chip-row">
+                        {collection.stationIds.slice(0, 4).map((stationId) => (
+                          <button
+                            key={`${collection.id}-${stationId}`}
+                            className="chip"
+                            type="button"
+                            onClick={() => removeStationFromCollection(collection.id, stationId)}
+                          >
+                            {t('library.removeFromCollection')}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              ) : (
+                <div className="empty-state library-empty-state">
+                  <div className="library-empty-title">{t('library.collectionsEmptyTitle')}</div>
+                  <div className="section-subtitle">{t('library.collectionsEmptyCopy')}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="library-history-grid">
+            <div className="glass-card">
+              <div className="section-title">{t('library.followedStationsTitle')}</div>
+              <div className="section-subtitle">{t('library.followedStationsCopy')}</div>
+              {libraryFeed.followedStationsPreview.length ? (
+                <div className="playlist-history-list">
+                  {libraryFeed.followedStationsPreview.map((station) => (
+                    <div key={station.stationId} className="playlist-history-item">
+                      <div className="playlist-history-name">{station.stationName}</div>
+                      <div className="playlist-history-meta">{station.country}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">{t('library.followedStationsEmpty')}</div>
+              )}
+            </div>
+
+            <div className="glass-card">
+              <div className="section-title">{t('library.followedRegionsTitle')}</div>
+              <div className="section-subtitle">{t('library.followedRegionsCopy')}</div>
+              {libraryFeed.followedRegionsPreview.length ? (
+                <div className="playlist-history-list">
+                  {libraryFeed.followedRegionsPreview.map((region) => (
+                    <div key={region.id} className="playlist-history-item">
+                      <div className="playlist-history-name">{region.label}</div>
+                      <div className="playlist-history-meta">{region.scope}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">{t('library.followedRegionsEmpty')}</div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('library.alertsTitle')}</div>
+                <div className="section-subtitle">{t('library.alertsCopy')}</div>
+              </div>
+              <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
+                <span>{t('library.alertsUnread')}</span>
+                <strong>{libraryFeed.unreadAlerts}</strong>
+              </div>
+            </div>
+            {alerts.length ? (
+              <div className="track-list track-list-scroll">
+                {alerts.slice(0, 8).map((alert) => (
+                  <div key={alert.id} className={`track-card ${alert.readAt ? '' : 'active'}`}>
+                    <div className="track-card-copy">
+                      <div className="track-title">{alert.title}</div>
+                      <div className="track-meta">{alert.body}</div>
+                    </div>
+                    <button className="chip" type="button" onClick={() => markAlertRead(alert.id)}>
+                      {alert.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">{t('library.alertsEmpty')}</div>
             )}
           </div>
         </div>
