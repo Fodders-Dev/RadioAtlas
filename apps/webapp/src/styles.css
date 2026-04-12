@@ -3351,6 +3351,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  align-items: start;
 }
 
 .home-showcase-grid > .glass-card,
@@ -3660,6 +3661,13 @@ body {
     var(--glass-bg);
 }
 
+.account-card .library-section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
 .account-pill {
   display: inline-flex;
   align-items: center;
@@ -3673,6 +3681,12 @@ body {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-pill.authenticated {
@@ -3747,6 +3761,16 @@ body {
 
 .account-actions {
   gap: 8px;
+}
+
+.account-card .section-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .account-onboarding-panel {
@@ -4019,6 +4043,7 @@ body {
   gap: 10px;
   align-items: flex-start;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .library-section-head > * {
@@ -4030,7 +4055,14 @@ body {
 }
 
 .library-section-head .chip {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.library-section-head > .account-pill,
+.home-showcase-grid .library-section-head > .chip,
+.home-side-stack .library-section-head > .chip {
+  margin-left: auto;
 }
 
 .library-section-head .section-title,
