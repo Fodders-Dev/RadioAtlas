@@ -38,7 +38,7 @@ const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
 
 const App = () => {
   const { t } = useLocale();
-  const { accountSheetOpen, closeAccountSheet } = useSession();
+  const { accountSheetOpen, closeAccountSheet, openAccountSheet, status: sessionStatus } = useSession();
   const {
     loading,
     error,
@@ -166,6 +166,19 @@ const App = () => {
                 <span>{t('common.info')}</span>
               </button>
             ) : null}
+            <button
+              className={`nav-utility-btn app-topbar-action mobile-account-trigger ${sessionStatus === 'authenticated' ? 'is-authenticated' : ''}`}
+              type="button"
+              onMouseEnter={() => void loadAccountSheet()}
+              onFocus={() => void loadAccountSheet()}
+              onClick={openAccountSheet}
+              title={sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.45 0-7 1.73-7 4.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.77-3.55-4.5-7-4.5Z" />
+              </svg>
+              <span>{sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}</span>
+            </button>
             <div className="app-build-pill" title={versionLabel}>
               {versionLabel}
             </div>

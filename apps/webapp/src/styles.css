@@ -3217,6 +3217,18 @@ body {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.mobile-account-trigger {
+  grid-template-columns: 16px auto;
+  width: auto;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.mobile-account-trigger.is-authenticated {
+  border-color: rgba(174, 240, 228, 0.22);
+  background: rgba(125, 226, 213, 0.1);
+  color: #d7fffb;
+}
+
 .mobile-settings-trigger {
   grid-template-columns: 16px auto;
   width: auto;
@@ -4576,6 +4588,10 @@ body {
     padding: 10px 10px calc(var(--dock-offset-v2) + 10px);
   }
 
+  .home-side-stack .account-card {
+    display: none;
+  }
+
   .app-navigation-mobile {
     position: fixed;
     left: 10px;
@@ -4626,6 +4642,14 @@ body {
 
   .mobile-settings-trigger span {
     display: none;
+  }
+
+  .mobile-account-trigger span {
+    display: none;
+  }
+
+  .app-topbar-actions {
+    gap: 8px;
   }
 }
 
