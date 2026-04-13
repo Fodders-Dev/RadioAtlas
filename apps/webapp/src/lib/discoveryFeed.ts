@@ -302,45 +302,92 @@ export const createDiscoveryFeed = ({
       ]
     : [];
 
+  const freshSignalsModule = buildStationModule(
+    'fresh-signals',
+    'home.freshSignalsTitle',
+    'home.freshSignalsCopy',
+    'home-fresh-signals',
+    freshSignals,
+    { accent: 'primary' }
+  );
+
+  const countrySpotlightModule = countrySpotlight
+    ? buildStationModule(
+        'country-spotlight',
+        'home.countrySpotlightTitle',
+        'home.countrySpotlightCopy',
+        'home-country-spotlight',
+        countrySpotlight.stations,
+        { accent: 'secondary', label: countrySpotlight.bucket.label }
+      )
+    : null;
+
+  const genreSpotlightModule = genreSpotlight
+    ? buildStationModule(
+        'genre-spotlight',
+        'home.genreSpotlightTitle',
+        'home.genreSpotlightCopy',
+        'home-genre-spotlight',
+        genreSpotlight.stations,
+        { accent: 'accent', label: genreSpotlight.bucket.label }
+      )
+    : null;
+
+  const hasSessionContext = queuePreview.length > 0 || recent.length > 0;
+  const rankedDiscoveryModules = [
+    freshSignalsModule,
+    revivedStations,
+    sessionDelta,
+    countrySpotlightModule,
+    genreSpotlightModule,
+    sponsoredModules[0] || null
+  ]
+    .filter((module): module is DiscoveryStationModule => Boolean(module?.stations.length))
+    .sort(
+      (left, right) =>
+        scoreDiscoveryModule(right, hasSessionContext, favorites.length > 0) -
+        scoreDiscoveryModule(left, hasSessionContext, favorites.length > 0)
+    );
+
+  const primaryDiscoveryModule = rankedDiscoveryModules[0] || freshSignalsModule;
+
   return {
     quickResults,
-    freshSignals: buildStationModule(
-      'fresh-signals',
-      'home.freshSignalsTitle',
-      'home.freshSignalsCopy',
-      'home-fresh-signals',
-      freshSignals,
-      { accent: 'primary' }
-    ),
-    countrySpotlight: countrySpotlight
-      ? buildStationModule(
-          'country-spotlight',
-          'home.countrySpotlightTitle',
-          'home.countrySpotlightCopy',
-          'home-country-spotlight',
-          countrySpotlight.stations,
-          { accent: 'secondary', label: countrySpotlight.bucket.label }
-        )
-      : null,
+    freshSignals: freshSignalsModule,
+    countrySpotlight: countrySpotlightModule,
     resumeStations,
     resumeModules,
-    genreSpotlight: genreSpotlight
-      ? buildStationModule(
-          'genre-spotlight',
-          'home.genreSpotlightTitle',
-          'home.genreSpotlightCopy',
-          'home-genre-spotlight',
-          genreSpotlight.stations,
-          { accent: 'accent', label: genreSpotlight.bucket.label }
-        )
-      : null,
+    genreSpotlight: genreSpotlightModule,
     revivedStations,
     sessionDelta,
     sponsoredModules,
+    primaryDiscoveryModule,
+    rankedDiscoveryModules,
+    promoteDiscoveryAbove: hasSessionContext ? 'resume' : 'quick-search',
     tagRadar,
     metrics,
     freshnessStamp: showcaseSeed
   };
+};
+
+
+const scoreDiscoveryModule = (
+  module: DiscoveryStationModule,
+  hasSessionContext: boolean,
+  hasFavorites: boolean
+) => {
+  const baseScoreByKind: Record<DiscoveryStationModule['kind'], number> = {
+    'search-preview': 0,
+    resume: 0,
+    'fresh-signals': 70,
+    'country-spotlight': 54,
+    'genre-spotlight': 52,
+    'catalog-pulse': 20,
+    'revived-stations': hasFavorites ? 76 : 56,
+    'session-delta': hasSessionContext ? 80 : 45,
+    sponsored: 24
+  };
+  return baseScoreByKind[module.kind] || 10;
 };
 
 const pickDominantCountry = (stations: StationLite[]) => {
