@@ -4,6 +4,7 @@ import { AccountCard } from '../components/AccountCard';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
 import { toLite } from '../lib/stationUtils';
+import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
@@ -24,6 +25,7 @@ export const Home = () => {
   const { profile } = useSession();
   const { t } = useLocale();
   const [query, setQuery] = useState('');
+  const isCompactLayout = useCompactLayout();
   const [showcaseSeed, setShowcaseSeed] = useState(() => Date.now());
   const deferredQuery = useDeferredValue(query);
   const debounced = useDebounce(deferredQuery, 220);
@@ -103,7 +105,7 @@ export const Home = () => {
             <div>
               <div className="shell-kicker">{t('home.discoveryKicker')}</div>
               <div className="section-title">{t('home.freshSignalsTitle')}</div>
-              <div className="section-subtitle">{t('home.freshSignalsCopy')}</div>
+              <div className="section-subtitle">{t(isCompactLayout ? 'home.freshSignalsCopyCompact' : 'home.freshSignalsCopy')}</div>
             </div>
             <button className="chip" type="button" onClick={refreshShowcase}>
               {t('home.refreshFeed')}
@@ -123,7 +125,7 @@ export const Home = () => {
             <div>
               <div className="shell-kicker">{t('home.revivedKicker')}</div>
               <div className="section-title">{t('home.revivedTitle')}</div>
-              <div className="section-subtitle">{t('home.revivedCopy')}</div>
+              <div className="section-subtitle">{t(isCompactLayout ? 'home.revivedCopyCompact' : 'home.revivedCopy')}</div>
             </div>
             <button className="chip" type="button" onClick={() => setActiveSection('library')}>
               {t('home.openLibrary')}
@@ -143,7 +145,7 @@ export const Home = () => {
             <div>
               <div className="shell-kicker">{t('home.mapKicker')}</div>
               <div className="section-title">{t('home.countrySpotlightTitle', { country: module.label || '' })}</div>
-              <div className="section-subtitle">{t('home.countrySpotlightCopy')}</div>
+              <div className="section-subtitle">{t(isCompactLayout ? 'home.countrySpotlightCopyCompact' : 'home.countrySpotlightCopy')}</div>
             </div>
             <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
               {t('home.openGlobe')}
@@ -163,7 +165,7 @@ export const Home = () => {
             <div>
               <div className="shell-kicker">{t('home.deltaKicker')}</div>
               <div className="section-title">{t('home.sessionDeltaTitle')}</div>
-              <div className="section-subtitle">{t('home.sessionDeltaCopy')}</div>
+              <div className="section-subtitle">{t(isCompactLayout ? 'home.sessionDeltaCopyCompact' : 'home.sessionDeltaCopy')}</div>
             </div>
           </div>
           <div className="home-mini-list">
@@ -180,7 +182,7 @@ export const Home = () => {
             <div>
               <div className="shell-kicker">{t('home.sponsoredKicker')}</div>
               <div className="section-title">{t('home.sponsoredTitle')}</div>
-              <div className="section-subtitle">{t('home.sponsoredCopy')}</div>
+              <div className="section-subtitle">{t(isCompactLayout ? 'home.sponsoredCopyCompact' : 'home.sponsoredCopy')}</div>
             </div>
             <div className="chip active">{t('home.sponsoredBadge')}</div>
           </div>
@@ -256,7 +258,7 @@ export const Home = () => {
         <div>
           <div className="shell-kicker">{t('home.searchKicker')}</div>
           <div className="section-title">{t('home.searchTitle')}</div>
-          <div className="section-subtitle">{t('home.quickMixCopy')}</div>
+          <div className="section-subtitle">{t(isCompactLayout ? 'home.quickMixCopyCompact' : 'home.quickMixCopy')}</div>
         </div>
         <button className="chip" type="button" onClick={() => setActiveSection('search')}>
           {t('home.openSearch')}
