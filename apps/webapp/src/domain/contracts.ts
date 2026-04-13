@@ -262,6 +262,9 @@ export type DiscoveryFeed = {
   revivedStations: DiscoveryStationModule | null;
   sessionDelta: DiscoveryStationModule | null;
   sponsoredModules: DiscoveryStationModule[];
+  primaryDiscoveryModule: DiscoveryStationModule;
+  rankedDiscoveryModules: DiscoveryStationModule[];
+  promoteDiscoveryAbove: 'resume' | 'quick-search';
   tagRadar: DiscoveryTagMetric[];
   metrics: DiscoveryMetrics;
   freshnessStamp: number;
