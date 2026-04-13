@@ -62,6 +62,25 @@ npm run dev:bot
    - use systemd or pm2 to keep it alive.
 5. BotFather: set Web App URL to `https://your-domain`.
 
+## Deploy (GitHub Actions -> VPS)
+1. Add GitHub Actions secrets:
+   - `SERVER_HOST`
+   - `SERVER_USER`
+   - `SERVER_SSH_KEY`
+2. On the server, run `deploy/bootstrap-server.sh` once.
+3. Fill or verify:
+   - `/opt/RadioAtlas/shared/env/bot.env`
+   - `/opt/RadioAtlas/shared/env/api.env`
+   - `/opt/RadioAtlas/shared/env/webapp.env`
+4. Push to the default branch (`master` right now; `main` is also supported by the workflow).
+
+Deploy flow:
+- GitHub Actions uploads a source archive over SSH.
+- The server creates a new release in `/opt/RadioAtlas/releases/<timestamp>-<sha>`.
+- Shared env files from `/opt/RadioAtlas/shared/env` are linked into the release.
+- `npm ci`, `npm run build`, and `pm2 startOrGracefulReload` run on the server.
+- `/opt/RadioAtlas/current` is switched to the new release after a successful build.
+
 ## API proxy (http streams + catalog)
 1. Build and run:
    ```bash
