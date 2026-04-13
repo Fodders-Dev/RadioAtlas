@@ -338,7 +338,7 @@ export const Home = () => {
               </div>
             </div>
             <div className="home-pulse-chipcloud">
-              {discoveryFeed.tagRadar.map((tag, index) => (
+              {discoveryFeed.tagRadar.slice(0, 10).map((tag, index) => (
                 <button
                   key={`${tag.label}-${index}`}
                   className={`chip ${discoveryFeed.genreSpotlight?.label === tag.label ? 'active' : ''}`}

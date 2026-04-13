@@ -91,3 +91,33 @@ npm run dev:bot
 - Run them from repo root, for example:
   - `node tools/legacy-debug/webapp/debug-icy.js`
   - `node tools/legacy-debug/webapp/check-top-radio.js`
+
+## Auto-deploy to VPS (GitHub Actions)
+
+This repo now includes `.github/workflows/deploy-server.yml` for push-to-`main` deploys.
+
+### 1) Prepare server once
+On VPS:
+```bash
+sudo bash /opt/RadioAtlas/current/deploy/server/bootstrap-server.sh
+```
+
+Create env files:
+- `/opt/RadioAtlas/shared/env/api.env`
+- `/opt/RadioAtlas/shared/env/bot.env`
+- `/opt/RadioAtlas/shared/env/webapp.env`
+
+Deploy script reads those files and injects them into each release before build.
+
+### 2) Add GitHub secrets
+In repo settings -> Secrets and variables -> Actions:
+- `SERVER_HOST` (example: `212.69.84.167`)
+- `SERVER_USER` (example: `root`)
+- `SERVER_SSH_KEY` (private key matching a public key in `~/.ssh/authorized_keys` on server)
+
+### 3) How release works
+- Workflow uploads code to `/opt/RadioAtlas/releases/<git_sha>`
+- Runs `deploy/server/deploy-release.sh <git_sha>` remotely
+- Script runs `npm ci`, builds webapp/api/bot, switches `/opt/RadioAtlas/current` symlink
+- PM2 reloads services with the new release
+- Keeps only last 5 releases
