@@ -114,6 +114,13 @@ const App = () => {
           ? t('common.loading')
           : t('app.metadataUnavailable')
     : t('app.queueCount', { count: queue.items.length });
+  const primaryActionLabel = player.current
+    ? t('app.nowPlayingLabel')
+    : sessionStatus === 'authenticated'
+      ? t('account.manage')
+      : t('account.signInAndSync');
+  const primaryActionHandler = player.current ? () => setDetailsOpen(true) : openAccountSheet;
+  const primaryActionTitle = player.current ? liveStatusLabel : primaryActionLabel;
 
   return (
     <div
@@ -137,48 +144,48 @@ const App = () => {
       <div className="app-content-shell">
         <header className="glass-card app-topbar-v2 motion-rise">
           <div className="app-topbar-copy">
-            <div className="app-topbar-brandline">
-              <div className="app-brand-pill" title={t('app.title')}>
-                <span className="app-brand-mark">R++</span>
-                <span>{t('app.title')}</span>
-              </div>
-              <div className="app-topbar-context">{meta.context}</div>
-            </div>
-            <div className="app-topbar-title">{meta.title}</div>
-            <div className="app-topbar-subtitle">{meta.subtitle}</div>
-            <div className="app-topbar-meta-row">
-              <div className="app-topbar-stat">{t('app.catalogCount', { count: stations.length })}</div>
-              <div className="app-topbar-stat">{t('app.favoritesCount', { count: favorites.length })}</div>
-              <div
-                className={`app-topbar-stat ${player.current ? 'active' : ''}`}
-                title={player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
+            <div className="app-topbar-main-row">
+              <div className="app-topbar-title">{meta.title}</div>
+              <button
+                className={`nav-utility-btn app-topbar-action app-topbar-primary-cta ${player.current ? 'is-live' : ''}`}
+                type="button"
+                onMouseEnter={player.current ? undefined : () => void loadAccountSheet()}
+                onFocus={player.current ? undefined : () => void loadAccountSheet()}
+                onClick={primaryActionHandler}
+                title={primaryActionTitle}
               >
-                {player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
-              </div>
+                {player.current ? (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 7.5A1.5 1.5 0 0 1 9.5 6h5A1.5 1.5 0 0 1 16 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 8 16.5v-9Zm2 0v9h4v-9h-4Z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.45 0-7 1.73-7 4.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.77-3.55-4.5-7-4.5Z" />
+                  </svg>
+                )}
+                <span>{primaryActionLabel}</span>
+              </button>
             </div>
+            <div className="app-topbar-context">{meta.context}</div>
+            <details className="app-topbar-metrics" aria-label={t('library.topbarSubtitle')}>
+              <summary>{t('library.topbarSubtitle')}</summary>
+              <div className="app-topbar-meta-row">
+                <div className="app-topbar-stat">{t('app.catalogCount', { count: stations.length })}</div>
+                <div className="app-topbar-stat">{t('app.favoritesCount', { count: favorites.length })}</div>
+                <div
+                  className={`app-topbar-stat ${player.current ? 'active' : ''}`}
+                  title={player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
+                >
+                  {player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
+                </div>
+              </div>
+            </details>
           </div>
           <div className="app-topbar-actions">
-            {player.current ? (
-              <button className="nav-utility-btn app-topbar-action" type="button" onClick={() => setDetailsOpen(true)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M11 10h2v7h-2v-7Zm0-4h2v2h-2V6Zm1 16a10 10 0 1 1 0-20 10 10 0 0 1 0 20Zm0-18a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z" />
-                </svg>
-                <span>{t('common.info')}</span>
-              </button>
-            ) : null}
-            <button
-              className={`nav-utility-btn app-topbar-action mobile-account-trigger ${sessionStatus === 'authenticated' ? 'is-authenticated' : ''}`}
-              type="button"
-              onMouseEnter={() => void loadAccountSheet()}
-              onFocus={() => void loadAccountSheet()}
-              onClick={openAccountSheet}
-              title={sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.45 0-7 1.73-7 4.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.77-3.55-4.5-7-4.5Z" />
-              </svg>
-              <span>{sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}</span>
-            </button>
+            <div className="app-brand-pill" title={t('app.title')}>
+              <span className="app-brand-mark">R++</span>
+              <span>{t('app.title')}</span>
+            </div>
             <div className="app-build-pill" title={versionLabel}>
               {versionLabel}
             </div>

@@ -3064,6 +3064,13 @@ body {
   min-width: 0;
 }
 
+.app-topbar-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .app-topbar-brandline {
   display: flex;
   flex-wrap: wrap;
@@ -3163,17 +3170,43 @@ body {
 
 .app-topbar-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.app-topbar-metrics {
+  margin-top: 2px;
+}
+
+.app-topbar-metrics summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-topbar-metrics summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-topbar-metrics summary::after {
+  content: '▾';
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+.app-topbar-metrics[open] summary::after {
+  content: '▴';
 }
 
 .app-topbar-meta-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .app-topbar-stat {
@@ -3216,6 +3249,16 @@ body {
 .app-topbar-action {
   width: auto;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.app-topbar-primary-cta {
+  flex: 0 0 auto;
+}
+
+.app-topbar-primary-cta.is-live {
+  border-color: rgba(174, 240, 228, 0.22);
+  background: rgba(125, 226, 213, 0.1);
+  color: #d7fffb;
 }
 
 .mobile-account-trigger {
@@ -4726,7 +4769,9 @@ body {
     align-items: flex-start;
   }
 
-  .app-topbar-meta-row .app-topbar-stat:not(:last-child) {
+  .app-brand-pill,
+  .app-topbar-metrics,
+  .app-topbar-subtitle {
     display: none;
   }
 
@@ -4743,8 +4788,8 @@ body {
     font-size: 17px;
   }
 
-  .app-topbar-subtitle {
-    display: none;
+  .app-topbar-main-row {
+    gap: 8px;
   }
 
   .app-build-pill {
@@ -4753,6 +4798,7 @@ body {
 
   .app-topbar-context {
     width: 100%;
+    font-size: 11px;
   }
 
   .account-actions {
@@ -4765,6 +4811,10 @@ body {
   }
 
   .app-topbar-action span {
+    display: none;
+  }
+
+  .app-topbar-actions {
     display: none;
   }
 
@@ -5216,12 +5266,12 @@ body {
 .link-btn,
 .play-btn,
 .pick-dismiss {
-  min-height: 34px;
+  min-height: 44px;
   padding: 7px 12px;
 }
 
 .nav-utility-btn {
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .icon-btn {
@@ -5277,7 +5327,7 @@ body {
   .link-btn,
   .play-btn,
   .pick-dismiss {
-    min-height: 36px;
+    min-height: 44px;
     padding: 7px 12px;
   }
 
