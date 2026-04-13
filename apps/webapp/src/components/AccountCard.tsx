@@ -1,10 +1,12 @@
 import { useLocale } from '../state/LocaleContext';
 import { useSession } from '../state/SessionContext';
 import { useRadio } from '../state/RadioContext';
+import { useCompactLayout } from '../lib/useCompactLayout';
 
 export const AccountCard = () => {
   const { t } = useLocale();
   const { setActiveSection } = useRadio();
+  const isCompactLayout = useCompactLayout();
   const {
     status,
     syncState,
@@ -111,7 +113,7 @@ export const AccountCard = () => {
         <div className="account-onboarding-panel">
           <div className="account-onboarding-copy">
             <div className="section-title">{t('account.onboardingTitle')}</div>
-            <div className="section-subtitle">{t('account.onboardingCopy')}</div>
+            <div className="section-subtitle">{t(isCompactLayout ? 'account.onboardingCopyCompact' : 'account.onboardingCopy')}</div>
           </div>
           <div className="hero-chip-row account-actions">
             <button className="chip active" type="button" onClick={openAccountSheet}>

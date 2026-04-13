@@ -339,6 +339,14 @@ input {
   line-height: 1.48;
   min-width: 0;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: calc(1.48em * 2);
 }
 
 .screen-skeleton {
@@ -3777,13 +3785,8 @@ body {
 }
 
 .account-card .section-subtitle {
-  display: -webkit-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .account-onboarding-panel {

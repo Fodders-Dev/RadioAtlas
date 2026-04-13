@@ -5,6 +5,7 @@ import { MiniPlayerDock } from './components/MiniPlayerDock';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
+import { useCompactLayout } from './lib/useCompactLayout';
 import {
   loadAccountSheet,
   loadGlobeScreen,
@@ -59,6 +60,7 @@ const App = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const versionLabel = buildLabel();
+  const isCompactLayout = useCompactLayout();
 
   useEffect(() => {
     if (!player.current && detailsOpen) {
@@ -80,7 +82,7 @@ const App = () => {
     () => ({
       home: {
         title: t('nav.home'),
-        subtitle: t('home.topbarSubtitle'),
+        subtitle: t(isCompactLayout ? 'home.topbarSubtitleCompact' : 'home.topbarSubtitle'),
         context: t('home.topbarContext')
       },
       search: {
@@ -99,7 +101,7 @@ const App = () => {
         context: t('library.kicker')
       }
     }),
-    [t]
+    [isCompactLayout, t]
   );
 
   const ActiveScreen = SECTION_COMPONENTS[activeSection];
