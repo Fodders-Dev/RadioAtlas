@@ -1,0 +1,38 @@
+name: Deploy RadioAtlas to VPS
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      APP_ROOT: /opt/RadioAtlas
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload release
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "mkdir -p $APP_ROOT/releases/$RELEASE_SHA"
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            ./ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$APP_ROOT/releases/$RELEASE_SHA/"
+
+      - name: Run deploy script
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "bash $APP_ROOT/releases/$RELEASE_SHA/deploy/server/deploy-release.sh $RELEASE_SHA"

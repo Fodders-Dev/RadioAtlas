@@ -117,7 +117,7 @@ export const AccountCard = () => {
             <button className="chip active" type="button" onClick={openAccountSheet}>
               {t('account.signInAndSync')}
             </button>
-            {isTelegramMiniApp || canOpenTelegram ? (
+            {(isTelegramMiniApp || canOpenTelegram) && !hasGoogleClient ? (
               <button
                 className="chip"
                 type="button"
@@ -126,11 +126,6 @@ export const AccountCard = () => {
                 }}
               >
                 {t('account.telegramAction')}
-              </button>
-            ) : null}
-            {hasGoogleClient ? (
-              <button className="chip" type="button" onClick={openAccountSheet}>
-                {t('account.googleAction')}
               </button>
             ) : null}
           </div>

@@ -4726,6 +4726,10 @@ body {
     align-items: flex-start;
   }
 
+  .app-topbar-meta-row .app-topbar-stat:not(:last-child) {
+    display: none;
+  }
+
   .library-section-head {
     flex-direction: column;
   }
@@ -4749,6 +4753,15 @@ body {
 
   .app-topbar-context {
     width: 100%;
+  }
+
+  .account-actions {
+    width: 100%;
+  }
+
+  .account-actions .chip {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 
   .app-topbar-action span {
