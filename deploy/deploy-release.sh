@@ -57,11 +57,9 @@ npm run build
 
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
-if pm2 describe radioatlas-api >/dev/null 2>&1; then
-  pm2 startOrGracefulReload ecosystem.config.cjs --update-env
-else
-  pm2 start ecosystem.config.cjs --update-env
-fi
+pm2 delete radioatlas-api >/dev/null 2>&1 || true
+pm2 delete radioatlas-bot >/dev/null 2>&1 || true
+pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
 pm2 save
 
 healthy=0
