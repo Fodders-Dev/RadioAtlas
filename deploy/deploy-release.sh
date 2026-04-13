@@ -64,7 +64,19 @@ else
 fi
 pm2 save
 
-curl --fail --silent http://127.0.0.1:3001/health >/dev/null
+healthy=0
+for _ in $(seq 1 15); do
+  if curl --fail --silent http://127.0.0.1:3001/health >/dev/null; then
+    healthy=1
+    break
+  fi
+  sleep 2
+done
+
+if [[ "$healthy" -ne 1 ]]; then
+  echo "API healthcheck did not pass after deploy." >&2
+  exit 1
+fi
 
 mapfile -t old_releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort -r)
 if (( ${#old_releases[@]} > KEEP_RELEASES )); then
