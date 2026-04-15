@@ -5,7 +5,7 @@ import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
 
-type DockTrayMode = 'volume' | null;
+type DockTrayMode = 'queue' | 'volume' | null;
 
 export const MiniPlayerDock = () => {
   const { t } = useLocale();
@@ -15,9 +15,14 @@ export const MiniPlayerDock = () => {
     nowPlayingStatus,
     queue,
     playNext,
+    playStation,
     copyTrack,
     playerPresentation,
     setPlayerPresentation,
+    activeSection,
+    setActiveSection,
+    libraryTab,
+    setLibraryTab,
     setDetailsOpen,
     toggleFavorite,
     isFavorite,
@@ -30,6 +35,22 @@ export const MiniPlayerDock = () => {
   const liked = current ? isFavorite(current.stationuuid) : false;
   const queueCount = Math.max(queue.items.length, 0);
   const isDormantDock = !current && queueCount === 0;
+  const resolvedQueueIndex =
+    queue.currentIndex >= 0
+      ? queue.currentIndex
+      : current
+        ? queue.items.findIndex((station) => station.stationuuid === current.stationuuid)
+        : -1;
+  const queuePreviewStart = resolvedQueueIndex >= 0 ? resolvedQueueIndex : 0;
+  const queuePreview = queue.items.slice(queuePreviewStart, queuePreviewStart + 3);
+  const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
+  const queueProgressLabel = queueCount
+    ? resolvedQueueIndex >= 0
+      ? t('dock.queueProgress', { current: resolvedQueueIndex + 1, total: queueCount })
+      : t('dock.queueCount', { count: queueCount })
+    : current
+      ? t('dock.liveNow')
+      : t('dock.ready');
   const activeTrack = nowPlaying?.trim() || '';
   const stationTitle = current?.name || t('dock.emptyTitle');
   const trackTitle = activeTrack
@@ -52,6 +73,35 @@ export const MiniPlayerDock = () => {
       setTrayMode(null);
     }
   }, [playerPresentation]);
+
+  const openLibraryTab = (tab: 'queue' | 'history') => {
+    setTrayMode(null);
+    setLibraryTab(tab);
+    setActiveSection('library');
+  };
+
+  const openSearch = () => {
+    setTrayMode(null);
+    setActiveSection('search');
+  };
+
+  const playQueuePreview = (stationId: string, fallbackIndex: number) => {
+    const queueIndex = queue.items.findIndex((station) => station.stationuuid === stationId);
+    if (queueIndex >= 0) {
+      queue.playAtIndex(queueIndex);
+      setTrayMode(null);
+      return;
+    }
+
+    const station = queuePreview[fallbackIndex];
+    if (!station) return;
+    playStation(station, {
+      playlist: queue.items.length ? queue.items : [station],
+      sourceId: queue.sourceId || 'dock-queue',
+      sourceLabel: queueSourceLabel
+    });
+    setTrayMode(null);
+  };
 
   useEffect(() => {
     if (!current) return;
@@ -101,42 +151,106 @@ export const MiniPlayerDock = () => {
       </div>
 
       {trayMode ? (
-        <div className="player-dock-tray" role="region" aria-label={t('dock.volume')}>
+        <div
+          className="player-dock-tray"
+          data-mode={trayMode}
+          role="region"
+          aria-label={trayMode === 'volume' ? t('dock.volume') : t('playlist.title')}
+        >
           <div className="player-dock-tray-panel">
-            <div className="player-dock-tray-head">
-              <div>
-                <div className="player-dock-tray-title">{t('dock.volume')}</div>
-                <div className="player-dock-tray-subtitle">{volumePercent}%</div>
+            {trayMode === 'volume' ? (
+              <>
+                <div className="player-dock-tray-head">
+                  <div className="player-dock-tray-subtitle" aria-live="polite">
+                    {volumePercent}%
+                  </div>
+                  <button
+                    className="dock-mini-btn"
+                    type="button"
+                    onClick={() =>
+                      player.setVolume(player.volume > 0.01 ? 0 : lastAudibleVolumeRef.current || 0.8)
+                    }
+                    aria-label={t('dock.volume')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      {player.volume > 0.01 ? (
+                        <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Zm1.5 0c0 2.42-1.18 4.56-3 5.88v-1.95a5.49 5.49 0 0 0 0-7.86V6.12c1.82 1.32 3 3.46 3 5.88Z" />
+                      ) : (
+                        <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
+                      )}
+                    </svg>
+                  </button>
+                </div>
+                <label className="player-dock-volume" aria-label={t('dock.volume')}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={volumePercent}
+                    onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
+                  />
+                </label>
+              </>
+            ) : (
+              <div className="player-dock-queue-tray">
+                <div className="player-dock-tray-head player-dock-queue-head">
+                  <div>
+                    <div className="player-dock-tray-title">{queueSourceLabel}</div>
+                    <div className="player-dock-tray-subtitle">{queueProgressLabel}</div>
+                  </div>
+                  <button
+                    className={`dock-mini-btn ${
+                      activeSection === 'library' && libraryTab === 'queue' ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() => openLibraryTab('queue')}
+                    aria-label={t('dock.queueOpen')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+                    </svg>
+                  </button>
+                </div>
+                {queuePreview.length ? (
+                  <div className="player-dock-queue-list">
+                    {queuePreview.map((station, index) => {
+                      const queueIndex = queuePreviewStart + index;
+                      const activePreview =
+                        queueIndex === resolvedQueueIndex &&
+                        current?.stationuuid === station.stationuuid;
+                      return (
+                        <button
+                          key={`${station.stationuuid}-${queueIndex}`}
+                          className={`player-dock-queue-item ${activePreview ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => playQueuePreview(station.stationuuid, index)}
+                        >
+                          <strong>{station.name}</strong>
+                          <span>{stationLocation(station)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="player-dock-queue-empty">
+                    <strong>{t('playlist.title')}</strong>
+                    <span>{t('dock.queuePeekEmpty')}</span>
+                  </div>
+                )}
+                <div className="chip-row player-dock-queue-actions">
+                  <button
+                    className="chip active"
+                    type="button"
+                    onClick={() => openLibraryTab('queue')}
+                  >
+                    {t('dock.queueOpen')}
+                  </button>
+                  <button className="chip" type="button" onClick={() => openLibraryTab('history')}>
+                    {t('dock.copiedTracksOpen')}
+                  </button>
+                </div>
               </div>
-              <button
-                className="dock-mini-btn"
-                type="button"
-                onClick={() =>
-                  player.setVolume(player.volume > 0.01 ? 0 : lastAudibleVolumeRef.current || 0.8)
-                }
-                aria-label={t('dock.volume')}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  {player.volume > 0.01 ? (
-                    <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Zm1.5 0c0 2.42-1.18 4.56-3 5.88v-1.95a5.49 5.49 0 0 0 0-7.86V6.12c1.82 1.32 3 3.46 3 5.88Z" />
-                  ) : (
-                    <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
-                  )}
-                </svg>
-              </button>
-            </div>
-            <label className="player-dock-volume" aria-label={t('dock.volume')}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 9v6h4l5 4V5l-5 4H5Z" />
-              </svg>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={volumePercent}
-                onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
-              />
-            </label>
+            )}
           </div>
         </div>
       ) : null}
@@ -178,7 +292,33 @@ export const MiniPlayerDock = () => {
 
       <div className="player-dock-actions">
         <button
-          className={`dock-icon-btn ${current && player.isPlaying ? 'active' : ''}`}
+          className={`dock-icon-btn ${queueCount || trayMode === 'queue' ? 'active' : ''}`}
+          type="button"
+          onClick={() => {
+            if (!queueCount) {
+              openSearch();
+              return;
+            }
+            setTrayMode((prev) => (prev === 'queue' ? null : 'queue'));
+          }}
+          aria-label={queueCount ? t('dock.queueOpen') : t('nav.search')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+          </svg>
+        </button>
+        <button
+          className={`dock-icon-btn dock-volume-btn ${trayMode === 'volume' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
+          aria-label={t('dock.volume')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
+          </svg>
+        </button>
+        <button
+          className={`dock-icon-btn dock-play-btn ${current && player.isPlaying ? 'active' : ''}`}
           type="button"
           onClick={() => {
             if (current) {
@@ -202,7 +342,7 @@ export const MiniPlayerDock = () => {
           </svg>
         </button>
         <button
-          className={`dock-icon-btn ${liked ? 'active' : ''}`}
+          className={`dock-icon-btn dock-like-btn ${liked ? 'active' : ''}`}
           type="button"
           onClick={() => current && toggleFavorite(current)}
           disabled={!current}
@@ -210,32 +350,6 @@ export const MiniPlayerDock = () => {
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-          </svg>
-        </button>
-        <button
-          className={`dock-icon-btn ${trayMode === 'volume' ? 'active' : ''}`}
-          type="button"
-          onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
-          aria-label={t('dock.volume')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
-          </svg>
-        </button>
-        <button
-          className="dock-expand-btn"
-          type="button"
-          onMouseEnter={() => void loadWinampPlayerShell()}
-          onFocus={() => void loadWinampPlayerShell()}
-          onClick={() => {
-            setTrayMode(null);
-            setPlayerPresentation('expanded');
-          }}
-          aria-label={t('dock.openWinamp')}
-        >
-          <span className="dock-expand-btn-label">{t('dock.openWinamp')}</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 6h10v2H7zm0 5h10v2H7zm0 5h7v2H7z" />
           </svg>
         </button>
       </div>

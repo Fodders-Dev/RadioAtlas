@@ -100,7 +100,13 @@ export const shouldAttemptStreamExtraction = (url: string) => !isDirectAudioUrl(
 
 export const needsApiAssist = (station: StationLite, sourceUrls: string[]) =>
   isExternalStation(station) ||
-  sourceUrls.some((url) => url.startsWith('http://') || shouldAttemptStreamExtraction(url));
+  sourceUrls.some(
+    (url) =>
+      url.startsWith('http://') ||
+      isHls(url) ||
+      shouldAttemptStreamExtraction(url) ||
+      (isSecureProxyContext() && url.startsWith('https://') && !isDirectAudioUrl(url))
+  );
 
 const modeForUrl = (url: string, isFallback: boolean): PlaybackCandidate['mode'] => {
   if (url.includes('/stream?url=')) return 'proxy';

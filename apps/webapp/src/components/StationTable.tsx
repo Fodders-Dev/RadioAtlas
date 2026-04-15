@@ -24,6 +24,18 @@ export const StationTable = ({
     return <div className="empty-state">{t('stationTable.empty')}</div>;
   }
 
+  const toggleStation = (station: StationLite, active: boolean) => {
+    if (active) {
+      void player.toggle();
+      return;
+    }
+
+    playStation(station, {
+      playlist: buildQueue ? stations : undefined,
+      sourceId
+    });
+  };
+
   return (
     <div className={`station-table ${compact ? 'compact' : ''}`}>
       {!compact && (
@@ -55,7 +67,12 @@ export const StationTable = ({
           >
             {compact ? (
               <div className="station-compact-shell">
-                <div className="station-compact-main">
+                <button
+                  className="station-compact-main station-compact-toggle"
+                  type="button"
+                  onClick={() => toggleStation(station, active)}
+                  aria-label={playLabel}
+                >
                   <StationArtwork station={station} size="card" />
                   <div className="station-compact-copy">
                     <div className="station-title" title={station.name}>
@@ -77,18 +94,11 @@ export const StationTable = ({
                       </div>
                     ) : null}
                   </div>
-                </div>
+                </button>
                 <div className="station-compact-actions">
                   <button
                     className="play-btn icon-only station-compact-play"
-                    onClick={() =>
-                      active
-                        ? player.toggle()
-                        : playStation(station, {
-                            playlist: buildQueue ? stations : undefined,
-                            sourceId
-                          })
-                    }
+                    onClick={() => toggleStation(station, active)}
                     type="button"
                     aria-label={playLabel}
                   >

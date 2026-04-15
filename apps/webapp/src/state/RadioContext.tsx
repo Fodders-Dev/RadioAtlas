@@ -28,6 +28,7 @@ import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram'
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
 import { getApiBase } from '../lib/apiBase';
+import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { applySkinPalette, applySkinThemeFromUrl } from '../lib/skinTheme';
 import { fetchMuseumSkinByMd5 } from '../lib/skinMuseum';
 import {
@@ -1359,10 +1360,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const artwork = station.favicon
+    const artworkUrl = getProxiedAssetUrl(station.stationArtwork || station.favicon);
+    const artwork = artworkUrl
       ? [
           {
-            src: station.favicon,
+            src: artworkUrl,
             sizes: '512x512',
             type: 'image/png'
           }

@@ -19,6 +19,7 @@ export const AccountCard = () => {
 
   const favoritesCount = library?.favorites.length || 0;
   const recentCount = library?.recent.length || 0;
+  const providerCount = profile?.providers.length || 0;
   const providerSummary = profile?.providers
     .map((provider) => provider.email || provider.username || provider.displayName)
     .filter(Boolean)
@@ -60,30 +61,34 @@ export const AccountCard = () => {
       </div>
 
       {profile ? (
-        <div className="account-profile-line">
-          <div className="account-avatar" aria-hidden="true">
-            {profile.photoUrl ? (
-              <img src={profile.photoUrl} alt="" />
-            ) : (
-              profile.displayName.charAt(0).toUpperCase()
-            )}
+        <div className="account-profile-surface">
+          <div className="account-profile-line">
+            <div className="account-avatar" aria-hidden="true">
+              {profile.photoUrl ? (
+                <img src={profile.photoUrl} alt="" />
+              ) : (
+                profile.displayName.charAt(0).toUpperCase()
+              )}
+            </div>
+            <div className="account-profile-copy">
+              <div className="account-profile-name">{profile.displayName}</div>
+              <div className="account-profile-meta">
+                {providerSummary || (profile.username ? `@${profile.username}` : t('account.telegramProvider'))}
+              </div>
+            </div>
           </div>
-          <div className="account-profile-copy">
-            <div className="account-profile-name">{profile.displayName}</div>
-            <div className="account-profile-meta">
-              {providerSummary || (profile.username ? `@${profile.username}` : t('account.telegramProvider'))}
+          <div className="account-profile-badges">
+            {premiumBadge ? (
+              <div className="account-inline-badge account-inline-badge-premium">{premiumBadge}</div>
+            ) : null}
+            <div className={`account-inline-badge ${syncState === 'synced' ? 'active' : ''}`}>
+              {t(`account.syncStates.${syncState}`)}
             </div>
           </div>
         </div>
       ) : null}
 
       <div className="account-stats">
-        {premiumBadge ? (
-          <div className="globe-selection-pill active">
-            <span>{t('account.membership')}</span>
-            <strong>{premiumBadge}</strong>
-          </div>
-        ) : null}
         <div className="globe-selection-pill">
           <span>{t('library.tabs.favorites')}</span>
           <strong>{favoritesCount}</strong>
@@ -92,9 +97,9 @@ export const AccountCard = () => {
           <span>{t('library.tabs.recent')}</span>
           <strong>{recentCount}</strong>
         </div>
-        <div className={`globe-selection-pill ${syncState === 'synced' ? 'active' : ''}`}>
-          <span>{t('account.syncStatus')}</span>
-          <strong>{t(`account.syncStates.${syncState}`)}</strong>
+        <div className={`globe-selection-pill ${providerCount > 0 ? 'active' : ''}`}>
+          <span>{t('account.mergePreviewProviders')}</span>
+          <strong>{providerCount}</strong>
         </div>
       </div>
 

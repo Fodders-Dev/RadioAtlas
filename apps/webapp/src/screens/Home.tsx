@@ -1,6 +1,5 @@
 import { startTransition, useDeferredValue, useMemo, useState } from 'react';
 import { createDiscoveryFeed } from '../lib/discoveryFeed';
-import { AccountCard } from '../components/AccountCard';
 import { StationTable } from '../components/StationTable';
 import { useDebounce } from '../lib/useDebounce';
 import { toLite } from '../lib/stationUtils';
@@ -90,6 +89,23 @@ export const Home = () => {
       showcaseSeed
     ]
   );
+  const rankedDiscoveryModules = useMemo(
+    () =>
+      [
+        discoveryFeed.freshSignals,
+        discoveryFeed.countrySpotlight,
+        discoveryFeed.genreSpotlight,
+        discoveryFeed.revivedStations,
+        discoveryFeed.sessionDelta,
+        ...discoveryFeed.sponsoredModules
+      ].filter(Boolean) as DiscoveryStationModule[],
+    [discoveryFeed]
+  );
+  const primaryDiscoveryModule = rankedDiscoveryModules[0] || null;
+  const spotlightInLead = primaryDiscoveryModule?.kind === 'fresh-signals';
+  const quickTagRadar = discoveryFeed.tagRadar.slice(0, 2);
+  const quickSearchMotionClass = spotlightInLead ? 'motion-delay-2' : 'motion-delay-1';
+  const resumeMotionClass = spotlightInLead ? 'motion-delay-3' : 'motion-delay-2';
 
   const refreshShowcase = () => {
     startTransition(() => {
@@ -199,7 +215,10 @@ export const Home = () => {
           <div className="library-section-head">
             <div>
               <div className="shell-kicker">{t('home.genreKicker')}</div>
-              <div className="section-title">{t('home.genreSpotlightTitle', { genre: module.label || '' })}</div>
+              <div className="section-title genre-spotlight-title">
+                <span className="genre-spotlight-prefix">{t('home.genreSpotlightPrefix')}</span>
+                <span className="genre-spotlight-name">{module.label || ''}</span>
+              </div>
               <div className="section-subtitle">{t('home.genreSpotlightCopy')}</div>
             </div>
           </div>
@@ -248,21 +267,41 @@ export const Home = () => {
     return null;
   };
 
-  const moreDiscoveryModules = discoveryFeed.rankedDiscoveryModules.filter(
-    (module) => module.kind !== discoveryFeed.primaryDiscoveryModule?.kind
+  const moreDiscoveryModules = rankedDiscoveryModules.filter(
+    (module) => module.kind !== primaryDiscoveryModule?.kind
   );
 
   const quickSearchCard = (
-    <div className="glass-card home-search-card home-search-card-primary motion-rise motion-delay-1" data-home-module="search-preview">
-      <div className="library-section-head">
-        <div>
-          <div className="shell-kicker">{t('home.searchKicker')}</div>
-          <div className="section-title">{t('home.searchTitle')}</div>
-          <div className="section-subtitle">{t(isCompactLayout ? 'home.quickMixCopyCompact' : 'home.quickMixCopy')}</div>
+    <div
+      className={`glass-card home-search-card home-search-card-primary home-search-card-hero motion-rise ${quickSearchMotionClass}`}
+      data-home-module="search-preview"
+    >
+      <div className="home-card-eyebrow">
+        <div className="shell-kicker">{t('home.searchKicker')}</div>
+        <div className="home-card-summary">
+          {query.trim()
+            ? t('discover.matches', { count: discoveryFeed.quickResults.length })
+            : t('app.catalogCount', { count: stations.length })}
         </div>
-        <button className="chip" type="button" onClick={() => setActiveSection('search')}>
-          {t('home.openSearch')}
-        </button>
+      </div>
+      <div className="home-search-hero">
+        <div className="home-search-hero-copy">
+          <div className="section-title">{t('home.searchTitle')}</div>
+        </div>
+        <div className="home-search-hero-stats">
+          <div className="home-search-stat">
+            <span>{t('home.catalogPulseCountries')}</span>
+            <strong>{discoveryFeed.metrics.countries}</strong>
+          </div>
+          <div className="home-search-stat">
+            <span>{t('home.catalogPulseLanguages')}</span>
+            <strong>{discoveryFeed.metrics.languages}</strong>
+          </div>
+          <div className="home-search-stat">
+            <span>{t('home.catalogPulseGenres')}</span>
+            <strong>{discoveryFeed.metrics.genres}</strong>
+          </div>
+        </div>
       </div>
       <div className="search-bar home-search-bar">
         <input
@@ -276,14 +315,34 @@ export const Home = () => {
           </button>
         ) : null}
       </div>
+      <div className="home-search-quick-row">
+        {quickTagRadar.map((tag) => (
+          <button
+            key={`${tag.label}-${tag.count}`}
+            className="chip"
+            type="button"
+            onClick={() => setQuery(tag.label)}
+            title={`${tag.label} · ${tag.count}`}
+          >
+            {tag.label}
+          </button>
+        ))}
+        <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
+          {t('home.openSearch')}
+        </button>
+      </div>
       <div className="home-mini-list">
-        <StationTable stations={discoveryFeed.quickResults} compact sourceId={query ? 'home-search' : 'home-trending'} />
+        <StationTable
+          stations={discoveryFeed.quickResults}
+          compact
+          sourceId={query ? 'home-search' : 'home-trending'}
+        />
       </div>
     </div>
   );
 
   const resumeCard = (
-    <div className="glass-card home-session-card motion-rise motion-delay-2" data-home-module="resume">
+    <div className={`glass-card home-session-card motion-rise ${resumeMotionClass}`} data-home-module="resume">
       <div className="library-section-head">
         <div>
           <div className="shell-kicker">{t('home.sessionKicker')}</div>
@@ -299,20 +358,6 @@ export const Home = () => {
                 : t('explore.resumeEmpty')}
           </div>
         </div>
-      </div>
-      <div className="hero-chip-row">
-        <button
-          className="chip active"
-          type="button"
-          onClick={() => {
-            if (player.current) {
-              void player.toggle();
-            }
-          }}
-          disabled={!player.current}
-        >
-          {player.current && player.isPlaying ? t('common.pause') : t('common.play')}
-        </button>
         <button className="chip" type="button" onClick={() => setActiveSection('library')}>
           {t('home.openLibrary')}
         </button>
@@ -341,31 +386,28 @@ export const Home = () => {
 
   return (
     <section className="screen screen-home-v2">
-      <div className="home-grid">
-        <div className="home-main-stack">
-          {discoveryFeed.promoteDiscoveryAbove === 'quick-search' ? renderDiscoveryCard(discoveryFeed.primaryDiscoveryModule, 1) : null}
+      <div className="home-main-stack home-main-stack-wide">
+        <div className="home-lead-grid">
           {quickSearchCard}
-          {discoveryFeed.promoteDiscoveryAbove === 'resume' ? renderDiscoveryCard(discoveryFeed.primaryDiscoveryModule, 2) : null}
-          {resumeCard}
-
-          {moreDiscoveryModules.length ? (
-            <div className="home-showcase-grid">
-              <div className="library-section-head">
-                <div>
-                  <div className="shell-kicker">{t('home.moreDiscoveriesKicker')}</div>
-                  <div className="section-title">{t('home.moreDiscoveriesTitle')}</div>
-                </div>
-              </div>
-              {moreDiscoveryModules.map((module, index) => (
-                <div key={`${module.kind}-${index}`}>{renderDiscoveryCard(module, index + 3)}</div>
-              ))}
-            </div>
-          ) : null}
+          {spotlightInLead && primaryDiscoveryModule ? renderDiscoveryCard(primaryDiscoveryModule, 1) : resumeCard}
         </div>
 
-        <aside className="home-side-stack">
-          <AccountCard />
-        </aside>
+        {!spotlightInLead && primaryDiscoveryModule ? renderDiscoveryCard(primaryDiscoveryModule, 2) : null}
+        {spotlightInLead ? resumeCard : null}
+
+        {moreDiscoveryModules.length ? (
+          <div className="home-showcase-grid">
+            <div className="library-section-head">
+              <div>
+                <div className="shell-kicker">{t('home.moreDiscoveriesKicker')}</div>
+                <div className="section-title">{t('home.moreDiscoveriesTitle')}</div>
+              </div>
+            </div>
+            {moreDiscoveryModules.map((module, index) => (
+              <div key={`${module.kind}-${index}`}>{renderDiscoveryCard(module, index + 3)}</div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -113,7 +113,17 @@ export type CloudLibrary = {
   updatedAt: number;
 };
 
-export type ProviderKind = 'telegram' | 'google';
+export type ProviderKind = 'telegram' | 'google' | 'vk';
+
+export type ProviderAvailabilityStatus = 'available' | 'requires-client' | 'server-only' | 'unavailable';
+
+export type ProviderAvailability = {
+  kind: ProviderKind;
+  status: ProviderAvailabilityStatus;
+  configured: boolean;
+  label: string;
+  reason: string | null;
+};
 
 export type LibraryMergeStrategy = 'combine' | 'prefer-current' | 'prefer-incoming';
 

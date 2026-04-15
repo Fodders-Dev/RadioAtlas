@@ -80,7 +80,18 @@ const distanceSq = (left: { lat: number; lon: number }, right: { lat: number; lo
 
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { stations, player, favorites, recent, followedRegions, toggleFollowRegion, setActiveSection } = useRadio();
+  const {
+    stations,
+    player,
+    favorites,
+    recent,
+    followedRegions,
+    toggleFollowRegion,
+    setActiveSection,
+    setLibraryTab,
+    playStation,
+    playbackHistory
+  } = useRadio();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const picksRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +211,7 @@ export const GlobeScreen = () => {
 
   const selectedArea = selectedAreaId ? areaById.get(selectedAreaId) || null : null;
   const activeAreaId = player.current ? stationAreaMap.get(player.current.stationuuid) : undefined;
+  const activeArea = activeAreaId ? areaById.get(activeAreaId) || null : null;
 
   const focusPoint = useMemo(() => {
     if (selectedArea) {
@@ -233,6 +245,38 @@ export const GlobeScreen = () => {
   const isSelectedRegionFollowed = selectedArea
     ? followedRegions.some((region) => region.id === selectedArea.id)
     : false;
+  const recentMappedArea = useMemo(() => {
+    const candidates = [player.current, ...recent, ...[...playbackHistory].reverse()];
+    for (const station of candidates) {
+      if (!station) continue;
+      const areaId = stationAreaMap.get(station.stationuuid);
+      if (!areaId) continue;
+      const area = areaById.get(areaId);
+      if (area) return area;
+    }
+    return null;
+  }, [areaById, playbackHistory, player.current, recent, stationAreaMap]);
+  const followedAreaRoutes = useMemo(
+    () =>
+      followedRegions
+        .map((region) => areaById.get(region.id))
+        .filter(Boolean) as GlobeArea[],
+    [areaById, followedRegions]
+  );
+  const routeDeckAreas = useMemo(() => {
+    const ordered = [selectedArea, activeArea, recentMappedArea, ...followedAreaRoutes, ...globeAreas]
+      .filter(Boolean) as GlobeArea[];
+    const seen = new Set<string>();
+    return ordered.filter((area) => {
+      if (seen.has(area.id)) return false;
+      seen.add(area.id);
+      return true;
+    }).slice(0, 6);
+  }, [activeArea, followedAreaRoutes, globeAreas, recentMappedArea, selectedArea]);
+  const openLibraryRegions = () => {
+    setLibraryTab('collections');
+    setActiveSection('library');
+  };
 
   useEffect(() => {
     if (!selectedArea) return;
@@ -306,6 +350,45 @@ export const GlobeScreen = () => {
             total: stations.length
           })}
         />
+        <div className="globe-shell-deck">
+          <div className="globe-metric-strip">
+            <div className="search-shell-metric">
+              <span>{t('globe.mappedAreas')}</span>
+              <strong>{globeAreas.length}</strong>
+            </div>
+            <div className="search-shell-metric">
+              <span>{t('globe.selectionCount')}</span>
+              <strong>{resolvedStations.length}</strong>
+            </div>
+            <div className="search-shell-metric">
+              <span>{t('library.followedRegionsTitle')}</span>
+              <strong>{followedRegions.length}</strong>
+            </div>
+            <div className="search-shell-metric">
+              <span>{t('globe.selectionZoom')}</span>
+              <strong>{zoomLevel.toFixed(1)}x</strong>
+            </div>
+          </div>
+          <div className="globe-shell-actions">
+            {routeDeckAreas.map((area) => (
+              <button
+                key={`deck-${area.id}`}
+                className={`globe-shell-route-chip ${selectedArea?.id === area.id ? 'active' : ''}`}
+                type="button"
+                onClick={() => handleSelectArea(area.id)}
+              >
+                <span>{area.label}</span>
+                <strong>{area.count}</strong>
+              </button>
+            ))}
+            <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+              {t('home.openSearch')}
+            </button>
+            <button className="chip" type="button" onClick={openLibraryRegions}>
+              {t('home.openLibrary')}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="home-grid">
@@ -358,6 +441,18 @@ export const GlobeScreen = () => {
                 </div>
                 <div className="hero-chip-row">
                   <button
+                    className="chip active"
+                    type="button"
+                    onClick={() =>
+                      playStation(selectedArea.stations[0], {
+                        playlist: selectedArea.stations,
+                        sourceId: 'globe-area'
+                      })
+                    }
+                  >
+                    {t('common.play')}
+                  </button>
+                  <button
                     className={`chip ${isSelectedRegionFollowed ? 'active' : ''}`}
                     type="button"
                     onClick={() =>
@@ -369,6 +464,9 @@ export const GlobeScreen = () => {
                     }
                   >
                     {isSelectedRegionFollowed ? t('globe.followingRegion') : t('globe.followRegion')}
+                  </button>
+                  <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+                    {t('home.openSearch')}
                   </button>
                 </div>
                 <StationTable
@@ -419,6 +517,69 @@ export const GlobeScreen = () => {
         </div>
 
         <aside className="home-side-stack">
+          <div className="glass-card globe-session-card">
+            <div className="section-title">{t('home.resumeShelfTitle')}</div>
+            <div className="section-subtitle">{t('home.resumeShelfCopy')}</div>
+            {activeArea || recentMappedArea ? (
+              <div className="globe-session-actions">
+                {activeArea ? (
+                  <button
+                    className="globe-session-button active"
+                    type="button"
+                    onClick={() => handleSelectArea(activeArea.id)}
+                  >
+                    <span>{activeArea.label}</span>
+                    <strong>{activeArea.subtitle}</strong>
+                  </button>
+                ) : null}
+                {recentMappedArea && recentMappedArea.id !== activeArea?.id ? (
+                  <button
+                    className="globe-session-button"
+                    type="button"
+                    onClick={() => handleSelectArea(recentMappedArea.id)}
+                  >
+                    <span>{recentMappedArea.label}</span>
+                    <strong>{recentMappedArea.subtitle}</strong>
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="library-empty-state">
+                <div className="section-subtitle">{t('globe.idleEmpty')}</div>
+              </div>
+            )}
+            <div className="hero-chip-row">
+              <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+                {t('home.openSearch')}
+              </button>
+              <button className="chip" type="button" onClick={openLibraryRegions}>
+                {t('home.openLibrary')}
+              </button>
+            </div>
+          </div>
+
+          {followedAreaRoutes.length ? (
+            <div className="glass-card">
+              <div className="section-title">{t('library.followedRegionsTitle')}</div>
+              <div className="section-subtitle">{t('library.followedRegionsCopy')}</div>
+              <div className="globe-route-list">
+                {followedAreaRoutes.slice(0, 5).map((area) => (
+                  <button
+                    key={`followed-route-${area.id}`}
+                    className={`globe-route-pill ${selectedArea?.id === area.id ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => handleSelectArea(area.id)}
+                  >
+                    <span className="globe-route-pill-label" title={area.label}>
+                      {area.label}
+                    </span>
+                    <strong title={area.subtitle}>{area.subtitle}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="glass-card globe-area-summary-card">
             <div className="section-title">{t('globe.hotAreasTitle')}</div>
             <div className="section-subtitle">{t('globe.hotAreasCopy')}</div>
