@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
+import type { NowPlayingSnapshot } from '../domain/contracts';
+import { observeStationNowPlaying } from '../lib/nowPlaying';
 import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useRadio } from '../state/RadioContext';
@@ -11,20 +14,81 @@ type StationTableProps = {
   buildQueue?: boolean;
 };
 
-export const StationTable = ({
-  stations,
+const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
+  track: null,
+  status: 'idle',
+  source: 'none',
+  failureKind: null,
+  recommendedPollMs: 15_000,
+  updatedAt: null
+};
+
+type StationTableRowProps = {
+  station: StationLite;
+  index: number;
+  compact?: boolean;
+  sourceId?: string;
+  buildQueue: boolean;
+  stations: StationLite[];
+};
+
+const StationTableRow = ({
+  station,
+  index,
   compact,
   sourceId,
-  buildQueue = true
-}: StationTableProps) => {
-  const { playStation, toggleFavorite, isFavorite, player } = useRadio();
+  buildQueue,
+  stations
+}: StationTableRowProps) => {
+  const { playStation, toggleFavorite, isFavorite, player, nowPlaying, nowPlayingStatus } = useRadio();
   const { t } = useLocale();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [shouldObserve, setShouldObserve] = useState(!compact || index < 8);
+  const [snapshot, setSnapshot] = useState<NowPlayingSnapshot>(IDLE_ROW_SNAPSHOT);
 
-  if (!stations.length) {
-    return <div className="empty-state">{t('stationTable.empty')}</div>;
-  }
+  useEffect(() => {
+    if (shouldObserve) return;
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+      setShouldObserve(true);
+      return;
+    }
+    const node = rowRef.current;
+    if (!node) {
+      setShouldObserve(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldObserve(true);
+        }
+      },
+      {
+        rootMargin: '220px 0px'
+      }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [shouldObserve]);
 
-  const toggleStation = (station: StationLite, active: boolean) => {
+  useEffect(() => {
+    if (!shouldObserve) return;
+    return observeStationNowPlaying(station, setSnapshot);
+  }, [shouldObserve, station.stationuuid, station.url_resolved]);
+
+  const active = player.current?.stationuuid === station.stationuuid;
+  const liked = isFavorite(station.stationuuid);
+  const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
+  const locationLabel = stationLocation(station);
+  const tagsLabel = stationTags(station);
+  const compactTags = (station.tags || '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(' · ');
+
+  const toggleStation = () => {
     if (active) {
       void player.toggle();
       return;
@@ -35,6 +99,141 @@ export const StationTable = ({
       sourceId
     });
   };
+
+  const activeTrack = active ? nowPlaying?.trim() || null : null;
+  const displayTrack = activeTrack || snapshot.track;
+  const displayStatus =
+    active && !activeTrack && nowPlayingStatus !== 'idle'
+      ? snapshot.track
+        ? 'ready'
+        : nowPlayingStatus
+      : displayTrack
+        ? 'ready'
+        : snapshot.status;
+  const trackLabel =
+    displayTrack || (displayStatus === 'loading' ? t('common.loading') : t('app.metadataUnavailable'));
+  const showTagline = compact && Boolean(compactTags) && !displayTrack && displayStatus !== 'loading';
+
+  return (
+    <div
+      ref={rowRef}
+      className={`station-row ${active ? 'active' : ''}`}
+      data-track-status={displayTrack ? 'ready' : displayStatus}
+    >
+      {compact ? (
+        <div className="station-compact-shell">
+          <button
+            className="station-compact-main station-compact-toggle"
+            type="button"
+            onClick={toggleStation}
+            aria-label={playLabel}
+          >
+            <StationArtwork station={station} size="card" />
+            <div className="station-compact-copy">
+              <div className="station-title" title={station.name}>
+                <span className="marquee-text">{station.name}</span>
+              </div>
+              {station.isVerified || station.promoted || station.isClaimed ? (
+                <div className="chip-row station-inline-flags">
+                  {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
+                  {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
+                  {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                </div>
+              ) : null}
+              <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
+                {trackLabel}
+              </div>
+              <div className="station-location" title={locationLabel}>
+                {locationLabel}
+              </div>
+              {showTagline ? (
+                <div className="station-compact-tagline" title={compactTags}>
+                  {compactTags}
+                </div>
+              ) : null}
+            </div>
+          </button>
+          <div className="station-compact-actions">
+            <button
+              className="play-btn icon-only station-compact-play"
+              onClick={toggleStation}
+              type="button"
+              aria-label={playLabel}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {active && player.isPlaying ? (
+                  <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
+                ) : (
+                  <path d="M8 5v14l11-7z" />
+                )}
+              </svg>
+            </button>
+            <button
+              className={`icon-btn station-fav-btn ${liked ? 'active' : ''}`}
+              onClick={() => toggleFavorite(station)}
+              type="button"
+              aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <button className="play-btn" onClick={toggleStation} type="button" aria-label={playLabel}>
+            {playLabel}
+          </button>
+          <div className="station-name">
+            <div className="station-name-head">
+              <StationArtwork station={station} size="md" />
+              <div className="station-name-stack">
+                <div className="station-title" title={station.name}>
+                  <span className="marquee-text">{station.name}</span>
+                </div>
+                {station.isVerified || station.promoted || station.isClaimed ? (
+                  <div className="chip-row station-inline-flags">
+                    {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
+                    {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
+                    {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                  </div>
+                ) : null}
+                <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
+                  {trackLabel}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="station-location">{locationLabel}</div>
+          <div className="station-tags">{tagsLabel}</div>
+          <button
+            className={`icon-btn ${liked ? 'active' : ''}`}
+            onClick={() => toggleFavorite(station)}
+            type="button"
+            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+            </svg>
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
+export const StationTable = ({
+  stations,
+  compact,
+  sourceId,
+  buildQueue = true
+}: StationTableProps) => {
+  const { t } = useLocale();
+
+  if (!stations.length) {
+    return <div className="empty-state">{t('stationTable.empty')}</div>;
+  }
 
   return (
     <div className={`station-table ${compact ? 'compact' : ''}`}>
@@ -48,129 +247,16 @@ export const StationTable = ({
         </div>
       )}
       {stations.map((station, index) => {
-        const active = player.current?.stationuuid === station.stationuuid;
-        const liked = isFavorite(station.stationuuid);
-        const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
-        const locationLabel = stationLocation(station);
-        const tagsLabel = stationTags(station);
-        const compactTags = (station.tags || '')
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean)
-          .slice(0, 2)
-          .join(' · ');
-        const showTagline = compact && Boolean(compactTags);
         return (
-          <div
+          <StationTableRow
             key={`${station.stationuuid}-${sourceId || 'stations'}-${index}`}
-            className={`station-row ${active ? 'active' : ''}`}
-          >
-            {compact ? (
-              <div className="station-compact-shell">
-                <button
-                  className="station-compact-main station-compact-toggle"
-                  type="button"
-                  onClick={() => toggleStation(station, active)}
-                  aria-label={playLabel}
-                >
-                  <StationArtwork station={station} size="card" />
-                  <div className="station-compact-copy">
-                    <div className="station-title" title={station.name}>
-                      <span className="marquee-text">{station.name}</span>
-                    </div>
-                    {station.isVerified || station.promoted || station.isClaimed ? (
-                      <div className="chip-row station-inline-flags">
-                        {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
-                        {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
-                        {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
-                      </div>
-                    ) : null}
-                    <div className="station-location" title={locationLabel}>
-                      {locationLabel}
-                    </div>
-                    {showTagline ? (
-                      <div className="station-compact-tagline" title={compactTags}>
-                        {compactTags}
-                      </div>
-                    ) : null}
-                  </div>
-                </button>
-                <div className="station-compact-actions">
-                  <button
-                    className="play-btn icon-only station-compact-play"
-                    onClick={() => toggleStation(station, active)}
-                    type="button"
-                    aria-label={playLabel}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      {active && player.isPlaying ? (
-                        <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
-                      ) : (
-                        <path d="M8 5v14l11-7z" />
-                      )}
-                    </svg>
-                  </button>
-                  <button
-                    className={`icon-btn station-fav-btn ${liked ? 'active' : ''}`}
-                    onClick={() => toggleFavorite(station)}
-                    type="button"
-                    aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <button
-                  className="play-btn"
-                  onClick={() =>
-                    active
-                      ? player.toggle()
-                      : playStation(station, {
-                          playlist: buildQueue ? stations : undefined,
-                          sourceId
-                        })
-                  }
-                  type="button"
-                  aria-label={playLabel}
-                >
-                  {playLabel}
-                </button>
-                <div className="station-name">
-                  <div className="station-name-head">
-                    <StationArtwork station={station} size="md" />
-                    <div className="station-name-stack">
-                      <div className="station-title" title={station.name}>
-                        <span className="marquee-text">{station.name}</span>
-                      </div>
-                      {station.isVerified || station.promoted || station.isClaimed ? (
-                        <div className="chip-row station-inline-flags">
-                          {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
-                          {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
-                          {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                <div className="station-location">{locationLabel}</div>
-                <div className="station-tags">{tagsLabel}</div>
-                <button
-                  className={`icon-btn ${liked ? 'active' : ''}`}
-                  onClick={() => toggleFavorite(station)}
-                  type="button"
-                  aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-                  </svg>
-                </button>
-              </>
-            )}
-          </div>
+            station={station}
+            index={index}
+            compact={compact}
+            sourceId={sourceId}
+            buildQueue={buildQueue}
+            stations={stations}
+          />
         );
       })}
     </div>

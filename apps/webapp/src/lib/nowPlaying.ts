@@ -257,6 +257,209 @@ export const subscribeNowPlaying = (
   };
 };
 
+type StationSnapshotListener = (snapshot: NowPlayingSnapshot) => void;
+
+type StationSnapshotEntry = {
+  key: string;
+  station: StationLite;
+  snapshot: NowPlayingSnapshot;
+  listeners: Set<StationSnapshotListener>;
+  inFlight: Promise<void> | null;
+  timer: ReturnType<typeof window.setTimeout> | null;
+  cleanupTimer: ReturnType<typeof window.setTimeout> | null;
+  liveUnsubscribe: (() => void) | null;
+};
+
+const STATION_CACHE_TTL_MS = 5 * 60_000;
+const MAX_METADATA_CONCURRENCY = 4;
+const stationSnapshotEntries = new Map<string, StationSnapshotEntry>();
+const queuedStationKeys = new Set<string>();
+const refreshQueue: string[] = [];
+let activeRefreshCount = 0;
+
+const stationSnapshotKey = (station: StationLite) => station.stationuuid || station.url_resolved || station.name;
+
+const idleSnapshot = (): NowPlayingSnapshot => ({
+  track: null,
+  status: 'idle',
+  source: 'none',
+  failureKind: null,
+  recommendedPollMs: shouldUseLowImpactMetadata() ? 45_000 : 15_000,
+  updatedAt: null
+});
+
+const emitStationSnapshot = (entry: StationSnapshotEntry) => {
+  entry.listeners.forEach((listener) => listener(entry.snapshot));
+};
+
+const clearScheduledRefresh = (entry: StationSnapshotEntry) => {
+  if (entry.timer) {
+    window.clearTimeout(entry.timer);
+    entry.timer = null;
+  }
+};
+
+const clearCleanupTimer = (entry: StationSnapshotEntry) => {
+  if (entry.cleanupTimer) {
+    window.clearTimeout(entry.cleanupTimer);
+    entry.cleanupTimer = null;
+  }
+};
+
+const scheduleStationRefresh = (entry: StationSnapshotEntry, delayMs?: number) => {
+  clearScheduledRefresh(entry);
+  if (!entry.listeners.size) return;
+  const waitMs = Math.max(delayMs ?? entry.snapshot.recommendedPollMs ?? 15_000, 5_000);
+  entry.timer = window.setTimeout(() => {
+    queueStationSnapshotRefresh(entry.key);
+  }, waitMs);
+};
+
+const releaseStationEntry = (entry: StationSnapshotEntry) => {
+  clearScheduledRefresh(entry);
+  clearCleanupTimer(entry);
+  entry.liveUnsubscribe?.();
+  entry.liveUnsubscribe = null;
+  if (!entry.listeners.size) {
+    stationSnapshotEntries.delete(entry.key);
+  }
+};
+
+const getStationEntry = (station: StationLite) => {
+  const key = stationSnapshotKey(station);
+  const existing = stationSnapshotEntries.get(key);
+  if (existing) {
+    existing.station = station;
+    return existing;
+  }
+  const created: StationSnapshotEntry = {
+    key,
+    station,
+    snapshot: idleSnapshot(),
+    listeners: new Set(),
+    inFlight: null,
+    timer: null,
+    cleanupTimer: null,
+    liveUnsubscribe: null
+  };
+  stationSnapshotEntries.set(key, created);
+  return created;
+};
+
+const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
+  if (entry.inFlight) return entry.inFlight;
+
+  const lowImpact = shouldUseLowImpactMetadata();
+  if (!entry.snapshot.track && entry.snapshot.status !== 'loading') {
+    entry.snapshot = {
+      ...entry.snapshot,
+      status: 'loading',
+      failureKind: null
+    };
+    emitStationSnapshot(entry);
+  }
+
+  entry.inFlight = (async () => {
+    try {
+      const snapshot = await fetchNowPlayingSnapshot(entry.station, undefined, {
+        lowImpact
+      });
+      entry.snapshot = snapshot;
+      emitStationSnapshot(entry);
+      scheduleStationRefresh(entry, snapshot.recommendedPollMs);
+    } catch {
+      entry.snapshot = {
+        track: entry.snapshot.track,
+        status: entry.snapshot.track ? 'ready' : 'unavailable',
+        source: entry.snapshot.source === 'none' ? 'none' : entry.snapshot.source,
+        failureKind: 'unknown',
+        recommendedPollMs: lowImpact ? 45_000 : 15_000,
+        updatedAt: entry.snapshot.updatedAt
+      };
+      emitStationSnapshot(entry);
+      scheduleStationRefresh(entry);
+    } finally {
+      entry.inFlight = null;
+    }
+  })();
+
+  return entry.inFlight;
+};
+
+const pumpStationSnapshotQueue = () => {
+  while (activeRefreshCount < MAX_METADATA_CONCURRENCY && refreshQueue.length) {
+    const key = refreshQueue.shift();
+    if (!key) break;
+    queuedStationKeys.delete(key);
+    const entry = stationSnapshotEntries.get(key);
+    if (!entry || !entry.listeners.size || entry.inFlight) {
+      continue;
+    }
+    activeRefreshCount += 1;
+    void refreshStationSnapshot(entry).finally(() => {
+      activeRefreshCount = Math.max(activeRefreshCount - 1, 0);
+      pumpStationSnapshotQueue();
+    });
+  }
+};
+
+function queueStationSnapshotRefresh(key: string) {
+  if (queuedStationKeys.has(key)) return;
+  queuedStationKeys.add(key);
+  refreshQueue.push(key);
+  pumpStationSnapshotQueue();
+}
+
+export const observeStationNowPlaying = (
+  station: StationLite,
+  onSnapshot: StationSnapshotListener
+) => {
+  const entry = getStationEntry(station);
+  clearCleanupTimer(entry);
+  entry.listeners.add(onSnapshot);
+  onSnapshot(entry.snapshot);
+
+  if (!entry.liveUnsubscribe) {
+    const liveUnsubscribe = subscribeNowPlaying(entry.station, (track) => {
+      entry.snapshot = {
+        track,
+        status: track ? 'ready' : 'unavailable',
+        source: 'nightride-sse',
+        failureKind: track ? null : 'metadata-unavailable',
+        recommendedPollMs: 15_000,
+        updatedAt: track ? Date.now() : null
+      };
+      emitStationSnapshot(entry);
+      scheduleStationRefresh(entry, entry.snapshot.recommendedPollMs);
+    });
+    if (liveUnsubscribe) {
+      entry.liveUnsubscribe = liveUnsubscribe;
+    }
+  }
+
+  if (
+    entry.snapshot.status === 'idle' ||
+    entry.snapshot.status === 'unavailable' ||
+    (entry.snapshot.updatedAt !== null &&
+      Date.now() - entry.snapshot.updatedAt >= entry.snapshot.recommendedPollMs)
+  ) {
+    queueStationSnapshotRefresh(entry.key);
+  } else if (!entry.timer) {
+    scheduleStationRefresh(entry, entry.snapshot.recommendedPollMs);
+  }
+
+  return () => {
+    entry.listeners.delete(onSnapshot);
+    if (entry.listeners.size) return;
+    clearScheduledRefresh(entry);
+    entry.liveUnsubscribe?.();
+    entry.liveUnsubscribe = null;
+    entry.cleanupTimer = window.setTimeout(() => {
+      releaseStationEntry(entry);
+    }, STATION_CACHE_TTL_MS);
+  };
+};
+
 const fetchWithTimeout = async (url: string, ms = 4000, signal?: AbortSignal) => {
   const controller = new AbortController();
   const unbindAbort = bindAbort(controller, signal);
