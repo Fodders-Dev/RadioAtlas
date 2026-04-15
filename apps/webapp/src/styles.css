@@ -9128,3 +9128,59 @@ body {
     justify-self: center;
   }
 }
+
+/* Pass 19: icon symmetry and full-width transport rail */
+
+@media (max-width: 430px) {
+  .app-topbar-actions {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: 8px;
+  }
+
+  .app-topbar-actions .nav-utility-btn {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    justify-self: center;
+    line-height: 1;
+  }
+
+  .app-topbar-actions .nav-utility-btn svg {
+    display: block;
+    margin: 0;
+  }
+
+  .player-dock-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.24fr) minmax(0, 1fr)
+      minmax(0, 1fr);
+    align-items: center;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .player-dock-actions > * {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .dock-icon-btn,
+  .dock-mini-btn {
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+  }
+
+  .dock-play-btn {
+    min-width: 0;
+    width: 100%;
+    height: 40px;
+    margin-inline: 0;
+  }
+}
