@@ -218,6 +218,7 @@ export type NowPlayingSource =
   | 'shoutcast'
   | 'azuracast'
   | 'icy-stream'
+  | 'cache'
   | 'server-proxy'
   | 'none';
 

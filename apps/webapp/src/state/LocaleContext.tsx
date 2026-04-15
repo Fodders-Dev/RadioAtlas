@@ -417,6 +417,7 @@ const dictionaries = {
       stationHistory: 'История живых станций для быстрого возврата в эфир.',
       tabs: {
         favorites: 'Избранное',
+        tracks: 'Треки',
         queue: 'Очередь',
         recent: 'Недавнее',
         history: 'История',
@@ -460,7 +461,7 @@ const dictionaries = {
       volume: 'Громкость',
       copiedTracks: 'Скопированные треки',
       copiedTracksEmpty: 'Скопируй название трека, и оно останется здесь.',
-      copiedTracksOpen: 'Открыть журнал',
+      copiedTracksOpen: 'Открыть треки',
       queueOpen: 'Открыть очередь',
       queuePeekEmpty: 'Собери очередь из поиска, глобуса или избранного.',
       copyCurrentTrack: 'Копировать текущий трек',
@@ -1060,6 +1061,7 @@ const dictionaries = {
       stationHistory: 'Live station history for returning to the right mood fast.',
       tabs: {
         favorites: 'Favorites',
+        tracks: 'Tracks',
         queue: 'Queue',
         recent: 'Recent',
         history: 'History',
@@ -1103,7 +1105,7 @@ const dictionaries = {
       volume: 'Volume',
       copiedTracks: 'Copied tracks',
       copiedTracksEmpty: 'Copy a track title and it will stay here.',
-      copiedTracksOpen: 'Open journal',
+      copiedTracksOpen: 'Open tracks',
       queueOpen: 'Open queue',
       queuePeekEmpty: 'Build a queue from Search, Globe, or Favorites.',
       copyCurrentTrack: 'Copy current track',

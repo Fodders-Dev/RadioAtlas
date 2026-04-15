@@ -74,7 +74,7 @@ export const MiniPlayerDock = () => {
     }
   }, [playerPresentation]);
 
-  const openLibraryTab = (tab: 'queue' | 'history') => {
+  const openLibraryTab = (tab: 'queue' | 'tracks' | 'history') => {
     setTrayMode(null);
     setLibraryTab(tab);
     setActiveSection('library');
@@ -245,7 +245,7 @@ export const MiniPlayerDock = () => {
                   >
                     {t('dock.queueOpen')}
                   </button>
-                  <button className="chip" type="button" onClick={() => openLibraryTab('history')}>
+                  <button className="chip" type="button" onClick={() => openLibraryTab('tracks')}>
                     {t('dock.copiedTracksOpen')}
                   </button>
                 </div>

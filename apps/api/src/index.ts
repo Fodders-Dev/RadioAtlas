@@ -49,6 +49,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOK
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
+const METADATA_CACHE_TTL_MS = 1000 * 15;
 const BLOCKED_HOSTS = [
   'youtube.com',
   'youtu.be',
@@ -86,9 +87,17 @@ type CacheEntry = {
   data: Station[];
 };
 
+type MetadataLookupResult = {
+  title: string | null;
+  logs: string[];
+  source?: string;
+};
+
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
+
+const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult }>();
 
 const corsHeaders = (res: express.Response) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1128,7 +1137,105 @@ app.get('/stream', async (req, res) => {
   }
 });
 
-const fetchStreamMetadata = async (url: string): Promise<{ title: string | null; logs: string[] }> => {
+const buildTrackTitle = (artist?: string | null, title?: string | null) => {
+  const parts = [artist?.trim(), title?.trim()].filter(Boolean);
+  if (!parts.length) return null;
+  return parts.join(' - ');
+};
+
+const fetchMetadataPayload = async (
+  targetUrl: string,
+  responseType: 'json' | 'text',
+  timeoutMs = 5000
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': USER_AGENT,
+        Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
+      },
+      redirect: 'follow',
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return responseType === 'json' ? await response.json() : await response.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
+};
+
+const fetchIcecastMetadata = async (
+  origin: string,
+  path: string,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const target = `${origin}/status-json.xsl`;
+  log(`Trying Icecast status: ${target}`);
+  const data = await fetchMetadataPayload(target, 'json');
+  if (!data || typeof data !== 'object') return null;
+
+  const source = (data as any)?.icestats?.source;
+  const sources = Array.isArray(source) ? source : source ? [source] : [];
+  if (!sources.length) return null;
+
+  const matchedSource =
+    sources.find((entry: any) => entry?.listenurl?.endsWith(path) || entry?.listenurl?.includes(path)) ||
+    sources[0];
+
+  if (!matchedSource) return null;
+
+  const composedTrack = buildTrackTitle(matchedSource.artist, matchedSource.title);
+  return composedTrack || matchedSource.title?.trim?.() || null;
+};
+
+const fetchShoutcastMetadata = async (
+  origin: string,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const target = `${origin}/7.html`;
+  log(`Trying Shoutcast status: ${target}`);
+  const text = await fetchMetadataPayload(target, 'text');
+  if (!text || typeof text !== 'string') return null;
+
+  const bodyMatch = text.match(/<body[^>]*>(.*?)<\/body>/i);
+  const content = bodyMatch?.[1] || text;
+  const parts = content.split(',');
+  if (parts.length >= 7) {
+    return parts[6]?.trim?.() || null;
+  }
+  return null;
+};
+
+const parseAzuraMetadata = (payload: unknown) => {
+  const data = Array.isArray(payload) ? payload[0] : payload;
+  const song = (data as any)?.now_playing?.song;
+  return song?.text || buildTrackTitle(song?.artist, song?.title);
+};
+
+const fetchAzuraMetadata = async (
+  host: string,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const candidates = [`https://${host}/api/nowplaying/1`, `https://${host}/api/nowplaying`];
+  for (const candidate of candidates) {
+    log(`Trying AzuraCast status: ${candidate}`);
+    const data = await fetchMetadataPayload(candidate, 'json');
+    const track = parseAzuraMetadata(data);
+    if (track) return track;
+  }
+  return null;
+};
+
+const fetchStreamMetadata = async (url: string): Promise<MetadataLookupResult> => {
   const logs: string[] = [];
   const log = (msg: string) => {
     console.log(`[Metadata] ${msg}`);
@@ -1136,6 +1243,26 @@ const fetchStreamMetadata = async (url: string): Promise<{ title: string | null;
   };
 
   log(`Fetching: ${url}`);
+
+  try {
+    const parsedUrl = new URL(url);
+    const icecastTitle = await fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, log);
+    if (icecastTitle) {
+      return { title: icecastTitle, logs, source: 'icecast-status' };
+    }
+
+    const shoutcastTitle = await fetchShoutcastMetadata(parsedUrl.origin, log);
+    if (shoutcastTitle) {
+      return { title: shoutcastTitle, logs, source: 'shoutcast-status' };
+    }
+
+    const azuraTitle = await fetchAzuraMetadata(parsedUrl.host, log);
+    if (azuraTitle) {
+      return { title: azuraTitle, logs, source: 'azuracast' };
+    }
+  } catch (error) {
+    log(`Status probe skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 
@@ -1202,7 +1329,7 @@ const fetchStreamMetadata = async (url: string): Promise<{ title: string | null;
           log(`Raw meta found`);
           const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
           if (match?.[1]) {
-            return { title: match[1].trim(), logs };
+            return { title: match[1].trim(), logs, source: 'icy-stream' };
           } else {
             log(`StreamTitle not found in: ${text}`);
             return { title: null, logs };
@@ -1300,9 +1427,24 @@ app.get('/metadata', async (req, res) => {
     return;
   }
 
-  const { title, logs } = await fetchStreamMetadata(url);
+  const cached = metadataCache.get(url);
+  if (cached && Date.now() - cached.ts < METADATA_CACHE_TTL_MS) {
+    if (cached.result.title) {
+      res.json(cached.result);
+      return;
+    }
+    res.status(404).json({ error: 'No metadata found', ...cached.result });
+    return;
+  }
+
+  const metadata = await fetchStreamMetadata(url);
+  metadataCache.set(url, {
+    ts: Date.now(),
+    result: metadata
+  });
+  const { title, logs, source } = metadata;
   if (title) {
-    res.json({ title, logs });
+    res.json({ title, logs, source });
     return;
   }
 
@@ -1313,12 +1455,17 @@ app.get('/metadata', async (req, res) => {
     const topRadioTitle = await fetchFromTopRadio(slug);
     if (topRadioTitle) {
       logs.push(`Got from top-radio: ${topRadioTitle}`);
-      res.json({ title: topRadioTitle, logs, source: 'top-radio.ru' });
+      const result = { title: topRadioTitle, logs, source: 'top-radio.ru' };
+      metadataCache.set(url, {
+        ts: Date.now(),
+        result
+      });
+      res.json(result);
       return;
     }
   }
 
-  res.status(404).json({ error: 'No metadata found', logs });
+  res.status(404).json({ error: 'No metadata found', logs, source });
 });
 
 app.get('/extract', async (req, res) => {

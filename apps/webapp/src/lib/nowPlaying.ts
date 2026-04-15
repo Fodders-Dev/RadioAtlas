@@ -271,11 +271,15 @@ type StationSnapshotEntry = {
 };
 
 const STATION_CACHE_TTL_MS = 5 * 60_000;
+const LAST_KNOWN_TRACKS_STORAGE_KEY = 'radio:last-known-tracks';
+const LAST_KNOWN_TRACKS_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
+const LAST_KNOWN_TRACKS_LIMIT = 600;
 const MAX_METADATA_CONCURRENCY = 4;
 const stationSnapshotEntries = new Map<string, StationSnapshotEntry>();
 const queuedStationKeys = new Set<string>();
 const refreshQueue: string[] = [];
 let activeRefreshCount = 0;
+let storedTrackCache: Record<string, { track: string; updatedAt: number }> | null = null;
 
 const stationSnapshotKey = (station: StationLite) => station.stationuuid || station.url_resolved || station.name;
 
@@ -287,6 +291,78 @@ const idleSnapshot = (): NowPlayingSnapshot => ({
   recommendedPollMs: shouldUseLowImpactMetadata() ? 45_000 : 15_000,
   updatedAt: null
 });
+
+const readStoredTrackCache = () => {
+  if (storedTrackCache) return storedTrackCache;
+  if (typeof window === 'undefined') {
+    storedTrackCache = {};
+    return storedTrackCache;
+  }
+  try {
+    const raw = window.localStorage.getItem(LAST_KNOWN_TRACKS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    storedTrackCache = parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    storedTrackCache = {};
+  }
+  return storedTrackCache;
+};
+
+const persistStoredTrackCache = (cache: Record<string, { track: string; updatedAt: number }>) => {
+  storedTrackCache = cache;
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LAST_KNOWN_TRACKS_STORAGE_KEY, JSON.stringify(cache));
+  } catch {
+    // ignore storage failures
+  }
+};
+
+const getStoredTrack = (key: string) => {
+  const cache = readStoredTrackCache();
+  const entry = cache[key];
+  if (!entry?.track || !entry.updatedAt) return null;
+  if (Date.now() - entry.updatedAt > LAST_KNOWN_TRACKS_MAX_AGE_MS) {
+    delete cache[key];
+    persistStoredTrackCache(cache);
+    return null;
+  }
+  return entry;
+};
+
+const saveStoredTrack = (key: string, track: string, updatedAt = Date.now()) => {
+  const cache = readStoredTrackCache();
+  const nextEntries = Object.entries({
+    ...cache,
+    [key]: {
+      track,
+      updatedAt
+    }
+  })
+    .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
+    .slice(0, LAST_KNOWN_TRACKS_LIMIT);
+  persistStoredTrackCache(Object.fromEntries(nextEntries));
+};
+
+const applyStoredTrackFallback = (
+  key: string,
+  snapshot: NowPlayingSnapshot
+): NowPlayingSnapshot => {
+  if (snapshot.track) {
+    saveStoredTrack(key, snapshot.track, snapshot.updatedAt ?? Date.now());
+    return snapshot;
+  }
+  const stored = getStoredTrack(key);
+  if (!stored) return snapshot;
+  return {
+    ...snapshot,
+    track: stored.track,
+    status: 'ready',
+    source: 'cache',
+    failureKind: null,
+    updatedAt: stored.updatedAt
+  };
+};
 
 const emitStationSnapshot = (entry: StationSnapshotEntry) => {
   entry.listeners.forEach((listener) => listener(entry.snapshot));
@@ -335,7 +411,7 @@ const getStationEntry = (station: StationLite) => {
   const created: StationSnapshotEntry = {
     key,
     station,
-    snapshot: idleSnapshot(),
+    snapshot: applyStoredTrackFallback(key, idleSnapshot()),
     listeners: new Set(),
     inFlight: null,
     timer: null,
@@ -364,9 +440,9 @@ const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
       const snapshot = await fetchNowPlayingSnapshot(entry.station, undefined, {
         lowImpact
       });
-      entry.snapshot = snapshot;
+      entry.snapshot = applyStoredTrackFallback(entry.key, snapshot);
       emitStationSnapshot(entry);
-      scheduleStationRefresh(entry, snapshot.recommendedPollMs);
+      scheduleStationRefresh(entry, entry.snapshot.recommendedPollMs);
     } catch {
       entry.snapshot = {
         track: entry.snapshot.track,
@@ -421,6 +497,9 @@ export const observeStationNowPlaying = (
 
   if (!entry.liveUnsubscribe) {
     const liveUnsubscribe = subscribeNowPlaying(entry.station, (track) => {
+      if (track) {
+        saveStoredTrack(entry.key, track);
+      }
       entry.snapshot = {
         track,
         status: track ? 'ready' : 'unavailable',

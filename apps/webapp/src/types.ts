@@ -39,7 +39,7 @@ export type AppSection = 'home' | 'search' | 'globe' | 'library';
 
 export type PlayerPresentation = 'peek' | 'bar' | 'expanded';
 
-export type LibraryTab = 'favorites' | 'queue' | 'recent' | 'history' | 'collections' | 'settings';
+export type LibraryTab = 'favorites' | 'tracks' | 'queue' | 'recent' | 'history' | 'collections' | 'settings';
 
 export type CountryBucket = {
   key: string;
