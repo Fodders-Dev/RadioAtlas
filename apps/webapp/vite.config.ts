@@ -5,6 +5,10 @@ import { execSync } from 'node:child_process';
 
 const buildTime = new Date().toISOString();
 const commitHash = (() => {
+  const explicit = String(process.env.SOURCE_COMMIT || process.env.GITHUB_SHA || '').trim();
+  if (explicit) {
+    return explicit.slice(0, 7);
+  }
   try {
     return execSync('git rev-parse --short HEAD').toString().trim();
   } catch {
