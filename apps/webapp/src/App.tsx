@@ -133,6 +133,12 @@ const App = () => {
     setLibraryTab(tab);
     setActiveSection('library');
   };
+  const handleSectionChange = (section: AppSection) => {
+    if (section === 'library') {
+      setLibraryTab('favorites');
+    }
+    setActiveSection(section);
+  };
 
   return (
     <div
@@ -143,7 +149,7 @@ const App = () => {
     >
       <AppNavigation
         active={activeSection}
-        onChange={setActiveSection}
+        onChange={handleSectionChange}
         onSettings={() => setSettingsOpen(true)}
         onPreload={(section) => {
           if (section === 'home') void loadHomeScreen();
