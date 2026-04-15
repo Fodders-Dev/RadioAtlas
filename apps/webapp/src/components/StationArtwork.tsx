@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
+import { getProxiedAssetUrl } from '../lib/assetUrl';
 import type { StationLite } from '../types';
 
 type StationArtworkProps = {
@@ -32,7 +33,7 @@ export const StationArtwork = ({
   className = ''
 }: StationArtworkProps) => {
   const [broken, setBroken] = useState(false);
-  const imageSrc = station?.stationArtwork?.trim() || station?.favicon?.trim();
+  const imageSrc = getProxiedAssetUrl(station?.stationArtwork?.trim() || station?.favicon?.trim());
   const showImage = Boolean(imageSrc) && !broken;
   const initial = toInitial(station?.name);
   const accent = useMemo(

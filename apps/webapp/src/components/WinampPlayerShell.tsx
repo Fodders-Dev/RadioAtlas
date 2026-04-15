@@ -9,6 +9,7 @@ import {
 } from '../lib/winampBridge';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
+import { WinampMilkdropVisualizer } from './WinampMilkdropVisualizer';
 
 type WebampTrack = {
   url: string;
@@ -2198,6 +2199,20 @@ export const WinampPlayerShell = ({
     .slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4)
     .filter(Boolean);
   const overlayHistoryPreview = playbackHistory.slice().reverse().slice(0, 4);
+  const playOverlayQueueStation = (station: StationLite) => {
+    playStation(station, {
+      playlist: queue.items.length ? queue.items : effectivePlaylist,
+      sourceId: queue.sourceId || 'winamp-queue',
+      sourceLabel: queue.sourceLabel || t('radio.queueDefault')
+    });
+  };
+  const playOverlayHistoryStation = (station: StationLite) => {
+    playStation(station, {
+      playlist: overlayHistoryPreview.length ? overlayHistoryPreview : [station],
+      sourceId: 'history',
+      sourceLabel: t('playlist.historyTitle')
+    });
+  };
 
   return (
     <div
@@ -2271,10 +2286,17 @@ export const WinampPlayerShell = ({
               <div className="winamp-overlay-list">
                 {overlayQueuePreview.length ? (
                   overlayQueuePreview.map((station) => (
-                    <div className="winamp-overlay-item" key={station.stationuuid}>
+                    <button
+                      className={`winamp-overlay-item winamp-overlay-item-button ${
+                        current?.stationuuid === station.stationuuid ? 'active' : ''
+                      }`}
+                      key={station.stationuuid}
+                      type="button"
+                      onClick={() => playOverlayQueueStation(station)}
+                    >
                       <strong>{station.name}</strong>
                       <span>{station.country || station.state || t('common.unknown')}</span>
-                    </div>
+                    </button>
                   ))
                 ) : (
                   <div className="winamp-overlay-empty">{t('winamp.buildQueue')}</div>
@@ -2306,6 +2328,24 @@ export const WinampPlayerShell = ({
       {winamp.expanded ? (
         <div className="winamp-overlay-footer">
           <div className="winamp-overlay-summary">
+            <div
+              className="winamp-overlay-card winamp-overlay-visualizer-card"
+              data-active={player.visualizer.active ? 'true' : 'false'}
+              data-available={player.visualizer.available ? 'true' : 'false'}
+            >
+              <div className="winamp-overlay-label">{t('winamp.visualizer')}</div>
+              <div className="winamp-overlay-visualizer" aria-hidden="true">
+                <WinampMilkdropVisualizer
+                  active={player.visualizer.active}
+                  available={player.visualizer.available}
+                  spectrum={player.visualizer.spectrum}
+                  waveform={player.visualizer.waveform}
+                />
+              </div>
+              <div className="winamp-overlay-copy">
+                {player.visualizer.available ? t('winamp.visualizerLive') : t('winamp.visualizerWaiting')}
+              </div>
+            </div>
             <div className="winamp-overlay-card">
               <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
               <div className="winamp-overlay-title">
@@ -2322,10 +2362,17 @@ export const WinampPlayerShell = ({
               <div className="winamp-overlay-list">
                 {overlayHistoryPreview.length ? (
                   overlayHistoryPreview.map((station) => (
-                    <div className="winamp-overlay-item" key={`${station.stationuuid}-${station.name}`}>
+                    <button
+                      className={`winamp-overlay-item winamp-overlay-item-button ${
+                        current?.stationuuid === station.stationuuid ? 'active' : ''
+                      }`}
+                      key={`${station.stationuuid}-${station.name}`}
+                      type="button"
+                      onClick={() => playOverlayHistoryStation(station)}
+                    >
                       <strong>{station.name}</strong>
                       <span>{station.country || station.state || t('common.unknown')}</span>
-                    </div>
+                    </button>
                   ))
                 ) : (
                   <div className="winamp-overlay-empty">{t('winamp.historyEmpty')}</div>

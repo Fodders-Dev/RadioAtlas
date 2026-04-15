@@ -5,6 +5,8 @@ import { MiniPlayerDock } from './components/MiniPlayerDock';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
+import { stationLocation } from './lib/stationUtils';
+import { useCompactLayout } from './lib/useCompactLayout';
 import {
   loadAccountSheet,
   loadGlobeScreen,
@@ -18,7 +20,7 @@ import {
 import { useLocale } from './state/LocaleContext';
 import { useRadio } from './state/RadioContext';
 import { useSession } from './state/SessionContext';
-import type { AppSection } from './types';
+import type { AppSection, LibraryTab } from './types';
 
 const HomeScreen = lazy(loadHomeScreen);
 const SearchScreen = lazy(loadSearchScreen);
@@ -46,19 +48,22 @@ const App = () => {
     player,
     nowPlaying,
     nowPlayingState,
-    stations,
-    favorites,
+    recent,
     queue,
+    playbackHistory,
     winamp,
     activeSection,
     setActiveSection,
     playerPresentation,
+    setLibraryTab,
     detailsOpen,
-    setDetailsOpen
+    setDetailsOpen,
+    playLast
   } = useRadio();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const versionLabel = buildLabel();
+  const isCompactLayout = useCompactLayout();
 
   useEffect(() => {
     if (!player.current && detailsOpen) {
@@ -80,7 +85,7 @@ const App = () => {
     () => ({
       home: {
         title: t('nav.home'),
-        subtitle: t('home.topbarSubtitle'),
+        subtitle: t(isCompactLayout ? 'home.topbarSubtitleCompact' : 'home.topbarSubtitle'),
         context: t('home.topbarContext')
       },
       search: {
@@ -99,7 +104,7 @@ const App = () => {
         context: t('library.kicker')
       }
     }),
-    [t]
+    [isCompactLayout, t]
   );
 
   const ActiveScreen = SECTION_COMPONENTS[activeSection];
@@ -114,6 +119,25 @@ const App = () => {
           ? t('common.loading')
           : t('app.metadataUnavailable')
     : t('app.queueCount', { count: queue.items.length });
+  const primaryActionTitle =
+    sessionStatus === 'authenticated' ? t('account.title') : t('account.signInAndSync');
+  const topbarSignalLabel = player.current ? t('app.liveBadge') : t('library.tabs.queue');
+  const topbarSignalValue = player.current
+    ? nowPlaying || player.current.name || t('dock.liveNow')
+    : t('app.queueCount', { count: queue.items.length });
+  const latestReturnStation =
+    player.current ||
+    playbackHistory[playbackHistory.length - 1] ||
+    recent[0] ||
+    queue.items[Math.max(queue.currentIndex, 0)] ||
+    queue.items[0] ||
+    null;
+  const canResumeSession = Boolean(latestReturnStation);
+
+  const openLibraryTab = (tab: LibraryTab) => {
+    setLibraryTab(tab);
+    setActiveSection('library');
+  };
 
   return (
     <div
@@ -138,53 +162,72 @@ const App = () => {
         <header className="glass-card app-topbar-v2 motion-rise">
           <div className="app-topbar-copy">
             <div className="app-topbar-brandline">
-              <div className="app-brand-pill" title={t('app.title')}>
+              <div className="app-brand-pill" title={`${t('app.title')} • ${versionLabel}`}>
                 <span className="app-brand-mark">R++</span>
                 <span>{t('app.title')}</span>
               </div>
-              <div className="app-topbar-context">{meta.context}</div>
             </div>
-            <div className="app-topbar-title">{meta.title}</div>
-            <div className="app-topbar-subtitle">{meta.subtitle}</div>
-            <div className="app-topbar-meta-row">
-              <div className="app-topbar-stat">{t('app.catalogCount', { count: stations.length })}</div>
-              <div className="app-topbar-stat">{t('app.favoritesCount', { count: favorites.length })}</div>
-              <div
-                className={`app-topbar-stat ${player.current ? 'active' : ''}`}
-                title={player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
-              >
-                {player.current ? liveStatusLabel : t('app.queueCount', { count: queue.items.length })}
+            <div className="app-topbar-main-row">
+              <div className="app-topbar-title-stack">
+                <div className="shell-kicker">{meta.context}</div>
+                <div className="app-topbar-title">{meta.title}</div>
+                <div className="app-topbar-subtitle">{meta.subtitle}</div>
+              </div>
+              <div className="app-topbar-utility-row">
+                <button
+                  className={`app-topbar-status-chip ${player.current ? 'is-live' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    if (player.current) {
+                      setDetailsOpen(true);
+                      return;
+                    }
+                    if (queue.items.length) {
+                      openLibraryTab('queue');
+                      return;
+                    }
+                    setActiveSection('search');
+                  }}
+                  title={liveStatusLabel}
+                >
+                  <span>{topbarSignalLabel}</span>
+                  <strong>{topbarSignalValue}</strong>
+                </button>
+                {player.current && queue.items.length ? (
+                  <button
+                    className="app-topbar-inline-action"
+                    type="button"
+                    onClick={() => openLibraryTab('queue')}
+                    title={t('app.queueCount', { count: queue.items.length })}
+                  >
+                    <span>{t('playlist.title')}</span>
+                    <strong>{t('app.queueCount', { count: queue.items.length })}</strong>
+                  </button>
+                ) : canResumeSession ? (
+                  <button
+                    className="app-topbar-inline-action"
+                    type="button"
+                    onClick={playLast}
+                    title={
+                      latestReturnStation
+                        ? `${latestReturnStation.name} • ${stationLocation(latestReturnStation)}`
+                        : t('library.returnToAirTitle')
+                    }
+                  >
+                    <span>{t('common.resume')}</span>
+                    <strong>
+                      {latestReturnStation ? latestReturnStation.name : t('library.returnToAirTitle')}
+                    </strong>
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
           <div className="app-topbar-actions">
-            {player.current ? (
-              <button className="nav-utility-btn app-topbar-action" type="button" onClick={() => setDetailsOpen(true)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M11 10h2v7h-2v-7Zm0-4h2v2h-2V6Zm1 16a10 10 0 1 1 0-20 10 10 0 0 1 0 20Zm0-18a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z" />
-                </svg>
-                <span>{t('common.info')}</span>
-              </button>
-            ) : null}
             <button
-              className={`nav-utility-btn app-topbar-action mobile-account-trigger ${sessionStatus === 'authenticated' ? 'is-authenticated' : ''}`}
+              className="nav-utility-btn nav-utility-btn-icon mobile-settings-trigger"
               type="button"
-              onMouseEnter={() => void loadAccountSheet()}
-              onFocus={() => void loadAccountSheet()}
-              onClick={openAccountSheet}
-              title={sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.45 0-7 1.73-7 4.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.77-3.55-4.5-7-4.5Z" />
-              </svg>
-              <span>{sessionStatus === 'authenticated' ? t('account.manage') : t('account.signInAndSync')}</span>
-            </button>
-            <div className="app-build-pill" title={versionLabel}>
-              {versionLabel}
-            </div>
-            <button
-              className="nav-utility-btn mobile-settings-trigger"
-              type="button"
+              aria-label={t('nav.settings')}
               onMouseEnter={() => void loadSettingsScreen()}
               onFocus={() => void loadSettingsScreen()}
               onClick={() => setSettingsOpen(true)}
@@ -193,6 +236,22 @@ const App = () => {
                 <path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.88 2h-3.76a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.72 8.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.42h3.76a.5.5 0 0 0 .49-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z" />
               </svg>
               <span>{t('nav.settings')}</span>
+            </button>
+            <button
+              className={`nav-utility-btn nav-utility-btn-icon app-topbar-action app-topbar-primary-cta ${
+                sessionStatus === 'authenticated' ? 'is-live' : ''
+              }`}
+              type="button"
+              aria-label={primaryActionTitle}
+              onMouseEnter={() => void loadAccountSheet()}
+              onFocus={() => void loadAccountSheet()}
+              onClick={openAccountSheet}
+              title={primaryActionTitle}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-3.45 0-7 1.73-7 4.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5c0-2.77-3.55-4.5-7-4.5Z" />
+              </svg>
+              <span>{primaryActionTitle}</span>
             </button>
           </div>
         </header>

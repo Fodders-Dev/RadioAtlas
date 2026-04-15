@@ -7,6 +7,7 @@ import type {
   CloudLibrary,
   LibraryMergeStrategy,
   MergePreview,
+  ProviderAvailability,
   ProviderKind,
   SessionProfile,
   SessionProviderInfo,
@@ -36,7 +37,13 @@ type PendingLinkAction =
     }
   | {
       providerKind: 'telegram';
+      authData?: TelegramWidgetAuthData;
       linkCode?: string;
+      preview: AccountMergePreview;
+    }
+  | {
+      providerKind: 'vk';
+      authTicket: string;
       preview: AccountMergePreview;
     };
 
@@ -58,7 +65,9 @@ type SessionContextValue = {
   canUseCloud: boolean;
   canOpenTelegram: boolean;
   hasGoogleClient: boolean;
+  hasVkAuth: boolean;
   googleClientId: string;
+  providerAvailability: Record<ProviderKind, ProviderAvailability>;
   billingProducts: BillingProduct[];
   signInWithTelegram: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
   signInWithGoogleCredential: (
@@ -66,9 +75,20 @@ type SessionContextValue = {
     linkCode?: string,
     mergeStrategy?: LibraryMergeStrategy
   ) => Promise<void>;
+  signInWithTelegramWidget: (
+    authData: TelegramWidgetAuthData,
+    linkCode?: string,
+    mergeStrategy?: LibraryMergeStrategy
+  ) => Promise<void>;
+  beginVkAuth: (mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
   unlinkProvider: (kind: ProviderKind) => Promise<void>;
   createLinkCode: (mergeStrategy?: LibraryMergeStrategy) => Promise<string | null>;
   previewTelegramLink: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<AccountMergePreview | null>;
+  previewTelegramWidgetLink: (
+    authData: TelegramWidgetAuthData,
+    linkCode?: string,
+    mergeStrategy?: LibraryMergeStrategy
+  ) => Promise<AccountMergePreview | null>;
   previewGoogleCredentialLink: (
     credential: string,
     linkCode?: string,
@@ -88,6 +108,7 @@ type SessionContextValue = {
     productId: BillingProductId,
     recipientAccountId?: string | null
   ) => Promise<BillingInvoice | null>;
+  refreshSession: () => Promise<boolean>;
   openTelegramAccess: (linkCode?: string | null) => void;
   openAccountSheet: () => void;
   closeAccountSheet: () => void;
@@ -98,6 +119,24 @@ type SessionPayload = {
   profile: SessionProfile & { library: CloudLibrary };
   auditTrail: SessionAuditEvent[];
 };
+
+type TelegramWidgetAuthData = {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+};
+
+type ProviderConfigPayload = Record<
+  ProviderKind,
+  {
+    configured: boolean;
+    label: string;
+  }
+>;
 
 const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
   id: profile.id,
@@ -114,11 +153,155 @@ const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
   providers: profile.providers
 });
 
+const mapProviderAvailability = (
+  payload: ProviderConfigPayload | null,
+  {
+    hasGoogleClient
+  }: {
+    hasGoogleClient: boolean;
+  }
+): Record<ProviderKind, ProviderAvailability> => ({
+  telegram: {
+    kind: 'telegram',
+    status: payload?.telegram?.configured ? 'available' : 'unavailable',
+    configured: Boolean(payload?.telegram?.configured),
+    label: payload?.telegram?.label || 'Telegram',
+    reason: payload?.telegram?.configured ? null : 'telegram-not-configured'
+  },
+  google: {
+    kind: 'google',
+    status: payload?.google?.configured
+      ? hasGoogleClient
+        ? 'available'
+        : 'requires-client'
+      : 'unavailable',
+    configured: Boolean(payload?.google?.configured),
+    label: payload?.google?.label || 'Google',
+    reason: payload?.google?.configured
+      ? hasGoogleClient
+        ? null
+        : 'google-client-missing'
+      : 'google-not-configured'
+  },
+  vk: {
+    kind: 'vk',
+    status: payload?.vk?.configured ? 'server-only' : 'unavailable',
+    configured: Boolean(payload?.vk?.configured),
+    label: payload?.vk?.label || 'VK',
+    reason: payload?.vk?.configured ? null : 'vk-not-configured'
+  }
+});
+
 const SESSION_STORAGE_KEY = 'radio:session:v1';
+const DEFAULT_PROVIDER_AVAILABILITY: Record<ProviderKind, ProviderAvailability> = {
+  telegram: {
+    kind: 'telegram',
+    status: 'unavailable',
+    configured: false,
+    label: 'Telegram',
+    reason: null
+  },
+  google: {
+    kind: 'google',
+    status: 'requires-client',
+    configured: false,
+    label: 'Google',
+    reason: null
+  },
+  vk: {
+    kind: 'vk',
+    status: 'server-only',
+    configured: false,
+    label: 'VK',
+    reason: null
+  }
+};
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-const getTelegramInitData = () => window.Telegram?.WebApp?.initData || '';
-const isTelegramMiniApp = () => Boolean(window.Telegram?.WebApp?.initDataUnsafe?.user);
+type TelegramRuntimeState = {
+  available: boolean;
+  initData: string;
+  hasUser: boolean;
+};
+
+const readUrlParamSource = (value: string) => {
+  const normalized = value.trim().replace(/^#/, '');
+  if (!normalized) {
+    return new URLSearchParams();
+  }
+  if (normalized.startsWith('/')) {
+    const queryIndex = normalized.indexOf('?');
+    return new URLSearchParams(queryIndex >= 0 ? normalized.slice(queryIndex + 1) : '');
+  }
+  return new URLSearchParams(normalized);
+};
+
+const readTelegramSearchParams = () => {
+  if (typeof window === 'undefined') {
+    return {
+      initData: '',
+      platform: '',
+      version: '',
+      hasStartParam: false
+    };
+  }
+  const searchParams = readUrlParamSource(window.location.search);
+  const hashParams = readUrlParamSource(window.location.hash);
+  const readValue = (name: string) =>
+    String(searchParams.get(name) || hashParams.get(name) || '').trim();
+  return {
+    initData: readValue('tgWebAppData'),
+    platform: readValue('tgWebAppPlatform'),
+    version: readValue('tgWebAppVersion'),
+    hasStartParam:
+      searchParams.has('tgWebAppStartParam') ||
+      searchParams.has('startapp') ||
+      searchParams.has('start_param') ||
+      hashParams.has('tgWebAppStartParam') ||
+      hashParams.has('startapp') ||
+      hashParams.has('start_param')
+  };
+};
+
+const getTelegramWebApp = () =>
+  typeof window !== 'undefined' ? window.Telegram?.WebApp || null : null;
+
+const readTelegramRuntimeState = (): TelegramRuntimeState => {
+  const webApp = getTelegramWebApp();
+  const search = readTelegramSearchParams();
+  const runtimeInitData = typeof webApp?.initData === 'string' ? webApp.initData.trim() : '';
+  const initData = runtimeInitData || search.initData;
+  const userId = Number(webApp?.initDataUnsafe?.user?.id || 0);
+  return {
+    available:
+      Boolean(webApp) ||
+      Boolean(search.platform) ||
+      Boolean(search.version) ||
+      Boolean(search.initData) ||
+      search.hasStartParam,
+    initData,
+    hasUser: Number.isFinite(userId) && userId > 0
+  };
+};
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const resolveTelegramInitData = async (timeoutMs = 1500) => {
+  const immediate = readTelegramRuntimeState().initData;
+  if (immediate) return immediate;
+
+  const webApp = getTelegramWebApp();
+  webApp?.ready?.();
+  webApp?.expand?.();
+
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    await wait(120);
+    const next = readTelegramRuntimeState().initData;
+    if (next) return next;
+  }
+  return '';
+};
 
 const getStoredToken = () => {
   try {
@@ -150,10 +333,17 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const [pendingLinkAction, setPendingLinkAction] = useState<PendingLinkAction | null>(null);
   const [billingProducts, setBillingProducts] = useState<BillingProduct[]>([]);
+  const [providerAvailability, setProviderAvailability] = useState<
+    Record<ProviderKind, ProviderAvailability>
+  >(DEFAULT_PROVIDER_AVAILABILITY);
+  const [telegramRuntime, setTelegramRuntime] = useState<TelegramRuntimeState>(() =>
+    readTelegramRuntimeState()
+  );
   const apiBase = getApiBase();
-  const telegramMiniApp = typeof window !== 'undefined' && isTelegramMiniApp();
+  const telegramMiniApp = telegramRuntime.available;
   const googleClientId = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
   const hasGoogleClient = Boolean(googleClientId);
+  const hasVkAuth = providerAvailability.vk.configured;
   const canUseCloud = Boolean(apiBase);
   const canOpenTelegram = Boolean(import.meta.env.VITE_TG_BOT || telegramMiniApp);
 
@@ -246,8 +436,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return null;
       }
 
-      const initData = getTelegramInitData();
+      const initData = await resolveTelegramInitData(telegramMiniApp ? 1800 : 0);
       if (!initData) {
+        if (telegramMiniApp) {
+          setError('Telegram Mini App data is not ready yet');
+        }
         return null;
       }
 
@@ -283,6 +476,57 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return data.preview;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'telegram auth preview failed');
+        return null;
+      }
+    },
+    [apiBase, telegramMiniApp]
+  );
+
+  const previewTelegramWidgetLink = useCallback(
+    async (
+      authData: TelegramWidgetAuthData,
+      linkCode?: string,
+      mergeStrategy: LibraryMergeStrategy = 'combine'
+    ) => {
+      if (!apiBase) {
+        setStatus('unavailable');
+        setError('Cloud API is unavailable');
+        return null;
+      }
+
+      try {
+        const token = getStoredToken();
+        const response = await fetch(`${apiBase}/auth/telegram/widget/preview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            authData,
+            mergeStrategy,
+            ...(linkCode ? { linkCode } : {})
+          })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `telegram widget auth preview failed (${response.status})`);
+        }
+        const data = (await response.json()) as { preview: AccountMergePreview };
+        if (data.preview.requiresConfirmation) {
+          setPendingLinkAction({
+            providerKind: 'telegram',
+            authData,
+            linkCode,
+            preview: data.preview
+          });
+        } else {
+          setPendingLinkAction(null);
+        }
+        setError(null);
+        return data.preview;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'telegram widget auth preview failed');
         return null;
       }
     },
@@ -348,8 +592,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const initData = getTelegramInitData();
+      const initData = await resolveTelegramInitData(telegramMiniApp ? 2200 : 0);
       if (!initData) {
+        if (telegramMiniApp) {
+          setStatus('error');
+          setError('Telegram Mini App data is not ready yet');
+          return;
+        }
         const botName = import.meta.env.VITE_TG_BOT as string | undefined;
         if (botName) {
           const suffix = linkCode ? `link_${linkCode}` : 'radio';
@@ -391,7 +640,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         setError(err instanceof Error ? err.message : 'telegram auth failed');
       }
     },
-    [apiBase, applySessionPayload]
+    [apiBase, applySessionPayload, telegramMiniApp]
   );
 
   const signInWithGoogleCredential = useCallback(
@@ -436,6 +685,85 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       }
     },
     [apiBase, applySessionPayload]
+  );
+
+  const signInWithTelegramWidget = useCallback(
+    async (
+      authData: TelegramWidgetAuthData,
+      linkCode?: string,
+      mergeStrategy: LibraryMergeStrategy = 'combine'
+    ) => {
+      if (!apiBase) {
+        setStatus('unavailable');
+        setError('Cloud API is unavailable');
+        return;
+      }
+
+      setStatus('authorizing');
+      setError(null);
+
+      try {
+        const token = getStoredToken();
+        const response = await fetch(`${apiBase}/auth/telegram/widget`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            authData,
+            mergeStrategy,
+            ...(linkCode ? { linkCode } : {})
+          })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `telegram widget auth failed (${response.status})`);
+        }
+        const payload = (await response.json()) as SessionPayload;
+        applySessionPayload(payload);
+      } catch (err) {
+        setStatus('error');
+        setSyncState('error');
+        setError(err instanceof Error ? err.message : 'telegram widget auth failed');
+      }
+    },
+    [apiBase, applySessionPayload]
+  );
+
+  const beginVkAuth = useCallback(
+    async (mergeStrategy: LibraryMergeStrategy = 'combine') => {
+      if (!apiBase) {
+        setStatus('unavailable');
+        setError('Cloud API is unavailable');
+        return;
+      }
+
+      setStatus('authorizing');
+      setError(null);
+
+      try {
+        const token = getStoredToken();
+        const url = new URL(`${apiBase}/auth/vk/start`);
+        url.searchParams.set('mergeStrategy', mergeStrategy);
+        const response = await fetch(url.toString(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `vk auth start failed (${response.status})`);
+        }
+        const data = (await response.json()) as { authUrl?: string };
+        if (!data.authUrl) {
+          throw new Error('vk auth url is missing');
+        }
+        window.location.assign(data.authUrl);
+      } catch (err) {
+        setStatus('error');
+        setError(err instanceof Error ? err.message : 'vk auth start failed');
+      }
+    },
+    [apiBase]
   );
 
   const unlinkProvider = useCallback(
@@ -661,6 +989,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setAccountSheetOpen(false);
   }, []);
 
+  const refreshSession = useCallback(async () => {
+    const token = getStoredToken();
+    if (!token) return false;
+    return fetchProfile(token);
+  }, [fetchProfile]);
+
   const confirmPendingLink = useCallback(async () => {
     if (!pendingLinkAction) return;
     if (pendingLinkAction.providerKind === 'google') {
@@ -672,11 +1006,56 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    await signInWithTelegram(
-      pendingLinkAction.linkCode,
-      pendingLinkAction.preview.strategy
-    );
-  }, [pendingLinkAction, signInWithGoogleCredential, signInWithTelegram]);
+    if (pendingLinkAction.providerKind === 'vk') {
+      if (!apiBase) {
+        setStatus('unavailable');
+        setError('Cloud API is unavailable');
+        return;
+      }
+      try {
+        setStatus('authorizing');
+        const response = await fetch(`${apiBase}/auth/vk/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ticket: pendingLinkAction.authTicket,
+            mergeStrategy: pendingLinkAction.preview.strategy
+          })
+        });
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(failure?.error || `vk auth confirm failed (${response.status})`);
+        }
+        const payload = (await response.json()) as SessionPayload;
+        applySessionPayload(payload);
+      } catch (err) {
+        setStatus('error');
+        setSyncState('error');
+        setError(err instanceof Error ? err.message : 'vk auth confirm failed');
+      }
+      return;
+    }
+
+    if (pendingLinkAction.authData) {
+      await signInWithTelegramWidget(
+        pendingLinkAction.authData,
+        pendingLinkAction.linkCode,
+        pendingLinkAction.preview.strategy
+      );
+      return;
+    }
+
+    await signInWithTelegram(pendingLinkAction.linkCode, pendingLinkAction.preview.strategy);
+  }, [
+    apiBase,
+    applySessionPayload,
+    pendingLinkAction,
+    signInWithGoogleCredential,
+    signInWithTelegram,
+    signInWithTelegramWidget
+  ]);
 
   const dismissPendingLink = useCallback(() => {
     setPendingLinkAction(null);
@@ -684,11 +1063,126 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   const openTelegramAccess = useCallback((linkCode?: string | null) => {
     const botName = import.meta.env.VITE_TG_BOT as string | undefined;
-    if (!botName) return;
+    if (!botName) {
+      setError('Telegram bot deep link is not configured');
+      return;
+    }
     const suffix = linkCode ? `link_${linkCode}` : 'radio';
     const target = `https://t.me/${botName.replace(/^@/, '')}?startapp=${suffix}`;
+    const telegram = window.Telegram?.WebApp;
+    if (telegram?.openTelegramLink) {
+      telegram.openTelegramLink(target);
+      return;
+    }
+    if (telegram?.openLink) {
+      telegram.openLink(target);
+      return;
+    }
     window.open(target, '_blank', 'noopener,noreferrer');
+  }, [setError]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let cancelled = false;
+    const syncRuntime = () => {
+      if (cancelled) return;
+      const next = readTelegramRuntimeState();
+      setTelegramRuntime((previous) =>
+        previous.available === next.available &&
+        previous.initData === next.initData &&
+        previous.hasUser === next.hasUser
+          ? previous
+          : next
+      );
+    };
+
+    syncRuntime();
+    const webApp = getTelegramWebApp();
+    webApp?.ready?.();
+    webApp?.expand?.();
+
+    const intervalId = window.setInterval(syncRuntime, 300);
+    const timeoutId = window.setTimeout(() => window.clearInterval(intervalId), 6000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!apiBase || typeof window === 'undefined') {
+      return;
+    }
+    const url = new URL(window.location.href);
+    const authProvider = url.searchParams.get('auth_provider');
+    const authResult = url.searchParams.get('auth_result');
+    if (authProvider !== 'vk' || !authResult) {
+      return;
+    }
+
+    const cleanUrl = () => {
+      ['auth_provider', 'auth_result', 'ticket', 'token', 'message'].forEach((key) =>
+        url.searchParams.delete(key)
+      );
+      window.history.replaceState({}, document.title, url.toString());
+    };
+
+    if (authResult === 'success') {
+      const token = url.searchParams.get('token') || '';
+      cleanUrl();
+      if (token) {
+        void fetchProfile(token);
+      }
+      return;
+    }
+
+    if (authResult === 'preview') {
+      const ticket = url.searchParams.get('ticket') || '';
+      cleanUrl();
+      if (!ticket) {
+        return;
+      }
+      void (async () => {
+        try {
+          const response = await fetch(`${apiBase}/auth/vk/preview`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ticket })
+          });
+          if (!response.ok) {
+            const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(failure?.error || `vk auth preview failed (${response.status})`);
+          }
+          const data = (await response.json()) as { preview: AccountMergePreview };
+          setPendingLinkAction({
+            providerKind: 'vk',
+            authTicket: ticket,
+            preview: data.preview
+          });
+          setAccountSheetOpen(true);
+          setError(null);
+        } catch (err) {
+          setStatus('error');
+          setError(err instanceof Error ? err.message : 'vk auth preview failed');
+        }
+      })();
+      return;
+    }
+
+    if (authResult === 'error') {
+      const message = url.searchParams.get('message') || 'vk auth failed';
+      cleanUrl();
+      setStatus('error');
+      setError(message);
+    }
+  }, [apiBase, fetchProfile]);
 
   useEffect(() => {
     if (!apiBase) {
@@ -696,10 +1190,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const initData = getTelegramInitData();
     const token = getStoredToken();
 
-    if (initData) {
+    if (telegramRuntime.initData) {
       void signInWithTelegram();
       return;
     }
@@ -710,7 +1203,46 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setStatus('local');
-  }, [apiBase, fetchProfile, signInWithTelegram]);
+  }, [apiBase, fetchProfile, signInWithTelegram, telegramRuntime.initData]);
+
+  useEffect(() => {
+    if (!apiBase) {
+      setProviderAvailability(
+        mapProviderAvailability(null, {
+          hasGoogleClient
+        })
+      );
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBase}/auth/providers`);
+        if (!response.ok) {
+          throw new Error(`provider config failed (${response.status})`);
+        }
+        const data = (await response.json()) as ProviderConfigPayload;
+        if (!cancelled) {
+          setProviderAvailability(
+            mapProviderAvailability(data, {
+              hasGoogleClient
+            })
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setProviderAvailability(
+            mapProviderAvailability(null, {
+              hasGoogleClient
+            })
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, hasGoogleClient]);
 
   useEffect(() => {
     if (!apiBase) {
@@ -751,13 +1283,18 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       canUseCloud,
       canOpenTelegram,
       hasGoogleClient,
+      hasVkAuth,
       googleClientId,
+      providerAvailability,
       billingProducts,
       signInWithTelegram,
       signInWithGoogleCredential,
+      signInWithTelegramWidget,
+      beginVkAuth,
       unlinkProvider,
       createLinkCode,
       previewTelegramLink,
+      previewTelegramWidgetLink,
       previewGoogleCredentialLink,
       confirmPendingLink,
       dismissPendingLink,
@@ -767,6 +1304,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       updateFollows,
       updateAlerts,
       createTelegramInvoice,
+      refreshSession,
       openTelegramAccess,
       openAccountSheet: () => setAccountSheetOpen(true),
       closeAccountSheet: () => setAccountSheetOpen(false)
@@ -784,13 +1322,18 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       canUseCloud,
       canOpenTelegram,
       hasGoogleClient,
+      hasVkAuth,
       googleClientId,
+      providerAvailability,
       billingProducts,
       signInWithTelegram,
       signInWithGoogleCredential,
+      signInWithTelegramWidget,
+      beginVkAuth,
       unlinkProvider,
       createLinkCode,
       previewTelegramLink,
+      previewTelegramWidgetLink,
       previewGoogleCredentialLink,
       confirmPendingLink,
       dismissPendingLink,
@@ -800,6 +1343,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       updateFollows,
       updateAlerts,
       createTelegramInvoice,
+      refreshSession,
       openTelegramAccess
     ]
   );
@@ -823,9 +1367,11 @@ export type {
   CloudLibrary,
   FollowedRegion,
   FollowedStation,
+  TelegramWidgetAuthData,
   LibraryMergeStrategy,
   ListenerAlert,
   MergePreviewParty,
+  ProviderAvailability,
   ProviderKind,
   SessionProfile,
   SessionProviderInfo,

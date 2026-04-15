@@ -3,12 +3,14 @@ import { useLocale } from '../state/LocaleContext';
 import {
   useSession,
   type LibraryMergeStrategy,
-  type SessionAuditEvent
+  type SessionAuditEvent,
+  type TelegramWidgetAuthData
 } from '../state/SessionContext';
 import { SettingsSheet } from './SettingsSheet';
 
 declare global {
   interface Window {
+    __radioAtlasTelegramWidgetAuth__?: (user: unknown) => void;
     google?: {
       accounts: {
         id: {
@@ -33,6 +35,28 @@ type AccountSheetProps = {
 };
 
 const GOOGLE_SCRIPT_ID = 'google-identity-service';
+const TELEGRAM_WIDGET_CALLBACK = '__radioAtlasTelegramWidgetAuth__';
+
+const normalizeTelegramWidgetAuthData = (value: unknown): TelegramWidgetAuthData | null => {
+  if (!value || typeof value !== 'object') return null;
+  const payload = value as Record<string, unknown>;
+  const id = Number(payload.id || 0);
+  const firstName = String(payload.first_name || '').trim();
+  const authDate = Number(payload.auth_date || 0);
+  const hash = String(payload.hash || '').trim();
+  if (!id || !firstName || !authDate || !hash) {
+    return null;
+  }
+  return {
+    id,
+    first_name: firstName,
+    auth_date: authDate,
+    hash,
+    ...(payload.last_name ? { last_name: String(payload.last_name) } : {}),
+    ...(payload.username ? { username: String(payload.username) } : {}),
+    ...(payload.photo_url ? { photo_url: String(payload.photo_url) } : {})
+  };
+};
 
 const loadGoogleScript = async () => {
   if (window.google?.accounts?.id) return true;
@@ -65,7 +89,7 @@ const getAuditLabel = (event: SessionAuditEvent, t: (key: string) => string) =>
   t(`account.auditTypes.${event.type}`);
 
 const formatProviderSummary = (
-  providers: Array<'telegram' | 'google'>,
+  providers: Array<'telegram' | 'google' | 'vk'>,
   t: (key: string) => string
 ) => providers.map((provider) => t(`account.providers.${provider}`)).join(' · ');
 
@@ -87,42 +111,93 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     billingProducts,
     pendingLinkPreview,
     hasGoogleClient,
+    hasVkAuth,
     googleClientId,
+    providerAvailability,
     isTelegramMiniApp,
     signInWithTelegram,
+    signInWithTelegramWidget,
     signInWithGoogleCredential,
+    beginVkAuth,
     unlinkProvider,
     createLinkCode,
     previewTelegramLink,
+    previewTelegramWidgetLink,
     previewGoogleCredentialLink,
     confirmPendingLink,
     dismissPendingLink,
     createTelegramInvoice,
+    refreshSession,
     signOut,
     openTelegramAccess
   } = useSession();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const telegramWidgetRef = useRef<HTMLDivElement | null>(null);
   const [linkBusy, setLinkBusy] = useState(false);
   const [telegramHint, setTelegramHint] = useState<string | null>(null);
-  const [unlinkBusyKind, setUnlinkBusyKind] = useState<'telegram' | 'google' | null>(null);
+  const [billingHint, setBillingHint] = useState<string | null>(null);
+  const [billingBusyId, setBillingBusyId] = useState<(typeof billingProducts)[number]['id'] | null>(null);
+  const [awaitingBillingReturn, setAwaitingBillingReturn] = useState(false);
+  const [telegramWidgetFailed, setTelegramWidgetFailed] = useState(false);
+  const [unlinkBusyKind, setUnlinkBusyKind] = useState<'telegram' | 'google' | 'vk' | null>(null);
   const [mergeStrategy, setMergeStrategy] = useState<LibraryMergeStrategy>('combine');
   const telegramProvider = profile?.providers.find((provider) => provider.kind === 'telegram') || null;
   const googleProvider = profile?.providers.find((provider) => provider.kind === 'google') || null;
+  const vkProvider = profile?.providers.find((provider) => provider.kind === 'vk') || null;
+  const telegramAvailability = providerAvailability.telegram;
+  const googleAvailability = providerAvailability.google;
+  const vkAvailability = providerAvailability.vk;
   const canUnlinkProvider = (profile?.providers.length || 0) > 1;
   const premiumProducts = billingProducts.filter((product) => product.kind === 'premium' || product.kind === 'gift-premium');
   const donationProducts = billingProducts.filter((product) => product.kind === 'donation');
   const shouldShowMergeControls = Boolean(profile?.providers.length || pendingLinkPreview);
   const shouldShowBilling = Boolean(profile && billingProducts.length);
   const shouldShowAudit = Boolean(profile && auditTrail.length);
+  const canRenderGoogleButton = googleAvailability.configured && hasGoogleClient;
+  const canStartVkAuth = hasVkAuth && vkAvailability.configured;
+  const telegramBot = String(import.meta.env.VITE_TG_BOT || '').trim().replace(/^@/, '');
+  const telegramWebLoginEnabled = String(import.meta.env.VITE_TELEGRAM_WEB_LOGIN || '') === '1';
+  const canRenderTelegramWidget =
+    !isTelegramMiniApp &&
+    telegramAvailability.configured &&
+    telegramWebLoginEnabled &&
+    Boolean(telegramBot);
 
   useEffect(() => {
     if (!open || status !== 'authenticated') return;
     setLinkBusy(false);
     setTelegramHint(null);
+    setBillingHint(null);
+    setBillingBusyId(null);
+    setAwaitingBillingReturn(false);
+    setTelegramWidgetFailed(false);
   }, [open, status]);
 
   useEffect(() => {
-    if (!open || !hasGoogleClient || !googleButtonRef.current) return;
+    if (!open || !awaitingBillingReturn) return;
+
+    const settleBillingReturn = () => {
+      if (document.visibilityState === 'visible') {
+        setAwaitingBillingReturn(false);
+        void refreshSession().then((updated) => {
+          setBillingBusyId(null);
+          if (updated) {
+            setBillingHint(t('account.billingPaidHint'));
+          }
+        });
+      }
+    };
+
+    window.addEventListener('focus', settleBillingReturn);
+    document.addEventListener('visibilitychange', settleBillingReturn);
+    return () => {
+      window.removeEventListener('focus', settleBillingReturn);
+      document.removeEventListener('visibilitychange', settleBillingReturn);
+    };
+  }, [awaitingBillingReturn, open, refreshSession, t]);
+
+  useEffect(() => {
+    if (!open || !canRenderGoogleButton || !googleButtonRef.current) return;
 
     let mounted = true;
     void loadGoogleScript().then((ready) => {
@@ -151,7 +226,69 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     return () => {
       mounted = false;
     };
-  }, [googleClientId, hasGoogleClient, mergeStrategy, open, previewGoogleCredentialLink, profile?.linkedProviders, signInWithGoogleCredential]);
+  }, [canRenderGoogleButton, googleClientId, mergeStrategy, open, previewGoogleCredentialLink, profile?.linkedProviders, signInWithGoogleCredential]);
+
+  useEffect(() => {
+    if (!open || !canRenderTelegramWidget || !telegramWidgetRef.current) return;
+
+    let mounted = true;
+    const container = telegramWidgetRef.current;
+    setTelegramWidgetFailed(false);
+    container.innerHTML = '';
+
+    window[TELEGRAM_WIDGET_CALLBACK] = (value: unknown) => {
+      const authData = normalizeTelegramWidgetAuthData(value);
+      if (!authData) {
+        setTelegramHint(t('account.telegramGuestHint'));
+        return;
+      }
+      void (async () => {
+        setLinkBusy(true);
+        setTelegramHint(null);
+        try {
+          const preview = await previewTelegramWidgetLink(authData, undefined, mergeStrategy);
+          if (preview && !preview.requiresConfirmation) {
+            await signInWithTelegramWidget(authData, undefined, mergeStrategy);
+          }
+        } finally {
+          if (mounted) {
+            setLinkBusy(false);
+          }
+        }
+      })();
+    };
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-login', telegramBot);
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-radius', '999');
+    script.setAttribute('data-request-access', 'write');
+    script.setAttribute('data-userpic', 'false');
+    script.setAttribute('data-lang', locale.startsWith('ru') ? 'ru' : 'en');
+    script.setAttribute('data-onauth', `${TELEGRAM_WIDGET_CALLBACK}(user)`);
+    script.onerror = () => {
+      if (!mounted) return;
+      setTelegramWidgetFailed(true);
+    };
+    container.appendChild(script);
+
+    return () => {
+      mounted = false;
+      delete window[TELEGRAM_WIDGET_CALLBACK];
+      container.innerHTML = '';
+    };
+  }, [
+    canRenderTelegramWidget,
+    locale,
+    mergeStrategy,
+    open,
+    previewTelegramWidgetLink,
+    signInWithTelegramWidget,
+    t,
+    telegramBot
+  ]);
 
   const handleTelegramLink = async () => {
     setLinkBusy(true);
@@ -176,7 +313,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     }
   };
 
-  const handleUnlink = async (kind: 'telegram' | 'google') => {
+  const handleUnlink = async (kind: 'telegram' | 'google' | 'vk') => {
     setUnlinkBusyKind(kind);
     try {
       await unlinkProvider(kind);
@@ -185,12 +322,64 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     }
   };
 
+  const handleVkLink = async () => {
+    setLinkBusy(true);
+    try {
+      await beginVkAuth(mergeStrategy);
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const providerHint = (kind: 'google' | 'vk') => {
+    if (kind === 'google') {
+      if (!googleAvailability.configured) return t('account.googleServerUnavailable');
+      if (!hasGoogleClient) return t('account.googleUnavailable');
+      return t('account.googleReady');
+    }
+    if (!vkAvailability.configured) return t('account.vkUnavailable');
+    return t('account.vkReady');
+  };
+
   const openInvoice = async (productId: (typeof billingProducts)[number]['id']) => {
+    setBillingBusyId(productId);
+    setBillingHint(t('account.billingOpeningHint'));
     const invoice = await createTelegramInvoice(productId);
-    if (!invoice) return;
+    if (!invoice) {
+      setBillingBusyId(null);
+      return;
+    }
     const telegram = window.Telegram?.WebApp;
     if (telegram?.openInvoice) {
-      telegram.openInvoice(invoice.invoiceLink);
+      setBillingHint(t('account.billingReturnHint'));
+      telegram.openInvoice(invoice.invoiceLink, (status: 'paid' | 'cancelled' | 'failed' | 'pending') => {
+        setBillingBusyId(null);
+        if (status === 'paid') {
+          void refreshSession();
+          setBillingHint(t('account.billingPaidHint'));
+          return;
+        }
+        if (status === 'pending') {
+          setAwaitingBillingReturn(true);
+          setBillingHint(t('account.billingPendingHint'));
+          return;
+        }
+        if (status === 'cancelled') {
+          setBillingHint(t('account.billingCancelledHint'));
+          return;
+        }
+        setBillingHint(t('account.billingFailedHint'));
+      });
+      return;
+    }
+    setAwaitingBillingReturn(true);
+    setBillingHint(t('account.billingReturnHint'));
+    if (telegram?.openTelegramLink) {
+      telegram.openTelegramLink(invoice.invoiceLink);
+      return;
+    }
+    if (telegram?.openLink) {
+      telegram.openLink(invoice.invoiceLink);
       return;
     }
     window.open(invoice.invoiceLink, '_blank', 'noopener,noreferrer');
@@ -227,6 +416,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
               ? t('account.sheetSubtitle')
               : t('account.sheetGuestCopy')}
           </div>
+          {!profile ? <div className="section-subtitle">{t('account.telegramGuestHint')}</div> : null}
           <div className="account-stats">
             {profile ? (
               <div className="globe-selection-pill active">
@@ -261,23 +451,41 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
           <div className="settings-actions account-sheet-hero-actions">
             {!profile ? (
               <>
-                <button
-                  className="chip active"
-                  type="button"
-                  onClick={() => {
-                    void handleTelegramLink();
-                  }}
-                  disabled={linkBusy}
-                >
-                  {t('account.telegramAction')}
-                </button>
-                {hasGoogleClient ? (
+                {canRenderTelegramWidget && !telegramWidgetFailed ? (
+                  <div
+                    className="account-google-slot account-google-slot-inline account-telegram-slot"
+                    ref={telegramWidgetRef}
+                  />
+                ) : (
+                  <button
+                    className="chip active"
+                    type="button"
+                    onClick={() => {
+                      void handleTelegramLink();
+                    }}
+                    disabled={linkBusy}
+                  >
+                    {t('account.telegramAction')}
+                  </button>
+                )}
+                {canRenderGoogleButton ? (
                   <div className="account-google-slot account-google-slot-inline" ref={googleButtonRef} />
                 ) : (
-                  <button className="chip" type="button" disabled>
+                  <button className="chip" type="button" disabled title={providerHint('google')}>
                     {t('account.googleTitle')}
                   </button>
                 )}
+                <button
+                  className={`chip ${canStartVkAuth ? '' : 'disabled'}`}
+                  type="button"
+                  onClick={() => {
+                    void handleVkLink();
+                  }}
+                  disabled={!canStartVkAuth || linkBusy}
+                  title={!canStartVkAuth ? providerHint('vk') : undefined}
+                >
+                  {t('account.vkAction')}
+                </button>
               </>
             ) : (
               <>
@@ -406,84 +614,135 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
           </div>
         ) : null}
 
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.telegramTitle')}</div>
-              <div className="section-subtitle">{t('account.telegramLinkCopy')}</div>
-            </div>
-            <div className="chip-row">
-              <button
-                className={`chip ${profile?.linkedProviders.includes('telegram') ? 'active' : ''}`}
-                type="button"
-                onClick={() => {
-                  void handleTelegramLink();
-                }}
-                disabled={linkBusy}
-              >
-                {profile?.linkedProviders.includes('telegram')
-                  ? t('account.connected')
-                  : t('account.linkTelegram')}
-              </button>
+        {profile ? (
+          <>
+            <div className="glass-card account-provider-card">
+              <div className="library-section-head">
+                <div>
+                  <div className="section-title">{t('account.telegramTitle')}</div>
+                  <div className="section-subtitle">{t('account.telegramLinkCopy')}</div>
+                </div>
+                <div className="chip-row">
+                  {telegramProvider ? (
+                    <div className="account-pill authenticated">{t('account.connected')}</div>
+                  ) : null}
+                  {!telegramProvider && (!canRenderTelegramWidget || telegramWidgetFailed) ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => {
+                        void handleTelegramLink();
+                      }}
+                      disabled={linkBusy}
+                    >
+                      {t('account.linkTelegram')}
+                    </button>
+                  ) : null}
+                  {telegramProvider ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => {
+                        void handleUnlink('telegram');
+                      }}
+                      disabled={!canUnlinkProvider || unlinkBusyKind === 'telegram'}
+                      title={!canUnlinkProvider ? t('account.unlinkLastBlocked') : undefined}
+                    >
+                      {t('account.unlink')}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
               {telegramProvider ? (
-                <button
-                  className="chip"
-                  type="button"
-                  onClick={() => {
-                    void handleUnlink('telegram');
-                  }}
-                  disabled={!canUnlinkProvider || unlinkBusyKind === 'telegram'}
-                  title={!canUnlinkProvider ? t('account.unlinkLastBlocked') : undefined}
-                >
-                  {t('account.unlink')}
-                </button>
+                <div className="account-provider-value">
+                  {t('account.connectedAs')}: {telegramProvider.username ? `@${telegramProvider.username}` : telegramProvider.displayName}
+                </div>
               ) : null}
+              {!telegramProvider && canRenderTelegramWidget && !telegramWidgetFailed ? (
+                <div className="account-google-slot account-telegram-slot" ref={telegramWidgetRef} />
+              ) : null}
+              {telegramHint ? <div className="section-subtitle">{telegramHint}</div> : null}
             </div>
-          </div>
-          {telegramProvider ? (
-            <div className="account-provider-value">
-              {t('account.connectedAs')}: {telegramProvider.username ? `@${telegramProvider.username}` : telegramProvider.displayName}
-            </div>
-          ) : null}
-          {telegramHint ? <div className="section-subtitle">{telegramHint}</div> : null}
-        </div>
 
-        <div className="glass-card account-provider-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('account.googleTitle')}</div>
-              <div className="section-subtitle">{t('account.googleLinkCopy')}</div>
-            </div>
-            <div className="chip-row">
-              {profile?.linkedProviders.includes('google') ? (
-                <div className="account-pill authenticated">{t('account.connected')}</div>
-              ) : null}
+            <div className="glass-card account-provider-card">
+              <div className="library-section-head">
+                <div>
+                  <div className="section-title">{t('account.googleTitle')}</div>
+                  <div className="section-subtitle">{t('account.googleLinkCopy')}</div>
+                </div>
+                <div className="chip-row">
+                  {profile.linkedProviders.includes('google') ? (
+                    <div className="account-pill authenticated">{t('account.connected')}</div>
+                  ) : null}
+                  {googleProvider ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => {
+                        void handleUnlink('google');
+                      }}
+                      disabled={!canUnlinkProvider || unlinkBusyKind === 'google'}
+                      title={!canUnlinkProvider ? t('account.unlinkLastBlocked') : undefined}
+                    >
+                      {t('account.unlink')}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
               {googleProvider ? (
-                <button
-                  className="chip"
-                  type="button"
-                  onClick={() => {
-                    void handleUnlink('google');
-                  }}
-                  disabled={!canUnlinkProvider || unlinkBusyKind === 'google'}
-                  title={!canUnlinkProvider ? t('account.unlinkLastBlocked') : undefined}
-                >
-                  {t('account.unlink')}
-                </button>
+                <div className="account-provider-value">
+                  {t('account.connectedAs')}: {googleProvider.email || googleProvider.displayName}
+                </div>
               ) : null}
+              {canRenderGoogleButton && !googleProvider ? (
+                <div className="account-google-slot" ref={googleButtonRef} />
+              ) : (
+                !googleProvider ? <div className="section-subtitle">{providerHint('google')}</div> : null
+              )}
             </div>
-          </div>
-          {googleProvider ? (
-            <div className="account-provider-value">
-              {t('account.connectedAs')}: {googleProvider.email || googleProvider.displayName}
+
+            <div className="glass-card account-provider-card">
+              <div className="library-section-head">
+                <div>
+                  <div className="section-title">{t('account.vkTitle')}</div>
+                  <div className="section-subtitle">{t('account.vkLinkCopy')}</div>
+                </div>
+                <div className="chip-row">
+                  <button
+                    className={`chip ${profile.linkedProviders.includes('vk') ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => {
+                      void handleVkLink();
+                    }}
+                    disabled={!canStartVkAuth || linkBusy}
+                    title={!canStartVkAuth ? providerHint('vk') : undefined}
+                  >
+                    {profile.linkedProviders.includes('vk') ? t('account.connected') : t('account.vkAction')}
+                  </button>
+                  {vkProvider ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => {
+                        void handleUnlink('vk');
+                      }}
+                      disabled={!canUnlinkProvider || unlinkBusyKind === 'vk'}
+                      title={!canUnlinkProvider ? t('account.unlinkLastBlocked') : undefined}
+                    >
+                      {t('account.unlink')}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {vkProvider ? (
+                <div className="account-provider-value">
+                  {t('account.connectedAs')}: {vkProvider.email || vkProvider.username || vkProvider.displayName}
+                </div>
+              ) : null}
+              {!vkProvider ? <div className="section-subtitle">{providerHint('vk')}</div> : null}
             </div>
-          ) : null}
-          {hasGoogleClient && !googleProvider && profile ? (
-            <div className="account-google-slot" ref={googleButtonRef} />
-          ) : (
-            !googleProvider && profile ? <div className="section-subtitle">{t('account.googleUnavailable')}</div> : null
-          )}
-        </div>
+          </>
+        ) : null}
 
         {shouldShowBilling ? (
           <div className="glass-card account-provider-card">
@@ -503,6 +762,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
                 <div className="account-policy-item">{t('account.entitlements.cloud-sync')}</div>
               ) : null}
             </div>
+            {billingHint ? <div className="section-subtitle">{billingHint}</div> : null}
             <div className="account-billing-grid">
               {premiumProducts.map((product) => (
                 <button
@@ -510,6 +770,8 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
                   className="account-strategy-option"
                   type="button"
                   onClick={() => void openInvoice(product.id)}
+                  disabled={Boolean(billingBusyId)}
+                  aria-busy={billingBusyId === product.id}
                 >
                   <span>{product.title}</span>
                   <strong>{product.amount} {product.currency}</strong>
@@ -521,6 +783,8 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
                   className="account-strategy-option"
                   type="button"
                   onClick={() => void openInvoice(product.id)}
+                  disabled={Boolean(billingBusyId)}
+                  aria-busy={billingBusyId === product.id}
                 >
                   <span>{product.title}</span>
                   <strong>{product.amount} {product.currency}</strong>
