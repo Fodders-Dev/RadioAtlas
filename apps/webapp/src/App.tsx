@@ -5,7 +5,6 @@ import { MiniPlayerDock } from './components/MiniPlayerDock';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
-import { stationLocation } from './lib/stationUtils';
 import { useCompactLayout } from './lib/useCompactLayout';
 import {
   loadAccountSheet,
@@ -48,9 +47,8 @@ const App = () => {
     player,
     nowPlaying,
     nowPlayingState,
-    recent,
+    stations,
     queue,
-    playbackHistory,
     winamp,
     activeSection,
     setActiveSection,
@@ -58,7 +56,6 @@ const App = () => {
     setLibraryTab,
     detailsOpen,
     setDetailsOpen,
-    playLast
   } = useRadio();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
@@ -121,18 +118,16 @@ const App = () => {
     : t('app.queueCount', { count: queue.items.length });
   const primaryActionTitle =
     sessionStatus === 'authenticated' ? t('account.title') : t('account.signInAndSync');
-  const topbarSignalLabel = player.current ? t('app.liveBadge') : t('library.tabs.queue');
-  const topbarSignalValue = player.current
-    ? nowPlaying || player.current.name || t('dock.liveNow')
-    : t('app.queueCount', { count: queue.items.length });
-  const latestReturnStation =
-    player.current ||
-    playbackHistory[playbackHistory.length - 1] ||
-    recent[0] ||
-    queue.items[Math.max(queue.currentIndex, 0)] ||
-    queue.items[0] ||
-    null;
-  const canResumeSession = Boolean(latestReturnStation);
+  const topbarSignalLabel = queue.items.length
+    ? t('playlist.title')
+    : player.current
+      ? t('app.liveBadge')
+      : t('nav.search');
+  const topbarSignalValue = queue.items.length
+    ? t('app.queueCount', { count: queue.items.length })
+    : player.current
+      ? nowPlaying || player.current.name || t('dock.liveNow')
+      : t('app.catalogCount', { count: stations.length });
 
   const openLibraryTab = (tab: LibraryTab) => {
     setLibraryTab(tab);
@@ -171,19 +166,18 @@ const App = () => {
               <div className="app-topbar-title-stack">
                 <div className="shell-kicker">{meta.context}</div>
                 <div className="app-topbar-title">{meta.title}</div>
-                <div className="app-topbar-subtitle">{meta.subtitle}</div>
               </div>
               <div className="app-topbar-utility-row">
                 <button
                   className={`app-topbar-status-chip ${player.current ? 'is-live' : ''}`}
                   type="button"
                   onClick={() => {
-                    if (player.current) {
-                      setDetailsOpen(true);
-                      return;
-                    }
                     if (queue.items.length) {
                       openLibraryTab('queue');
+                      return;
+                    }
+                    if (player.current) {
+                      void player.toggle();
                       return;
                     }
                     setActiveSection('search');
@@ -193,33 +187,6 @@ const App = () => {
                   <span>{topbarSignalLabel}</span>
                   <strong>{topbarSignalValue}</strong>
                 </button>
-                {player.current && queue.items.length ? (
-                  <button
-                    className="app-topbar-inline-action"
-                    type="button"
-                    onClick={() => openLibraryTab('queue')}
-                    title={t('app.queueCount', { count: queue.items.length })}
-                  >
-                    <span>{t('playlist.title')}</span>
-                    <strong>{t('app.queueCount', { count: queue.items.length })}</strong>
-                  </button>
-                ) : canResumeSession ? (
-                  <button
-                    className="app-topbar-inline-action"
-                    type="button"
-                    onClick={playLast}
-                    title={
-                      latestReturnStation
-                        ? `${latestReturnStation.name} • ${stationLocation(latestReturnStation)}`
-                        : t('library.returnToAirTitle')
-                    }
-                  >
-                    <span>{t('common.resume')}</span>
-                    <strong>
-                      {latestReturnStation ? latestReturnStation.name : t('library.returnToAirTitle')}
-                    </strong>
-                  </button>
-                ) : null}
               </div>
             </div>
           </div>

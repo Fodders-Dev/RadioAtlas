@@ -8799,3 +8799,254 @@ body {
     padding: 0 8px;
   }
 }
+
+/* Pass 17: dock ordering, nav fit, and row toggles */
+
+.app-topbar-copy {
+  gap: 6px;
+}
+
+.app-topbar-main-row {
+  gap: 6px;
+}
+
+.app-topbar-subtitle,
+.app-topbar-inline-action {
+  display: none;
+}
+
+.app-topbar-utility-row {
+  min-height: 0;
+}
+
+.app-topbar-status-chip {
+  min-height: 30px;
+  padding: 0 11px;
+}
+
+.player-dock-media {
+  align-self: stretch;
+}
+
+.player-dock-media .station-artwork-dock {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.player-dock-meta {
+  gap: 2px;
+}
+
+.player-dock-station,
+.player-dock-track-button {
+  cursor: pointer;
+}
+
+.player-dock-station:disabled,
+.player-dock-track-button:disabled {
+  cursor: default;
+}
+
+.player-dock-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  align-items: center;
+  justify-content: end;
+  gap: 5px;
+}
+
+.dock-icon-btn,
+.dock-mini-btn {
+  min-width: 31px;
+  width: 31px;
+  height: 31px;
+}
+
+.dock-play-btn {
+  order: 3;
+}
+
+.dock-volume-btn {
+  order: 2;
+}
+
+.player-dock-actions > :first-child {
+  order: 1;
+}
+
+.player-dock-actions > :nth-child(4) {
+  order: 4;
+}
+
+.dock-like-btn {
+  order: 5;
+}
+
+.dock-like-btn.active {
+  background:
+    linear-gradient(180deg, rgba(123, 255, 174, 0.34), rgba(58, 164, 96, 0.3)),
+    rgba(35, 120, 66, 0.48);
+  color: #c8ffd7;
+  border-color: rgba(111, 255, 157, 0.52);
+  box-shadow:
+    0 0 0 1px rgba(111, 255, 157, 0.14),
+    0 8px 18px rgba(7, 31, 16, 0.22);
+}
+
+.dock-like-btn.active svg {
+  filter: drop-shadow(0 0 6px rgba(111, 255, 157, 0.22));
+}
+
+.app-navigation-mobile {
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.app-navigation-mobile > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mobile-nav-item {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 4px 3px 6px;
+  justify-content: center;
+  align-content: center;
+}
+
+.mobile-nav-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.mobile-nav-item span:last-child {
+  max-width: 100%;
+  width: 100%;
+}
+
+.station-compact-toggle {
+  width: 100%;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.station-compact-toggle:hover .station-title,
+.station-compact-toggle:focus-visible .station-title,
+.station-row.active .station-compact-toggle .station-title {
+  color: #f7fdff;
+}
+
+.station-compact-toggle:focus-visible {
+  outline: none;
+}
+
+.station-compact-toggle:focus-visible .station-artwork-card,
+.station-compact-toggle:hover .station-artwork-card,
+.station-row.active .station-artwork-card {
+  box-shadow:
+    0 0 0 1px rgba(174, 240, 228, 0.16),
+    0 10px 24px rgba(10, 18, 34, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 720px) {
+  .app-topbar-v2 {
+    padding: 13px 14px;
+  }
+
+  .app-topbar-status-chip {
+    min-height: 28px;
+    padding: 0 10px;
+  }
+
+  .player-dock-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .dock-volume-btn {
+    display: grid;
+  }
+
+  .player-dock-actions {
+    gap: 4px;
+  }
+
+  .dock-icon-btn,
+  .dock-mini-btn {
+    min-width: 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .dock-play-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .mobile-nav-item {
+    padding: 4px 2px 5px;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-topbar-v2 {
+    gap: 10px;
+    padding: 12px 13px;
+  }
+
+  .app-topbar-title {
+    font-size: 20px;
+  }
+
+  .app-topbar-status-chip {
+    min-height: 27px;
+    padding: 0 9px;
+  }
+
+  .player-dock-media .station-artwork-dock {
+    width: 34px;
+    height: 34px;
+  }
+
+  .player-dock-actions {
+    gap: 3px;
+  }
+
+  .dock-icon-btn,
+  .dock-mini-btn {
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .dock-play-btn {
+    min-width: 34px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .app-navigation-mobile {
+    padding: 4px;
+  }
+
+  .mobile-nav-item {
+    padding: 4px 1px 5px;
+    border-radius: 12px;
+  }
+
+  .mobile-nav-item span:last-child {
+    font-size: 7.5px;
+    line-height: 1.02;
+  }
+}

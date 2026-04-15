@@ -14,7 +14,6 @@ export const MiniPlayerDock = () => {
     nowPlaying,
     nowPlayingStatus,
     queue,
-    trackHistory,
     playNext,
     playStation,
     copyTrack,
@@ -30,7 +29,6 @@ export const MiniPlayerDock = () => {
     winamp
   } = useRadio();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
-  const [openingWinamp, setOpeningWinamp] = useState(false);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
 
   const current = player.current;
@@ -76,12 +74,6 @@ export const MiniPlayerDock = () => {
     }
   }, [playerPresentation]);
 
-  useEffect(() => {
-    if (playerPresentation === 'expanded') {
-      setOpeningWinamp(false);
-    }
-  }, [playerPresentation]);
-
   const openLibraryTab = (tab: 'queue' | 'history') => {
     setTrayMode(null);
     setLibraryTab(tab);
@@ -123,18 +115,6 @@ export const MiniPlayerDock = () => {
     const handle = window.setTimeout(schedulePreload, 420);
     return () => window.clearTimeout(handle);
   }, [current]);
-
-  const openWinamp = async () => {
-    if (openingWinamp) return;
-    setTrayMode(null);
-    setOpeningWinamp(true);
-    try {
-      await loadWinampPlayerShell();
-      setPlayerPresentation('expanded');
-    } catch {
-      setOpeningWinamp(false);
-    }
-  };
 
   if (playerPresentation === 'expanded' && winamp.expanded) {
     return null;
@@ -312,17 +292,6 @@ export const MiniPlayerDock = () => {
 
       <div className="player-dock-actions">
         <button
-          className={`dock-icon-btn dock-like-btn ${liked ? 'active' : ''}`}
-          type="button"
-          onClick={() => current && toggleFavorite(current)}
-          disabled={!current}
-          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-          </svg>
-        </button>
-        <button
           className={`dock-icon-btn ${queueCount || trayMode === 'queue' ? 'active' : ''}`}
           type="button"
           onClick={() => {
@@ -336,6 +305,16 @@ export const MiniPlayerDock = () => {
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+          </svg>
+        </button>
+        <button
+          className={`dock-icon-btn dock-volume-btn ${trayMode === 'volume' ? 'active' : ''}`}
+          type="button"
+          onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
+          aria-label={t('dock.volume')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
           </svg>
         </button>
         <button
@@ -363,27 +342,14 @@ export const MiniPlayerDock = () => {
           </svg>
         </button>
         <button
-          className={`dock-icon-btn dock-volume-btn ${trayMode === 'volume' ? 'active' : ''}`}
+          className={`dock-icon-btn dock-like-btn ${liked ? 'active' : ''}`}
           type="button"
-          onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
-          aria-label={t('dock.volume')}
+          onClick={() => current && toggleFavorite(current)}
+          disabled={!current}
+          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
-          </svg>
-        </button>
-        <button
-          className={`dock-expand-btn ${openingWinamp ? 'active' : ''}`}
-          type="button"
-          onMouseEnter={() => void loadWinampPlayerShell()}
-          onFocus={() => void loadWinampPlayerShell()}
-          onClick={() => void openWinamp()}
-          aria-label={t('dock.openWinamp')}
-          aria-busy={openingWinamp ? 'true' : 'false'}
-        >
-          <span className="dock-expand-btn-label">{t('dock.openWinamp')}</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 6h10v2H7zm0 5h10v2H7zm0 5h7v2H7z" />
+            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
           </svg>
         </button>
       </div>
