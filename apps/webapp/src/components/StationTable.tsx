@@ -43,7 +43,7 @@ const StationTableRow = ({
   const { playStation, toggleFavorite, isFavorite, player, nowPlaying, nowPlayingStatus } = useRadio();
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const [shouldObserve, setShouldObserve] = useState(!compact || index < 8);
+  const [shouldObserve, setShouldObserve] = useState(!compact || index < 20);
   const [snapshot, setSnapshot] = useState<NowPlayingSnapshot>(IDLE_ROW_SNAPSHOT);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ const StationTableRow = ({
         }
       },
       {
-        rootMargin: '220px 0px'
+        rootMargin: '420px 0px'
       }
     );
     observer.observe(node);
