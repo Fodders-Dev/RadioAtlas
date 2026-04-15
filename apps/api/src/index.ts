@@ -1138,7 +1138,14 @@ app.get('/stream', async (req, res) => {
 });
 
 const buildTrackTitle = (artist?: string | null, title?: string | null) => {
-  const parts = [artist?.trim(), title?.trim()].filter(Boolean);
+  const normalizeTrackTitle = (value: unknown) => {
+    if (typeof value !== 'string') return null;
+    const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return null;
+    if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
+    return cleaned;
+  };
+  const parts = [normalizeTrackTitle(artist), normalizeTrackTitle(title)].filter(Boolean);
   if (!parts.length) return null;
   return parts.join(' - ');
 };
@@ -1194,7 +1201,7 @@ const fetchIcecastMetadata = async (
   if (!matchedSource) return null;
 
   const composedTrack = buildTrackTitle(matchedSource.artist, matchedSource.title);
-  return composedTrack || matchedSource.title?.trim?.() || null;
+  return composedTrack || buildTrackTitle(undefined, matchedSource.title) || null;
 };
 
 const fetchShoutcastMetadata = async (
@@ -1210,7 +1217,7 @@ const fetchShoutcastMetadata = async (
   const content = bodyMatch?.[1] || text;
   const parts = content.split(',');
   if (parts.length >= 7) {
-    return parts[6]?.trim?.() || null;
+    return buildTrackTitle(undefined, parts[6]) || null;
   }
   return null;
 };
@@ -1218,7 +1225,7 @@ const fetchShoutcastMetadata = async (
 const parseAzuraMetadata = (payload: unknown) => {
   const data = Array.isArray(payload) ? payload[0] : payload;
   const song = (data as any)?.now_playing?.song;
-  return song?.text || buildTrackTitle(song?.artist, song?.title);
+  return buildTrackTitle(undefined, song?.text) || buildTrackTitle(song?.artist, song?.title);
 };
 
 const fetchAzuraMetadata = async (
@@ -1329,7 +1336,10 @@ const fetchStreamMetadata = async (url: string): Promise<MetadataLookupResult> =
           log(`Raw meta found`);
           const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
           if (match?.[1]) {
-            return { title: match[1].trim(), logs, source: 'icy-stream' };
+            const title = buildTrackTitle(undefined, match[1]);
+            if (title) {
+              return { title, logs, source: 'icy-stream' };
+            }
           } else {
             log(`StreamTitle not found in: ${text}`);
             return { title: null, logs };

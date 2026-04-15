@@ -55,8 +55,16 @@ const concat = (left: Uint8Array, right: Uint8Array) => {
   return merged;
 };
 
+const normalizeTrackTitle = (value?: string | null) => {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
+  return cleaned;
+};
+
 const buildTrack = (artist?: string, title?: string) => {
-  const parts = [artist, title].filter(Boolean);
+  const parts = [normalizeTrackTitle(artist), normalizeTrackTitle(title)].filter(Boolean);
   if (!parts.length) return null;
   return parts.join(' - ');
 };
@@ -113,7 +121,7 @@ const fetchIcy = async (
           const metaBytes = buffer.slice(metaStart, metaStart + metaLength);
           const metadata = textDecoder.decode(metaBytes);
           const match = metadata.match(STREAM_TITLE);
-          return match?.[1]?.trim() || null;
+          return normalizeTrackTitle(match?.[1]) || null;
         }
       }
 
@@ -136,7 +144,7 @@ const parseAzuraCast = (data: any): string | null => {
   if (!data) return null;
   const payload = Array.isArray(data) ? data[0] : data;
   const song = payload?.now_playing?.song;
-  return song?.text || buildTrack(song?.artist, song?.title);
+  return normalizeTrackTitle(song?.text) || buildTrack(song?.artist, song?.title);
 };
 
 const fetchAzuraCast = async (
@@ -596,7 +604,7 @@ const fetchIcecastCORS = async (
 
   if (best) {
     if (best.artist && best.title) return buildTrack(best.artist, best.title);
-    if (best.title) return best.title;
+    if (best.title) return normalizeTrackTitle(best.title);
   }
 
   return null;
@@ -640,7 +648,7 @@ const fetchShoutcastCORS = async (
 
   const parts = content.split(',');
   if (parts.length >= 7) {
-    return parts[6] || null;
+    return normalizeTrackTitle(parts[6]) || null;
   }
   return null;
 };
