@@ -1,13 +1,13 @@
 import { startTransition, useDeferredValue, useMemo, useState } from 'react';
-import { createDiscoveryFeed } from '../lib/discoveryFeed';
 import { StationTable } from '../components/StationTable';
+import { createDiscoveryFeed } from '../lib/discoveryFeed';
+import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import { useDebounce } from '../lib/useDebounce';
 import { toLite } from '../lib/stationUtils';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import { useRadio } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
-import type { DiscoveryStationModule } from '../domain/contracts';
 import type { StationLite } from '../types';
 
 export const Home = () => {
@@ -17,17 +17,21 @@ export const Home = () => {
     recent,
     collections,
     followedStations,
+    trackHistory,
+    playbackHistory,
+    behaviorProfile,
     player,
     queue,
     setActiveSection
   } = useRadio();
   const { profile } = useSession();
   const { t } = useLocale();
-  const [query, setQuery] = useState('');
   const isCompactLayout = useCompactLayout();
-  const [showcaseSeed, setShowcaseSeed] = useState(() => Date.now());
+  const [query, setQuery] = useState('');
+  const [rotationSeed, setRotationSeed] = useState(() => Date.now());
   const deferredQuery = useDeferredValue(query);
   const debounced = useDebounce(deferredQuery, 220);
+
   const catalog = useMemo(() => stations.map(toLite), [stations]);
   const queuePreview = useMemo(
     () => queue.items.slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4),
@@ -56,6 +60,7 @@ export const Home = () => {
       ).size,
     [catalog]
   );
+
   const discoveryFeed = useMemo(
     () =>
       createDiscoveryFeed({
@@ -65,7 +70,7 @@ export const Home = () => {
         queuePreview,
         followedStations,
         collections,
-        showcaseSeed,
+        showcaseSeed: rotationSeed,
         query: debounced,
         metrics: {
           countries: countryCount,
@@ -86,328 +91,222 @@ export const Home = () => {
       profile?.entitlements,
       queuePreview,
       recent,
-      showcaseSeed
+      rotationSeed
     ]
   );
-  const rankedDiscoveryModules = useMemo(
-    () =>
-      [
-        discoveryFeed.freshSignals,
-        discoveryFeed.countrySpotlight,
-        discoveryFeed.genreSpotlight,
-        discoveryFeed.revivedStations,
-        discoveryFeed.sessionDelta,
-        ...discoveryFeed.sponsoredModules
-      ].filter(Boolean) as DiscoveryStationModule[],
-    [discoveryFeed]
-  );
-  const primaryDiscoveryModule = rankedDiscoveryModules[0] || null;
-  const spotlightInLead = primaryDiscoveryModule?.kind === 'fresh-signals';
-  const quickTagRadar = discoveryFeed.tagRadar.slice(0, 2);
-  const quickSearchMotionClass = spotlightInLead ? 'motion-delay-2' : 'motion-delay-1';
-  const resumeMotionClass = spotlightInLead ? 'motion-delay-3' : 'motion-delay-2';
 
-  const refreshShowcase = () => {
+  const homeFeed = useMemo(
+    () =>
+      createHomeRecommendationFeed({
+        catalog,
+        favorites,
+        recent,
+        queuePreview,
+        playbackHistory,
+        trackHistory,
+        collections,
+        followedStations,
+        behaviorProfile,
+        currentStation: player.current,
+        rotationSeed
+      }),
+    [
+      behaviorProfile,
+      catalog,
+      collections,
+      favorites,
+      followedStations,
+      playbackHistory,
+      player.current,
+      queuePreview,
+      recent,
+      rotationSeed,
+      trackHistory
+    ]
+  );
+
+  const tasteSignals = useMemo(() => {
+    if (homeFeed.tasteSignals.length) {
+      return homeFeed.tasteSignals.slice(0, isCompactLayout ? 3 : 4);
+    }
+    return discoveryFeed.tagRadar.slice(0, isCompactLayout ? 3 : 4).map((tag) => ({
+      kind: 'tag' as const,
+      label: tag.label,
+      score: tag.count
+    }));
+  }, [discoveryFeed.tagRadar, homeFeed.tasteSignals, isCompactLayout]);
+
+  const personalizedStations = homeFeed.tunedForYou.length
+    ? homeFeed.tunedForYou
+    : discoveryFeed.freshSignals.stations;
+  const likedStations =
+    homeFeed.becauseYouLiked.length
+      ? homeFeed.becauseYouLiked
+      : discoveryFeed.revivedStations?.stations || discoveryFeed.genreSpotlight?.stations || personalizedStations;
+  const orbitStations =
+    homeFeed.outsideOrbit.length
+      ? homeFeed.outsideOrbit
+      : discoveryFeed.countrySpotlight?.stations || discoveryFeed.genreSpotlight?.stations || personalizedStations;
+  const returnStations =
+    homeFeed.returnToAir.length
+      ? homeFeed.returnToAir
+      : discoveryFeed.resumeStations.length
+        ? discoveryFeed.resumeStations
+        : ([player.current].filter(Boolean) as StationLite[]);
+
+  const refreshFeed = () => {
     startTransition(() => {
-      setShowcaseSeed(Date.now());
+      setRotationSeed(Date.now());
     });
   };
 
-  const renderDiscoveryCard = (module: DiscoveryStationModule, index = 2) => {
-    if (module.kind === 'fresh-signals') {
-      return (
-        <div className="glass-card home-feature-card home-feature-card-primary motion-rise motion-delay-2" data-home-module="fresh-signals">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.discoveryKicker')}</div>
-              <div className="section-title">{t('home.freshSignalsTitle')}</div>
-              <div className="section-subtitle">{t(isCompactLayout ? 'home.freshSignalsCopyCompact' : 'home.freshSignalsCopy')}</div>
-            </div>
-            <button className="chip" type="button" onClick={refreshShowcase}>
-              {t('home.refreshFeed')}
-            </button>
-          </div>
-          <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
+  return (
+    <section className="screen screen-home-v2 screen-home-v3">
+      <div className="glass-card home-personal-card motion-rise">
+        <div className="search-results-head-minimal">
+          <div className="section-title">{t('home.personalTitle')}</div>
+          <div className="search-results-meta">
+            <span>{t('home.behaviorActions')}</span>
+            <strong>{homeFeed.profileReady ? homeFeed.actionTotal : 0}</strong>
           </div>
         </div>
-      );
-    }
 
-    if (module.kind === 'revived-stations') {
-      return (
-        <div className={`glass-card home-feature-card motion-rise motion-delay-${index}`} data-home-module="revived-stations">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.revivedKicker')}</div>
-              <div className="section-title">{t('home.revivedTitle')}</div>
-              <div className="section-subtitle">{t(isCompactLayout ? 'home.revivedCopyCompact' : 'home.revivedCopy')}</div>
-            </div>
-            <button className="chip" type="button" onClick={() => setActiveSection('library')}>
-              {t('home.openLibrary')}
-            </button>
+        {!homeFeed.profileReady ? (
+          <div className="home-card-note">
+            {t(isCompactLayout ? 'home.personalEmptyCopyCompact' : 'home.personalEmptyCopy')}
           </div>
-          <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
-          </div>
-        </div>
-      );
-    }
+        ) : null}
 
-    if (module.kind === 'country-spotlight') {
-      return (
-        <div className={`glass-card home-feature-card home-feature-card-secondary motion-rise motion-delay-${index}`} data-home-module="country-spotlight">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.mapKicker')}</div>
-              <div className="section-title">{t('home.countrySpotlightTitle', { country: module.label || '' })}</div>
-              <div className="section-subtitle">{t(isCompactLayout ? 'home.countrySpotlightCopyCompact' : 'home.countrySpotlightCopy')}</div>
-            </div>
-            <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-              {t('home.openGlobe')}
-            </button>
-          </div>
-          <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
-          </div>
-        </div>
-      );
-    }
-
-    if (module.kind === 'session-delta') {
-      return (
-        <div className={`glass-card home-feature-card motion-rise motion-delay-${index}`} data-home-module="session-delta">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.deltaKicker')}</div>
-              <div className="section-title">{t('home.sessionDeltaTitle')}</div>
-              <div className="section-subtitle">{t(isCompactLayout ? 'home.sessionDeltaCopyCompact' : 'home.sessionDeltaCopy')}</div>
-            </div>
-          </div>
-          <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
-          </div>
-        </div>
-      );
-    }
-
-    if (module.kind === 'sponsored') {
-      return (
-        <div className={`glass-card home-session-card motion-rise motion-delay-${index} sponsored-module`} data-home-module="sponsored">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.sponsoredKicker')}</div>
-              <div className="section-title">{t('home.sponsoredTitle')}</div>
-              <div className="section-subtitle">{t(isCompactLayout ? 'home.sponsoredCopyCompact' : 'home.sponsoredCopy')}</div>
-            </div>
-            <div className="chip active">{t('home.sponsoredBadge')}</div>
-          </div>
-          <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
-          </div>
-        </div>
-      );
-    }
-
-    if (module.kind === 'genre-spotlight') {
-      return (
-        <div className={`glass-card home-pulse-card home-pulse-card-accent motion-rise motion-delay-${index}`} data-home-module="genre-spotlight">
-          <div className="library-section-head">
-            <div>
-              <div className="shell-kicker">{t('home.genreKicker')}</div>
-              <div className="section-title genre-spotlight-title">
-                <span className="genre-spotlight-prefix">{t('home.genreSpotlightPrefix')}</span>
-                <span className="genre-spotlight-name">{module.label || ''}</span>
-              </div>
-              <div className="section-subtitle">{t('home.genreSpotlightCopy')}</div>
-            </div>
-          </div>
-          <div className="home-pulse-metrics">
-            <div className="globe-selection-pill">
-              <span>{t('home.catalogPulseCountries')}</span>
-              <strong>{discoveryFeed.metrics.countries}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('home.catalogPulseLanguages')}</span>
-              <strong>{discoveryFeed.metrics.languages}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('home.catalogPulseGenres')}</span>
-              <strong>{discoveryFeed.metrics.genres}</strong>
-            </div>
-          </div>
-          <div className="home-pulse-chipcloud">
-            {discoveryFeed.tagRadar.slice(0, 2).map((tag, chipIndex) => (
+        {homeFeed.profileReady && tasteSignals.length ? (
+          <div className="search-chip-row home-taste-row">
+            {tasteSignals.map((signal) => (
               <button
-                key={`${tag.label}-${chipIndex}`}
-                className={`chip ${module.label === tag.label ? 'active' : ''}`}
+                key={`${signal.kind}-${signal.label}`}
+                className="search-mini-chip"
                 type="button"
-                onClick={() => setActiveSection('search')}
-                title={`${tag.label} · ${tag.count}`}
+                onClick={() => setQuery(signal.label)}
+                title={`${signal.label} · ${signal.score}`}
               >
-                {tag.label}
+                <span className="search-mini-chip-label">{signal.label}</span>
+                <strong className="search-mini-chip-meta">{signal.score}</strong>
               </button>
             ))}
           </div>
-          <div className="hero-chip-row">
-            <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
-              {t('home.openSearch')}
-            </button>
-            <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-              {t('home.openGlobe')}
-            </button>
+        ) : null}
+
+        <div className="home-mini-list">
+          <StationTable stations={personalizedStations} compact sourceId="home-for-you" />
+        </div>
+
+        <div className="chip-row home-personal-actions">
+          <button className="chip active" type="button" onClick={refreshFeed}>
+            {t('home.refreshFeed')}
+          </button>
+          <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+            {t('home.openSearch')}
+          </button>
+          <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
+            {t('home.openGlobe')}
+          </button>
+        </div>
+      </div>
+
+      <div className="home-support-grid">
+        <div className="glass-card home-quick-card motion-rise motion-delay-1">
+          <div className="search-results-head-minimal">
+            <div className="section-title">{t('home.searchTitle')}</div>
+            <div className="search-results-meta">
+              <span>{query.trim() ? t('home.matchesLabel') : t('home.resultsLabel')}</span>
+              <strong>{query.trim() ? discoveryFeed.quickResults.length : stations.length}</strong>
+            </div>
+          </div>
+          <div className="search-bar home-search-bar home-search-bar-compact">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('explore.quickSearchPlaceholder')}
+            />
+            {query ? (
+              <button className="clear-btn" type="button" onClick={() => setQuery('')}>
+                {t('common.clear')}
+              </button>
+            ) : null}
+          </div>
+          {tasteSignals.length ? (
+            <div className="chip-row">
+              {tasteSignals.map((signal) => (
+                <button
+                  key={`quick-${signal.kind}-${signal.label}`}
+                  className="chip"
+                  type="button"
+                  onClick={() => setQuery(signal.label)}
+                >
+                  {signal.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="home-mini-list">
+            <StationTable
+              stations={discoveryFeed.quickResults}
+              compact
+              sourceId={query.trim() ? 'home-search' : 'home-trending'}
+            />
+          </div>
+        </div>
+
+        <div className="glass-card home-continue-card motion-rise motion-delay-2">
+          <div className="search-results-head-minimal">
+            <div className="section-title">{t('home.resumeTitle')}</div>
+            <div className="search-results-meta">
+              <span>{t('home.returnMetaLabel')}</span>
+              <strong>{returnStations.length}</strong>
+            </div>
+          </div>
+          {returnStations.length ? (
+            <div className="home-mini-list">
+              <StationTable
+                stations={returnStations}
+                compact
+                sourceId="home-return-to-air"
+                buildQueue={queuePreview.length > 0 || recent.length > 0}
+              />
+            </div>
+          ) : (
+            <div className="empty-state home-inline-empty">
+              <strong>{t('home.resumeEmptyTitle')}</strong>
+              <span>{t('home.resumeEmptyCopy')}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="home-shelf-grid">
+        <div className="glass-card home-shelf-card motion-rise motion-delay-3">
+          <div className="search-results-head-minimal">
+            <div className="section-title">{t('home.becauseYouLikedTitle')}</div>
+            <div className="search-results-meta">
+              <span>{t('home.signalsLabel')}</span>
+              <strong>{Math.max(favorites.length, homeFeed.actionTotal)}</strong>
+            </div>
           </div>
           <div className="home-mini-list">
-            <StationTable stations={module.stations} compact sourceId={module.sourceId} />
+            <StationTable stations={likedStations} compact sourceId="home-because-you-liked" />
           </div>
         </div>
-      );
-    }
 
-    return null;
-  };
-
-  const moreDiscoveryModules = rankedDiscoveryModules.filter(
-    (module) => module.kind !== primaryDiscoveryModule?.kind
-  );
-
-  const quickSearchCard = (
-    <div
-      className={`glass-card home-search-card home-search-card-primary home-search-card-hero motion-rise ${quickSearchMotionClass}`}
-      data-home-module="search-preview"
-    >
-      <div className="home-card-eyebrow">
-        <div className="shell-kicker">{t('home.searchKicker')}</div>
-        <div className="home-card-summary">
-          {query.trim()
-            ? t('discover.matches', { count: discoveryFeed.quickResults.length })
-            : t('app.catalogCount', { count: stations.length })}
-        </div>
-      </div>
-      <div className="home-search-hero">
-        <div className="home-search-hero-copy">
-          <div className="section-title">{t('home.searchTitle')}</div>
-        </div>
-        <div className="home-search-hero-stats">
-          <div className="home-search-stat">
-            <span>{t('home.catalogPulseCountries')}</span>
-            <strong>{discoveryFeed.metrics.countries}</strong>
-          </div>
-          <div className="home-search-stat">
-            <span>{t('home.catalogPulseLanguages')}</span>
-            <strong>{discoveryFeed.metrics.languages}</strong>
-          </div>
-          <div className="home-search-stat">
-            <span>{t('home.catalogPulseGenres')}</span>
-            <strong>{discoveryFeed.metrics.genres}</strong>
-          </div>
-        </div>
-      </div>
-      <div className="search-bar home-search-bar">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('explore.quickSearchPlaceholder')}
-        />
-        {query ? (
-          <button className="clear-btn" type="button" onClick={() => setQuery('')}>
-            {t('common.clear')}
-          </button>
-        ) : null}
-      </div>
-      <div className="home-search-quick-row">
-        {quickTagRadar.map((tag) => (
-          <button
-            key={`${tag.label}-${tag.count}`}
-            className="chip"
-            type="button"
-            onClick={() => setQuery(tag.label)}
-            title={`${tag.label} · ${tag.count}`}
-          >
-            {tag.label}
-          </button>
-        ))}
-        <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
-          {t('home.openSearch')}
-        </button>
-      </div>
-      <div className="home-mini-list">
-        <StationTable
-          stations={discoveryFeed.quickResults}
-          compact
-          sourceId={query ? 'home-search' : 'home-trending'}
-        />
-      </div>
-    </div>
-  );
-
-  const resumeCard = (
-    <div className={`glass-card home-session-card motion-rise ${resumeMotionClass}`} data-home-module="resume">
-      <div className="library-section-head">
-        <div>
-          <div className="shell-kicker">{t('home.sessionKicker')}</div>
-          <div className="section-title">{t('home.resumeTitle')}</div>
-          <div className="section-subtitle">
-            {player.current
-              ? t('explore.resumeReady', {
-                  station: player.current.name,
-                  source: queue.sourceLabel || t('radio.queueDefault')
-                })
-              : discoveryFeed.resumeStations.length
-                ? t('home.resumeQueueCopy', { count: discoveryFeed.resumeStations.length })
-                : t('explore.resumeEmpty')}
-          </div>
-        </div>
-        <button className="chip" type="button" onClick={() => setActiveSection('library')}>
-          {t('home.openLibrary')}
-        </button>
-      </div>
-      {discoveryFeed.resumeStations.length || player.current ? (
-        <div className="home-mini-list">
-          <StationTable
-            stations={
-              discoveryFeed.resumeStations.length
-                ? discoveryFeed.resumeStations
-                : ([player.current].filter(Boolean) as StationLite[])
-            }
-            compact
-            sourceId="home-return-to-air"
-            buildQueue={queuePreview.length > 0 || recent.length > 0}
-          />
-        </div>
-      ) : (
-        <div className="empty-state home-inline-empty">
-          <strong>{t('home.resumeEmptyTitle')}</strong>
-          <span>{t('home.resumeEmptyCopy')}</span>
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <section className="screen screen-home-v2">
-      <div className="home-main-stack home-main-stack-wide">
-        <div className="home-lead-grid">
-          {quickSearchCard}
-          {spotlightInLead && primaryDiscoveryModule ? renderDiscoveryCard(primaryDiscoveryModule, 1) : resumeCard}
-        </div>
-
-        {!spotlightInLead && primaryDiscoveryModule ? renderDiscoveryCard(primaryDiscoveryModule, 2) : null}
-        {spotlightInLead ? resumeCard : null}
-
-        {moreDiscoveryModules.length ? (
-          <div className="home-showcase-grid">
-            <div className="library-section-head">
-              <div>
-                <div className="shell-kicker">{t('home.moreDiscoveriesKicker')}</div>
-                <div className="section-title">{t('home.moreDiscoveriesTitle')}</div>
-              </div>
+        <div className="glass-card home-shelf-card motion-rise motion-delay-4">
+          <div className="search-results-head-minimal">
+            <div className="section-title">{t('home.outsideOrbitTitle')}</div>
+            <div className="search-results-meta">
+              <span>{t('home.signalsLabel')}</span>
+              <strong>{tasteSignals.length}</strong>
             </div>
-            {moreDiscoveryModules.map((module, index) => (
-              <div key={`${module.kind}-${index}`}>{renderDiscoveryCard(module, index + 3)}</div>
-            ))}
           </div>
-        ) : null}
+          <div className="home-mini-list">
+            <StationTable stations={orbitStations} compact sourceId="home-outside-orbit" />
+          </div>
+        </div>
       </div>
     </section>
   );

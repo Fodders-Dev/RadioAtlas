@@ -24,6 +24,12 @@ import { fetchNowPlayingSnapshot, shouldUseLowImpactMetadata, subscribeNowPlayin
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
+import {
+  DEFAULT_BEHAVIOR_PROFILE,
+  recordSectionVisit,
+  recordStationSignal,
+  type BehaviorProfile
+} from '../lib/homeProfile';
 import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
@@ -136,6 +142,7 @@ type RadioContextValue = {
   nowPlayingState: NowPlayingSnapshot;
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
+  behaviorProfile: BehaviorProfile;
   player: ReturnType<typeof useAudioPlayer>;
   queue: QueueState;
   winamp: WinampState;
@@ -426,6 +433,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:shell-state:v1',
     DEFAULT_SHELL_STATE
   );
+  const [behaviorProfile, setBehaviorProfile] = useLocalStorage<BehaviorProfile>(
+    'radio:behavior-profile:v1',
+    DEFAULT_BEHAVIOR_PROFILE
+  );
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
@@ -520,6 +531,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (storedShellState?.version === 1) return;
     setStoredShellState(DEFAULT_SHELL_STATE);
   }, [setStoredShellState, storedShellState]);
+
+  useEffect(() => {
+    if (behaviorProfile?.version === 1) return;
+    setBehaviorProfile(DEFAULT_BEHAVIOR_PROFILE);
+  }, [behaviorProfile, setBehaviorProfile]);
 
   useEffect(() => {
     if (
@@ -919,8 +935,19 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [player.current, playerPresentation, setStoredShellState]);
 
-  const setActiveSection = (section: AppSection) =>
+  const recordBehaviorForStation = (
+    station: Station | StationLite,
+    action: 'play' | 'favorite' | 'track-copy' | 'follow' | 'collection',
+    weightOverride?: number
+  ) => {
+    const lite = toLite(station);
+    setBehaviorProfile((prev) => recordStationSignal(prev, lite, action, weightOverride));
+  };
+
+  const setActiveSection = (section: AppSection) => {
     setStoredShellState((prev) => (prev.activeSection === section ? prev : { ...prev, activeSection: section }));
+    setBehaviorProfile((prev) => recordSectionVisit(prev, section));
+  };
 
   const setPlayerPresentation = (presentation: PlayerPresentation) =>
     setStoredShellState((prev) =>
@@ -985,6 +1012,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (options?.addToRecent !== false) {
       addRecent(playedStation);
     }
+    recordBehaviorForStation(playedStation, 'play');
 
     pushPlaybackHistory(
       playedStation,
@@ -1171,10 +1199,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const toggleFavorite = (station: Station | StationLite) => {
     const lite = toLite(station);
-    const nextFavorites = favorites.some((item) => item.stationuuid === lite.stationuuid)
+    const alreadyFavorite = favorites.some((item) => item.stationuuid === lite.stationuuid);
+    const nextFavorites = alreadyFavorite
       ? favorites.filter((item) => item.stationuuid !== lite.stationuuid)
       : [lite, ...favorites];
     setFavorites(nextFavorites);
+    if (!alreadyFavorite) {
+      recordBehaviorForStation(lite, 'favorite');
+    }
     syncCloudLibraryImmediately({
       favorites: nextFavorites,
       recent: recent.slice(0, MAX_RECENT),
@@ -1497,6 +1529,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             }
       )
     );
+    recordBehaviorForStation(lite, 'collection');
   };
   const removeStationFromCollection = (collectionId: string, stationId: string) => {
     setCollections((prev) =>
@@ -1513,6 +1546,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
   const toggleFollowStation = (station: Station | StationLite) => {
     const lite = toLite(station);
+    const alreadyFollowed = followedStations.some((item) => item.stationId === lite.stationuuid);
     setFollowedStations((prev) => {
       if (prev.some((item) => item.stationId === lite.stationuuid)) {
         return prev.filter((item) => item.stationId !== lite.stationuuid);
@@ -1529,6 +1563,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         ...prev
       ];
     });
+    if (!alreadyFollowed) {
+      recordBehaviorForStation(lite, 'follow');
+    }
   };
   const toggleFollowRegion = (region: { id: string; label: string; scope: 'country' | 'area' }) => {
     setFollowedRegions((prev) => {
@@ -1586,9 +1623,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
                   item.stationId !== entry.stationId ||
                   item.track !== entry.track ||
                   entry.timestamp - item.timestamp > 1000 * 60 * 10
-              );
+                );
         return [entry, ...deduped].slice(0, MAX_TRACK_HISTORY);
       });
+      recordBehaviorForStation(station, 'track-copy');
       notify(t('toast.trackCopied'));
     } catch {
       notify(t('toast.copyFailed'));
@@ -1752,6 +1790,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     nowPlayingState,
     trackHistory,
     playbackHistory: playbackHistoryEntries,
+    behaviorProfile,
     player,
     queue,
     winamp,

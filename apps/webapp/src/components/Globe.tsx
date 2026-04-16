@@ -9,6 +9,7 @@ type GlobePoint = {
   lat: number;
   lon: number;
   label: string;
+  subtitle?: string;
   count?: number;
 };
 
@@ -29,7 +30,6 @@ type GlobeProps = {
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 10;
-const ZOOM_STEP = 0.5;
 const WHEEL_STEP = 0.25;
 const DRAG_THRESHOLD = 6;
 const TILT_LIMIT = 80;
@@ -170,91 +170,315 @@ export const Globe = ({
       const center: [number, number] = [-rotation[0], -rotation[1]];
 
       const path = geoPath(projection, ctx);
+      const sphere = { type: 'Sphere' } as any;
+      const drawRoundedRect = (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radiusValue: number
+      ) => {
+        const radius = Math.min(radiusValue, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+      };
+      const trimLabel = (value: string, maxLength: number) =>
+        value.length > maxLength ? `${value.slice(0, Math.max(1, maxLength - 1))}\u2026` : value;
       ctx.clearRect(0, 0, size.width, size.height);
 
-      const gradient = ctx.createRadialGradient(
-        size.width * 0.3,
-        size.height * 0.3,
+      const oceanGradient = ctx.createRadialGradient(
+        size.width * 0.26,
+        size.height * 0.24,
         radius * 0.2,
         size.width * 0.5,
         size.height * 0.5,
         radius * 1.2
       );
-      gradient.addColorStop(0, '#244b73');
-      gradient.addColorStop(0.52, '#16304f');
-      gradient.addColorStop(1, '#0a1320');
+      oceanGradient.addColorStop(0, '#1b4f6f');
+      oceanGradient.addColorStop(0.3, '#10395c');
+      oceanGradient.addColorStop(0.72, '#0b2037');
+      oceanGradient.addColorStop(1, '#050b13');
 
       ctx.beginPath();
-      path({ type: 'Sphere' } as any);
-      ctx.fillStyle = gradient;
+      path(sphere);
+      ctx.fillStyle = oceanGradient;
       ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      path(sphere);
+      ctx.clip();
+      const hazeGradient = ctx.createRadialGradient(
+        size.width * 0.42,
+        size.height * 0.18,
+        radius * 0.1,
+        size.width * 0.5,
+        size.height * 0.52,
+        radius * 1.1
+      );
+      hazeGradient.addColorStop(0, 'rgba(196, 244, 255, 0.22)');
+      hazeGradient.addColorStop(0.44, 'rgba(92, 150, 214, 0.08)');
+      hazeGradient.addColorStop(1, 'rgba(6, 12, 21, 0)');
+      ctx.fillStyle = hazeGradient;
+      ctx.fillRect(0, 0, size.width, size.height);
+      ctx.restore();
+
+      const landGradient = ctx.createLinearGradient(
+        size.width * 0.22,
+        size.height * 0.18,
+        size.width * 0.78,
+        size.height * 0.84
+      );
+      landGradient.addColorStop(0, 'rgba(88, 121, 84, 0.98)');
+      landGradient.addColorStop(0.34, 'rgba(69, 96, 67, 0.96)');
+      landGradient.addColorStop(0.74, 'rgba(82, 92, 58, 0.94)');
+      landGradient.addColorStop(1, 'rgba(61, 64, 43, 0.94)');
+      ctx.beginPath();
+      path(land as any);
+      ctx.fillStyle = landGradient;
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      path(land as any);
+      ctx.clip();
+      const terrainGlow = ctx.createRadialGradient(
+        size.width * 0.35,
+        size.height * 0.3,
+        radius * 0.12,
+        size.width * 0.44,
+        size.height * 0.44,
+        radius * 1.08
+      );
+      terrainGlow.addColorStop(0, 'rgba(144, 181, 105, 0.28)');
+      terrainGlow.addColorStop(0.48, 'rgba(95, 128, 84, 0.12)');
+      terrainGlow.addColorStop(1, 'rgba(25, 32, 22, 0)');
+      ctx.fillStyle = terrainGlow;
+      ctx.fillRect(0, 0, size.width, size.height);
+      ctx.restore();
 
       ctx.beginPath();
       path(land as any);
-      ctx.fillStyle = 'rgba(26, 52, 84, 0.94)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(172, 219, 255, 0.14)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(210, 243, 255, 0.16)';
+      ctx.lineWidth = 0.8;
       ctx.stroke();
 
       if (borders) {
         ctx.beginPath();
         path(borders as any);
-        ctx.strokeStyle = 'rgba(152, 208, 255, 0.24)';
-        ctx.lineWidth = 0.4;
+        ctx.strokeStyle = 'rgba(190, 232, 255, 0.34)';
+        ctx.lineWidth = scale >= 2 ? 0.9 : 0.72;
         ctx.stroke();
       }
 
       ctx.beginPath();
       path(geoGraticule10());
-      ctx.strokeStyle = 'rgba(220, 241, 255, 0.07)';
+      ctx.strokeStyle = 'rgba(220, 241, 255, 0.12)';
       ctx.lineWidth = 0.6;
       ctx.stroke();
 
-      ctx.strokeStyle = 'rgba(184, 232, 255, 0.2)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(212, 245, 255, 0.34)';
+      ctx.lineWidth = 1.15;
       ctx.beginPath();
-      path({ type: 'Sphere' } as any);
+      path(sphere);
       ctx.stroke();
 
-      const baseDot = Math.max(1.1, 3 - (scale - 1) * 0.7);
-      const activeDot = baseDot + 1.6;
+      const baseDot = Math.max(2.2, 4.4 - (scale - 1) * 0.55);
+      const activeDot = baseDot + 2.2;
       const pulse = focusPulseRef.current;
       focusPulseRef.current = Math.max(0, pulse - 0.02);
 
-      points.forEach((point) => {
+      const visiblePoints = points
+        .map((point) => {
         const distance = geoDistance([point.lon, point.lat], center);
-        if (distance > Math.PI / 2) return;
+          if (distance > Math.PI / 2) return null;
         const coords = projection([point.lon, point.lat]);
-        if (!coords) return;
+          if (!coords) return null;
         const [x, y] = coords;
-        const density = Math.min(4.5, Math.sqrt(point.count ?? 1));
-        const pointRadius = baseDot + Math.max(0, density - 1) * 0.85;
-        const isSelected = point.id === selectedId;
+          const density = Math.min(5.8, Math.sqrt(point.count ?? 1));
+          const pointRadius = baseDot + Math.max(0, density - 1) * 1.05;
+          return {
+            ...point,
+            x,
+            y,
+            pointRadius,
+            isSelected: point.id === selectedId,
+            isActive: point.id === activeId,
+            distanceToCenter: Math.hypot(x - size.width / 2, y - size.height / 2)
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => {
+          if (!left || !right) return 0;
+          const leftBoost =
+            (left.isSelected ? 10000 : 0) + (left.isActive ? 5000 : 0) + (left.count ?? 0);
+          const rightBoost =
+            (right.isSelected ? 10000 : 0) + (right.isActive ? 5000 : 0) + (right.count ?? 0);
+          if (leftBoost !== rightBoost) return rightBoost - leftBoost;
+          return left.distanceToCenter - right.distanceToCenter;
+        }) as Array<
+        GlobePoint & {
+          x: number;
+          y: number;
+          pointRadius: number;
+          isSelected: boolean;
+          isActive: boolean;
+          distanceToCenter: number;
+        }
+      >;
+
+      visiblePoints.forEach((point) => {
+        const haloRadius = point.isSelected
+          ? point.pointRadius + 14
+          : point.isActive
+            ? point.pointRadius + 11
+            : point.pointRadius + 7;
         ctx.beginPath();
-        const isActive = point.id === activeId;
-        ctx.fillStyle = isSelected
-          ? 'rgba(231, 254, 255, 0.98)'
-          : isActive
-            ? '#88f1de'
-            : 'rgba(152, 220, 255, 0.76)';
-        ctx.arc(x, y, isActive ? Math.max(activeDot, pointRadius + 1.4) : pointRadius, 0, Math.PI * 2);
+        ctx.fillStyle = point.isSelected
+          ? 'rgba(208, 251, 255, 0.22)'
+          : point.isActive
+            ? 'rgba(136, 241, 222, 0.18)'
+            : 'rgba(152, 220, 255, 0.12)';
+        ctx.arc(point.x, point.y, haloRadius, 0, Math.PI * 2);
         ctx.fill();
-        if (isSelected) {
-          ctx.strokeStyle = 'rgba(198, 248, 255, 0.48)';
-          ctx.lineWidth = 1.4;
+
+        ctx.save();
+        ctx.shadowColor = point.isSelected
+          ? 'rgba(201, 250, 255, 0.48)'
+          : point.isActive
+            ? 'rgba(136, 241, 222, 0.42)'
+            : 'rgba(152, 220, 255, 0.28)';
+        ctx.shadowBlur = point.isSelected ? 18 : point.isActive ? 14 : 10;
+        ctx.beginPath();
+        ctx.fillStyle = point.isSelected
+          ? 'rgba(238, 254, 255, 0.98)'
+          : point.isActive
+            ? '#88f1de'
+            : 'rgba(159, 224, 255, 0.92)';
+        ctx.arc(
+          point.x,
+          point.y,
+          point.isActive ? Math.max(activeDot, point.pointRadius + 1.6) : point.pointRadius,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
+
+        ctx.beginPath();
+        ctx.fillStyle = point.isSelected ? 'rgba(53, 73, 90, 0.82)' : 'rgba(244, 252, 255, 0.82)';
+        ctx.arc(point.x, point.y, Math.max(1.7, point.pointRadius * 0.34), 0, Math.PI * 2);
+        ctx.fill();
+
+        if (point.isSelected) {
+          ctx.strokeStyle = 'rgba(198, 248, 255, 0.6)';
+          ctx.lineWidth = 1.6;
           ctx.beginPath();
-          ctx.arc(x, y, pointRadius + 5.5, 0, Math.PI * 2);
+          ctx.arc(point.x, point.y, point.pointRadius + 6.2, 0, Math.PI * 2);
           ctx.stroke();
         }
-        if (isActive && pulse > 0.01) {
+        if (point.isActive && pulse > 0.01) {
           ctx.strokeStyle = `rgba(136, 241, 222, ${0.38 + pulse * 0.38})`;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.arc(x, y, Math.max(activeDot + 6, pointRadius + 6) + pulse * 6, 0, Math.PI * 2);
+          ctx.arc(
+            point.x,
+            point.y,
+            Math.max(activeDot + 7, point.pointRadius + 7) + pulse * 6,
+            0,
+            Math.PI * 2
+          );
           ctx.stroke();
         }
       });
+
+      const labelLimit = scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
+      const labelSlots: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+      visiblePoints
+        .filter((point, index) => point.isSelected || point.isActive || index < labelLimit * 2)
+        .forEach((point) => {
+          if (labelSlots.length >= labelLimit && !point.isSelected) return;
+          const title = trimLabel(point.label, point.isSelected ? 22 : 16);
+          const detail =
+            point.isSelected || scale >= 2.6
+              ? trimLabel(point.subtitle || '', point.isSelected ? 24 : 18)
+              : '';
+
+          ctx.font = `700 ${point.isSelected ? 11 : 10}px "Segoe UI", sans-serif`;
+          const titleWidth = ctx.measureText(title).width;
+          ctx.font = `600 9px "Segoe UI", sans-serif`;
+          const detailWidth = detail ? ctx.measureText(detail).width : 0;
+          const labelWidth = Math.max(titleWidth, detailWidth) + 20;
+          const labelHeight = detail ? 34 : 22;
+
+          let labelX = point.x + 12;
+          if (labelX + labelWidth > size.width - 8) {
+            labelX = point.x - labelWidth - 12;
+          }
+          let labelY = point.y - labelHeight - 12;
+          if (labelY < 8) {
+            labelY = point.y + 12;
+          }
+          labelX = clamp(labelX, 8, size.width - labelWidth - 8);
+          labelY = clamp(labelY, 8, size.height - labelHeight - 8);
+
+          const rect = {
+            left: labelX - 3,
+            top: labelY - 3,
+            right: labelX + labelWidth + 3,
+            bottom: labelY + labelHeight + 3
+          };
+          const intersects = labelSlots.some(
+            (slot) =>
+              !(rect.right < slot.left || rect.left > slot.right || rect.bottom < slot.top || rect.top > slot.bottom)
+          );
+          if (intersects && !point.isSelected) return;
+          labelSlots.push(rect);
+
+          const connectorToLeft = labelX > point.x;
+          ctx.strokeStyle = point.isSelected
+            ? 'rgba(198, 248, 255, 0.52)'
+            : 'rgba(175, 223, 246, 0.26)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(point.x, point.y);
+          ctx.lineTo(
+            connectorToLeft ? labelX : labelX + labelWidth,
+            labelY + Math.min(labelHeight - 8, Math.max(8, labelHeight / 2))
+          );
+          ctx.stroke();
+
+          drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 11);
+          ctx.fillStyle = point.isSelected
+            ? 'rgba(8, 20, 29, 0.94)'
+            : 'rgba(10, 21, 32, 0.82)';
+          ctx.fill();
+          ctx.strokeStyle = point.isSelected
+            ? 'rgba(201, 250, 255, 0.48)'
+            : 'rgba(186, 228, 248, 0.18)';
+          ctx.lineWidth = point.isSelected ? 1.15 : 1;
+          ctx.stroke();
+
+          ctx.fillStyle = '#f1fbff';
+          ctx.font = `700 ${point.isSelected ? 11 : 10}px "Segoe UI", sans-serif`;
+          ctx.textBaseline = 'top';
+          ctx.fillText(title, labelX + 10, labelY + 7);
+
+          if (detail) {
+            ctx.fillStyle = 'rgba(198, 221, 235, 0.78)';
+            ctx.font = `600 9px "Segoe UI", sans-serif`;
+            ctx.fillText(detail, labelX + 10, labelY + 19);
+          }
+        });
 
       frame = window.requestAnimationFrame(draw);
     };
@@ -355,7 +579,7 @@ export const Globe = ({
     }
     const rotation = rotationRef.current;
     const center: [number, number] = [-rotation[0], -rotation[1]];
-    const maxPick = Math.max(8, 18 - (scale - 1) * 1.1);
+    const maxPick = Math.max(11, 22 - (scale - 1) * 0.9);
     const maxPickSq = maxPick * maxPick;
 
     const candidates: { id: string; dist: number }[] = [];

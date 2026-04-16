@@ -88,12 +88,12 @@ const App = () => {
       search: {
         title: t('nav.search'),
         subtitle: t('search.topbarSubtitle'),
-        context: t('search.kicker')
+        context: isCompactLayout ? '' : t('search.kicker')
       },
       globe: {
         title: t('nav.globe'),
         subtitle: t('explore.globeSubtitle'),
-        context: t('globe.heroSubtitle')
+        context: isCompactLayout ? '' : t('globe.heroSubtitle')
       },
       library: {
         title: t('nav.library'),

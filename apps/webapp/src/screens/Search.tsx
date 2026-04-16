@@ -186,11 +186,7 @@ export const Discover = () => {
     playStation,
     player,
     recent,
-    playbackHistory,
-    queue,
-    setActiveSection,
-    setLibraryTab,
-    playLast
+    playbackHistory
   } = useRadio();
   const { t } = useLocale();
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -683,19 +679,6 @@ export const Discover = () => {
       })
       .slice(0, 4);
   }, [player.current, recent, playbackHistory]);
-  const searchMetrics = showStations
-    ? [
-        { label: t('search.catalogMetric'), value: stations.length },
-        { label: t('search.resultsMetric'), value: filtered.length },
-        { label: t('search.regionMetric'), value: visibleCountryBuckets.length },
-        { label: t('search.filtersMetric'), value: activeFilterCount }
-      ]
-    : [
-        { label: t('search.savedMetric'), value: links.length },
-        { label: t('search.recentMetric'), value: linkRecent.length },
-        { label: t('playlist.title'), value: queue.items.length },
-        { label: t('search.extractorMetric'), value: apiBase && apiOnline ? t('common.active') : t('common.unavailable') }
-      ];
   const resetSearchScope = () => {
     setQuery('');
     setCountryQuery('');
@@ -704,30 +687,12 @@ export const Discover = () => {
     setLanguageFilter('All');
     setContinentFilter('All');
   };
-  const openLibraryOverview = () => {
-    setLibraryTab(recent.length ? 'recent' : 'favorites');
-    setActiveSection('library');
-  };
-  const openSearchResume = () => {
-    if (quickReturnStations[0]) {
-      playStation(quickReturnStations[0], {
-        playlist: quickReturnStations,
-        sourceId: 'resume'
-      });
-      return;
-    }
-    playLast();
-  };
+  const compactQuickReturnStations = quickReturnStations.slice(0, viewportWidth < 860 ? 3 : 4);
 
   return (
     <section className="screen screen-search screen-search-v2">
-      <div className="glass-card search-shell-header">
-        <div className="search-shell-copy">
-          <div className="shell-kicker">{t('search.kicker')}</div>
-          <div className="section-title">{t('nav.search')}</div>
-          <div className="section-subtitle">{t('search.topbarSubtitle')}</div>
-        </div>
-        <div className="search-shell-controls">
+      <div className="glass-card search-command-card">
+        <div className="search-command-top">
           <div className="chip-row search-mode-switcher">
             <button
               className={`chip ${showStations ? 'active' : ''}`}
@@ -744,315 +709,237 @@ export const Discover = () => {
               {t('discover.linksMode')}
             </button>
           </div>
-          <div className="search-mode-summary">
-            {showStations
-              ? debounced.trim()
-                ? t('discover.matches', { count: filtered.length })
-                : t('discover.allStations', { count: stations.length })
-              : apiBase && apiOnline
-                ? t('common.active')
-                : t('common.unavailable')}
+          <div className="search-command-status" aria-live="polite">
+            <span>{showStations ? t('search.resultsTitle') : t('discover.linksSaved')}</span>
+            <strong>{showStations ? `${filtered.length}/${stations.length}` : links.length}</strong>
           </div>
         </div>
-        <div className="search-shell-deck">
-          <div className="search-metric-strip">
-            {searchMetrics.map((metric) => (
-              <div className="search-shell-metric" key={metric.label}>
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
+
+        {showStations ? (
+          <div className="search-command-body">
+            <div className="search-bar">
+              <input
+                placeholder={t('discover.searchPlaceholder')}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query && (
+                <button className="clear-btn" type="button" onClick={() => setQuery('')}>
+                  {t('common.clear')}
+                </button>
+              )}
+            </div>
+            <div className="search-toolbar-row search-toolbar-row-minimal">
+              <button
+                className={`chip ${filtersOpen ? 'active' : ''}`}
+                type="button"
+                onClick={() => setFiltersOpen((prev) => !prev)}
+              >
+                {filtersOpen ? t('search.hideFilters') : t('search.showFilters')}
+              </button>
+              <button
+                className="chip"
+                type="button"
+                onClick={resetSearchScope}
+                disabled={activeFilterCount === 0}
+              >
+                {t('search.clearAllFilters')}
+              </button>
+            </div>
+            {activeFilters.length ? (
+              <div className="search-chip-row">
+                {activeFilters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    className="search-mini-chip"
+                    type="button"
+                    onClick={filter.clear}
+                  >
+                    <span className="search-mini-chip-label">{filter.label}</span>
+                    <strong className="search-mini-chip-meta">{t('common.clear')}</strong>
+                  </button>
+                ))}
               </div>
-            ))}
+            ) : null}
+
+            {filtersOpen ? (
+              <div className="search-filters-drawer search-filters-drawer-minimal">
+                <div className="filters">
+                  <select
+                    className="filter-select"
+                    value={countryFilter}
+                    onChange={(event) => setCountryFilter(event.target.value)}
+                  >
+                    <option value="All">{t('discover.regionAll')}</option>
+                    {countries.filter((country) => country !== 'All').map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="filter-select"
+                    value={tagFilter}
+                    onChange={(event) => setTagFilter(event.target.value)}
+                  >
+                    <option value="All">{t('discover.tagTitle')}</option>
+                    {tags.filter((tag) => tag !== 'All').map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="filter-select"
+                    value={languageFilter}
+                    onChange={(event) => setLanguageFilter(event.target.value)}
+                  >
+                    <option value="All">{t('discover.regionAll')}</option>
+                    {languages.filter((lang) => lang !== 'All').map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="chip-row search-filter-chip-row">
+                  <button
+                    className={`chip ${continentFilter === 'All' ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setContinentFilter('All')}
+                  >
+                    {t('discover.regionAll')}
+                  </button>
+                  {continentCounts.map((item) => (
+                    <button
+                      key={item.id}
+                      className={`chip ${continentFilter === item.id ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setContinentFilter(item.id)}
+                    >
+                      {item.id} · {item.count}
+                    </button>
+                  ))}
+                </div>
+                <div className="chip-row search-filter-chip-row">
+                  {featuredTags.map((tag) => (
+                    <button
+                      key={tag}
+                      className={`chip ${tagFilter === tag ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                {featuredCountries.length ? (
+                  <div className="search-chip-row">
+                    {featuredCountries.slice(0, 6).map((bucket) => (
+                      <button
+                        key={bucket.key}
+                        className={`search-mini-chip ${countryFilter === bucket.country ? 'active' : ''}`}
+                        type="button"
+                        onClick={() => setCountryFilter(countryFilter === bucket.country ? 'All' : bucket.country)}
+                      >
+                        <span className="search-mini-chip-label">{bucket.country}</span>
+                        <strong className="search-mini-chip-meta">{bucket.count}</strong>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          <div className="search-shell-action-row">
-            <button className="chip active" type="button" onClick={openSearchResume}>
-              {t('common.resume')}
-            </button>
-            <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-              {t('home.openGlobe')}
-            </button>
-            <button className="chip" type="button" onClick={openLibraryOverview}>
-              {t('home.openLibrary')}
-            </button>
+        ) : (
+          <div className="search-links-stack">
+            <div className="settings-card stack">
+              <input
+                className="settings-input"
+                placeholder={t('discover.audioPlaceholder')}
+                value={linkUrl}
+                onChange={(event) => setLinkUrl(event.target.value)}
+              />
+              <input
+                className="settings-input"
+                placeholder={t('discover.titlePlaceholder')}
+                value={linkName}
+                onChange={(event) => setLinkName(event.target.value)}
+              />
+              <div className="settings-actions">
+                <button className="chip" type="button" onClick={handlePaste}>
+                  {t('common.paste')}
+                </button>
+                <button className="chip" type="button" onClick={addSingleLink}>
+                  {t('common.addLink')}
+                </button>
+                <button
+                  className="chip"
+                  type="button"
+                  onClick={extractLink}
+                  disabled={linkLoading || !apiBase || !apiOnline}
+                >
+                  {t('common.extractStreams')}
+                </button>
+                <button
+                  className="chip"
+                  type="button"
+                  onClick={() => importPlaylist(linkUrl)}
+                  disabled={linkLoading}
+                >
+                  {linkLoading ? t('common.importing') : t('common.importPlaylist')}
+                </button>
+              </div>
+            </div>
+            {(!apiBase || !apiOnline) && <div className="error">{t('discover.extractorOffline')}</div>}
+            {linkError && <div className="error">{linkError}</div>}
           </div>
-        </div>
+        )}
       </div>
 
       {showStations ? (
         <>
-          <div className="search-workbench">
-            <div className="search-workbench-main">
-              <div className="glass-card search-primary-card">
-                <div className="search-bar">
-                  <input
-                    placeholder={t('discover.searchPlaceholder')}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                  {query && (
-                    <button className="clear-btn" type="button" onClick={() => setQuery('')}>
-                      {t('common.clear')}
+          {compactQuickReturnStations.length ? (
+            <div className="glass-card search-shortcuts-card">
+              <div className="search-chip-row">
+                {compactQuickReturnStations.map((station) => {
+                  const isActive = player.current?.stationuuid === station.stationuuid;
+                  return (
+                    <button
+                      key={`return-${station.stationuuid}`}
+                      className={`search-mini-chip ${isActive ? 'active' : ''}`}
+                      type="button"
+                      onClick={() =>
+                        playStation(station, {
+                          playlist: quickReturnStations,
+                          sourceId: 'resume'
+                        })
+                      }
+                    >
+                      <span className="search-mini-chip-label">{station.name}</span>
+                      <strong className="search-mini-chip-meta">
+                        {isActive ? t('common.play') : station.country || t('common.unknown')}
+                      </strong>
                     </button>
-                  )}
-                </div>
-                <div className="search-toolbar-row">
-                  <button
-                    className={`chip ${filtersOpen ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setFiltersOpen((prev) => !prev)}
-                  >
-                    {filtersOpen ? t('search.hideFilters') : t('search.showFilters')}
-                  </button>
-                  <div className="section-subtitle">
-                    {continentFilter === 'All' ? t('discover.regionAll') : continentFilter}
-                  </div>
-                  <button
-                    className="chip"
-                    type="button"
-                    onClick={resetSearchScope}
-                    disabled={activeFilterCount === 0 && !countryQuery}
-                  >
-                    {t('search.clearAllFilters')}
-                  </button>
-                </div>
-                <div className="search-active-filter-row">
-                  {activeFilters.length ? (
-                    activeFilters.map((filter) => (
-                      <button
-                        key={filter.id}
-                        className="search-filter-pill"
-                        type="button"
-                        onClick={filter.clear}
-                      >
-                        <span>{filter.label}</span>
-                        <strong>{t('common.clear')}</strong>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="search-zero-hint">{t('search.activeFiltersEmpty')}</div>
-                  )}
-                </div>
-
-                {filtersOpen ? (
-                  <div className="search-filters-drawer">
-                    <div className="filters">
-                      <select
-                        className="filter-select"
-                        value={countryFilter}
-                        onChange={(event) => setCountryFilter(event.target.value)}
-                      >
-                        <option value="All">{t('discover.regionAll')}</option>
-                        {countries.filter((country) => country !== 'All').map((country) => (
-                          <option key={country} value={country}>
-                            {country}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="filter-select"
-                        value={tagFilter}
-                        onChange={(event) => setTagFilter(event.target.value)}
-                      >
-                        <option value="All">{t('discover.tagTitle')}</option>
-                        {tags.filter((tag) => tag !== 'All').map((tag) => (
-                          <option key={tag} value={tag}>
-                            {tag}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        className="filter-select"
-                        value={languageFilter}
-                        onChange={(event) => setLanguageFilter(event.target.value)}
-                      >
-                        <option value="All">{t('discover.regionAll')}</option>
-                        {languages.filter((lang) => lang !== 'All').map((lang) => (
-                          <option key={lang} value={lang}>
-                            {lang}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="chip-row search-filter-chip-row">
-                      <button
-                        className={`chip ${continentFilter === 'All' ? 'active' : ''}`}
-                        type="button"
-                        onClick={() => setContinentFilter('All')}
-                      >
-                        {t('discover.regionAll')}
-                      </button>
-                      {continentCounts.map((item) => (
-                        <button
-                          key={item.id}
-                          className={`chip ${continentFilter === item.id ? 'active' : ''}`}
-                          type="button"
-                          onClick={() => setContinentFilter(item.id)}
-                        >
-                          {item.id} · {item.count}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="chip-row search-filter-chip-row">
-                      {featuredTags.map((tag) => (
-                        <button
-                          key={tag}
-                          className={`chip ${tagFilter === tag ? 'active' : ''}`}
-                          type="button"
-                          onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="search-bar discover-country-search">
-                      <input
-                        placeholder={t('discover.countrySearchPlaceholder')}
-                        value={countryQuery}
-                        onChange={(event) => setCountryQuery(event.target.value)}
-                      />
-                      {countryQuery && (
-                        <button className="clear-btn" type="button" onClick={() => setCountryQuery('')}>
-                          {t('common.clear')}
-                        </button>
-                      )}
-                    </div>
-                    {featuredCountries.length ? (
-                      <div className="browse-list discover-country-list search-country-grid">
-                        {featuredCountries.map((bucket) => (
-                          <button
-                            key={bucket.key}
-                            className="browse-list-item"
-                            type="button"
-                            onClick={() => setCountryFilter(bucket.country)}
-                          >
-                            <div className="browse-title">{bucket.country}</div>
-                            <div className="browse-meta">{bucket.count}</div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                  );
+                })}
               </div>
             </div>
+          ) : null}
 
-            <aside className="search-workbench-rail">
-              <div className="glass-card search-state-card">
-                <div className="section-title">{t('search.scopeTitle')}</div>
-                <div className="section-subtitle">{t('search.scopeCopy')}</div>
-                <div className="search-scope-grid">
-                  <div className="search-scope-pill">
-                    <span>{t('search.scopeQuery')}</span>
-                    <strong>{debounced.trim() || t('search.scopeAny')}</strong>
-                  </div>
-                  <div className="search-scope-pill">
-                    <span>{t('search.scopeRegion')}</span>
-                    <strong>{continentFilter === 'All' ? t('discover.regionAll') : continentFilter}</strong>
-                  </div>
-                  <div className="search-scope-pill">
-                    <span>{t('search.scopeGenre')}</span>
-                    <strong>{tagFilter === 'All' ? t('search.scopeAny') : tagFilter}</strong>
-                  </div>
-                  <div className="search-scope-pill">
-                    <span>{t('search.scopeLanguage')}</span>
-                    <strong>{languageFilter === 'All' ? t('search.scopeAny') : languageFilter}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass-card search-state-card">
-                <div className="section-title">{t('search.radarTitle')}</div>
-                <div className="section-subtitle">{t('search.radarCopy')}</div>
-                <div className="search-radar-group">
-                  <span className="search-radar-label">{t('discover.countryTitle')}</span>
-                  <div className="search-radar-chip-row">
-                    {featuredCountries.slice(0, 6).map((bucket) => (
-                      <button
-                        key={`radar-country-${bucket.key}`}
-                        className="search-filter-pill"
-                        type="button"
-                        onClick={() => setCountryFilter(bucket.country)}
-                      >
-                        <span>{bucket.country}</span>
-                        <strong>{bucket.count}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="search-radar-group">
-                  <span className="search-radar-label">{t('discover.tagTitle')}</span>
-                  <div className="search-radar-chip-row">
-                    {featuredTags.slice(0, 6).map((tag) => (
-                      <button
-                        key={`radar-tag-${tag}`}
-                        className="search-filter-pill"
-                        type="button"
-                        onClick={() => setTagFilter(tagFilter === tag ? 'All' : tag)}
-                      >
-                        <span>{tag}</span>
-                        <strong>{t('common.view')}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="glass-card search-state-card">
-                <div className="section-title">{t('search.quickReturnTitle')}</div>
-                <div className="section-subtitle">{t('search.quickReturnCopy')}</div>
-                {quickReturnStations.length ? (
-                  <div className="search-return-stack">
-                    {quickReturnStations.map((station) => {
-                      const isActive = player.current?.stationuuid === station.stationuuid;
-                      return (
-                        <button
-                          key={`return-${station.stationuuid}`}
-                          className={`search-return-button ${isActive ? 'active' : ''}`}
-                          type="button"
-                          onClick={() =>
-                            playStation(station, {
-                              playlist: quickReturnStations,
-                              sourceId: 'resume'
-                            })
-                          }
-                        >
-                          <span>{station.name}</span>
-                          <strong>{isActive ? t('common.play') : station.country || t('common.unknown')}</strong>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="library-empty-state">
-                    <div className="section-subtitle">{t('search.quickReturnEmpty')}</div>
-                  </div>
-                )}
-              </div>
-            </aside>
-          </div>
-
-          <div className="search-results-head">
-            <div>
+          <div className="glass-card search-results-card">
+            <div className="search-results-head-minimal">
               <div className="section-title">{t('search.resultsTitle')}</div>
-              <div className="section-subtitle">
-                {t('search.resultsCopy', { loaded: results.length, total: filtered.length })}
+              <div className="search-results-meta">
+                <span>{t('common.view')}</span>
+                <strong>
+                  {results.length}/{filtered.length}
+                </strong>
               </div>
             </div>
-            <div className="search-results-actions">
-              {activeFilters.slice(0, 3).map((filter) => (
-                <button
-                  key={`results-${filter.id}`}
-                  className="search-filter-pill"
-                  type="button"
-                  onClick={filter.clear}
-                >
-                  <span>{filter.label}</span>
-                  <strong>{t('common.clear')}</strong>
-                </button>
-              ))}
+            <div className="search-results-shell">
+              <StationTable stations={results} sourceId="discover-stations" compact={compactResults} />
             </div>
-          </div>
-          <div className="search-results-shell">
-            <StationTable stations={results} sourceId="discover-stations" compact={compactResults} />
           </div>
           {visibleCount < filtered.length && (
             <div className="section">
@@ -1065,130 +952,74 @@ export const Discover = () => {
         </>
       ) : (
         <>
-          <div className="search-links-layout">
-            <div className="search-links-main">
-              <div className="glass-card home-search-card">
-                <div className="section-title">{t('discover.linksTitle')}</div>
-                <div className="section-subtitle">{t('discover.linksSubtitle')}</div>
-                <div className="settings-card stack">
-                  <input
-                    className="settings-input"
-                    placeholder={t('discover.audioPlaceholder')}
-                    value={linkUrl}
-                    onChange={(event) => setLinkUrl(event.target.value)}
-                  />
-                  <input
-                    className="settings-input"
-                    placeholder={t('discover.titlePlaceholder')}
-                    value={linkName}
-                    onChange={(event) => setLinkName(event.target.value)}
-                  />
-                  <div className="settings-actions">
-                    <button className="chip" type="button" onClick={handlePaste}>
-                      {t('common.paste')}
-                    </button>
-                    <button className="chip" type="button" onClick={addSingleLink}>
-                      {t('common.addLink')}
-                    </button>
-                    <button
-                      className="chip"
-                      type="button"
-                      onClick={extractLink}
-                      disabled={linkLoading || !apiBase || !apiOnline}
-                    >
-                      {t('common.extractStreams')}
-                    </button>
-                    <button
-                      className="chip"
-                      type="button"
-                      onClick={() => importPlaylist(linkUrl)}
-                      disabled={linkLoading}
-                    >
-                      {linkLoading ? t('common.importing') : t('common.importPlaylist')}
-                    </button>
-                  </div>
-                </div>
-                {(!apiBase || !apiOnline) && <div className="error">{t('discover.extractorOffline')}</div>}
-                {linkError && <div className="error">{linkError}</div>}
-              </div>
-
-              <div className="glass-card home-stack-card">
-                <div className="section-title">{t('discover.linksSaved')}</div>
-                {links.length ? (
-                  <div className="track-list">
-                    {links.map((link) => {
-                      const station = toExternalStation(link);
-                      const active = player.current?.stationuuid === station.stationuuid;
-                      const isLong = link.name.length > 28;
-                      return (
-                        <div className="track-card" key={link.id}>
-                          <div>
-                            <div className={`station-title ${isLong ? 'marquee' : ''}`}>
-                              <span className="marquee-text">{link.name}</span>
-                            </div>
-                            <div className="track-meta">{link.url}</div>
-                          </div>
-                          <div className="settings-actions">
-                            <button
-                              className="play-btn"
-                              type="button"
-                              onClick={() =>
-                                active
-                                  ? player.toggle()
-                                  : playStation(station, {
-                                      playlist: links.map(toExternalStation),
-                                      sourceId: 'discover-links'
-                                    })
-                              }
-                              aria-label={t('discover.playLink')}
-                            >
-                              {active && player.isPlaying ? t('common.pause') : t('common.play')}
-                            </button>
-                            <button
-                              className="link-btn"
-                              type="button"
-                              onClick={() => handleRemove(link.id)}
-                              aria-label={t('common.remove')}
-                            >
-                              {t('common.remove')}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="empty-state">{t('discover.linksEmpty')}</div>
-                )}
+          <div className="glass-card search-results-card">
+            <div className="search-results-head-minimal">
+              <div className="section-title">{t('discover.linksSaved')}</div>
+              <div className="search-results-meta">
+                <span>{t('common.view')}</span>
+                <strong>{links.length}</strong>
               </div>
             </div>
-
-            <aside className="search-workbench-rail">
-              <div className="glass-card search-state-card">
-                <div className="section-title">{t('search.resultsTitle')}</div>
-                <div className="section-subtitle">
-                  {t('search.resultsCopy', { loaded: links.length, total: links.length })}
-                </div>
-                <div className="search-metric-strip compact">
-                  {searchMetrics.map((metric) => (
-                    <div className="search-shell-metric" key={`links-${metric.label}`}>
-                      <span>{metric.label}</span>
-                      <strong>{metric.value}</strong>
+            {links.length ? (
+              <div className="track-list">
+                {links.map((link) => {
+                  const station = toExternalStation(link);
+                  const active = player.current?.stationuuid === station.stationuuid;
+                  const isLong = link.name.length > 28;
+                  return (
+                    <div className="track-card" key={link.id}>
+                      <div>
+                        <div className={`station-title ${isLong ? 'marquee' : ''}`}>
+                          <span className="marquee-text">{link.name}</span>
+                        </div>
+                        <div className="track-meta">{link.url}</div>
+                      </div>
+                      <div className="settings-actions">
+                        <button
+                          className="play-btn"
+                          type="button"
+                          onClick={() =>
+                            active
+                              ? player.toggle()
+                              : playStation(station, {
+                                  playlist: links.map(toExternalStation),
+                                  sourceId: 'discover-links'
+                                })
+                          }
+                          aria-label={t('discover.playLink')}
+                        >
+                          {active && player.isPlaying ? t('common.pause') : t('common.play')}
+                        </button>
+                        <button
+                          className="link-btn"
+                          type="button"
+                          onClick={() => handleRemove(link.id)}
+                          aria-label={t('common.remove')}
+                        >
+                          {t('common.remove')}
+                        </button>
+                      </div>
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty-state">{t('discover.linksEmpty')}</div>
+            )}
+          </div>
+
+          {linkRecent.length ? (
+            <div className="glass-card search-results-card">
+              <div className="search-results-head-minimal">
+                <div className="section-title">{t('discover.linksRecent')}</div>
+                <div className="search-results-meta">
+                  <span>{t('common.view')}</span>
+                  <strong>{linkRecent.length}</strong>
                 </div>
               </div>
-
-              <div className="glass-card home-stack-card">
-                <div className="section-title">{t('discover.linksRecent')}</div>
-                {linkRecent.length ? (
-                  <StationTable stations={linkRecent} compact sourceId="discover-links-recent" />
-                ) : (
-                  <div className="empty-state">{t('discover.linksRecentEmpty')}</div>
-                )}
-              </div>
-            </aside>
-          </div>
+              <StationTable stations={linkRecent} compact sourceId="discover-links-recent" />
+            </div>
+          ) : null}
         </>
       )}
     </section>
