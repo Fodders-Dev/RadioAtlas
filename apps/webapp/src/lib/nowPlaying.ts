@@ -5,7 +5,25 @@ import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 import { buildStationStreamTargets } from './stationStreams';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
-const textDecoder = new TextDecoder('utf-8');
+const ICY_METADATA_ENCODINGS = ['utf-8', 'shift_jis'] as const;
+
+const isTechnicalTrackPayload = (value: string) =>
+  /^\{.*"(status|message|result|errorCode)".*\}\s*\d*$/i.test(value);
+
+const decodeIcyStreamTitle = (metaBytes: Uint8Array) => {
+  for (const encoding of ICY_METADATA_ENCODINGS) {
+    try {
+      const metadata = new TextDecoder(encoding).decode(metaBytes);
+      const match = metadata.match(STREAM_TITLE);
+      const title = normalizeTrackTitle(match?.[1]);
+      if (title) return title;
+    } catch {
+      // Ignore unsupported browser decoders and keep trying fallbacks.
+    }
+  }
+
+  return null;
+};
 
 type FetchNowPlayingOptions = {
   signal?: AbortSignal;
@@ -61,6 +79,7 @@ const normalizeTrackTitle = (value?: string | null) => {
   const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
   if (!cleaned) return null;
   if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
+  if (isTechnicalTrackPayload(cleaned)) return null;
   return cleaned;
 };
 
@@ -120,9 +139,7 @@ const fetchIcy = async (
         if (buffer.length >= metaint + 1 + metaLength) {
           const metaStart = metaint + 1;
           const metaBytes = buffer.slice(metaStart, metaStart + metaLength);
-          const metadata = textDecoder.decode(metaBytes);
-          const match = metadata.match(STREAM_TITLE);
-          return normalizeTrackTitle(match?.[1]) || null;
+          return decodeIcyStreamTitle(metaBytes);
         }
       }
 
@@ -680,6 +697,69 @@ const fetchRadioplayerEvents = async (
   return null;
 };
 
+const resolve101ChannelId = (station: StationLite) => {
+  const homepageMatch = station.homepage?.match(/101\.ru\/radio\/channel\/(\d+)/i);
+  if (homepageMatch?.[1]) {
+    return homepageMatch[1];
+  }
+
+  const tryExtractFromUrl = (value?: string) => {
+    if (!value) return null;
+    try {
+      const parsed = new URL(value);
+      if (!parsed.hostname.includes('101.ru')) return null;
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      for (let index = segments.length - 1; index >= 0; index -= 1) {
+        const segment = segments[index];
+        if (/^\d+$/.test(segment)) {
+          return segment;
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  return tryExtractFromUrl(station.url_resolved) || tryExtractFromUrl(station.url);
+};
+
+const fetch101Track = async (
+  channelId: string,
+  apiBase: string,
+  apiAvailable: boolean,
+  signal?: AbortSignal
+): Promise<string | null> => {
+  const endpoints = [
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}/channelchannel/?dataFormat=json`,
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}`
+  ];
+
+  for (const endpoint of endpoints) {
+    const data = await fetchJsonTarget<{
+      status?: number | string;
+      result?: {
+        short?: {
+          title?: string;
+          titleTrack?: string;
+          titleExecutor?: string;
+        };
+      };
+    }>(endpoint, apiBase, apiAvailable, signal);
+
+    const short = data?.result?.short;
+    const track =
+      buildTrack(short?.titleExecutor, short?.titleTrack) ||
+      normalizeTrackTitle(short?.title) ||
+      null;
+    if (track) {
+      return track;
+    }
+  }
+
+  return null;
+};
+
 const resolveCityMetacastSlug = (station: StationLite) => {
   const haystack = `${station.name} ${station.url_resolved} ${station.url || ''}`.toLowerCase();
   if (hasStationHost(station, 'city.bg') && /(?:radio\s*city|city\s*bulgaria|радио\s*city|\/city\.mp3)/i.test(haystack)) {
@@ -719,6 +799,17 @@ const fetchOfficialProviderTrack = async (
   apiAvailable: boolean,
   signal?: AbortSignal
 ): Promise<{ source: NowPlayingSource; track: string } | null> => {
+  const oneOhOneChannelId = resolve101ChannelId(station);
+  if (oneOhOneChannelId) {
+    const track = await fetch101Track(oneOhOneChannelId, apiBase, apiAvailable, signal);
+    if (track) {
+      return {
+        source: 'channel-api',
+        track
+      };
+    }
+  }
+
   const salueRpId = resolveSalueRpId(station);
   if (salueRpId) {
     const track = await fetchRadioplayerEvents(salueRpId, apiBase, apiAvailable, signal);
@@ -744,8 +835,14 @@ const fetchOfficialProviderTrack = async (
   return null;
 };
 
-const shouldPreferServerMetadata = (url: string) =>
-  url.includes('playerservices.streamtheworld.com') || url.toLowerCase().includes('.m3u8');
+const shouldPreferServerMetadata = (url: string) => {
+  const normalized = url.toLowerCase();
+  return (
+    normalized.startsWith('http://') ||
+    normalized.includes('playerservices.streamtheworld.com') ||
+    normalized.includes('.m3u8')
+  );
+};
 
 const fetchServerProxyTrack = async ({
   url,

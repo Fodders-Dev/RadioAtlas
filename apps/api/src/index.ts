@@ -1137,17 +1137,49 @@ app.get('/stream', async (req, res) => {
   }
 });
 
+const isTechnicalTrackPayload = (value: string) =>
+  /^\{.*"(status|message|result|errorCode)".*\}\s*\d*$/i.test(value);
+
+const normalizeTrackTitle = (value: unknown) => {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
+  if (isTechnicalTrackPayload(cleaned)) return null;
+  return cleaned;
+};
+
 const buildTrackTitle = (artist?: string | null, title?: string | null) => {
-  const normalizeTrackTitle = (value: unknown) => {
-    if (typeof value !== 'string') return null;
-    const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
-    if (!cleaned) return null;
-    if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
-    return cleaned;
-  };
   const parts = [normalizeTrackTitle(artist), normalizeTrackTitle(title)].filter(Boolean);
   if (!parts.length) return null;
   return parts.join(' - ');
+};
+
+const extractIcyTrackTitle = (
+  metaBytes: Uint8Array,
+  log: (msg: string) => void
+): string | null => {
+  for (const encoding of ['utf-8', 'shift_jis'] as const) {
+    try {
+      const text = new TextDecoder(encoding).decode(metaBytes);
+      const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
+      if (!match?.[1]) {
+        continue;
+      }
+
+      const title = buildTrackTitle(undefined, match[1]);
+      if (title) {
+        if (encoding !== 'utf-8') {
+          log(`Decoded ICY metadata via ${encoding}`);
+        }
+        return title;
+      }
+    } catch (error) {
+      log(`Decoder ${encoding} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  return null;
 };
 
 const fetchMetadataPayload = async (
@@ -1332,18 +1364,13 @@ const fetchStreamMetadata = async (url: string): Promise<MetadataLookupResult> =
 
         if (buffer.length >= metaint + 1 + metaLen) {
           const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
-          const text = new TextDecoder('utf-8').decode(metaBytes);
           log(`Raw meta found`);
-          const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
-          if (match?.[1]) {
-            const title = buildTrackTitle(undefined, match[1]);
-            if (title) {
-              return { title, logs, source: 'icy-stream' };
-            }
-          } else {
-            log(`StreamTitle not found in: ${text}`);
-            return { title: null, logs };
+          const title = extractIcyTrackTitle(metaBytes, log);
+          if (title) {
+            return { title, logs, source: 'icy-stream' };
           }
+          log('StreamTitle missing or not usable after decoding');
+          return { title: null, logs };
         }
       }
 
@@ -1430,6 +1457,41 @@ const fetchFromTopRadio = async (slug: string): Promise<string | null> => {
   return null;
 };
 
+const get101ChannelId = (streamUrl: string): string | null => {
+  try {
+    const parsed = new URL(streamUrl);
+    if (!parsed.hostname.includes('101.ru')) return null;
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      const segment = segments[index] || '';
+      if (/^\d+$/.test(segment)) {
+        return segment;
+      }
+    }
+  } catch { }
+  return null;
+};
+
+const fetchFrom101Ru = async (channelId: string): Promise<string | null> => {
+  const endpoints = [
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}/channelchannel/?dataFormat=json`,
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}`
+  ];
+
+  for (const endpoint of endpoints) {
+    const data = await fetchMetadataPayload(endpoint, 'json');
+    const short = (data as any)?.result?.short;
+    const track =
+      buildTrackTitle(short?.titleExecutor, short?.titleTrack) ||
+      buildTrackTitle(undefined, short?.title);
+    if (track) {
+      return track;
+    }
+  }
+
+  return null;
+};
+
 app.get('/metadata', async (req, res) => {
   const url = req.query.url;
   if (!url || typeof url !== 'string') {
@@ -1456,6 +1518,22 @@ app.get('/metadata', async (req, res) => {
   if (title) {
     res.json({ title, logs, source });
     return;
+  }
+
+  const oneOhOneChannelId = get101ChannelId(url);
+  if (oneOhOneChannelId) {
+    logs.push(`Trying 101.ru fallback for ${oneOhOneChannelId}`);
+    const oneOhOneTitle = await fetchFrom101Ru(oneOhOneChannelId);
+    if (oneOhOneTitle) {
+      logs.push(`Got from 101.ru: ${oneOhOneTitle}`);
+      const result = { title: oneOhOneTitle, logs, source: '101.ru' };
+      metadataCache.set(url, {
+        ts: Date.now(),
+        result
+      });
+      res.json(result);
+      return;
+    }
   }
 
   // Fallback: Try top-radio.ru for Russian stations
