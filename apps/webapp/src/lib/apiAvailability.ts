@@ -14,6 +14,18 @@ const normalizeBase = (value?: string | null) => {
   return value.replace(/\/+$/, '');
 };
 
+const isOptimisticBase = (base: string) => {
+  const normalized = normalizeBase(base);
+  if (!normalized) return false;
+  if (normalized.startsWith('/')) return true;
+  if (typeof window === 'undefined') return false;
+  try {
+    return new URL(normalized, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
 const buildHealthUrl = (base: string) => `${normalizeBase(base)}/health`;
 
 const withTimeout = async (url: string, timeoutMs: number) => {
@@ -75,6 +87,12 @@ export const checkApiAvailability = async (
 ) => {
   const normalized = normalizeBase(base);
   if (!normalized) return false;
+  if (isOptimisticBase(normalized)) {
+    const state = getState(normalized);
+    state.ok = true;
+    state.ts = Date.now();
+    return true;
+  }
 
   const state = getState(normalized);
   if (!force && isFresh(state)) {
@@ -105,6 +123,7 @@ export const checkApiAvailability = async (
 export const markApiUnavailable = (base: string) => {
   const normalized = normalizeBase(base);
   if (!normalized) return;
+  if (isOptimisticBase(normalized)) return;
   const state = getState(normalized);
   state.ok = false;
   state.ts = Date.now();

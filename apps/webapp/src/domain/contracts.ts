@@ -214,6 +214,8 @@ export type NowPlayingStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 
 export type NowPlayingSource =
   | 'nightride-sse'
+  | 'radioplayer-events'
+  | 'metacast'
   | 'icecast'
   | 'shoutcast'
   | 'azuracast'

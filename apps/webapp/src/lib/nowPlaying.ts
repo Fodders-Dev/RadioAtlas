@@ -2,6 +2,7 @@ import type { NowPlayingFailureKind, NowPlayingSnapshot, NowPlayingSource } from
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
+import { buildStationStreamTargets } from './stationStreams';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
 const textDecoder = new TextDecoder('utf-8');
@@ -279,7 +280,7 @@ type StationSnapshotEntry = {
 };
 
 const STATION_CACHE_TTL_MS = 5 * 60_000;
-const LAST_KNOWN_TRACKS_STORAGE_KEY = 'radio:last-known-tracks';
+const LAST_KNOWN_TRACKS_STORAGE_KEY = 'radio:last-known-tracks:v2';
 const LAST_KNOWN_TRACKS_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 const LAST_KNOWN_TRACKS_LIMIT = 600;
 const MAX_METADATA_CONCURRENCY = 4;
@@ -560,6 +561,248 @@ const fetchWithTimeout = async (url: string, ms = 4000, signal?: AbortSignal) =>
   }
 };
 
+const parseHostname = (value?: string | null) => {
+  if (!value) return '';
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const hasStationHost = (station: StationLite, host: string) => {
+  const homepageHost = parseHostname(station.homepage);
+  const streamHost = parseHostname(station.url_resolved);
+  const streamSourceHost = parseHostname(station.url);
+  return [homepageHost, streamHost, streamSourceHost].some((value) => value.includes(host));
+};
+
+const fetchJsonTarget = async <T>(
+  target: string,
+  apiBase: string,
+  apiAvailable: boolean,
+  signal?: AbortSignal
+): Promise<T | null> => {
+  if (canAttemptDirectFetch(target)) {
+    try {
+      const res = await fetchWithTimeout(target, 4500, signal);
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+    } catch {
+      // ignore direct fetch failures
+    }
+  }
+
+  if (apiBase && apiAvailable) {
+    try {
+      const res = await fetchWithTimeout(
+        `${apiBase}/fetch?url=${encodeURIComponent(target)}`,
+        4500,
+        signal
+      );
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+    } catch {
+      markApiUnavailable(apiBase);
+    }
+  }
+
+  return null;
+};
+
+const SALUE_RPIDS = [
+  { matchers: ['top 40', 'channel4'], rpId: '1706' },
+  { matchers: ['urlaub', 'urlaubs'], rpId: '1229' },
+  { matchers: ['kinder'], rpId: '1705' },
+  { matchers: ['weihnachts'], rpId: '1704' },
+  { matchers: ['chillout'], rpId: '2799' },
+  { matchers: ['goldies', 'top100'], rpId: '1402' },
+  { matchers: ['in the mix', 'channel1'], rpId: '1371' },
+  { matchers: ['80er'], rpId: '1231' },
+  { matchers: ['90er'], rpId: '2674' },
+  { matchers: ['2000er'], rpId: '2798' }
+] as const;
+
+const resolveSalueRpId = (station: StationLite) => {
+  if (!hasStationHost(station, 'salue.de') && !hasStationHost(station, 'internetradio.salue.de')) {
+    return null;
+  }
+
+  const name = station.name.toLowerCase().replace(/\s+/g, ' ').trim();
+  const streamHaystack = `${station.url_resolved} ${station.url || ''}`.toLowerCase();
+  const haystack = `${name} ${streamHaystack}`;
+  const matched = SALUE_RPIDS.find(({ matchers }) =>
+    matchers.some((matcher) => haystack.includes(matcher))
+  );
+  if (matched) {
+    return matched.rpId;
+  }
+
+  const isMainStation = /^radio sal[üu]\s*$/.test(name);
+  const isMainStream =
+    streamHaystack.includes('/salue.mp3') ||
+    streamHaystack.includes('/salue.aac') ||
+    /(?:^|[^a-z0-9])salue5(?:\?|$)/.test(streamHaystack);
+
+  return isMainStation || isMainStream ? '646' : null;
+};
+
+const fetchRadioplayerEvents = async (
+  rpId: string,
+  apiBase: string,
+  apiAvailable: boolean,
+  signal?: AbortSignal
+): Promise<string | null> => {
+  const endpoint = `https://core-search.radioplayer.cloud/276/qp/v4/events?rpId=${encodeURIComponent(rpId)}`;
+  const data = await fetchJsonTarget<{
+    results?: {
+      now?: { artistName?: string; name?: string; song?: boolean };
+      previous?: Array<{ artistName?: string; name?: string; song?: boolean }>;
+    };
+  }>(endpoint, apiBase, apiAvailable, signal);
+
+  const now = data?.results?.now;
+  if (now?.song) {
+    const track = buildTrack(now.artistName, now.name);
+    if (track) return track;
+  }
+
+  const previous = Array.isArray(data?.results?.previous) ? data?.results?.previous : [];
+  for (let index = previous.length - 1; index >= 0; index -= 1) {
+    const item = previous[index];
+    if (!item?.song) continue;
+    const track = buildTrack(item.artistName, item.name);
+    if (track) return track;
+  }
+
+  return null;
+};
+
+const resolveCityMetacastSlug = (station: StationLite) => {
+  const haystack = `${station.name} ${station.url_resolved} ${station.url || ''}`.toLowerCase();
+  if (hasStationHost(station, 'city.bg') && /(?:radio\s*city|city\s*bulgaria|радио\s*city|\/city\.mp3)/i.test(haystack)) {
+    return 'radiocity';
+  }
+  return null;
+};
+
+const fetchMetacastTrack = async (
+  slug: string,
+  apiBase: string,
+  apiAvailable: boolean,
+  signal?: AbortSignal
+): Promise<string | null> => {
+  const endpoint = `https://meta.metacast.eu/aim/?radio=${encodeURIComponent(slug)}`;
+  const data = await fetchJsonTarget<{
+    nowplaying?: Array<{
+      artist?: string;
+      title?: string;
+      status?: string;
+      type?: string;
+    }>;
+  }>(endpoint, apiBase, apiAvailable, signal);
+
+  const items = Array.isArray(data?.nowplaying) ? data.nowplaying : [];
+  const preferred =
+    items.find((item) => item?.status === 'playing' && item?.type === 'song') ||
+    items.find((item) => item?.type === 'song') ||
+    items[0];
+
+  return buildTrack(preferred?.artist, preferred?.title);
+};
+
+const fetchOfficialProviderTrack = async (
+  station: StationLite,
+  apiBase: string,
+  apiAvailable: boolean,
+  signal?: AbortSignal
+): Promise<{ source: NowPlayingSource; track: string } | null> => {
+  const salueRpId = resolveSalueRpId(station);
+  if (salueRpId) {
+    const track = await fetchRadioplayerEvents(salueRpId, apiBase, apiAvailable, signal);
+    if (track) {
+      return {
+        source: 'radioplayer-events',
+        track
+      };
+    }
+  }
+
+  const citySlug = resolveCityMetacastSlug(station);
+  if (citySlug) {
+    const track = await fetchMetacastTrack(citySlug, apiBase, apiAvailable, signal);
+    if (track) {
+      return {
+        source: 'metacast',
+        track
+      };
+    }
+  }
+
+  return null;
+};
+
+const shouldPreferServerMetadata = (url: string) =>
+  url.includes('playerservices.streamtheworld.com') || url.toLowerCase().includes('.m3u8');
+
+const fetchServerProxyTrack = async ({
+  url,
+  apiBase,
+  apiAvailable,
+  signal,
+  logDebug
+}: {
+  url: string;
+  apiBase: string;
+  apiAvailable: boolean;
+  signal?: AbortSignal;
+  logDebug?: (msg: string) => void;
+}) => {
+  if (!apiBase || !apiAvailable || signal?.aborted) {
+    return { apiFailed: false, track: null as string | null };
+  }
+
+  try {
+    const res = await fetch(`${apiBase}/metadata?url=${encodeURIComponent(url)}`, {
+      signal
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.logs && logDebug && Array.isArray(data.logs)) {
+        data.logs.forEach((line: string) => logDebug(`[SSR] ${line}`));
+      }
+      return {
+        apiFailed: false,
+        track: normalizeTrackTitle(data.title || data.nowPlaying || null)
+      };
+    }
+
+    try {
+      const errorData = await res.json();
+      if (errorData.logs && logDebug && Array.isArray(errorData.logs)) {
+        errorData.logs.forEach((line: string) => logDebug(`[SSR FAIL] ${line}`));
+      }
+    } catch {
+      if (logDebug) logDebug(`[SSR] API Error ${res.status}`);
+    }
+
+    return {
+      apiFailed: false,
+      track: null
+    };
+  } catch (error) {
+    markApiUnavailable(apiBase);
+    if (logDebug) logDebug(`[SSR] Fetch Fail: ${error}`);
+    return {
+      apiFailed: true,
+      track: null
+    };
+  }
+};
+
 const fetchIcecastCORS = async (
   origin: string,
   path: string,
@@ -658,9 +901,11 @@ export const fetchNowPlayingSnapshot = async (
   logDebug?: (msg: string) => void,
   options: FetchNowPlayingOptions = {}
 ): Promise<NowPlayingSnapshot> => {
-  const url = station.url_resolved;
   const pollMs = options.lowImpact ? 45000 : 15000;
-  if (!url) return buildSnapshot(null, 'unavailable', 'none', 'metadata-unavailable', pollMs);
+  const probeUrls = buildStationStreamTargets(station);
+  if (!probeUrls.length) {
+    return buildSnapshot(null, 'unavailable', 'none', 'metadata-unavailable', pollMs);
+  }
   const { signal, lowImpact = false } = options;
   if (signal?.aborted) return buildSnapshot(null, 'idle', 'none', null, pollMs);
   const apiBase = getApiBase();
@@ -670,26 +915,69 @@ export const fetchNowPlayingSnapshot = async (
   if (apiBase && !apiAvailable && logDebug) {
     logDebug('[API] unavailable');
   }
+  let apiProxyFailed = false;
 
-  try {
-    const urlObj = new URL(url);
-    const origin = urlObj.origin;
-    const path = urlObj.pathname;
+  const officialTrack = await fetchOfficialProviderTrack(station, apiBase, apiAvailable, signal);
+  if (officialTrack) {
+    return buildSnapshot(officialTrack.track, 'ready', officialTrack.source, null, pollMs);
+  }
 
-    // 1. Try generic Icecast JSON (fast, reliable if CORS allowed)
-    const icecast = await fetchIcecastCORS(origin, path, apiBase, apiAvailable, signal);
-    if (icecast) return buildSnapshot(icecast, 'ready', 'icecast', null, pollMs);
+  for (const url of probeUrls) {
+    if (signal?.aborted) {
+      return buildSnapshot(null, 'idle', 'none', null, pollMs);
+    }
 
-    // 2. Try generic Shoutcast (fast, reliable if CORS allowed)
-    const shoutcast = await fetchShoutcastCORS(origin, apiBase, apiAvailable, signal);
-    if (shoutcast) return buildSnapshot(shoutcast, 'ready', 'shoutcast', null, pollMs);
+    if (shouldPreferServerMetadata(url)) {
+      const server = await fetchServerProxyTrack({
+        url,
+        apiBase,
+        apiAvailable,
+        signal,
+        logDebug
+      });
+      apiProxyFailed = apiProxyFailed || server.apiFailed;
+      if (server.track) {
+        return buildSnapshot(server.track, 'ready', 'server-proxy', null, pollMs);
+      }
+    }
 
-    // 3. Try AzuraCast API (specific to AzuraCast hosts)
-    const azura = await fetchAzuraCast(urlObj.host, apiBase, apiAvailable, signal);
-    if (azura) return buildSnapshot(azura, 'ready', 'azuracast', null, pollMs);
+    try {
+      const urlObj = new URL(url);
+      const origin = urlObj.origin;
+      const path = urlObj.pathname;
 
-  } catch {
-    // ignore URL parsing errors for base fetches
+      const icecast = await fetchIcecastCORS(origin, path, apiBase, apiAvailable, signal);
+      if (icecast) return buildSnapshot(icecast, 'ready', 'icecast', null, pollMs);
+
+      const shoutcast = await fetchShoutcastCORS(origin, apiBase, apiAvailable, signal);
+      if (shoutcast) return buildSnapshot(shoutcast, 'ready', 'shoutcast', null, pollMs);
+
+      const azura = await fetchAzuraCast(urlObj.host, apiBase, apiAvailable, signal);
+      if (azura) return buildSnapshot(azura, 'ready', 'azuracast', null, pollMs);
+    } catch {
+      // ignore URL parsing errors for base fetches
+    }
+
+    if (lowImpact || signal?.aborted) {
+      continue;
+    }
+
+    const icy = await fetchIcy(url, 6000, signal);
+    if (icy) return buildSnapshot(icy, 'ready', 'icy-stream', null, pollMs);
+
+    if (apiBase && apiAvailable && !signal?.aborted) {
+      const server = await fetchServerProxyTrack({
+        url,
+        apiBase,
+        apiAvailable,
+        signal,
+        logDebug
+      });
+      apiProxyFailed = apiProxyFailed || server.apiFailed;
+      if (server.track) {
+        return buildSnapshot(server.track, 'ready', 'server-proxy', null, pollMs);
+      }
+    }
   }
 
   if (lowImpact || signal?.aborted) {
@@ -703,52 +991,11 @@ export const fetchNowPlayingSnapshot = async (
     );
   }
 
-  // 4. Fallback: Try reading Icy Metadata from the stream itself
-  // First, try client-side (unlikely to work without CORS)
-  const icy = await fetchIcy(url, 6000, signal);
-  if (icy) return buildSnapshot(icy, 'ready', 'icy-stream', null, pollMs);
-
-  // 5. Final Resort: Server-side Metadata Proxy
-  // Ask our own API server to connect and parse the metadata for us
-  if (apiBase && apiAvailable && !signal?.aborted) {
-    try {
-      const res = await fetch(`${apiBase}/metadata?url=${encodeURIComponent(url)}`, {
-        signal
-      });
-
-      let data: any = null;
-      if (res.ok) {
-        data = await res.json();
-
-        if (data.logs && logDebug && Array.isArray(data.logs)) {
-          data.logs.forEach((l: string) => logDebug(`[SSR] ${l}`));
-        }
-
-        const serverTrack = data.title || data.nowPlaying || null;
-        if (serverTrack) return buildSnapshot(serverTrack, 'ready', 'server-proxy', null, pollMs);
-      } else {
-        // try parsing error response
-        try {
-          const errorData = await res.json();
-          if (errorData.logs && logDebug && Array.isArray(errorData.logs)) {
-            errorData.logs.forEach((l: string) => logDebug(`[SSR FAIL] ${l}`));
-          }
-        } catch {
-          if (logDebug) logDebug(`[SSR] API Error ${res.status}`);
-        }
-      }
-    } catch (e) {
-      markApiUnavailable(apiBase);
-      if (logDebug) logDebug(`[SSR] Fetch Fail: ${e}`);
-      return buildSnapshot(null, 'unavailable', 'server-proxy', 'api-unavailable', pollMs);
-    }
-  }
-
   return buildSnapshot(
     null,
     'unavailable',
     'none',
-    apiBase && !apiAvailable ? 'api-unavailable' : 'metadata-unavailable',
+    apiBase && (!apiAvailable || apiProxyFailed) ? 'api-unavailable' : 'metadata-unavailable',
     pollMs
   );
 };

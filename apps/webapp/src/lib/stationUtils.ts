@@ -19,6 +19,7 @@ export const toLite = (station: Station | StationLite): StationLite => ({
   name: station.name,
   url: ('url' in station && station.url) || station.url_resolved,
   url_resolved: station.url_resolved,
+  homepage: 'homepage' in station ? station.homepage : '',
   favicon: station.favicon,
   country: station.country,
   state: station.state,

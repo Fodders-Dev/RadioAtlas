@@ -3,6 +3,7 @@ import type { PlaybackCandidate, PlaybackFailure, PlaybackFailurePhase } from '.
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
+import { buildStationStreamTargets } from './stationStreams';
 import {
   buildCandidates,
   isExternalStation,
@@ -909,14 +910,7 @@ export const useAudioPlayer = ({
 
     let resolvedStation = station;
     const sourceUrls: string[] = [];
-    pushUnique(sourceUrls, station.url_resolved);
-    if (
-      !isExternalStation(station) &&
-      station.url &&
-      station.url !== station.url_resolved
-    ) {
-      pushUnique(sourceUrls, station.url);
-    }
+    buildStationStreamTargets(station).forEach((url) => pushUnique(sourceUrls, url));
     const apiBase = normalizeBase(getApiBase());
     apiBaseRef.current = apiBase;
     const shouldCheckApi = Boolean(apiBase) && needsApiAssist(station, sourceUrls);
@@ -957,14 +951,7 @@ export const useAudioPlayer = ({
         return { ok: false, error };
       }
       sourceUrls.length = 0;
-      pushUnique(sourceUrls, resolvedStation.url_resolved);
-      if (
-        !isExternalStation(resolvedStation) &&
-        resolvedStation.url &&
-        resolvedStation.url !== resolvedStation.url_resolved
-      ) {
-        pushUnique(sourceUrls, resolvedStation.url);
-      }
+      buildStationStreamTargets(resolvedStation).forEach((url) => pushUnique(sourceUrls, url));
     }
 
     requestedStationRef.current = resolvedStation;

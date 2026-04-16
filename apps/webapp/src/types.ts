@@ -54,6 +54,7 @@ export type StationLite = Pick<
   | 'stationuuid'
   | 'name'
   | 'url_resolved'
+  | 'homepage'
   | 'favicon'
   | 'country'
   | 'state'
