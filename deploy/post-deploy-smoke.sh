@@ -64,7 +64,10 @@ if [[ -n "$startup_assets" ]]; then
   done <<<"$startup_assets"
 fi
 
-bootstrap_asset="$(grep -oE '/assets/BootstrapApp-[^"]+\.js' <<<"$entry_js" | head -n 1)"
+bootstrap_asset="$(
+  grep -oE '(\./BootstrapApp-[^"]+\.js|/assets/BootstrapApp-[^"]+\.js)' <<<"$entry_js" | head -n 1
+)"
+bootstrap_asset="${bootstrap_asset/#.\//\/assets\/}"
 bootstrap_js=""
 if [[ -n "$bootstrap_asset" ]]; then
   echo "Smoke: BootstrapApp startup dependencies"
@@ -78,7 +81,10 @@ if [[ -n "$bootstrap_asset" ]]; then
   fi
 fi
 
-providers_asset="$(grep -oE '/assets/AppProviders-[^"]+\.js' <<<"$bootstrap_js" | head -n 1)"
+providers_asset="$(
+  grep -oE '(\./AppProviders-[^"]+\.js|/assets/AppProviders-[^"]+\.js)' <<<"$bootstrap_js" | head -n 1
+)"
+providers_asset="${providers_asset/#.\//\/assets\/}"
 if [[ -n "$providers_asset" ]]; then
   echo "Smoke: AppProviders startup dependencies"
   providers_js="$(curl --fail --silent --show-error --location --compressed "${BASE_URL}${providers_asset}")"
