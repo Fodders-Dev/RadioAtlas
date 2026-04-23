@@ -45,6 +45,21 @@ sync_nginx_config() {
   fi
 }
 
+assert_webapp_dist() {
+  local web_root="$CURRENT_LINK/apps/webapp/dist"
+  local index_file="$web_root/index.html"
+
+  if [[ ! -s "$index_file" ]]; then
+    echo "Missing built webapp shell: $index_file" >&2
+    return 1
+  fi
+
+  if [[ ! -d "$web_root/assets" ]]; then
+    echo "Missing built webapp assets directory: $web_root/assets" >&2
+    return 1
+  fi
+}
+
 wait_for_api_health() {
   local url="${1:-http://127.0.0.1:3001/health}"
   local attempts="${2:-20}"
@@ -75,6 +90,32 @@ restart_pm2_release_clean() {
   pm2 save
 }
 
+prune_old_releases() {
+  local current_target=""
+  local keep_extra=4
+  local kept_extra=0
+  local release=""
+
+  current_target="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+
+  while IFS= read -r release; do
+    if [[ -n "$current_target" && "$release" == "$current_target" ]]; then
+      continue
+    fi
+
+    if (( kept_extra < keep_extra )); then
+      kept_extra=$((kept_extra + 1))
+      continue
+    fi
+
+    rm -rf "$release"
+  done < <(
+    find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+      | sort -nr \
+      | cut -d' ' -f2-
+  )
+}
+
 cd "$RELEASE_DIR"
 
 if [[ -f "$SHARED_ENV_DIR/api.env" ]]; then
@@ -93,6 +134,7 @@ npm --workspace apps/api run build
 npm --workspace apps/bot run build
 
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+assert_webapp_dist
 sync_nginx_config
 
 start_pm2_release
@@ -102,6 +144,6 @@ if ! wait_for_api_health; then
   wait_for_api_health
 fi
 
-find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -n -5 | xargs -r rm -rf
+prune_old_releases
 
 echo "Deploy complete: $RELEASE_SHA"
