@@ -126,6 +126,8 @@ export const enDictionary = {
     "topbarSubtitle": "Fresh picks and quick actions.",
     "topbarSubtitleCompact": "Picks and quick actions.",
     "topbarContext": "Your live radio atlas",
+    "catalogUnavailableTitle": "Catalog is not responding right now",
+    "catalogUnavailableCopy": "Search and playback still work. Refresh the front page and try again.",
     "personalTitle": "For you",
     "behaviorActions": "Actions",
     "matchesLabel": "Matches",

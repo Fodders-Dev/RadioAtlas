@@ -23,6 +23,9 @@ import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
 const SEARCH_PREVIEW_LIMIT = 3;
+const DENSE_SEARCH_PREVIEW_LIMIT = 2;
+const DENSE_RAIL_LIMIT = 1;
+const DENSE_QUICK_CHIP_LIMIT = 2;
 
 const mergeStations = (...collections: StationLite[][]) => {
   const merged = new Map<string, StationLite>();
@@ -282,7 +285,7 @@ export const Home = () => {
     ? surfaceFeed.quickSearchChips
     : [summary?.countrySpotlight?.label, summary?.genreSpotlight?.label]
         .filter((value): value is string => Boolean(value))
-        .slice(0, denseLayout ? 3 : 4);
+        .slice(0, denseLayout ? DENSE_QUICK_CHIP_LIMIT : 4);
   const searchPreviewStations = useMemo(() => {
     if (!debouncedQuery.trim()) {
       return [];
@@ -290,10 +293,10 @@ export const Home = () => {
     const previewStations = searchResults.length
       ? searchResults
       : filterPreviewStations(catalog, debouncedQuery);
-    return previewStations.slice(0, denseLayout ? 2 : SEARCH_PREVIEW_LIMIT);
+    return previewStations.slice(0, denseLayout ? DENSE_SEARCH_PREVIEW_LIMIT : SEARCH_PREVIEW_LIMIT);
   }, [catalog, debouncedQuery, denseLayout, searchResults]);
   const visibleRails = useMemo(
-    () => (surfaceFeed?.rails || []).slice(0, denseLayout ? 2 : 3),
+    () => (surfaceFeed?.rails || []).slice(0, denseLayout ? DENSE_RAIL_LIMIT : 3),
     [denseLayout, surfaceFeed?.rails]
   );
 
@@ -448,8 +451,6 @@ export const Home = () => {
       data-density={denseLayout ? 'dense' : 'default'}
       data-low-power={lowPower ? 'true' : 'false'}
     >
-      {summaryError && !summary ? <div className="error">{summaryError}</div> : null}
-
       <HomeHeroCard
         module={surfaceFeed?.hero || fallbackHero}
         metrics={counts}
@@ -464,16 +465,33 @@ export const Home = () => {
         onRefresh={handleRefresh}
       />
 
+      {summaryError ? (
+        <section
+          className={`home-status-banner ${denseLayout ? 'is-dense' : ''}`.trim()}
+          title={summaryError}
+        >
+          <div className="home-status-copy">
+            <strong>{t('home.catalogUnavailableTitle')}</strong>
+            {!denseLayout ? <span>{t('home.catalogUnavailableCopy')}</span> : null}
+          </div>
+          <button className="home-inline-link" type="button" onClick={handleRefresh}>
+            {t('home.refreshFeed')}
+          </button>
+        </section>
+      ) : null}
+
       <section className="home-search-launcher">
-        <div className="home-section-head">
-          <div>
-            <div className="home-section-title">{t('home.searchTitle')}</div>
-            <div className="home-section-copy">{t('home.quickSearchCopy')}</div>
+        {!denseLayout ? (
+          <div className="home-section-head">
+            <div>
+              <div className="home-section-title">{t('home.searchTitle')}</div>
+              <div className="home-section-copy">{t('home.quickSearchCopy')}</div>
+            </div>
+            <div className="home-section-badge">
+              {debouncedQuery.trim() ? searchTotal : SEARCH_PREVIEW_LIMIT}
+            </div>
           </div>
-          <div className="home-section-badge">
-            {debouncedQuery.trim() ? searchTotal : SEARCH_PREVIEW_LIMIT}
-          </div>
-        </div>
+        ) : null}
 
         <form
           className="home-search-form"

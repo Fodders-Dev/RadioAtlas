@@ -12,4 +12,4 @@
 - [x] Global theme tokens derived from active Winamp skin
 - [ ] Optional API proxy for http streams (if needed)
 
-Next: burn in the compact Home and new low-power shell mode on real Telegram traffic, verify that metadata polling and glass/animation degradations actually reduce budget-phone lag, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for post-boot responsiveness.
+Next: verify the compact miniapp hotfix on live Telegram traffic after nginx `/api` rewrite sync, confirm that the catalog summary no longer falls back to HTML on deploy, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for budget-phone responsiveness.

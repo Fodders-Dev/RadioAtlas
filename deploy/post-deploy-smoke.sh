@@ -21,6 +21,17 @@ fetch "${API_BASE}/billing/telegram/products" >/dev/null
 echo "Smoke: auth providers"
 fetch "${API_BASE}/auth/providers" >/dev/null
 
+echo "Smoke: catalog summary JSON"
+summary_json="$(fetch "${API_BASE}/catalog/summary?seed=1")"
+if grep -qiE '<!doctype|<html|Cannot GET' <<<"$summary_json"; then
+  echo "Catalog summary returned HTML instead of JSON." >&2
+  exit 1
+fi
+if ! grep -q '"counts"' <<<"$summary_json"; then
+  echo "Catalog summary payload does not include counts." >&2
+  exit 1
+fi
+
 echo "Smoke: canonical shell"
 html="$(fetch "${BASE_URL}")"
 

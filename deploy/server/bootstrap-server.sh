@@ -6,7 +6,7 @@ SHARED_ENV_DIR="$APP_ROOT/shared/env"
 RELEASES_DIR="$APP_ROOT/releases"
 
 apt-get update
-apt-get install -y curl git rsync caddy
+apt-get install -y curl git rsync nginx
 
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -29,7 +29,7 @@ RadioAtlas production shell is expected to be served directly by nginx from:
   /opt/RadioAtlas/current/apps/webapp/dist
 
 Use deploy/radioatlas.nginx.conf as the source of truth for the nginx server block.
-The bootstrap script no longer installs or refreshes a local static-origin service.
+Each deploy is expected to refresh /etc/nginx/sites-available/radioatlas.conf and reload nginx.
 NGINXHELP
 
 echo "Bootstrap complete"

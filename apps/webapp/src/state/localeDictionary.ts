@@ -30,7 +30,9 @@ export const defaultDictionary: DictionaryTree = {
   home: {
     topbarSubtitle: 'Открой что-то новое и сразу включай',
     topbarSubtitleCompact: 'Найди новую станцию',
-    topbarContext: 'Discovery'
+    topbarContext: 'Discovery',
+    catalogUnavailableTitle: 'Каталог сейчас не отвечает',
+    catalogUnavailableCopy: 'Поиск и плеер всё ещё доступны. Попробуй обновить витрину.'
   },
   search: {
     topbarSubtitle: 'Поиск по станциям, странам и жанрам',

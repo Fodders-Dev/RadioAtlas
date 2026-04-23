@@ -88,23 +88,58 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('API base is not configured');
     }
 
-    const response = await fetch(`${apiBase}${path}`, {
-      headers: {
-        Accept: 'application/json'
-      },
-      cache: 'no-store'
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${apiBase}${path}`, {
+        headers: {
+          Accept: 'application/json'
+        },
+        cache: 'no-store'
+      });
+    } catch {
+      throw new Error('Catalog temporarily unavailable');
+    }
 
-    const payload = (await response.json()) as T | { error?: string };
+    const contentType = response.headers.get('content-type') || '';
+    const rawPayload = await response.text();
+    const trimmedPayload = rawPayload.trim();
+    let payload: T | { error?: string } | null = null;
+
+    if (trimmedPayload) {
+      const looksLikeJson =
+        contentType.includes('application/json') ||
+        trimmedPayload.startsWith('{') ||
+        trimmedPayload.startsWith('[');
+
+      if (!looksLikeJson) {
+        throw new Error('Catalog temporarily unavailable');
+      }
+
+      try {
+        payload = JSON.parse(trimmedPayload) as T | { error?: string };
+      } catch {
+        throw new Error('Catalog temporarily unavailable');
+      }
+    }
+
     if (!response.ok) {
       throw new Error(
-        typeof (payload as { error?: string }).error === 'string'
-          ? (payload as { error?: string }).error!
-          : `Catalog request failed (${response.status})`
+        typeof payload === 'object' &&
+          payload &&
+          'error' in payload &&
+          typeof payload.error === 'string'
+          ? payload.error
+          : response.status === 404
+            ? 'Catalog temporarily unavailable'
+            : `Catalog request failed (${response.status})`
       );
     }
 
-    return payload as T;
+    if (payload === null) {
+      throw new Error('Catalog temporarily unavailable');
+    }
+
+    return payload;
   }, []);
 
   const rememberStations = useCallback((stations: Array<Station | StationLite>) => {

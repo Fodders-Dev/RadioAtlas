@@ -126,6 +126,8 @@ export const ruDictionary = {
     "topbarSubtitle": "Новые подборки и быстрые действия.",
     "topbarSubtitleCompact": "Подборки и быстрые действия.",
     "topbarContext": "Твой эфирный атлас",
+    "catalogUnavailableTitle": "Каталог сейчас не отвечает",
+    "catalogUnavailableCopy": "Поиск и плеер всё ещё доступны. Попробуй обновить витрину.",
     "personalTitle": "Для тебя",
     "behaviorActions": "Действий",
     "matchesLabel": "Совпадений",

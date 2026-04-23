@@ -135,7 +135,7 @@ export const HomeHeroCard = ({
 }: HomeHeroCardProps) => {
   const { t } = useLocale();
   const station = module.station;
-  const companionStations = dense ? module.companionStations.slice(0, 2) : module.companionStations;
+  const companionStations = dense ? [] : module.companionStations;
 
   if (!station) {
     return (
@@ -170,8 +170,18 @@ export const HomeHeroCard = ({
           className={`home-refresh-chip ${refreshing ? 'is-loading' : ''}`.trim()}
           type="button"
           onClick={onRefresh}
+          aria-label={t('home.refreshFeed')}
+          title={t('home.refreshFeed')}
         >
-          {refreshing ? t('common.loading') : t('home.refreshFeed')}
+          {refreshing ? (
+            t('common.loading')
+          ) : dense ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
+            </svg>
+          ) : (
+            t('home.refreshFeed')
+          )}
         </button>
       </div>
 
@@ -186,7 +196,7 @@ export const HomeHeroCard = ({
             {station.name}
           </h2>
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
-          <p className="home-hero-description">{t(module.copyKey)}</p>
+          {!dense ? <p className="home-hero-description">{t(module.copyKey)}</p> : null}
 
           <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
             <strong>{isActive && activeTrack ? activeTrack : stationTags(station)}</strong>
@@ -222,20 +232,22 @@ export const HomeHeroCard = ({
         </div>
       </div>
 
-      <div className="home-hero-metrics">
-        <div className="home-metric-pill">
-          <span>{t('home.catalogPulseCountries')}</span>
-          <strong>{metrics.countries}</strong>
+      {!dense ? (
+        <div className="home-hero-metrics">
+          <div className="home-metric-pill">
+            <span>{t('home.catalogPulseCountries')}</span>
+            <strong>{metrics.countries}</strong>
+          </div>
+          <div className="home-metric-pill">
+            <span>{t('home.catalogPulseLanguages')}</span>
+            <strong>{metrics.languages}</strong>
+          </div>
+          <div className="home-metric-pill">
+            <span>{t('home.catalogPulseGenres')}</span>
+            <strong>{metrics.genres}</strong>
+          </div>
         </div>
-        <div className="home-metric-pill">
-          <span>{t('home.catalogPulseLanguages')}</span>
-          <strong>{metrics.languages}</strong>
-        </div>
-        <div className="home-metric-pill">
-          <span>{t('home.catalogPulseGenres')}</span>
-          <strong>{metrics.genres}</strong>
-        </div>
-      </div>
+      ) : null}
 
       {companionStations.length ? (
         <div className="home-hero-companions">

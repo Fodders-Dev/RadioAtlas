@@ -39,7 +39,13 @@ test('mobile library queue survives navigation after playback starts', async ({ 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Медиатека' }).evaluate((node) => {
     (node as HTMLButtonElement).click();
   });
-  await page.locator('.library-tab-chip').filter({ hasText: 'Очередь' }).first().click();
+  await page
+    .locator('.library-tab-chip')
+    .filter({ hasText: 'Очередь' })
+    .first()
+    .evaluate((node) => {
+      (node as HTMLButtonElement).click();
+    });
 
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();

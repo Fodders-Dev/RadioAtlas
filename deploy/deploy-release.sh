@@ -29,6 +29,31 @@ for env_file in "$SHARED_ENV_DIR/api.env" "$SHARED_ENV_DIR/bot.env" "$SHARED_ENV
   fi
 done
 
+sync_nginx_config() {
+  local source_conf="$CURRENT_LINK/deploy/radioatlas.nginx.conf"
+  local target_conf="/etc/nginx/sites-available/radioatlas.conf"
+  local target_link="/etc/nginx/sites-enabled/radioatlas.conf"
+
+  if ! command -v nginx >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ ! -f "$source_conf" ]]; then
+    echo "Missing nginx config: $source_conf" >&2
+    exit 1
+  fi
+
+  install -D -m 644 "$source_conf" "$target_conf"
+  ln -sfn "$target_conf" "$target_link"
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl reload nginx || nginx -s reload
+  else
+    nginx -s reload
+  fi
+}
+
 mkdir -p "$RELEASES_DIR" "$SHARED_DATA_DIR"
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
@@ -56,6 +81,7 @@ npm ci
 npm run build
 
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+sync_nginx_config
 
 pm2 delete radioatlas-api >/dev/null 2>&1 || true
 pm2 delete radioatlas-bot >/dev/null 2>&1 || true
