@@ -82,11 +82,12 @@ npm run dev:bot
 4. Push to the default branch (`master` right now; `main` is also supported by the workflow).
 
 Deploy flow:
-- GitHub Actions uploads a source archive over SSH.
-- The server creates a new release in `/opt/RadioAtlas/releases/<timestamp>-<sha>`.
-- Shared env files from `/opt/RadioAtlas/shared/env` are linked into the release.
-- `npm ci`, `npm run build`, and `pm2 startOrGracefulReload` run on the server.
-- `/opt/RadioAtlas/current` is switched to the new release after a successful build.
+- Canonical workflow: `.github/workflows/deploy-server.yml`.
+- GitHub Actions uploads the repository over SSH directly into `/opt/RadioAtlas/releases/<git_sha>`.
+- The server runs `deploy/server/deploy-release.sh <git_sha>`.
+- Shared env files from `/opt/RadioAtlas/shared/env` are copied into the release before build.
+- `npm ci`, `npm --workspace apps/webapp run build`, `npm --workspace apps/api run build`, and `npm --workspace apps/bot run build` run on the server.
+- `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
 - After the release switch, reload nginx so it serves the new `current/apps/webapp/dist`:
   - `bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh`
   - `nginx -t && systemctl reload nginx`
@@ -151,7 +152,7 @@ Deploy flow:
 
 ## Auto-deploy to VPS (GitHub Actions)
 
-This repo now includes `.github/workflows/deploy-server.yml` for push-to-`main` deploys.
+This repo uses `.github/workflows/deploy-server.yml` as the single production deploy workflow for pushes to `master` or `main`.
 
 ### 1) Prepare server once
 On VPS:

@@ -5,6 +5,10 @@ on:
     branches: ["master", "main"]
   workflow_dispatch:
 
+concurrency:
+  group: radioatlas-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,7 +16,7 @@ jobs:
       APP_ROOT: /opt/RadioAtlas
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup SSH
         run: |
