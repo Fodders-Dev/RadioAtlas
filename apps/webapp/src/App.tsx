@@ -12,8 +12,7 @@ import {
   loadLibraryScreen,
   loadSearchScreen,
   loadSettingsScreen,
-  loadStationDetails,
-  loadWinampPlayerShell
+  loadStationDetails
 } from './lib/screenLoaders';
 import { getStartParam, parseStationParam } from './lib/telegram';
 import { useLocale } from './state/LocaleContext';
@@ -67,7 +66,9 @@ const MiniPlayerDockLazy = lazy(() =>
 );
 const AccountSheetLazy = lazy(loadAccountSheet);
 const StationDetailsLazy = lazy(loadStationDetails);
-const WinampPlayerShellLazy = lazy(loadWinampPlayerShell);
+const LitePlayerOverlayLazy = lazy(() =>
+  import('./components/LitePlayerOverlay').then((mod) => ({ default: mod.LitePlayerOverlay }))
+);
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
   home: HomeScreen,
@@ -354,7 +355,7 @@ const App = () => {
       ) : null}
       {winamp.expanded ? (
         <Suspense fallback={<AppScreenSkeleton section={activeSection} scope="overlay" />}>
-          <WinampPlayerShellLazy onDetails={() => setDetailsOpen(true)} />
+          <LitePlayerOverlayLazy onDetails={() => setDetailsOpen(true)} />
         </Suspense>
       ) : null}
       <Toast message={toast} />

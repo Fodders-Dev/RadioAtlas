@@ -12,7 +12,7 @@ type RateLimitBucket = {
 };
 
 type ProtectedRouteOptions = {
-  routeName: 'metadata' | 'fetch';
+  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library';
   maxConcurrency: number;
   sharedMaxConcurrency: number;
   rateLimitPerWindow: number;
@@ -31,6 +31,12 @@ export class MediaOverloadError extends Error {
 
 const clampPositiveInt = (value: number, fallback: number) =>
   Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+
+const normalizeMetricKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown';
 
 const sharedState = {
   active: 0,
@@ -81,6 +87,10 @@ export class ProtectedMediaRoute<T> {
   private readonly inflight = new Map<string, Promise<T>>();
   private readonly rateLimits = new Map<string, RateLimitBucket>();
   private active = 0;
+  private completed = 0;
+  private failed = 0;
+  private shed = 0;
+  private lastLatencyMs = 0;
 
   constructor(options: ProtectedRouteOptions) {
     this.routeName = options.routeName;
@@ -96,6 +106,16 @@ export class ProtectedMediaRoute<T> {
     setGauge('media_inflight:shared', sharedState.active);
     setGauge(`media_limit:${this.routeName}`, this.maxConcurrency);
     setGauge('media_limit:shared', sharedState.maxActive);
+    const attempts = this.completed + this.failed;
+    setGauge(`media_latency_ms:${this.routeName}`, this.lastLatencyMs);
+    setGauge(
+      `media_error_ratio:${this.routeName}`,
+      attempts > 0 ? Number((this.failed / attempts).toFixed(4)) : 0
+    );
+    setGauge(
+      `media_overload_shed_rate:${this.routeName}`,
+      attempts + this.shed > 0 ? Number((this.shed / (attempts + this.shed)).toFixed(4)) : 0
+    );
   }
 
   private beginExecution() {
@@ -113,6 +133,25 @@ export class ProtectedMediaRoute<T> {
 
   private canStartExecution() {
     return this.active < this.maxConcurrency && sharedState.active < sharedState.maxActive;
+  }
+
+  private recordSuccess(durationMs: number) {
+    this.completed += 1;
+    this.lastLatencyMs = durationMs;
+    bumpCounter(`media_success:${this.routeName}`);
+    this.publishGauges();
+  }
+
+  private recordFailure(durationMs: number, reason: string) {
+    this.failed += 1;
+    this.lastLatencyMs = durationMs;
+    bumpCounter(`media_failure:${this.routeName}:${normalizeMetricKey(reason)}`);
+    this.publishGauges();
+  }
+
+  private recordOverload() {
+    this.shed += 1;
+    this.publishGauges();
   }
 
   checkRateLimit(req: express.Request) {
@@ -162,15 +201,18 @@ export class ProtectedMediaRoute<T> {
     });
   }
 
-  async run(key: string, task: () => Promise<T>) {
-    const existing = this.inflight.get(key);
-    if (existing) {
-      bumpCounter(`media_dedupe_hit:${this.routeName}`);
-      return existing;
+  async run(key: string | null, task: () => Promise<T>) {
+    if (key) {
+      const existing = this.inflight.get(key);
+      if (existing) {
+        bumpCounter(`media_dedupe_hit:${this.routeName}`);
+        return existing;
+      }
     }
 
     if (!this.canStartExecution()) {
       bumpCounter(`media_overload:${this.routeName}`);
+      this.recordOverload();
       maybeAlert(
         `media-overload:${this.routeName}`,
         `${this.routeName} overloaded`,
@@ -180,16 +222,29 @@ export class ProtectedMediaRoute<T> {
     }
 
     this.beginExecution();
+    const startedAt = Date.now();
     const promise = (async () => {
       try {
-        return await task();
+        const result = await task();
+        this.recordSuccess(Date.now() - startedAt);
+        return result;
+      } catch (error) {
+        this.recordFailure(
+          Date.now() - startedAt,
+          error instanceof Error ? error.message : 'failed'
+        );
+        throw error;
       } finally {
-        this.inflight.delete(key);
+        if (key) {
+          this.inflight.delete(key);
+        }
         this.endExecution();
       }
     })();
 
-    this.inflight.set(key, promise);
+    if (key) {
+      this.inflight.set(key, promise);
+    }
     return promise;
   }
 }

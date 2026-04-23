@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NowPlayingSnapshot } from '../domain/contracts';
 import { observeStationNowPlaying } from '../lib/nowPlaying';
 import { getDeviceProfile } from '../lib/deviceProfile';
+import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useLibrary, usePlayback } from '../state/RadioContext';
@@ -250,6 +251,27 @@ export const StationTable = ({
   nowPlayingMode = 'active-only'
 }: StationTableProps) => {
   const { t } = useLocale();
+  const lowPower = getDeviceProfile().lowPower;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const renderBatch = compact ? (lowPower ? 12 : 18) : lowPower ? 16 : 24;
+  const [visibleCount, setVisibleCount] = useState(() => Math.min(stations.length, renderBatch));
+
+  useEffect(() => {
+    setVisibleCount(Math.min(stations.length, renderBatch));
+  }, [renderBatch, stations]);
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((previous) => Math.min(stations.length, previous + renderBatch));
+  }, [renderBatch, stations.length]);
+
+  useInfiniteScroll(sentinelRef, {
+    enabled: visibleCount < stations.length,
+    rootMargin: compact ? '420px' : '620px',
+    onLoadMore: loadMore
+  });
+
+  const renderedStations =
+    visibleCount >= stations.length ? stations : stations.slice(0, visibleCount);
 
   if (!stations.length) {
     return <div className="empty-state">{t('stationTable.empty')}</div>;
@@ -266,7 +288,7 @@ export const StationTable = ({
           <div>{t('stationTable.favoriteColumn')}</div>
         </div>
       )}
-      {stations.map((station, index) => {
+      {renderedStations.map((station, index) => {
         return (
           <StationTableRow
             key={`${station.stationuuid}-${sourceId || 'stations'}-${index}`}
@@ -280,6 +302,7 @@ export const StationTable = ({
           />
         );
       })}
+      {visibleCount < stations.length ? <div ref={sentinelRef} className="station-table-sentinel" /> : null}
     </div>
   );
 };

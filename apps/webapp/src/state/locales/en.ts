@@ -402,7 +402,8 @@ export const enDictionary = {
     "quickReturnCopy": "Your latest stations and current live signal stay within reach.",
     "quickReturnEmpty": "Start a station and quick return points will appear here.",
     "resultsTitle": "Results",
-    "resultsCopy": "Showing {loaded} of {total} right now."
+    "resultsCopy": "Showing {loaded} of {total} right now.",
+    "recentQueryHint": "Recent search"
   },
   "library": {
     "kicker": "Personal space",
@@ -448,6 +449,11 @@ export const enDictionary = {
     "collectionCount": "Stations: {count}",
     "addCurrentToCollection": "Add current",
     "removeFromCollection": "Remove",
+    "pinCollection": "Pin",
+    "unpinCollection": "Unpin",
+    "sortPinned": "Pinned",
+    "sortRecent": "Recent",
+    "sortName": "Name",
     "collectionsEmptyTitle": "No collections yet",
     "collectionsEmptyCopy": "Create your first collection for moods, countries, or personal lineups.",
     "followedStationsTitle": "Followed stations",
@@ -482,7 +488,11 @@ export const enDictionary = {
     "queueOpen": "Open queue",
     "queuePeekEmpty": "Build a queue from Search, Globe, or Favorites.",
     "copyCurrentTrack": "Copy current track",
-    "currentTrackUnavailable": "Track title is not available yet"
+    "currentTrackUnavailable": "Track title is not available yet",
+    "buffering": "Buffering",
+    "reconnecting": "Reconnecting",
+    "fallbackCandidate": "Fallback stream",
+    "externalOpen": "Open externally"
   },
   "favoritesScreen": {
     "profileTitle": "Profile",

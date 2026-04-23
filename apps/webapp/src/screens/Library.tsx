@@ -24,6 +24,7 @@ export const Library = () => {
     clearRecent,
     clearTrackHistory,
     createCollection,
+    toggleCollectionPinned,
     addStationToCollection,
     removeStationFromCollection,
     markAlertRead
@@ -40,6 +41,7 @@ export const Library = () => {
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1024
   );
+  const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -95,6 +97,21 @@ export const Library = () => {
     });
 
   const unreadAlerts = alerts.filter((alert) => alert.readAt === null);
+  const sortedCollections = useMemo(() => {
+    const next = [...collections];
+    if (collectionSort === 'name') {
+      return next.sort((left, right) => left.name.localeCompare(right.name, locale));
+    }
+    if (collectionSort === 'recent') {
+      return next.sort((left, right) => right.updatedAt - left.updatedAt);
+    }
+    return next.sort(
+      (left, right) =>
+        Number(right.pinned) - Number(left.pinned) ||
+        right.updatedAt - left.updatedAt ||
+        left.name.localeCompare(right.name, locale)
+    );
+  }, [collectionSort, collections, locale]);
   const tabCounts: Record<LibraryTab, number> = {
     favorites: favorites.length,
     tracks: trackHistory.length,
@@ -177,7 +194,12 @@ export const Library = () => {
             </button>
           </div>
           {favorites.length ? (
-            <StationTable stations={favorites} compact={compactRows} sourceId="favorites" />
+            <StationTable
+              stations={favorites}
+              compact={compactRows}
+              sourceId="favorites"
+              nowPlayingMode="viewport"
+            />
           ) : (
             <div className="empty-state library-empty-state">
               <div className="library-empty-title">{t('library.emptyFavoritesTitle')}</div>
@@ -408,7 +430,12 @@ export const Library = () => {
             </button>
           </div>
           {recent.length ? (
-            <StationTable stations={recent} compact={compactRows} sourceId="recent" />
+            <StationTable
+              stations={recent}
+              compact={compactRows}
+              sourceId="recent"
+              nowPlayingMode="viewport"
+            />
           ) : (
             <div className="empty-state library-empty-state">
               <div className="library-empty-title">{t('explore.recentTitle')}</div>
@@ -517,13 +544,36 @@ export const Library = () => {
                 <div className="section-title">{t('library.collectionsTitle')}</div>
                 <div className="section-subtitle">{t('library.collectionsCopy')}</div>
               </div>
-              <button className="chip active" type="button" onClick={promptCreateCollection}>
-                {t('library.createCollection')}
-              </button>
+              <div className="chip-row">
+                <button
+                  className={`chip ${collectionSort === 'pinned' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setCollectionSort('pinned')}
+                >
+                  {t('library.sortPinned')}
+                </button>
+                <button
+                  className={`chip ${collectionSort === 'recent' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setCollectionSort('recent')}
+                >
+                  {t('library.sortRecent')}
+                </button>
+                <button
+                  className={`chip ${collectionSort === 'name' ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setCollectionSort('name')}
+                >
+                  {t('library.sortName')}
+                </button>
+                <button className="chip active" type="button" onClick={promptCreateCollection}>
+                  {t('library.createCollection')}
+                </button>
+              </div>
             </div>
             <div className="library-collection-grid">
-              {collections.length ? (
-                collections.map((collection) => (
+              {sortedCollections.length ? (
+                sortedCollections.map((collection) => (
                   <div key={collection.id} className="library-collection-card">
                     <div className="library-collection-head">
                       <div>
@@ -533,6 +583,13 @@ export const Library = () => {
                         </div>
                       </div>
                       <div className="chip-row">
+                        <button
+                          className={`chip ${collection.pinned ? 'active' : ''}`}
+                          type="button"
+                          onClick={() => toggleCollectionPinned(collection.id)}
+                        >
+                          {collection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
+                        </button>
                         <button
                           className="chip"
                           type="button"

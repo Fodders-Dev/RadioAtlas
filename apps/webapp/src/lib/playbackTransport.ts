@@ -1,6 +1,7 @@
 import type { PlaybackCandidate, PlaybackFailure, PlaybackFailureKind } from '../domain/contracts';
 import type { StationLite } from '../types';
 import { hasExplicitApiBase } from './apiBase';
+import { shouldForceProxyStreaming } from './runtimeHints';
 
 type ExtractAudioStream = {
   url: string;
@@ -103,6 +104,7 @@ export const needsApiAssist = (station: StationLite, sourceUrls: string[]) =>
     (url) =>
       url.startsWith('http://') ||
       isHls(url) ||
+      (shouldForceProxyStreaming() && url.startsWith('https://')) ||
       (isSecureProxyContext() && url.startsWith('https://') && !isDirectAudioUrl(url))
   );
 
@@ -131,6 +133,7 @@ export const buildCandidates = ({
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
   const canUseProxy = Boolean(normalizedBase) && proxyRelevant && apiAvailable;
   const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
+  const shouldForceProxyCandidate = canUseProxy && shouldForceProxyStreaming();
   const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);
@@ -155,21 +158,23 @@ export const buildCandidates = ({
   if (url.startsWith('http://')) {
     if (shouldForceProxyForHttp) {
       proxyInputs.forEach(addProxy);
-    } else if (isHttpLocal) {
+    } else if (isHttpLocal && !shouldForceProxyCandidate) {
       directPreferred.forEach(addDirect);
       addDirect(url);
-    } else if (directPreferred.length) {
+    } else if (directPreferred.length && !shouldForceProxyCandidate) {
       directPreferred.forEach(addDirect);
     }
     if (canUseProxy && !shouldForceProxyForHttp) {
       proxyInputs.forEach(addProxy);
     }
   } else {
-    if (shouldPreferProxyCandidate) {
+    if (shouldForceProxyCandidate || shouldPreferProxyCandidate) {
       proxyInputs.forEach(addProxy);
     }
-    directPreferred.forEach(addDirect);
-    if (canUseProxy && !shouldPreferProxyCandidate) {
+    if (!shouldForceProxyCandidate) {
+      directPreferred.forEach(addDirect);
+    }
+    if (canUseProxy && !shouldPreferProxyCandidate && !shouldForceProxyCandidate) {
       proxyInputs.forEach(addProxy);
     }
   }

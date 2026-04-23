@@ -29,7 +29,13 @@ export const signInThroughOnboarding = async (
   apiBase = ACCOUNT_FIXTURE_API_BASE
 ) => {
   await page.goto(`/?api=${encodeURIComponent(apiBase)}`);
-  await page.locator('.app-topbar-primary-cta').click();
+  const accountCta = page
+    .locator('.app-topbar-primary-cta, button:has-text("Войти"), button:has-text("Аккаунт")')
+    .first();
+  await accountCta.waitFor({ state: 'visible' });
+  await accountCta.click({ force: true });
   await page.locator('.account-sheet-panel').waitFor({ state: 'visible' });
-  await page.locator('.google-fixture-btn').click();
+  const googleFixtureButton = page.locator('.google-fixture-btn');
+  await googleFixtureButton.waitFor({ state: 'visible' });
+  await googleFixtureButton.click();
 };

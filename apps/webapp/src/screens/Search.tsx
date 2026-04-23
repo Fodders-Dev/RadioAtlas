@@ -115,6 +115,21 @@ export const Discover = () => {
                 </button>
               ) : null}
             </div>
+            {!stationSearch.query.trim() && stationSearch.recentQueries.length ? (
+              <div className="search-chip-row">
+                {stationSearch.recentQueries.map((recentQuery) => (
+                  <button
+                    key={`recent-query-${recentQuery}`}
+                    className="search-mini-chip"
+                    type="button"
+                    onClick={() => stationSearch.applyRecentQuery(recentQuery)}
+                  >
+                    <span className="search-mini-chip-label">{recentQuery}</span>
+                    <strong className="search-mini-chip-meta">{t('search.recentQueryHint')}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="search-toolbar-row search-toolbar-row-minimal">
               <button
                 className={`chip ${stationSearch.filtersOpen ? 'active' : ''}`}
@@ -355,6 +370,7 @@ export const Discover = () => {
                   stations={stationSearch.results}
                   sourceId="discover-stations"
                   compact={compactResults}
+                  nowPlayingMode="viewport"
                 />
               ) : (
                 <div className="empty-state">{t('stationTable.empty')}</div>

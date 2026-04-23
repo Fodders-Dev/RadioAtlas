@@ -42,9 +42,13 @@ const FETCH_NEGATIVE_CACHE_TTL_MS = Number(process.env.FETCH_NEGATIVE_CACHE_TTL_
 const MEDIA_RATE_LIMIT_WINDOW_MS = Number(process.env.MEDIA_RATE_LIMIT_WINDOW_MS || 60000);
 const METADATA_RATE_LIMIT_PER_WINDOW = Number(process.env.METADATA_RATE_LIMIT_PER_WINDOW || 120);
 const FETCH_RATE_LIMIT_PER_WINDOW = Number(process.env.FETCH_RATE_LIMIT_PER_WINDOW || 180);
+const STREAM_RATE_LIMIT_PER_WINDOW = Number(process.env.STREAM_RATE_LIMIT_PER_WINDOW || 90);
+const IMAGE_RATE_LIMIT_PER_WINDOW = Number(process.env.IMAGE_RATE_LIMIT_PER_WINDOW || 180);
 const MEDIA_SHARED_CONCURRENCY = Number(process.env.MEDIA_SHARED_CONCURRENCY || 8);
 const METADATA_CONCURRENCY = Number(process.env.METADATA_CONCURRENCY || 4);
 const FETCH_CONCURRENCY = Number(process.env.FETCH_CONCURRENCY || 6);
+const STREAM_CONCURRENCY = Number(process.env.STREAM_CONCURRENCY || 6);
+const IMAGE_CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY || 8);
 const FETCH_RESPONSE_LIMIT_BYTES = Number(process.env.FETCH_RESPONSE_LIMIT_BYTES || 262144);
 const CATALOG_FETCH_TIMEOUT_MS = Number(process.env.CATALOG_FETCH_TIMEOUT_MS || 8000);
 const CATALOG_ARTIFACT_FAST_URL = new URL('../../../artifacts/catalog-fast.json', import.meta.url);
@@ -96,8 +100,15 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 
-const corsHeaders = (res: express.Response) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const corsHeaders = (req: express.Request, res: express.Response) => {
+  const origin = typeof req.headers.origin === 'string' && req.headers.origin.trim()
+    ? req.headers.origin
+    : '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  if (origin !== '*') {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader(
@@ -107,7 +118,7 @@ const corsHeaders = (res: express.Response) => {
 };
 
 app.use((req, res, next) => {
-  corsHeaders(res);
+  corsHeaders(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -323,9 +334,13 @@ registerMediaRoutes(app, {
   upstreamTimeoutMs: STREAM_PROXY_TIMEOUT_MS,
   metadataRateLimitPerWindow: METADATA_RATE_LIMIT_PER_WINDOW,
   fetchRateLimitPerWindow: FETCH_RATE_LIMIT_PER_WINDOW,
+  streamRateLimitPerWindow: STREAM_RATE_LIMIT_PER_WINDOW,
+  imageRateLimitPerWindow: IMAGE_RATE_LIMIT_PER_WINDOW,
   rateLimitWindowMs: MEDIA_RATE_LIMIT_WINDOW_MS,
   metadataConcurrency: METADATA_CONCURRENCY,
   fetchConcurrency: FETCH_CONCURRENCY,
+  streamConcurrency: STREAM_CONCURRENCY,
+  imageConcurrency: IMAGE_CONCURRENCY,
   sharedConcurrency: MEDIA_SHARED_CONCURRENCY,
   fetchResponseLimitBytes: FETCH_RESPONSE_LIMIT_BYTES
 });

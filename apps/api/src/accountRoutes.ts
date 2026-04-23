@@ -9,9 +9,21 @@ import {
   updateAccountFollows,
   updateAccountLibrary
 } from './accountStore.js';
+import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
 import { getBearerToken, parseMergeStrategy, toClientProfile } from './routeSupport.js';
 
 export const registerAccountRoutes = (app: express.Express) => {
+  const librarySyncGuard = new ProtectedMediaRoute<{
+    profile: ReturnType<typeof toClientProfile>;
+    auditTrail: Awaited<ReturnType<typeof getAccountAuditTrail>>;
+  }>({
+    routeName: 'library',
+    maxConcurrency: Number(process.env.LIBRARY_SYNC_CONCURRENCY || 2),
+    sharedMaxConcurrency: Number(process.env.MEDIA_SHARED_CONCURRENCY || 8),
+    rateLimitPerWindow: Number(process.env.LIBRARY_SYNC_RATE_LIMIT_PER_WINDOW || 40),
+    rateLimitWindowMs: Number(process.env.MEDIA_RATE_LIMIT_WINDOW_MS || 60_000)
+  });
+
   app.get('/me', async (req, res) => {
     const token = getBearerToken(req);
     if (!token) {
@@ -44,16 +56,39 @@ export const registerAccountRoutes = (app: express.Express) => {
       return;
     }
 
-    const nextAccount = await updateAccountLibrary(account.id, req.body);
-    if (!nextAccount) {
-      res.status(404).json({ error: 'account not found' });
+    const retryAfter = librarySyncGuard.checkRateLimit(req);
+    if (retryAfter !== null) {
+      res.setHeader('Retry-After', String(retryAfter));
+      res.status(429).json({ error: 'library sync rate limit exceeded' });
       return;
     }
 
-    res.json({
-      profile: toClientProfile(nextAccount),
-      auditTrail: await getAccountAuditTrail(nextAccount.id)
-    });
+    try {
+      const dedupeKey = `${account.id}:${JSON.stringify(req.body || null)}`;
+      const result = await librarySyncGuard.run(dedupeKey, async () => {
+        const nextAccount = await updateAccountLibrary(account.id, req.body);
+        if (!nextAccount) {
+          const notFound = new Error('account not found');
+          (notFound as Error & { statusCode?: number }).statusCode = 404;
+          throw notFound;
+        }
+        return {
+          profile: toClientProfile(nextAccount),
+          auditTrail: await getAccountAuditTrail(nextAccount.id)
+        };
+      });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof MediaOverloadError) {
+        res.setHeader('Retry-After', String(error.retryAfterSec));
+        res.status(503).json({ error: error.message });
+        return;
+      }
+      const statusCode = (error as Error & { statusCode?: number } | undefined)?.statusCode;
+      res.status(statusCode || 500).json({
+        error: error instanceof Error ? error.message : 'library sync failed'
+      });
+    }
   });
 
   app.get('/me/entitlements', async (req, res) => {

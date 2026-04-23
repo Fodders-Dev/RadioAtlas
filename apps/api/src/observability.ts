@@ -21,12 +21,17 @@ export const recordCatalogFallback = (source: 'snapshot' | 'artifact') => {
   bumpCounter(`catalog_fallback:${source}`);
 };
 
-export const recordClientEvent = (name: string, detail: string | null = null) => {
+export const recordClientEvent = (
+  name: string,
+  detail: string | null = null,
+  meta: Record<string, unknown> | null = null
+) => {
   bumpCounter(`client_event:${name}`);
   appendClientEvent({
     name,
     source: 'server',
     detail,
+    meta,
     ts: Date.now()
   });
 };
@@ -37,7 +42,7 @@ export const installObservability = (app: express.Express) => {
   let lastCpuUsage = process.cpuUsage();
   let lastCpuSampleTs = Date.now();
   const cpuAlertThreshold = Number(process.env.OBSERVABILITY_CPU_ALERT_PERCENT || 85);
-  const runtimeSampler = setInterval(() => {
+  const sampleRuntime = () => {
     const now = Date.now();
     const elapsedMs = Math.max(1, now - lastCpuSampleTs);
     const usage = process.cpuUsage(lastCpuUsage);
@@ -59,7 +64,9 @@ export const installObservability = (app: express.Express) => {
         ts: now
       });
     }
-  }, 30_000);
+  };
+  sampleRuntime();
+  const runtimeSampler = setInterval(sampleRuntime, 30_000);
   runtimeSampler.unref();
 
   app.use((req, res, next) => {
@@ -116,6 +123,10 @@ export const installObservability = (app: express.Express) => {
   app.post('/observability/client-event', (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     const detail = typeof req.body?.detail === 'string' ? req.body.detail.trim() : null;
+    const meta =
+      req.body?.meta && typeof req.body.meta === 'object' && !Array.isArray(req.body.meta)
+        ? (req.body.meta as Record<string, unknown>)
+        : null;
     if (!name) {
       res.status(400).json({ error: 'name is required' });
       return;
@@ -125,6 +136,7 @@ export const installObservability = (app: express.Express) => {
       name,
       source: 'client',
       detail,
+      meta,
       ts: Date.now()
     });
     res.json({ ok: true });

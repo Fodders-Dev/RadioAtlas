@@ -23,6 +23,34 @@ const CONTINENT_ORDER: Array<ContinentId | 'Other'> = [
   'Other'
 ];
 
+const SEARCH_HISTORY_KEY = 'radio:search-history:v1';
+const MAX_SEARCH_HISTORY = 6;
+
+const readSearchHistory = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SEARCH_HISTORY_KEY) || '[]');
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .slice(0, MAX_SEARCH_HISTORY)
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeSearchHistory = (items: string[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(items.slice(0, MAX_SEARCH_HISTORY)));
+  } catch {
+    // ignore storage failures
+  }
+};
+
 type UseStationSearchOptions = {
   compactResults: boolean;
   mergeStations: MergeStationsFn;
@@ -56,6 +84,7 @@ export const useStationSearch = ({
   const [languages, setLanguages] = useState<string[]>(['All']);
   const [continentCounts, setContinentCounts] = useState<SearchContinentCount[]>([]);
   const [featuredCountries, setFeaturedCountries] = useState<CatalogCountryBucket[]>([]);
+  const [recentQueries, setRecentQueries] = useState<string[]>(readSearchHistory);
 
   const searchTokenRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -132,6 +161,23 @@ export const useStationSearch = ({
     if (!showStations) return;
     void runSearch(null, false);
   }, [runSearch, showStations]);
+
+  useEffect(() => {
+    if (!showStations) return;
+    const normalized = debounced.trim();
+    if (normalized.length < 2) return;
+    const timeout = window.setTimeout(() => {
+      setRecentQueries((previous) => {
+        const next = [
+          normalized,
+          ...previous.filter((item) => item.toLowerCase() !== normalized.toLowerCase())
+        ].slice(0, MAX_SEARCH_HISTORY);
+        writeSearchHistory(next);
+        return next;
+      });
+    }, 320);
+    return () => window.clearTimeout(timeout);
+  }, [debounced, showStations]);
 
   useEffect(() => {
     if (!countries.includes(countryFilter)) setCountryFilter('All');
@@ -222,6 +268,19 @@ export const useStationSearch = ({
     setContinentFilter('All');
   }, []);
 
+  const applyRecentQuery = useCallback((value: string) => {
+    setQuery(value);
+    setFiltersOpen(false);
+  }, []);
+
+  const dismissRecentQuery = useCallback((value: string) => {
+    setRecentQueries((previous) => {
+      const next = previous.filter((item) => item !== value);
+      writeSearchHistory(next);
+      return next;
+    });
+  }, []);
+
   return {
     filtersOpen,
     setFiltersOpen,
@@ -248,12 +307,15 @@ export const useStationSearch = ({
     languages,
     continentCounts,
     featuredCountries,
+    recentQueries,
     visibleCountryBuckets,
     featuredTags,
     activeFilterCount,
     activeFilters,
     sentinelRef,
     loadMore,
-    resetSearchScope
+    resetSearchScope,
+    applyRecentQuery,
+    dismissRecentQuery
   };
 };

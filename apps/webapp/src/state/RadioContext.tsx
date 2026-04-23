@@ -324,6 +324,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const nowPlaying = playbackRuntime.nowPlaying;
   const nowPlayingStatus = playbackRuntime.nowPlayingStatus;
   const nowPlayingState = playbackRuntime.nowPlayingState;
+  const fullscreenRetryRef = useRef<number | null>(null);
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -344,6 +345,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     historyCursorRef.current = playbackHistoryCursor;
   }, [playbackHistoryCursor]);
+
+  useEffect(() => {
+    return () => {
+      if (fullscreenRetryRef.current !== null) {
+        window.clearTimeout(fullscreenRetryRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (storedLayout?.version === 3) return;
@@ -1035,6 +1044,19 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     ]);
     setLibraryTab('collections');
   };
+  const toggleCollectionPinned = (collectionId: string) => {
+    setCollections((prev) =>
+      prev.map((collection) =>
+        collection.id !== collectionId
+          ? collection
+          : {
+              ...collection,
+              pinned: !collection.pinned,
+              updatedAt: Date.now()
+            }
+      )
+    );
+  };
   const addStationToCollection = (collectionId: string, station: Station | StationLite) => {
     const lite = toLite(station);
     rememberStations([lite]);
@@ -1261,11 +1283,33 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const winamp = useMemo<WinampState>(
     () => ({
       expanded: winampExpanded,
-      setExpanded: (value) =>
+      setExpanded: (value) => {
+        if (fullscreenRetryRef.current !== null) {
+          window.clearTimeout(fullscreenRetryRef.current);
+          fullscreenRetryRef.current = null;
+        }
         setStoredShellState((prev) => ({
           ...prev,
           playerPresentation: value ? 'expanded' : 'bar'
-        })),
+        }));
+        if (!value) {
+          return;
+        }
+        fullscreenRetryRef.current = window.setTimeout(() => {
+          fullscreenRetryRef.current = null;
+          if (!player.current) {
+            return;
+          }
+          setStoredShellState((prev) =>
+            prev.playerPresentation === 'expanded'
+              ? prev
+              : {
+                  ...prev,
+                  playerPresentation: 'expanded'
+                }
+          );
+        }, 180);
+      },
       compactMode: 'panel',
       setCompactMode: () => {},
       windowPositions: storedLayout.windowPositions,
@@ -1309,7 +1353,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       setSkin,
       selectSkin
     }),
-    [activeSkin, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
+    [activeSkin, player.current, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
   const playbackValue = useMemo<PlaybackContextValue>(
     () => ({
@@ -1360,6 +1404,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearRecent,
       clearTrackHistory,
       createCollection,
+      toggleCollectionPinned,
       addStationToCollection,
       removeStationFromCollection,
       toggleFollowStation,
@@ -1387,6 +1432,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       rememberStations,
       removeStationFromCollection,
       toggleFavorite,
+      toggleCollectionPinned,
       toggleFollowRegion,
       toggleFollowStation,
       trackHistory

@@ -402,7 +402,8 @@ export const ruDictionary = {
     "quickReturnCopy": "Последние станции и текущий эфир всегда остаются рядом.",
     "quickReturnEmpty": "Сначала запусти станцию, и здесь появится быстрый возврат.",
     "resultsTitle": "Выдача",
-    "resultsCopy": "Сейчас загружено {loaded} из {total}."
+    "resultsCopy": "Сейчас загружено {loaded} из {total}.",
+    "recentQueryHint": "Недавний запрос"
   },
   "library": {
     "kicker": "Личное пространство",
@@ -448,6 +449,11 @@ export const ruDictionary = {
     "collectionCount": "Станций: {count}",
     "addCurrentToCollection": "Добавить текущее",
     "removeFromCollection": "Убрать",
+    "pinCollection": "Закрепить",
+    "unpinCollection": "Открепить",
+    "sortPinned": "Закреплённые",
+    "sortRecent": "Свежие",
+    "sortName": "По имени",
     "collectionsEmptyTitle": "Коллекций пока нет",
     "collectionsEmptyCopy": "Создай первую коллекцию для любимых сетов, стран или настроений.",
     "followedStationsTitle": "Подписки на станции",
@@ -482,7 +488,11 @@ export const ruDictionary = {
     "queueOpen": "Открыть очередь",
     "queuePeekEmpty": "Собери очередь из поиска, глобуса или избранного.",
     "copyCurrentTrack": "Копировать текущий трек",
-    "currentTrackUnavailable": "Название трека пока недоступно"
+    "currentTrackUnavailable": "Название трека пока недоступно",
+    "buffering": "Буферизация",
+    "reconnecting": "Переподключение",
+    "fallbackCandidate": "Резервный поток",
+    "externalOpen": "Открыть снаружи"
   },
   "favoritesScreen": {
     "profileTitle": "Профиль",

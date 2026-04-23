@@ -14,6 +14,7 @@ export type ClientEventEntry = {
   name: string;
   source: 'client' | 'server';
   detail: string | null;
+  meta: Record<string, unknown> | null;
   ts: number;
 };
 
@@ -235,7 +236,11 @@ export const appendClientEvent = (entry: ClientEventEntry) => {
   clientEvents.unshift(entry);
   trimList(clientEvents, MAX_CLIENT_EVENTS);
   scheduleFlush();
-  if (entry.name === 'webamp_boot_failed' || entry.name === 'hls_error') {
+  if (
+    entry.name === 'webamp_boot_failed' ||
+    entry.name === 'hls_error' ||
+    entry.name === 'session_sync_error'
+  ) {
     pushAlert({
       kind: 'client-event',
       title: entry.name,

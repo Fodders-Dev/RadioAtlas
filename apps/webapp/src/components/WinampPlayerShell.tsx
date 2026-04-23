@@ -115,7 +115,9 @@ export const WinampPlayerShell = ({
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
     typeof window === 'undefined' ? 'desktop' : getResponsiveExpandedMode()
   );
-  const expandedRef = useRef(winamp.expanded);
+  const liteFullscreenMode = winamp.expanded;
+  const runtimeExpanded = winamp.expanded && !liteFullscreenMode;
+  const expandedRef = useRef(runtimeExpanded);
   const figmaCaptureMode =
     typeof window !== 'undefined' && window.location.hash.includes('figmacapture=');
   const overlayScrollRestoreRef = useRef<number | null>(null);
@@ -123,12 +125,23 @@ export const WinampPlayerShell = ({
   const current = player.current;
 
   useEffect(() => {
-    expandedRef.current = winamp.expanded;
-    if (winamp.expanded && expandRetryRef.current !== null) {
+    expandedRef.current = runtimeExpanded;
+    if (runtimeExpanded && expandRetryRef.current !== null) {
       window.clearTimeout(expandRetryRef.current);
       expandRetryRef.current = null;
     }
-  }, [winamp.expanded]);
+  }, [runtimeExpanded]);
+
+  useEffect(() => {
+    if (!liteFullscreenMode) return;
+    reportClientEvent('winamp_safe_mode', {
+      dedupeKey: `winamp_safe_mode:${current?.stationuuid || 'none'}`,
+      dedupeMs: 15_000,
+      meta: {
+        stationId: current?.stationuuid || null
+      }
+    });
+  }, [current?.stationuuid, liteFullscreenMode]);
 
   useEffect(() => {
     if (recoveredSkinRef.current !== winamp.activeSkin.url) {
@@ -537,7 +550,7 @@ export const WinampPlayerShell = ({
   };
 
   const resetExpandedLayout = () => {
-    if (!winamp.expanded || !webampReady) return;
+    if (!runtimeExpanded || !webampReady) return;
     winamp.resetLayout();
     const mode = getResponsiveExpandedMode();
     setExpandedLayoutMode(mode);
@@ -567,7 +580,7 @@ export const WinampPlayerShell = ({
     return () => {
       delete hostWindow.__radioAtlasWinamp;
     };
-  }, [resetExpandedLayout, webampReady, winamp.expanded]);
+  }, [resetExpandedLayout, runtimeExpanded, webampReady]);
 
   const syncExpandedEqStateFromDom = () => {
     const equalizerWindow = document.querySelector('#equalizer-window') as HTMLElement | null;
@@ -619,13 +632,18 @@ export const WinampPlayerShell = ({
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
-    if (figmaCaptureMode) {
+    if (figmaCaptureMode || liteFullscreenMode) {
       resetBootSurface({
         mountNode,
         setBootError,
         setWebampFailed,
         setWebampReady
       });
+      if (liteFullscreenMode) {
+        setBootError(null);
+        setWebampFailed(false);
+        setWebampReady(false);
+      }
       return;
     }
 
@@ -707,21 +725,21 @@ export const WinampPlayerShell = ({
         webampRef.current = null;
       }
     };
-  }, [bootCycle, figmaCaptureMode, winamp.activeSkin.url]);
+  }, [bootCycle, figmaCaptureMode, liteFullscreenMode, winamp.activeSkin.url]);
 
   useEffect(() => {
     if (!webampReady) return;
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
-    if (winamp.expanded) {
+    if (runtimeExpanded) {
       applyExpandedLayout(mountNode);
       return;
     }
     applyCompactLayout(mountNode);
-  }, [winamp.compactMode, winamp.expanded, webampReady]);
+  }, [runtimeExpanded, webamp.compactMode, webampReady]);
 
   useEffect(() => {
-    if (winamp.expanded || !webampReady) return;
+    if (runtimeExpanded || !webampReady) return;
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
@@ -803,10 +821,10 @@ export const WinampPlayerShell = ({
       window.clearTimeout(lateSyncD);
       window.clearTimeout(lateSyncE);
     };
-  }, [winamp.expanded, webampReady]);
+  }, [runtimeExpanded, webamp.compactMode, webampReady]);
 
   useEffect(() => {
-    if (winamp.expanded || !webampReady) return;
+    if (runtimeExpanded || !webampReady) return;
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
@@ -819,10 +837,10 @@ export const WinampPlayerShell = ({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [current?.stationuuid, player.isPlaying, trackTitle, webampReady, winamp.compactMode, winamp.expanded]);
+  }, [current?.stationuuid, player.isPlaying, runtimeExpanded, trackTitle, webamp.compactMode, webampReady]);
 
   useEffect(() => {
-    if (!winamp.expanded || !webampReady) return;
+    if (!runtimeExpanded || !webampReady) return;
     const syncExpandedLayout = (applyDefaults: boolean) => {
       const mode = getResponsiveExpandedMode();
       setExpandedLayoutMode(mode);
@@ -878,14 +896,14 @@ export const WinampPlayerShell = ({
       window.removeEventListener('orientationchange', onResize);
       document.removeEventListener('click', onExpandedToggle, true);
     };
-  }, [winamp, winamp.expanded, webampReady]);
+  }, [runtimeExpanded, webamp, webampReady]);
 
   useEffect(() => {
-    if (!winamp.expanded || !webampReady) return;
+    if (!runtimeExpanded || !webampReady) return;
 
     let cancelled = false;
     const recoverLayout = () => {
-      if (cancelled || !winamp.expanded) return;
+      if (cancelled || !runtimeExpanded) return;
       recoverExpandedWindows({
         beforeSync: (mode) => {
           ensureExpandedWindowsVisible(mode, true, winamp.windowVisibility);
@@ -906,16 +924,16 @@ export const WinampPlayerShell = ({
       window.clearTimeout(checkA);
       window.clearTimeout(checkB);
     };
-  }, [winamp, winamp.expanded, webampReady, winamp.activeSkin.url]);
+  }, [runtimeExpanded, webampReady, winamp, winamp.activeSkin.url]);
 
   useEffect(() => {
-    if (winamp.expanded || !webampReady) return;
+    if (runtimeExpanded || !webampReady) return;
     const mountNode = compactHostRef.current;
     if (!mountNode) return;
 
     let cancelled = false;
     const recoverLayout = () => {
-      if (cancelled || winamp.expanded) return;
+      if (cancelled || runtimeExpanded) return;
       recoverCompactWindow({
         applyCompactLayout,
         compactRecoveryAttemptsRef,
@@ -935,7 +953,7 @@ export const WinampPlayerShell = ({
       window.clearTimeout(checkB);
       window.clearTimeout(checkC);
     };
-  }, [winamp, winamp.compactMode, winamp.expanded, webampReady, winamp.activeSkin.url]);
+  }, [runtimeExpanded, webamp, webamp.compactMode, webamp.activeSkin.url, webampReady]);
 
   const { quietWebampPlayback } = useWinampTransportSync({
     activeSkinUrl: winamp.activeSkin.url,
@@ -1123,7 +1141,7 @@ export const WinampPlayerShell = ({
       } satisfies React.CSSProperties)
     : undefined;
 
-  const expandedHostStyle = winamp.expanded
+  const expandedHostStyle = runtimeExpanded
     ? ({
         minHeight: '100%',
         width: '100%',
@@ -1149,7 +1167,7 @@ export const WinampPlayerShell = ({
       sourceLabel: t('playlist.historyTitle')
     });
   };
-  const loadingShell = !webampReady ? (
+  const loadingShell = runtimeExpanded && !webampReady ? (
     <div className={`winamp-loading ${winamp.expanded ? 'overlay' : ''}`}>
       {figmaCaptureMode ? (
         t('winamp.figmaPlaceholder')
@@ -1168,12 +1186,35 @@ export const WinampPlayerShell = ({
     </div>
   ) : null;
   const hostNode = <div className="winamp-host compact" style={expandedHostStyle} ref={compactHostRef} />;
+  const liteOverlayHost = (
+    <div className="winamp-lite-host">
+      <div className="winamp-lite-panel" data-winamp-lite-panel="true">
+        <div className="winamp-overlay-card">
+          <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
+          <div className="winamp-overlay-title">{current?.name || t('winamp.noStation')}</div>
+          <div className="winamp-overlay-copy">
+            {player.status === 'buffering'
+              ? t('dock.buffering')
+              : trackTitle || t('winamp.trackUnavailable')}
+          </div>
+        </div>
+        <div className="winamp-overlay-card">
+          <div className="winamp-overlay-label">{t('winamp.nowTuned')}</div>
+          <div className="winamp-overlay-title">{queue.sourceLabel || t('radio.queueDefault')}</div>
+          <div className="winamp-overlay-copy">
+            {t('winamp.queueReady', { count: queue.items.length })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div
       className={`winamp-compact ${winamp.expanded ? 'fullscreen-ui' : ''}`}
       style={expandedShellStyle}
       data-expanded-layout={winamp.expanded ? expandedLayoutMode : undefined}
+      data-winamp-mode={!winamp.expanded ? 'compact' : liteFullscreenMode ? 'lite' : 'full'}
       data-compact-view={!winamp.expanded ? winamp.compactMode : undefined}
       role={winamp.expanded && expandedLayoutMode === 'mobile' ? 'dialog' : undefined}
       aria-modal={winamp.expanded && expandedLayoutMode === 'mobile' ? 'true' : undefined}
@@ -1182,7 +1223,7 @@ export const WinampPlayerShell = ({
         <Suspense
           fallback={
             <div className="winamp-compact-main" style={expandedMainStyle}>
-              {hostNode}
+              {liteFullscreenMode ? liteOverlayHost : hostNode}
               {loadingShell}
             </div>
           }
@@ -1191,7 +1232,7 @@ export const WinampPlayerShell = ({
             actionStrip={actionStrip('overlay')}
             current={current}
             expandedLayoutMode={expandedLayoutMode}
-            host={hostNode}
+            host={liteFullscreenMode ? liteOverlayHost : hostNode}
             loading={loadingShell}
             mainStyle={expandedMainStyle}
             onClose={() => winamp.setExpanded(false)}
@@ -1200,6 +1241,7 @@ export const WinampPlayerShell = ({
             onResetLayout={resetExpandedLayout}
             playbackHistory={playbackHistory}
             queue={queue}
+            showVisualizer={!liteFullscreenMode}
             t={t}
             trackLine={trackLine('overlay')}
             visualizer={player.visualizer}

@@ -29,6 +29,7 @@ type WinampOverlayProps = {
   queue: QueuePreview;
   playbackHistory: StationLite[];
   visualizer: VisualizerState;
+  showVisualizer?: boolean;
   mainStyle?: CSSProperties;
   host: ReactNode;
   loading: ReactNode;
@@ -73,6 +74,7 @@ export default function WinampOverlay({
   onResetLayout,
   playbackHistory,
   queue,
+  showVisualizer = true,
   t,
   trackLine,
   visualizer
@@ -148,26 +150,28 @@ export default function WinampOverlay({
 
       <div className="winamp-overlay-footer">
         <div className="winamp-overlay-summary">
-          <div
-            className="winamp-overlay-card winamp-overlay-visualizer-card"
-            data-active={visualizer.active ? 'true' : 'false'}
-            data-available={visualizer.available ? 'true' : 'false'}
-          >
-            <div className="winamp-overlay-label">{t('winamp.visualizer')}</div>
-            <div className="winamp-overlay-visualizer" aria-hidden="true">
-              <Suspense fallback={null}>
-                <LazyMilkdropVisualizer
-                  active={visualizer.active}
-                  available={visualizer.available}
-                  spectrum={visualizer.spectrum}
-                  waveform={visualizer.waveform}
-                />
-              </Suspense>
+          {showVisualizer ? (
+            <div
+              className="winamp-overlay-card winamp-overlay-visualizer-card"
+              data-active={visualizer.active ? 'true' : 'false'}
+              data-available={visualizer.available ? 'true' : 'false'}
+            >
+              <div className="winamp-overlay-label">{t('winamp.visualizer')}</div>
+              <div className="winamp-overlay-visualizer" aria-hidden="true">
+                <Suspense fallback={null}>
+                  <LazyMilkdropVisualizer
+                    active={visualizer.active}
+                    available={visualizer.available}
+                    spectrum={visualizer.spectrum}
+                    waveform={visualizer.waveform}
+                  />
+                </Suspense>
+              </div>
+              <div className="winamp-overlay-copy">
+                {visualizer.available ? t('winamp.visualizerLive') : t('winamp.visualizerWaiting')}
+              </div>
             </div>
-            <div className="winamp-overlay-copy">
-              {visualizer.available ? t('winamp.visualizerLive') : t('winamp.visualizerWaiting')}
-            </div>
-          </div>
+          ) : null}
           <div className="winamp-overlay-card">
             <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
             <div className="winamp-overlay-title">{currentStationName}</div>

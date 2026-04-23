@@ -18,6 +18,7 @@ import type {
   ListenerAlert
 } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
+import { reportClientEvent } from '../lib/observability';
 import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
@@ -375,6 +376,31 @@ const setStoredToken = (token: string) => {
   }
 };
 
+type SessionTelemetryLibrary = Omit<CloudLibrary, 'updatedAt'> | CloudLibrary | null | undefined;
+
+const readLibraryTelemetryCounts = (library: SessionTelemetryLibrary) => ({
+  favorites: library?.favorites.length || 0,
+  recent: library?.recent.length || 0,
+  trackHistory: library?.trackHistory.length || 0,
+  collections: library?.collections.length || 0,
+  followedStations: library?.followedStations.length || 0,
+  followedRegions: library?.followedRegions.length || 0,
+  alerts: library?.alerts.length || 0
+});
+
+const buildLibraryTelemetrySignature = (library: SessionTelemetryLibrary) => {
+  const counts = readLibraryTelemetryCounts(library);
+  return [
+    counts.favorites,
+    counts.recent,
+    counts.trackHistory,
+    counts.collections,
+    counts.followedStations,
+    counts.followedRegions,
+    counts.alerts
+  ].join(':');
+};
+
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<SessionStatus>('local');
   const [syncState, setSyncState] = useState<SyncState>('idle');
@@ -407,6 +433,102 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   profileRef.current = profile;
   libraryRef.current = library;
 
+  const createSessionTelemetryMeta = useCallback(
+    ({
+      nextStatus,
+      nextSyncState,
+      nextProfile,
+      nextLibrary,
+      queuedLibrary,
+      inFlightLibrary,
+      nextError,
+      nextAccountSheetOpen,
+      extra
+    }: {
+      nextStatus?: SessionStatus;
+      nextSyncState?: SyncState;
+      nextProfile?: SessionProfile | null;
+      nextLibrary?: SessionTelemetryLibrary;
+      queuedLibrary?: SessionTelemetryLibrary;
+      inFlightLibrary?: SessionTelemetryLibrary;
+      nextError?: string | null;
+      nextAccountSheetOpen?: boolean;
+      extra?: Record<string, unknown>;
+    } = {}) => ({
+      status: nextStatus ?? status,
+      syncState: nextSyncState ?? syncState,
+      profileId: (nextProfile ?? profileRef.current)?.id || null,
+      providerCount: (nextProfile ?? profileRef.current)?.providers.length || 0,
+      linkedProviders: (nextProfile ?? profileRef.current)?.linkedProviders || [],
+      premiumStatus: (nextProfile ?? profileRef.current)?.premiumStatus || 'free',
+      libraryCounts: readLibraryTelemetryCounts(nextLibrary ?? libraryRef.current),
+      queuedLibraryCounts: readLibraryTelemetryCounts(
+        queuedLibrary ?? queuedCloudLibraryRef.current
+      ),
+      inFlightLibraryCounts: readLibraryTelemetryCounts(
+        inFlightLibrary ?? inFlightCloudLibraryRef.current
+      ),
+      accountSheetOpen: nextAccountSheetOpen ?? accountSheetOpen,
+      telegramMiniApp,
+      canUseCloud,
+      apiConfigured: Boolean(apiBase),
+      hasError: Boolean(nextError ?? error),
+      ...(extra || {})
+    }),
+    [accountSheetOpen, apiBase, canUseCloud, error, status, syncState, telegramMiniApp]
+  );
+
+  const reportSessionEvent = useCallback(
+    (
+      name: string,
+      {
+        detail = null,
+        dedupeKey = name,
+        dedupeMs,
+        nextStatus,
+        nextSyncState,
+        nextProfile,
+        nextLibrary,
+        queuedLibrary,
+        inFlightLibrary,
+        nextError,
+        nextAccountSheetOpen,
+        extra
+      }: {
+        detail?: string | null;
+        dedupeKey?: string | null;
+        dedupeMs?: number;
+        nextStatus?: SessionStatus;
+        nextSyncState?: SyncState;
+        nextProfile?: SessionProfile | null;
+        nextLibrary?: SessionTelemetryLibrary;
+        queuedLibrary?: SessionTelemetryLibrary;
+        inFlightLibrary?: SessionTelemetryLibrary;
+        nextError?: string | null;
+        nextAccountSheetOpen?: boolean;
+        extra?: Record<string, unknown>;
+      } = {}
+    ) => {
+      reportClientEvent(name, {
+        detail,
+        dedupeKey,
+        dedupeMs,
+        meta: createSessionTelemetryMeta({
+          nextStatus,
+          nextSyncState,
+          nextProfile,
+          nextLibrary,
+          queuedLibrary,
+          inFlightLibrary,
+          nextError,
+          nextAccountSheetOpen,
+          extra
+        })
+      });
+    },
+    [createSessionTelemetryMeta]
+  );
+
   const resetCloudLibrarySyncQueue = useCallback(() => {
     queuedCloudLibraryRef.current = null;
     inFlightCloudLibraryRef.current = null;
@@ -424,7 +546,14 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
-  const applySessionPayload = useCallback((payload: SessionPayload) => {
+  const applySessionPayload = useCallback((
+    payload: SessionPayload,
+    options?: {
+      closeAccountSheet?: boolean;
+    }
+  ) => {
+    const closeAccountSheet = options?.closeAccountSheet ?? true;
+    const mappedProfile = mapProfile(payload.profile);
     setStoredToken(payload.token);
     resetCloudLibrarySyncQueue();
     applySessionSnapshot(payload.profile, payload.auditTrail);
@@ -432,8 +561,21 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setSyncState('synced');
     setError(null);
     setPendingLinkAction(null);
-    setAccountSheetOpen(false);
-  }, [applySessionSnapshot, resetCloudLibrarySyncQueue]);
+    setAccountSheetOpen((previous) => (closeAccountSheet ? false : previous));
+    reportSessionEvent('session_authenticated', {
+      detail: mappedProfile.id,
+      dedupeKey: `session_authenticated:${mappedProfile.id}:${payload.profile.library.updatedAt}`,
+      nextStatus: 'authenticated',
+      nextSyncState: 'synced',
+      nextProfile: mappedProfile,
+      nextLibrary: payload.profile.library,
+      nextError: null,
+      nextAccountSheetOpen: closeAccountSheet ? false : accountSheetOpen,
+      extra: {
+        auditTrailCount: payload.auditTrail.length
+      }
+    });
+  }, [accountSheetOpen, applySessionSnapshot, reportSessionEvent, resetCloudLibrarySyncQueue]);
 
   const fetchProfile = useCallback(
     async (token: string) => {
@@ -454,6 +596,15 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
             setStatus('local');
             setSyncState('idle');
             setError(null);
+            reportSessionEvent('session_invalidated', {
+              detail: `refresh:${response.status}`,
+              dedupeKey: `session_invalidated:${response.status}`,
+              nextStatus: 'local',
+              nextSyncState: 'idle',
+              nextProfile: null,
+              nextLibrary: null,
+              nextError: null
+            });
             return false;
           }
           throw new Error(`profile load failed (${response.status})`);
@@ -463,6 +614,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           token,
           profile: data.profile,
           auditTrail: data.auditTrail || []
+        }, {
+          closeAccountSheet: false
         });
         return true;
       } catch (err) {
@@ -472,11 +625,22 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         setLibrary(null);
         setAuditTrail([]);
         setStatus(apiBase ? 'error' : 'local');
-        setError(err instanceof Error ? err.message : 'profile load failed');
+        const message = err instanceof Error ? err.message : 'profile load failed';
+        setError(message);
+        reportSessionEvent('session_refresh_error', {
+          detail: message,
+          dedupeKey: `session_refresh_error:${message}`,
+          dedupeMs: 15_000,
+          nextStatus: apiBase ? 'error' : 'local',
+          nextError: message,
+          extra: {
+            phase: 'refresh'
+          }
+        });
         return false;
       }
     },
-    [apiBase, applySessionPayload, resetCloudLibrarySyncQueue]
+    [apiBase, applySessionPayload, reportSessionEvent, resetCloudLibrarySyncQueue]
   );
 
   const createLinkCode = useCallback(async (mergeStrategy: LibraryMergeStrategy = 'combine') => {
@@ -891,6 +1055,17 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     queuedCloudLibraryRef.current = null;
     inFlightCloudLibraryRef.current = requestLibrary;
     setSyncState('syncing');
+    reportSessionEvent('session_sync_start', {
+      detail: profileRef.current.id,
+      dedupeKey: `session_sync_start:${profileRef.current.id}:${buildLibraryTelemetrySignature(requestLibrary)}`,
+      dedupeMs: 2_000,
+      nextSyncState: 'syncing',
+      inFlightLibrary: requestLibrary,
+      queuedLibrary: null,
+      extra: {
+        phase: 'cloud-library'
+      }
+    });
 
     const promise = (async () => {
       try {
@@ -916,9 +1091,35 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         applySessionSnapshot(data.profile, data.auditTrail);
         setSyncState('synced');
         setError(null);
+        reportSessionEvent('session_sync_success', {
+          detail: data.profile.id,
+          dedupeKey: `session_sync_success:${data.profile.id}:${data.profile.library.updatedAt}`,
+          nextSyncState: 'synced',
+          nextProfile: mapProfile(data.profile),
+          nextLibrary: data.profile.library,
+          queuedLibrary: queuedCloudLibraryRef.current,
+          inFlightLibrary: null,
+          nextError: null,
+          extra: {
+            phase: 'cloud-library',
+            auditTrailCount: data.auditTrail?.length || 0
+          }
+        });
       } catch (err) {
         setSyncState('error');
-        setError(err instanceof Error ? err.message : 'library sync failed');
+        const message = err instanceof Error ? err.message : 'library sync failed';
+        setError(message);
+        reportSessionEvent('session_sync_error', {
+          detail: message,
+          dedupeKey: `session_sync_error:${message}:${buildLibraryTelemetrySignature(requestLibrary)}`,
+          dedupeMs: 15_000,
+          nextSyncState: 'error',
+          inFlightLibrary: requestLibrary,
+          nextError: message,
+          extra: {
+            phase: 'cloud-library'
+          }
+        });
       } finally {
         inFlightCloudLibraryRef.current = null;
         cloudLibrarySyncPromiseRef.current = null;
@@ -929,6 +1130,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         }
         if (cloudLibraryMatches(libraryRef.current, queuedLibrary)) {
           queuedCloudLibraryRef.current = null;
+          reportSessionEvent('session_sync_noop', {
+            dedupeKey: `session_sync_noop:${profileRef.current?.id || 'guest'}:${buildLibraryTelemetrySignature(queuedLibrary)}`,
+            dedupeMs: 10_000,
+            queuedLibrary: queuedLibrary,
+            inFlightLibrary: null
+          });
           return;
         }
         void flushCloudLibrarySync();
@@ -937,7 +1144,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
     cloudLibrarySyncPromiseRef.current = promise;
     return promise;
-  }, [apiBase, applySessionSnapshot, resetCloudLibrarySyncQueue]);
+  }, [apiBase, applySessionSnapshot, reportSessionEvent, resetCloudLibrarySyncQueue]);
 
   const replaceCloudLibrary = useCallback(
     async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
@@ -948,12 +1155,17 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         cloudLibraryMatches(queuedCloudLibraryRef.current, nextLibrary) ||
         cloudLibraryMatches(inFlightCloudLibraryRef.current, nextLibrary)
       ) {
+        reportSessionEvent('session_sync_skipped', {
+          dedupeKey: `session_sync_skipped:${profileRef.current.id}:${buildLibraryTelemetrySignature(nextLibrary)}`,
+          dedupeMs: 15_000,
+          nextLibrary
+        });
         return cloudLibrarySyncPromiseRef.current ?? Promise.resolve();
       }
       queuedCloudLibraryRef.current = nextLibrary;
       return flushCloudLibrarySync();
     },
-    [apiBase, flushCloudLibrarySync]
+    [apiBase, flushCloudLibrarySync, reportSessionEvent]
   );
 
   const updateCollections = useCallback(
@@ -1111,13 +1323,34 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     setPendingLinkAction(null);
     setAccountSheetOpen(false);
-  }, [resetCloudLibrarySyncQueue]);
+    reportSessionEvent('session_signed_out', {
+      dedupeKey: `session_signed_out:${profileRef.current?.id || 'guest'}`,
+      nextStatus: 'local',
+      nextSyncState: 'idle',
+      nextProfile: null,
+      nextLibrary: null,
+      nextError: null,
+      nextAccountSheetOpen: false
+    });
+  }, [reportSessionEvent, resetCloudLibrarySyncQueue]);
 
   const refreshSession = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return false;
     return fetchProfile(token);
   }, [fetchProfile]);
+
+  const fetchProfileRef = useRef(fetchProfile);
+  const signInWithTelegramRef = useRef(signInWithTelegram);
+  const bootstrapSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetchProfileRef.current = fetchProfile;
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    signInWithTelegramRef.current = signInWithTelegram;
+  }, [signInWithTelegram]);
 
   const confirmPendingLink = useCallback(async () => {
     if (!pendingLinkAction) return;
@@ -1204,6 +1437,19 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
     window.open(target, '_blank', 'noopener,noreferrer');
   }, [setError]);
+
+  useEffect(() => {
+    reportSessionEvent('session_state', {
+      dedupeKey: `session_state:${status}:${syncState}:${profile?.id || 'guest'}:${buildLibraryTelemetrySignature(library)}`,
+      dedupeMs: 30_000,
+      nextStatus: status,
+      nextSyncState: syncState,
+      nextProfile: profile,
+      nextLibrary: library,
+      nextError: error,
+      nextAccountSheetOpen: accountSheetOpen
+    });
+  }, [accountSheetOpen, error, library, profile, reportSessionEvent, status, syncState]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1310,24 +1556,30 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!apiBase) {
+      bootstrapSignatureRef.current = null;
       setStatus('local');
       return;
     }
 
     const token = getStoredToken();
+    const bootstrapSignature = `${apiBase}|${telegramRuntime.initData || ''}|${token}`;
+    if (bootstrapSignatureRef.current === bootstrapSignature) {
+      return;
+    }
+    bootstrapSignatureRef.current = bootstrapSignature;
 
     if (telegramRuntime.initData) {
-      void signInWithTelegram();
+      void signInWithTelegramRef.current();
       return;
     }
 
     if (token) {
-      void fetchProfile(token);
+      void fetchProfileRef.current(token);
       return;
     }
 
     setStatus('local');
-  }, [apiBase, fetchProfile, signInWithTelegram, telegramRuntime.initData]);
+  }, [apiBase, telegramRuntime.initData]);
 
   useEffect(() => {
     if (!apiBase || !accountSheetOpen) {

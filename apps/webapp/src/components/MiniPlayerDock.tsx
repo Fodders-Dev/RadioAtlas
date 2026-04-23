@@ -55,14 +55,43 @@ export const MiniPlayerDock = () => {
       ? t('dock.liveNow')
       : t('dock.ready');
   const activeTrack = nowPlaying?.trim() || '';
+  const playbackState =
+    current && player.status === 'buffering'
+      ? {
+          label:
+            player.transport.recentFailures.length > 0
+              ? t('dock.reconnecting')
+              : t('dock.buffering'),
+          tone: 'warning'
+        }
+      : current &&
+          player.failure &&
+          ['mixed-content', 'api-unavailable', 'unsupported-transport'].includes(
+            player.failure.kind
+          )
+        ? {
+            label: t('dock.externalOpen'),
+            tone: 'warning'
+          }
+        : current && player.transport.activeCandidate?.isFallback
+          ? {
+              label: t('dock.fallbackCandidate'),
+              tone: 'accent'
+            }
+          : null;
   const stationTitle = current?.name || t('dock.emptyTitle');
   const trackTitle = activeTrack
     ? activeTrack
     : current
-      ? nowPlayingStatus === 'loading'
-        ? t('common.loading')
-        : t('dock.currentTrackUnavailable')
+      ? player.status === 'buffering'
+        ? playbackState?.label || t('common.loading')
+        : nowPlayingStatus === 'loading'
+          ? t('common.loading')
+          : t('dock.currentTrackUnavailable')
       : t('dock.emptySubtitle');
+  const trackAriaLabel = activeTrack
+    ? t('dock.copyCurrentTrack')
+    : playbackState?.label || trackTitle;
   const volumePercent = Math.round(player.volume * 100);
 
   useEffect(() => {
@@ -274,6 +303,9 @@ export const MiniPlayerDock = () => {
         >
           <div className="player-dock-title">{stationTitle}</div>
         </button>
+        {playbackState ? (
+          <div className={`player-dock-status-pill is-${playbackState.tone}`}>{playbackState.label}</div>
+        ) : null}
         <button
           className={`player-dock-track-button ${activeTrack ? 'active' : ''}`}
           type="button"
@@ -283,8 +315,8 @@ export const MiniPlayerDock = () => {
             }
           }}
           disabled={!activeTrack}
-          aria-label={activeTrack ? t('dock.copyCurrentTrack') : trackTitle}
-          title={activeTrack ? t('dock.copyCurrentTrack') : trackTitle}
+          aria-label={trackAriaLabel}
+          title={trackAriaLabel}
         >
           <span className="player-dock-track-button-text">{trackTitle}</span>
           {activeTrack ? (

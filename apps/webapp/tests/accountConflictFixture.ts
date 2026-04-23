@@ -1,4 +1,4 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 import {
   ACCOUNT_FIXTURE_API_BASE,
   installGoogleAuthFixture,
@@ -28,13 +28,24 @@ export const seedConflictFixture = async (
   apiBase: string,
   mergeStrategy: ConflictMergeStrategy = 'combine'
 ) => {
-  const response = await request.post(`${apiBase}/test/auth/seed-conflict`, {
-    data: { mergeStrategy }
-  });
-  if (!response.ok()) {
-    throw new Error(`seed conflict fixture failed (${response.status()})`);
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await request.post(`${apiBase}/test/auth/seed-conflict`, {
+        data: { mergeStrategy }
+      });
+      if (!response.ok()) {
+        throw new Error(`seed conflict fixture failed (${response.status()})`);
+      }
+      return (await response.json()) as ConflictSeed;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      }
+    }
   }
-  return (await response.json()) as ConflictSeed;
+  throw lastError || new Error('seed conflict fixture failed');
 };
 
 export const applyConflictSession = async (
@@ -51,7 +62,14 @@ export const applyConflictSession = async (
 
 export const openConflictPreview = async (page: Page, mergeButtonLabel: string) => {
   await page.goto(`/?api=${encodeURIComponent(ACCOUNT_FIXTURE_API_BASE)}`);
-  await page.locator('.app-topbar-primary-cta').click();
+  const accountButton = page.locator('.app-topbar-primary-cta');
+  await accountButton.waitFor({ state: 'visible' });
+  await expect(accountButton).toHaveAttribute('aria-label', /Аккаунт/);
+  await expect(accountButton).toHaveClass(/is-live/);
+  await accountButton.click({ force: true });
+  if (!(await page.locator('.account-sheet-panel').isVisible().catch(() => false))) {
+    await accountButton.click({ force: true });
+  }
   await page.locator('.account-sheet-panel').waitFor({ state: 'visible' });
   await page.getByRole('button', { name: mergeButtonLabel }).click();
   await page.locator('.google-fixture-btn').click();

@@ -170,6 +170,13 @@ test('billing, metadata, stream and extractor smokes return stable error contrac
   assert.equal(streamResponse.status, 400);
   assert.equal(stream.error, 'url is required');
 
+  const imageFallbackResponse = await fetch(
+    `${baseUrl}/image?url=${encodeURIComponent('http://127.0.0.1:9/logo.png')}`
+  );
+  assert.equal(imageFallbackResponse.status, 200);
+  assert.match(imageFallbackResponse.headers.get('content-type') || '', /image\/svg\+xml/);
+  assert.equal(imageFallbackResponse.headers.get('x-radioatlas-fallback'), 'artwork-unavailable');
+
   const { response: extractResponse, body: extract } = await getJson(
     '/extract?url=https%3A%2F%2Fexample.com'
   );
@@ -185,7 +192,11 @@ test('observability exposes persisted JSON and prometheus views', async () => {
     },
     body: JSON.stringify({
       name: 'visual_regression_ping',
-      detail: 'contract-test'
+      detail: 'contract-test',
+      meta: {
+        scope: 'contracts',
+        count: 3
+      }
     })
   });
   assert.equal(clientEventResponse.status, 200);
@@ -194,6 +205,7 @@ test('observability exposes persisted JSON and prometheus views', async () => {
   assert.equal(typeof observability.counters['client_event:visual_regression_ping'], 'number');
   assert.equal(typeof observability.gauges['runtime:process_cpu_percent'], 'number');
   assert.ok(Array.isArray(observability.clientEvents));
+  assert.equal(observability.clientEvents[0]?.meta?.scope, 'contracts');
   assert.ok(Array.isArray(observability.alerts));
   assert.ok(Array.isArray(observability.latency));
   assert.equal(typeof observability.persistence.storePath, 'string');

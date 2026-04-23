@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 const PORT = 5173;
 const API_PORT = 4311;
 const ACCOUNT_STORE_PATH = fileURLToPath(new URL('../api/data/playwright-account-store.sqlite', import.meta.url));
+const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI;
 
 export default defineConfig({
   testDir: './tests',
@@ -19,7 +20,7 @@ export default defineConfig({
     {
       command: 'npm --prefix ../api run dev',
       url: `http://127.0.0.1:${API_PORT}/health`,
-      reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
+      reuseExistingServer: REUSE_EXISTING_SERVER,
       stdout: 'pipe',
       stderr: 'pipe',
       env: {
@@ -33,7 +34,7 @@ export default defineConfig({
     {
       command: `npm run dev -- --host --port ${PORT}`,
       url: `http://127.0.0.1:${PORT}`,
-      reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
+      reuseExistingServer: REUSE_EXISTING_SERVER,
       stdout: 'pipe',
       stderr: 'pipe',
       env: {

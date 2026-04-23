@@ -23,7 +23,8 @@ test('desktop shell keeps navigation, queue, and expanded winamp flow intact', a
 
   await page.getByRole('button', { name: 'Winamp' }).click();
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
-  await expect(page.locator('#webamp')).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
+  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
 
   await page.evaluate(() => {
     (document.querySelector('.winamp-overlay-header .winamp-close-btn') as HTMLButtonElement | null)?.click();

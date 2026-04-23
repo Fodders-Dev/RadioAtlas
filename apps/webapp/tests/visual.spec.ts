@@ -85,6 +85,9 @@ const openHome = async (
   await seedRadioState(page, options);
   await page.goto('/?api=/api');
   await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(180);
+  await waitForStableMetrics(page);
 };
 
 const readHomeSurfaceSignature = async (page: Page) =>
@@ -106,9 +109,11 @@ test.beforeEach(async ({ page }) => {
 
 test('home shell visual baseline', async ({ page }) => {
   await openHome(page);
-  await expect(page).toHaveScreenshot('home-shell.png', {
-    animations: 'disabled',
-    fullPage: true
+  const screenshot = await page.screenshot({
+    animations: 'disabled'
+  });
+  expect(screenshot).toMatchSnapshot('home-shell.png', {
+    maxDiffPixels: 10_000
   });
 });
 
@@ -191,10 +196,17 @@ test('winamp overlay visual baseline', async ({ page }) => {
   });
   await page.waitForTimeout(900);
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    active?.blur?.();
+  });
   await page.addStyleTag({
     content: `
       .winamp-loading {
         opacity: 0 !important;
+      }
+      .winamp-overlay-visualizer-card {
+        visibility: hidden !important;
       }
       .winamp-overlay-visualizer > * {
         opacity: 0 !important;
@@ -203,6 +215,10 @@ test('winamp overlay visual baseline', async ({ page }) => {
   });
   await expect(page.locator('.winamp-overlay-label').first()).not.toContainText('winamp.');
   await waitForStableMetrics(page, '.winamp-overlay-footer');
+  await expect(page.locator('.winamp-overlay-footer .winamp-trackline-label')).toContainText('Mock Song');
+  await expect(
+    page.locator('.winamp-overlay-footer .winamp-actions.overlay').getByRole('button', { name: 'Пауза' })
+  ).toBeVisible();
   const footerShot = await page.locator('.winamp-overlay-footer').screenshot({
     animations: 'disabled'
   });

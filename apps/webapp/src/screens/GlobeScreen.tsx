@@ -97,6 +97,18 @@ export const GlobeScreen = () => {
   const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
   const selectedArea = selectedAreaId ? areaById.get(selectedAreaId) || null : null;
   const selectedStations = selectedArea ? areaStationCache[selectedArea.id] || [] : [];
+  const globePoints = useMemo(
+    () =>
+      areas.map((area) => ({
+        id: area.id,
+        lat: area.lat,
+        lon: area.lon,
+        label: area.label,
+        subtitle: area.subtitle,
+        count: area.count
+      })),
+    [areas]
+  );
 
   const activeAreaId = useMemo(() => {
     if (!player.current) return undefined;
@@ -178,14 +190,7 @@ export const GlobeScreen = () => {
         <div className="globe-command-map">
           <Suspense fallback={<div className="globe globe-loading-surface" />}>
             <Globe
-              points={areas.map((area) => ({
-                id: area.id,
-                lat: area.lat,
-                lon: area.lon,
-                label: area.label,
-                subtitle: area.subtitle,
-                count: area.count
-              }))}
+              points={globePoints}
               activeId={activeAreaId}
               selectedId={selectedAreaId || undefined}
               focusPoint={focusPoint ?? undefined}
@@ -290,13 +295,23 @@ export const GlobeScreen = () => {
             {selectedAreaLoading && !selectedStations.length ? (
               <div className="empty-state">{t('common.loading')}</div>
             ) : selectedStations.length ? (
-              <StationTable stations={focusStations} compact sourceId="globe-area" />
+              <StationTable
+                stations={focusStations}
+                compact
+                sourceId="globe-area"
+                nowPlayingMode="viewport"
+              />
             ) : (
               <div className="empty-state">{t('stationTable.empty')}</div>
             )}
           </>
         ) : focusStations.length ? (
-          <StationTable stations={focusStations} compact sourceId="globe-fallback-picks" />
+          <StationTable
+            stations={focusStations}
+            compact
+            sourceId="globe-fallback-picks"
+            nowPlayingMode="viewport"
+          />
         ) : (
           <div className="empty-state">{t('globe.tapArea')}</div>
         )}

@@ -117,7 +117,12 @@ export const Globe = ({
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const next = { width: rect.width, height: rect.height };
-      setSize(next);
+      setSize((previous) =>
+        Math.abs(previous.width - next.width) < 0.5 &&
+        Math.abs(previous.height - next.height) < 0.5
+          ? previous
+          : next
+      );
     };
 
     updateSize();
@@ -152,9 +157,15 @@ export const Globe = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, deviceProfile.lowPower ? 1.1 : 1.5);
-      canvas.width = size.width * dpr;
-      canvas.height = size.height * dpr;
+      const dpr = Math.min(window.devicePixelRatio || 1, deviceProfile.lowPower ? 1 : 1.35);
+      const pixelWidth = Math.max(1, Math.round(size.width * dpr));
+      const pixelHeight = Math.max(1, Math.round(size.height * dpr));
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const baseRadius = Math.min(size.width, size.height) * 0.42;
@@ -208,8 +219,6 @@ export const Globe = ({
       };
       const trimLabel = (value: string, maxLength: number) =>
         value.length > maxLength ? `${value.slice(0, Math.max(1, maxLength - 1))}\u2026` : value;
-      ctx.clearRect(0, 0, size.width, size.height);
-
       const oceanGradient = ctx.createRadialGradient(
         size.width * 0.26,
         size.height * 0.24,

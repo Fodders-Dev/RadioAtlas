@@ -136,6 +136,8 @@ export const useAudioPlayer = ({
   const playbackSessionRef = useRef(0);
   const candidateStartedAtRef = useRef(0);
   const candidateHasPlayedRef = useRef(false);
+  const statusRef = useRef<PlayerStatus>('idle');
+  const isPlayingRef = useRef(false);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
@@ -159,6 +161,42 @@ export const useAudioPlayer = ({
     if (onEvent) onEvent(message);
   };
 
+  const reportPlaybackEvent = (
+    name: string,
+    {
+      detail = null,
+      dedupeKey = null,
+      dedupeMs,
+      meta
+    }: {
+      detail?: string | null;
+      dedupeKey?: string | null;
+      dedupeMs?: number;
+      meta?: Record<string, unknown>;
+    } = {}
+  ) => {
+    const station = requestedStationRef.current || currentRef.current;
+    const activeCandidate = activeCandidateRef.current;
+    reportClientEvent(name, {
+      detail,
+      dedupeKey,
+      dedupeMs,
+      meta: {
+        playbackSession: playbackSessionRef.current,
+        stationId: station?.stationuuid || null,
+        stationName: station?.name || null,
+        status: statusRef.current,
+        isPlaying: isPlayingRef.current,
+        activeCandidateMode: activeCandidate?.mode || null,
+        activeCandidateFallback: Boolean(activeCandidate?.isFallback),
+        candidateCount: candidatesRef.current.length,
+        candidateIndex: candidateIndexRef.current,
+        failureCount: candidateFailuresRef.current.length,
+        ...(meta || {})
+      }
+    });
+  };
+
   const clearReconnect = () => {
     if (reconnectRef.current.timer !== null) {
       window.clearTimeout(reconnectRef.current.timer);
@@ -178,6 +216,17 @@ export const useAudioPlayer = ({
       window.clearTimeout(waitingTimeoutRef.current);
       waitingTimeoutRef.current = null;
     }
+  };
+
+  const syncAudioDiagnosticsData = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const activeCandidate = activeCandidateRef.current;
+    audio.dataset.raTransportMode = activeCandidate?.mode || '';
+    audio.dataset.raTransportFallback = activeCandidate?.isFallback ? 'true' : 'false';
+    audio.dataset.raTransportUrl = activeCandidate?.sourceUrl || '';
+    audio.dataset.raTransportCandidateCount = String(candidatesRef.current.length || 0);
+    audio.dataset.raTransportCandidateIndex = String(candidateIndexRef.current);
   };
 
   const cleanupHls = () => {
@@ -340,8 +389,26 @@ export const useAudioPlayer = ({
     candidateFailuresRef.current = [...candidateFailuresRef.current, nextFailure].slice(-8);
     lastErrorRef.current = error;
     pushEvent(`playback: candidate failed (${phase}) ${url} :: ${error}`);
+    reportPlaybackEvent('audio_candidate_failed', {
+      detail: error,
+      dedupeKey: `audio_candidate_failed:${playbackSessionRef.current}:${phase}:${url.split(/[?#]/, 1)[0]}`,
+      dedupeMs: 15_000,
+      meta: {
+        phase,
+        url: url.split(/[?#]/, 1)[0],
+        failureKind: nextFailure.kind
+      }
+    });
     if (isHls(url)) {
-      reportClientEvent('hls_error', `hls_error:${phase}:${url.split(/[?#]/, 1)[0]}`);
+      reportClientEvent('hls_error', {
+        detail: error,
+        dedupeKey: `hls_error:${phase}:${url.split(/[?#]/, 1)[0]}`,
+        dedupeMs: 15_000,
+        meta: {
+          phase,
+          url: url.split(/[?#]/, 1)[0]
+        }
+      });
     }
   };
 
@@ -402,9 +469,23 @@ export const useAudioPlayer = ({
         }
         activeUrlRef.current = nextUrl;
         activeCandidateRef.current = nextCandidate;
+        syncAudioDiagnosticsData();
         setErrorMessage(null);
         setPlaybackFailure(null);
         lastErrorRef.current = null;
+        if (index > startIndex || nextCandidate.isFallback) {
+          reportPlaybackEvent('audio_fallback_candidate', {
+            detail: nextCandidate.label,
+            dedupeKey: `audio_fallback_candidate:${sessionId}:${nextUrl.split(/[?#]/, 1)[0]}`,
+            dedupeMs: 10_000,
+            meta: {
+              candidateIndex: index,
+              candidateMode: nextCandidate.mode,
+              fallback: nextCandidate.isFallback,
+              sourceUrl: nextCandidate.sourceUrl.split(/[?#]/, 1)[0]
+            }
+          });
+        }
         return { ok: true };
       } catch (error) {
         if (!isSessionCurrent(sessionId)) {
@@ -452,6 +533,15 @@ export const useAudioPlayer = ({
 
     reconnectRef.current.attempts += 1;
     const delay = Math.min(15000, 2000 * reconnectRef.current.attempts);
+    reportPlaybackEvent('audio_reconnect_scheduled', {
+      detail: String(reconnectRef.current.attempts),
+      dedupeKey: `audio_reconnect_scheduled:${sessionId}:${reconnectRef.current.attempts}`,
+      dedupeMs: 2_000,
+      meta: {
+        attempt: reconnectRef.current.attempts,
+        delayMs: delay
+      }
+    });
     reconnectRef.current.timer = window.setTimeout(async () => {
       reconnectRef.current.timer = null;
       if (!isSessionCurrent(sessionId)) {
@@ -462,6 +552,13 @@ export const useAudioPlayer = ({
         if (!result.ok) {
           throw new Error(result.error || 'reconnect failed');
         }
+        reportPlaybackEvent('audio_reconnect_recovered', {
+          dedupeKey: `audio_reconnect_recovered:${sessionId}:${reconnectRef.current.attempts}`,
+          dedupeMs: 5_000,
+          meta: {
+            attempt: reconnectRef.current.attempts
+          }
+        });
       } catch {
         if (isSessionCurrent(sessionId)) {
           scheduleReconnect(sessionId);
@@ -494,6 +591,14 @@ export const useAudioPlayer = ({
   }, [current]);
 
   useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     const leanPlayback = shouldUseLeanPlaybackMode();
@@ -515,6 +620,9 @@ export const useAudioPlayer = ({
     }
     if (leanPlayback) {
       pushEvent('audio: lean playback mode enabled');
+      reportPlaybackEvent('audio_lean_playback_mode', {
+        dedupeKey: 'audio_lean_playback_mode'
+      });
     }
 
     const handlePlaying = () => {
@@ -532,6 +640,10 @@ export const useAudioPlayer = ({
       clearReconnect();
       clearWaitingTimeout();
       pushEvent('audio: playing');
+      reportPlaybackEvent('audio_playing', {
+        dedupeKey: `audio_playing:${playbackSessionRef.current}:${requestedStation?.stationuuid || currentRef.current?.stationuuid || 'unknown'}`,
+        dedupeMs: 4_000
+      });
       if ('mediaSession' in navigator) {
         try {
           navigator.mediaSession.setPositionState({
@@ -574,9 +686,17 @@ export const useAudioPlayer = ({
               }
               if (switched) {
                 pushEvent('audio: prolonged buffering, switched candidate');
+                reportPlaybackEvent('audio_buffering_candidate_switch', {
+                  dedupeKey: `audio_buffering_candidate_switch:${activeSession}`,
+                  dedupeMs: 5_000
+                });
                 return;
               }
               pushEvent('audio: prolonged buffering, reconnecting...');
+              reportPlaybackEvent('audio_buffering_reconnect', {
+                dedupeKey: `audio_buffering_reconnect:${activeSession}`,
+                dedupeMs: 5_000
+              });
               scheduleReconnect(activeSession);
             });
           }
@@ -622,7 +742,14 @@ export const useAudioPlayer = ({
       if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
         setIsPlaying(false);
-        scheduleReconnect(activeSession);
+        tryNextCandidate(activeSession).then((switched) => {
+          if (!isSessionCurrent(activeSession) || (!requestedStationRef.current && !currentRef.current)) {
+            return;
+          }
+          if (!switched) {
+            scheduleReconnect(activeSession);
+          }
+        });
       }
       pushEvent('audio: ended');
     };
@@ -637,7 +764,22 @@ export const useAudioPlayer = ({
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
+        reportPlaybackEvent('audio_background_resume_attempt', {
+          dedupeKey: `audio_background_resume_attempt:${playbackSessionRef.current}`,
+          dedupeMs: 5_000,
+          meta: {
+            visibility: 'hidden'
+          }
+        });
         audio.play().catch(() => {});
+      } else {
+        reportPlaybackEvent('audio_visibility_change', {
+          dedupeKey: `audio_visibility_change:${playbackSessionRef.current}:${document.visibilityState}`,
+          dedupeMs: 5_000,
+          meta: {
+            visibility: document.visibilityState
+          }
+        });
       }
       pushEvent(`visibility: ${document.visibilityState}`);
     };
@@ -889,6 +1031,13 @@ export const useAudioPlayer = ({
     if (shouldCheckApi && apiBase && !apiAvailable) {
       pushEvent('api: unavailable');
       markApiUnavailable(apiBase);
+      reportPlaybackEvent('audio_api_unavailable', {
+        dedupeKey: `audio_api_unavailable:${apiBase}`,
+        dedupeMs: 30_000,
+        meta: {
+          apiBase
+        }
+      });
     }
 
     requestedStationRef.current = resolvedStation;
@@ -919,6 +1068,7 @@ export const useAudioPlayer = ({
     candidatePlanRef.current = candidatePlan;
     candidatesRef.current = candidatePlan.candidates;
     candidateIndexRef.current = 0;
+    syncAudioDiagnosticsData();
     if (!candidatesRef.current.length) {
       if (!isSessionCurrent(playbackSession)) {
         return { ok: false, error: PLAYBACK_SUPERSEDED };
@@ -931,6 +1081,16 @@ export const useAudioPlayer = ({
       setStatus('error');
       setPlaybackFailure(failure);
       setErrorMessage(failure.message);
+      reportPlaybackEvent('audio_no_playable_candidate', {
+        detail: failure.message,
+        dedupeKey: `audio_no_playable_candidate:${playbackSession}:${candidatePlan.blockedMixedContent ? 'mixed' : 'direct'}:${candidatePlan.apiUnavailable ? 'api' : 'online'}`,
+        dedupeMs: 10_000,
+        meta: {
+          blockedMixedContent: candidatePlan.blockedMixedContent,
+          apiUnavailable: candidatePlan.apiUnavailable,
+          sourceCount: sourceUrls.length
+        }
+      });
       return { ok: false, error: failure.message };
     }
 
@@ -1010,6 +1170,7 @@ export const useAudioPlayer = ({
     clearWaitingTimeout();
     activeUrlRef.current = null;
     activeCandidateRef.current = null;
+    syncAudioDiagnosticsData();
     lastErrorRef.current = null;
     requestedStationRef.current = null;
     setCurrent(null);

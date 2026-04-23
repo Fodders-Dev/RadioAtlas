@@ -167,6 +167,7 @@ export type LibraryContextValue = {
   clearRecent: () => void;
   clearTrackHistory: () => void;
   createCollection: (name: string) => void;
+  toggleCollectionPinned: (collectionId: string) => void;
   addStationToCollection: (collectionId: string, station: Station | StationLite) => void;
   removeStationFromCollection: (collectionId: string, stationId: string) => void;
   toggleFollowStation: (station: Station | StationLite) => void;

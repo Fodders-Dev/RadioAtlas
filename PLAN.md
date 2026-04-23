@@ -12,4 +12,4 @@
 - [x] Global theme tokens derived from active Winamp skin
 - [ ] Optional API proxy for http streams (if needed)
 
-Next: deploy the mobile playback/runtime + authenticated cloud-library sync hardening to live Telegram traffic, verify that logged-in sessions no longer burst `/me/library` during rapid library/search playback, confirm that proxied artwork no longer throws `ERR_CONTENT_LENGTH_MISMATCH` on deploy and that the catalog summary no longer falls back to HTML, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for budget-phone responsiveness.
+Next: monitor the shipped mobile-safe streaming/fullscreen hardening in prod, then continue the remaining roadmap items: deeper bundle cuts for `webamp-core-vendor` / `styles.css`, onboarding, stronger Search and Library UX (filters, recents, collections polish), and the unfinished account layer (shared collections, cross-device history continuity, alerts/follows analytics) before any monetization work.

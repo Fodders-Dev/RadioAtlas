@@ -230,7 +230,7 @@ type MockStationsOptions = {
 const buildStationCache = (items: SeedStation[]) =>
   Object.fromEntries(items.map((station) => [station.stationuuid, station]));
 
-const createSilentWav = (durationMs = 200) => {
+const createSilentWav = (durationMs = 30_000) => {
   const sampleRate = 8000;
   const channels = 1;
   const bitsPerSample = 16;

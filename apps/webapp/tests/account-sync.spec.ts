@@ -107,3 +107,59 @@ test('logged-in playback bursts coalesce cloud library sync writes', async ({ pa
   await page.getByRole('button', { name: 'Поиск' }).first().click();
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'search');
 });
+
+test('logged-in navigation and visibility recovery stay responsive', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMediaMocks(page);
+  await installGoogleAuthFixture(page);
+  await mockStations(page, {
+    authProviders: {
+      google: true
+    }
+  });
+  const seeded = await seedConflictFixture(request, ACCOUNT_FIXTURE_API_BASE, 'combine');
+  await applyConflictSession(page, seeded, ACCOUNT_FIXTURE_API_BASE);
+
+  await page.goto(`/?api=${encodeURIComponent(ACCOUNT_FIXTURE_API_BASE)}`);
+  await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
+
+  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await expect(page.locator('.screen-library-v2')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Поиск' }).first().click();
+  await expect(page.locator('.search-command-card')).toBeVisible();
+
+  await page.locator('.search-bar input').first().fill('Tokyo');
+  const stationRow = page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first();
+  await expect(stationRow).toBeVisible();
+  await stationRow.locator('.play-btn').click();
+  await expect(page.locator('.player-dock-title')).toContainText('Tokyo FM');
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'hidden'
+    });
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      value: true
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible'
+    });
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      value: false
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  await page.getByRole('button', { name: 'Глобус' }).first().click();
+  await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'globe');
+  await expect(page.locator('.screen-globe-v2')).toBeVisible();
+});
