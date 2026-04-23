@@ -88,6 +88,7 @@ Deploy flow:
 - Shared env files from `/opt/RadioAtlas/shared/env` are copied into the release before build.
 - `npm ci`, `npm --workspace apps/webapp run build`, `npm --workspace apps/api run build`, and `npm --workspace apps/bot run build` run on the server.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
+- Deploy now waits for `http://127.0.0.1:3001/health` before reporting success, and dumps `pm2` status/logs if the API fails to come back.
 - After the release switch, reload nginx so it serves the new `current/apps/webapp/dist`:
   - `bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh`
   - `nginx -t && systemctl reload nginx`
@@ -176,6 +177,6 @@ In repo settings -> Secrets and variables -> Actions:
 ### 3) How release works
 - Workflow uploads code to `/opt/RadioAtlas/releases/<git_sha>`
 - Runs `deploy/server/deploy-release.sh <git_sha>` remotely
-- Script runs `npm ci`, builds webapp/api/bot, switches `/opt/RadioAtlas/current` symlink
+- Script runs `npm ci`, builds webapp/api/bot, switches `/opt/RadioAtlas/current` symlink, and verifies the local API health endpoint
 - PM2 reloads services with the new release
 - Keeps only last 5 releases

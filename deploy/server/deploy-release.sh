@@ -45,6 +45,24 @@ sync_nginx_config() {
   fi
 }
 
+wait_for_api_health() {
+  local url="${1:-http://127.0.0.1:3001/health}"
+  local attempts="${2:-20}"
+  local delay_seconds="${3:-2}"
+
+  for ((attempt = 1; attempt <= attempts; attempt += 1)); do
+    if curl --fail --silent --show-error "$url" >/dev/null; then
+      return 0
+    fi
+    sleep "$delay_seconds"
+  done
+
+  echo "API healthcheck did not pass after deploy: $url" >&2
+  pm2 status || true
+  pm2 logs radioatlas-api --lines 80 --nostream || true
+  return 1
+}
+
 cd "$RELEASE_DIR"
 
 if [[ -f "$SHARED_ENV_DIR/api.env" ]]; then
@@ -67,6 +85,7 @@ sync_nginx_config
 
 pm2 startOrReload "$CURRENT_LINK/ecosystem.config.cjs" --update-env
 pm2 save
+wait_for_api_health
 
 find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -n -5 | xargs -r rm -rf
 
