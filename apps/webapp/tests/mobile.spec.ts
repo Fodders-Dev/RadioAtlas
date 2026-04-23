@@ -8,6 +8,23 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 });
 
+test('mobile startup stays free of playback runtime render loops', async ({ page }) => {
+  const runtimeWarnings: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    if (text.includes('Maximum update depth exceeded')) {
+      runtimeWarnings.push(text);
+    }
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await page.waitForTimeout(600);
+
+  expect(runtimeWarnings).toEqual([]);
+});
+
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-hero]')).toBeVisible();

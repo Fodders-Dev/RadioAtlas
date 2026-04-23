@@ -12,4 +12,4 @@
 - [x] Global theme tokens derived from active Winamp skin
 - [ ] Optional API proxy for http streams (if needed)
 
-Next: verify the compact miniapp hotfix on live Telegram traffic after nginx `/api` rewrite sync, confirm that the catalog summary no longer falls back to HTML on deploy, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for budget-phone responsiveness.
+Next: deploy the mobile playback/runtime + authenticated cloud-library sync hardening to live Telegram traffic, verify that logged-in sessions no longer burst `/me/library` during rapid library/search playback, confirm that proxied artwork no longer throws `ERR_CONTENT_LENGTH_MISMATCH` on deploy and that the catalog summary no longer falls back to HTML, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for budget-phone responsiveness.

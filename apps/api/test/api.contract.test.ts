@@ -110,6 +110,37 @@ test('auth fixture issues a reusable session and me endpoint returns profile', a
   assert.ok(Array.isArray(me.auditTrail));
 });
 
+test('library sync no-ops when the payload is unchanged', async () => {
+  const { body: seed } = await getJson('/test/auth/seed-conflict', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ mergeStrategy: 'combine' })
+  });
+
+  const authHeaders = {
+    Authorization: `Bearer ${seed.token}`,
+    'Content-Type': 'application/json'
+  };
+  const { response: beforeResponse, body: before } = await getJson('/me', {
+    headers: authHeaders
+  });
+  assert.equal(beforeResponse.status, 200);
+
+  const { response: syncResponse, body: synced } = await getJson('/me/library', {
+    method: 'PUT',
+    headers: authHeaders,
+    body: JSON.stringify(before.profile.library)
+  });
+  assert.equal(syncResponse.status, 200);
+  assert.equal(synced.auditTrail.length, before.auditTrail.length);
+  assert.deepEqual(
+    synced.auditTrail.map((event: { id: string }) => event.id),
+    before.auditTrail.map((event: { id: string }) => event.id)
+  );
+});
+
 test('billing, metadata, stream and extractor smokes return stable error contracts', async () => {
   const { response: providersResponse, body: providers } = await getJson('/auth/providers');
   assert.equal(providersResponse.status, 200);

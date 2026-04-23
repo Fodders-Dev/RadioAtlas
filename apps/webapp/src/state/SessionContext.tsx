@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   AuditEvent,
   BillingInvoice,
@@ -18,6 +18,7 @@ import type {
   ListenerAlert
 } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
+import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
 type LibraryCounts = {
@@ -152,6 +153,57 @@ const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
   linkedProviders: profile.linkedProviders,
   providers: profile.providers
 });
+
+const providerInfosMatch = (left: SessionProviderInfo[], right: SessionProviderInfo[]) =>
+  left.length === right.length &&
+  left.every((provider, index) => {
+    const candidate = right[index];
+    return (
+      provider.kind === candidate?.kind &&
+      provider.externalId === candidate?.externalId &&
+      provider.displayName === candidate?.displayName &&
+      provider.username === candidate?.username &&
+      provider.email === candidate?.email &&
+      provider.photoUrl === candidate?.photoUrl &&
+      provider.isPremium === candidate?.isPremium &&
+      provider.linkedAt === candidate?.linkedAt
+    );
+  });
+
+const profilesMatch = (left: SessionProfile | null, right: SessionProfile | null) => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return (
+    left.id === right.id &&
+    left.displayName === right.displayName &&
+    left.username === right.username &&
+    left.email === right.email &&
+    left.photoUrl === right.photoUrl &&
+    left.isPremium === right.isPremium &&
+    left.premiumStatus === right.premiumStatus &&
+    left.supporterTier === right.supporterTier &&
+    left.billingProvider === right.billingProvider &&
+    left.entitlements.length === right.entitlements.length &&
+    left.entitlements.every((entitlement, index) => entitlement === right.entitlements[index]) &&
+    left.linkedProviders.length === right.linkedProviders.length &&
+    left.linkedProviders.every((provider, index) => provider === right.linkedProviders[index]) &&
+    providerInfosMatch(left.providers, right.providers)
+  );
+};
+
+const auditTrailMatches = (left: SessionAuditEvent[], right: SessionAuditEvent[]) =>
+  left.length === right.length &&
+  left.every((event, index) => {
+    const candidate = right[index];
+    return (
+      event.id === candidate?.id &&
+      event.accountId === candidate?.accountId &&
+      event.type === candidate?.type &&
+      event.providerKind === candidate?.providerKind &&
+      event.providerExternalId === candidate?.providerExternalId &&
+      event.createdAt === candidate?.createdAt
+    );
+  });
 
 const mapProviderAvailability = (
   payload: ProviderConfigPayload | null,
@@ -346,18 +398,42 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const hasVkAuth = providerAvailability.vk.configured;
   const canUseCloud = Boolean(apiBase);
   const canOpenTelegram = Boolean(import.meta.env.VITE_TG_BOT || telegramMiniApp);
+  const profileRef = useRef(profile);
+  const libraryRef = useRef(library);
+  const queuedCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
+  const inFlightCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
+  const cloudLibrarySyncPromiseRef = useRef<Promise<void> | null>(null);
+
+  profileRef.current = profile;
+  libraryRef.current = library;
+
+  const resetCloudLibrarySyncQueue = useCallback(() => {
+    queuedCloudLibraryRef.current = null;
+    inFlightCloudLibraryRef.current = null;
+    cloudLibrarySyncPromiseRef.current = null;
+  }, []);
+
+  const applySessionSnapshot = useCallback(
+    (nextProfile: SessionPayload['profile'], nextAuditTrail?: SessionAuditEvent[]) => {
+      const mappedProfile = mapProfile(nextProfile);
+      const resolvedAuditTrail = nextAuditTrail || [];
+      setProfile((previous) => (profilesMatch(previous, mappedProfile) ? previous : mappedProfile));
+      setLibrary((previous) => (cloudLibraryMatches(previous, nextProfile.library) ? previous : nextProfile.library));
+      setAuditTrail((previous) => (auditTrailMatches(previous, resolvedAuditTrail) ? previous : resolvedAuditTrail));
+    },
+    []
+  );
 
   const applySessionPayload = useCallback((payload: SessionPayload) => {
     setStoredToken(payload.token);
-    setProfile(mapProfile(payload.profile));
-    setLibrary(payload.profile.library);
-    setAuditTrail(payload.auditTrail || []);
+    resetCloudLibrarySyncQueue();
+    applySessionSnapshot(payload.profile, payload.auditTrail);
     setStatus('authenticated');
     setSyncState('synced');
     setError(null);
     setPendingLinkAction(null);
     setAccountSheetOpen(false);
-  }, []);
+  }, [applySessionSnapshot, resetCloudLibrarySyncQueue]);
 
   const fetchProfile = useCallback(
     async (token: string) => {
@@ -370,6 +446,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         });
         if (!response.ok) {
           if (response.status === 401 || response.status === 404) {
+            resetCloudLibrarySyncQueue();
             setStoredToken('');
             setProfile(null);
             setLibrary(null);
@@ -389,6 +466,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         });
         return true;
       } catch (err) {
+        resetCloudLibrarySyncQueue();
         setStoredToken('');
         setProfile(null);
         setLibrary(null);
@@ -398,7 +476,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
     },
-    [apiBase, applySessionPayload]
+    [apiBase, applySessionPayload, resetCloudLibrarySyncQueue]
   );
 
   const createLinkCode = useCallback(async (mergeStrategy: LibraryMergeStrategy = 'combine') => {
@@ -798,11 +876,23 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     [apiBase, profile]
   );
 
-  const replaceCloudLibrary = useCallback(
-    async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
-      const token = getStoredToken();
-      if (!apiBase || !token || !profile) return;
-      setSyncState('syncing');
+  const flushCloudLibrarySync = useCallback(async () => {
+    if (cloudLibrarySyncPromiseRef.current || !queuedCloudLibraryRef.current) {
+      return cloudLibrarySyncPromiseRef.current ?? Promise.resolve();
+    }
+
+    const token = getStoredToken();
+    if (!apiBase || !token || !profileRef.current) {
+      resetCloudLibrarySyncQueue();
+      return;
+    }
+
+    const requestLibrary = queuedCloudLibraryRef.current;
+    queuedCloudLibraryRef.current = null;
+    inFlightCloudLibraryRef.current = requestLibrary;
+    setSyncState('syncing');
+
+    const promise = (async () => {
       try {
         const response = await fetch(`${apiBase}/me/library`, {
           method: 'PUT',
@@ -810,7 +900,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(nextLibrary)
+          body: JSON.stringify(requestLibrary)
         });
         if (!response.ok) {
           const failure = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -820,17 +910,50 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           profile: SessionPayload['profile'];
           auditTrail?: SessionAuditEvent[];
         };
-        setLibrary(data.profile.library);
-        setProfile(mapProfile(data.profile));
-        setAuditTrail(data.auditTrail || []);
+        if (getStoredToken() !== token || !profileRef.current) {
+          return;
+        }
+        applySessionSnapshot(data.profile, data.auditTrail);
         setSyncState('synced');
         setError(null);
       } catch (err) {
         setSyncState('error');
         setError(err instanceof Error ? err.message : 'library sync failed');
+      } finally {
+        inFlightCloudLibraryRef.current = null;
+        cloudLibrarySyncPromiseRef.current = null;
+
+        const queuedLibrary = queuedCloudLibraryRef.current;
+        if (!queuedLibrary) {
+          return;
+        }
+        if (cloudLibraryMatches(libraryRef.current, queuedLibrary)) {
+          queuedCloudLibraryRef.current = null;
+          return;
+        }
+        void flushCloudLibrarySync();
       }
+    })();
+
+    cloudLibrarySyncPromiseRef.current = promise;
+    return promise;
+  }, [apiBase, applySessionSnapshot, resetCloudLibrarySyncQueue]);
+
+  const replaceCloudLibrary = useCallback(
+    async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
+      const token = getStoredToken();
+      if (!apiBase || !token || !profileRef.current) return;
+      if (
+        cloudLibraryMatches(libraryRef.current, nextLibrary) ||
+        cloudLibraryMatches(queuedCloudLibraryRef.current, nextLibrary) ||
+        cloudLibraryMatches(inFlightCloudLibraryRef.current, nextLibrary)
+      ) {
+        return cloudLibrarySyncPromiseRef.current ?? Promise.resolve();
+      }
+      queuedCloudLibraryRef.current = nextLibrary;
+      return flushCloudLibrarySync();
     },
-    [apiBase, profile]
+    [apiBase, flushCloudLibrarySync]
   );
 
   const updateCollections = useCallback(
@@ -978,6 +1101,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const signOut = useCallback(() => {
+    resetCloudLibrarySyncQueue();
     setStoredToken('');
     setProfile(null);
     setLibrary(null);
@@ -987,7 +1111,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     setPendingLinkAction(null);
     setAccountSheetOpen(false);
-  }, []);
+  }, [resetCloudLibrarySyncQueue]);
 
   const refreshSession = useCallback(async () => {
     const token = getStoredToken();

@@ -9,6 +9,7 @@ import type {
 import { MAX_RECENT, MAX_TRACK_HISTORY } from './defaults';
 import {
   alertsMatch,
+  cloudLibraryMatches,
   collectionsMatch,
   followedRegionsMatch,
   followedStationsMatch,
@@ -21,6 +22,8 @@ import type { StationLite } from '../../types';
 import type { TrackHistoryItem } from './types';
 
 type CloudSetter<T> = (next: T) => void;
+
+const CLOUD_LIBRARY_SYNC_DELAY_MS = 1_400;
 
 type UseCloudLibrarySyncArgs = {
   sessionStatus: string;
@@ -179,28 +182,22 @@ export const useCloudLibrarySync = ({
 
     const nextRecent = recent.slice(0, MAX_RECENT);
     const nextTrackHistory = trackHistory.slice(0, MAX_TRACK_HISTORY);
-    const sameAsCloud =
-      stationsMatch(favorites, cloudLibrary?.favorites || []) &&
-      stationsMatch(nextRecent, cloudLibrary?.recent || []) &&
-      trackHistoryMatch(nextTrackHistory, (cloudLibrary?.trackHistory || []) as TrackHistoryItem[]) &&
-      collectionsMatch(collections, cloudLibrary?.collections || []) &&
-      followedStationsMatch(followedStations, cloudLibrary?.followedStations || []) &&
-      followedRegionsMatch(followedRegions, cloudLibrary?.followedRegions || []) &&
-      alertsMatch(alerts, cloudLibrary?.alerts || []);
+    const nextLibrary = {
+      favorites,
+      recent: nextRecent,
+      trackHistory: nextTrackHistory,
+      collections,
+      followedStations,
+      followedRegions,
+      alerts
+    };
+    const sameAsCloud = cloudLibraryMatches(nextLibrary, cloudLibrary);
 
     if (sameAsCloud) return;
 
     const timeout = window.setTimeout(() => {
-      void replaceCloudLibrary({
-        favorites,
-        recent: nextRecent,
-        trackHistory: nextTrackHistory,
-        collections,
-        followedStations,
-        followedRegions,
-        alerts
-      });
-    }, 700);
+      void replaceCloudLibrary(nextLibrary);
+    }, CLOUD_LIBRARY_SYNC_DELAY_MS);
 
     return () => window.clearTimeout(timeout);
   }, [

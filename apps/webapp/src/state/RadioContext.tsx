@@ -81,6 +81,8 @@ const ShellContext = createContext<ShellContextValue | null>(null);
 const PlaybackRuntimeLazy = lazy(() =>
   import('./radio/PlaybackRuntime').then((mod) => ({ default: mod.PlaybackRuntime }))
 );
+const LIBRARY_PERSIST_WRITE_DELAY_MS = 1_200;
+const PLAYER_PERSIST_WRITE_DELAY_MS = 900;
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLocale();
@@ -101,6 +103,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:library:v2',
     DEFAULT_LIBRARY_STATE,
     {
+      writeDelayMs: LIBRARY_PERSIST_WRITE_DELAY_MS,
       clearLegacyKeys: [
         'radio:track-history',
         'radio:favorites',
@@ -117,6 +120,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:player:v2',
     DEFAULT_PLAYER_STATE,
     {
+      writeDelayMs: PLAYER_PERSIST_WRITE_DELAY_MS,
       clearLegacyKeys: [
         'radio:playback-queue:v2',
         'radio:winamp-skin',
@@ -268,12 +272,22 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [playbackHistoryCursor, setPlaybackHistoryCursor] = useState(() =>
     playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
   );
+  const debugLoggingEnabled =
+    import.meta.env.DEV ||
+    (typeof window !== 'undefined' &&
+      Boolean((window as typeof window & { __RA_DEBUG_LOGS__?: boolean }).__RA_DEBUG_LOGS__));
 
-  const logDebug = (msg: string) => {
-    setDebugLogs((prev) =>
-      [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50)
-    );
-  };
+  const logDebug = useCallback(
+    (msg: string) => {
+      if (!debugLoggingEnabled) {
+        return;
+      }
+      setDebugLogs((prev) =>
+        [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50)
+      );
+    },
+    [debugLoggingEnabled]
+  );
 
   const notify = (message: string) => {
     setToast(message);

@@ -1,14 +1,18 @@
 import type { BillingProvider, PremiumStatus, SessionEntitlement, StoredAccount, SupporterTier, SyncedLibrary } from './types.js';
-import { sanitizeLibrary } from './helpers.js';
+import { sanitizeLibrary, serializeLibrary } from './helpers.js';
 import { applyEntitlementPreset, getAccountByIdSync, getDb, recordAuditEventSync, saveAccount } from './repository.js';
 
 export const updateAccountLibrary = async (accountId: string, library: unknown) => {
   const db = await getDb();
   const current = getAccountByIdSync(db, accountId);
   if (!current) return null;
+  const nextLibrary = sanitizeLibrary(library);
+  if (serializeLibrary(current.library) === serializeLibrary(nextLibrary)) {
+    return current;
+  }
   const nextAccount: StoredAccount = {
     ...current,
-    library: sanitizeLibrary(library),
+    library: nextLibrary,
     updatedAt: Date.now()
   };
   saveAccount(db, nextAccount);
@@ -31,13 +35,17 @@ const patchAccountLibrary = async (
   const db = await getDb();
   const current = getAccountByIdSync(db, accountId);
   if (!current) return null;
+  const nextLibrary = sanitizeLibrary({
+    ...current.library,
+    ...patch,
+    updatedAt: Date.now()
+  });
+  if (serializeLibrary(current.library) === serializeLibrary(nextLibrary)) {
+    return current;
+  }
   const nextAccount: StoredAccount = {
     ...current,
-    library: sanitizeLibrary({
-      ...current.library,
-      ...patch,
-      updatedAt: Date.now()
-    }),
+    library: nextLibrary,
     updatedAt: Date.now()
   };
   saveAccount(db, nextAccount);

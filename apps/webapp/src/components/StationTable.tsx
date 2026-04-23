@@ -93,8 +93,8 @@ const StationTableRow = ({
 
   useEffect(() => {
     if (!shouldObserve) return;
-    return observeStationNowPlaying(station, setSnapshot, active ? undefined : { passive: true });
-  }, [active, shouldObserve, station]);
+    return observeStationNowPlaying(station, setSnapshot, { passive: true });
+  }, [shouldObserve, station]);
 
   const liked = isFavorite(station.stationuuid);
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');

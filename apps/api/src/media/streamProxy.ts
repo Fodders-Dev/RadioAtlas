@@ -134,14 +134,12 @@ export const createImageHandler = (options: MediaRouteOptions) =>
 
       const contentType = upstream.headers.get('content-type') || 'image/*';
       const cacheControl = upstream.headers.get('cache-control');
-      const contentLength = upstream.headers.get('content-length');
       const etag = upstream.headers.get('etag');
       const lastModified = upstream.headers.get('last-modified');
 
       res.status(upstream.status);
       res.setHeader('content-type', contentType);
       res.setHeader('cache-control', cacheControl || 'public, max-age=21600, s-maxage=21600');
-      if (contentLength) res.setHeader('content-length', contentLength);
       if (etag) res.setHeader('etag', etag);
       if (lastModified) res.setHeader('last-modified', lastModified);
 

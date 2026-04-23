@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { ACCOUNT_FIXTURE_API_BASE, installGoogleAuthFixture } from './authFixture';
+import { applyConflictSession, seedConflictFixture } from './accountConflictFixture';
 import { createSharedGoogleCredential, prepareSharedGooglePage, signInThroughOnboarding } from './accountSessionFixture';
 import { installMediaMocks, mockStations } from './helpers';
 
@@ -57,4 +58,52 @@ test('favorites sync to another logged-in device right after like', async ({ pag
   await expect(secondPage.locator('.screen-library-v2')).toContainText(stationName);
 
   await secondContext.close();
+});
+
+test('logged-in playback bursts coalesce cloud library sync writes', async ({ page, request }) => {
+  const syncBodies: string[] = [];
+
+  await installMediaMocks(page);
+  await installGoogleAuthFixture(page);
+  await mockStations(page, {
+    authProviders: {
+      google: true
+    }
+  });
+  const seeded = await seedConflictFixture(request, ACCOUNT_FIXTURE_API_BASE, 'combine');
+  await applyConflictSession(page, seeded, ACCOUNT_FIXTURE_API_BASE);
+
+  page.on('request', (request) => {
+    if (request.method() === 'PUT' && request.url().includes('/me/library')) {
+      syncBodies.push(request.postData() || '');
+    }
+  });
+
+  await page.goto(`/?api=${encodeURIComponent(ACCOUNT_FIXTURE_API_BASE)}`);
+  await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
+
+  await page.getByRole('button', { name: 'Поиск' }).first().click();
+  await expect(page.locator('.search-command-card')).toBeVisible();
+  await page.locator('.search-bar input').first().fill('o');
+
+  const playStation = async (name: string) => {
+    const stationRow = page.locator('.station-row').filter({ hasText: name }).first();
+    await expect(stationRow).toBeVisible();
+    await stationRow.locator('.play-btn').click();
+    await page.waitForTimeout(150);
+  };
+
+  await playStation('Tokyo FM');
+  await playStation('Osaka Nights');
+  await playStation('Kyoto Groove');
+
+  await expect.poll(() => syncBodies.length, { timeout: 5000 }).toBe(1);
+  await page.waitForTimeout(1800);
+  await expect(page.locator('.player-dock-title')).toContainText('Kyoto Groove');
+  expect(syncBodies).toHaveLength(1);
+
+  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await expect(page.locator('.screen-library-v2')).toBeVisible();
+  await page.getByRole('button', { name: 'Поиск' }).first().click();
+  await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'search');
 });

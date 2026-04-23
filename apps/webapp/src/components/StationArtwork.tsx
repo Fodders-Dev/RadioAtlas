@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import type { StationLite } from '../types';
 
@@ -7,6 +7,8 @@ type StationArtworkProps = {
   size?: 'sm' | 'md' | 'card' | 'dock';
   className?: string;
 };
+
+const BROKEN_ARTWORK_URLS = new Set<string>();
 
 const toInitial = (value?: string) => {
   const cleaned = (value || '').trim();
@@ -32,14 +34,26 @@ export const StationArtwork = ({
   size = 'md',
   className = ''
 }: StationArtworkProps) => {
-  const [broken, setBroken] = useState(false);
   const imageSrc = getProxiedAssetUrl(station?.stationArtwork?.trim() || station?.favicon?.trim());
+  const [broken, setBroken] = useState(() => Boolean(imageSrc && BROKEN_ARTWORK_URLS.has(imageSrc)));
   const showImage = Boolean(imageSrc) && !broken;
   const initial = toInitial(station?.name);
   const accent = useMemo(
     () => toAccent(station?.stationuuid || station?.name || 'radio'),
     [station?.name, station?.stationuuid]
   );
+
+  useEffect(() => {
+    setBroken(Boolean(imageSrc && BROKEN_ARTWORK_URLS.has(imageSrc)));
+  }, [imageSrc]);
+
+  const handleImageError = () => {
+    if (imageSrc) {
+      BROKEN_ARTWORK_URLS.add(imageSrc);
+    }
+    setBroken(true);
+  };
+
   const style = showImage
     ? undefined
     : ({
@@ -60,7 +74,7 @@ export const StationArtwork = ({
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setBroken(true)}
+          onError={handleImageError}
         />
       ) : (
         <span>{initial}</span>

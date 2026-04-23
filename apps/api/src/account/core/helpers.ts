@@ -319,7 +319,10 @@ export const sanitizeLibrary = (value: unknown): SyncedLibrary => {
   };
 };
 
-export const serializeLibrary = (library: SyncedLibrary) => JSON.stringify(sanitizeLibrary(library));
+export const serializeLibrary = (library: SyncedLibrary) => {
+  const { updatedAt: _updatedAt, ...nextLibrary } = sanitizeLibrary(library);
+  return JSON.stringify(nextLibrary);
+};
 
 export const deserializeLibrary = (value: unknown) => {
   if (typeof value !== 'string' || !value.trim()) {

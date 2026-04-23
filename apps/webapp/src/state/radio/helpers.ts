@@ -1,4 +1,5 @@
 import type {
+  CloudLibrary,
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
@@ -113,6 +114,38 @@ export const alertsMatch = (left: ListenerAlert[], right: ListenerAlert[]) =>
       item.readAt === candidate?.readAt
     );
   });
+
+type ComparableCloudLibrary = Pick<
+  CloudLibrary,
+  'favorites' | 'recent' | 'trackHistory' | 'collections' | 'followedStations' | 'followedRegions' | 'alerts'
+>;
+
+const EMPTY_CLOUD_LIBRARY: ComparableCloudLibrary = {
+  favorites: [],
+  recent: [],
+  trackHistory: [],
+  collections: [],
+  followedStations: [],
+  followedRegions: [],
+  alerts: []
+};
+
+export const cloudLibraryMatches = (
+  left: ComparableCloudLibrary | null | undefined,
+  right: ComparableCloudLibrary | null | undefined
+) => {
+  const leftValue = left || EMPTY_CLOUD_LIBRARY;
+  const rightValue = right || EMPTY_CLOUD_LIBRARY;
+  return (
+    stationsMatch(leftValue.favorites, rightValue.favorites) &&
+    stationsMatch(leftValue.recent, rightValue.recent) &&
+    trackHistoryMatch(leftValue.trackHistory, rightValue.trackHistory) &&
+    collectionsMatch(leftValue.collections, rightValue.collections) &&
+    followedStationsMatch(leftValue.followedStations, rightValue.followedStations) &&
+    followedRegionsMatch(leftValue.followedRegions, rightValue.followedRegions) &&
+    alertsMatch(leftValue.alerts, rightValue.alerts)
+  );
+};
 
 export const getQueueSourceLabel = (
   sourceId: string | null | undefined,
