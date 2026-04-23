@@ -87,6 +87,7 @@ Deploy flow:
 - The server runs `deploy/server/deploy-release.sh <git_sha>`.
 - Shared env files from `/opt/RadioAtlas/shared/env` are copied into the release before build.
 - `npm ci`, `npm --workspace apps/webapp run build`, `npm --workspace apps/api run build`, and `npm --workspace apps/bot run build` run on the server.
+- PM2 launches `apps/api/dist/index.js` and `apps/bot/dist/index.js` directly from the release workspace instead of routing through `npm --workspace`.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
 - Deploy now waits for `http://127.0.0.1:3001/health` before reporting success, and dumps `pm2` status/logs if the API fails to come back.
 - After the release switch, reload nginx so it serves the new `current/apps/webapp/dist`:

@@ -63,6 +63,18 @@ wait_for_api_health() {
   return 1
 }
 
+start_pm2_release() {
+  pm2 startOrReload "$CURRENT_LINK/ecosystem.config.cjs" --update-env
+  pm2 save
+}
+
+restart_pm2_release_clean() {
+  pm2 delete radioatlas-api >/dev/null 2>&1 || true
+  pm2 delete radioatlas-bot >/dev/null 2>&1 || true
+  pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
+  pm2 save
+}
+
 cd "$RELEASE_DIR"
 
 if [[ -f "$SHARED_ENV_DIR/api.env" ]]; then
@@ -83,9 +95,12 @@ npm --workspace apps/bot run build
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 sync_nginx_config
 
-pm2 startOrReload "$CURRENT_LINK/ecosystem.config.cjs" --update-env
-pm2 save
-wait_for_api_health
+start_pm2_release
+if ! wait_for_api_health; then
+  echo "PM2 reload finished but API is still down; retrying with a clean restart." >&2
+  restart_pm2_release_clean
+  wait_for_api_health
+fi
 
 find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort | head -n -5 | xargs -r rm -rf
 

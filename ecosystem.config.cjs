@@ -1,10 +1,12 @@
+const { join } = require('node:path');
+
 module.exports = {
   apps: [
     {
       name: 'radioatlas-api',
-      cwd: __dirname,
-      script: 'npm',
-      args: '--workspace apps/api run start',
+      cwd: join(__dirname, 'apps/api'),
+      script: 'dist/index.js',
+      interpreter: 'node',
       exp_backoff_restart_delay: 2000,
       kill_timeout: 5000,
       listen_timeout: 10000,
@@ -18,9 +20,9 @@ module.exports = {
     },
     {
       name: 'radioatlas-bot',
-      cwd: __dirname,
-      script: 'npm',
-      args: '--workspace apps/bot run start',
+      cwd: join(__dirname, 'apps/bot'),
+      script: 'dist/index.js',
+      interpreter: 'node',
       exp_backoff_restart_delay: 2000,
       kill_timeout: 5000,
       min_uptime: '10s',
