@@ -3,15 +3,13 @@ import type { PlaybackCandidate, PlaybackFailure, PlaybackFailurePhase } from '.
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
+import { reportClientEvent } from './observability';
 import { buildStationStreamTargets } from './stationStreams';
 import {
   buildCandidates,
-  isExternalStation,
   isDirectAudioUrl,
   isHls,
   needsApiAssist,
-  resolveExternalStream,
-  shouldAttemptStreamExtraction,
   toPlaybackFailure
 } from './playbackTransport';
 
@@ -303,7 +301,7 @@ export const useAudioPlayer = ({
     pushEvent(`source: ${url}`);
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
-      const mod = await import('hls.js');
+      const mod = await import('hls.js/dist/hls.light.mjs');
       const hls = new mod.default({
         enableWorker: true,
         lowLatencyMode: false,
@@ -342,41 +340,9 @@ export const useAudioPlayer = ({
     candidateFailuresRef.current = [...candidateFailuresRef.current, nextFailure].slice(-8);
     lastErrorRef.current = error;
     pushEvent(`playback: candidate failed (${phase}) ${url} :: ${error}`);
-  };
-
-  const appendExtractedFallbackCandidates = async ({
-    sourceUrls,
-    apiBase,
-    apiAvailable,
-    sessionId
-  }: {
-    sourceUrls: string[];
-    apiBase: string;
-    apiAvailable: boolean;
-    sessionId: number;
-  }) => {
-    if (!apiBase || !apiAvailable) return [];
-    const nextCandidates: PlaybackCandidate[] = [];
-    for (const sourceUrl of sourceUrls) {
-      if (!shouldAttemptStreamExtraction(sourceUrl)) continue;
-      if (!isSessionCurrent(sessionId)) return [];
-      pushEvent(`extract: fallback resolving ${sourceUrl}`);
-      const extracted = await resolveExternalStream(sourceUrl, apiBase, pushEvent);
-      if (!isSessionCurrent(sessionId)) return [];
-      if (!extracted || extracted === sourceUrl) continue;
-      const plan = buildCandidates({
-        url: extracted,
-        apiBase,
-        apiAvailable,
-        isFallback: true
-      });
-      plan.candidates.forEach((candidate) => {
-        if (!candidatesRef.current.some((item) => item.url === candidate.url) && !nextCandidates.some((item) => item.url === candidate.url)) {
-          nextCandidates.push(candidate);
-        }
-      });
+    if (isHls(url)) {
+      reportClientEvent('hls_error', `hls_error:${phase}:${url.split(/[?#]/, 1)[0]}`);
     }
-    return nextCandidates;
   };
 
   const playCandidateAtIndex = async (
@@ -925,35 +891,6 @@ export const useAudioPlayer = ({
       markApiUnavailable(apiBase);
     }
 
-    if (isExternalStation(station) && !isDirectAudioUrl(station.url_resolved)) {
-      if (!apiBase || !apiAvailable) {
-        const error = 'api unavailable';
-        setCurrent(null);
-        setIsPlaying(false);
-        setStatus('error');
-        setErrorMessage(error);
-        return { ok: false, error };
-      }
-      pushEvent('extract: resolving external link');
-      const extracted = await resolveExternalStream(station.url_resolved, apiBase, pushEvent);
-      if (!isSessionCurrent(playbackSession)) {
-        return { ok: false, error: PLAYBACK_SUPERSEDED };
-      }
-      if (extracted) {
-        resolvedStation = { ...station, url_resolved: extracted };
-      } else {
-        const error = 'no playable candidate';
-        setCurrent(null);
-        setIsPlaying(false);
-        setStatus('error');
-        setErrorMessage(error);
-        pushEvent('extract: failed');
-        return { ok: false, error };
-      }
-      sourceUrls.length = 0;
-      buildStationStreamTargets(resolvedStation).forEach((url) => pushUnique(sourceUrls, url));
-    }
-
     requestedStationRef.current = resolvedStation;
     setCurrent(null);
     setStatus('buffering');
@@ -997,31 +934,9 @@ export const useAudioPlayer = ({
       return { ok: false, error: failure.message };
     }
 
-    let result = await playCandidateAtIndex(0, playbackSession);
+    const result = await playCandidateAtIndex(0, playbackSession);
     if (result.superseded || result.error === PLAYBACK_SUPERSEDED) {
       return { ok: false, error: PLAYBACK_SUPERSEDED };
-    }
-    if (!result.ok && shouldCheckApi && apiAvailable) {
-      const recoveryStartIndex = candidatesRef.current.length;
-      const extractedCandidates = await appendExtractedFallbackCandidates({
-        sourceUrls,
-        apiBase,
-        apiAvailable,
-        sessionId: playbackSession
-      });
-      if (extractedCandidates.length) {
-        extractedCandidates.forEach((candidate) => {
-          if (!candidatesRef.current.some((item) => item.url === candidate.url)) {
-            candidatesRef.current.push(candidate);
-          }
-        });
-        candidatePlanRef.current = {
-          ...candidatePlanRef.current,
-          candidates: [...candidatesRef.current]
-        };
-        pushEvent(`extract: appended ${extractedCandidates.length} fallback candidates`);
-        result = await playCandidateAtIndex(recoveryStartIndex, playbackSession);
-      }
     }
     if (!result.ok) {
       requestedStationRef.current = null;

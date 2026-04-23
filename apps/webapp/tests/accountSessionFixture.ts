@@ -29,6 +29,7 @@ export const signInThroughOnboarding = async (
   apiBase = ACCOUNT_FIXTURE_API_BASE
 ) => {
   await page.goto(`/?api=${encodeURIComponent(apiBase)}`);
-  await page.getByRole('button', { name: 'Войти и синхронизировать' }).click();
-  await page.getByRole('button', { name: 'Continue with Google' }).click();
+  await page.locator('.app-topbar-primary-cta').click();
+  await page.locator('.account-sheet-panel').waitFor({ state: 'visible' });
+  await page.locator('.google-fixture-btn').click();
 };

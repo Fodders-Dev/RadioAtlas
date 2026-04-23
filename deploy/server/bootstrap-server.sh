@@ -24,9 +24,12 @@ Create env files before first deploy:
   /opt/RadioAtlas/shared/env/webapp.env
 ENVHELP
 
-if [[ -f "$APP_ROOT/current/deploy/radioatlas.Caddyfile" ]]; then
-  cp "$APP_ROOT/current/deploy/radioatlas.Caddyfile" /etc/caddy/Caddyfile
-  systemctl restart caddy
-fi
+cat <<'NGINXHELP'
+RadioAtlas production shell is expected to be served directly by nginx from:
+  /opt/RadioAtlas/current/apps/webapp/dist
+
+Use deploy/radioatlas.nginx.conf as the source of truth for the nginx server block.
+The bootstrap script no longer installs or refreshes a local static-origin service.
+NGINXHELP
 
 echo "Bootstrap complete"

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getDeviceProfile } from '../lib/deviceProfile';
 
 type WinampMilkdropVisualizerProps = {
   active: boolean;
@@ -51,11 +52,14 @@ export const WinampMilkdropVisualizer = ({
 
     let frameId = 0;
     let disposed = false;
+    let lastFrameAt = 0;
+    const { lowPower, reducedMotion } = getDeviceProfile();
+    const targetFrameMs = reducedMotion ? 80 : lowPower ? 40 : 16;
 
     const resize = () => {
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, lowPower ? 1.25 : 2);
       canvas.width = Math.max(1, Math.round(rect.width * dpr));
       canvas.height = Math.max(1, Math.round(rect.height * dpr));
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -72,10 +76,10 @@ export const WinampMilkdropVisualizer = ({
       time: number,
       energy: number,
       pulse: number,
-      baseHue: number
+      baseHue: number,
+      columns: number,
+      rows: number
     ) => {
-      const columns = 12;
-      const rows = 14;
       const startX = side === 'left' ? width * 0.08 : width * 0.92;
       const direction = side === 'left' ? 1 : -1;
 
@@ -101,6 +105,15 @@ export const WinampMilkdropVisualizer = ({
 
     const render = (timestamp: number) => {
       if (disposed) return;
+      if (document.hidden) {
+        frameId = window.requestAnimationFrame(render);
+        return;
+      }
+      if (lastFrameAt && timestamp - lastFrameAt < targetFrameMs) {
+        frameId = window.requestAnimationFrame(render);
+        return;
+      }
+      lastFrameAt = timestamp;
 
       const rect = canvas.getBoundingClientRect();
       const width = rect.width;
@@ -113,6 +126,11 @@ export const WinampMilkdropVisualizer = ({
       const pulse = isActive ? 0.45 + energy * 0.95 : 0.12;
       const time = timestamp * 0.001;
       const hueShift = hue(220 + time * 24 + energy * 120);
+      const tunnelColumns = lowPower ? 7 : 12;
+      const tunnelRows = lowPower ? 9 : 14;
+      const beamCount = lowPower ? 10 : 18;
+      const sparkCount = lowPower ? 12 : 28;
+      const blobPoints = lowPower ? 40 : 72;
 
       context.clearRect(0, 0, width, height);
 
@@ -137,15 +155,15 @@ export const WinampMilkdropVisualizer = ({
       context.fillStyle = aurora;
       context.fillRect(0, 0, width, height);
 
-      drawTunnel('left', width, height, time, energy, pulse, hueShift + 96);
-      drawTunnel('right', width, height, time, energy, pulse, hueShift - 74);
+      drawTunnel('left', width, height, time, energy, pulse, hueShift + 96, tunnelColumns, tunnelRows);
+      drawTunnel('right', width, height, time, energy, pulse, hueShift - 74, tunnelColumns, tunnelRows);
 
       context.save();
       context.translate(width / 2, height / 2);
 
       const blobRadiusX = width * (0.17 + pulse * 0.045);
       const blobRadiusY = height * (0.26 + pulse * 0.06);
-      const points = 72;
+      const points = blobPoints;
 
       context.beginPath();
       for (let index = 0; index <= points; index += 1) {
@@ -187,8 +205,8 @@ export const WinampMilkdropVisualizer = ({
       context.stroke();
 
       context.globalCompositeOperation = 'screen';
-      for (let index = 0; index < 18; index += 1) {
-        const angle = (index / 18) * Math.PI * 2 + time * 0.35;
+      for (let index = 0; index < beamCount; index += 1) {
+        const angle = (index / beamCount) * Math.PI * 2 + time * 0.35;
         const freq = nextSpectrum[index % nextSpectrum.length] ?? energy;
         const wave = nextWaveform[index % nextWaveform.length] ?? 0;
         const innerX = Math.cos(angle) * blobRadiusX * 0.18;
@@ -203,8 +221,8 @@ export const WinampMilkdropVisualizer = ({
         context.stroke();
       }
 
-      for (let index = 0; index < 28; index += 1) {
-        const angle = (index / 28) * Math.PI * 2 - time * 0.42;
+      for (let index = 0; index < sparkCount; index += 1) {
+        const angle = (index / sparkCount) * Math.PI * 2 - time * 0.42;
         const orbit = 0.92 + ((nextSpectrum[index % nextSpectrum.length] ?? energy) * 0.28);
         const sparkX = Math.cos(angle) * blobRadiusX * orbit;
         const sparkY = Math.sin(angle) * blobRadiusY * orbit;

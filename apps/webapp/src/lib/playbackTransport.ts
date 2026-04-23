@@ -99,12 +99,10 @@ const buildUrlVariants = (url: string) => {
 export const shouldAttemptStreamExtraction = (url: string) => !isDirectAudioUrl(url) && !isHls(url);
 
 export const needsApiAssist = (station: StationLite, sourceUrls: string[]) =>
-  isExternalStation(station) ||
   sourceUrls.some(
     (url) =>
       url.startsWith('http://') ||
       isHls(url) ||
-      shouldAttemptStreamExtraction(url) ||
       (isSecureProxyContext() && url.startsWith('https://') && !isDirectAudioUrl(url))
   );
 

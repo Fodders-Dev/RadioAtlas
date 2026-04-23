@@ -207,6 +207,29 @@ export const stations = [
   }
 ];
 
+const FIXED_GENERATED_AT = Date.UTC(2026, 3, 20, 9, 0, 0);
+const DEFAULT_HOME_SEED = 424242;
+
+type SeedStation = (typeof stations)[number];
+type SeedRadioStateOptions = {
+  homeSessionSeed?: number;
+  favorites?: SeedStation[];
+  recent?: SeedStation[];
+  playbackHistory?: SeedStation[];
+  queue?: SeedStation[];
+};
+
+type MockStationsOptions = {
+  authProviders?: {
+    telegram?: boolean;
+    google?: boolean;
+    vk?: boolean;
+  };
+};
+
+const buildStationCache = (items: SeedStation[]) =>
+  Object.fromEntries(items.map((station) => [station.stationuuid, station]));
+
 const createSilentWav = (durationMs = 200) => {
   const sampleRate = 8000;
   const channels = 1;
@@ -234,6 +257,100 @@ const createSilentWav = (durationMs = 200) => {
 };
 
 export const mockStreamAudio = createSilentWav();
+
+export const seedRadioState = async (
+  page: Page,
+  {
+    homeSessionSeed = DEFAULT_HOME_SEED,
+    favorites = [],
+    recent = [],
+    playbackHistory = [],
+    queue = []
+  }: SeedRadioStateOptions = {}
+) => {
+  const cachedStations = buildStationCache([
+    ...favorites,
+    ...recent,
+    ...playbackHistory,
+    ...queue
+  ]);
+
+  await page.addInitScript(
+    ({ appState, libraryState, playerState }) => {
+      window.localStorage.setItem('radio:api-url', '/api');
+      window.localStorage.setItem('radio:app:v2', JSON.stringify(appState));
+      window.localStorage.setItem('radio:library:v2', JSON.stringify(libraryState));
+      window.localStorage.setItem('radio:player:v2', JSON.stringify(playerState));
+    },
+    {
+      appState: {
+        version: 2,
+        shell: {
+          version: 3,
+          activeSection: 'home',
+          playerPresentation: 'peek',
+          libraryTab: 'favorites',
+          detailsOpen: false,
+          home: {
+            sessionSeed: homeSessionSeed,
+            lastBuiltAt: null,
+            snapshot: null
+          },
+          searchDraft: ''
+        },
+        behaviorProfile: {
+          version: 1,
+          lastUpdatedAt: null,
+          actionCounts: {
+            plays: 0,
+            likes: 0,
+            copies: 0,
+            follows: 0,
+            collections: 0
+          },
+          sectionVisits: {},
+          tagScores: {},
+          countryScores: {},
+          stateScores: {},
+          stationScores: {}
+        }
+      },
+      libraryState: {
+        version: 2,
+        favorites,
+        recent,
+        collections: [],
+        followedStations: [],
+        followedRegions: [],
+        alerts: [],
+        trackHistory: [],
+        playbackHistory,
+        stationCache: cachedStations
+      },
+      playerState: {
+        version: 2,
+        queue: {
+          items: queue,
+          currentIndex: queue.length ? 0 : -1,
+          sourceId: queue.length ? 'seeded-home' : null,
+          sourceLabel: queue.length ? 'Seeded Home' : null
+        },
+        skin: {
+          source: 'preset',
+          id: 'base-2.91'
+        },
+        layout: {
+          version: 3,
+          windowPositions: {},
+          windowVisibility: {
+            'equalizer-window': true,
+            'playlist-window': true
+          }
+        }
+      }
+    }
+  );
+};
 
 export const installMediaMocks = async (page: Page) => {
   await page.addInitScript(() => {
@@ -265,8 +382,83 @@ export const installMediaMocks = async (page: Page) => {
   });
 };
 
-export const mockStations = async (page: Page) => {
+export const mockStations = async (
+  page: Page,
+  {
+    authProviders = {
+      telegram: false,
+      google: false,
+      vk: false
+    }
+  }: MockStationsOptions = {}
+) => {
   const body = JSON.stringify(stations);
+  const summaryBody = JSON.stringify({
+    generatedAt: FIXED_GENERATED_AT,
+    counts: {
+      stations: stations.length,
+      countries: 3,
+      languages: 3,
+      genres: 8
+    },
+    catalogPool: stations.slice(0, 8),
+    freshSignals: stations.slice(0, 6),
+    searchLaunch: stations.slice(0, 6),
+    sponsored: stations.slice(0, 2),
+    countrySpotlight: {
+      label: 'Japan',
+      stations: stations.slice(0, 4)
+    },
+    genreSpotlight: {
+      label: 'jpop',
+      stations: stations.slice(0, 4)
+    }
+  });
+  const searchBody = JSON.stringify({
+    items: stations,
+    total: stations.length,
+    nextCursor: null,
+    facets: {
+      countries: ['All', 'Japan', 'Germany', 'Brazil'],
+      tags: ['All', 'jpop', 'techno', 'samba'],
+      languages: ['All', 'Japanese', 'German', 'Portuguese'],
+      continentCounts: [
+        { id: 'Asia', count: 4 },
+        { id: 'Europe', count: 4 },
+        { id: 'South America', count: 4 }
+      ],
+      featuredCountries: [
+        { key: 'jp', country: 'Japan', continent: 'Asia', count: 4 },
+        { key: 'de', country: 'Germany', continent: 'Europe', count: 4 }
+      ]
+    }
+  });
+  const areasBody = JSON.stringify({
+    items: [
+      {
+        id: 'asia-japan',
+        lat: 35.68,
+        lon: 139.69,
+        label: 'Japan',
+        subtitle: 'Asia',
+        count: 4
+      }
+    ],
+    mappedStations: stations.length,
+    totalStations: stations.length
+  });
+  const areaStationsBody = JSON.stringify({
+    area: {
+      id: 'asia-japan',
+      lat: 35.68,
+      lon: 139.69,
+      label: 'Japan',
+      subtitle: 'Asia',
+      count: 4
+    },
+    items: stations.slice(0, 4),
+    nextCursor: null
+  });
 
   await page.route('**/catalog-fast.json', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
@@ -277,14 +469,36 @@ export const mockStations = async (page: Page) => {
   await page.route('**/json/stations/search**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
   );
+  await page.route('**/catalog/summary**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: summaryBody })
+  );
+  await page.route('**/catalog/search**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: searchBody })
+  );
+  await page.route('**/catalog/areas?**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: areasBody })
+  );
+  await page.route('**/catalog/areas/**/stations?**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: areaStationsBody })
+  );
+  await page.route('**/catalog/stations/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ item: stations[0] })
+    })
+  );
   await page.route('https://stream.example.com/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'audio/wav', body: mockStreamAudio })
+  );
+  await page.route('**/stream?url=**', (route) =>
     route.fulfill({ status: 200, contentType: 'audio/wav', body: mockStreamAudio })
   );
   await page.route('**/metadata?url=**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, nowPlaying: 'Mock Song', source: 'test' })
+      body: JSON.stringify({ title: 'Mock Song', logs: ['test'], source: 'test' })
     })
   );
   await page.route('**/status-json.xsl', (route) =>
@@ -324,11 +538,32 @@ export const mockStations = async (page: Page) => {
       })
     })
   );
+  await page.route('**/observability/client-event', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
+  );
+  await page.route('**/auth/providers', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        telegram: { configured: Boolean(authProviders.telegram), label: 'Telegram' },
+        google: { configured: Boolean(authProviders.google), label: 'Google' },
+        vk: { configured: Boolean(authProviders.vk), label: 'VK' }
+      })
+    })
+  );
+  await page.route('**/billing/telegram/products', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ products: [] }) })
+  );
 };
 
 export const playHomeStation = async (page: Page, name: string) => {
-  const searchInput = page.locator('.home-search-card input').first();
+  const searchInput = page.locator('#home-search-launcher').first();
+  await page.locator('[data-home-hero]').waitFor({ state: 'visible' });
+  await searchInput.waitFor({ state: 'visible' });
   await searchInput.fill(name);
-  const row = page.locator('.home-search-card .station-row').filter({ hasText: name }).first();
-  await row.locator('.play-btn').click();
+  await page.waitForTimeout(450);
+  const row = page.locator('[data-home-search-preview] [data-home-station]').filter({ hasText: name }).first();
+  await row.waitFor({ state: 'visible' });
+  await row.locator('.home-action-btn-play').click();
 };

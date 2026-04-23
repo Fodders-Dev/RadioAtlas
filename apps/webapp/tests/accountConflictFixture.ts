@@ -51,7 +51,8 @@ export const applyConflictSession = async (
 
 export const openConflictPreview = async (page: Page, mergeButtonLabel: string) => {
   await page.goto(`/?api=${encodeURIComponent(ACCOUNT_FIXTURE_API_BASE)}`);
-  await page.getByRole('button', { name: 'Управлять' }).first().click();
+  await page.locator('.app-topbar-primary-cta').click();
+  await page.locator('.account-sheet-panel').waitFor({ state: 'visible' });
   await page.getByRole('button', { name: mergeButtonLabel }).click();
-  await page.getByRole('button', { name: 'Continue with Google' }).click();
+  await page.locator('.google-fixture-btn').click();
 };

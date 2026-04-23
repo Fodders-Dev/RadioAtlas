@@ -1,0 +1,490 @@
+import type express from 'express';
+import type { MediaRouteOptions, MetadataLookupResult } from './types.js';
+import { fetchWithDeadline, readJsonWithLimit, readTextWithLimit, sendJsonError } from './shared.js';
+import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
+
+const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult }>();
+
+const isTechnicalTrackPayload = (value: string) =>
+  /^\{.*"(status|message|result|errorCode)".*\}\s*\d*$/i.test(value);
+
+const normalizeTrackTitle = (value: unknown) => {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
+  if (isTechnicalTrackPayload(cleaned)) return null;
+  return cleaned;
+};
+
+const buildTrackTitle = (artist?: string | null, title?: string | null) => {
+  const parts = [normalizeTrackTitle(artist), normalizeTrackTitle(title)].filter(Boolean);
+  if (!parts.length) return null;
+  return parts.join(' - ');
+};
+
+const extractIcyTrackTitle = (
+  metaBytes: Uint8Array,
+  log: (msg: string) => void
+): string | null => {
+  for (const encoding of ['utf-8', 'shift_jis'] as const) {
+    try {
+      const text = new TextDecoder(encoding).decode(metaBytes);
+      const match = text.match(/StreamTitle='([^']*)'/) || text.match(/StreamTitle=([^;]*)/);
+      if (!match?.[1]) {
+        continue;
+      }
+
+      const title = buildTrackTitle(undefined, match[1]);
+      if (title) {
+        if (encoding !== 'utf-8') {
+          log(`Decoded ICY metadata via ${encoding}`);
+        }
+        return title;
+      }
+    } catch (error) {
+      log(`Decoder ${encoding} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  return null;
+};
+
+const metadataProbeTimeoutMs = (options: MediaRouteOptions) => options.metadataProbeTimeoutMs || 5_000;
+const metadataStreamTimeoutMs = (options: MediaRouteOptions) => options.metadataStreamTimeoutMs || 10_000;
+
+const fetchMetadataPayload = async (
+  targetUrl: string,
+  responseType: 'json' | 'text',
+  options: MediaRouteOptions
+) => {
+  try {
+    const { response, cleanup } = await fetchWithDeadline(
+      targetUrl,
+      {
+        headers: {
+          'User-Agent': options.userAgent,
+          Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
+        },
+        redirect: 'follow'
+      },
+      metadataProbeTimeoutMs(options)
+    );
+    try {
+      if (!response.ok) {
+        return null;
+      }
+
+      return responseType === 'json'
+        ? await readJsonWithLimit(response, options.fetchResponseLimitBytes)
+        : await readTextWithLimit(response, options.fetchResponseLimitBytes);
+    } finally {
+      cleanup();
+    }
+  } catch {
+    return null;
+  }
+};
+
+const fetchIcecastMetadata = async (
+  origin: string,
+  path: string,
+  options: MediaRouteOptions,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const target = `${origin}/status-json.xsl`;
+  log(`Trying Icecast status: ${target}`);
+  const data = await fetchMetadataPayload(target, 'json', options);
+  if (!data || typeof data !== 'object') return null;
+
+  const source = (data as any)?.icestats?.source;
+  const sources = Array.isArray(source) ? source : source ? [source] : [];
+  if (!sources.length) return null;
+
+  const matchedSource =
+    sources.find((entry: any) => entry?.listenurl?.endsWith(path) || entry?.listenurl?.includes(path)) ||
+    sources[0];
+
+  if (!matchedSource) return null;
+
+  const composedTrack = buildTrackTitle(matchedSource.artist, matchedSource.title);
+  return composedTrack || buildTrackTitle(undefined, matchedSource.title) || null;
+};
+
+const fetchShoutcastMetadata = async (
+  origin: string,
+  options: MediaRouteOptions,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const target = `${origin}/7.html`;
+  log(`Trying Shoutcast status: ${target}`);
+  const text = await fetchMetadataPayload(target, 'text', options);
+  if (!text || typeof text !== 'string') return null;
+
+  const bodyMatch = text.match(/<body[^>]*>(.*?)<\/body>/i);
+  const content = bodyMatch?.[1] || text;
+  const parts = content.split(',');
+  if (parts.length >= 7) {
+    return buildTrackTitle(undefined, parts[6]) || null;
+  }
+  return null;
+};
+
+const parseAzuraMetadata = (payload: unknown) => {
+  const data = Array.isArray(payload) ? payload[0] : payload;
+  const song = (data as any)?.now_playing?.song;
+  return buildTrackTitle(undefined, song?.text) || buildTrackTitle(song?.artist, song?.title);
+};
+
+const fetchAzuraMetadata = async (
+  host: string,
+  options: MediaRouteOptions,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const candidates = [`https://${host}/api/nowplaying/1`, `https://${host}/api/nowplaying`];
+  for (const candidate of candidates) {
+    log(`Trying AzuraCast status: ${candidate}`);
+    const data = await fetchMetadataPayload(candidate, 'json', options);
+    const track = parseAzuraMetadata(data);
+    if (track) return track;
+  }
+  return null;
+};
+
+const fetchStreamMetadata = async (
+  url: string,
+  options: MediaRouteOptions
+): Promise<MetadataLookupResult> => {
+  const logs: string[] = [];
+  const log = (msg: string) => {
+    console.log(`[Metadata] ${msg}`);
+    logs.push(msg);
+  };
+
+  log(`Fetching: ${url}`);
+
+  try {
+    const parsedUrl = new URL(url);
+    const icecastTitle = await fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, options, log);
+    if (icecastTitle) {
+      return { title: icecastTitle, logs, source: 'icecast-status' };
+    }
+
+    const shoutcastTitle = await fetchShoutcastMetadata(parsedUrl.origin, options, log);
+    if (shoutcastTitle) {
+      return { title: shoutcastTitle, logs, source: 'shoutcast-status' };
+    }
+
+    const azuraTitle = await fetchAzuraMetadata(parsedUrl.host, options, log);
+    if (azuraTitle) {
+      return { title: azuraTitle, logs, source: 'azuracast' };
+    }
+  } catch (error) {
+    log(`Status probe skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    const { response, cleanup } = await fetchWithDeadline(
+      url,
+      {
+        headers: {
+          'Icy-MetaData': '1',
+          'User-Agent': options.userAgent
+        },
+        redirect: 'follow'
+      },
+      metadataStreamTimeoutMs(options)
+    );
+    try {
+      log(`Status: ${response.status}`);
+      const metaintHeader = response.headers.get('icy-metaint');
+      log(`MetaInt: ${metaintHeader}`);
+
+      if (!metaintHeader) return { title: null, logs };
+
+      const metaint = Number(metaintHeader);
+      if (Number.isNaN(metaint) || metaint <= 0) {
+        log('Invalid metaint');
+        return { title: null, logs };
+      }
+
+      const body = response.body;
+      if (!body) {
+        log('No body');
+        return { title: null, logs };
+      }
+
+      const reader = body.getReader ? body.getReader() : null;
+      if (!reader) {
+        log('No reader');
+        return { title: null, logs };
+      }
+
+      let buffer = new Uint8Array(0);
+      const maxBytes = metaint + 16384;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+
+        const next = new Uint8Array(buffer.length + value.length);
+        next.set(buffer);
+        next.set(value, buffer.length);
+        buffer = next;
+
+        if (buffer.length >= metaint + 1) {
+          const lengthByte = buffer[metaint] || 0;
+          const metaLen = lengthByte * 16;
+
+          if (metaLen === 0) {
+            log('Empty metadata block found');
+            return { title: null, logs };
+          }
+
+          if (buffer.length >= metaint + 1 + metaLen) {
+            const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
+            log('Raw meta found');
+            const title = extractIcyTrackTitle(metaBytes, log);
+            if (title) {
+              return { title, logs, source: 'icy-stream' };
+            }
+            log('StreamTitle missing or not usable after decoding');
+            return { title: null, logs };
+          }
+        }
+
+        if (buffer.length > maxBytes) {
+          log('Max bytes reached');
+          break;
+        }
+      }
+    } finally {
+      cleanup();
+    }
+  } catch (error) {
+    log(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  return { title: null, logs };
+};
+
+const TOP_RADIO_MAPPING: Record<string, string> = {
+  'kazak.fm': 'kazak-fm',
+  'radio.kazak.fm': 'kazak-fm'
+};
+
+const getTopRadioSlug = (streamUrl: string): string | null => {
+  try {
+    const host = new URL(streamUrl).host.toLowerCase();
+    for (const [key, slug] of Object.entries(TOP_RADIO_MAPPING)) {
+      if (host.includes(key)) {
+        return slug;
+      }
+    }
+  } catch {}
+  return null;
+};
+
+const fetchFromTopRadio = async (
+  slug: string,
+  options: MediaRouteOptions
+): Promise<string | null> => {
+  try {
+    const { response, cleanup } = await fetchWithDeadline(
+      `https://top-radio.ru/web/${slug}`,
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+      },
+      metadataProbeTimeoutMs(options)
+    );
+    if (!response.ok) {
+      cleanup();
+      return null;
+    }
+
+    const html = await readTextWithLimit(response, options.fetchResponseLimitBytes);
+    cleanup();
+    const playlistSection = html.match(/Плейлист радиостанции[\s\S]*?Что сейчас играет:([\s\S]*?)Весь плей-лист/i);
+    const contentToSearch = playlistSection?.[1] ?? html;
+    const trackRegex = /class="artist"[^>]*>([^<]+)[\s\S]*?class="song"[^>]*>([^<]+)/gi;
+    const matches = [...contentToSearch.matchAll(trackRegex)];
+
+    if (matches.length > 0) {
+      const artist = matches[0]?.[1]?.trim?.();
+      const song = matches[0]?.[2]?.trim?.();
+      if (artist && song) {
+        return `${artist} - ${song}`;
+      }
+    }
+
+    const fallbackMatch = html.match(/class="artist">([^<]+)<\/span>[\s\S]*?class="song">([^<]+)<\/span>/i);
+    const fallbackArtist = fallbackMatch?.[1]?.trim?.();
+    const fallbackSong = fallbackMatch?.[2]?.trim?.();
+    if (fallbackArtist && fallbackSong) {
+      return `${fallbackArtist} - ${fallbackSong}`;
+    }
+  } catch (error) {
+    console.error(`[TopRadio] Error for ${slug}:`, error);
+  }
+  return null;
+};
+
+const get101ChannelId = (streamUrl: string): string | null => {
+  try {
+    const parsed = new URL(streamUrl);
+    if (!parsed.hostname.includes('101.ru')) return null;
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      const segment = segments[index] || '';
+      if (/^\d+$/.test(segment)) {
+        return segment;
+      }
+    }
+  } catch {}
+  return null;
+};
+
+const fetchFrom101Ru = async (
+  channelId: string,
+  options: MediaRouteOptions
+): Promise<string | null> => {
+  const endpoints = [
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}/channelchannel/?dataFormat=json`,
+    `https://101.ru/api/channel/getTrackOnAir/${encodeURIComponent(channelId)}`
+  ];
+
+  for (const endpoint of endpoints) {
+    const data = await fetchMetadataPayload(endpoint, 'json', options);
+    const short = (data as any)?.result?.short;
+    const track =
+      buildTrackTitle(short?.titleExecutor, short?.titleTrack) ||
+      buildTrackTitle(undefined, short?.title);
+    if (track) {
+      return track;
+    }
+  }
+
+  return null;
+};
+
+export const createMetadataHandler = (options: MediaRouteOptions) => {
+  const guard = new ProtectedMediaRoute<{
+    status: number;
+    body: Record<string, unknown>;
+    cacheTtlMs: number;
+  }>({
+    routeName: 'metadata',
+    maxConcurrency: options.metadataConcurrency || 4,
+    sharedMaxConcurrency: options.sharedConcurrency || 8,
+    rateLimitPerWindow: options.metadataRateLimitPerWindow || 120,
+    rateLimitWindowMs: options.rateLimitWindowMs || 60_000
+  });
+
+  return async (req: express.Request, res: express.Response) => {
+    const url = req.query.url;
+    if (!url || typeof url !== 'string') {
+      sendJsonError(res, 400, 'url is required');
+      return;
+    }
+
+    const cached = metadataCache.get(url);
+    if (cached && Date.now() - cached.ts < options.metadataCacheTtlMs) {
+      if (cached.result.title) {
+        res.json(cached.result);
+        return;
+      }
+      res.status(404).json({ error: 'No metadata found', ...cached.result });
+      return;
+    }
+
+    const cachedResponse = guard.getCached(url);
+    if (cachedResponse) {
+      res.status(cachedResponse.status).json(cachedResponse.body);
+      return;
+    }
+
+    const retryAfter = guard.checkRateLimit(req);
+    if (retryAfter !== null) {
+      res.setHeader('Retry-After', String(retryAfter));
+      sendJsonError(res, 429, 'metadata rate limit exceeded');
+      return;
+    }
+
+    try {
+      const result = await guard.run(url, async () => {
+        const metadata = await fetchStreamMetadata(url, options);
+        metadataCache.set(url, {
+          ts: Date.now(),
+          result: metadata
+        });
+        const { title, logs, source } = metadata;
+        if (title) {
+          return {
+            status: 200,
+            body: { title, logs, source },
+            cacheTtlMs: options.metadataCacheTtlMs
+          };
+        }
+
+        const oneOhOneChannelId = get101ChannelId(url);
+        if (oneOhOneChannelId) {
+          logs.push(`Trying 101.ru fallback for ${oneOhOneChannelId}`);
+          const oneOhOneTitle = await fetchFrom101Ru(oneOhOneChannelId, options);
+          if (oneOhOneTitle) {
+            logs.push(`Got from 101.ru: ${oneOhOneTitle}`);
+            const body = { title: oneOhOneTitle, logs, source: '101.ru' };
+            metadataCache.set(url, {
+              ts: Date.now(),
+              result: { title: oneOhOneTitle, logs, source: '101.ru' }
+            });
+            return {
+              status: 200,
+              body,
+              cacheTtlMs: options.metadataCacheTtlMs
+            };
+          }
+        }
+
+        const slug = getTopRadioSlug(url);
+        if (slug) {
+          logs.push(`Trying top-radio.ru fallback for ${slug}`);
+          const topRadioTitle = await fetchFromTopRadio(slug, options);
+          if (topRadioTitle) {
+            logs.push(`Got from top-radio: ${topRadioTitle}`);
+            const body = { title: topRadioTitle, logs, source: 'top-radio.ru' };
+            metadataCache.set(url, {
+              ts: Date.now(),
+              result: { title: topRadioTitle, logs, source: 'top-radio.ru' }
+            });
+            return {
+              status: 200,
+              body,
+              cacheTtlMs: options.metadataCacheTtlMs
+            };
+          }
+        }
+
+        return {
+          status: 404,
+          body: { error: 'No metadata found', logs, source },
+          cacheTtlMs: options.metadataNegativeCacheTtlMs || Math.min(5_000, options.metadataCacheTtlMs)
+        };
+      });
+
+      guard.setCached(url, result, result.cacheTtlMs);
+      res.status(result.status).json(result.body);
+    } catch (error) {
+      if (error instanceof MediaOverloadError) {
+        res.setHeader('Retry-After', String(error.retryAfterSec));
+        sendJsonError(res, 503, error.message);
+        return;
+      }
+      sendJsonError(res, 502, error instanceof Error ? error.message : 'metadata failed');
+    }
+  };
+};

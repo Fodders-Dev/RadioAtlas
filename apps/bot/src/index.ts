@@ -1,84 +1,34 @@
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
+import {
+  buildGiftPayload,
+  buildPremiumPayload,
+  buildSharePayload,
+  buildStartPayload,
+  buildSupportPayload
+} from './replyPayloads.js';
+import { createBotUrlRuntime } from './urlRuntime.js';
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
   throw new Error('BOT_TOKEN is missing');
 }
 
-const normalizeUrl = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  try {
-    return new URL(trimmed).toString();
-  } catch {
-    return '';
-  }
-};
-
-const apiUrl = normalizeUrl(process.env.API_URL || '').replace(/\/+$/, '');
-const configuredWebAppUrl = normalizeUrl(process.env.WEBAPP_URL || '');
-const inferredWebAppUrl = (() => {
-  if (!apiUrl) return '';
-  try {
-    const url = new URL(apiUrl);
-    url.pathname = '/';
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    return '';
-  }
-})();
-
-const webAppUrl = (() => {
-  if (!configuredWebAppUrl) return inferredWebAppUrl;
-  if (!inferredWebAppUrl) return configuredWebAppUrl;
-  const configuredOrigin = new URL(configuredWebAppUrl).origin;
-  const inferredOrigin = new URL(inferredWebAppUrl).origin;
-  if (configuredOrigin !== inferredOrigin) {
-    console.warn(
-      `WEBAPP_URL origin ${configuredOrigin} differs from API_URL origin ${inferredOrigin}; using API origin for bot web app links`
-    );
-    return inferredWebAppUrl;
-  }
-  return configuredWebAppUrl;
-})();
-const deployStamp = String(process.env.SOURCE_COMMIT || '').trim().slice(0, 7);
+const { apiUrl, webAppUrl, withSharedApi, withMiniAppParam } = createBotUrlRuntime({
+  apiUrl: process.env.API_URL,
+  webAppUrl: process.env.WEBAPP_URL,
+  sourceCommit: process.env.SOURCE_COMMIT
+});
 
 const bot = new Bot(token);
 
-const withSharedApi = (value: string) => {
-  if (!value) return '';
-  try {
-    const url = new URL(value);
-    if (deployStamp) {
-      url.searchParams.set('v', deployStamp);
-    }
-    if (apiUrl) {
-      url.searchParams.set('api', apiUrl);
-    }
-    return url.toString();
-  } catch {
-    return value;
-  }
-};
-
-const withMiniAppParam = (param: string) => {
-  if (!webAppUrl) return '';
-  const url = new URL(webAppUrl);
-  if (deployStamp) {
-    url.searchParams.set('v', deployStamp);
-  }
-  url.searchParams.set('start', param);
-  if (apiUrl) {
-    url.searchParams.set('api', apiUrl);
-  }
-  return url.toString();
-};
-
 const miniAppKeyboard = (label: string, param: string) =>
   webAppUrl ? new InlineKeyboard().webApp(label, withMiniAppParam(param)) : undefined;
+
+const keyboardFromPayload = (payload: { buttonLabel?: string; buttonUrl?: string }) =>
+  payload.buttonLabel && payload.buttonUrl
+    ? new InlineKeyboard().webApp(payload.buttonLabel, payload.buttonUrl)
+    : undefined;
 
 const syncMenuButton = async () => {
   if (!webAppUrl) {
@@ -110,52 +60,50 @@ const syncMenuButton = async () => {
 };
 
 bot.command('start', async (ctx) => {
-  const deepLink =
-    process.env.WEBAPP_DEEPLINK ||
-    (ctx.me?.username ? `https://t.me/${ctx.me.username}?startapp=radio` : '');
+  const payload = buildStartPayload(
+    {
+      webAppUrl,
+      withSharedApi,
+      withMiniAppParam
+    },
+    {
+      deepLink: process.env.WEBAPP_DEEPLINK,
+      username: ctx.me?.username
+    }
+  );
 
-  const lines = [
-    'Добро пожаловать в RadioAtlas.',
-    'Нажмите кнопку, чтобы открыть мини-приложение.',
-    deepLink ? `Deep link: ${deepLink}` : ''
-  ].filter(Boolean);
-
-  const keyboard = webAppUrl
-    ? new InlineKeyboard().webApp('Открыть радио', withSharedApi(webAppUrl))
-    : undefined;
-
-  await ctx.reply(lines.join('\n'), {
-    reply_markup: keyboard
+  await ctx.reply(payload.text, {
+    reply_markup: keyboardFromPayload(payload)
   });
 });
 
 bot.command('support', async (ctx) => {
-  await ctx.reply('Поддержать RadioAtlas можно прямо в мини-приложении через Telegram Stars.', {
-    reply_markup: miniAppKeyboard('Поддержать RadioAtlas', 'support')
+  const payload = buildSupportPayload({ webAppUrl, withSharedApi, withMiniAppParam });
+  await ctx.reply(payload.text, {
+    reply_markup: keyboardFromPayload(payload)
   });
 });
 
 bot.command('premium', async (ctx) => {
-  await ctx.reply('Открываю экран Premium в RadioAtlas.', {
-    reply_markup: miniAppKeyboard('Открыть Premium', 'premium')
+  const payload = buildPremiumPayload({ webAppUrl, withSharedApi, withMiniAppParam });
+  await ctx.reply(payload.text, {
+    reply_markup: keyboardFromPayload(payload)
   });
 });
 
 bot.command('gift', async (ctx) => {
-  const payload = ctx.message?.text?.split(' ').slice(1).join(' ').trim();
-  const param = payload ? `gift:${payload}` : 'gift';
-  await ctx.reply('Подарить Premium можно из мини-приложения.', {
-    reply_markup: miniAppKeyboard('Подарить Premium', param)
+  const payload = buildGiftPayload(
+    { webAppUrl, withSharedApi, withMiniAppParam },
+    ctx.message?.text?.split(' ').slice(1).join(' ')
+  );
+  await ctx.reply(payload.text, {
+    reply_markup: keyboardFromPayload(payload)
   });
 });
 
 bot.command('share', async (ctx) => {
-  const payload = ctx.message?.text?.split(' ').slice(1).join(' ');
-  if (!payload) {
-    await ctx.reply('Usage: /share <station_url>');
-    return;
-  }
-  await ctx.reply(`Share this station: ${payload}`);
+  const payload = buildSharePayload(ctx.message?.text?.split(' ').slice(1).join(' '));
+  await ctx.reply(payload.text);
 });
 
 bot.on('pre_checkout_query', async (ctx) => {

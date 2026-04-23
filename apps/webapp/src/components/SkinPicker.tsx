@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { searchMuseumSkins } from '../lib/skinMuseum';
 import { useDebounce } from '../lib/useDebounce';
 import { useLocale } from '../state/LocaleContext';
-import { useRadio } from '../state/RadioContext';
+import { useShell } from '../state/RadioContext';
 import type { WinampMuseumSkin } from '../types';
 
 type SearchState = 'idle' | 'loading' | 'ready' | 'error';
 
 export const SkinPicker = () => {
-  const { winamp } = useRadio();
+  const { winamp } = useShell();
   const { t } = useLocale();
   const [query, setQuery] = useState('');
   const [searchState, setSearchState] = useState<SearchState>('idle');

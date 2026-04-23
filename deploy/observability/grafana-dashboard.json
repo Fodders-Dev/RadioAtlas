@@ -1,0 +1,51 @@
+{
+  "title": "RadioAtlas API",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Catalog Fallbacks",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "increase(radioatlas_observability_counter{key=~\"catalog_fallback_.*\"}[15m])",
+          "legendFormat": "{{key}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Server Errors",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "increase(radioatlas_observability_counter{key=~\"error_.*\"}[15m])",
+          "legendFormat": "{{key}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Slow Requests Retained",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "radioatlas_observability_slow_requests"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Alerts Retained",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "radioatlas_observability_alerts"
+        }
+      ]
+    }
+  ]
+}

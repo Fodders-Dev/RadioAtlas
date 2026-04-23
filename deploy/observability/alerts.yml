@@ -1,0 +1,59 @@
+groups:
+  - name: radioatlas-api
+    rules:
+      - alert: RadioAtlasServerErrors
+        expr: increase(radioatlas_observability_counter{key=~"error_get_.*|error_post_.*"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: RadioAtlas API is returning 5xx responses
+      - alert: RadioAtlasCatalogFallbackSpike
+        expr: increase(radioatlas_observability_counter{key=~"catalog_fallback_.*"}[15m]) >= 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Catalog source is repeatedly falling back to snapshot or artifact
+      - alert: RadioAtlasSlowRequestPressure
+        expr: radioatlas_observability_slow_requests > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Slow request backlog is building up
+      - alert: RadioAtlasMediaInflightPressure
+        expr: radioatlas_observability_gauge{key="media_inflight_shared"} >= 6
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Media route concurrency is near saturation
+      - alert: RadioAtlasProcessCpuHigh
+        expr: radioatlas_observability_gauge{key="runtime_process_cpu_percent"} >= 85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: RadioAtlas API CPU is persistently high
+      - alert: RadioAtlasMetadataLatencyHigh
+        expr: radioatlas_request_latency_ms{route="get_metadata",quantile="0.95"} >= 3000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Metadata route p95 latency is above 3 seconds
+      - alert: RadioAtlasFetchLatencyHigh
+        expr: radioatlas_request_latency_ms{route="get_fetch",quantile="0.95"} >= 2500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Fetch route p95 latency is above 2.5 seconds
+      - alert: RadioAtlasMediaOverloadRejections
+        expr: increase(radioatlas_observability_counter{key=~"media_overload_.*|media_rate_limit_.*"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Media protection has started rejecting work

@@ -9,11 +9,15 @@ test('favorites sync to another logged-in device right after like', async ({ pag
 
   await installMediaMocks(page);
   await installGoogleAuthFixture(page);
-  await mockStations(page);
+  await mockStations(page, {
+    authProviders: {
+      google: true
+    }
+  });
   await prepareSharedGooglePage(page, credential);
 
   await signInThroughOnboarding(page, ACCOUNT_FIXTURE_API_BASE);
-  await expect(page.locator('.account-card .account-pill.authenticated')).toContainText('В облаке');
+  await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
   const cloudSyncResponse = page.waitForResponse(
     (response) =>
@@ -22,30 +26,33 @@ test('favorites sync to another logged-in device right after like', async ({ pag
       response.status() === 200
   );
 
-  await page
-    .locator('.station-row')
-    .filter({ hasText: stationName })
-    .first()
-    .locator('.station-fav-btn')
-    .click();
+  await page.getByRole('button', { name: 'Поиск' }).first().click();
+  await expect(page.locator('.search-command-card')).toBeVisible();
+  await page.locator('.search-bar input').first().fill(stationName);
+  const stationRow = page.locator('.station-row').filter({ hasText: stationName }).first();
+  await expect(stationRow).toBeVisible();
+  await stationRow.getByRole('button', { name: 'В лайки' }).click();
   await cloudSyncResponse;
-  await expect(page.locator('.account-card .globe-selection-pill').filter({ hasText: 'Избранное' })).toContainText('1');
+
+  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await expect(page.locator('.screen-library-v2')).toContainText(stationName);
 
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();
 
   await installMediaMocks(secondPage);
   await installGoogleAuthFixture(secondPage);
-  await mockStations(secondPage);
+  await mockStations(secondPage, {
+    authProviders: {
+      google: true
+    }
+  });
   await prepareSharedGooglePage(secondPage, credential);
 
   await signInThroughOnboarding(secondPage, ACCOUNT_FIXTURE_API_BASE);
-  await expect(secondPage.locator('.account-card .account-pill.authenticated')).toContainText('В облаке');
-  await expect(
-    secondPage.locator('.account-card .globe-selection-pill').filter({ hasText: 'Избранное' })
-  ).toContainText('1');
+  await expect(secondPage.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
-  await secondPage.locator('.account-card').getByRole('button', { name: 'Открыть медиатеку' }).click();
+  await secondPage.getByRole('button', { name: 'Медиатека' }).first().click();
   await expect(secondPage.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'library');
   await expect(secondPage.locator('.screen-library-v2')).toContainText(stationName);
 

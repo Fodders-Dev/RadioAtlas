@@ -1206,7 +1206,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, [apiBase, fetchProfile, signInWithTelegram, telegramRuntime.initData]);
 
   useEffect(() => {
-    if (!apiBase) {
+    if (!apiBase || !accountSheetOpen) {
       setProviderAvailability(
         mapProviderAvailability(null, {
           hasGoogleClient
@@ -1242,10 +1242,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true;
     };
-  }, [apiBase, hasGoogleClient]);
+  }, [accountSheetOpen, apiBase, hasGoogleClient]);
 
   useEffect(() => {
-    if (!apiBase) {
+    if (!apiBase || !accountSheetOpen || status !== 'authenticated') {
       setBillingProducts([]);
       return;
     }
@@ -1267,7 +1267,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true;
     };
-  }, [apiBase]);
+  }, [accountSheetOpen, apiBase, status]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

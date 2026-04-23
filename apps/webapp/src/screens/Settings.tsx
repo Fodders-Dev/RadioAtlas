@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useLocale } from '../state/LocaleContext';
-import { useRadio } from '../state/RadioContext';
+import { useLibrary, useShell } from '../state/RadioContext';
 import { SkinPicker } from '../components/SkinPicker';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 
 export const Settings = () => {
+  const { clearFavorites, clearRecent } = useLibrary();
   const {
     clearCache,
-    clearFavorites,
-    clearRecent,
     openWebAppExternally,
     debugLogs,
     winamp
-  } = useRadio();
+  } = useShell();
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);

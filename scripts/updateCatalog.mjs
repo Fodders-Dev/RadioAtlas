@@ -19,10 +19,10 @@ const ROOT_DIR = join(__dirname, '..');
 
 const FAST_OUTPUT =
   process.env.FAST_OUTPUT ||
-  join(ROOT_DIR, 'apps', 'webapp', 'public', 'catalog-fast.json');
+  join(ROOT_DIR, 'artifacts', 'catalog-fast.json');
 const FULL_OUTPUT =
   process.env.FULL_OUTPUT ||
-  join(ROOT_DIR, 'apps', 'webapp', 'public', 'catalog-full.json');
+  join(ROOT_DIR, 'artifacts', 'catalog-full.json');
 
 const asNumber = (value) => {
   if (value === null || value === undefined) return null;

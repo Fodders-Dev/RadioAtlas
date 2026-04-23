@@ -24,6 +24,8 @@ npm run dev:bot
 - For HLS streams, ensure `hls.js` loads (check console).
 - Telegram WebView may block mixed content; keep https-only or add proxy.
 - Track metadata is best-effort and depends on CORS/ICY support.
+- Heavy metadata/fetch probing is protected server-side with rate limiting, in-flight dedupe, caching, and shared concurrency caps.
+- Runtime gauges and latency percentiles are exposed at `/observability` and `/observability/prometheus`.
 
 ## User data
 - Favorites + recently played are stored in browser localStorage per device.
@@ -50,17 +52,22 @@ npm run dev:bot
 4. Set `VITE_TG_BOT` in `apps/webapp/.env` and redeploy.
 
 ## Deploy (VPS)
-1. Install Node 18+, Nginx, and certbot.
+1. Install Node 18+, Nginx, and Python 3.
 2. Build webapp:
    ```bash
    npm install
    npm --workspace apps/webapp run build
    ```
-3. Serve `apps/webapp/dist` via Nginx (HTTPS required).
-4. Run bot:
+3. Serve `apps/webapp/dist` directly from nginx.
+   Use `deploy/radioatlas.nginx.conf` as the source of truth for the RadioAtlas server block.
+4. If the old `radioatlas-static` service exists from a previous setup, retire it:
+   ```bash
+   bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh
+   ```
+5. Run bot:
    - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`
    - use systemd or pm2 to keep it alive.
-5. BotFather: set Web App URL to `https://your-domain`.
+6. BotFather: set Web App URL to `https://your-domain`.
 
 ## Deploy (GitHub Actions -> VPS)
 1. Add GitHub Actions secrets:
@@ -80,6 +87,37 @@ Deploy flow:
 - Shared env files from `/opt/RadioAtlas/shared/env` are linked into the release.
 - `npm ci`, `npm run build`, and `pm2 startOrGracefulReload` run on the server.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build.
+- After the release switch, reload nginx so it serves the new `current/apps/webapp/dist`:
+  - `bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh`
+  - `nginx -t && systemctl reload nginx`
+
+## Incident capture
+- Save current production logs and process state:
+  - `bash /opt/RadioAtlas/current/deploy/server/capture-incident-artifacts.sh`
+- Artifacts are stored under `/opt/RadioAtlas/shared/incidents/<timestamp>-radioatlas-incident`
+- Saved data includes:
+  - `journalctl -u caddy`
+  - `pm2` logs and process list
+  - `ss`, `ps`, `uptime`, `df`, `free`
+  - parsed `remote_ip` / `user-agent` / `uri` summary for `radioatlas.duckdns.org`
+
+## Health guard
+- Install or refresh the automatic API health guard:
+  - `bash /opt/RadioAtlas/current/deploy/server/install-health-guard.sh`
+- This installs a `systemd` timer that checks `http://127.0.0.1:3001/health` every 2 minutes and restarts `radioatlas-api` through `pm2` if the API stops responding.
+
+## Observability alerts
+- Prometheus scrape target: `/observability/prometheus`
+- Important gauges:
+  - `runtime_process_cpu_percent`
+  - `media_inflight_shared`
+  - `media_inflight_metadata`
+  - `media_inflight_fetch`
+- Important counters:
+  - `media_overload:*`
+  - `media_rate_limit:*`
+  - `error:GET:/metadata`
+  - `error:GET:/fetch`
 
 ## API proxy (http streams + catalog)
 1. Build and run:

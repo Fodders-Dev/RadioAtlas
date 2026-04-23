@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NowPlayingSnapshot } from '../domain/contracts';
 import { observeStationNowPlaying } from '../lib/nowPlaying';
+import { getDeviceProfile } from '../lib/deviceProfile';
 import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
-import { useRadio } from '../state/RadioContext';
+import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import { StationArtwork } from './StationArtwork';
 
@@ -12,6 +13,7 @@ type StationTableProps = {
   compact?: boolean;
   sourceId?: string;
   buildQueue?: boolean;
+  nowPlayingMode?: 'active-only' | 'viewport';
 };
 
 const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
@@ -19,7 +21,7 @@ const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
   status: 'idle',
   source: 'none',
   failureKind: null,
-  recommendedPollMs: 15_000,
+  recommendedPollMs: 30_000,
   updatedAt: null
 };
 
@@ -30,6 +32,7 @@ type StationTableRowProps = {
   sourceId?: string;
   buildQueue: boolean;
   stations: StationLite[];
+  nowPlayingMode: 'active-only' | 'viewport';
 };
 
 const StationTableRow = ({
@@ -38,45 +41,61 @@ const StationTableRow = ({
   compact,
   sourceId,
   buildQueue,
-  stations
+  stations,
+  nowPlayingMode
 }: StationTableRowProps) => {
-  const { playStation, toggleFavorite, isFavorite, player, nowPlaying, nowPlayingStatus } = useRadio();
+  const { playStation, player, nowPlaying, nowPlayingStatus } = usePlayback();
+  const { toggleFavorite, isFavorite } = useLibrary();
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const [shouldObserve, setShouldObserve] = useState(!compact || index < 28);
+  const lowPower = getDeviceProfile().lowPower;
+  const active = player.current?.stationuuid === station.stationuuid;
+  const shouldWatchViewport = nowPlayingMode === 'viewport';
+  const seedWindow = lowPower ? 1 : compact ? 2 : 3;
+  const [isNearViewport, setIsNearViewport] = useState(() =>
+    shouldWatchViewport ? active || index < seedWindow : active
+  );
   const [snapshot, setSnapshot] = useState<NowPlayingSnapshot>(IDLE_ROW_SNAPSHOT);
+  const shouldObserve = active || (shouldWatchViewport && isNearViewport);
 
   useEffect(() => {
-    if (shouldObserve) return;
+    if (active) {
+      setIsNearViewport(true);
+    }
+  }, [active]);
+
+  useEffect(() => {
+    if (!shouldWatchViewport) {
+      setIsNearViewport(active);
+      return;
+    }
     if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
-      setShouldObserve(true);
+      setIsNearViewport(true);
       return;
     }
     const node = rowRef.current;
     if (!node) {
-      setShouldObserve(true);
+      setIsNearViewport(true);
       return;
     }
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldObserve(true);
-        }
+        const nextNearViewport = entries.some((entry) => entry.isIntersecting);
+        setIsNearViewport(active || nextNearViewport);
       },
       {
-        rootMargin: '420px 0px'
+        rootMargin: lowPower ? '120px 0px' : compact ? '220px 0px' : '320px 0px'
       }
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [shouldObserve]);
+  }, [active, compact, lowPower, shouldWatchViewport]);
 
   useEffect(() => {
     if (!shouldObserve) return;
-    return observeStationNowPlaying(station, setSnapshot);
-  }, [shouldObserve, station.stationuuid, station.url_resolved]);
+    return observeStationNowPlaying(station, setSnapshot, active ? undefined : { passive: true });
+  }, [active, shouldObserve, station]);
 
-  const active = player.current?.stationuuid === station.stationuuid;
   const liked = isFavorite(station.stationuuid);
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
   const locationLabel = stationLocation(station);
@@ -227,7 +246,8 @@ export const StationTable = ({
   stations,
   compact,
   sourceId,
-  buildQueue = true
+  buildQueue = true,
+  nowPlayingMode = 'active-only'
 }: StationTableProps) => {
   const { t } = useLocale();
 
@@ -256,6 +276,7 @@ export const StationTable = ({
             sourceId={sourceId}
             buildQueue={buildQueue}
             stations={stations}
+            nowPlayingMode={nowPlayingMode}
           />
         );
       })}

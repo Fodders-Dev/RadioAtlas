@@ -4,7 +4,7 @@ import type { StationProfileSummary } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
-import { useRadio } from '../state/RadioContext';
+import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 
 type StationDetailsProps = {
@@ -15,18 +15,20 @@ type StationDetailsProps = {
 export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
   const { t } = useLocale();
   const {
+    knownStations,
+    toggleFavorite,
+    isFavorite,
+    followedStations,
+    toggleFollowStation
+  } = useLibrary();
+  const {
     player,
-    stations,
     nowPlaying,
     nowPlayingStatus,
     copyTrack,
-    toggleFavorite,
-    isFavorite,
     shareStation,
-    openExternal,
-    followedStations,
-    toggleFollowStation
-  } = useRadio();
+    openExternal
+  } = usePlayback();
   const { status, openAccountSheet } = useSession();
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -38,8 +40,8 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
 
   const full = useMemo(() => {
     if (!current) return null;
-    return stations.find((station) => station.stationuuid === current.stationuuid) ?? null;
-  }, [stations, current]);
+    return knownStations.find((station) => station.stationuuid === current.stationuuid) ?? null;
+  }, [knownStations, current]);
 
   if (!open || !current) return null;
 

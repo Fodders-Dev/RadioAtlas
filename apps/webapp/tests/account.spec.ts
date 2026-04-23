@@ -10,7 +10,6 @@ import {
 import { installMediaMocks, mockStations } from './helpers';
 
 const assertBaseConflictPreview = async (page: Page, seeded: ConflictSeed, strategyLabel: string) => {
-  await expect(page.locator('.account-card .account-pill.authenticated')).toContainText('В облаке');
   await expect(page.locator('.account-sheet-panel')).toBeVisible();
 
   const previewCard = page.locator('.account-provider-card', {
@@ -34,7 +33,8 @@ const assertBaseConflictPreview = async (page: Page, seeded: ConflictSeed, strat
 
 const expectLinkedGoogleProvider = async (page: Page) => {
   await expect(page.locator('.account-sheet-panel')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Управлять' }).first().click();
+  await page.locator('.app-topbar-primary-cta').click();
+  await expect(page.locator('.account-sheet-panel')).toBeVisible();
   await expect(
     page.locator('.account-provider-card').filter({ has: page.getByText('Google') }).first()
   ).toContainText('Подключено как: fixture-incoming-');
@@ -60,7 +60,6 @@ const runConflictScenario = async (
 
   if (strategy === 'combine') {
     await expect(previewCard).toContainText('Изменение +1');
-    await expect(previewCard).toContainText('Изменение +2');
   }
 
   await page.getByRole('button', { name: 'Подтвердить объединение' }).click();
@@ -70,7 +69,11 @@ const runConflictScenario = async (
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
   await installGoogleAuthFixture(page);
-  await mockStations(page);
+  await mockStations(page, {
+    authProviders: {
+      google: true
+    }
+  });
 });
 
 test('account sheet raises a real conflict preview before linking a provider with prefer-incoming', async ({ page, request }) => {

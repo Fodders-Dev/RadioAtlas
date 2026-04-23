@@ -1,25 +1,45 @@
-radioatlas.duckdns.org {
-	encode zstd gzip
+:4173 {
+	root * /opt/RadioAtlas/current/apps/webapp/dist
 
-	route {
-		handle_path /api/* {
-			reverse_proxy 127.0.0.1:3001
+	@hashedAssets {
+		path /assets/* /winamp-skins/*
+	}
+	handle @hashedAssets {
+		header Cache-Control "public, max-age=31536000, immutable"
+		header Vary "Accept-Encoding"
+		file_server {
+			precompressed br gzip
 		}
+	}
 
-		handle /api {
-			reverse_proxy 127.0.0.1:3001
+	@appStatic {
+		path /catalog-fast.json /catalog-full.json /favicon* /manifest.json
+	}
+	handle @appStatic {
+		header Cache-Control "public, max-age=86400"
+		header Vary "Accept-Encoding"
+		file_server {
+			precompressed br gzip
 		}
+	}
 
-		handle {
-			root * /opt/RadioAtlas/current/apps/webapp/dist
+	@appEntry {
+		path / /index.html
+	}
+	handle @appEntry {
+		header Cache-Control "no-store, no-cache, must-revalidate"
+		header Vary "Accept-Encoding"
+		file_server {
+			precompressed br gzip
+		}
+	}
 
-			@appRuntime {
-				path /assets/* /winamp-skins/* /catalog-fast.json /catalog-full.json /favicon* /manifest.json
-			}
-			header @appRuntime Cache-Control "public, max-age=86400"
-
-			try_files {path} /index.html
-			file_server
+	handle {
+		try_files {path} /index.html
+		header Cache-Control "no-store, no-cache, must-revalidate"
+		header Vary "Accept-Encoding"
+		file_server {
+			precompressed br gzip
 		}
 	}
 }

@@ -1,8 +1,8 @@
-import { geoDistance, geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
-import { feature, mesh } from 'topojson-client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
-import worldData from '../assets/countries-110m.json';
+import { getDeviceProfile } from '../lib/deviceProfile';
+import { loadGlobeAssets, type GlobeAssets } from './globe/assets';
+import './globe/globe.css';
 
 type GlobePoint = {
   id: string;
@@ -48,6 +48,7 @@ export const Globe = ({
   hintText,
   statusText
 }: GlobeProps) => {
+  const deviceProfile = getDeviceProfile();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rotationRef = useRef<[number, number, number]>([0, -15, 0]);
@@ -60,26 +61,40 @@ export const Globe = ({
   const pointerIdRef = useRef<number | null>(null);
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
-  const projectionRef = useRef<ReturnType<typeof geoOrthographic> | null>(null);
+  const projectionRef = useRef<any>(null);
 
   const [size, setSize] = useState({ width: 320, height: 320 });
-  const [autoRotate, setAutoRotate] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(
+    () => !deviceProfile.lowPower && !deviceProfile.reducedMotion
+  );
+  const [documentVisible, setDocumentVisible] = useState(
+    () => typeof document === 'undefined' || !document.hidden
+  );
+  const [assets, setAssets] = useState<GlobeAssets | null>(null);
   const [scale, setScale] = useState(1);
-
-  const land = useMemo(() => {
-    const data = worldData as any;
-    const landObject = data.objects.land ?? data.objects.countries;
-    return feature(data, landObject);
-  }, []);
-
-  const borders = useMemo(() => {
-    const data = worldData as any;
-    if (!data.objects?.countries) return null;
-    return mesh(data, data.objects.countries, (a: any, b: any) => a !== b);
-  }, []);
 
   const clamp = (value: number, min: number, max: number) =>
     Math.min(max, Math.max(min, value));
+
+  useEffect(() => {
+    let mounted = true;
+    void loadGlobeAssets().then((nextAssets) => {
+      if (mounted) {
+        setAssets(nextAssets);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setDocumentVisible(!document.hidden);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   useEffect(() => {
     if (!focusPoint) return;
@@ -130,21 +145,21 @@ export const Globe = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !documentVisible || !assets) return;
 
     let frame: number;
     const draw = () => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const dpr = Math.min(window.devicePixelRatio || 1, deviceProfile.lowPower ? 1.1 : 1.5);
       canvas.width = size.width * dpr;
       canvas.height = size.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const baseRadius = Math.min(size.width, size.height) * 0.42;
       const radius = baseRadius * scale;
-      const projection = geoOrthographic()
+      const projection = assets.geoOrthographic()
         .translate([size.width / 2, size.height / 2])
         .scale(radius)
         .clipAngle(90);
@@ -162,14 +177,14 @@ export const Globe = ({
           targetRotationRef.current = null;
         }
       } else if (!draggingRef.current && autoRotate) {
-        const autoSpeed = 0.01 / Math.max(1, scale);
+        const autoSpeed = (deviceProfile.lowPower ? 0.006 : 0.01) / Math.max(1, scale);
         rotation[0] += autoSpeed;
       }
       projection.rotate(rotation);
       projectionRef.current = projection;
       const center: [number, number] = [-rotation[0], -rotation[1]];
 
-      const path = geoPath(projection, ctx);
+      const path = assets.geoPath(projection, ctx);
       const sphere = { type: 'Sphere' } as any;
       const drawRoundedRect = (
         x: number,
@@ -243,13 +258,13 @@ export const Globe = ({
       landGradient.addColorStop(0.74, 'rgba(82, 92, 58, 0.94)');
       landGradient.addColorStop(1, 'rgba(61, 64, 43, 0.94)');
       ctx.beginPath();
-      path(land as any);
+      path(assets.land as any);
       ctx.fillStyle = landGradient;
       ctx.fill();
 
       ctx.save();
       ctx.beginPath();
-      path(land as any);
+      path(assets.land as any);
       ctx.clip();
       const terrainGlow = ctx.createRadialGradient(
         size.width * 0.35,
@@ -267,21 +282,21 @@ export const Globe = ({
       ctx.restore();
 
       ctx.beginPath();
-      path(land as any);
+      path(assets.land as any);
       ctx.strokeStyle = 'rgba(210, 243, 255, 0.16)';
       ctx.lineWidth = 0.8;
       ctx.stroke();
 
-      if (borders) {
+      if (assets.borders) {
         ctx.beginPath();
-        path(borders as any);
+        path(assets.borders as any);
         ctx.strokeStyle = 'rgba(190, 232, 255, 0.34)';
         ctx.lineWidth = scale >= 2 ? 0.9 : 0.72;
         ctx.stroke();
       }
 
       ctx.beginPath();
-      path(geoGraticule10());
+      path(assets.geoGraticule10());
       ctx.strokeStyle = 'rgba(220, 241, 255, 0.12)';
       ctx.lineWidth = 0.6;
       ctx.stroke();
@@ -295,15 +310,15 @@ export const Globe = ({
       const baseDot = Math.max(2.2, 4.4 - (scale - 1) * 0.55);
       const activeDot = baseDot + 2.2;
       const pulse = focusPulseRef.current;
-      focusPulseRef.current = Math.max(0, pulse - 0.02);
+      focusPulseRef.current = Math.max(0, pulse - (deviceProfile.lowPower ? 0.05 : 0.02));
 
       const visiblePoints = points
         .map((point) => {
-        const distance = geoDistance([point.lon, point.lat], center);
+          const distance = assets.geoDistance([point.lon, point.lat], center);
           if (distance > Math.PI / 2) return null;
-        const coords = projection([point.lon, point.lat]);
+          const coords = projection([point.lon, point.lat]);
           if (!coords) return null;
-        const [x, y] = coords;
+          const [x, y] = coords;
           const density = Math.min(5.8, Math.sqrt(point.count ?? 1));
           const pointRadius = baseDot + Math.max(0, density - 1) * 1.05;
           return {
@@ -386,7 +401,7 @@ export const Globe = ({
           ctx.arc(point.x, point.y, point.pointRadius + 6.2, 0, Math.PI * 2);
           ctx.stroke();
         }
-        if (point.isActive && pulse > 0.01) {
+        if (point.isActive && pulse > 0.01 && !deviceProfile.lowPower) {
           ctx.strokeStyle = `rgba(136, 241, 222, ${0.38 + pulse * 0.38})`;
           ctx.lineWidth = 1.5;
           ctx.beginPath();
@@ -401,7 +416,10 @@ export const Globe = ({
         }
       });
 
-      const labelLimit = scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
+      const labelLimitBase = scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
+      const labelLimit = deviceProfile.lowPower
+        ? Math.max(2, Math.floor(labelLimitBase / 2))
+        : labelLimitBase;
       const labelSlots: Array<{ left: number; top: number; right: number; bottom: number }> = [];
       visiblePoints
         .filter((point, index) => point.isSelected || point.isActive || index < labelLimit * 2)
@@ -485,7 +503,7 @@ export const Globe = ({
 
     frame = window.requestAnimationFrame(draw);
     return () => window.cancelAnimationFrame(frame);
-  }, [size, points, activeId, land, borders, autoRotate, scale]);
+  }, [size, points, activeId, assets, autoRotate, scale, documentVisible, deviceProfile.lowPower]);
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     event.preventDefault();
@@ -560,7 +578,7 @@ export const Globe = ({
   };
 
   const pickStation = (event: MouseEvent<HTMLCanvasElement>) => {
-    if ((!onPick && !onPickCandidates) || !projectionRef.current || !canvasRef.current) {
+    if ((!onPick && !onPickCandidates) || !projectionRef.current || !canvasRef.current || !assets) {
       return;
     }
     if (dragMovedRef.current) {
@@ -584,7 +602,7 @@ export const Globe = ({
 
     const candidates: { id: string; dist: number }[] = [];
     points.forEach((point) => {
-      const distance = geoDistance([point.lon, point.lat], center);
+      const distance = assets.geoDistance([point.lon, point.lat], center);
       if (distance > Math.PI / 2) return;
       const coords = projectionRef.current?.([point.lon, point.lat]);
       if (!coords) return;

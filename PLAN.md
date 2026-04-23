@@ -12,4 +12,4 @@
 - [x] Global theme tokens derived from active Winamp skin
 - [ ] Optional API proxy for http streams (if needed)
 
-Next: harden Winamp bridge (transport sync edge-cases) + add visual regression snapshots.
+Next: burn in the compact Home and new low-power shell mode on real Telegram traffic, verify that metadata polling and glass/animation degradations actually reduce budget-phone lag, then continue trimming the remaining `webamp-core-vendor` / `styles.css` weight for post-boot responsiveness.

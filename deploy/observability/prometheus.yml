@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts/radioatlas-alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  - job_name: radioatlas-api
+    metrics_path: /observability/prometheus
+    static_configs:
+      - targets:
+          - radioatlas.duckdns.org/api

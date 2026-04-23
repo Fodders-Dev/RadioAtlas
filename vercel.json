@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install",
+  "buildCommand": "VITE_API_URL=https://radioatlas.duckdns.org/api npm --workspace apps/webapp run build",
+  "outputDirectory": "apps/webapp/dist"
+}

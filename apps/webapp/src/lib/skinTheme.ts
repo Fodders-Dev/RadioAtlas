@@ -1,8 +1,22 @@
-import JSZip from 'jszip';
+import type JSZip from 'jszip';
 import type { SkinPalette } from '../types';
 import { WINAMP_CLASSIC_PALETTE } from './winampSkins';
 
 type Rgb = { r: number; g: number; b: number };
+
+let jsZipCtorPromise: Promise<typeof import('jszip')['default']> | null = null;
+
+const loadJSZip = async () => {
+  if (!jsZipCtorPromise) {
+    jsZipCtorPromise = import('jszip').then((mod) => mod.default);
+  }
+  try {
+    return await jsZipCtorPromise;
+  } catch (error) {
+    jsZipCtorPromise = null;
+    throw error;
+  }
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -153,6 +167,7 @@ const pickSkinImageFile = (zip: JSZip) => {
 };
 
 export const extractSkinPaletteFromBlob = async (blob: Blob): Promise<SkinPalette> => {
+  const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(blob);
   const imageFile = pickSkinImageFile(zip);
   if (!imageFile) {

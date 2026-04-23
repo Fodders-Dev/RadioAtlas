@@ -30,6 +30,10 @@ type FetchNowPlayingOptions = {
   lowImpact?: boolean;
 };
 
+type ObserveStationNowPlayingOptions = {
+  passive?: boolean;
+};
+
 const buildSnapshot = (
   track: string | null,
   status: NowPlayingSnapshot['status'],
@@ -55,6 +59,9 @@ const isConstrainedApplePlayback = () => {
 };
 
 export const shouldUseLowImpactMetadata = () => isConstrainedApplePlayback();
+
+const isDocumentVisible = () =>
+  typeof document === 'undefined' || document.visibilityState === 'visible';
 
 const bindAbort = (controller: AbortController, signal?: AbortSignal) => {
   if (!signal) return () => {};
@@ -300,7 +307,7 @@ const STATION_CACHE_TTL_MS = 5 * 60_000;
 const LAST_KNOWN_TRACKS_STORAGE_KEY = 'radio:last-known-tracks:v2';
 const LAST_KNOWN_TRACKS_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 const LAST_KNOWN_TRACKS_LIMIT = 600;
-const MAX_METADATA_CONCURRENCY = 4;
+const MAX_METADATA_CONCURRENCY = 2;
 const stationSnapshotEntries = new Map<string, StationSnapshotEntry>();
 const queuedStationKeys = new Set<string>();
 const refreshQueue: string[] = [];
@@ -314,7 +321,7 @@ const idleSnapshot = (): NowPlayingSnapshot => ({
   status: 'idle',
   source: 'none',
   failureKind: null,
-  recommendedPollMs: shouldUseLowImpactMetadata() ? 45_000 : 15_000,
+  recommendedPollMs: shouldUseLowImpactMetadata() ? 45_000 : 30_000,
   updatedAt: null
 });
 
@@ -411,7 +418,10 @@ const clearCleanupTimer = (entry: StationSnapshotEntry) => {
 const scheduleStationRefresh = (entry: StationSnapshotEntry, delayMs?: number) => {
   clearScheduledRefresh(entry);
   if (!entry.listeners.size) return;
-  const waitMs = Math.max(delayMs ?? entry.snapshot.recommendedPollMs ?? 15_000, 5_000);
+  const baseDelay = delayMs ?? entry.snapshot.recommendedPollMs ?? 15_000;
+  const waitMs = isDocumentVisible()
+    ? Math.max(baseDelay, 60_000)
+    : Math.max(baseDelay, 120_000);
   entry.timer = window.setTimeout(() => {
     queueStationSnapshotRefresh(entry.key);
   }, waitMs);
@@ -475,7 +485,7 @@ const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
         status: entry.snapshot.track ? 'ready' : 'unavailable',
         source: entry.snapshot.source === 'none' ? 'none' : entry.snapshot.source,
         failureKind: 'unknown',
-        recommendedPollMs: lowImpact ? 45_000 : 15_000,
+        recommendedPollMs: lowImpact ? 45_000 : 30_000,
         updatedAt: entry.snapshot.updatedAt
       };
       emitStationSnapshot(entry);
@@ -514,14 +524,15 @@ function queueStationSnapshotRefresh(key: string) {
 
 export const observeStationNowPlaying = (
   station: StationLite,
-  onSnapshot: StationSnapshotListener
+  onSnapshot: StationSnapshotListener,
+  options: ObserveStationNowPlayingOptions = {}
 ) => {
   const entry = getStationEntry(station);
   clearCleanupTimer(entry);
   entry.listeners.add(onSnapshot);
   onSnapshot(entry.snapshot);
 
-  if (!entry.liveUnsubscribe) {
+  if (!options.passive && !entry.liveUnsubscribe) {
     const liveUnsubscribe = subscribeNowPlaying(entry.station, (track) => {
       if (track) {
         saveStoredTrack(entry.key, track);
@@ -531,7 +542,7 @@ export const observeStationNowPlaying = (
         status: track ? 'ready' : 'unavailable',
         source: 'nightride-sse',
         failureKind: track ? null : 'metadata-unavailable',
-        recommendedPollMs: 15_000,
+        recommendedPollMs: 30_000,
         updatedAt: track ? Date.now() : null
       };
       emitStationSnapshot(entry);
@@ -542,15 +553,17 @@ export const observeStationNowPlaying = (
     }
   }
 
-  if (
-    entry.snapshot.status === 'idle' ||
-    entry.snapshot.status === 'unavailable' ||
-    (entry.snapshot.updatedAt !== null &&
-      Date.now() - entry.snapshot.updatedAt >= entry.snapshot.recommendedPollMs)
-  ) {
-    queueStationSnapshotRefresh(entry.key);
-  } else if (!entry.timer) {
-    scheduleStationRefresh(entry, entry.snapshot.recommendedPollMs);
+  if (!options.passive) {
+    if (
+      entry.snapshot.status === 'idle' ||
+      entry.snapshot.status === 'unavailable' ||
+      (entry.snapshot.updatedAt !== null &&
+        Date.now() - entry.snapshot.updatedAt >= entry.snapshot.recommendedPollMs)
+    ) {
+      queueStationSnapshotRefresh(entry.key);
+    } else if (!entry.timer) {
+      scheduleStationRefresh(entry, entry.snapshot.recommendedPollMs);
+    }
   }
 
   return () => {
@@ -998,7 +1011,7 @@ export const fetchNowPlayingSnapshot = async (
   logDebug?: (msg: string) => void,
   options: FetchNowPlayingOptions = {}
 ): Promise<NowPlayingSnapshot> => {
-  const pollMs = options.lowImpact ? 45000 : 15000;
+  const pollMs = options.lowImpact ? 45000 : 30000;
   const probeUrls = buildStationStreamTargets(station);
   if (!probeUrls.length) {
     return buildSnapshot(null, 'unavailable', 'none', 'metadata-unavailable', pollMs);

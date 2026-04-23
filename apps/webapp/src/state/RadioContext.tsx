@@ -1,11 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type {
-  CloudLibrary,
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
-  NowPlayingSnapshot,
   UserCollection
 } from '../domain/contracts';
 import type {
@@ -15,364 +13,74 @@ import type {
   PlayerPresentation,
   Station,
   StationLite,
-  WinampMuseumSkin,
-  WinampSkinPreset,
-  WinampSkinSource
+  WinampMuseumSkin
 } from '../types';
-import { fetchStations, clearStationsCache } from '../lib/radioBrowser';
-import { fetchNowPlayingSnapshot, shouldUseLowImpactMetadata, subscribeNowPlaying } from '../lib/nowPlaying';
-import { useLocalStorage } from '../lib/useLocalStorage';
-import { useAudioPlayer } from '../lib/useAudioPlayer';
 import { toLite } from '../lib/stationUtils';
 import {
-  DEFAULT_BEHAVIOR_PROFILE,
   recordSectionVisit,
-  recordStationSignal,
-  type BehaviorProfile
+  recordStationSignal
 } from '../lib/homeProfile';
-import { getStartParam, makeDeepLink, parseStationParam } from '../lib/telegram';
+import type { HomeSurfaceFeed } from '../lib/homeSurface';
+import type { BehaviorProfile } from '../lib/homeProfile';
+import { makeDeepLink } from '../lib/telegram';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
-import { getApiBase } from '../lib/apiBase';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
-import { applySkinPalette, applySkinThemeFromUrl } from '../lib/skinTheme';
-import { fetchMuseumSkinByMd5 } from '../lib/skinMuseum';
+import { usePersistentState } from '../lib/persistentState';
 import {
-  DEFAULT_WINAMP_SKIN_ID,
-  WINAMP_CLASSIC_PALETTE,
   WINAMP_SKIN_PRESETS,
   findPresetSkin
 } from '../lib/winampSkins';
+import {
+  DEFAULT_APP_STATE,
+  DEFAULT_LAYOUT,
+  DEFAULT_LIBRARY_STATE,
+  DEFAULT_PLAYER_STATE,
+  DEFAULT_SHELL_STATE,
+  DEFAULT_WINAMP_SKIN_ID,
+  MAX_PLAYBACK_HISTORY,
+  MAX_RECENT,
+  MAX_TRACK_HISTORY,
+  WINAMP_CLASSIC_PALETTE,
+  toActiveSkin,
+  toMuseumActiveSkin
+} from './radio/defaults';
+import {
+  clampQueueIndex,
+  getQueueSourceLabel,
+  mergeUniqueStations,
+  mergeStationCache,
+  normalizeStations,
+  resolveUpdater,
+  snapshotsEqual
+} from './radio/helpers';
+import type {
+  LibraryContextValue,
+  PlaybackContextValue,
+  PlayStationInternalOptions,
+  PlayStationOptions,
+  QueueSnapshot,
+  QueueState,
+  ShellContextValue,
+  StoredAppState,
+  StoredLibraryState,
+  StoredPlayerState,
+  StoredShellState,
+  StoredSkin,
+  StoredWinampLayout,
+  TrackHistoryItem,
+  WinampState
+} from './radio/types';
+import { createPlaybackPlayerPlaceholder, type PlaybackRuntimeSnapshot } from './radio/playbackRuntimeBridge';
+import { useCloudLibrarySync } from './radio/useCloudLibrarySync';
+import { IDLE_NOW_PLAYING_STATE } from './radio/nowPlayingDefaults';
 
-type TrackHistoryItem = {
-  id: string;
-  stationId: string;
-  stationName: string;
-  track: string;
-  timestamp: number;
-};
-
-type StoredSkin = {
-  source: WinampSkinSource;
-  id?: string;
-  md5?: string;
-  name?: string;
-};
-
-type CompactMode = 'strip' | 'panel';
-type ExpandedWindowId = 'main-window' | 'equalizer-window' | 'playlist-window';
-
-type QueueSnapshot = {
-  items: StationLite[];
-  currentIndex: number;
-  sourceId: string | null;
-  sourceLabel: string | null;
-};
-
-type LayoutWindowVisibility = {
-  'equalizer-window': boolean;
-  'playlist-window': boolean;
-};
-
-type WindowPositions = Partial<Record<ExpandedWindowId, { x: number; y: number }>>;
-
-type StoredWinampLayout = {
-  version: 3;
-  windowPositions: WindowPositions;
-  windowVisibility: LayoutWindowVisibility;
-};
-
-type StoredShellState = {
-  version: 1;
-  activeSection: AppSection;
-  playerPresentation: PlayerPresentation;
-  libraryTab: LibraryTab;
-  detailsOpen: boolean;
-};
-
-type QueueState = QueueSnapshot & {
-  playAtIndex: (index: number) => void;
-  removeAtIndex: (index: number) => void;
-  clearQueue: () => void;
-};
-
-type WinampState = {
-  expanded: boolean;
-  setExpanded: (value: boolean) => void;
-  compactMode: CompactMode;
-  setCompactMode: (mode: CompactMode) => void;
-  windowPositions: WindowPositions;
-  setWindowPosition: (id: ExpandedWindowId, position: { x: number; y: number }) => void;
-  windowVisibility: LayoutWindowVisibility;
-  setWindowVisibility: (id: keyof LayoutWindowVisibility, visible: boolean) => void;
-  resetLayout: () => void;
-  availableSkins: WinampSkinPreset[];
-  activeSkin: ActiveWinampSkin;
-  setSkin: (skinId: string) => void;
-  selectSkin: (skin: WinampMuseumSkin) => void;
-};
-
-type PlayStationOptions = {
-  playlist?: Array<Station | StationLite>;
-  sourceId?: string;
-  sourceLabel?: string;
-};
-
-type PlayStationInternalOptions = PlayStationOptions & {
-  recordHistory?: boolean;
-  addToRecent?: boolean;
-  queueSnapshot?: QueueSnapshot;
-  historyCursorTarget?: number;
-  suppressErrorToast?: boolean;
-};
-
-type RadioContextValue = {
-  stations: Station[];
-  loading: boolean;
-  error: string | null;
-  favorites: StationLite[];
-  recent: StationLite[];
-  collections: UserCollection[];
-  followedStations: FollowedStation[];
-  followedRegions: FollowedRegion[];
-  alerts: ListenerAlert[];
-  toast: string | null;
-  nowPlaying: string | null;
-  nowPlayingStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
-  nowPlayingState: NowPlayingSnapshot;
-  trackHistory: TrackHistoryItem[];
-  playbackHistory: StationLite[];
-  behaviorProfile: BehaviorProfile;
-  player: ReturnType<typeof useAudioPlayer>;
-  queue: QueueState;
-  winamp: WinampState;
-  activeSection: AppSection;
-  setActiveSection: (section: AppSection) => void;
-  playerPresentation: PlayerPresentation;
-  setPlayerPresentation: (presentation: PlayerPresentation) => void;
-  libraryTab: LibraryTab;
-  setLibraryTab: (tab: LibraryTab) => void;
-  detailsOpen: boolean;
-  setDetailsOpen: (value: boolean) => void;
-  playStation: (station: Station | StationLite, options?: PlayStationOptions) => void;
-  playPrevious: () => void;
-  playNext: () => void;
-  playLast: () => void;
-  copyTrack: () => void;
-  toggleFavorite: (station: Station | StationLite) => void;
-  isFavorite: (stationId: string) => boolean;
-  openExternal: (station: Station | StationLite) => void;
-  shareStation: (station: Station | StationLite) => void;
-  openWebAppExternally: () => void;
-  clearFavorites: () => void;
-  clearRecent: () => void;
-  clearTrackHistory: () => void;
-  createCollection: (name: string) => void;
-  addStationToCollection: (collectionId: string, station: Station | StationLite) => void;
-  removeStationFromCollection: (collectionId: string, stationId: string) => void;
-  toggleFollowStation: (station: Station | StationLite) => void;
-  toggleFollowRegion: (region: { id: string; label: string; scope: 'country' | 'area' }) => void;
-  markAlertRead: (alertId: string) => void;
-  clearCache: () => void;
-  debugLogs: string[];
-};
-
-const RadioContext = createContext<RadioContextValue | null>(null);
-
-const MAX_RECENT = 20;
-const MAX_TRACK_HISTORY = 200;
-const MAX_PLAYBACK_HISTORY = 80;
-const MAX_QUEUE_ITEMS = 120;
-const DEFAULT_STORED_SKIN: StoredSkin = {
-  source: 'preset',
-  id: DEFAULT_WINAMP_SKIN_ID
-};
-const DEFAULT_QUEUE: QueueSnapshot = {
-  items: [],
-  currentIndex: -1,
-  sourceId: null,
-  sourceLabel: null
-};
-const DEFAULT_LAYOUT: StoredWinampLayout = {
-  version: 3,
-  windowPositions: {},
-  windowVisibility: {
-    'equalizer-window': true,
-    'playlist-window': true
-  }
-};
-const DEFAULT_SHELL_STATE: StoredShellState = {
-  version: 1,
-  activeSection: 'home',
-  playerPresentation: 'peek',
-  libraryTab: 'favorites',
-  detailsOpen: false
-};
-const IDLE_NOW_PLAYING_STATE: NowPlayingSnapshot = {
-  track: null,
-  status: 'idle',
-  source: 'none',
-  failureKind: null,
-  recommendedPollMs: 15000,
-  updatedAt: null
-};
-
-const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
-  const preset = findPresetSkin(presetId);
-  return {
-    ...preset,
-    source: 'preset'
-  };
-};
-
-const toMuseumActiveSkin = (skin: WinampMuseumSkin): ActiveWinampSkin => ({
-  ...skin,
-  source: 'museum'
-});
-
-const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
-  const merged: StationLite[] = [];
-  const seen = new Set<string>();
-
-  groups.forEach((group) => {
-    group.forEach((station) => {
-      if (!station || seen.has(station.stationuuid)) return;
-      seen.add(station.stationuuid);
-      merged.push(station);
-    });
-  });
-
-  return merged;
-};
-
-const normalizeStations = (stations: Array<Station | StationLite>) =>
-  mergeUniqueStations(stations.map((station) => toLite(station))).slice(0, MAX_QUEUE_ITEMS);
-
-const mergeTrackHistory = (...groups: TrackHistoryItem[][]) => {
-  const seen = new Set<string>();
-  return groups
-    .flat()
-    .sort((left, right) => right.timestamp - left.timestamp)
-    .filter((item) => {
-      const key = `${item.stationId}:${item.track.toLowerCase()}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, MAX_TRACK_HISTORY);
-};
-
-const stationsMatch = (left: StationLite[], right: StationLite[]) =>
-  left.length === right.length &&
-  left.every((station, index) => station.stationuuid === right[index]?.stationuuid);
-
-const trackHistoryMatch = (left: TrackHistoryItem[], right: TrackHistoryItem[]) =>
-  left.length === right.length &&
-  left.every(
-    (item, index) =>
-      item.stationId === right[index]?.stationId &&
-      item.track === right[index]?.track &&
-      item.timestamp === right[index]?.timestamp
-  );
-
-const collectionsMatch = (left: UserCollection[], right: UserCollection[]) =>
-  left.length === right.length &&
-  left.every((item, index) => {
-    const candidate = right[index];
-    return (
-      item.id === candidate?.id &&
-      item.name === candidate?.name &&
-      item.description === candidate?.description &&
-      item.isPublic === candidate?.isPublic &&
-      item.pinned === candidate?.pinned &&
-      item.updatedAt === candidate?.updatedAt &&
-      item.stationIds.length === candidate?.stationIds.length &&
-      item.stationIds.every((stationId, stationIndex) => stationId === candidate?.stationIds[stationIndex])
-    );
-  });
-
-const followedStationsMatch = (left: FollowedStation[], right: FollowedStation[]) =>
-  left.length === right.length &&
-  left.every((item, index) => {
-    const candidate = right[index];
-    return (
-      item.stationId === candidate?.stationId &&
-      item.stationName === candidate?.stationName &&
-      item.country === candidate?.country &&
-      item.createdAt === candidate?.createdAt &&
-      item.pinned === candidate?.pinned &&
-      item.alerts.length === candidate?.alerts.length &&
-      item.alerts.every((alert, alertIndex) => alert === candidate?.alerts[alertIndex])
-    );
-  });
-
-const followedRegionsMatch = (left: FollowedRegion[], right: FollowedRegion[]) =>
-  left.length === right.length &&
-  left.every((item, index) => {
-    const candidate = right[index];
-    return (
-      item.id === candidate?.id &&
-      item.label === candidate?.label &&
-      item.scope === candidate?.scope &&
-      item.createdAt === candidate?.createdAt &&
-      item.pinned === candidate?.pinned
-    );
-  });
-
-const alertsMatch = (left: ListenerAlert[], right: ListenerAlert[]) =>
-  left.length === right.length &&
-  left.every((item, index) => {
-    const candidate = right[index];
-    return (
-      item.id === candidate?.id &&
-      item.kind === candidate?.kind &&
-      item.stationId === candidate?.stationId &&
-      item.regionId === candidate?.regionId &&
-      item.title === candidate?.title &&
-      item.body === candidate?.body &&
-      item.createdAt === candidate?.createdAt &&
-      item.readAt === candidate?.readAt
-    );
-  });
-
-const getQueueSourceLabel = (
-  sourceId: string | null | undefined,
-  sourceLabel: string | null | undefined,
-  items: StationLite[],
-  t: (key: string, vars?: Record<string, string | number>) => string
-) => {
-  if (sourceLabel?.trim()) return sourceLabel.trim();
-  if (!sourceId) {
-    return items.length === 1 ? items[0]?.name || t('radio.queueDefault') : t('radio.queueDefault');
-  }
-  if (sourceId === 'favorites') return t('radio.favorites');
-  if (sourceId === 'recent') return t('radio.recent');
-  if (sourceId === 'search-stations' || sourceId === 'discover-stations') return t('radio.searchResults');
-  if (sourceId === 'search-links' || sourceId === 'discover-links') return t('radio.savedLinks');
-  if (sourceId === 'search-links-recent' || sourceId === 'discover-links-recent') return t('radio.recentLinks');
-  if (sourceId === 'explore-trending') return t('radio.trending');
-  if (sourceId === 'explore-search') return t('radio.exploreSearch');
-  if (sourceId === 'explore-pick') return t('radio.nearby');
-  if (sourceId.startsWith('browse-')) return t('radio.discoverResults');
-  if (sourceId.startsWith('station-')) return items[0]?.name || 'Single station';
-  return sourceId
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-};
-
-const snapshotsEqual = (left: QueueSnapshot, right: QueueSnapshot) =>
-  left.currentIndex === right.currentIndex &&
-  left.sourceId === right.sourceId &&
-  left.sourceLabel === right.sourceLabel &&
-  left.items.length === right.items.length &&
-  left.items.every((station, index) => station.stationuuid === right.items[index]?.stationuuid);
-
-const clampQueueIndex = (items: StationLite[], index: number) => {
-  if (!items.length) return -1;
-  return Math.min(Math.max(index, 0), items.length - 1);
-};
+const PlaybackContext = createContext<PlaybackContextValue | null>(null);
+const LibraryContext = createContext<LibraryContextValue | null>(null);
+const ShellContext = createContext<ShellContextValue | null>(null);
+const PlaybackRuntimeLazy = lazy(() =>
+  import('./radio/PlaybackRuntime').then((mod) => ({ default: mod.PlaybackRuntime }))
+);
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLocale();
@@ -382,61 +90,176 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     library: cloudLibrary,
     replaceCloudLibrary
   } = useSession();
-  const [stations, setStations] = useState<Station[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [storedAppState, setStoredAppState] = usePersistentState<StoredAppState>(
+    'radio:app:v2',
+    DEFAULT_APP_STATE,
+    {
+      clearLegacyKeys: ['radio:shell-state:v1', 'radio:behavior-profile:v1']
+    }
+  );
+  const [storedLibraryState, setStoredLibraryState] = usePersistentState<StoredLibraryState>(
+    'radio:library:v2',
+    DEFAULT_LIBRARY_STATE,
+    {
+      clearLegacyKeys: [
+        'radio:track-history',
+        'radio:favorites',
+        'radio:recent',
+        'radio:collections:v1',
+        'radio:follows:stations:v1',
+        'radio:follows:regions:v1',
+        'radio:alerts:v1',
+        'radio:playback-history:v2'
+      ]
+    }
+  );
+  const [storedPlayerState, setStoredPlayerState] = usePersistentState<StoredPlayerState>(
+    'radio:player:v2',
+    DEFAULT_PLAYER_STATE,
+    {
+      clearLegacyKeys: [
+        'radio:playback-queue:v2',
+        'radio:winamp-skin',
+        'radio:winamp-layout:v3'
+      ]
+    }
+  );
   const [toast, setToast] = useState<string | null>(null);
-  const [nowPlaying, setNowPlaying] = useState<string | null>(null);
-  const [nowPlayingStatus, setNowPlayingStatus] = useState<
-    'idle' | 'loading' | 'ready' | 'unavailable'
-  >('idle');
-  const [nowPlayingState, setNowPlayingState] = useState<NowPlayingSnapshot>(IDLE_NOW_PLAYING_STATE);
-  const [trackHistory, setTrackHistory] = useLocalStorage<TrackHistoryItem[]>(
-    'radio:track-history',
-    []
+  const storedShellState = storedAppState.shell;
+  const behaviorProfile = storedAppState.behaviorProfile;
+  const homeState = storedShellState.home;
+  const searchDraft = storedShellState.searchDraft;
+  const favorites = storedLibraryState.favorites;
+  const recent = storedLibraryState.recent;
+  const collections = storedLibraryState.collections;
+  const followedStations = storedLibraryState.followedStations;
+  const followedRegions = storedLibraryState.followedRegions;
+  const alerts = storedLibraryState.alerts;
+  const trackHistory = storedLibraryState.trackHistory;
+  const playbackHistoryEntries = storedLibraryState.playbackHistory;
+  const knownStations = useMemo(
+    () => Object.values(storedLibraryState.stationCache),
+    [storedLibraryState.stationCache]
   );
-  const [favorites, setFavorites] = useLocalStorage<StationLite[]>(
-    'radio:favorites',
-    []
-  );
-  const [recent, setRecent] = useLocalStorage<StationLite[]>(
-    'radio:recent',
-    []
-  );
-  const [collections, setCollections] = useLocalStorage<UserCollection[]>('radio:collections:v1', []);
-  const [followedStations, setFollowedStations] = useLocalStorage<FollowedStation[]>(
-    'radio:follows:stations:v1',
-    []
-  );
-  const [followedRegions, setFollowedRegions] = useLocalStorage<FollowedRegion[]>(
-    'radio:follows:regions:v1',
-    []
-  );
-  const [alerts, setAlerts] = useLocalStorage<ListenerAlert[]>('radio:alerts:v1', []);
-  const [storedQueue, setStoredQueue] = useLocalStorage<QueueSnapshot>(
-    'radio:playback-queue:v2',
-    DEFAULT_QUEUE
-  );
-  const [playbackHistoryEntries, setPlaybackHistoryEntries] = useLocalStorage<StationLite[]>(
-    'radio:playback-history:v2',
-    []
-  );
-  const [storedSkin, setStoredSkin] = useLocalStorage<StoredSkin>(
-    'radio:winamp-skin',
-    DEFAULT_STORED_SKIN
-  );
-  const [storedLayout, setStoredLayout] = useLocalStorage<StoredWinampLayout>(
-    'radio:winamp-layout:v3',
-    DEFAULT_LAYOUT
-  );
-  const [storedShellState, setStoredShellState] = useLocalStorage<StoredShellState>(
-    'radio:shell-state:v1',
-    DEFAULT_SHELL_STATE
-  );
-  const [behaviorProfile, setBehaviorProfile] = useLocalStorage<BehaviorProfile>(
-    'radio:behavior-profile:v1',
-    DEFAULT_BEHAVIOR_PROFILE
-  );
+  const storedQueue = storedPlayerState.queue;
+  const storedSkin = storedPlayerState.skin;
+  const storedLayout = storedPlayerState.layout;
+
+  const setStoredShellState = (next: StoredShellState | ((prev: StoredShellState) => StoredShellState)) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      shell: resolveUpdater(prev.shell, next)
+    }));
+  const setHomeSnapshot = (snapshot: HomeSurfaceFeed) =>
+    setStoredShellState((prev) => ({
+      ...prev,
+      home: {
+        ...prev.home,
+        sessionSeed: snapshot.seed,
+        lastBuiltAt: snapshot.builtAt,
+        snapshot
+      }
+    }));
+  const refreshHomeSurface = (seed = Date.now()) =>
+    setStoredShellState((prev) => ({
+      ...prev,
+      home: {
+        sessionSeed: seed,
+        lastBuiltAt: null,
+        snapshot: null
+      }
+    }));
+  const setSearchDraft = (value: string) =>
+    setStoredShellState((prev) =>
+      prev.searchDraft === value
+        ? prev
+        : {
+            ...prev,
+            searchDraft: value
+          }
+    );
+  const clearSearchDraft = () => setSearchDraft('');
+  const setBehaviorProfile = (
+    next: BehaviorProfile | ((prev: BehaviorProfile) => BehaviorProfile)
+  ) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      behaviorProfile: resolveUpdater(prev.behaviorProfile, next)
+    }));
+  const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      favorites: resolveUpdater(prev.favorites, next)
+    }));
+  const setRecent = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      recent: resolveUpdater(prev.recent, next)
+    }));
+  const setCollections = (
+    next: UserCollection[] | ((prev: UserCollection[]) => UserCollection[])
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      collections: resolveUpdater(prev.collections, next)
+    }));
+  const setFollowedStations = (
+    next: FollowedStation[] | ((prev: FollowedStation[]) => FollowedStation[])
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      followedStations: resolveUpdater(prev.followedStations, next)
+    }));
+  const setFollowedRegions = (
+    next: FollowedRegion[] | ((prev: FollowedRegion[]) => FollowedRegion[])
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      followedRegions: resolveUpdater(prev.followedRegions, next)
+    }));
+  const setAlerts = (next: ListenerAlert[] | ((prev: ListenerAlert[]) => ListenerAlert[])) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      alerts: resolveUpdater(prev.alerts, next)
+    }));
+  const setTrackHistory = (
+    next: TrackHistoryItem[] | ((prev: TrackHistoryItem[]) => TrackHistoryItem[])
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      trackHistory: resolveUpdater(prev.trackHistory, next)
+    }));
+  const setPlaybackHistoryEntries = (
+    next: StationLite[] | ((prev: StationLite[]) => StationLite[])
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      playbackHistory: resolveUpdater(prev.playbackHistory, next)
+    }));
+  const rememberStations = (stations: Array<Station | StationLite | null | undefined>) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      stationCache: mergeStationCache(prev.stationCache, stations)
+    }));
+  const setStoredQueue = (
+    next: QueueSnapshot | ((prev: QueueSnapshot) => QueueSnapshot)
+  ) =>
+    setStoredPlayerState((prev) => ({
+      ...prev,
+      queue: resolveUpdater(prev.queue, next)
+    }));
+  const setStoredSkin = (next: StoredSkin | ((prev: StoredSkin) => StoredSkin)) =>
+    setStoredPlayerState((prev) => ({
+      ...prev,
+      skin: resolveUpdater(prev.skin, next)
+    }));
+  const setStoredLayout = (
+    next: StoredWinampLayout | ((prev: StoredWinampLayout) => StoredWinampLayout)
+  ) =>
+    setStoredPlayerState((prev) => ({
+      ...prev,
+      layout: resolveUpdater(prev.layout, next)
+    }));
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
@@ -457,13 +280,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     window.setTimeout(() => setToast(null), 2000);
   };
 
-  const syncCloudLibraryImmediately = (
-    nextLibrary: Omit<CloudLibrary, 'updatedAt'>
-  ) => {
-    if (sessionStatus !== 'authenticated' || !sessionProfile?.id) return;
-    void replaceCloudLibrary(nextLibrary);
-  };
-
   const resolvePlaybackToastMessage = (message: string | null | undefined) => {
     switch (message) {
       case 'stream blocked/mixed content':
@@ -481,15 +297,22 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const player = useAudioPlayer({
-    onEvent: logDebug
-  });
-  const startHandledRef = useRef(false);
-  const hydratedCloudProfileRef = useRef<string | null>(null);
+  const [playbackRuntime, setPlaybackRuntime] = useState<PlaybackRuntimeSnapshot>(() => ({
+    player: createPlaybackPlayerPlaceholder(),
+    nowPlaying: null,
+    nowPlayingStatus: 'idle',
+    nowPlayingState: IDLE_NOW_PLAYING_STATE
+  }));
+  const handlePlaybackRuntimeSnapshot = useCallback((snapshot: PlaybackRuntimeSnapshot) => {
+    setPlaybackRuntime(snapshot);
+  }, []);
+  const player = playbackRuntime.player;
+  const nowPlaying = playbackRuntime.nowPlaying;
+  const nowPlayingStatus = playbackRuntime.nowPlayingStatus;
+  const nowPlayingState = playbackRuntime.nowPlayingState;
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
-  const nowPlayingStateRef = useRef(nowPlayingState);
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
   const libraryTab = storedShellState.libraryTab;
@@ -509,16 +332,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [playbackHistoryCursor]);
 
   useEffect(() => {
-    nowPlayingStateRef.current = nowPlayingState;
-  }, [nowPlayingState]);
-
-  useEffect(() => {
-    if (sessionStatus !== 'authenticated') {
-      hydratedCloudProfileRef.current = null;
-    }
-  }, [sessionStatus]);
-
-  useEffect(() => {
     if (storedLayout?.version === 3) return;
     setStoredLayout({
       version: 3,
@@ -528,92 +341,40 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [setStoredLayout, storedLayout]);
 
   useEffect(() => {
-    if (storedShellState?.version === 1) return;
-    setStoredShellState(DEFAULT_SHELL_STATE);
+    if (storedShellState?.version === DEFAULT_SHELL_STATE.version) return;
+    const legacyShell = storedShellState as Partial<StoredShellState> & {
+      home?: Partial<StoredShellState['home']>;
+      searchDraft?: unknown;
+    };
+    setStoredShellState({
+      ...DEFAULT_SHELL_STATE,
+      activeSection: legacyShell.activeSection ?? DEFAULT_SHELL_STATE.activeSection,
+      playerPresentation:
+        legacyShell.playerPresentation ?? DEFAULT_SHELL_STATE.playerPresentation,
+      libraryTab: legacyShell.libraryTab ?? DEFAULT_SHELL_STATE.libraryTab,
+      detailsOpen: legacyShell.detailsOpen ?? DEFAULT_SHELL_STATE.detailsOpen,
+      home: {
+        sessionSeed:
+          typeof legacyShell.home?.sessionSeed === 'number'
+            ? legacyShell.home.sessionSeed
+            : Date.now(),
+        lastBuiltAt:
+          typeof legacyShell.home?.lastBuiltAt === 'number'
+            ? legacyShell.home.lastBuiltAt
+            : null,
+        snapshot: legacyShell.home?.snapshot ?? null
+      },
+      searchDraft:
+        typeof legacyShell.searchDraft === 'string' ? legacyShell.searchDraft : ''
+    });
   }, [setStoredShellState, storedShellState]);
 
   useEffect(() => {
     if (behaviorProfile?.version === 1) return;
-    setBehaviorProfile(DEFAULT_BEHAVIOR_PROFILE);
+    setBehaviorProfile(DEFAULT_APP_STATE.behaviorProfile);
   }, [behaviorProfile, setBehaviorProfile]);
 
-  useEffect(() => {
-    if (
-      sessionStatus !== 'authenticated' ||
-      !sessionProfile?.id ||
-      !cloudLibrary ||
-      hydratedCloudProfileRef.current === sessionProfile.id
-    ) {
-      return;
-    }
-
-    hydratedCloudProfileRef.current = sessionProfile.id;
-
-    const mergedFavorites = mergeUniqueStations(cloudLibrary.favorites, favorites);
-    const mergedRecent = mergeUniqueStations(cloudLibrary.recent, recent).slice(0, MAX_RECENT);
-    const mergedTrackHistory = mergeTrackHistory(cloudLibrary.trackHistory as TrackHistoryItem[], trackHistory);
-    const mergedCollections = [...cloudLibrary.collections, ...collections]
-      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt)
-      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
-      .slice(0, 24);
-    const mergedFollowedStations = [...cloudLibrary.followedStations, ...followedStations]
-      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
-      .filter(
-        (item, index, source) => source.findIndex((candidate) => candidate.stationId === item.stationId) === index
-      )
-      .slice(0, 80);
-    const mergedFollowedRegions = [...cloudLibrary.followedRegions, ...followedRegions]
-      .sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt)
-      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
-      .slice(0, 40);
-    const mergedAlerts = [...cloudLibrary.alerts, ...alerts]
-      .sort((left, right) => right.createdAt - left.createdAt)
-      .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
-      .slice(0, 160);
-
-    if (!stationsMatch(mergedFavorites, favorites)) {
-      setFavorites(mergedFavorites);
-    }
-    if (!stationsMatch(mergedRecent, recent)) {
-      setRecent(mergedRecent);
-    }
-    if (!trackHistoryMatch(mergedTrackHistory, trackHistory)) {
-      setTrackHistory(mergedTrackHistory);
-    }
-    if (!collectionsMatch(mergedCollections, collections)) {
-      setCollections(mergedCollections);
-    }
-    if (!followedStationsMatch(mergedFollowedStations, followedStations)) {
-      setFollowedStations(mergedFollowedStations);
-    }
-    if (!followedRegionsMatch(mergedFollowedRegions, followedRegions)) {
-      setFollowedRegions(mergedFollowedRegions);
-    }
-    if (!alertsMatch(mergedAlerts, alerts)) {
-      setAlerts(mergedAlerts);
-    }
-
-    const remoteNeedsUpdate =
-      !stationsMatch(mergedFavorites, cloudLibrary.favorites) ||
-      !stationsMatch(mergedRecent, cloudLibrary.recent) ||
-      !trackHistoryMatch(mergedTrackHistory, cloudLibrary.trackHistory as TrackHistoryItem[]) ||
-      !collectionsMatch(mergedCollections, cloudLibrary.collections) ||
-      !followedStationsMatch(mergedFollowedStations, cloudLibrary.followedStations) ||
-      !followedRegionsMatch(mergedFollowedRegions, cloudLibrary.followedRegions) ||
-      !alertsMatch(mergedAlerts, cloudLibrary.alerts);
-
-    if (remoteNeedsUpdate) {
-      void replaceCloudLibrary({
-        favorites: mergedFavorites,
-        recent: mergedRecent,
-        trackHistory: mergedTrackHistory,
-        collections: mergedCollections,
-        followedStations: mergedFollowedStations,
-        followedRegions: mergedFollowedRegions,
-        alerts: mergedAlerts
-      });
-    }
-  }, [
+  const { syncCloudLibraryImmediately } = useCloudLibrarySync({
     alerts,
     cloudLibrary,
     collections,
@@ -622,72 +383,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     followedStations,
     recent,
     replaceCloudLibrary,
-    sessionProfile?.id,
+    sessionProfileId: sessionProfile?.id,
     sessionStatus,
-    trackHistory,
     setAlerts,
     setCollections,
     setFavorites,
     setFollowedRegions,
     setFollowedStations,
     setRecent,
-    setTrackHistory
-  ]);
-
-  useEffect(() => {
-    if (
-      sessionStatus !== 'authenticated' ||
-      !sessionProfile?.id ||
-      hydratedCloudProfileRef.current !== sessionProfile.id
-    ) {
-      return;
-    }
-
-    const nextRecent = recent.slice(0, MAX_RECENT);
-    const nextTrackHistory = trackHistory.slice(0, MAX_TRACK_HISTORY);
-    const sameAsCloud =
-      stationsMatch(favorites, cloudLibrary?.favorites || []) &&
-      stationsMatch(nextRecent, cloudLibrary?.recent || []) &&
-      trackHistoryMatch(nextTrackHistory, (cloudLibrary?.trackHistory || []) as TrackHistoryItem[]) &&
-      collectionsMatch(collections, cloudLibrary?.collections || []) &&
-      followedStationsMatch(followedStations, cloudLibrary?.followedStations || []) &&
-      followedRegionsMatch(followedRegions, cloudLibrary?.followedRegions || []) &&
-      alertsMatch(alerts, cloudLibrary?.alerts || []);
-
-    if (sameAsCloud) return;
-
-    const timeout = window.setTimeout(() => {
-      void replaceCloudLibrary({
-        favorites,
-        recent: nextRecent,
-        trackHistory: nextTrackHistory,
-        collections,
-        followedStations,
-        followedRegions,
-        alerts
-      });
-    }, 700);
-
-    return () => window.clearTimeout(timeout);
-  }, [
-    cloudLibrary?.favorites,
-    cloudLibrary?.recent,
-    cloudLibrary?.trackHistory,
-    cloudLibrary?.collections,
-    cloudLibrary?.followedStations,
-    cloudLibrary?.followedRegions,
-    cloudLibrary?.alerts,
-    favorites,
-    recent,
-    replaceCloudLibrary,
-    sessionProfile?.id,
-    sessionStatus,
-    trackHistory,
-    collections,
-    followedStations,
-    followedRegions,
-    alerts
-  ]);
+    setTrackHistory,
+    trackHistory
+  });
 
   useEffect(() => {
     if (!playbackHistoryEntries.length) {
@@ -779,6 +485,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     recordHistory: boolean,
     historyCursorTarget?: number
   ) => {
+    rememberStations([station]);
     if (!recordHistory) {
       if (typeof historyCursorTarget === 'number') {
         setPlaybackHistoryCursor(historyCursorTarget);
@@ -815,34 +522,30 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     let cancelled = false;
 
     const restoreSkin = async () => {
-      if (storedSkin.source === 'preset') {
-        setActiveSkin(toActiveSkin(storedSkin.id));
-        return;
-      }
-
-      if (storedSkin.source === 'museum' && storedSkin.md5) {
-        try {
-          const restoredSkin = await fetchMuseumSkinByMd5(storedSkin.md5);
-          if (cancelled) return;
-          if (restoredSkin) {
-            setActiveSkin(toMuseumActiveSkin(restoredSkin));
-            logDebug(`Skin restored: ${restoredSkin.name}`);
-            return;
-          }
-        } catch (restoreError) {
-          logDebug(
-            `Skin restore failed: ${
-              restoreError instanceof Error ? restoreError.message : String(restoreError)
-            }`
-          );
+      try {
+        const runtime = await import('./radio/winampSkinRuntime');
+        const result = await runtime.resolveStoredActiveSkin(storedSkin);
+        if (cancelled) return;
+        setActiveSkin(result.skin);
+        if (result.restoredName) {
+          logDebug(`Skin restored: ${result.restoredName}`);
         }
+        if (result.usedFallback) {
+          setStoredSkin({ source: 'preset', id: result.skin.id });
+          notify(t('toast.savedSkinFallback'));
+        }
+      } catch (restoreError) {
+        if (cancelled) return;
+        logDebug(
+          `Skin restore failed: ${
+            restoreError instanceof Error ? restoreError.message : String(restoreError)
+          }`
+        );
+        const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
+        setActiveSkin(fallback);
+        setStoredSkin({ source: 'preset', id: fallback.id });
+        notify(t('toast.savedSkinFallback'));
       }
-
-      if (cancelled) return;
-      const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
-      setActiveSkin(fallback);
-      setStoredSkin({ source: 'preset', id: fallback.id });
-      notify(t('toast.savedSkinFallback'));
     };
 
     void restoreSkin();
@@ -855,9 +558,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let mounted = true;
     const applyTheme = async () => {
-      const palette = activeSkin.palette
-        ? applySkinPalette(activeSkin.palette)
-        : await applySkinThemeFromUrl(activeSkin.url, WINAMP_CLASSIC_PALETTE);
+      const runtime = await import('./radio/winampSkinRuntime');
+      const palette = await runtime.applyActiveSkinTheme(activeSkin);
 
       const tg = window.Telegram?.WebApp;
       tg?.setHeaderColor?.(palette.bg);
@@ -868,47 +570,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     };
 
     applyTheme().catch(() => {
-      applySkinPalette(WINAMP_CLASSIC_PALETTE);
+      void import('./radio/winampSkinRuntime').then((runtime) => {
+        runtime.applyClassicSkinTheme();
+      });
     });
 
     return () => {
       mounted = false;
     };
   }, [activeSkin]);
-
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      let hasData = false;
-      try {
-        const quick = await fetchStations({ mode: 'fast' });
-        if (mounted && quick.length) {
-          setStations(quick);
-          hasData = true;
-          setLoading(false);
-        }
-        const full = await fetchStations({ mode: 'full' });
-        if (mounted && full.length) {
-          setStations(full);
-          hasData = true;
-        }
-      } catch (loadError) {
-        if (mounted && !hasData) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load');
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-    void load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -972,6 +642,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const addRecent = (station: Station | StationLite) => {
     const lite = toLite(station);
+    rememberStations([lite]);
     setRecent((prev) => {
       const next = [lite, ...prev.filter((item) => item.stationuuid !== lite.stationuuid)];
       return next.slice(0, MAX_RECENT);
@@ -983,6 +654,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     options?: PlayStationInternalOptions
   ) => {
     const lite = toLite(station);
+    rememberStations([lite]);
     if (!lite.url_resolved) {
       notify(t('toast.missingStream'));
       return false;
@@ -1000,6 +672,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const playedStation = result.station ?? lite;
+    rememberStations([playedStation]);
     const nextQueue =
       options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
     updateQueue(nextQueue);
@@ -1025,180 +698,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const playStation = (station: Station | StationLite, options?: PlayStationOptions) =>
     void playStationInternal(station, options);
 
-  useEffect(() => {
-    if (startHandledRef.current) return;
-    if (!stations.length) return;
-
-    const startParam = getStartParam();
-    if (!startParam) {
-      startHandledRef.current = true;
-      return;
-    }
-
-    const stationId = parseStationParam(startParam);
-    const station = stations.find((item) => item.stationuuid === stationId);
-    if (station) {
-      void playStationInternal(station, {
-        sourceId: 'deep-link',
-        sourceLabel: t('radio.deepLink')
-      });
-      startHandledRef.current = true;
-      return;
-    }
-
-    startHandledRef.current = true;
-  }, [stations]);
-
-  useEffect(() => {
-    const station = player.current;
-    if (!station || !player.isPlaying) {
-      setNowPlaying(null);
-      setNowPlayingStatus('idle');
-      setNowPlayingState(IDLE_NOW_PLAYING_STATE);
-      return;
-    }
-
-    let active = true;
-    let inFlight = false;
-    let attempt = 0;
-    let pollTimer: number | null = null;
-    const controller = new AbortController();
-    const lowImpactMetadata = shouldUseLowImpactMetadata();
-    const metadataPollOverride =
-      typeof window !== 'undefined' &&
-      typeof (window as typeof window & { __RA_METADATA_POLL_MS__?: number }).__RA_METADATA_POLL_MS__ === 'number'
-        ? Math.max(
-            100,
-            Number(
-              (window as typeof window & { __RA_METADATA_POLL_MS__?: number }).__RA_METADATA_POLL_MS__
-            )
-          )
-        : null;
-    const basePollMs = metadataPollOverride || (lowImpactMetadata ? 45000 : 15000);
-    setNowPlayingStatus('loading');
-    setNowPlayingState({
-      ...IDLE_NOW_PLAYING_STATE,
-      status: 'loading',
-      recommendedPollMs: basePollMs
-    });
-
-    const applySnapshot = (snapshot: NowPlayingSnapshot) => {
-      if (!active) return;
-      const previousSnapshot = nowPlayingStateRef.current;
-      const preserveFreshSseTrack =
-        !snapshot.track &&
-        previousSnapshot.track &&
-        previousSnapshot.source === 'nightride-sse' &&
-        previousSnapshot.updatedAt !== null &&
-        Date.now() - previousSnapshot.updatedAt < Math.max(basePollMs * 2, 12000);
-      const effectiveSnapshot = preserveFreshSseTrack
-        ? {
-            ...snapshot,
-            track: previousSnapshot.track,
-            status: 'ready',
-            source: previousSnapshot.source,
-            failureKind: null,
-            updatedAt: previousSnapshot.updatedAt
-          }
-        : snapshot;
-      nowPlayingStateRef.current = effectiveSnapshot;
-      setNowPlayingState(effectiveSnapshot);
-      if (effectiveSnapshot.track) {
-        attempt = 0;
-        setNowPlaying(effectiveSnapshot.track);
-        setNowPlayingStatus('ready');
-      } else {
-        setNowPlaying(null);
-        setNowPlayingStatus(effectiveSnapshot.status === 'loading' ? 'loading' : 'unavailable');
-      }
-    };
-
-    const scheduleNext = (baseMs: number, success: boolean) => {
-      if (!active) return;
-      const delay = success ? baseMs : Math.min(baseMs * 2 ** Math.min(attempt, 2), 90000);
-      if (pollTimer !== null) {
-        window.clearTimeout(pollTimer);
-      }
-      pollTimer = window.setTimeout(() => {
-        void update();
-      }, delay);
-    };
-
-    const unsubscribe = subscribeNowPlaying(station, (track) => {
-      applySnapshot({
-        track,
-        status: track ? 'ready' : 'unavailable',
-        source: 'nightride-sse',
-        failureKind: track ? null : 'metadata-unavailable',
-        recommendedPollMs: basePollMs,
-        updatedAt: track ? Date.now() : null
-      });
-    });
-
-    const update = async () => {
-      if (inFlight || controller.signal.aborted) {
-        return;
-      }
-      inFlight = true;
-      try {
-        const snapshot = await fetchNowPlayingSnapshot(station, logDebug, {
-          signal: controller.signal,
-          lowImpact: lowImpactMetadata
-        });
-        const effectiveSnapshot = metadataPollOverride
-          ? { ...snapshot, recommendedPollMs: basePollMs }
-          : snapshot;
-        if (effectiveSnapshot.track) {
-          logDebug(`Metadata: ${effectiveSnapshot.track}`);
-        } else {
-          attempt += 1;
-          logDebug(
-            `Metadata: null (${effectiveSnapshot.failureKind || 'no-source'} / API: ${getApiBase() || 'default'})`
-          );
-        }
-        applySnapshot(effectiveSnapshot);
-        scheduleNext(effectiveSnapshot.recommendedPollMs, Boolean(effectiveSnapshot.track));
-      } catch (metadataError) {
-        if (!controller.signal.aborted) {
-          attempt += 1;
-          logDebug(
-            `Metadata Err: ${
-              metadataError instanceof Error ? metadataError.message : String(metadataError)
-            }`
-          );
-          const failedSnapshot: NowPlayingSnapshot = {
-            track: null,
-            status: 'unavailable',
-            source: 'none',
-            failureKind: 'unknown',
-            recommendedPollMs: basePollMs,
-            updatedAt: null
-          };
-          applySnapshot(failedSnapshot);
-          scheduleNext(failedSnapshot.recommendedPollMs, false);
-        }
-      } finally {
-        inFlight = false;
-      }
-    };
-
-    void update();
-
-    return () => {
-      active = false;
-      controller.abort();
-      if (pollTimer !== null) {
-        window.clearTimeout(pollTimer);
-      }
-      unsubscribe?.();
-    };
-  }, [player.current?.stationuuid, player.isPlaying]);
-
   const isFavorite = (stationId: string) =>
     favorites.some((item) => item.stationuuid === stationId);
 
   const toggleFavorite = (station: Station | StationLite) => {
     const lite = toLite(station);
+    rememberStations([lite]);
     const alreadyFavorite = favorites.some((item) => item.stationuuid === lite.stationuuid);
     const nextFavorites = alreadyFavorite
       ? favorites.filter((item) => item.stationuuid !== lite.stationuuid)
@@ -1322,7 +827,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const playFromGlobalPool = async () => {
       const currentQueue = queueRef.current;
-      const globalPool = stations.map((station) => toLite(station));
+      const globalPool = knownStations;
       const pool = globalPool.length ? globalPool : currentQueue.items;
       if (!pool.length) return false;
 
@@ -1360,7 +865,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       historyEntriesRef.current[historyEntriesRef.current.length - 1] ??
       recent[0] ??
       currentQueue.items[0] ??
-      stations[0];
+      knownStations[0];
 
     if (!latestStation) return;
 
@@ -1518,6 +1023,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
   const addStationToCollection = (collectionId: string, station: Station | StationLite) => {
     const lite = toLite(station);
+    rememberStations([lite]);
     setCollections((prev) =>
       prev.map((collection) =>
         collection.id !== collectionId || collection.stationIds.includes(lite.stationuuid)
@@ -1546,6 +1052,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
   const toggleFollowStation = (station: Station | StationLite) => {
     const lite = toLite(station);
+    rememberStations([lite]);
     const alreadyFollowed = followedStations.some((item) => item.stationId === lite.stationuuid);
     setFollowedStations((prev) => {
       if (prev.some((item) => item.stationId === lite.stationuuid)) {
@@ -1595,7 +1102,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     );
   };
   const clearCache = () => {
-    clearStationsCache();
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      stationCache: {}
+    }));
+    setStoredShellState((prev) => ({
+      ...prev,
+      home: {
+        ...prev.home,
+        lastBuiltAt: null,
+        snapshot: null
+      },
+      searchDraft: ''
+    }));
+    try {
+      window.localStorage.removeItem('radio:last-known-tracks:v2');
+    } catch {
+      // ignore storage failures
+    }
     notify(t('toast.cacheCleared'));
   };
 
@@ -1773,65 +1297,170 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }),
     [activeSkin, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
+  const playbackValue = useMemo<PlaybackContextValue>(
+    () => ({
+      nowPlaying,
+      nowPlayingStatus,
+      nowPlayingState,
+      player,
+      queue,
+      playStation,
+      playPrevious,
+      playNext,
+      playLast,
+      copyTrack,
+      openExternal,
+      shareStation
+    }),
+    [
+      copyTrack,
+      nowPlaying,
+      nowPlayingState,
+      nowPlayingStatus,
+      openExternal,
+      playLast,
+      playNext,
+      playPrevious,
+      playStation,
+      player,
+      queue,
+      shareStation
+    ]
+  );
 
-  const value: RadioContextValue = {
-    stations,
-    loading,
-    error,
-    favorites,
-    recent,
-    collections,
-    followedStations,
-    followedRegions,
-    alerts,
-    toast,
-    nowPlaying,
-    nowPlayingStatus,
-    nowPlayingState,
-    trackHistory,
-    playbackHistory: playbackHistoryEntries,
-    behaviorProfile,
-    player,
-    queue,
-    winamp,
-    activeSection,
-    setActiveSection,
-    playerPresentation,
-    setPlayerPresentation,
-    libraryTab,
-    setLibraryTab,
-    detailsOpen,
-    setDetailsOpen,
-    playStation,
-    playPrevious,
-    playNext,
-    playLast,
-    copyTrack,
-    toggleFavorite,
-    isFavorite,
-    openExternal,
-    openWebAppExternally,
-    shareStation,
-    clearFavorites,
-    clearRecent,
-    clearTrackHistory,
-    createCollection,
-    addStationToCollection,
-    removeStationFromCollection,
-    toggleFollowStation,
-    toggleFollowRegion,
-    markAlertRead,
-    clearCache,
-    debugLogs
-  };
+  const libraryValue = useMemo<LibraryContextValue>(
+    () => ({
+      knownStations,
+      favorites,
+      recent,
+      collections,
+      followedStations,
+      followedRegions,
+      alerts,
+      trackHistory,
+      playbackHistory: playbackHistoryEntries,
+      behaviorProfile,
+      toggleFavorite,
+      isFavorite,
+      clearFavorites,
+      clearRecent,
+      clearTrackHistory,
+      createCollection,
+      addStationToCollection,
+      removeStationFromCollection,
+      toggleFollowStation,
+      toggleFollowRegion,
+      markAlertRead,
+      rememberStations
+    }),
+    [
+      addStationToCollection,
+      alerts,
+      behaviorProfile,
+      clearFavorites,
+      clearRecent,
+      clearTrackHistory,
+      collections,
+      createCollection,
+      favorites,
+      followedRegions,
+      followedStations,
+      isFavorite,
+      knownStations,
+      markAlertRead,
+      playbackHistoryEntries,
+      recent,
+      rememberStations,
+      removeStationFromCollection,
+      toggleFavorite,
+      toggleFollowRegion,
+      toggleFollowStation,
+      trackHistory
+    ]
+  );
 
-  return <RadioContext.Provider value={value}>{children}</RadioContext.Provider>;
+  const shellValue = useMemo<ShellContextValue>(
+    () => ({
+      toast,
+      debugLogs,
+      winamp,
+      activeSection,
+      setActiveSection,
+      playerPresentation,
+      setPlayerPresentation,
+      libraryTab,
+      setLibraryTab,
+      detailsOpen,
+      setDetailsOpen,
+      homeState,
+      setHomeSnapshot,
+      refreshHomeSurface,
+      searchDraft,
+      setSearchDraft,
+      clearSearchDraft,
+      openWebAppExternally,
+      clearCache
+    }),
+    [
+      activeSection,
+      clearCache,
+      clearSearchDraft,
+      debugLogs,
+      detailsOpen,
+      homeState,
+      libraryTab,
+      openWebAppExternally,
+      playerPresentation,
+      refreshHomeSurface,
+      searchDraft,
+      setActiveSection,
+      setDetailsOpen,
+      setHomeSnapshot,
+      setLibraryTab,
+      setPlayerPresentation,
+      setSearchDraft,
+      toast,
+      winamp
+    ]
+  );
+
+  return (
+    <PlaybackContext.Provider value={playbackValue}>
+      <LibraryContext.Provider value={libraryValue}>
+        <ShellContext.Provider value={shellValue}>
+          <Suspense fallback={null}>
+            <PlaybackRuntimeLazy
+              logDebug={logDebug}
+              onSnapshot={handlePlaybackRuntimeSnapshot}
+            />
+          </Suspense>
+          {children}
+        </ShellContext.Provider>
+      </LibraryContext.Provider>
+    </PlaybackContext.Provider>
+  );
 };
 
-export const useRadio = () => {
-  const context = useContext(RadioContext);
+export const usePlayback = () => {
+  const context = useContext(PlaybackContext);
   if (!context) {
-    throw new Error('useRadio must be used inside RadioProvider');
+    throw new Error('usePlayback must be used inside RadioProvider');
+  }
+  return context;
+};
+
+export const useLibrary = () => {
+  const context = useContext(LibraryContext);
+  if (!context) {
+    throw new Error('useLibrary must be used inside RadioProvider');
+  }
+  return context;
+};
+
+export const useShell = () => {
+  const context = useContext(ShellContext);
+  if (!context) {
+    throw new Error('useShell must be used inside RadioProvider');
   }
   return context;
 };

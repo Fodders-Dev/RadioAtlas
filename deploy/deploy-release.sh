@@ -76,6 +76,8 @@ if [[ "$healthy" -ne 1 ]]; then
   exit 1
 fi
 
+bash "$CURRENT_LINK/deploy/post-deploy-smoke.sh"
+
 mapfile -t old_releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort -r)
 if (( ${#old_releases[@]} > KEEP_RELEASES )); then
   for old_release in "${old_releases[@]:KEEP_RELEASES}"; do

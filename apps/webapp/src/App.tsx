@@ -1,10 +1,9 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
-import { AppNavigation } from './components/AppNavigation';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AppScreenSkeleton } from './components/AppScreenSkeleton';
-import { MiniPlayerDock } from './components/MiniPlayerDock';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
+import { getDeviceProfile } from './lib/deviceProfile';
 import { useCompactLayout } from './lib/useCompactLayout';
 import {
   loadAccountSheet,
@@ -16,16 +15,56 @@ import {
   loadStationDetails,
   loadWinampPlayerShell
 } from './lib/screenLoaders';
+import { getStartParam, parseStationParam } from './lib/telegram';
 import { useLocale } from './state/LocaleContext';
-import { useRadio } from './state/RadioContext';
+import { useCatalog } from './state/CatalogContext';
+import { usePlayback, useShell } from './state/RadioContext';
 import { useSession } from './state/SessionContext';
 import type { AppSection, LibraryTab } from './types';
+
+const scheduleDeferredTask = (task: () => void, delayMs = 1200) => {
+  if (typeof window === 'undefined') {
+    task();
+    return () => {};
+  }
+  const idleCallback = (
+    window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    }
+  ).requestIdleCallback;
+  const cancelIdleCallback = (
+    window as typeof window & {
+      cancelIdleCallback?: (handle: number) => void;
+    }
+  ).cancelIdleCallback;
+  if (idleCallback) {
+    const handle = idleCallback(task, { timeout: delayMs });
+    return () => cancelIdleCallback?.(handle);
+  }
+  const handle = window.setTimeout(task, delayMs);
+  return () => window.clearTimeout(handle);
+};
+
+const loadGlobalStyles = (() => {
+  let stylesPromise: Promise<unknown> | null = null;
+  return () => {
+    stylesPromise ??= import('./styles.css');
+    return stylesPromise;
+  };
+})();
 
 const HomeScreen = lazy(loadHomeScreen);
 const SearchScreen = lazy(loadSearchScreen);
 const GlobeScreenLazy = lazy(loadGlobeScreen);
 const LibraryScreen = lazy(loadLibraryScreen);
 const SettingsScreen = lazy(loadSettingsScreen);
+const AppNavigationLazy = lazy(() =>
+  import('./components/AppNavigation').then((mod) => ({ default: mod.AppNavigation }))
+);
+const MiniPlayerDockLazy = lazy(() =>
+  import('./components/MiniPlayerDock').then((mod) => ({ default: mod.MiniPlayerDock }))
+);
 const AccountSheetLazy = lazy(loadAccountSheet);
 const StationDetailsLazy = lazy(loadStationDetails);
 const WinampPlayerShellLazy = lazy(loadWinampPlayerShell);
@@ -40,15 +79,10 @@ const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
 const App = () => {
   const { t } = useLocale();
   const { accountSheetOpen, closeAccountSheet, openAccountSheet, status: sessionStatus } = useSession();
+  const { summary, fetchStationById } = useCatalog();
+  const { player, nowPlaying, nowPlayingState, queue, playStation } = usePlayback();
   const {
-    loading,
-    error,
     toast,
-    player,
-    nowPlaying,
-    nowPlayingState,
-    stations,
-    queue,
     winamp,
     activeSection,
     setActiveSection,
@@ -56,11 +90,14 @@ const App = () => {
     setLibraryTab,
     detailsOpen,
     setDetailsOpen,
-  } = useRadio();
+  } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
+  const [dockMounted, setDockMounted] = useState(false);
+  const startHandledRef = useRef(false);
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
+  const lowPowerShell = useMemo(() => getDeviceProfile().lowPower, []);
 
   useEffect(() => {
     if (!player.current && detailsOpen) {
@@ -77,6 +114,56 @@ const App = () => {
   useEffect(() => {
     setSectionMotionTick((value) => value + 1);
   }, [activeSection]);
+
+  useEffect(() => {
+    const cancelScheduledLoad = scheduleDeferredTask(() => {
+      void loadGlobalStyles().catch(() => {});
+    });
+    return cancelScheduledLoad;
+  }, []);
+
+  useEffect(() => {
+    if (dockMounted || player.current || queue.items.length || winamp.expanded) {
+      if (!dockMounted) {
+        setDockMounted(true);
+      }
+      return;
+    }
+    const cancelScheduledMount = scheduleDeferredTask(() => {
+      setDockMounted(true);
+    }, 1800);
+    return cancelScheduledMount;
+  }, [dockMounted, player.current, queue.items.length, winamp.expanded]);
+
+  useEffect(() => {
+    if (startHandledRef.current) return;
+    const startParam = getStartParam();
+    if (!startParam) {
+      startHandledRef.current = true;
+      return;
+    }
+
+    const stationId = parseStationParam(startParam);
+    startHandledRef.current = true;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const station = await fetchStationById(stationId);
+        if (cancelled || !station) return;
+        playStation(station, {
+          sourceId: 'deep-link',
+          sourceLabel: t('radio.deepLink')
+        });
+      } catch {
+        // ignore deep-link lookup failures
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchStationById, playStation, t]);
 
   const sectionMeta = useMemo(
     () => ({
@@ -127,7 +214,7 @@ const App = () => {
     ? t('app.queueCount', { count: queue.items.length })
     : player.current
       ? nowPlaying || player.current.name || t('dock.liveNow')
-      : t('app.catalogCount', { count: stations.length });
+      : t('app.catalogCount', { count: summary?.counts.stations || 0 });
 
   const openLibraryTab = (tab: LibraryTab) => {
     setLibraryTab(tab);
@@ -143,24 +230,27 @@ const App = () => {
   return (
     <div
       className="app-shell-v2"
+      data-low-power={lowPowerShell ? 'true' : 'false'}
       data-player-presentation={playerPresentation}
       data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
       data-active-section={activeSection}
     >
-      <AppNavigation
-        active={activeSection}
-        onChange={handleSectionChange}
-        onSettings={() => setSettingsOpen(true)}
-        onPreload={(section) => {
-          if (section === 'home') void loadHomeScreen();
-          if (section === 'search') void loadSearchScreen();
-          if (section === 'globe') void loadGlobeScreen();
-          if (section === 'library') void loadLibraryScreen();
-        }}
-      />
+      <Suspense fallback={null}>
+        <AppNavigationLazy
+          active={activeSection}
+          onChange={handleSectionChange}
+          onSettings={() => setSettingsOpen(true)}
+          onPreload={(section) => {
+            if (section === 'home') void loadHomeScreen();
+            if (section === 'search') void loadSearchScreen();
+            if (section === 'globe') void loadGlobeScreen();
+            if (section === 'library') void loadLibraryScreen();
+          }}
+        />
+      </Suspense>
 
       <div className="app-content-shell">
-        <header className="glass-card app-topbar-v2 motion-rise">
+        <header className={`glass-card app-topbar-v2 ${lowPowerShell ? '' : 'motion-rise'}`.trim()}>
           <div className="app-topbar-copy">
             <div className="app-topbar-brandline">
               <div className="app-brand-pill" title={`${t('app.title')} • ${versionLabel}`}>
@@ -230,22 +320,23 @@ const App = () => {
         </header>
 
         <main className="app-stage-v2">
-          {error ? <div className="error">{error}</div> : null}
-          {loading ? (
-            screenFallback
-          ) : (
-            <div
-              className={`app-screen-frame ${sectionMotionTick % 2 === 0 ? 'page-enter-a' : 'page-enter-b'}`}
-            >
-              <Suspense fallback={screenFallback}>
-                <ActiveScreen />
-              </Suspense>
-            </div>
-          )}
+          <div
+            className={`app-screen-frame ${
+              lowPowerShell ? '' : sectionMotionTick % 2 === 0 ? 'page-enter-a' : 'page-enter-b'
+            }`.trim()}
+          >
+            <Suspense fallback={screenFallback}>
+              <ActiveScreen />
+            </Suspense>
+          </div>
         </main>
       </div>
 
-      <MiniPlayerDock />
+      {dockMounted || player.current || queue.items.length || winamp.expanded ? (
+        <Suspense fallback={null}>
+          <MiniPlayerDockLazy />
+        </Suspense>
+      ) : null}
       {detailsOpen ? (
         <Suspense fallback={null}>
           <StationDetailsLazy open={detailsOpen} onClose={() => setDetailsOpen(false)} />

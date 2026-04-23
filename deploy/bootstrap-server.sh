@@ -29,8 +29,23 @@ API_URL="${API_URL:-${BASE_URL}/api}"
 PUBLIC_URL="${PUBLIC_URL:-$API_URL}"
 ACCOUNT_STORE_PATH="${ACCOUNT_STORE_PATH:-$SHARED_DATA_DIR/account-store.sqlite}"
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-${BOT_TOKEN:-}}"
-VITE_API_URL="${VITE_API_URL:-$API_URL}"
+WEBAPP_DEEPLINK="${WEBAPP_DEEPLINK:-}"
+BOT_USERNAME="${BOT_USERNAME:-}"
+VK_CLIENT_ID="${VK_CLIENT_ID:-}"
+VK_CLIENT_SECRET="${VK_CLIENT_SECRET:-}"
+VK_REDIRECT_URI="${VK_REDIRECT_URI:-${BASE_URL}/api/auth/vk/callback}"
+VITE_API_URL="${VITE_API_URL:-/api}"
+VITE_TG_BOT="${VITE_TG_BOT:-}"
 VITE_GOOGLE_CLIENT_ID="${VITE_GOOGLE_CLIENT_ID:-${GOOGLE_CLIENT_ID:-}}"
+
+if [[ -z "$VITE_TG_BOT" ]]; then
+  if [[ -n "$WEBAPP_DEEPLINK" ]]; then
+    parsed_bot="$(printf '%s' "$WEBAPP_DEEPLINK" | sed -nE 's#https?://t\.me/([^/?]+).*#\1#p')"
+    VITE_TG_BOT="${parsed_bot:-}"
+  elif [[ -n "$BOT_USERNAME" ]]; then
+    VITE_TG_BOT="$BOT_USERNAME"
+  fi
+fi
 
 upsert_env() {
   local file="$1"
@@ -61,8 +76,20 @@ fi
 if [[ -n "${GOOGLE_CLIENT_ID:-}" ]]; then
   upsert_env "$SHARED_ENV_DIR/api.env" "GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
 fi
+if [[ -n "$VK_CLIENT_ID" ]]; then
+  upsert_env "$SHARED_ENV_DIR/api.env" "VK_CLIENT_ID" "$VK_CLIENT_ID"
+fi
+if [[ -n "$VK_CLIENT_SECRET" ]]; then
+  upsert_env "$SHARED_ENV_DIR/api.env" "VK_CLIENT_SECRET" "$VK_CLIENT_SECRET"
+fi
+if [[ -n "$VK_REDIRECT_URI" ]]; then
+  upsert_env "$SHARED_ENV_DIR/api.env" "VK_REDIRECT_URI" "$VK_REDIRECT_URI"
+fi
 
 upsert_env "$SHARED_ENV_DIR/webapp.env" "VITE_API_URL" "$VITE_API_URL"
+if [[ -n "$VITE_TG_BOT" ]]; then
+  upsert_env "$SHARED_ENV_DIR/webapp.env" "VITE_TG_BOT" "$VITE_TG_BOT"
+fi
 if [[ -n "$VITE_GOOGLE_CLIENT_ID" ]]; then
   upsert_env "$SHARED_ENV_DIR/webapp.env" "VITE_GOOGLE_CLIENT_ID" "$VITE_GOOGLE_CLIENT_ID"
 fi

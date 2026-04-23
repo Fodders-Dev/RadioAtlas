@@ -327,3 +327,67 @@ export type StationProfileSummary = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type CatalogSpotlight = {
+  label: string;
+  stations: StationLite[];
+};
+
+export type CatalogSummary = {
+  generatedAt: number;
+  counts: {
+    stations: number;
+    countries: number;
+    languages: number;
+    genres: number;
+  };
+  catalogPool: StationLite[];
+  freshSignals: StationLite[];
+  searchLaunch: StationLite[];
+  sponsored: StationLite[];
+  countrySpotlight: CatalogSpotlight | null;
+  genreSpotlight: CatalogSpotlight | null;
+};
+
+export type CatalogCountryBucket = {
+  key: string;
+  country: string;
+  continent: string;
+  count: number;
+};
+
+export type CatalogSearchFacets = {
+  countries: string[];
+  tags: string[];
+  languages: string[];
+  continentCounts: Array<{ id: string; count: number }>;
+  featuredCountries: CatalogCountryBucket[];
+};
+
+export type CatalogSearchResponse = {
+  items: StationLite[];
+  total: number;
+  nextCursor: string | null;
+  facets: CatalogSearchFacets;
+};
+
+export type CatalogArea = {
+  id: string;
+  lat: number;
+  lon: number;
+  label: string;
+  subtitle: string;
+  count: number;
+};
+
+export type CatalogAreaListResponse = {
+  items: CatalogArea[];
+  mappedStations: number;
+  totalStations: number;
+};
+
+export type CatalogAreaStationsResponse = {
+  area: CatalogArea | null;
+  items: StationLite[];
+  nextCursor: string | null;
+};

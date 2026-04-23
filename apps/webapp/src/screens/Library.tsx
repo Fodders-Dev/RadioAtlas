@@ -3,7 +3,7 @@ import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
-import { useRadio } from '../state/RadioContext';
+import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
 
@@ -11,7 +11,7 @@ const TAB_ORDER: LibraryTab[] = ['favorites', 'tracks', 'queue', 'recent', 'hist
 
 export const Library = () => {
   const {
-    stations,
+    knownStations,
     favorites,
     recent,
     collections,
@@ -20,23 +20,16 @@ export const Library = () => {
     alerts,
     trackHistory,
     playbackHistory,
-    queue,
-    player,
-    nowPlaying,
     clearFavorites,
     clearRecent,
     clearTrackHistory,
     createCollection,
     addStationToCollection,
     removeStationFromCollection,
-    markAlertRead,
-    playStation,
-    playLast,
-    playNext,
-    setActiveSection,
-    libraryTab,
-    setLibraryTab
-  } = useRadio();
+    markAlertRead
+  } = useLibrary();
+  const { queue, player, nowPlaying, playStation, playLast, playNext } = usePlayback();
+  const { setActiveSection, libraryTab, setLibraryTab } = useShell();
   const {
     status: sessionStatus,
     profile,
@@ -55,7 +48,10 @@ export const Library = () => {
   }, []);
 
   const compactRows = viewportWidth < 720;
-  const stationMap = useMemo(() => new Map(stations.map((station) => [station.stationuuid, station])), [stations]);
+  const stationMap = useMemo(
+    () => new Map(knownStations.map((station) => [station.stationuuid, station])),
+    [knownStations]
+  );
   const libraryFeed = useMemo(
     () =>
       createLibraryDiscoveryFeed({

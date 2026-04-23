@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { stationLocation } from '../lib/stationUtils';
-import { loadWinampPlayerShell } from '../lib/screenLoaders';
 import { useLocale } from '../state/LocaleContext';
-import { useRadio } from '../state/RadioContext';
+import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
 
 type DockTrayMode = 'queue' | 'volume' | null;
@@ -16,7 +15,13 @@ export const MiniPlayerDock = () => {
     queue,
     playNext,
     playStation,
-    copyTrack,
+    copyTrack
+  } = usePlayback();
+  const {
+    toggleFavorite,
+    isFavorite
+  } = useLibrary();
+  const {
     playerPresentation,
     setPlayerPresentation,
     activeSection,
@@ -24,10 +29,8 @@ export const MiniPlayerDock = () => {
     libraryTab,
     setLibraryTab,
     setDetailsOpen,
-    toggleFavorite,
-    isFavorite,
     winamp
-  } = useRadio();
+  } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
 
@@ -85,6 +88,12 @@ export const MiniPlayerDock = () => {
     setActiveSection('search');
   };
 
+  const openWinamp = () => {
+    if (!current) return;
+    setTrayMode(null);
+    winamp.setExpanded(true);
+  };
+
   const playQueuePreview = (stationId: string, fallbackIndex: number) => {
     const queueIndex = queue.items.findIndex((station) => station.stationuuid === stationId);
     if (queueIndex >= 0) {
@@ -102,19 +111,6 @@ export const MiniPlayerDock = () => {
     });
     setTrayMode(null);
   };
-
-  useEffect(() => {
-    if (!current) return;
-    const schedulePreload = () => {
-      void loadWinampPlayerShell();
-    };
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      const handle = window.requestIdleCallback(schedulePreload, { timeout: 1400 });
-      return () => window.cancelIdleCallback(handle);
-    }
-    const handle = window.setTimeout(schedulePreload, 420);
-    return () => window.clearTimeout(handle);
-  }, [current]);
 
   if (playerPresentation === 'expanded' && winamp.expanded) {
     return null;
@@ -147,7 +143,16 @@ export const MiniPlayerDock = () => {
       data-tray-open={trayMode ? 'true' : 'false'}
     >
       <div className="player-dock-media">
-        <StationArtwork station={current} size="dock" />
+        <button
+          className="player-dock-artwork-trigger"
+          type="button"
+          onClick={openWinamp}
+          disabled={!current}
+          aria-label={current ? t('dock.openWinamp') : stationTitle}
+          title={current ? t('dock.openWinamp') : stationTitle}
+        >
+          <StationArtwork station={current} size="dock" />
+        </button>
       </div>
 
       {trayMode ? (
