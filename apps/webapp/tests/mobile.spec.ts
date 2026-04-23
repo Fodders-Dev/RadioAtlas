@@ -59,6 +59,19 @@ test('mobile startup stays free of playback runtime render loops', async ({ page
   expect(runtimeWarnings).toEqual([]);
 });
 
+test('mobile settings can open lite fullscreen shell without an active station', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Настройки' }).first().click();
+  await expect(page.locator('.settings-panel')).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть полноэкранный плеер' }).click();
+
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
+  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
+  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+});
+
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-hero]')).toBeVisible();

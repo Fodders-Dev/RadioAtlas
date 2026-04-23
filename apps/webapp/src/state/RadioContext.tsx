@@ -325,6 +325,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const nowPlayingStatus = playbackRuntime.nowPlayingStatus;
   const nowPlayingState = playbackRuntime.nowPlayingState;
   const fullscreenRetryRef = useRef<number | null>(null);
+  const manualPresentationRef = useRef(false);
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -619,7 +620,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         playerPresentation: 'bar'
       }));
     }
-    if (!player.current && playerPresentation === 'expanded') {
+    if (!player.current && playerPresentation === 'expanded' && !manualPresentationRef.current) {
       setStoredShellState((prev) => ({
         ...prev,
         playerPresentation: 'peek',
@@ -643,9 +644,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setPlayerPresentation = (presentation: PlayerPresentation) =>
-    setStoredShellState((prev) =>
-      prev.playerPresentation === presentation ? prev : { ...prev, playerPresentation: presentation }
-    );
+    {
+      manualPresentationRef.current = true;
+      setStoredShellState((prev) =>
+        prev.playerPresentation === presentation ? prev : { ...prev, playerPresentation: presentation }
+      );
+    };
 
   const setLibraryTab = (tab: LibraryTab) =>
     setStoredShellState((prev) => (prev.libraryTab === tab ? prev : { ...prev, libraryTab: tab }));
@@ -1284,6 +1288,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       expanded: winampExpanded,
       setExpanded: (value) => {
+        manualPresentationRef.current = true;
         if (fullscreenRetryRef.current !== null) {
           window.clearTimeout(fullscreenRetryRef.current);
           fullscreenRetryRef.current = null;
