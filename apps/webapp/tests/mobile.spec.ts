@@ -84,6 +84,7 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   const overflowing = await page.locator('.screen-home-next *').evaluateAll((nodes) =>
     nodes
       .filter((node) => {
+        if (node.closest('.home-horizontal-scroll')) return false;
         const rect = node.getBoundingClientRect();
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })
@@ -265,6 +266,35 @@ for (const width of [360, 390]) {
     await expect(page.locator('[data-home-hero] .home-hero-actions .home-secondary-btn')).toHaveCount(0);
     await expect(page.locator('[data-home-resume="true"]')).toBeVisible();
     await expect(page.locator('[data-home-rail]')).toHaveCount(1);
+    await expect(page.locator('[data-home-rail] .home-section-title')).toContainText(/Для тебя|For you/);
+    await expect(page.locator('.screen-home-next')).not.toContainText(
+      /Что изменилось|По твоим|Похожее на|часто слушаешь|Based on|liked/i
+    );
+    const compactHomeMetrics = await page.evaluate(() => {
+      const topbar = document.querySelector('.app-topbar-v2')?.getBoundingClientRect();
+      const hero = document.querySelector('[data-home-hero]')?.getBoundingClientRect();
+      const railTiles = Array.from(document.querySelectorAll('[data-home-rail] [data-home-station]'));
+      const visibleRailTiles = railTiles.filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.left >= -1 && rect.left < window.innerWidth - 24 && rect.top < window.innerHeight - 160;
+      }).length;
+      const railListStyle = window.getComputedStyle(
+        document.querySelector('[data-home-rail] .home-horizontal-scroll') as Element
+      );
+
+      return {
+        topbarHeight: topbar?.height || 0,
+        heroHeight: hero?.height || 0,
+        visibleRailTiles,
+        railDisplay: railListStyle.display,
+        railOverflowX: railListStyle.overflowX
+      };
+    });
+    expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
+    expect(compactHomeMetrics.heroHeight).toBeLessThanOrEqual(92);
+    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(3);
+    expect(compactHomeMetrics.railDisplay).toBe('flex');
+    expect(compactHomeMetrics.railOverflowX).toBe('auto');
     await expectNoHomeHorizontalOverflow(page);
 
     await page.locator('[data-home-rail] [data-home-station] .home-action-btn-play').first().click();

@@ -35,6 +35,7 @@ export type HomeResumeModule = {
 };
 
 export type HomeSurfaceFeed = {
+  version: 3;
   seed: number;
   builtAt: number;
   hero: HomeHeroModule;
@@ -233,6 +234,7 @@ export const createHomeSurfaceFeed = ({
   ]).slice(0, 6);
 
   return {
+    version: 3,
     seed,
     builtAt,
     hero,

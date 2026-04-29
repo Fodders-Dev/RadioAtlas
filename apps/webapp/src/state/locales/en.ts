@@ -204,6 +204,7 @@ export const enDictionary = {
     "sponsoredCopyCompact": "A separate block labeled Sponsored.",
     "sponsoredBadge": "Sponsored",
     "resumeShelfTitle": "Return to air",
+    "resumeShelfTitleCompact": "Recently played",
     "resumeShelfCopy": "A fast path back into the current session.",
     "exploreFooterTitle": "Where to go next",
     "exploreFooterCopy": "Use the globe to hunt for new live zones, or jump into the library to keep your own map close."

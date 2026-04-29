@@ -211,8 +211,19 @@ export const HomeHeroCard = ({
               className="home-primary-btn"
               type="button"
               onClick={() => onPlay(station, [station, ...companionStations], module.sourceId)}
+              aria-label={isActive ? t('common.pause') : t('common.play')}
             >
-              {isActive ? t('common.pause') : t('common.play')}
+              {dense ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {isActive ? (
+                    <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
+                  ) : (
+                    <path d="M8 5v14l11-7z" />
+                  )}
+                </svg>
+              ) : (
+                isActive ? t('common.pause') : t('common.play')
+              )}
             </button>
             {!dense ? (
               <button
@@ -301,7 +312,9 @@ export const HomeResumeStrip = ({
     >
       <div className="home-section-head">
         <div>
-          <div className="home-section-title">{t(module.titleKey)}</div>
+          <div className="home-section-title">
+            {t(dense ? 'home.resumeShelfTitleCompact' : module.titleKey)}
+          </div>
           <div className="home-section-copy">
             {module.queueCount > 0
               ? t('home.resumeQueueCopy', { count: module.queueCount })

@@ -8585,3 +8585,74 @@ body {
     justify-content: flex-start;
   }
 }
+
+/* Radio core compact mobile shell */
+
+@media (max-width: 430px) {
+  .app-topbar-v2 {
+    padding: 9px 10px;
+    border-radius: 18px;
+  }
+
+  .app-topbar-copy {
+    gap: 0;
+  }
+
+  .app-topbar-brandline,
+  .app-topbar-v2 .shell-kicker {
+    display: none;
+  }
+
+  .app-topbar-main-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .app-topbar-title-stack {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .app-topbar-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 18px;
+    line-height: 1.1;
+  }
+
+  .app-topbar-utility-row {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .app-topbar-status-chip {
+    min-height: 28px;
+    max-width: 150px;
+    padding: 0 9px;
+    gap: 6px;
+  }
+
+  .app-topbar-status-chip span {
+    font-size: 8px;
+  }
+
+  .app-topbar-status-chip strong {
+    max-width: 86px;
+    font-size: 10px;
+  }
+
+  .app-topbar-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .app-topbar-actions .nav-utility-btn {
+    width: 34px;
+    min-width: 34px;
+    min-height: 34px;
+  }
+}

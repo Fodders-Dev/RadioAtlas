@@ -40,6 +40,7 @@ const waitForStableMetrics = async (
   }
 
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => document.fonts?.ready.then(() => undefined));
 };
 
 const openWinampShell = async (page: Page) => {

@@ -204,6 +204,7 @@ export const ruDictionary = {
     "sponsoredCopyCompact": "Отдельный блок с пометкой «Промо».",
     "sponsoredBadge": "Промо",
     "resumeShelfTitle": "Продолжить эфир",
+    "resumeShelfTitleCompact": "Недавнее",
     "resumeShelfCopy": "Быстрый путь назад в текущую сессию.",
     "exploreFooterTitle": "Что открыть дальше",
     "exploreFooterCopy": "Глобус помогает охотиться за новыми точками эфира, а медиатека держит под рукой всё твоё."

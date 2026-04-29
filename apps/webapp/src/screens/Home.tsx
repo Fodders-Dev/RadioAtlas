@@ -20,7 +20,6 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
 import {
   filterStationsByPlayability,
-  getPlayabilityProfileUpdatedAt,
   rankStationsForHome
 } from '../lib/stationPlayability';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
@@ -38,6 +37,7 @@ import {
 import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
+const HOME_SURFACE_VERSION = 3;
 const DENSE_RAIL_LIMIT = 1;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 
@@ -55,11 +55,13 @@ const toHomeDiscoveryModule = (
   kind: DiscoveryStationModule['kind'],
   sourceId: string,
   stations: StationLite[],
-  accent: DiscoveryStationModule['accent'] = 'primary'
+  accent: DiscoveryStationModule['accent'] = 'primary',
+  titleKey = 'home.personalTitle',
+  copyKey = 'home.freshSignalsCopy'
 ): DiscoveryStationModule => ({
   kind,
-  titleKey: 'home.freshSignalsTitle',
-  copyKey: 'home.freshSignalsCopy',
+  titleKey,
+  copyKey,
   sourceId,
   stations,
   accent
@@ -130,7 +132,7 @@ const isSameSessionBucket = (left: number | null, right: number) => {
 };
 
 const fallbackHero: HomeHeroModule = {
-  titleKey: 'home.freshSignalsTitle',
+  titleKey: 'home.personalTitle',
   copyKey: 'home.freshSignalsCopy',
   sourceId: 'home-fallback',
   accent: 'primary',
@@ -184,19 +186,13 @@ const buildSurfaceFeed = (input: {
   const recommendationDeck = mergeStations(
     recommendationFeed.tunedForYou,
     recommendationFeed.becauseYouLiked,
+    recommendationFeed.outsideOrbit,
     rankedCatalog
   );
-  const primaryStation = recommendationFeed.profileReady
-    ? recommendationDeck[0] || null
-    : null;
-  const railStations = recommendationFeed.profileReady
-    ? mergeStations(
-        recommendationFeed.tunedForYou,
-        recommendationFeed.becauseYouLiked,
-        recommendationFeed.outsideOrbit,
-        rankedCatalog
-      ).filter((station) => station.stationuuid !== primaryStation?.stationuuid)
-    : [];
+  const primaryStation = recommendationDeck[0] || null;
+  const railStations = recommendationDeck.filter(
+    (station) => station.stationuuid !== primaryStation?.stationuuid
+  );
   const personalizedDiscoveryFeed = applyRecommendationModules(
     discoveryFeed,
     primaryStation,
@@ -305,14 +301,6 @@ export const Home = () => {
     const startIndex = Math.max(queue.currentIndex, 0);
     return queue.items.slice(startIndex, startIndex + 4);
   }, [queue.currentIndex, queue.items]);
-  const recommendationStateUpdatedAt = useMemo(
-    () =>
-      Math.max(
-        behaviorProfile.lastUpdatedAt || 0,
-        getPlayabilityProfileUpdatedAt(playabilityProfile)
-      ),
-    [behaviorProfile.lastUpdatedAt, playabilityProfile]
-  );
   const resumeQueuePreview = useMemo(
     () => filterStationsByPlayability(queuePreview, playabilityProfile),
     [playabilityProfile, queuePreview]
@@ -351,15 +339,13 @@ export const Home = () => {
   const surfaceBuiltAt = Math.max(
     homeState.lastBuiltAt || 0,
     summary?.generatedAt || 0,
-    homeState.sessionSeed,
-    recommendationStateUpdatedAt
+    homeState.sessionSeed
   );
   const surfaceFeedBase = useMemo(() => {
     const snapshotFresh =
       homeState.snapshot &&
-      homeState.snapshot.seed === homeState.sessionSeed &&
-      (!recommendationStateUpdatedAt ||
-        homeState.snapshot.builtAt >= recommendationStateUpdatedAt);
+      homeState.snapshot.version === HOME_SURFACE_VERSION &&
+      homeState.snapshot.seed === homeState.sessionSeed;
     if (snapshotFresh) {
       return homeState.snapshot;
     }
@@ -399,7 +385,6 @@ export const Home = () => {
     player.current,
     queuePreview,
     recent,
-    recommendationStateUpdatedAt,
     summary,
     summaryLoading,
     surfaceBuiltAt,
@@ -473,11 +458,7 @@ export const Home = () => {
       const nextSeed = seed;
       let nextSurface = buildSurfaceFeed({
         catalog: nextCatalog,
-        builtAt: Math.max(
-          effectiveSummary.generatedAt || 0,
-          nextSeed,
-          recommendationStateUpdatedAt
-        ),
+        builtAt: Math.max(effectiveSummary.generatedAt || 0, nextSeed),
         behaviorProfile,
         favorites,
         recent,
