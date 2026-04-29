@@ -285,6 +285,13 @@
     gap: 12px;
   }
 
+  .screen-globe-minimal {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: calc(100dvh - var(--dock-offset-v2, 0px) - 92px);
+    overflow: visible;
+  }
+
   .search-command-card,
   .search-shortcuts-card,
   .search-results-card,
@@ -292,6 +299,12 @@
   .globe-focus-card {
     padding: 12px;
     gap: 10px;
+  }
+
+  .globe-command-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
   }
 
   .search-command-top,
@@ -315,8 +328,14 @@
     flex-basis: calc(50% - 4px);
   }
 
+  .globe-command-map {
+    min-height: 0;
+  }
+
   .globe-command-map .globe {
-    min-height: 332px;
+    aspect-ratio: auto;
+    height: clamp(360px, 52dvh, 430px);
+    min-height: 0;
   }
 
   .globe-command-map .globe::before {
@@ -326,6 +345,41 @@
 
   .globe-command-actions .chip {
     flex-basis: calc(50% - 4px);
+  }
+
+  .globe-focus-card {
+    position: sticky;
+    bottom: calc(var(--dock-offset-v2, 0px) + 10px);
+    z-index: 20;
+    max-height: 42dvh;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .globe-focus-card .station-table.compact {
+    gap: 6px;
+  }
+
+  .screen-globe-minimal[data-density='dense'] {
+    padding-bottom: calc(var(--dock-offset-v2, 0px) + 66px);
+  }
+
+  .screen-globe-minimal[data-density='dense'] .globe-command-footer,
+  .screen-globe-minimal[data-density='dense'] .globe-focus-card {
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+  }
+
+  .screen-globe-minimal[data-density='dense'] .globe-command-footer {
+    bottom: calc(var(--dock-offset-v2, 0px) + min(42dvh, 320px) + 18px);
+    z-index: 22;
+  }
+
+  .screen-globe-minimal[data-density='dense'] .globe-focus-card {
+    bottom: calc(var(--dock-offset-v2, 0px) + 10px);
+    max-height: min(42dvh, 320px);
   }
 }
 
@@ -373,7 +427,7 @@
   }
 
   .globe-command-map .globe {
-    min-height: 304px;
+    height: clamp(344px, 50dvh, 396px);
     border-radius: 20px;
   }
 
@@ -387,6 +441,10 @@
   }
 
   .globe-command-actions .chip {
+    flex-basis: calc(50% - 4px);
+  }
+
+  .globe-command-actions .globe-tune-chip {
     flex-basis: 100%;
   }
 }

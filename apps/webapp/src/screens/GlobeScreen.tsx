@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { StationTable } from '../components/StationTable';
-import { resolveStationCoords } from '../lib/geoResolver';
+import { findNearestAreaToPoint } from '../components/globe/selection';
+import { resolveCountryCoords, resolveStationCoords } from '../lib/geoResolver';
+import { useCompactLayout } from '../lib/useCompactLayout';
 import { useDebounce } from '../lib/useDebounce';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -12,18 +14,13 @@ import './discover.css';
 const PLACE_LIST_LIMIT = 40;
 const Globe = lazy(() => import('../components/Globe').then((mod) => ({ default: mod.Globe })));
 
-const distanceSq = (left: { lat: number; lon: number }, right: { lat: number; lon: number }) => {
-  const lat = left.lat - right.lat;
-  const lon = left.lon - right.lon;
-  return lat * lat + lon * lon;
-};
-
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { fetchAreas, fetchAreaStations } = useCatalog();
+  const { summary, summaryLoading, fetchAreas, fetchAreaStations } = useCatalog();
   const { favorites, recent, followedRegions, toggleFollowRegion } = useLibrary();
   const { player, playStation } = usePlayback();
   const { setActiveSection, setLibraryTab } = useShell();
+  const isCompactLayout = useCompactLayout();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [areas, setAreas] = useState<CatalogArea[]>([]);
   const [mappedStations, setMappedStations] = useState(0);
@@ -34,7 +31,11 @@ export const GlobeScreen = () => {
   const [selectedAreaLoading, setSelectedAreaLoading] = useState(false);
   const [selectedAreaError, setSelectedAreaError] = useState<string | null>(null);
   const [areaStationCache, setAreaStationCache] = useState<Record<string, StationLite[]>>({});
+  const [tuneRequestKey, setTuneRequestKey] = useState(0);
+  const [spinRequestKey, setSpinRequestKey] = useState(0);
+  const [autoRotateEnabled, setAutoRotateEnabled] = useState(false);
   const selectedAnchorRef = useRef<{ lat: number; lon: number } | null>(null);
+  const seededAreaRef = useRef(false);
   const debouncedZoom = useDebounce(zoomLevel, 120);
 
   useEffect(() => {
@@ -145,17 +146,73 @@ export const GlobeScreen = () => {
     setActiveSection('library');
   };
 
+  const clearSelection = () => {
+    selectedAnchorRef.current = null;
+    setSelectedAreaId(null);
+    setZoomLevel(1);
+  };
+
   const handleSelectArea = (id: string) => {
     const area = areaById.get(id);
     if (!area) return;
+    if (id === selectedAreaId) {
+      clearSelection();
+      return;
+    }
     selectedAnchorRef.current = { lat: area.lat, lon: area.lon };
     setSelectedAreaId(id);
-    setZoomLevel((currentZoom) =>
-      id === selectedAreaId
-        ? Math.min(5.2, currentZoom + 0.95)
-        : Math.max(2.35, Math.min(5.2, currentZoom + (currentZoom < 1.6 ? 1.45 : 0.8)))
-    );
   };
+
+  useEffect(() => {
+    if (seededAreaRef.current || !areas.length) return;
+    if (!summary && summaryLoading) return;
+    if (selectedAreaId) {
+      seededAreaRef.current = true;
+      return;
+    }
+
+    const spotlightLabel = summary?.countrySpotlight?.label?.trim();
+    const normalizedSpotlight = spotlightLabel?.toLowerCase();
+    let seedArea =
+      normalizedSpotlight
+        ? areas.find(
+            (area) =>
+              area.label.toLowerCase() === normalizedSpotlight ||
+              area.subtitle.toLowerCase() === normalizedSpotlight
+          ) || null
+        : null;
+
+    if (!seedArea && spotlightLabel) {
+      const coords = resolveCountryCoords(spotlightLabel);
+      if (coords) {
+        seedArea = findNearestAreaToPoint(areas, coords);
+      }
+    }
+
+    if (!seedArea) {
+      const stationSeed = player.current ?? favorites[0] ?? recent[0] ?? null;
+      const coords = stationSeed ? resolveStationCoords(stationSeed) : null;
+      if (coords) {
+        seedArea = findNearestAreaToPoint(areas, coords);
+      }
+    }
+
+    seedArea = seedArea ?? areas[0] ?? null;
+    if (!seedArea) return;
+
+    seededAreaRef.current = true;
+    selectedAnchorRef.current = { lat: seedArea.lat, lon: seedArea.lon };
+    setSelectedAreaId(seedArea.id);
+  }, [
+    areas,
+    favorites,
+    player.current,
+    recent,
+    selectedAreaId,
+    summary,
+    summaryLoading,
+    summary?.countrySpotlight?.label
+  ]);
 
   useEffect(() => {
     if (!selectedAreaId) return;
@@ -164,12 +221,7 @@ export const GlobeScreen = () => {
       setSelectedAreaId(null);
       return;
     }
-    const fallbackArea = areas.reduce((best, area) => {
-      if (!best) return area;
-      return distanceSq(area, selectedAnchorRef.current!) < distanceSq(best, selectedAnchorRef.current!)
-        ? area
-        : best;
-    }, areas[0]);
+    const fallbackArea = findNearestAreaToPoint(areas, selectedAnchorRef.current);
     setSelectedAreaId(fallbackArea?.id || null);
   }, [areaById, areas, selectedAreaId]);
 
@@ -177,7 +229,11 @@ export const GlobeScreen = () => {
   const selectedLeadStation = selectedStations[0] || null;
 
   return (
-    <section className="screen screen-globe-v2 screen-globe-minimal">
+    <section
+      className="screen screen-globe-v2 screen-globe-minimal"
+      data-density={isCompactLayout ? 'dense' : 'regular'}
+      data-zoom-level={zoomLevel.toFixed(2)}
+    >
       <div className="glass-card globe-command-card">
         <div className="globe-command-top">
           <div className="section-title">{selectedArea ? selectedArea.label : t('explore.globeTitle')}</div>
@@ -197,7 +253,12 @@ export const GlobeScreen = () => {
               zoomLevel={zoomLevel}
               onZoomChange={setZoomLevel}
               onPick={handleSelectArea}
-              hintText={t('globe.controlsHint')}
+              tuneRequestKey={tuneRequestKey}
+              spinRequestKey={spinRequestKey}
+              onAutoRotateChange={setAutoRotateEnabled}
+              hintText={
+                isCompactLayout ? t('globe.controlsHintMobile') : t('globe.controlsHintDesktop')
+              }
               statusText={t('globe.status', {
                 areas: areas.length,
                 mapped: mappedStations,
@@ -208,20 +269,38 @@ export const GlobeScreen = () => {
         </div>
         <div className="globe-command-footer">
           <div className="chip-row globe-command-actions">
-            <button className="chip" type="button" onClick={() => setActiveSection('search')}>
-              {t('home.openSearch')}
+            <button
+              className="chip active globe-tune-chip"
+              type="button"
+              data-globe-tune
+              onClick={() => setTuneRequestKey((value) => value + 1)}
+            >
+              {t('globe.tuneHere')}
             </button>
-            <button className="chip" type="button" onClick={openLibraryRegions}>
-              {t('home.openLibrary')}
+            <button
+              className={`chip ${autoRotateEnabled ? 'active' : ''}`}
+              type="button"
+              data-globe-spin
+              onClick={() => setSpinRequestKey((value) => value + 1)}
+            >
+              {t('globe.toggleSpin')}
             </button>
+            {!isCompactLayout ? (
+              <>
+                <button className="chip" type="button" onClick={() => setActiveSection('search')}>
+                  {t('home.openSearch')}
+                </button>
+                <button className="chip" type="button" onClick={openLibraryRegions}>
+                  {t('home.openLibrary')}
+                </button>
+              </>
+            ) : null}
             {selectedArea ? (
               <button
                 className="chip"
                 type="button"
-                onClick={() => {
-                  selectedAnchorRef.current = null;
-                  setSelectedAreaId(null);
-                }}
+                data-globe-clear
+                onClick={clearSelection}
               >
                 {t('globe.clearSelection')}
               </button>
@@ -234,7 +313,7 @@ export const GlobeScreen = () => {
         <div className="search-results-head-minimal">
           <div>
             <div className="section-title">
-              {selectedArea ? selectedArea.label : t('globe.tapArea')}
+              {selectedArea ? selectedArea.label : t('globe.nearby')}
             </div>
             <div className="globe-focus-copy">
               {selectedArea

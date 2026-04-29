@@ -10,6 +10,7 @@ import {
   DENSE_SEARCH_PREVIEW_LIMIT,
   filterPreviewStations
 } from '../src/screens/homePreview';
+import { findNearestAreaToRotation } from '../src/components/globe/selection';
 
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
@@ -72,6 +73,26 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   expect(overflowing).toEqual([]);
 };
 
+const expectNoGlobeHorizontalOverflow = async (page: Page) => {
+  const overflowing = await page.locator('.screen-globe-v2 *').evaluateAll((nodes) =>
+    nodes
+      .filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
+      })
+      .map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          tag: node.tagName,
+          className: String(node.getAttribute('class') || ''),
+          left: rect.left,
+          right: rect.right
+        };
+      })
+  );
+  expect(overflowing).toEqual([]);
+};
+
 const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
   JSON.stringify({
     generatedAt,
@@ -102,6 +123,19 @@ test('home local preview filter caps dense results', () => {
   expect(matches.map((station) => station.name)).toEqual(['Tokyo FM', 'Osaka Nights']);
 });
 
+test('globe nearest helper selects the reticle area', () => {
+  const nearest = findNearestAreaToRotation(
+    [
+      { id: 'asia-japan', lat: 35.68, lon: 139.69 },
+      { id: 'europe-iceland', lat: 64.1466, lon: -21.9426 },
+      { id: 'south-america-brazil', lat: -22.9068, lon: -43.1729 }
+    ],
+    [21.9426, -64.1466, 0]
+  );
+
+  expect(nearest?.id).toBe('europe-iceland');
+});
+
 for (const width of [360, 390]) {
   test(`mobile home dense keeps only hero resume and one rail at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
@@ -125,6 +159,46 @@ for (const width of [360, 390]) {
     await expectNoHomeHorizontalOverflow(page);
 
     await page.locator('[data-home-rail] [data-home-station] .home-action-btn-play').first().click();
+    await expect(page.locator('.player-dock-bar')).toBeVisible();
+  });
+}
+
+for (const width of [360, 390]) {
+  test(`mobile globe uses reticle tuning and a visible focus sheet at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+
+    await page.goto('/');
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+
+    await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-density', 'dense');
+    await expect(page.locator('.globe-reticle')).toBeVisible();
+    await expect(page.locator('[data-globe-tune]')).toBeVisible();
+    await expect(page.locator('.globe-hint')).not.toContainText(/scroll|колес/i);
+    await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
+    await expectNoGlobeHorizontalOverflow(page);
+
+    const sheetRect = await page.locator('.globe-focus-card').evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportHeight: window.innerHeight,
+        scrollY: window.scrollY
+      };
+    });
+    expect(sheetRect.top).toBeLessThan(sheetRect.viewportHeight - 80);
+    expect(sheetRect.bottom).toBeGreaterThan(sheetRect.top + 80);
+    expect(sheetRect.scrollY).toBe(0);
+
+    await page.locator('[data-globe-clear]').click();
+    await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
+    await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
+
+    await page.locator('[data-globe-tune]').click();
+    await expect(page.locator('[data-globe-clear]')).toBeVisible();
+    await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
+
+    await page.locator('.globe-focus-card .station-compact-toggle').first().click();
     await expect(page.locator('.player-dock-bar')).toBeVisible();
   });
 }

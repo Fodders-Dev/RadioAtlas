@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { loadGlobeAssets, type GlobeAssets } from './globe/assets';
+import { findNearestAreaToRotation } from './globe/selection';
 import './globe/globe.css';
 
 type GlobePoint = {
@@ -24,6 +25,9 @@ type GlobeProps = {
   geoCount?: number;
   zoomLevel?: number;
   onZoomChange?: (value: number) => void;
+  tuneRequestKey?: number;
+  spinRequestKey?: number;
+  onAutoRotateChange?: (enabled: boolean) => void;
   hintText?: string;
   statusText?: string;
 };
@@ -33,6 +37,9 @@ const MAX_ZOOM = 10;
 const WHEEL_STEP = 0.25;
 const DRAG_THRESHOLD = 6;
 const TILT_LIMIT = 80;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 export const Globe = ({
   points,
@@ -45,6 +52,9 @@ export const Globe = ({
   geoCount,
   zoomLevel,
   onZoomChange,
+  tuneRequestKey,
+  spinRequestKey,
+  onAutoRotateChange,
   hintText,
   statusText
 }: GlobeProps) => {
@@ -62,6 +72,10 @@ export const Globe = ({
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
   const projectionRef = useRef<any>(null);
+  const scaleRef = useRef(1);
+  const onZoomChangeRef = useRef(onZoomChange);
+  const lastTuneRequestRef = useRef(0);
+  const lastSpinRequestRef = useRef(0);
 
   const [size, setSize] = useState({ width: 320, height: 320 });
   const [autoRotate, setAutoRotate] = useState(
@@ -73,8 +87,20 @@ export const Globe = ({
   const [assets, setAssets] = useState<GlobeAssets | null>(null);
   const [scale, setScale] = useState(1);
 
-  const clamp = (value: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, value));
+  useEffect(() => {
+    onZoomChangeRef.current = onZoomChange;
+  }, [onZoomChange]);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  const commitScale = useCallback((value: number) => {
+    const next = clamp(value, MIN_ZOOM, MAX_ZOOM);
+    scaleRef.current = next;
+    setScale(next);
+    onZoomChangeRef.current?.(next);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -97,6 +123,10 @@ export const Globe = ({
   }, []);
 
   useEffect(() => {
+    onAutoRotateChange?.(autoRotate);
+  }, [autoRotate, onAutoRotateChange]);
+
+  useEffect(() => {
     if (!focusPoint) return;
     const targetY = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, -focusPoint.lat));
     targetRotationRef.current = [-focusPoint.lon, targetY, 0];
@@ -106,9 +136,34 @@ export const Globe = ({
 
   useEffect(() => {
     if (typeof zoomLevel === 'number') {
-      setScale(zoomLevel);
+      const next = clamp(zoomLevel, MIN_ZOOM, MAX_ZOOM);
+      scaleRef.current = next;
+      setScale(next);
     }
   }, [zoomLevel]);
+
+  useEffect(() => {
+    if (!tuneRequestKey || tuneRequestKey === lastTuneRequestRef.current) return;
+    lastTuneRequestRef.current = tuneRequestKey;
+    const nearest = findNearestAreaToRotation(
+      points,
+      rotationRef.current,
+      assets?.geoDistance
+    );
+    if (!nearest) {
+      onPickCandidates?.([]);
+      return;
+    }
+    onPick?.(nearest.id);
+    onPickCandidates?.([]);
+  }, [assets?.geoDistance, onPick, onPickCandidates, points, tuneRequestKey]);
+
+  useEffect(() => {
+    if (!spinRequestKey || spinRequestKey === lastSpinRequestRef.current) return;
+    lastSpinRequestRef.current = spinRequestKey;
+    targetRotationRef.current = null;
+    setAutoRotate(true);
+  }, [spinRequestKey]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -139,14 +194,12 @@ export const Globe = ({
       event.preventDefault();
       event.stopPropagation();
       const delta = Math.sign(event.deltaY);
-      const next = clamp(scale - delta * WHEEL_STEP, MIN_ZOOM, MAX_ZOOM);
-      setScale(next);
-      onZoomChange?.(next);
+      commitScale(scaleRef.current - delta * WHEEL_STEP);
     };
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
-  }, [scale, onZoomChange]);
+  }, [commitScale]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -512,10 +565,21 @@ export const Globe = ({
 
     frame = window.requestAnimationFrame(draw);
     return () => window.cancelAnimationFrame(frame);
-  }, [size, points, activeId, assets, autoRotate, scale, documentVisible, deviceProfile.lowPower]);
+  }, [
+    size,
+    points,
+    activeId,
+    selectedId,
+    assets,
+    autoRotate,
+    scale,
+    documentVisible,
+    deviceProfile.lowPower
+  ]);
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     event.preventDefault();
+    setAutoRotate(false);
     draggingRef.current = true;
     dragMovedRef.current = false;
     dragDistanceRef.current = 0;
@@ -529,7 +593,7 @@ export const Globe = ({
       const points = Array.from(pointersRef.current.values());
       const dx = points[0].x - points[1].x;
       const dy = points[0].y - points[1].y;
-      pinchRef.current = { distance: Math.hypot(dx, dy), scale };
+      pinchRef.current = { distance: Math.hypot(dx, dy), scale: scaleRef.current };
       dragMovedRef.current = true;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -550,9 +614,7 @@ export const Globe = ({
       const distance = Math.hypot(dx, dy);
       if (pinchRef.current.distance > 0) {
         const factor = distance / pinchRef.current.distance;
-        const next = clamp(pinchRef.current.scale * factor, MIN_ZOOM, MAX_ZOOM);
-        setScale(next);
-        onZoomChange?.(next);
+        commitScale(pinchRef.current.scale * factor);
       }
       dragMovedRef.current = true;
       return;
@@ -564,7 +626,7 @@ export const Globe = ({
     if (dragDistanceRef.current > DRAG_THRESHOLD) {
       dragMovedRef.current = true;
     }
-    const speed = 0.4 / Math.max(1, scale);
+    const speed = 0.4 / Math.max(1, scaleRef.current);
     rotationRef.current = [
       rotationRef.current[0] + dx * speed,
       Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, rotationRef.current[1] - dy * speed)),
@@ -658,12 +720,17 @@ export const Globe = ({
         onClick={pickStation}
         aria-label="Interactive globe"
       />
+      <div className="globe-reticle" aria-hidden="true">
+        <span className="globe-reticle-line globe-reticle-line-x" />
+        <span className="globe-reticle-line globe-reticle-line-y" />
+        <span className="globe-reticle-dot" />
+      </div>
       <div className="globe-overlay">
         <div className="globe-count">
           {statusText ||
             `Showing ${points.length}${typeof geoCount === 'number' ? ` / ${geoCount} mapped` : ''}${typeof totalCount === 'number' ? ` / ${totalCount} total` : ''}`}
         </div>
-        <div className="globe-hint">{hintText || 'Drag to spin / scroll to zoom / tap a dot'}</div>
+        <div className="globe-hint">{hintText || 'Drag / pinch / tap'}</div>
       </div>
     </div>
   );

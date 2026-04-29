@@ -42,7 +42,12 @@ export const defaultDictionary: DictionaryTree = {
     globeSubtitle: 'Путешествуй по радиоэфиру мира'
   },
   globe: {
-    heroSubtitle: 'Крути карту и проваливайся в эфир'
+    heroSubtitle: 'Крути карту и проваливайся в эфир',
+    controlsHintDesktop: 'Тяни · колесо · точка',
+    controlsHintMobile: 'Тяни · pinch · точка',
+    tuneHere: 'Поймать здесь',
+    nearby: 'Станции рядом',
+    toggleSpin: 'Вращение'
   },
   library: {
     topbarSubtitle: 'Твоё избранное, очередь и история',

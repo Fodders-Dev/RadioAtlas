@@ -34,6 +34,61 @@
   pointer-events: none;
 }
 
+.globe-reticle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 54px;
+  height: 54px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(224, 255, 255, 0.72);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgba(70, 244, 218, 0.14),
+    0 0 22px rgba(112, 242, 230, 0.22),
+    inset 0 0 18px rgba(236, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.globe-reticle::before {
+  content: '';
+  position: absolute;
+  inset: 11px;
+  border: 1px solid rgba(224, 255, 255, 0.38);
+  border-radius: 50%;
+}
+
+.globe-reticle-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(224, 255, 255, 0.74);
+  transform: translate(-50%, -50%);
+}
+
+.globe-reticle-line-x {
+  width: 66px;
+  height: 1px;
+}
+
+.globe-reticle-line-y {
+  width: 1px;
+  height: 66px;
+}
+
+.globe-reticle-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(244, 255, 255, 0.95);
+  box-shadow: 0 0 10px rgba(120, 255, 235, 0.5);
+}
+
 .globe-count {
   font-weight: 600;
   color: var(--accent);

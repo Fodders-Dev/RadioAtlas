@@ -435,22 +435,8 @@ export const mockStations = async (
       ]
     }
   });
-  const areasBody = JSON.stringify({
-    items: [
-      {
-        id: 'asia-japan',
-        lat: 35.68,
-        lon: 139.69,
-        label: 'Japan',
-        subtitle: 'Asia',
-        count: 4
-      }
-    ],
-    mappedStations: stations.length,
-    totalStations: stations.length
-  });
-  const areaStationsBody = JSON.stringify({
-    area: {
+  const areaItems = [
+    {
       id: 'asia-japan',
       lat: 35.68,
       lon: 139.69,
@@ -458,9 +444,41 @@ export const mockStations = async (
       subtitle: 'Asia',
       count: 4
     },
-    items: stations.slice(0, 4),
-    nextCursor: null
+    {
+      id: 'europe-germany',
+      lat: 52.52,
+      lon: 13.405,
+      label: 'Germany',
+      subtitle: 'Europe',
+      count: 4
+    },
+    {
+      id: 'europe-iceland',
+      lat: 64.1466,
+      lon: -21.9426,
+      label: 'Iceland',
+      subtitle: 'Europe',
+      count: 2
+    }
+  ];
+  const areaStationsById: Record<string, typeof stations> = {
+    'asia-japan': stations.slice(0, 4),
+    'europe-germany': stations.slice(4, 8),
+    'europe-iceland': stations.slice(4, 6)
+  };
+  const areasBody = JSON.stringify({
+    items: areaItems,
+    mappedStations: stations.length,
+    totalStations: stations.length
   });
+  const areaStationsBody = (areaId: string) => {
+    const area = areaItems.find((item) => item.id === areaId) || areaItems[0];
+    return JSON.stringify({
+      area,
+      items: areaStationsById[area.id] || stations.slice(0, 4),
+      nextCursor: null
+    });
+  };
 
   await page.route('**/catalog-fast.json', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
@@ -483,9 +501,18 @@ export const mockStations = async (
   await page.route('**/catalog/areas?**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: areasBody })
   );
-  await page.route('**/catalog/areas/**/stations?**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: areaStationsBody })
-  );
+  await page.route('**/catalog/areas/**/stations?**', (route) => {
+    const match = route
+      .request()
+      .url()
+      .match(/\/catalog\/areas\/([^/]+)\/stations/);
+    const areaId = match ? decodeURIComponent(match[1]) : 'asia-japan';
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: areaStationsBody(areaId)
+    });
+  });
   await page.route('**/catalog/stations/**', (route) =>
     route.fulfill({
       status: 200,
