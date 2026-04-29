@@ -94,7 +94,6 @@ const App = () => {
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
-  const [dockMounted, setDockMounted] = useState(false);
   const startHandledRef = useRef(false);
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
@@ -122,19 +121,6 @@ const App = () => {
     });
     return cancelScheduledLoad;
   }, []);
-
-  useEffect(() => {
-    if (dockMounted || player.current || queue.items.length || winamp.expanded) {
-      if (!dockMounted) {
-        setDockMounted(true);
-      }
-      return;
-    }
-    const cancelScheduledMount = scheduleDeferredTask(() => {
-      setDockMounted(true);
-    }, 1800);
-    return cancelScheduledMount;
-  }, [dockMounted, player.current, queue.items.length, winamp.expanded]);
 
   useEffect(() => {
     if (startHandledRef.current) return;
@@ -333,11 +319,9 @@ const App = () => {
         </main>
       </div>
 
-      {dockMounted || player.current || queue.items.length || winamp.expanded ? (
-        <Suspense fallback={null}>
-          <MiniPlayerDockLazy />
-        </Suspense>
-      ) : null}
+      <Suspense fallback={null}>
+        <MiniPlayerDockLazy />
+      </Suspense>
       {detailsOpen ? (
         <Suspense fallback={null}>
           <StationDetailsLazy open={detailsOpen} onClose={() => setDetailsOpen(false)} />

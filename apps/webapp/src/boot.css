@@ -138,12 +138,114 @@ a {
   fill: currentColor;
 }
 
+@media (max-width: 430px) {
+  .app-topbar-actions {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .app-topbar-actions .nav-utility-btn {
+    width: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    gap: 0;
+    border-radius: 999px;
+  }
+
+  .app-topbar-actions .nav-utility-btn span {
+    display: none;
+  }
+
+  .app-topbar-actions .nav-utility-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
 .player-dock {
   position: fixed;
   left: 12px;
   right: 12px;
   bottom: calc(72px + env(safe-area-inset-bottom));
   z-index: 30;
+}
+
+/* Critical dock guards for the immediate mobile peek before full styles load. */
+.player-dock-peek {
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+}
+
+.player-peek-handle,
+.player-peek-handle.dormant {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: min(168px, calc(100vw - 90px));
+  min-height: 28px;
+  padding: 4px 10px;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  color: inherit;
+}
+
+.player-peek-pill {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.player-peek-label,
+.player-dock-title,
+.player-dock-track-button-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-peek-label {
+  display: block;
+  max-width: 60vw;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.player-dock-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.player-dock-track-button {
+  min-height: 22px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-dock-track-button-text {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.player-dock-tray-panel {
+  max-height: min(40vh, 360px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 901px) {

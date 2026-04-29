@@ -93,6 +93,14 @@ const expectNoGlobeHorizontalOverflow = async (page: Page) => {
   expect(overflowing).toEqual([]);
 };
 
+const expectNoDocumentHorizontalOverflow = async (page: Page) => {
+  const metrics = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+};
+
 const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
   JSON.stringify({
     generatedAt,
@@ -292,6 +300,134 @@ test('player peek label clamps long station names', async ({ page }) => {
   expect(styles.textOverflow).toBe('ellipsis');
   expect(styles.whiteSpace).toBe('nowrap');
   expect(styles.scrollWidth).toBeLessThanOrEqual(styles.clientWidth);
+});
+
+test('mobile cold load mounts the peek dock immediately', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('.app-navigation-mobile')).toBeVisible();
+  await expect(page.locator('.player-dock-peek')).toBeVisible({ timeout: 1000 });
+});
+
+test('dock separates empty explore from queue controls', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+
+  await page.locator('.player-peek-handle').click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await expect(page.locator('.dock-queue-btn')).toHaveCount(0);
+  await expect(page.locator('.dock-explore-btn')).toBeVisible();
+
+  await page.locator('.dock-explore-btn').click();
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+});
+
+test('dock shows queue control only when queue has items', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    queue: stations.slice(0, 3)
+  });
+
+  await page.goto('/');
+  await page.locator('.player-peek-handle').click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await expect(page.locator('.dock-queue-btn')).toBeVisible();
+  await expect(page.locator('.dock-explore-btn')).toHaveCount(0);
+
+  await page.locator('.dock-queue-btn').click();
+  await expect(page.locator('.player-dock-tray[data-mode="queue"]')).toBeVisible();
+  await expect(page.locator('.screen-search-v2')).toHaveCount(0);
+});
+
+test('dock long station and track text stay readable without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+
+  const textStyles = await page.locator('.player-dock-title').evaluate((node) => {
+    node.textContent = 'Very long station name aaa aaa aaa aaa aaa aaa aaa aaa aaa';
+    const track = document.querySelector('.player-dock-track-button-text');
+    if (track) {
+      track.textContent = 'Very long track title bbb bbb bbb bbb bbb bbb bbb bbb';
+    }
+    const stationStyle = window.getComputedStyle(node);
+    const trackStyle = track ? window.getComputedStyle(track) : null;
+    return {
+      stationFontSize: stationStyle.fontSize,
+      stationFontWeight: stationStyle.fontWeight,
+      stationWhiteSpace: stationStyle.whiteSpace,
+      trackFontSize: trackStyle?.fontSize,
+      trackFontWeight: trackStyle?.fontWeight,
+      trackWhiteSpace: trackStyle?.whiteSpace,
+      titleClient: node.clientWidth,
+      titleScroll: node.scrollWidth,
+      trackClient: track?.clientWidth || 0,
+      trackScroll: track?.scrollWidth || 0
+    };
+  });
+
+  expect(textStyles.stationFontSize).toBe('14px');
+  expect(Number(textStyles.stationFontWeight)).toBeGreaterThanOrEqual(700);
+  expect(textStyles.stationWhiteSpace).toBe('nowrap');
+  expect(textStyles.trackFontSize).toBe('12px');
+  expect(Number(textStyles.trackFontWeight)).toBeGreaterThanOrEqual(500);
+  expect(textStyles.trackWhiteSpace).toBe('nowrap');
+  await expectNoDocumentHorizontalOverflow(page);
+});
+
+test('dock volume tap toggles mute and long press opens tray', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+
+  const volumeButton = page.locator('.dock-volume-btn');
+  await expect(volumeButton).toBeVisible();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
+
+  await volumeButton.click();
+  await expect(volumeButton).toHaveAttribute('data-muted', 'true');
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('audio');
+        return audio instanceof HTMLAudioElement ? audio.volume : null;
+      })
+    )
+    .toBe(0);
+
+  await volumeButton.click();
+  await expect(volumeButton).toHaveAttribute('data-muted', 'false');
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const audio = document.querySelector('audio');
+        return audio instanceof HTMLAudioElement ? audio.volume : null;
+      })
+    )
+    .toBeGreaterThan(0.5);
+
+  const box = await volumeButton.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(520);
+  await page.mouse.up();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toBeVisible();
+  const trayMetrics = await page.locator('.player-dock-tray-panel').evaluate((node) => {
+    const computed = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      maxHeight: computed.maxHeight,
+      overflowY: computed.overflowY,
+      overscrollBehavior: computed.overscrollBehavior,
+      height: rect.height,
+      viewportHeight: window.innerHeight
+    };
+  });
+  expect(trayMetrics.overflowY).toBe('auto');
+  expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
 });
 
 test('mobile startup stays free of playback runtime render loops', async ({ page }) => {

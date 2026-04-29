@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -33,6 +33,8 @@ export const MiniPlayerDock = () => {
   } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
+  const volumePressTimerRef = useRef<number | null>(null);
+  const volumeLongPressTriggeredRef = useRef(false);
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -83,8 +85,10 @@ export const MiniPlayerDock = () => {
   const trackTitle = activeTrack
     ? activeTrack
     : current
-      ? player.status === 'buffering'
-        ? playbackState?.label || t('common.loading')
+      ? playbackState
+        ? t('dock.currentTrackUnavailable')
+        : player.status === 'buffering'
+          ? t('common.loading')
         : nowPlayingStatus === 'loading'
           ? t('common.loading')
           : t('dock.currentTrackUnavailable')
@@ -93,6 +97,9 @@ export const MiniPlayerDock = () => {
     ? t('dock.copyCurrentTrack')
     : playbackState?.label || trackTitle;
   const volumePercent = Math.round(player.volume * 100);
+  const isMuted = player.volume <= 0.01;
+  const showQueueButton = queueCount > 0;
+  const showExploreButton = !current && queueCount === 0;
 
   useEffect(() => {
     if (player.volume > 0.01) {
@@ -106,6 +113,15 @@ export const MiniPlayerDock = () => {
     }
   }, [playerPresentation]);
 
+  useEffect(
+    () => () => {
+      if (volumePressTimerRef.current !== null) {
+        window.clearTimeout(volumePressTimerRef.current);
+      }
+    },
+    []
+  );
+
   const openLibraryTab = (tab: 'queue' | 'tracks' | 'history') => {
     setTrayMode(null);
     setLibraryTab(tab);
@@ -115,6 +131,45 @@ export const MiniPlayerDock = () => {
   const openSearch = () => {
     setTrayMode(null);
     setActiveSection('search');
+  };
+
+  const toggleMute = () => {
+    player.setVolume(isMuted ? lastAudibleVolumeRef.current || 0.8 : 0);
+  };
+
+  const clearVolumePressTimer = () => {
+    if (volumePressTimerRef.current === null) return;
+    window.clearTimeout(volumePressTimerRef.current);
+    volumePressTimerRef.current = null;
+  };
+
+  const handleVolumePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (trayMode === 'volume') return;
+    clearVolumePressTimer();
+    volumeLongPressTriggeredRef.current = false;
+    volumePressTimerRef.current = window.setTimeout(() => {
+      volumePressTimerRef.current = null;
+      volumeLongPressTriggeredRef.current = true;
+      setTrayMode('volume');
+    }, 450);
+  };
+
+  const handleVolumePointerEnd = () => {
+    clearVolumePressTimer();
+  };
+
+  const handleVolumeClick = () => {
+    clearVolumePressTimer();
+    if (volumeLongPressTriggeredRef.current) {
+      volumeLongPressTriggeredRef.current = false;
+      return;
+    }
+    if (trayMode === 'volume') {
+      setTrayMode(null);
+      return;
+    }
+    toggleMute();
   };
 
   const openWinamp = () => {
@@ -269,6 +324,9 @@ export const MiniPlayerDock = () => {
                   <div className="player-dock-queue-empty">
                     <strong>{t('playlist.title')}</strong>
                     <span>{t('dock.queuePeekEmpty')}</span>
+                    <button className="chip active" type="button" onClick={openSearch}>
+                      {t('dock.queueEmptyCta')}
+                    </button>
                   </div>
                 )}
                 <div className="chip-row player-dock-queue-actions">
@@ -328,30 +386,48 @@ export const MiniPlayerDock = () => {
       </div>
 
       <div className="player-dock-actions">
-        <button
-          className={`dock-icon-btn ${queueCount || trayMode === 'queue' ? 'active' : ''}`}
-          type="button"
-          onClick={() => {
-            if (!queueCount) {
-              openSearch();
-              return;
-            }
-            setTrayMode((prev) => (prev === 'queue' ? null : 'queue'));
-          }}
-          aria-label={queueCount ? t('dock.queueOpen') : t('nav.search')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
-          </svg>
-        </button>
+        {showQueueButton ? (
+          <button
+            className={`dock-icon-btn dock-queue-btn ${trayMode === 'queue' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setTrayMode((prev) => (prev === 'queue' ? null : 'queue'))}
+            aria-label={t('dock.queueOpen')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+            </svg>
+          </button>
+        ) : null}
+        {showExploreButton ? (
+          <button
+            className="dock-icon-btn dock-explore-btn"
+            type="button"
+            onClick={openSearch}
+            aria-label={t('dock.queueEmptyCta')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10.5 4a6.5 6.5 0 0 1 5.16 10.45l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 10.5 4Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
+            </svg>
+          </button>
+        ) : null}
         <button
           className={`dock-icon-btn dock-volume-btn ${trayMode === 'volume' ? 'active' : ''}`}
           type="button"
-          onClick={() => setTrayMode((prev) => (prev === 'volume' ? null : 'volume'))}
-          aria-label={t('dock.volume')}
+          data-muted={isMuted ? 'true' : 'false'}
+          onPointerDown={handleVolumePointerDown}
+          onPointerUp={handleVolumePointerEnd}
+          onPointerLeave={handleVolumePointerEnd}
+          onPointerCancel={handleVolumePointerEnd}
+          onClick={handleVolumeClick}
+          onContextMenu={(event) => event.preventDefault()}
+          aria-label={isMuted ? t('dock.unmute') : t('dock.mute')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
+            {isMuted ? (
+              <path d="M3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
+            ) : (
+              <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Z" />
+            )}
           </svg>
         </button>
         <button
@@ -373,7 +449,12 @@ export const MiniPlayerDock = () => {
             )}
           </svg>
         </button>
-        <button className="dock-icon-btn" type="button" onClick={playNext} aria-label={t('common.next')}>
+        <button
+          className="dock-icon-btn dock-next-btn"
+          type="button"
+          onClick={playNext}
+          aria-label={t('common.next')}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 6v12l8.5-6L6 6Zm9 0v12h2V6h-2Z" />
           </svg>

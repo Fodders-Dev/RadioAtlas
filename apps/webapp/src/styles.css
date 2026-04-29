@@ -8348,3 +8348,141 @@ body {
 .app-shell-v2[data-low-power='true'] .app-navigation-mobile {
   box-shadow: 0 6px 12px rgba(3, 9, 18, 0.1) !important;
 }
+
+/* Stage 3: readable mobile dock controls */
+.player-dock-peek {
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+}
+
+.player-peek-handle,
+.player-peek-handle.dormant {
+  max-width: min(168px, calc(100vw - 90px));
+}
+
+.player-dock-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-peek-label {
+  display: block;
+  max-width: 60vw;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-dock-track-button {
+  min-height: 22px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.player-dock-track-button.active {
+  min-height: 30px;
+  padding: 0 10px;
+  border-color: rgba(177, 243, 232, 0.28);
+  background: rgba(174, 240, 228, 0.09);
+}
+
+.player-dock-track-button:not(.active) svg {
+  display: none;
+}
+
+.player-dock-track-button-text {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.player-dock-tray-panel {
+  max-height: min(40vh, 360px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.player-dock-queue-empty {
+  gap: 8px;
+}
+
+.player-dock-queue-empty .chip {
+  justify-self: start;
+}
+
+.dock-queue-btn,
+.dock-explore-btn {
+  order: 1;
+}
+
+.dock-volume-btn {
+  order: 2;
+}
+
+.dock-volume-btn[data-muted='true'] {
+  color: #dffff9;
+  border-color: rgba(174, 240, 228, 0.24);
+  background: rgba(174, 240, 228, 0.14);
+}
+
+.dock-play-btn {
+  order: 3;
+}
+
+.dock-next-btn {
+  order: 4;
+}
+
+.dock-like-btn {
+  order: 5;
+}
+
+@media (max-width: 430px) {
+  .player-dock-title {
+    font-size: 14px;
+    line-height: 1.18;
+  }
+
+  .player-dock-track-button {
+    max-width: none;
+    min-height: 20px;
+  }
+
+  .player-dock-track-button.active {
+    min-height: 28px;
+    padding: 0 8px;
+  }
+
+  .player-dock-track-button-text {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.18;
+  }
+
+  .player-dock-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .player-dock-actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+  }
+
+  .dock-play-btn {
+    flex-grow: 1.24;
+  }
+}
