@@ -7,6 +7,7 @@ import type { StationLite } from '../types';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
+import { rankStationsForSearch } from '../lib/stationPlayability';
 import './discover.css';
 
 const mergeStations = (left: StationLite[], right: StationLite[]) => {
@@ -19,7 +20,7 @@ const mergeStations = (left: StationLite[], right: StationLite[]) => {
 export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
-  const { recent, playbackHistory } = useLibrary();
+  const { recent, playbackHistory, behaviorProfile, playabilityProfile } = useLibrary();
   const { playStation, player } = usePlayback();
   const { searchDraft, clearSearchDraft } = useShell();
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -70,6 +71,15 @@ export const Discover = () => {
   }, [player.current, recent, playbackHistory]);
 
   const compactQuickReturnStations = quickReturnStations.slice(0, viewportWidth < 860 ? 3 : 4);
+  const rankedSearchResults = useMemo(
+    () =>
+      rankStationsForSearch(stationSearch.results, {
+        query: stationSearch.query,
+        behaviorProfile,
+        playabilityProfile
+      }),
+    [behaviorProfile, playabilityProfile, stationSearch.query, stationSearch.results]
+  );
 
   return (
     <section className="screen screen-search screen-search-v2">
@@ -95,7 +105,7 @@ export const Discover = () => {
             <span>{showStations ? t('search.resultsTitle') : t('discover.linksSaved')}</span>
             <strong>
               {showStations
-                ? `${stationSearch.results.length}${stationSearch.nextCursor ? '+' : ''}/${stationSearch.searchTotal}`
+                ? `${rankedSearchResults.length}${stationSearch.nextCursor ? '+' : ''}/${stationSearch.searchTotal}`
                 : linksState.links.length}
             </strong>
           </div>
@@ -357,7 +367,7 @@ export const Discover = () => {
               <div className="search-results-meta">
                 <span>{t('common.view')}</span>
                 <strong>
-                  {stationSearch.results.length}/{stationSearch.searchTotal}
+                  {rankedSearchResults.length}/{stationSearch.searchTotal}
                 </strong>
               </div>
             </div>
@@ -365,9 +375,9 @@ export const Discover = () => {
             <div className="search-results-shell">
               {stationSearch.searchLoading && !stationSearch.results.length ? (
                 <div className="empty-state">{t('common.loading')}</div>
-              ) : stationSearch.results.length ? (
+              ) : rankedSearchResults.length ? (
                 <StationTable
-                  stations={stationSearch.results}
+                  stations={rankedSearchResults}
                   sourceId="discover-stations"
                   compact={compactResults}
                   nowPlayingMode="viewport"

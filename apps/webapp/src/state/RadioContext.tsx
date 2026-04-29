@@ -23,6 +23,14 @@ import {
 } from '../lib/homeProfile';
 import type { HomeSurfaceFeed } from '../lib/homeSurface';
 import type { BehaviorProfile } from '../lib/homeProfile';
+import {
+  DEFAULT_PLAYABILITY_PROFILE,
+  recordPlaybackOutcome
+} from '../lib/stationPlayability';
+import type {
+  PlaybackOutcomeKind,
+  StationPlayabilityProfile
+} from '../lib/stationPlayability';
 import { makeDeepLink } from '../lib/telegram';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
@@ -84,6 +92,27 @@ const PlaybackRuntimeLazy = lazy(() =>
 );
 const LIBRARY_PERSIST_WRITE_DELAY_MS = 1_200;
 const PLAYER_PERSIST_WRITE_DELAY_MS = 900;
+const PLAYBACK_OUTCOME_MESSAGES: Record<string, PlaybackOutcomeKind> = {
+  'api unavailable': 'api-unavailable',
+  'audio engine unavailable': 'unknown',
+  'media network error': 'stream-unavailable',
+  'media source not supported': 'unsupported-transport',
+  'no playable candidate': 'no-playable-candidate',
+  'playback superseded': 'superseded',
+  'stream blocked/mixed content': 'mixed-content'
+};
+
+const normalizePlaybackOutcome = (error?: string): PlaybackOutcomeKind => {
+  const normalized = error?.trim().toLowerCase() || '';
+  if (!normalized) return 'unknown';
+  if (PLAYBACK_OUTCOME_MESSAGES[normalized]) return PLAYBACK_OUTCOME_MESSAGES[normalized];
+  if (normalized.includes('mixed content') || normalized.includes('blocked')) return 'mixed-content';
+  if (normalized.includes('api unavailable')) return 'api-unavailable';
+  if (normalized.includes('not supported')) return 'unsupported-transport';
+  if (normalized.includes('network')) return 'stream-unavailable';
+  if (normalized.includes('candidate')) return 'no-playable-candidate';
+  return 'unknown';
+};
 
 export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLocale();
@@ -131,7 +160,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   );
   const [toast, setToast] = useState<string | null>(null);
   const storedShellState = storedAppState.shell;
-  const behaviorProfile = storedAppState.behaviorProfile;
+  const behaviorProfile =
+    storedAppState.behaviorProfile?.version === 1
+      ? storedAppState.behaviorProfile
+      : DEFAULT_APP_STATE.behaviorProfile;
+  const playabilityProfile =
+    storedAppState.playabilityProfile?.version === 1
+      ? storedAppState.playabilityProfile
+      : DEFAULT_PLAYABILITY_PROFILE;
   const homeState = storedShellState.home;
   const searchDraft = storedShellState.searchDraft;
   const favorites = storedLibraryState.favorites;
@@ -189,7 +225,19 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   ) =>
     setStoredAppState((prev) => ({
       ...prev,
-      behaviorProfile: resolveUpdater(prev.behaviorProfile, next)
+      behaviorProfile: resolveUpdater(prev.behaviorProfile || DEFAULT_APP_STATE.behaviorProfile, next)
+    }));
+  const setPlayabilityProfile = (
+    next:
+      | StationPlayabilityProfile
+      | ((prev: StationPlayabilityProfile) => StationPlayabilityProfile)
+  ) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      playabilityProfile: resolveUpdater(
+        prev.playabilityProfile || DEFAULT_PLAYABILITY_PROFILE,
+        next
+      )
     }));
   const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
     setStoredLibraryState((prev) => ({
@@ -410,6 +458,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (behaviorProfile?.version === 1) return;
     setBehaviorProfile(DEFAULT_APP_STATE.behaviorProfile);
   }, [behaviorProfile, setBehaviorProfile]);
+
+  useEffect(() => {
+    if (playabilityProfile?.version === 1) return;
+    setPlayabilityProfile(DEFAULT_PLAYABILITY_PROFILE);
+  }, [playabilityProfile, setPlayabilityProfile]);
 
   const { syncCloudLibraryImmediately } = useCloudLibrarySync({
     alerts,
@@ -651,6 +704,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setBehaviorProfile((prev) => recordStationSignal(prev, lite, action, weightOverride));
   };
 
+  const recordPlaybackOutcomeForStation = (
+    station: Station | StationLite,
+    outcome: PlaybackOutcomeKind
+  ) => {
+    const lite = toLite(station);
+    setPlayabilityProfile((prev) => recordPlaybackOutcome(prev, lite, outcome));
+  };
+
   const setActiveSection = (section: AppSection) => {
     setStoredShellState((prev) => (prev.activeSection === section ? prev : { ...prev, activeSection: section }));
     setBehaviorProfile((prev) => recordSectionVisit(prev, section));
@@ -696,6 +757,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const lite = toLite(station);
     rememberStations([lite]);
     if (!lite.url_resolved) {
+      recordPlaybackOutcomeForStation(lite, 'no-playable-candidate');
       notify(t('toast.missingStream'));
       return false;
     }
@@ -705,6 +767,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       if (result.error === 'playback superseded') {
         return false;
       }
+      recordPlaybackOutcomeForStation(lite, normalizePlaybackOutcome(result.error));
       if (!options?.suppressErrorToast) {
         notify(resolvePlaybackToastMessage(result.error));
       }
@@ -712,6 +775,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const playedStation = result.station ?? lite;
+    recordPlaybackOutcomeForStation(playedStation, 'success');
     rememberStations([playedStation]);
     const nextQueue =
       options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
@@ -1434,6 +1498,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       trackHistory,
       playbackHistory: playbackHistoryEntries,
       behaviorProfile,
+      playabilityProfile,
       toggleFavorite,
       isFavorite,
       clearFavorites,
@@ -1464,6 +1529,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       knownStations,
       markAlertRead,
       playbackHistoryEntries,
+      playabilityProfile,
       recent,
       rememberStations,
       removeStationFromCollection,

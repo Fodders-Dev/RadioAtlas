@@ -1,5 +1,10 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  DiscoveryFeed,
+  DiscoveryStationModule
+} from '../domain/contracts';
 import { createDiscoveryFeed } from '../lib/discoveryFeed';
+import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import {
   createHomeResumeModule,
   createHomeSurfaceFeed,
@@ -13,6 +18,11 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
+import {
+  filterStationsByPlayability,
+  getPlayabilityProfileUpdatedAt,
+  rankStationsForHome
+} from '../lib/stationPlayability';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
   HomeHeroCard,
@@ -39,6 +49,54 @@ const mergeStations = (...collections: StationLite[][]) => {
     });
   });
   return Array.from(merged.values());
+};
+
+const toHomeDiscoveryModule = (
+  kind: DiscoveryStationModule['kind'],
+  sourceId: string,
+  stations: StationLite[],
+  accent: DiscoveryStationModule['accent'] = 'primary'
+): DiscoveryStationModule => ({
+  kind,
+  titleKey: 'home.freshSignalsTitle',
+  copyKey: 'home.freshSignalsCopy',
+  sourceId,
+  stations,
+  accent
+});
+
+const applyRecommendationModules = (
+  discoveryFeed: DiscoveryFeed,
+  primaryStation: StationLite | null,
+  railStations: StationLite[],
+  returnToAir: StationLite[]
+): DiscoveryFeed => {
+  if (!primaryStation) return discoveryFeed;
+
+  const heroModule = toHomeDiscoveryModule(
+    'fresh-signals',
+    'home-profile-hero',
+    [primaryStation],
+    'primary'
+  );
+  const railModule = railStations.length
+    ? toHomeDiscoveryModule('fresh-signals', 'home-profile-rail', railStations, 'secondary')
+    : discoveryFeed.freshSignals;
+
+  return {
+    ...discoveryFeed,
+    quickResults: mergeStations(railStations, discoveryFeed.quickResults).slice(0, 4),
+    freshSignals: railModule,
+    resumeStations: returnToAir.length ? returnToAir : discoveryFeed.resumeStations,
+    resumeModules: returnToAir.length
+      ? [
+          toHomeDiscoveryModule('resume', 'home-profile-return', returnToAir, 'primary'),
+          ...discoveryFeed.resumeModules
+        ]
+      : discoveryFeed.resumeModules,
+    primaryDiscoveryModule: heroModule,
+    rankedDiscoveryModules: [heroModule, railModule, ...discoveryFeed.rankedDiscoveryModules]
+  };
 };
 
 const buildFallbackCounts = (catalog: StationLite[]) => {
@@ -88,13 +146,32 @@ const buildSurfaceFeed = (input: {
   collections: ReturnType<typeof useLibrary>['collections'];
   favorites: StationLite[];
   followedStations: ReturnType<typeof useLibrary>['followedStations'];
+  behaviorProfile: ReturnType<typeof useLibrary>['behaviorProfile'];
+  playabilityProfile: ReturnType<typeof useLibrary>['playabilityProfile'];
   metrics: HomeSurfaceFeed['metrics'];
   queuePreview: StationLite[];
   recent: StationLite[];
+  playbackHistory: StationLite[];
+  trackHistory: ReturnType<typeof useLibrary>['trackHistory'];
+  currentStation: StationLite | null;
   seed: number;
 }) => {
+  const rankedCatalog = rankStationsForHome(input.catalog, input.playabilityProfile);
+  const recommendationFeed = createHomeRecommendationFeed({
+    catalog: rankedCatalog,
+    favorites: filterStationsByPlayability(input.favorites, input.playabilityProfile),
+    recent: filterStationsByPlayability(input.recent, input.playabilityProfile),
+    queuePreview: filterStationsByPlayability(input.queuePreview, input.playabilityProfile),
+    playbackHistory: filterStationsByPlayability(input.playbackHistory, input.playabilityProfile),
+    trackHistory: input.trackHistory,
+    collections: input.collections,
+    followedStations: input.followedStations,
+    behaviorProfile: input.behaviorProfile,
+    currentStation: input.currentStation,
+    rotationSeed: input.seed
+  });
   const discoveryFeed = createDiscoveryFeed({
-    catalog: input.catalog,
+    catalog: rankedCatalog,
     favorites: input.favorites,
     recent: input.recent,
     queuePreview: input.queuePreview,
@@ -104,8 +181,30 @@ const buildSurfaceFeed = (input: {
     query: '',
     metrics: input.metrics
   });
-  return createHomeSurfaceFeed({
+  const recommendationDeck = mergeStations(
+    recommendationFeed.tunedForYou,
+    recommendationFeed.becauseYouLiked,
+    rankedCatalog
+  );
+  const primaryStation = recommendationFeed.profileReady
+    ? recommendationDeck[0] || null
+    : null;
+  const railStations = recommendationFeed.profileReady
+    ? mergeStations(
+        recommendationFeed.tunedForYou,
+        recommendationFeed.becauseYouLiked,
+        recommendationFeed.outsideOrbit,
+        rankedCatalog
+      ).filter((station) => station.stationuuid !== primaryStation?.stationuuid)
+    : [];
+  const personalizedDiscoveryFeed = applyRecommendationModules(
     discoveryFeed,
+    primaryStation,
+    railStations,
+    recommendationFeed.returnToAir
+  );
+  return createHomeSurfaceFeed({
+    discoveryFeed: personalizedDiscoveryFeed,
     seed: input.seed,
     builtAt: input.builtAt
   });
@@ -173,7 +272,10 @@ export const Home = () => {
     recent,
     collections,
     followedStations,
+    trackHistory,
     playbackHistory,
+    behaviorProfile,
+    playabilityProfile,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -203,6 +305,26 @@ export const Home = () => {
     const startIndex = Math.max(queue.currentIndex, 0);
     return queue.items.slice(startIndex, startIndex + 4);
   }, [queue.currentIndex, queue.items]);
+  const recommendationStateUpdatedAt = useMemo(
+    () =>
+      Math.max(
+        behaviorProfile.lastUpdatedAt || 0,
+        getPlayabilityProfileUpdatedAt(playabilityProfile)
+      ),
+    [behaviorProfile.lastUpdatedAt, playabilityProfile]
+  );
+  const resumeQueuePreview = useMemo(
+    () => filterStationsByPlayability(queuePreview, playabilityProfile),
+    [playabilityProfile, queuePreview]
+  );
+  const resumeRecent = useMemo(
+    () => filterStationsByPlayability(recent, playabilityProfile),
+    [playabilityProfile, recent]
+  );
+  const resumePlaybackHistory = useMemo(
+    () => filterStationsByPlayability(playbackHistory, playabilityProfile),
+    [playabilityProfile, playbackHistory]
+  );
   const counts = useMemo(
     () => summary?.counts || buildFallbackCounts(catalog),
     [catalog, summary?.counts]
@@ -220,15 +342,25 @@ export const Home = () => {
     () =>
       createHomeResumeModule({
         current: player.current,
-        queuePreview,
-        recent,
-        playbackHistory
+        queuePreview: resumeQueuePreview,
+        recent: resumeRecent,
+        playbackHistory: resumePlaybackHistory
       }),
-    [playbackHistory, player.current, queuePreview, recent]
+    [player.current, resumePlaybackHistory, resumeQueuePreview, resumeRecent]
   );
-  const surfaceBuiltAt = homeState.lastBuiltAt || summary?.generatedAt || homeState.sessionSeed;
+  const surfaceBuiltAt = Math.max(
+    homeState.lastBuiltAt || 0,
+    summary?.generatedAt || 0,
+    homeState.sessionSeed,
+    recommendationStateUpdatedAt
+  );
   const surfaceFeedBase = useMemo(() => {
-    if (homeState.snapshot && homeState.snapshot.seed === homeState.sessionSeed) {
+    const snapshotFresh =
+      homeState.snapshot &&
+      homeState.snapshot.seed === homeState.sessionSeed &&
+      (!recommendationStateUpdatedAt ||
+        homeState.snapshot.builtAt >= recommendationStateUpdatedAt);
+    if (snapshotFresh) {
       return homeState.snapshot;
     }
     if (summaryLoading && !summary) {
@@ -239,11 +371,16 @@ export const Home = () => {
     }
     return buildSurfaceFeed({
       catalog,
+      behaviorProfile,
       favorites,
       recent,
       queuePreview,
+      currentStation: player.current,
       followedStations,
       collections,
+      playbackHistory,
+      playabilityProfile,
+      trackHistory,
       seed: homeState.sessionSeed,
       metrics,
       builtAt: surfaceBuiltAt
@@ -251,16 +388,22 @@ export const Home = () => {
   }, [
     catalog,
     collections,
+    behaviorProfile,
     favorites,
     followedStations,
     homeState.sessionSeed,
     homeState.snapshot,
     metrics,
+    playbackHistory,
+    playabilityProfile,
+    player.current,
     queuePreview,
     recent,
+    recommendationStateUpdatedAt,
     summary,
     summaryLoading,
-    surfaceBuiltAt
+    surfaceBuiltAt,
+    trackHistory
   ]);
   const surfaceFeed = surfaceFeedBase;
   const currentStationId = player.current?.stationuuid || null;
@@ -330,12 +473,21 @@ export const Home = () => {
       const nextSeed = seed;
       let nextSurface = buildSurfaceFeed({
         catalog: nextCatalog,
-        builtAt: effectiveSummary.generatedAt || nextSeed,
+        builtAt: Math.max(
+          effectiveSummary.generatedAt || 0,
+          nextSeed,
+          recommendationStateUpdatedAt
+        ),
+        behaviorProfile,
         favorites,
         recent,
         queuePreview,
+        currentStation: player.current,
         followedStations,
         collections,
+        playbackHistory,
+        playabilityProfile,
+        trackHistory,
         seed: nextSeed,
         metrics: effectiveSummary.counts
       });

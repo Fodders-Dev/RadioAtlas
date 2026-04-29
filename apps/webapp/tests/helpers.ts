@@ -1,4 +1,9 @@
 import type { Page } from '@playwright/test';
+import type { BehaviorProfile } from '../src/lib/homeProfile';
+import {
+  DEFAULT_PLAYABILITY_PROFILE,
+  type StationPlayabilityProfile
+} from '../src/lib/stationPlayability';
 
 export const stations = [
   {
@@ -215,6 +220,8 @@ type SeedRadioStateOptions = {
   activeSection?: 'home' | 'search' | 'globe' | 'library';
   libraryTab?: string;
   homeSessionSeed?: number;
+  behaviorProfile?: BehaviorProfile;
+  playabilityProfile?: StationPlayabilityProfile;
   favorites?: SeedStation[];
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
@@ -299,6 +306,8 @@ export const seedRadioState = async (
     activeSection = 'home',
     libraryTab = 'favorites',
     homeSessionSeed = DEFAULT_HOME_SEED,
+    behaviorProfile,
+    playabilityProfile = DEFAULT_PLAYABILITY_PROFILE,
     favorites = [],
     recent = [],
     playbackHistory = [],
@@ -341,7 +350,7 @@ export const seedRadioState = async (
           },
           searchDraft: ''
         },
-        behaviorProfile: {
+        behaviorProfile: behaviorProfile || {
           version: 1,
           lastUpdatedAt: null,
           actionCounts: {
@@ -356,7 +365,8 @@ export const seedRadioState = async (
           countryScores: {},
           stateScores: {},
           stationScores: {}
-        }
+        },
+        playabilityProfile
       },
       libraryState: {
         version: 2,

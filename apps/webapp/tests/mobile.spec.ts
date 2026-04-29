@@ -12,8 +12,32 @@ import {
   filterPreviewStations
 } from '../src/screens/homePreview';
 import { findNearestAreaToRotation } from '../src/components/globe/selection';
+import {
+  DEFAULT_PLAYABILITY_PROFILE,
+  getStationPlayabilityScore,
+  rankStationsForSearch,
+  recordPlaybackOutcome
+} from '../src/lib/stationPlayability';
+import type { BehaviorProfile } from '../src/lib/homeProfile';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
+const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
+  version: 1,
+  lastUpdatedAt: Date.UTC(2026, 3, 20, 9, 30, 0),
+  actionCounts: {
+    plays: 4,
+    likes: 1,
+    copies: 0,
+    follows: 0,
+    collections: 0
+  },
+  sectionVisits: {},
+  tagScores: {},
+  countryScores: {},
+  stateScores: {},
+  stationScores: {},
+  ...overrides
+});
 
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
@@ -179,6 +203,46 @@ test('globe nearest helper selects the reticle area', () => {
   expect(nearest?.id).toBe('europe-iceland');
 });
 
+test('playability score demotes stream failures but ignores missing metadata', () => {
+  const failed = recordPlaybackOutcome(
+    recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, stations[0], 'no-playable-candidate', 1000),
+    stations[0],
+    'mixed-content',
+    2000
+  );
+  const withMetadataMiss = recordPlaybackOutcome(failed, stations[1], 'metadata-unavailable', 3000);
+  const recovered = recordPlaybackOutcome(withMetadataMiss, stations[1], 'success', 4000);
+
+  expect(getStationPlayabilityScore(failed, stations[0], 5000)).toBeLessThan(0);
+  expect(getStationPlayabilityScore(withMetadataMiss, stations[1], 5000)).toBe(0);
+  expect(getStationPlayabilityScore(recovered, stations[1], 5000)).toBeGreaterThan(0);
+});
+
+test('search ranking keeps exact playable matches above weak promoted matches', () => {
+  const failedProfile = recordPlaybackOutcome(
+    DEFAULT_PLAYABILITY_PROFILE,
+    stations[0],
+    'no-playable-candidate',
+    1000
+  );
+  const searchStations = [
+    { ...stations[4], name: 'Tokyo Promo Beats', promoted: true },
+    stations[0],
+    stations[1]
+  ];
+  const ranked = rankStationsForSearch(searchStations, {
+    query: 'Tokyo FM',
+    behaviorProfile: behaviorProfile({
+      tagScores: { techno: 80 },
+      countryScores: { Germany: 50 }
+    }),
+    playabilityProfile: failedProfile,
+    now: 5000
+  });
+
+  expect(ranked[0].stationuuid).toBe('uuid-tokyo');
+});
+
 for (const width of [360, 390]) {
   test(`mobile home dense keeps only hero resume and one rail at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
@@ -207,6 +271,48 @@ for (const width of [360, 390]) {
     await expect(page.locator('.player-dock-bar')).toBeVisible();
   });
 }
+
+test('mobile home promotes behavior-profile recommendations without reason copy', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    stationCache: stations,
+    behaviorProfile: behaviorProfile({
+      tagScores: { techno: 90 },
+      countryScores: { Germany: 45 },
+      stationScores: { 'uuid-berlin': 140 }
+    })
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toHaveAttribute('data-home-hero', 'uuid-berlin');
+  await expect(page.locator('[data-home-hero]')).toContainText('Berlin Pulse');
+  await expect(page.locator('.screen-home-next')).not.toContainText(/По твоим|Похожее на|часто слушаешь|Based on|liked/i);
+});
+
+test('mobile home demotes a repeatedly failed station from the primary hero', async ({ page }) => {
+  const now = Date.now();
+  const playabilityProfile = recordPlaybackOutcome(
+    recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, stations[4], 'no-playable-candidate', now - 1000),
+    stations[4],
+    'unsupported-transport',
+    now
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    stationCache: stations,
+    behaviorProfile: behaviorProfile({
+      tagScores: { techno: 90 },
+      countryScores: { Germany: 45 },
+      stationScores: { 'uuid-berlin': 180, 'uuid-hamburg': 80 }
+    }),
+    playabilityProfile
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-hero]')).not.toHaveAttribute('data-home-hero', 'uuid-berlin');
+  await expect(page.locator('[data-home-hero]')).not.toContainText('Berlin Pulse');
+});
 
 for (const width of [360, 390]) {
   test(`mobile globe uses reticle tuning and a visible focus sheet at ${width}px`, async ({ page }) => {
@@ -384,6 +490,31 @@ test('home typing uses local preview without catalog search requests', async ({ 
 
   expect(searchRequests).toEqual([]);
   await expect(page.locator('[data-home-search-preview] [data-home-station]')).toHaveCount(1);
+});
+
+test('search ranks playable tag matches above failed matches', async ({ page }) => {
+  const now = Date.now();
+  const playabilityProfile = recordPlaybackOutcome(
+    recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, stations[1], 'success', now - 2000),
+    stations[0],
+    'no-playable-candidate',
+    now - 1000
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: stations,
+    behaviorProfile: behaviorProfile({
+      tagScores: { jpop: 40 },
+      countryScores: { Japan: 20 }
+    }),
+    playabilityProfile
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('.search-command-card .search-bar input').first().fill('jpop');
+  await expect(page.locator('.station-row').first()).toContainText('Osaka Nights');
 });
 
 test('home summary error banner is one-shot and clears after summary succeeds', async ({ page }) => {

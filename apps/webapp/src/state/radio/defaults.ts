@@ -1,4 +1,5 @@
 import { DEFAULT_BEHAVIOR_PROFILE } from '../../lib/homeProfile';
+import { DEFAULT_PLAYABILITY_PROFILE } from '../../lib/stationPlayability';
 import {
   DEFAULT_WINAMP_SKIN_ID,
   WINAMP_CLASSIC_PALETTE,
@@ -58,7 +59,8 @@ export const DEFAULT_SHELL_STATE: StoredShellState = {
 export const DEFAULT_APP_STATE: StoredAppState = {
   version: 2,
   shell: DEFAULT_SHELL_STATE,
-  behaviorProfile: DEFAULT_BEHAVIOR_PROFILE
+  behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+  playabilityProfile: DEFAULT_PLAYABILITY_PROFILE
 };
 
 export const DEFAULT_LIBRARY_STATE: StoredLibraryState = {

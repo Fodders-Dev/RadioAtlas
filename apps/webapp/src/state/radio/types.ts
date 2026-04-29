@@ -8,6 +8,7 @@ import type {
 } from '../../domain/contracts';
 import type { BehaviorProfile } from '../../lib/homeProfile';
 import type { HomeSurfaceFeed } from '../../lib/homeSurface';
+import type { StationPlayabilityProfile } from '../../lib/stationPlayability';
 import type { useAudioPlayer } from '../../lib/useAudioPlayer';
 import type {
   ActiveWinampSkin,
@@ -78,6 +79,7 @@ export type StoredAppState = {
   version: 2;
   shell: StoredShellState;
   behaviorProfile: BehaviorProfile;
+  playabilityProfile: StationPlayabilityProfile;
 };
 
 export type StoredLibraryState = {
@@ -163,6 +165,7 @@ export type LibraryContextValue = {
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
   behaviorProfile: BehaviorProfile;
+  playabilityProfile: StationPlayabilityProfile;
   toggleFavorite: (station: Station | StationLite) => void;
   isFavorite: (stationId: string) => boolean;
   clearFavorites: () => void;
