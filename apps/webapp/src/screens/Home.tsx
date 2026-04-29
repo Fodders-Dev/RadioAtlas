@@ -13,17 +13,21 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
+import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
   HomeHeroCard,
   HomeRail,
   HomeResumeStrip,
   HomeSearchPreview
 } from './homeCards';
+import {
+  DENSE_SEARCH_PREVIEW_LIMIT,
+  SEARCH_PREVIEW_LIMIT,
+  filterPreviewStations
+} from './homePreview';
 import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
-const SEARCH_PREVIEW_LIMIT = 3;
-const DENSE_SEARCH_PREVIEW_LIMIT = 2;
 const DENSE_RAIL_LIMIT = 1;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 
@@ -60,25 +64,6 @@ const buildFallbackCounts = (catalog: StationLite[]) => {
     languages: languages.size,
     genres: genres.size
   };
-};
-
-const filterPreviewStations = (catalog: StationLite[], rawQuery: string) => {
-  const normalized = rawQuery.trim().toLowerCase();
-  if (!normalized) return [];
-  return catalog
-    .filter((station) =>
-      [
-        station.name,
-        station.country,
-        station.state,
-        (station as { language?: string }).language,
-        station.tags
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized)
-    )
-    .slice(0, SEARCH_PREVIEW_LIMIT);
 };
 
 const isSameSessionBucket = (left: number | null, right: number) => {
@@ -126,14 +111,20 @@ const buildSurfaceFeed = (input: {
   });
 };
 
-const surfaceSignature = (surface: HomeSurfaceFeed | null) =>
-  JSON.stringify({
-    hero: surface?.hero.station?.stationuuid || null,
-    rails: (surface?.rails || []).map((rail) => ({
-      id: rail.id,
-      stations: rail.stations.map((station) => station.stationuuid)
-    }))
+const isSameSurfaceDeck = (left: HomeSurfaceFeed | null, right: HomeSurfaceFeed | null) => {
+  if (!left || !right) return false;
+  if (left.hero.station?.stationuuid !== right.hero.station?.stationuuid) return false;
+  if (left.rails.length !== right.rails.length) return false;
+  return left.rails.every((leftRail, railIndex) => {
+    const rightRail = right.rails[railIndex];
+    if (!rightRail || leftRail.id !== rightRail.id) return false;
+    if (leftRail.stations.length !== rightRail.stations.length) return false;
+    return leftRail.stations.every(
+      (station, stationIndex) =>
+        station.stationuuid === rightRail.stations[stationIndex]?.stationuuid
+    );
   });
+};
 
 const rotateSurfaceFeed = (surface: HomeSurfaceFeed): HomeSurfaceFeed => {
   const heroDeck = [surface.hero.station, ...surface.hero.companionStations].filter(
@@ -175,7 +166,7 @@ const rotateSurfaceFeed = (surface: HomeSurfaceFeed): HomeSurfaceFeed => {
 };
 
 export const Home = () => {
-  const { summary, summaryLoading, summaryError, refreshSummary, searchStations } = useCatalog();
+  const { summary, summaryLoading, summaryError, refreshSummary } = useCatalog();
   const {
     knownStations,
     favorites,
@@ -200,10 +191,8 @@ export const Home = () => {
   const denseLayout = isCompactLayout || lowPower;
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [manualRefreshTick, setManualRefreshTick] = useState(0);
-  const [searchResults, setSearchResults] = useState<StationLite[]>([]);
-  const [searchTotal, setSearchTotal] = useState(0);
   const sessionBucketPrimedRef = useRef(false);
+  const dismissedSummaryErrorRef = useRef<string | null>(null);
   const debouncedQuery = useDebounce(query, 180);
 
   const catalog = useMemo(
@@ -242,6 +231,9 @@ export const Home = () => {
     if (homeState.snapshot && homeState.snapshot.seed === homeState.sessionSeed) {
       return homeState.snapshot;
     }
+    if (summaryLoading && !summary) {
+      return null;
+    }
     if (!catalog.length) {
       return null;
     }
@@ -266,19 +258,11 @@ export const Home = () => {
     metrics,
     queuePreview,
     recent,
+    summary,
+    summaryLoading,
     surfaceBuiltAt
   ]);
-  const surfaceFeed = useMemo(() => {
-    if (!surfaceFeedBase) {
-      return null;
-    }
-    let nextSurface = surfaceFeedBase;
-    const turns = manualRefreshTick % 4;
-    for (let turn = 0; turn < turns; turn += 1) {
-      nextSurface = rotateSurfaceFeed(nextSurface);
-    }
-    return nextSurface;
-  }, [manualRefreshTick, surfaceFeedBase]);
+  const surfaceFeed = surfaceFeedBase;
   const currentStationId = player.current?.stationuuid || null;
   const activeTrack = currentStationId ? nowPlaying : null;
   const quickSearchChips = surfaceFeed?.quickSearchChips?.length
@@ -290,44 +274,16 @@ export const Home = () => {
     if (!debouncedQuery.trim()) {
       return [];
     }
-    const previewStations = searchResults.length
-      ? searchResults
-      : filterPreviewStations(catalog, debouncedQuery);
-    return previewStations.slice(0, denseLayout ? DENSE_SEARCH_PREVIEW_LIMIT : SEARCH_PREVIEW_LIMIT);
-  }, [catalog, debouncedQuery, denseLayout, searchResults]);
+    return filterPreviewStations(
+      catalog,
+      debouncedQuery,
+      denseLayout ? DENSE_SEARCH_PREVIEW_LIMIT : SEARCH_PREVIEW_LIMIT
+    );
+  }, [catalog, debouncedQuery, denseLayout]);
   const visibleRails = useMemo(
     () => (surfaceFeed?.rails || []).slice(0, denseLayout ? DENSE_RAIL_LIMIT : 3),
     [denseLayout, surfaceFeed?.rails]
   );
-
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      setSearchResults([]);
-      setSearchTotal(0);
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await searchStations({
-          q: debouncedQuery,
-          limit: SEARCH_PREVIEW_LIMIT
-        });
-        if (cancelled) return;
-        setSearchResults(response.items.slice(0, SEARCH_PREVIEW_LIMIT));
-        setSearchTotal(response.total);
-      } catch {
-        if (cancelled) return;
-        setSearchResults([]);
-        setSearchTotal(0);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery, searchStations]);
 
   useEffect(() => {
     if (!summary || sessionBucketPrimedRef.current) return;
@@ -362,20 +318,6 @@ export const Home = () => {
   const handleRefresh = async () => {
     const seed = Date.now();
     setRefreshing(true);
-    setManualRefreshTick((value) => value + 1);
-    const currentSignature = surfaceSignature(surfaceFeed);
-    const optimisticSurface = surfaceFeed
-      ? {
-          ...rotateSurfaceFeed(surfaceFeed),
-          seed,
-          builtAt: seed
-        }
-      : null;
-    if (surfaceFeed) {
-      startTransition(() => {
-        setHomeSnapshot(optimisticSurface!);
-      });
-    }
     try {
       const nextSummary = await refreshSummary(seed);
       const effectiveSummary = nextSummary || summary;
@@ -385,7 +327,7 @@ export const Home = () => {
         return;
       }
 
-      let nextSeed = seed;
+      const nextSeed = seed;
       let nextSurface = buildSurfaceFeed({
         catalog: nextCatalog,
         builtAt: effectiveSummary.generatedAt || nextSeed,
@@ -398,30 +340,12 @@ export const Home = () => {
         metrics: effectiveSummary.counts
       });
 
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (surfaceSignature(nextSurface) !== currentSignature) break;
-        nextSeed += 97 + attempt * 13;
-        nextSurface = buildSurfaceFeed({
-          catalog: nextCatalog,
-          builtAt: effectiveSummary.generatedAt || nextSeed,
-          favorites,
-          recent,
-          queuePreview,
-          followedStations,
-          collections,
-          seed: nextSeed,
-          metrics: effectiveSummary.counts
-        });
-      }
-
-      if (surfaceSignature(nextSurface) === currentSignature) {
-        nextSurface =
-          optimisticSurface ||
-          ({
-            ...rotateSurfaceFeed(nextSurface),
-            seed: nextSeed + 1,
-            builtAt: Date.now()
-          } satisfies HomeSurfaceFeed);
+      if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {
+        nextSurface = {
+          ...rotateSurfaceFeed(nextSurface),
+          seed: nextSeed + 1,
+          builtAt: Date.now()
+        };
       }
 
       startTransition(() => {
@@ -430,6 +354,13 @@ export const Home = () => {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handleSummaryErrorRefresh = () => {
+    if (summaryError) {
+      dismissedSummaryErrorRef.current = summaryError;
+    }
+    void handleRefresh();
   };
 
   const handlePlayStation = (station: StationLite, playlist: StationLite[], sourceId: string) => {
@@ -444,6 +375,11 @@ export const Home = () => {
       sourceLabel: station.name
     });
   };
+  const showHomeHeroSkeleton = summaryLoading && !surfaceFeed && !homeState.snapshot;
+  const showSummaryErrorBanner =
+    Boolean(summaryError) &&
+    (!summary || catalog.length === 0) &&
+    dismissedSummaryErrorRef.current !== summaryError;
 
   return (
     <section
@@ -451,21 +387,25 @@ export const Home = () => {
       data-density={denseLayout ? 'dense' : 'default'}
       data-low-power={lowPower ? 'true' : 'false'}
     >
-      <HomeHeroCard
-        module={surfaceFeed?.hero || fallbackHero}
-        metrics={counts}
-        dense={denseLayout}
-        isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
-        activeTrack={activeTrack}
-        liked={surfaceFeed?.hero.station ? isFavorite(surfaceFeed.hero.station.stationuuid) : false}
-        refreshing={refreshing || (summaryLoading && !surfaceFeed)}
-        onPlay={handlePlayStation}
-        onToggleFavorite={toggleFavorite}
-        onExplore={openSearch}
-        onRefresh={handleRefresh}
-      />
+      {showHomeHeroSkeleton ? (
+        <AppScreenSkeleton section="home" scope="home-hero" />
+      ) : (
+        <HomeHeroCard
+          module={surfaceFeed?.hero || fallbackHero}
+          metrics={counts}
+          dense={denseLayout}
+          isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
+          activeTrack={activeTrack}
+          liked={surfaceFeed?.hero.station ? isFavorite(surfaceFeed.hero.station.stationuuid) : false}
+          refreshing={refreshing || (summaryLoading && !surfaceFeed)}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+          onRefresh={handleRefresh}
+        />
+      )}
 
-      {summaryError ? (
+      {showSummaryErrorBanner ? (
         <section
           className={`home-status-banner ${denseLayout ? 'is-dense' : ''}`.trim()}
           title={summaryError}
@@ -474,74 +414,72 @@ export const Home = () => {
             <strong>{t('home.catalogUnavailableTitle')}</strong>
             {!denseLayout ? <span>{t('home.catalogUnavailableCopy')}</span> : null}
           </div>
-          <button className="home-inline-link" type="button" onClick={handleRefresh}>
+          <button className="home-inline-link" type="button" onClick={handleSummaryErrorRefresh}>
             {t('home.refreshFeed')}
           </button>
         </section>
       ) : null}
 
-      <section className="home-search-launcher">
-        {!denseLayout ? (
+      {!denseLayout ? (
+        <section className="home-search-launcher">
           <div className="home-section-head">
             <div>
               <div className="home-section-title">{t('home.searchTitle')}</div>
               <div className="home-section-copy">{t('home.quickSearchCopy')}</div>
             </div>
             <div className="home-section-badge">
-              {debouncedQuery.trim() ? searchTotal : SEARCH_PREVIEW_LIMIT}
+              {debouncedQuery.trim() ? searchPreviewStations.length : SEARCH_PREVIEW_LIMIT}
             </div>
           </div>
-        ) : null}
 
-        <form
-          className="home-search-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            openSearch(query);
-          }}
-        >
-          <label className="home-search-field" htmlFor="home-search-launcher">
-            <input
-              id="home-search-launcher"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t('explore.quickSearchPlaceholder')}
-              autoComplete="off"
-            />
-          </label>
-          <button className="home-inline-link" type="submit">
-            {t('home.openSearch')}
-          </button>
-        </form>
+          <form
+            className="home-search-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              openSearch(query);
+            }}
+          >
+            <label className="home-search-field" htmlFor="home-search-launcher">
+              <input
+                id="home-search-launcher"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t('explore.quickSearchPlaceholder')}
+                autoComplete="off"
+              />
+            </label>
+            <button className="home-inline-link" type="submit">
+              {t('home.openSearch')}
+            </button>
+          </form>
 
-        {quickSearchChips.length ? (
-          <div className="home-search-chip-row">
-            {quickSearchChips.map((chip) => (
-              <button
-                key={chip}
-                className="home-search-chip"
-                type="button"
-                onClick={() => setQuery(chip)}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        ) : null}
+          {quickSearchChips.length ? (
+            <div className="home-search-chip-row">
+              {quickSearchChips.map((chip) => (
+                <button
+                  key={chip}
+                  className="home-search-chip"
+                  type="button"
+                  onClick={() => setQuery(chip)}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-        <HomeSearchPreview
-          dense={denseLayout}
-          query={debouncedQuery}
-          total={searchTotal}
-          stations={searchPreviewStations}
-          currentStationId={currentStationId}
-          activeTrack={activeTrack}
-          isFavorite={isFavorite}
-          onPlay={handlePlayStation}
-          onToggleFavorite={toggleFavorite}
-          onOpenSearch={openSearch}
-        />
-      </section>
+          <HomeSearchPreview
+            dense={false}
+            query={debouncedQuery}
+            stations={searchPreviewStations}
+            currentStationId={currentStationId}
+            activeTrack={activeTrack}
+            isFavorite={isFavorite}
+            onPlay={handlePlayStation}
+            onToggleFavorite={toggleFavorite}
+          />
+        </section>
+      ) : null}
 
       {resumeModule ? (
         <HomeResumeStrip

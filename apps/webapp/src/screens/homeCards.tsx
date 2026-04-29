@@ -5,6 +5,7 @@ import type {
   HomeResumeModule
 } from '../lib/homeSurface';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
 
@@ -134,8 +135,10 @@ export const HomeHeroCard = ({
   onRefresh
 }: HomeHeroCardProps) => {
   const { t } = useLocale();
+  const compactLayout = useCompactLayout();
   const station = module.station;
-  const companionStations = dense ? [] : module.companionStations;
+  const companionStations = dense || compactLayout ? [] : module.companionStations;
+  const moduleLabel = module.label?.trim();
 
   if (!station) {
     return (
@@ -164,7 +167,7 @@ export const HomeHeroCard = ({
       <div className="home-hero-topline">
         <div className="home-hero-eyebrow">
           <span className="home-surface-kicker">{t(module.titleKey)}</span>
-          {module.label ? <span className="home-surface-label">{module.label}</span> : null}
+          {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
         </div>
         <button
           className={`home-refresh-chip ${refreshing ? 'is-loading' : ''}`.trim()}
@@ -397,27 +400,23 @@ export const HomeRail = ({
 type HomeSearchPreviewProps = {
   dense?: boolean;
   query: string;
-  total: number;
   stations: StationLite[];
   currentStationId: string | null;
   activeTrack: string | null;
   isFavorite: (stationId: string) => boolean;
   onPlay: PlayHandler;
   onToggleFavorite: ToggleFavoriteHandler;
-  onOpenSearch: (query: string) => void;
 };
 
 export const HomeSearchPreview = ({
   dense = false,
   query,
-  total,
   stations,
   currentStationId,
   activeTrack,
   isFavorite,
   onPlay,
-  onToggleFavorite,
-  onOpenSearch
+  onToggleFavorite
 }: HomeSearchPreviewProps) => {
   const { t } = useLocale();
   const hasQuery = Boolean(query.trim());
@@ -436,12 +435,6 @@ export const HomeSearchPreview = ({
       className={`home-search-preview ${dense ? 'is-dense' : ''}`.trim()}
       data-home-search-preview={query.trim()}
     >
-      <div className="home-search-preview-head">
-        <span>{t('home.quickSearchResults')}</span>
-        <button className="home-inline-link" type="button" onClick={() => onOpenSearch(query)}>
-          {t('home.openFullSearch', { count: total })}
-        </button>
-      </div>
       <div className="home-search-preview-list">
         {stations.map((station) => (
           <HomeStationTile
