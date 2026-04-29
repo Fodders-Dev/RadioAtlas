@@ -1051,6 +1051,12 @@
   line-height: 1;
 }
 
+.home-rail-scroll-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
 .home-rail-scroll-btn:active {
   transform: translateY(1px);
 }

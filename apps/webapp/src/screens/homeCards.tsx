@@ -422,7 +422,7 @@ export const HomeRail = ({
     });
   };
   const handleRailWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!dense || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
     const node = railRef.current;
     if (!node || node.scrollWidth <= node.clientWidth) return;
     const maxScrollLeft = node.scrollWidth - node.clientWidth;
@@ -431,6 +431,12 @@ export const HomeRail = ({
     event.preventDefault();
     node.scrollLeft = nextScrollLeft;
   };
+  const showScrollControls = visibleStations.length > (dense ? 3 : 4);
+  const scrollButtonIcon = (direction: -1 | 1) => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={direction < 0 ? 'M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1z' : 'M8.3 18.7 15 12 8.3 5.3l1.4-1.4 8.1 8.1-8.1 8.1z'} />
+    </svg>
+  );
 
   return (
     <section
@@ -451,7 +457,7 @@ export const HomeRail = ({
             {module.label}
           </button>
         ) : null}
-        {dense && visibleStations.length > 3 ? (
+        {showScrollControls ? (
           <div className="home-rail-scroll-controls">
             <button
               className="home-rail-scroll-btn"
@@ -459,7 +465,7 @@ export const HomeRail = ({
               aria-label={t('common.back')}
               onClick={() => scrollRail(-1)}
             >
-              ‹
+              {scrollButtonIcon(-1)}
             </button>
             <button
               className="home-rail-scroll-btn"
@@ -467,7 +473,7 @@ export const HomeRail = ({
               aria-label={t('common.next')}
               onClick={() => scrollRail(1)}
             >
-              ›
+              {scrollButtonIcon(1)}
             </button>
           </div>
         ) : null}

@@ -5,9 +5,13 @@ import {
   type BehaviorProfile
 } from './homeProfile';
 import {
-  rankStationsForHome,
   type StationPlayabilityProfile
 } from './stationPlayability';
+import type { StationHealthProfile } from './stationHealth';
+import {
+  rankStationsForUser,
+  type TasteProfileV2
+} from './tasteProfile';
 
 export type RadioSessionMode = 'personal' | 'resume' | 'search' | 'globe' | 'collection';
 
@@ -81,6 +85,8 @@ export const buildPersonalRadioQueue = ({
   followedStations,
   behaviorProfile,
   playabilityProfile,
+  tasteProfile,
+  healthProfile,
   context
 }: {
   catalog: StationLite[];
@@ -93,13 +99,19 @@ export const buildPersonalRadioQueue = ({
   followedStations: FollowedStation[];
   behaviorProfile: BehaviorProfile;
   playabilityProfile: StationPlayabilityProfile;
+  tasteProfile?: TasteProfileV2 | null;
+  healthProfile?: StationHealthProfile | null;
   context: RecommendationContext;
 }): PersonalRadioQueue => {
   const limit = Math.max(1, Math.min(context.limit ?? PERSONAL_RADIO_QUEUE_LIMIT, 20));
   const now = context.now ?? Date.now();
-  const rankedCatalog = rankStationsForHome(catalog, playabilityProfile, {
+  const rankedCatalog = rankStationsForUser(catalog, tasteProfile, playabilityProfile, {
+    mode: context.mode,
+    currentStation: context.currentStation,
+    seed: context.seed,
     limit: catalog.length,
-    now
+    now,
+    healthProfile
   });
   const recommendationFeed = createHomeRecommendationFeed({
     catalog: rankedCatalog,

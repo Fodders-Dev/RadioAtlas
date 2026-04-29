@@ -34,12 +34,16 @@ type PlayStationResult = {
   ok: boolean;
   error?: string;
   station?: StationLite;
+  activeCandidate?: PlaybackCandidate | null;
+  startupMs?: number | null;
 };
 
 type PlayCandidateResult = {
   ok: boolean;
   error?: string;
   superseded?: boolean;
+  activeCandidate?: PlaybackCandidate | null;
+  startupMs?: number | null;
 };
 
 type ReconnectState = {
@@ -486,7 +490,13 @@ export const useAudioPlayer = ({
             }
           });
         }
-        return { ok: true };
+        return {
+          ok: true,
+          activeCandidate: nextCandidate,
+          startupMs: candidateStartedAtRef.current
+            ? Date.now() - candidateStartedAtRef.current
+            : null
+        };
       } catch (error) {
         if (!isSessionCurrent(sessionId)) {
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
@@ -1110,7 +1120,12 @@ export const useAudioPlayer = ({
       return { ok: false, error: failure.message, station: resolvedStation };
     }
 
-    return { ok: true, station: resolvedStation };
+    return {
+      ok: true,
+      station: resolvedStation,
+      activeCandidate: result.activeCandidate ?? activeCandidateRef.current,
+      startupMs: result.startupMs ?? null
+    };
   };
 
   const toggle = async () => {

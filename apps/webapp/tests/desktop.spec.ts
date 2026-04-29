@@ -37,6 +37,30 @@ test('desktop shell keeps navigation, queue, and expanded winamp flow intact', a
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
 });
 
+test('desktop home rails expose mouse controls and wheel scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+
+  const firstRail = page.locator('[data-home-rail]').first();
+  const railScroll = firstRail.locator('.home-horizontal-scroll');
+  await expect(firstRail.locator('.home-rail-scroll-controls')).toBeVisible();
+
+  const canScrollRail = await railScroll.evaluate((node) => node.scrollWidth > node.clientWidth);
+  expect(canScrollRail).toBe(true);
+
+  const beforeScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
+  const afterWheelScrollLeft = await railScroll.evaluate((node) => {
+    node.dispatchEvent(new WheelEvent('wheel', { deltaY: 420, bubbles: true, cancelable: true }));
+    return node.scrollLeft;
+  });
+  expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
+
+  await firstRail.locator('.home-rail-scroll-btn').last().click();
+  const afterButtonScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
+  expect(afterButtonScrollLeft).toBeGreaterThanOrEqual(afterWheelScrollLeft);
+});
+
 test('search shell exposes filter drawer and station results on desktop', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-hero]')).toBeVisible();

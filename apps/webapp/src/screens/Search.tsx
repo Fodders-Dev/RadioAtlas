@@ -20,7 +20,7 @@ const mergeStations = (left: StationLite[], right: StationLite[]) => {
 export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
-  const { recent, playbackHistory, behaviorProfile, playabilityProfile } = useLibrary();
+  const { recent, playbackHistory, behaviorProfile, playabilityProfile, stationHealthProfile } = useLibrary();
   const { playStation, player } = usePlayback();
   const { searchDraft, clearSearchDraft } = useShell();
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -76,9 +76,10 @@ export const Discover = () => {
       rankStationsForSearch(stationSearch.results, {
         query: stationSearch.query,
         behaviorProfile,
-        playabilityProfile
+        playabilityProfile,
+        healthProfile: stationHealthProfile
       }),
-    [behaviorProfile, playabilityProfile, stationSearch.query, stationSearch.results]
+    [behaviorProfile, playabilityProfile, stationHealthProfile, stationSearch.query, stationSearch.results]
   );
 
   return (

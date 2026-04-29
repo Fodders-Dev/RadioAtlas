@@ -20,6 +20,18 @@ import {
 } from '../src/lib/stationPlayability';
 import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
+import {
+  DEFAULT_TASTE_PROFILE_V2,
+  rankStationsForUser,
+  recordTasteSignal
+} from '../src/lib/tasteProfile';
+import {
+  DEFAULT_STATION_HEALTH_PROFILE,
+  getStationHealthScore,
+  isStationSuppressedByHealth,
+  recordStationHealthSignal,
+  resolveBestPlayableCandidate
+} from '../src/lib/stationHealth';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
@@ -281,6 +293,74 @@ test('personal radio queue favors taste and skips hard failed stations', () => {
   expect(queue.stations.length).toBeLessThanOrEqual(10);
   expect(queue.stations[0].stationuuid).not.toBe('uuid-berlin');
   expect(queue.stations.map((station) => station.stationuuid)).toContain('uuid-hamburg');
+});
+
+test('taste profile v2 promotes liked stations and demotes early skips', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 0, 0);
+  const likedProfile = recordTasteSignal(
+    DEFAULT_TASTE_PROFILE_V2,
+    stations[4],
+    'liked',
+    { mode: 'personal', now: now - 2000 }
+  );
+  const profile = recordTasteSignal(likedProfile, stations[5], 'skip-before-10s', {
+    mode: 'personal',
+    now
+  });
+  const ranked = rankStationsForUser(
+    [stations[5], stations[6], stations[4], stations[0]],
+    profile,
+    DEFAULT_PLAYABILITY_PROFILE,
+    {
+      mode: 'personal',
+      seed: 7,
+      now
+    }
+  );
+
+  expect(ranked[0].stationuuid).toBe('uuid-berlin');
+  expect(ranked.findIndex((station) => station.stationuuid === 'uuid-hamburg')).toBeGreaterThan(
+    ranked.findIndex((station) => station.stationuuid === 'uuid-munich')
+  );
+});
+
+test('station health suppresses repeated failures but accepts metadata misses and proxy success', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 0, 0);
+  const withMetadataMiss = recordStationHealthSignal(
+    DEFAULT_STATION_HEALTH_PROFILE,
+    stations[0],
+    'metadata-unavailable',
+    { now }
+  );
+  const failed = recordStationHealthSignal(
+    recordStationHealthSignal(withMetadataMiss, stations[4], 'stream-failure', {
+      now: now - 1000
+    }),
+    stations[4],
+    'unsupported-transport',
+    { now }
+  );
+  const httpStation = {
+    ...stations[1],
+    stationuuid: 'uuid-http-osaka',
+    url: 'http://radio.example.com/osaka.mp3',
+    url_resolved: 'http://radio.example.com/osaka.mp3'
+  };
+  const withProxySuccess = recordStationHealthSignal(failed, httpStation, 'proxy-success', {
+    now,
+    startupMs: 1200
+  });
+  const resolved = resolveBestPlayableCandidate(httpStation, withProxySuccess, {
+    apiAvailable: true,
+    apiBase: '/api'
+  });
+
+  expect(getStationHealthScore(withMetadataMiss, stations[0], now)).toBe(0);
+  expect(getStationHealthScore(failed, stations[4], now)).toBeLessThan(0);
+  expect(isStationSuppressedByHealth(failed, stations[4], now)).toBe(true);
+  expect(getStationHealthScore(withProxySuccess, httpStation, now)).toBeGreaterThan(0);
+  expect(resolved.preferredTransport).toBe('proxy');
+  expect(resolved.suppressed).toBe(false);
 });
 
 for (const width of [360, 390]) {

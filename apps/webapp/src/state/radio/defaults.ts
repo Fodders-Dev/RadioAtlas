@@ -1,5 +1,7 @@
 import { DEFAULT_BEHAVIOR_PROFILE } from '../../lib/homeProfile';
 import { DEFAULT_PLAYABILITY_PROFILE } from '../../lib/stationPlayability';
+import { DEFAULT_STATION_HEALTH_PROFILE } from '../../lib/stationHealth';
+import { DEFAULT_TASTE_PROFILE_V2 } from '../../lib/tasteProfile';
 import {
   DEFAULT_WINAMP_SKIN_ID,
   WINAMP_CLASSIC_PALETTE,
@@ -60,7 +62,9 @@ export const DEFAULT_APP_STATE: StoredAppState = {
   version: 2,
   shell: DEFAULT_SHELL_STATE,
   behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
-  playabilityProfile: DEFAULT_PLAYABILITY_PROFILE
+  playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+  tasteProfile: DEFAULT_TASTE_PROFILE_V2,
+  stationHealthProfile: DEFAULT_STATION_HEALTH_PROFILE
 };
 
 export const DEFAULT_LIBRARY_STATE: StoredLibraryState = {

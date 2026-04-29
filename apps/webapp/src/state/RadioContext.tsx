@@ -4,6 +4,7 @@ import type {
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
+  PlaybackCandidate,
   UserCollection
 } from '../domain/contracts';
 import type {
@@ -31,6 +32,22 @@ import type {
   PlaybackOutcomeKind,
   StationPlayabilityProfile
 } from '../lib/stationPlayability';
+import {
+  DEFAULT_STATION_HEALTH_PROFILE,
+  recordStationHealthSignal,
+  stationHealthFailureKindForPlayback,
+  stationHealthSuccessKindForCandidate
+} from '../lib/stationHealth';
+import type { StationHealthProfile } from '../lib/stationHealth';
+import {
+  DEFAULT_TASTE_PROFILE_V2,
+  recordTasteSignal
+} from '../lib/tasteProfile';
+import type {
+  TasteProfileV2,
+  TasteSignalAction,
+  TasteSessionMode
+} from '../lib/tasteProfile';
 import { makeDeepLink } from '../lib/telegram';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
@@ -168,6 +185,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     storedAppState.playabilityProfile?.version === 1
       ? storedAppState.playabilityProfile
       : DEFAULT_PLAYABILITY_PROFILE;
+  const tasteProfile =
+    storedAppState.tasteProfile?.version === 2
+      ? storedAppState.tasteProfile
+      : DEFAULT_TASTE_PROFILE_V2;
+  const stationHealthProfile =
+    storedAppState.stationHealthProfile?.version === 1
+      ? storedAppState.stationHealthProfile
+      : DEFAULT_STATION_HEALTH_PROFILE;
   const homeState = storedShellState.home;
   const searchDraft = storedShellState.searchDraft;
   const favorites = storedLibraryState.favorites;
@@ -236,6 +261,28 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       ...prev,
       playabilityProfile: resolveUpdater(
         prev.playabilityProfile || DEFAULT_PLAYABILITY_PROFILE,
+        next
+      )
+    }));
+  const setTasteProfile = (
+    next: TasteProfileV2 | ((prev: TasteProfileV2) => TasteProfileV2)
+  ) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      tasteProfile: resolveUpdater(
+        prev.tasteProfile || DEFAULT_TASTE_PROFILE_V2,
+        next
+      )
+    }));
+  const setStationHealthProfile = (
+    next:
+      | StationHealthProfile
+      | ((prev: StationHealthProfile) => StationHealthProfile)
+  ) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      stationHealthProfile: resolveUpdater(
+        prev.stationHealthProfile || DEFAULT_STATION_HEALTH_PROFILE,
         next
       )
     }));
@@ -381,6 +428,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
+  const currentStartedAtRef = useRef<number | null>(null);
+  const listened30sRef = useRef<string | null>(null);
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
   const libraryTab = storedShellState.libraryTab;
@@ -463,6 +512,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (playabilityProfile?.version === 1) return;
     setPlayabilityProfile(DEFAULT_PLAYABILITY_PROFILE);
   }, [playabilityProfile, setPlayabilityProfile]);
+
+  useEffect(() => {
+    if (tasteProfile?.version === 2) return;
+    setTasteProfile(DEFAULT_TASTE_PROFILE_V2);
+  }, [tasteProfile, setTasteProfile]);
+
+  useEffect(() => {
+    if (stationHealthProfile?.version === 1) return;
+    setStationHealthProfile(DEFAULT_STATION_HEALTH_PROFILE);
+  }, [stationHealthProfile, setStationHealthProfile]);
 
   const { syncCloudLibraryImmediately } = useCloudLibrarySync({
     alerts,
@@ -695,22 +754,97 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [player.current, playerPresentation, setStoredShellState]);
 
+  const sessionModeFromSourceId = (sourceId?: string | null): TasteSessionMode => {
+    if (!sourceId) return 'resume';
+    if (sourceId.includes('personal')) return 'personal';
+    if (sourceId.includes('discover') || sourceId.includes('search')) return 'search';
+    if (sourceId.includes('globe') || sourceId.includes('region')) return 'globe';
+    if (sourceId.includes('collection')) return 'collection';
+    return 'resume';
+  };
+
+  const recordTasteForStation = (
+    station: Station | StationLite,
+    action: TasteSignalAction,
+    mode: TasteSessionMode = sessionModeFromSourceId(queueRef.current.sourceId),
+    weightOverride?: number
+  ) => {
+    const lite = toLite(station);
+    setTasteProfile((prev) =>
+      recordTasteSignal(prev, lite, action, {
+        mode,
+        weightOverride
+      })
+    );
+  };
+
   const recordBehaviorForStation = (
     station: Station | StationLite,
     action: 'play' | 'favorite' | 'track-copy' | 'follow' | 'collection',
     weightOverride?: number
   ) => {
     const lite = toLite(station);
+    const mode = sessionModeFromSourceId(queueRef.current.sourceId);
     setBehaviorProfile((prev) => recordStationSignal(prev, lite, action, weightOverride));
+    if (action === 'collection') {
+      recordTasteForStation(lite, 'saved-to-collection', mode, weightOverride);
+    }
+    if (action === 'follow') {
+      recordTasteForStation(lite, 'liked', mode, weightOverride);
+    }
+    if (action === 'track-copy') {
+      recordTasteForStation(lite, 'listened-30s', mode, weightOverride);
+    }
   };
 
   const recordPlaybackOutcomeForStation = (
     station: Station | StationLite,
-    outcome: PlaybackOutcomeKind
+    outcome: PlaybackOutcomeKind,
+    options?: {
+      activeCandidate?: PlaybackCandidate | null;
+      startupMs?: number | null;
+    }
   ) => {
     const lite = toLite(station);
     setPlayabilityProfile((prev) => recordPlaybackOutcome(prev, lite, outcome));
+    if (outcome === 'superseded') return;
+    if (outcome === 'metadata-unavailable') {
+      setStationHealthProfile((prev) =>
+        recordStationHealthSignal(prev, lite, 'metadata-unavailable')
+      );
+      return;
+    }
+    if (outcome === 'success') {
+      setStationHealthProfile((prev) =>
+        recordStationHealthSignal(
+          prev,
+          lite,
+          stationHealthSuccessKindForCandidate(lite, options?.activeCandidate),
+          {
+            startupMs: options?.startupMs ?? null
+          }
+        )
+      );
+      return;
+    }
+    setStationHealthProfile((prev) =>
+      recordStationHealthSignal(prev, lite, stationHealthFailureKindForPlayback(outcome))
+    );
+    recordTasteForStation(lite, 'station-failed');
   };
+
+  useEffect(() => {
+    const station = player.current;
+    if (!station || !player.isPlaying) return;
+    const stationId = station.stationuuid;
+    const timer = window.setTimeout(() => {
+      if (listened30sRef.current === stationId) return;
+      listened30sRef.current = stationId;
+      recordTasteForStation(station, 'listened-30s');
+    }, 30_000);
+
+    return () => window.clearTimeout(timer);
+  }, [player.current, player.isPlaying]);
 
   const setActiveSection = (section: AppSection) => {
     setStoredShellState((prev) => (prev.activeSection === section ? prev : { ...prev, activeSection: section }));
@@ -775,7 +909,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const playedStation = result.station ?? lite;
-    recordPlaybackOutcomeForStation(playedStation, 'success');
+    const playStartedAt = Date.now();
+    recordPlaybackOutcomeForStation(playedStation, 'success', {
+      activeCandidate: result.activeCandidate ?? null,
+      startupMs: result.startupMs ?? null
+    });
     rememberStations([playedStation]);
     const nextQueue =
       options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
@@ -790,6 +928,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       addRecent(playedStation);
     }
     recordBehaviorForStation(playedStation, 'play');
+    currentStartedAtRef.current = playStartedAt;
+    listened30sRef.current = null;
+    recordTasteForStation(
+      playedStation,
+      'play-started',
+      sessionModeFromSourceId(nextQueue.sourceId)
+    );
 
     pushPlaybackHistory(
       playedStation,
@@ -852,6 +997,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setFavorites(nextFavorites);
     if (!alreadyFavorite) {
       recordBehaviorForStation(lite, 'favorite');
+      recordTasteForStation(lite, 'liked');
+    } else {
+      recordTasteForStation(lite, 'unliked');
     }
     syncCloudLibraryImmediately({
       favorites: nextFavorites,
@@ -936,6 +1084,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const playNext = () => {
+    const currentStation = player.current;
+    const startedAt = currentStartedAtRef.current;
+    if (currentStation && startedAt && Date.now() - startedAt < 10_000) {
+      recordTasteForStation(currentStation, 'skip-before-10s');
+    }
+
     const playFromQueue = async () => {
       const currentQueue = queueRef.current;
       if (
@@ -1538,6 +1692,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playbackHistory: playbackHistoryEntries,
       behaviorProfile,
       playabilityProfile,
+      tasteProfile,
+      stationHealthProfile,
       toggleFavorite,
       isFavorite,
       clearFavorites,
@@ -1569,6 +1725,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       markAlertRead,
       playbackHistoryEntries,
       playabilityProfile,
+      tasteProfile,
+      stationHealthProfile,
       recent,
       rememberStations,
       removeStationFromCollection,

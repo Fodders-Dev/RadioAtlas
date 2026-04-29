@@ -4,6 +4,14 @@ import {
   DEFAULT_PLAYABILITY_PROFILE,
   type StationPlayabilityProfile
 } from '../src/lib/stationPlayability';
+import {
+  DEFAULT_STATION_HEALTH_PROFILE,
+  type StationHealthProfile
+} from '../src/lib/stationHealth';
+import {
+  DEFAULT_TASTE_PROFILE_V2,
+  type TasteProfileV2
+} from '../src/lib/tasteProfile';
 
 export const stations = [
   {
@@ -222,6 +230,8 @@ type SeedRadioStateOptions = {
   homeSessionSeed?: number;
   behaviorProfile?: BehaviorProfile;
   playabilityProfile?: StationPlayabilityProfile;
+  tasteProfile?: TasteProfileV2;
+  stationHealthProfile?: StationHealthProfile;
   favorites?: SeedStation[];
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
@@ -308,6 +318,8 @@ export const seedRadioState = async (
     homeSessionSeed = DEFAULT_HOME_SEED,
     behaviorProfile,
     playabilityProfile = DEFAULT_PLAYABILITY_PROFILE,
+    tasteProfile = DEFAULT_TASTE_PROFILE_V2,
+    stationHealthProfile = DEFAULT_STATION_HEALTH_PROFILE,
     favorites = [],
     recent = [],
     playbackHistory = [],
@@ -366,7 +378,9 @@ export const seedRadioState = async (
           stateScores: {},
           stationScores: {}
         },
-        playabilityProfile
+        playabilityProfile,
+        tasteProfile,
+        stationHealthProfile
       },
       libraryState: {
         version: 2,

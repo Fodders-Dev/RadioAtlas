@@ -15,16 +15,16 @@ API proxy уже реализован и используется через `VI
   - Локальный `buildPersonalRadioQueue(...)` на 10-20 станций по taste/playability.
   - Запуск очереди через `playStationQueue(...)` с fallback на следующую станцию, если кандидат не стартует.
   - Базовые public types: `RadioSessionMode`, `RadioSessionEvent`, `RecommendationContext`, `PersonalRadioQueue`.
-- [ ] Stage 2: Home как музыкальная лента
+- [x] Stage 2: Home как музыкальная лента
   - Mobile dense: compact topbar -> "Моя волна" -> недавнее -> 3-5 горизонтальных station rails.
   - Без giant hero на весь экран.
   - Без reason-copy.
   - Desktop: стрелки и wheel/trackpad scroll для station rails.
-- [ ] Stage 3: Taste Profile V2
+- [x] Stage 3: Taste Profile V2
   - Сигналы: play started, listened 30s+, early skip, like/unlike, saved, replayed, fail, country/tag/language, time of day, session mode.
   - Decay: свежие действия важнее старых, failures забываются, случайная сессия не ломает профиль.
   - `rankStationsForUser(...)`.
-- [ ] Stage 4: Station Health V1
+- [x] Stage 4: Station Health V1
   - Локальный + API-assisted health index: reachable, startup time, proxy/direct/HLS success, repeated failures, duplicates.
   - Metadata absence не считается плохим качеством.
   - `resolveBestPlayableCandidate(...)`.
@@ -79,6 +79,9 @@ API proxy уже реализован и используется через `VI
 - Personal Radio starts from one tap and builds a queue from playable/taste-ranked stations.
 - Failed primary candidates are skipped instead of creating a dead end.
 - Desktop station rails have explicit arrows and wheel/trackpad horizontal scroll.
+- Taste Profile V2 records play, 30s listen, early skip, like/unlike, collection/save and failure signals locally with decay.
+- Station Health V1 records direct/proxy/HLS/extracted success, startup time, repeated failures and metadata misses without treating missing metadata as bad quality.
+- Home, Personal Radio and Search ranking use taste/playability/health without showing recommendation reasons.
 
 ## Test Plan
 
@@ -90,4 +93,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Finish Stage 2 Home Feed V2 visual pass: reduce remaining bulky text, verify 390px first screen in Playwright, and tune station tile artwork density.
+Stage 5: Now Playing / Track Trust. Separate "playing without metadata" from bad streams, keep track history clean, and remove conflicting loading/status messages in the player.

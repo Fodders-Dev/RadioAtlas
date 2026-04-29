@@ -1,6 +1,11 @@
 import type { PlaybackFailureKind } from '../domain/contracts';
 import type { StationLite } from '../types';
 import type { BehaviorProfile } from './homeProfile';
+import {
+  getStationHealthScore,
+  isStationSuppressedByHealth,
+  type StationHealthProfile
+} from './stationHealth';
 
 export type PlaybackOutcomeKind = 'success' | 'metadata-unavailable' | PlaybackFailureKind;
 
@@ -23,12 +28,14 @@ export type StationPlayabilityProfile = {
 type RankHomeOptions = {
   limit?: number;
   now?: number;
+  healthProfile?: StationHealthProfile | null;
 };
 
 type RankSearchOptions = {
   query: string;
   behaviorProfile: BehaviorProfile;
   playabilityProfile: StationPlayabilityProfile;
+  healthProfile?: StationHealthProfile | null;
   now?: number;
 };
 
@@ -209,22 +216,28 @@ const stationQualityScore = (station: StationLite) =>
 export const filterStationsByPlayability = (
   stations: StationLite[],
   profile: StationPlayabilityProfile | null | undefined,
-  now = Date.now()
+  now = Date.now(),
+  healthProfile?: StationHealthProfile | null
 ) =>
   uniqueStations(stations).filter(
-    (station) => !isStationHardHiddenByPlayability(profile, station, now)
+    (station) =>
+      !isStationHardHiddenByPlayability(profile, station, now) &&
+      !isStationSuppressedByHealth(healthProfile, station, now)
   );
 
 export const rankStationsForHome = (
   stations: StationLite[],
   profile: StationPlayabilityProfile | null | undefined,
-  { limit = stations.length, now = Date.now() }: RankHomeOptions = {}
+  { limit = stations.length, now = Date.now(), healthProfile = null }: RankHomeOptions = {}
 ) =>
-  filterStationsByPlayability(stations, profile, now)
+  filterStationsByPlayability(stations, profile, now, healthProfile)
     .map((station, index) => ({
       station,
       index,
-      score: getStationPlayabilityScore(profile, station, now) + stationQualityScore(station)
+      score:
+        getStationPlayabilityScore(profile, station, now) +
+        getStationHealthScore(healthProfile, station, now) * 2.4 +
+        stationQualityScore(station)
     }))
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, limit)
@@ -267,9 +280,9 @@ const behaviorScore = (station: StationLite, profile: BehaviorProfile) => {
 
 export const rankStationsForSearch = (
   stations: StationLite[],
-  { query, behaviorProfile, playabilityProfile, now = Date.now() }: RankSearchOptions
+  { query, behaviorProfile, playabilityProfile, healthProfile = null, now = Date.now() }: RankSearchOptions
 ) =>
-  filterStationsByPlayability(stations, playabilityProfile, now)
+  filterStationsByPlayability(stations, playabilityProfile, now, healthProfile)
     .map((station, index) => {
       const intent = queryIntentScore(station, query);
       const promotedBoost = intent >= 20 ? 0.1 : station.promoted ? 1 : 0;
@@ -277,6 +290,7 @@ export const rankStationsForSearch = (
         intent +
         behaviorScore(station, behaviorProfile) +
         getStationPlayabilityScore(playabilityProfile, station, now) * 3.6 +
+        getStationHealthScore(healthProfile, station, now) * 2.8 +
         stationQualityScore(station) +
         promotedBoost;
 

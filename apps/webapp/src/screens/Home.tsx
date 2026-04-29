@@ -27,6 +27,7 @@ import {
   filterStationsByPlayability,
   rankStationsForHome
 } from '../lib/stationPlayability';
+import { rankStationsForUser } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
   HomeHeroCard,
@@ -172,6 +173,8 @@ const buildSurfaceFeed = (input: {
   followedStations: ReturnType<typeof useLibrary>['followedStations'];
   behaviorProfile: ReturnType<typeof useLibrary>['behaviorProfile'];
   playabilityProfile: ReturnType<typeof useLibrary>['playabilityProfile'];
+  tasteProfile: ReturnType<typeof useLibrary>['tasteProfile'];
+  stationHealthProfile: ReturnType<typeof useLibrary>['stationHealthProfile'];
   metrics: HomeSurfaceFeed['metrics'];
   queuePreview: StationLite[];
   recent: StationLite[];
@@ -180,13 +183,19 @@ const buildSurfaceFeed = (input: {
   currentStation: StationLite | null;
   seed: number;
 }) => {
-  const rankedCatalog = rankStationsForHome(input.catalog, input.playabilityProfile);
+  const rankedCatalog = rankStationsForUser(input.catalog, input.tasteProfile, input.playabilityProfile, {
+    mode: 'personal',
+    currentStation: input.currentStation,
+    seed: input.seed,
+    limit: input.catalog.length,
+    healthProfile: input.stationHealthProfile
+  });
   const recommendationFeed = createHomeRecommendationFeed({
     catalog: rankedCatalog,
-    favorites: filterStationsByPlayability(input.favorites, input.playabilityProfile),
-    recent: filterStationsByPlayability(input.recent, input.playabilityProfile),
-    queuePreview: filterStationsByPlayability(input.queuePreview, input.playabilityProfile),
-    playbackHistory: filterStationsByPlayability(input.playbackHistory, input.playabilityProfile),
+    favorites: filterStationsByPlayability(input.favorites, input.playabilityProfile, undefined, input.stationHealthProfile),
+    recent: filterStationsByPlayability(input.recent, input.playabilityProfile, undefined, input.stationHealthProfile),
+    queuePreview: filterStationsByPlayability(input.queuePreview, input.playabilityProfile, undefined, input.stationHealthProfile),
+    playbackHistory: filterStationsByPlayability(input.playbackHistory, input.playabilityProfile, undefined, input.stationHealthProfile),
     trackHistory: input.trackHistory,
     collections: input.collections,
     followedStations: input.followedStations,
@@ -294,6 +303,8 @@ export const Home = () => {
     playbackHistory,
     behaviorProfile,
     playabilityProfile,
+    tasteProfile,
+    stationHealthProfile,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -324,16 +335,16 @@ export const Home = () => {
     return queue.items.slice(startIndex, startIndex + 4);
   }, [queue.currentIndex, queue.items]);
   const resumeQueuePreview = useMemo(
-    () => filterStationsByPlayability(queuePreview, playabilityProfile),
-    [playabilityProfile, queuePreview]
+    () => filterStationsByPlayability(queuePreview, playabilityProfile, undefined, stationHealthProfile),
+    [playabilityProfile, queuePreview, stationHealthProfile]
   );
   const resumeRecent = useMemo(
-    () => filterStationsByPlayability(recent, playabilityProfile),
-    [playabilityProfile, recent]
+    () => filterStationsByPlayability(recent, playabilityProfile, undefined, stationHealthProfile),
+    [playabilityProfile, recent, stationHealthProfile]
   );
   const resumePlaybackHistory = useMemo(
-    () => filterStationsByPlayability(playbackHistory, playabilityProfile),
-    [playabilityProfile, playbackHistory]
+    () => filterStationsByPlayability(playbackHistory, playabilityProfile, undefined, stationHealthProfile),
+    [playabilityProfile, playbackHistory, stationHealthProfile]
   );
   const counts = useMemo(
     () => summary?.counts || buildFallbackCounts(catalog),
@@ -388,6 +399,8 @@ export const Home = () => {
       collections,
       playbackHistory,
       playabilityProfile,
+      tasteProfile,
+      stationHealthProfile,
       trackHistory,
       seed: homeState.sessionSeed,
       metrics,
@@ -404,6 +417,8 @@ export const Home = () => {
     metrics,
     playbackHistory,
     playabilityProfile,
+    tasteProfile,
+    stationHealthProfile,
     player.current,
     queuePreview,
     recent,
@@ -444,6 +459,8 @@ export const Home = () => {
         followedStations,
         behaviorProfile,
         playabilityProfile,
+        tasteProfile,
+        healthProfile: stationHealthProfile,
         context: {
           mode: 'personal',
           currentStation: player.current,
@@ -460,6 +477,8 @@ export const Home = () => {
       homeState.sessionSeed,
       playbackHistory,
       playabilityProfile,
+      tasteProfile,
+      stationHealthProfile,
       player.current,
       queuePreview,
       recent,
@@ -469,9 +488,10 @@ export const Home = () => {
   const rankedCatalogRails = useMemo(
     () =>
       rankStationsForHome(catalog, playabilityProfile, {
-        limit: Math.min(catalog.length, 36)
+        limit: Math.min(catalog.length, 36),
+        healthProfile: stationHealthProfile
       }),
-    [catalog, playabilityProfile]
+    [catalog, playabilityProfile, stationHealthProfile]
   );
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
@@ -581,6 +601,8 @@ export const Home = () => {
         collections,
         playbackHistory,
         playabilityProfile,
+        tasteProfile,
+        stationHealthProfile,
         trackHistory,
         seed: nextSeed,
         metrics: effectiveSummary.counts
