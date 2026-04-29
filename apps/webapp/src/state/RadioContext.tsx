@@ -802,6 +802,43 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const playStation = (station: Station | StationLite, options?: PlayStationOptions) =>
     void playStationInternal(station, options);
 
+  const playStationQueue = (
+    stations: Array<Station | StationLite>,
+    options?: Pick<PlayStationOptions, 'sourceId' | 'sourceLabel'>
+  ) =>
+    void (async () => {
+      const items = normalizeStations(stations);
+      if (!items.length) {
+        notify(t('toast.noPlayable'));
+        return;
+      }
+      rememberStations(items);
+      const sourceId = options?.sourceId ?? 'station-queue';
+      const sourceLabel = getQueueSourceLabel(sourceId, options?.sourceLabel, items, t);
+      const maxAttempts = Math.min(items.length, 20);
+
+      for (let index = 0; index < maxAttempts; index += 1) {
+        const station = items[index];
+        if (!station) continue;
+        const queueSnapshot: QueueSnapshot = {
+          items,
+          currentIndex: index,
+          sourceId,
+          sourceLabel
+        };
+        const ok = await playStationInternal(station, {
+          sourceId,
+          sourceLabel,
+          playlist: items,
+          queueSnapshot,
+          suppressErrorToast: true
+        });
+        if (ok) return;
+      }
+
+      notify(t('toast.noPlayable'));
+    })();
+
   const isFavorite = (stationId: string) =>
     favorites.some((item) => item.stationuuid === stationId);
 
@@ -1463,6 +1500,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       player,
       queue,
       playStation,
+      playStationQueue,
       playPrevious,
       playNext,
       playLast,
@@ -1480,6 +1518,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playNext,
       playPrevious,
       playStation,
+      playStationQueue,
       player,
       queue,
       shareStation

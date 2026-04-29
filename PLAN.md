@@ -1,33 +1,93 @@
-# RadioAtlas Active Roadmap
+# RadioAtlas Active Roadmap: Spotify для радио
 
-## Current Focus
+## Product Loop
 
-Перед UI-полировкой закрываем радио-ядро: Home и Search должны поднимать станции, которые реально играют и совпадают со вкусом пользователя, без объясняющих подписей вроде "по твоим лайкам".
+Главный цикл продукта: открыл -> одним тапом запустил подходящее радио -> легко переключил -> приложение запомнило вкус -> завтра стало лучше.
 
-API proxy уже реализован и используется через `VITE_API_URL`. Текущая работа не про создание proxy, а про аккуратное использование локальных playback/playability сигналов в рекомендациях и поиске.
+RadioAtlas не должен выглядеть как каталог станций или админка. Пользователь не видит объяснения рекомендаций вроде "по твоим лайкам"; он видит понятные станции, быстрый play и надежное продолжение эфира.
+
+API proxy уже реализован и используется через `VITE_API_URL`. Дальше работаем не над созданием proxy, а над тем, чтобы Home, Search и Personal Radio аккуратно учитывали playability/health сигналы.
 
 ## Stages
 
-- [x] Radio Core Stage 1: Clean plan source
-- [x] Radio Core Stage 2: Home recommendations wiring
-- [x] Radio Core Stage 3: stream playability score
-- [x] Radio Core Stage 4: search ranking
-- [x] Radio Core Stage 5: metadata/now-playing trust
-- [x] Radio Core Stage 6: radio QA matrix
+- [x] Stage 1: "Моя волна" MVP
+  - One-tap CTA на Home.
+  - Локальный `buildPersonalRadioQueue(...)` на 10-20 станций по taste/playability.
+  - Запуск очереди через `playStationQueue(...)` с fallback на следующую станцию, если кандидат не стартует.
+  - Базовые public types: `RadioSessionMode`, `RadioSessionEvent`, `RecommendationContext`, `PersonalRadioQueue`.
+- [ ] Stage 2: Home как музыкальная лента
+  - Mobile dense: compact topbar -> "Моя волна" -> недавнее -> 3-5 горизонтальных station rails.
+  - Без giant hero на весь экран.
+  - Без reason-copy.
+  - Desktop: стрелки и wheel/trackpad scroll для station rails.
+- [ ] Stage 3: Taste Profile V2
+  - Сигналы: play started, listened 30s+, early skip, like/unlike, saved, replayed, fail, country/tag/language, time of day, session mode.
+  - Decay: свежие действия важнее старых, failures забываются, случайная сессия не ломает профиль.
+  - `rankStationsForUser(...)`.
+- [ ] Stage 4: Station Health V1
+  - Локальный + API-assisted health index: reachable, startup time, proxy/direct/HLS success, repeated failures, duplicates.
+  - Metadata absence не считается плохим качеством.
+  - `resolveBestPlayableCandidate(...)`.
+- [ ] Stage 5: Now Playing / Track Trust
+  - Явно разделить: играет с metadata, играет без metadata, поток сомнительный.
+  - Не засорять track history пустыми/повторяющимися строками.
+  - Убрать конфликтующие loading/status сообщения.
+- [ ] Stage 6: Search как быстрый путь к прослушиванию
+  - Compact result cards с play overlay.
+  - Exact/prefix выше weak/promoted.
+  - Recent searches/plays.
+  - "Play all results" / "Start radio from this search".
+- [ ] Stage 7: Library как личная музыкальная память
+  - Favorites, Recent, Collections, Queue.
+  - Коллекции как плейлисты радиостанций: play, shuffle, reorder, remove, rename.
+  - Followed regions/stations запускают playable очереди.
+- [ ] Stage 8: Cloud sync без трения
+  - Telegram auth как основной путь.
+  - Sync favorites, recent, collections, followed, taste profile.
+  - Combine-first conflict strategy.
+- [ ] Stage 9: Globe как discovery mode
+  - Tune here, playable bottom sheet, follow region, play region radio.
+  - Nearby/current region seed.
+- [ ] Stage 10: Retention
+  - Continue yesterday, station back online, favorite-station track, new playable region stations, morning/evening mix.
+  - Telegram bot notifications only opt-in.
+- [ ] Stage 11: Visual identity and artwork
+  - Stable generated station covers.
+  - Collection mosaic covers.
+  - Region mini-art.
+- [ ] Stage 12: Player as core product object
+  - Compact dock: station, track, play/pause, next, like, mute.
+  - Expanded player: artwork, queue, recent tracks, station details.
+  - Hide station from recommendations.
+- [ ] Stage 13: Station details and trust
+  - Country/city/tags, stream health, recent tracks, website, favorite/follow, report broken, open externally.
+- [ ] Stage 14: Observability and product analytics
+  - Local/API events for open, impression, play attempt/success, startup time, skip, like, search, failure, queue source, session duration.
+  - No personal data by default.
+- [ ] Stage 15: Telegram mobile hardening
+  - 360-395px first.
+  - Fast first useful paint.
+  - No horizontal overflow on 360/390/412.
+  - Lazy heavy surfaces and robust API fallback.
+- [ ] Stage 16: Public/shared features later
+  - No public collections, marketplace, paid packs, Stars, editorial portal, owner dashboard until core loop is stable.
 
-## Acceptance
+## Current Acceptance
 
-- Home на 360-395px сохраняет текущую структуру: hero -> resume -> один rail.
-- На Home нет видимых reason-copy: "по твоим лайкам", "Похожее на jpop", "Ты часто слушаешь Japan".
-- Home использует `homeProfile.ts` и локальный playability score для выбора hero/rail.
-- Search переранжирует результаты клиентски: exact/prefix выше substring, playable/verified выше слабых совпадений, taste signals помогают, promoted не перебивает явный query intent.
-- Отсутствие ICY/now-playing metadata не считается плохой станцией.
-- Повторно сломанные станции уходят ниже и не остаются главным hero.
+- Home 390px shows "Моя волна" CTA plus at least six station choices without a giant hero card.
+- Home has no visible recommendation reason-copy.
+- Personal Radio starts from one tap and builds a queue from playable/taste-ranked stations.
+- Failed primary candidates are skipped instead of creating a dead end.
+- Desktop station rails have explicit arrows and wheel/trackpad horizontal scroll.
 
 ## Test Plan
 
 - `npm --workspace apps/webapp run build`
 - `npm --workspace apps/webapp run test:e2e -- mobile.spec.ts`
-- Если визуальные снапшоты меняются:
-  - `npm --workspace apps/webapp run test:e2e -- visual.spec.ts --update-snapshots`
-  - `npm --workspace apps/webapp run test:e2e -- visual.spec.ts`
+- `npm --workspace apps/webapp run test:e2e -- visual.spec.ts`
+- `npm --workspace apps/api run test`
+- Full gate before release: `npm test`
+
+## Next:
+
+Finish Stage 2 Home Feed V2 visual pass: reduce remaining bulky text, verify 390px first screen in Playwright, and tune station tile artwork density.

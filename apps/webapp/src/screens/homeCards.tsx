@@ -14,6 +14,14 @@ type PlayHandler = (station: StationLite, playlist: StationLite[], sourceId: str
 type ToggleFavoriteHandler = (station: StationLite) => void;
 type ExploreHandler = (query: string) => void;
 
+type HomePersonalRadioCardProps = {
+  dense?: boolean;
+  queueCount: number;
+  isPlaying: boolean;
+  disabled: boolean;
+  onPlay: () => void;
+};
+
 type HomeStationTileProps = {
   station: StationLite;
   playlist: StationLite[];
@@ -101,6 +109,39 @@ const HomeStationTile = ({
         </button>
       </div>
     </article>
+  );
+};
+
+export const HomePersonalRadioCard = ({
+  dense = false,
+  queueCount,
+  isPlaying,
+  disabled,
+  onPlay
+}: HomePersonalRadioCardProps) => {
+  const { t } = useLocale();
+  return (
+    <section
+      className={`home-personal-radio ${dense ? 'is-dense' : ''}`.trim()}
+      data-home-personal-radio="true"
+    >
+      <div className="home-personal-copy">
+        <span>{t('home.personalRadioTitle')}</span>
+        <strong>{t('home.personalRadioCount', { count: queueCount })}</strong>
+      </div>
+      <button
+        className="home-personal-play"
+        type="button"
+        onClick={onPlay}
+        disabled={disabled}
+        aria-label={isPlaying ? t('common.pause') : t('home.personalRadioAction')}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {isPlaying ? <path d="M7 5h4v14H7zm6 0h4v14h-4z" /> : <path d="M8 5v14l11-7z" />}
+        </svg>
+        <span>{isPlaying ? t('common.pause') : t('home.personalRadioAction')}</span>
+      </button>
+    </section>
   );
 };
 

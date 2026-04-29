@@ -657,7 +657,7 @@ export const mockStations = async (
 };
 
 export const playHomeStation = async (page: Page, name: string) => {
-  await page.locator('[data-home-hero]').waitFor({ state: 'visible' });
+  await page.locator('[data-home-personal-radio], [data-home-rail]').first().waitFor({ state: 'visible' });
   const searchInput = page.locator('#home-search-launcher').first();
   if (await searchInput.isVisible().catch(() => false)) {
     await searchInput.fill(name);

@@ -146,6 +146,10 @@ export type PlaybackContextValue = {
   player: ReturnType<typeof useAudioPlayer>;
   queue: QueueState;
   playStation: (station: Station | StationLite, options?: PlayStationOptions) => void;
+  playStationQueue: (
+    stations: Array<Station | StationLite>,
+    options?: Pick<PlayStationOptions, 'sourceId' | 'sourceLabel'>
+  ) => void;
   playPrevious: () => void;
   playNext: () => void;
   playLast: () => void;

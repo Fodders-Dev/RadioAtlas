@@ -18,6 +18,7 @@ import {
   rankStationsForSearch,
   recordPlaybackOutcome
 } from '../src/lib/stationPlayability';
+import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
@@ -244,8 +245,46 @@ test('search ranking keeps exact playable matches above weak promoted matches', 
   expect(ranked[0].stationuuid).toBe('uuid-tokyo');
 });
 
+test('personal radio queue favors taste and skips hard failed stations', () => {
+  const now = Date.now();
+  const playabilityProfile = recordPlaybackOutcome(
+    recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, stations[4], 'no-playable-candidate', now - 1000),
+    stations[4],
+    'stream-unavailable',
+    now
+  );
+  const queue = buildPersonalRadioQueue({
+    catalog: stations,
+    favorites: [],
+    recent: [],
+    queuePreview: [],
+    playbackHistory: [],
+    trackHistory: [],
+    collections: [],
+    followedStations: [],
+    behaviorProfile: behaviorProfile({
+      tagScores: { techno: 90 },
+      countryScores: { Germany: 40 },
+      stationScores: { 'uuid-berlin': 160, 'uuid-hamburg': 80 }
+    }),
+    playabilityProfile,
+    context: {
+      mode: 'personal',
+      currentStation: null,
+      seed: 424242,
+      limit: 10,
+      now
+    }
+  });
+
+  expect(queue.stations.length).toBeGreaterThanOrEqual(6);
+  expect(queue.stations.length).toBeLessThanOrEqual(10);
+  expect(queue.stations[0].stationuuid).not.toBe('uuid-berlin');
+  expect(queue.stations.map((station) => station.stationuuid)).toContain('uuid-hamburg');
+});
+
 for (const width of [360, 390]) {
-  test(`mobile home dense keeps only hero resume and one rail at ${width}px`, async ({ page }) => {
+  test(`mobile home dense shows personal radio and compact station rails at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
     await seedRadioState(page, {
       recent: [stations[0]],
@@ -254,25 +293,25 @@ for (const width of [360, 390]) {
     });
 
     await page.goto('/');
-    await expect(page.locator('[data-home-hero]')).toBeVisible();
+    await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
     await expect(page.locator('.home-search-launcher')).toHaveCount(0);
     await expect(page.locator('#home-search-launcher')).toHaveCount(0);
     await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
     await expect(page.locator('.home-explore-card')).toHaveCount(0);
+    await expect(page.locator('[data-home-hero]')).toHaveCount(0);
     await expect(page.locator('.home-hero-companions')).toHaveCount(0);
-    await expect(page.locator('[data-home-hero] .home-hero-actions .home-primary-btn')).toHaveCount(1);
-    await expect(page.locator('[data-home-hero] .home-hero-actions .home-secondary-btn')).toHaveCount(0);
+    await expect(page.locator('[data-home-personal-radio] .home-personal-play')).toHaveCount(1);
     await expect(page.locator('[data-home-resume="true"]')).toBeVisible();
-    await expect(page.locator('[data-home-rail]')).toHaveCount(1);
-    await expect(page.locator('[data-home-rail] .home-section-title')).toContainText(/Для тебя|For you/);
+    await expect(page.locator('[data-home-rail]')).toHaveCount(3);
+    await expect(page.locator('[data-home-rail] .home-section-title').first()).toContainText(/Для тебя|For you/);
     await expect(page.locator('.screen-home-next')).not.toContainText(
       /Что изменилось|По твоим|Похожее на|часто слушаешь|Based on|liked/i
     );
     const compactHomeMetrics = await page.evaluate(() => {
       const topbar = document.querySelector('.app-topbar-v2')?.getBoundingClientRect();
-      const hero = document.querySelector('[data-home-hero]')?.getBoundingClientRect();
+      const personalRadio = document.querySelector('[data-home-personal-radio]')?.getBoundingClientRect();
       const railTiles = Array.from(document.querySelectorAll('[data-home-rail] [data-home-station]'));
       const visibleRailTiles = railTiles.filter((node) => {
         const rect = node.getBoundingClientRect();
@@ -284,7 +323,7 @@ for (const width of [360, 390]) {
 
       return {
         topbarHeight: topbar?.height || 0,
-        heroHeight: hero?.height || 0,
+        personalRadioHeight: personalRadio?.height || 0,
         visibleRailTiles,
         railDisplay: railListStyle.display,
         railOverflowX: railListStyle.overflowX,
@@ -292,13 +331,14 @@ for (const width of [360, 390]) {
       };
     });
     expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
-    expect(compactHomeMetrics.heroHeight).toBeLessThanOrEqual(92);
+    expect(compactHomeMetrics.personalRadioHeight).toBeLessThanOrEqual(72);
     expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(5);
     expect(compactHomeMetrics.railDisplay).toBe('grid');
     expect(compactHomeMetrics.railRows).not.toBe('none');
     expect(compactHomeMetrics.railOverflowX).toBe('auto');
-    await expect(page.locator('.home-rail-scroll-controls')).toBeVisible();
-    const railScroll = page.locator('[data-home-rail] .home-horizontal-scroll');
+    await expect(page.locator('.home-rail-scroll-controls').first()).toBeVisible();
+    const firstRail = page.locator('[data-home-rail]').first();
+    const railScroll = firstRail.locator('.home-horizontal-scroll');
     const beforeScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
     const afterWheelScrollLeft = await railScroll.evaluate((node) => {
       node.dispatchEvent(new WheelEvent('wheel', { deltaY: 360, bubbles: true, cancelable: true }));
@@ -307,14 +347,28 @@ for (const width of [360, 390]) {
     const canScrollRail = await railScroll.evaluate((node) => node.scrollWidth > node.clientWidth);
     if (canScrollRail) {
       expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
-      await page.locator('.home-rail-scroll-btn').last().click();
+      await firstRail.locator('.home-rail-scroll-btn').last().click();
       const afterButtonScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
       expect(afterButtonScrollLeft).toBeGreaterThanOrEqual(afterWheelScrollLeft);
     }
     await expectNoHomeHorizontalOverflow(page);
 
-    await page.locator('[data-home-rail] [data-home-station] .home-action-btn-play').first().click();
+    await page.locator('[data-home-personal-radio] .home-personal-play').click();
     await expect(page.locator('.player-dock-bar')).toBeVisible();
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const stored = window.localStorage.getItem('radio:player:v2');
+          return stored ? JSON.parse(stored).queue?.sourceId : null;
+        })
+      )
+      .toBe('personal-radio');
+    const personalQueueState = await page.evaluate(() => {
+      const stored = window.localStorage.getItem('radio:player:v2');
+      return stored ? JSON.parse(stored).queue : null;
+    });
+    expect(personalQueueState?.sourceId).toBe('personal-radio');
+    expect(personalQueueState?.items?.length).toBeGreaterThanOrEqual(6);
   });
 }
 
@@ -330,8 +384,11 @@ test('mobile home promotes behavior-profile recommendations without reason copy'
   });
 
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toHaveAttribute('data-home-hero', 'uuid-berlin');
-  await expect(page.locator('[data-home-hero]')).toContainText('Berlin Pulse');
+  await expect(page.locator('[data-home-rail] [data-home-station]').first()).toBeVisible();
+  const recommendedStations = await page
+    .locator('[data-home-rail] [data-home-station]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-home-station')));
+  expect(recommendedStations).toContain('uuid-berlin');
   await expect(page.locator('.screen-home-next')).not.toContainText(/По твоим|Похожее на|часто слушаешь|Based on|liked/i);
 });
 
@@ -355,9 +412,8 @@ test('mobile home demotes a repeatedly failed station from the primary hero', as
   });
 
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
-  await expect(page.locator('[data-home-hero]')).not.toHaveAttribute('data-home-hero', 'uuid-berlin');
-  await expect(page.locator('[data-home-hero]')).not.toContainText('Berlin Pulse');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-rail] [data-home-station]').first()).not.toHaveAttribute('data-home-station', 'uuid-berlin');
 });
 
 for (const width of [360, 390]) {
@@ -516,7 +572,7 @@ test('home cold load shows hero skeleton while summary is pending', async ({ pag
 
   await page.goto('/');
   await expect(page.locator('.screen-skeleton-home-hero')).toBeVisible();
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 });
 
 test('home typing uses local preview without catalog search requests', async ({ page }) => {
@@ -591,7 +647,7 @@ test('home summary error banner is one-shot and clears after summary succeeds', 
   if (await fallbackRefresh.isVisible().catch(() => false)) {
     await fallbackRefresh.click();
   }
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await expect(page.locator('.home-status-banner')).toHaveCount(0);
 });
 
@@ -762,6 +818,8 @@ test('dock buffering status does not duplicate loading in the track line', async
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await page.waitForFunction(() => Boolean(document.querySelector('audio')));
 
   await page.evaluate(() => {
     const audio = document.querySelector('audio');
@@ -984,7 +1042,7 @@ test('mobile startup stays free of playback runtime render loops', async ({ page
   });
 
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await page.waitForTimeout(600);
 
   expect(runtimeWarnings).toEqual([]);
@@ -992,9 +1050,9 @@ test('mobile startup stays free of playback runtime render loops', async ({ page
 
 test('mobile settings can open lite fullscreen shell without an active station', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Настройки' }).first().click();
+  await page.locator('.mobile-settings-trigger').click();
   await expect(page.locator('.settings-panel')).toBeVisible();
   await page.getByRole('button', { name: 'Открыть полноэкранный плеер' }).click();
 
@@ -1007,7 +1065,7 @@ test('mobile settings opens skin lab and applies a previewed museum skin', async
   await mockSkinMuseumSearch(page);
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
 
   await page.locator('.mobile-settings-trigger').click();
@@ -1033,7 +1091,7 @@ test('mobile settings opens skin lab and applies a previewed museum skin', async
 test('mobile skin lab previews uploaded skins for the current session only', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
 
   await page.locator('.mobile-settings-trigger').click();
@@ -1056,13 +1114,13 @@ test('mobile skin lab previews uploaded skins for the current session only', asy
   expect(storedSkinSource).toBe('preset');
 
   await page.reload();
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
 });
 
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();
   await expect(page.locator('.player-dock-peek')).toBeVisible();
@@ -1086,7 +1144,7 @@ test('mobile shell keeps dock and bottom nav separately tappable', async ({ page
 
 test('mobile library queue survives navigation after playback starts', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Медиатека' }).evaluate((node) => {
@@ -1107,7 +1165,7 @@ test('mobile library queue survives navigation after playback starts', async ({ 
 test('telegram mobile playback sticks to proxy transport candidates', async ({ page }) => {
   await enableTelegramMobileSafeMode(page);
   await page.goto('/?tgWebAppPlatform=ios');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
 
@@ -1124,7 +1182,7 @@ test('telegram mobile playback sticks to proxy transport candidates', async ({ p
 test('telegram mobile fullscreen falls back to lite winamp mode', async ({ page }) => {
   await enableTelegramMobileSafeMode(page);
   await page.goto('/?tgWebAppPlatform=ios');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
   await page.locator('.player-dock-artwork-trigger').evaluate((node) => {

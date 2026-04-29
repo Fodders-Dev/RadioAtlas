@@ -300,6 +300,68 @@
   color: rgba(255, 164, 185, 0.96);
 }
 
+.home-personal-radio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(170, 220, 255, 0.12);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 16% 40%, rgba(121, 219, 240, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(10, 22, 36, 0.92), rgba(15, 31, 52, 0.78));
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
+}
+
+.home-personal-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.home-personal-copy span {
+  color: rgba(167, 247, 255, 0.78);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-personal-copy strong {
+  overflow: hidden;
+  color: rgba(244, 250, 255, 0.96);
+  font-size: 1.08rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-personal-play {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(128, 226, 245, 0.98), rgba(202, 255, 249, 0.94));
+  color: rgba(4, 13, 22, 0.98);
+  font-weight: 800;
+}
+
+.home-personal-play:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.home-personal-play svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
 .home-hero-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -808,7 +870,26 @@
 /* Radio core compact mobile home */
 
 .screen-home-next[data-density='dense'] {
-  gap: 14px;
+  gap: 12px;
+}
+
+.home-personal-radio.is-dense {
+  min-height: 58px;
+  padding: 9px 10px;
+  border-radius: 18px;
+}
+
+.home-personal-radio.is-dense .home-personal-copy span {
+  font-size: 0.58rem;
+}
+
+.home-personal-radio.is-dense .home-personal-copy strong {
+  font-size: 0.92rem;
+}
+
+.home-personal-radio.is-dense .home-personal-play {
+  min-height: 40px;
+  padding: 0 14px;
 }
 
 .screen-home-next[data-density='dense'] .home-hero-card {

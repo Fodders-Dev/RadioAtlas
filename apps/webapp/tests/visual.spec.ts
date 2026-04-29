@@ -85,7 +85,7 @@ const openHome = async (
 ) => {
   await seedRadioState(page, options);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(180);
   await waitForStableMetrics(page);
@@ -93,6 +93,7 @@ const openHome = async (
 
 const readHomeSurfaceSignature = async (page: Page) =>
   page.evaluate(() => ({
+    personalRadio: Boolean(document.querySelector('[data-home-personal-radio]')),
     hero: document.querySelector('[data-home-hero]')?.getAttribute('data-home-hero') || null,
     rails: Array.from(document.querySelectorAll('[data-home-rail]')).map((node) => ({
       id: node.getAttribute('data-home-rail'),
@@ -145,7 +146,7 @@ test('home surface stays stable during like and play actions', async ({ page }) 
   const before = await readHomeSurfaceSignature(page);
 
   await page.locator('[data-home-rail] .home-action-btn-like').first().click();
-  await page.locator('[data-home-hero] .home-primary-btn').click();
+  await page.locator('[data-home-personal-radio] .home-personal-play').click();
   await expect(page.locator('[data-home-resume]')).toBeVisible();
 
   const after = await readHomeSurfaceSignature(page);

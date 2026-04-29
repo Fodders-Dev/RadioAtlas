@@ -9,8 +9,13 @@ import {
   createHomeResumeModule,
   createHomeSurfaceFeed,
   type HomeHeroModule,
+  type HomeRailModule,
   type HomeSurfaceFeed
 } from '../lib/homeSurface';
+import {
+  buildPersonalRadioQueue,
+  PERSONAL_RADIO_QUEUE_LIMIT
+} from '../lib/personalRadio';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useDebounce } from '../lib/useDebounce';
@@ -25,6 +30,7 @@ import {
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
   HomeHeroCard,
+  HomePersonalRadioCard,
   HomeRail,
   HomeResumeStrip,
   HomeSearchPreview
@@ -38,7 +44,7 @@ import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
 const HOME_SURFACE_VERSION = 3;
-const DENSE_RAIL_LIMIT = 1;
+const DENSE_RAIL_LIMIT = 3;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 
 const mergeStations = (...collections: StationLite[][]) => {
@@ -141,6 +147,22 @@ const fallbackHero: HomeHeroModule = {
   companionStations: [],
   querySuggestion: ''
 };
+
+const createFeedRail = (
+  id: string,
+  titleKey: string,
+  copyKey: string,
+  sourceId: string,
+  stations: StationLite[]
+): HomeRailModule => ({
+  id,
+  titleKey,
+  copyKey,
+  sourceId,
+  accent: 'primary',
+  label: null,
+  stations
+});
 
 const buildSurfaceFeed = (input: {
   catalog: StationLite[];
@@ -275,7 +297,7 @@ export const Home = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { player, queue, nowPlaying, playStation } = usePlayback();
+  const { player, queue, nowPlaying, playStation, playStationQueue } = usePlayback();
   const {
     setActiveSection,
     homeState,
@@ -408,10 +430,101 @@ export const Home = () => {
       denseLayout ? DENSE_SEARCH_PREVIEW_LIMIT : SEARCH_PREVIEW_LIMIT
     );
   }, [catalog, debouncedQuery, denseLayout]);
-  const visibleRails = useMemo(
-    () => (surfaceFeed?.rails || []).slice(0, denseLayout ? DENSE_RAIL_LIMIT : 3),
-    [denseLayout, surfaceFeed?.rails]
+  const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
+  const personalRadioQueue = useMemo(
+    () =>
+      buildPersonalRadioQueue({
+        catalog,
+        favorites,
+        recent,
+        queuePreview,
+        playbackHistory,
+        trackHistory,
+        collections,
+        followedStations,
+        behaviorProfile,
+        playabilityProfile,
+        context: {
+          mode: 'personal',
+          currentStation: player.current,
+          seed: homeState.sessionSeed,
+          limit: PERSONAL_RADIO_QUEUE_LIMIT
+        }
+      }),
+    [
+      behaviorProfile,
+      catalog,
+      collections,
+      favorites,
+      followedStations,
+      homeState.sessionSeed,
+      playbackHistory,
+      playabilityProfile,
+      player.current,
+      queuePreview,
+      recent,
+      trackHistory
+    ]
   );
+  const rankedCatalogRails = useMemo(
+    () =>
+      rankStationsForHome(catalog, playabilityProfile, {
+        limit: Math.min(catalog.length, 36)
+      }),
+    [catalog, playabilityProfile]
+  );
+  const visibleRails = useMemo(() => {
+    const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
+    const rails = surfaceRails.slice(0, limit);
+    if (!denseLayout || rails.length >= limit) return rails;
+
+    const usedStationIds = new Set(
+      rails.flatMap((rail) => rail.stations.map((station) => station.stationuuid))
+    );
+    const pickStations = (stations: StationLite[]) => {
+      const merged = mergeStations(stations);
+      const fresh = merged.filter((station) => !usedStationIds.has(station.stationuuid));
+      const picked = (fresh.length >= 3 ? fresh : merged).slice(0, 6);
+      picked.forEach((station) => usedStationIds.add(station.stationuuid));
+      return picked;
+    };
+    const pushRail = (
+      id: string,
+      titleKey: string,
+      copyKey: string,
+      sourceId: string,
+      stations: StationLite[]
+    ) => {
+      if (rails.length >= limit || rails.some((rail) => rail.id === id)) return;
+      const picked = pickStations(stations);
+      if (!picked.length) return;
+      rails.push(createFeedRail(id, titleKey, copyKey, sourceId, picked));
+    };
+
+    pushRail(
+      'home-new-stations',
+      'home.newStationsTitle',
+      'home.newStationsCopy',
+      'home-new-stations',
+      rankedCatalogRails
+    );
+    pushRail(
+      'home-world-stations',
+      'home.worldStationsTitle',
+      'home.worldStationsCopy',
+      'home-world-stations',
+      catalog
+    );
+    pushRail(
+      'home-personal-radio-rail',
+      'home.personalTitle',
+      'home.freshSignalsCopy',
+      'home-personal-radio',
+      personalRadioQueue.stations
+    );
+
+    return rails.slice(0, limit);
+  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
 
   useEffect(() => {
     if (!summary || sessionBucketPrimedRef.current) return;
@@ -508,6 +621,17 @@ export const Home = () => {
       sourceLabel: station.name
     });
   };
+  const handlePlayPersonalRadio = () => {
+    if (queue.sourceId === personalRadioQueue.sourceId && player.current) {
+      player.toggle();
+      return;
+    }
+    playStationQueue(personalRadioQueue.stations, {
+      sourceId: personalRadioQueue.sourceId,
+      sourceLabel: t('home.personalRadioTitle')
+    });
+  };
+  const personalRadioActive = queue.sourceId === personalRadioQueue.sourceId && Boolean(player.current);
   const showHomeHeroSkeleton = summaryLoading && !surfaceFeed && !homeState.snapshot;
   const showSummaryErrorBanner =
     Boolean(summaryError) &&
@@ -523,19 +647,30 @@ export const Home = () => {
       {showHomeHeroSkeleton ? (
         <AppScreenSkeleton section="home" scope="home-hero" />
       ) : (
-        <HomeHeroCard
-          module={surfaceFeed?.hero || fallbackHero}
-          metrics={counts}
-          dense={denseLayout}
-          isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
-          activeTrack={activeTrack}
-          liked={surfaceFeed?.hero.station ? isFavorite(surfaceFeed.hero.station.stationuuid) : false}
-          refreshing={refreshing || (summaryLoading && !surfaceFeed)}
-          onPlay={handlePlayStation}
-          onToggleFavorite={toggleFavorite}
-          onExplore={openSearch}
-          onRefresh={handleRefresh}
-        />
+        <>
+          <HomePersonalRadioCard
+            dense={denseLayout}
+            queueCount={personalRadioQueue.stations.length}
+            isPlaying={personalRadioActive && player.isPlaying}
+            disabled={!personalRadioQueue.stations.length}
+            onPlay={handlePlayPersonalRadio}
+          />
+          {!denseLayout ? (
+            <HomeHeroCard
+              module={surfaceFeed?.hero || fallbackHero}
+              metrics={counts}
+              dense={false}
+              isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
+              activeTrack={activeTrack}
+              liked={surfaceFeed?.hero.station ? isFavorite(surfaceFeed.hero.station.stationuuid) : false}
+              refreshing={refreshing || (summaryLoading && !surfaceFeed)}
+              onPlay={handlePlayStation}
+              onToggleFavorite={toggleFavorite}
+              onExplore={openSearch}
+              onRefresh={handleRefresh}
+            />
+          ) : null}
+        </>
       )}
 
       {showSummaryErrorBanner ? (
