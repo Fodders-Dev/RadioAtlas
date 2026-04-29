@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, useShell } from '../state/RadioContext';
-import { SkinPicker } from '../components/SkinPicker';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 
 export const Settings = () => {
@@ -11,7 +10,8 @@ export const Settings = () => {
     clearCache,
     openWebAppExternally,
     debugLogs,
-    winamp
+    winamp,
+    setSkinLabOpen
   } = useShell();
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
@@ -69,8 +69,14 @@ export const Settings = () => {
             <div className="settings-label">{t('settings.skinModeLabel')}</div>
             <div className="settings-desc">{t('settings.skinModeDesc')}</div>
           </div>
-          <SkinPicker />
           <div className="settings-actions">
+            <button
+              className="chip active"
+              type="button"
+              onClick={() => setSkinLabOpen(true)}
+            >
+              {t('skin.openLab')}
+            </button>
             <button
               className={`chip ${winamp.expanded ? 'active' : ''}`}
               type="button"

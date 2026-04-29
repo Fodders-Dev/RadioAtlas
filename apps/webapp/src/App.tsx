@@ -69,6 +69,9 @@ const StationDetailsLazy = lazy(loadStationDetails);
 const LitePlayerOverlayLazy = lazy(() =>
   import('./components/LitePlayerOverlay').then((mod) => ({ default: mod.LitePlayerOverlay }))
 );
+const SkinLabSheetLazy = lazy(() =>
+  import('./components/SkinLab').then((mod) => ({ default: mod.SkinLabSheet }))
+);
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
   home: HomeScreen,
@@ -91,6 +94,8 @@ const App = () => {
     setLibraryTab,
     detailsOpen,
     setDetailsOpen,
+    skinLabOpen,
+    setSkinLabOpen
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
@@ -110,6 +115,12 @@ const App = () => {
       setSettingsOpen(false);
     }
   }, [winamp.expanded]);
+
+  useEffect(() => {
+    if (skinLabOpen) {
+      setSettingsOpen(false);
+    }
+  }, [skinLabOpen]);
 
   useEffect(() => {
     setSectionMotionTick((value) => value + 1);
@@ -340,6 +351,11 @@ const App = () => {
       {winamp.expanded ? (
         <Suspense fallback={<AppScreenSkeleton section={activeSection} scope="overlay" />}>
           <LitePlayerOverlayLazy onDetails={() => setDetailsOpen(true)} />
+        </Suspense>
+      ) : null}
+      {skinLabOpen ? (
+        <Suspense fallback={<AppScreenSkeleton section={activeSection} scope="sheet" />}>
+          <SkinLabSheetLazy open={skinLabOpen} onClose={() => setSkinLabOpen(false)} />
         </Suspense>
       ) : null}
       <Toast message={toast} />

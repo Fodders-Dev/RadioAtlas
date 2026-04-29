@@ -13,7 +13,8 @@ import type {
   PlayerPresentation,
   Station,
   StationLite,
-  WinampMuseumSkin
+  WinampMuseumSkin,
+  WinampUploadedSkin
 } from '../types';
 import { toLite } from '../lib/stationUtils';
 import {
@@ -273,6 +274,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
   );
   const [globeFocusRegionId, setGlobeFocusRegionId] = useState<string | null>(null);
+  const [skinLabOpen, setSkinLabOpen] = useState(false);
   const debugLoggingEnabled =
     import.meta.env.DEV ||
     (typeof window !== 'undefined' &&
@@ -327,6 +329,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const nowPlayingState = playbackRuntime.nowPlayingState;
   const fullscreenRetryRef = useRef<number | null>(null);
   const manualPresentationRef = useRef(false);
+  const uploadedSkinUrlRef = useRef<string | null>(null);
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -335,6 +338,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const libraryTab = storedShellState.libraryTab;
   const detailsOpen = storedShellState.detailsOpen;
   const winampExpanded = playerPresentation === 'expanded';
+
+  useEffect(
+    () => () => {
+      if (uploadedSkinUrlRef.current) {
+        URL.revokeObjectURL(uploadedSkinUrlRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     queueRef.current = storedQueue;
@@ -1199,6 +1211,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setSkin = (skinId: string) => {
+    if (uploadedSkinUrlRef.current) {
+      URL.revokeObjectURL(uploadedSkinUrlRef.current);
+      uploadedSkinUrlRef.current = null;
+    }
     const preset = findPresetSkin(skinId);
     setActiveSkin({ ...preset, source: 'preset' });
     setStoredSkin({ source: 'preset', id: preset.id });
@@ -1206,12 +1222,25 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const selectSkin = (skin: WinampMuseumSkin) => {
+    if (uploadedSkinUrlRef.current) {
+      URL.revokeObjectURL(uploadedSkinUrlRef.current);
+      uploadedSkinUrlRef.current = null;
+    }
     setActiveSkin(toMuseumActiveSkin(skin));
     setStoredSkin({
       source: 'museum',
       md5: skin.md5,
       name: skin.name
     });
+    notify(t('toast.skinApplied', { name: skin.name }));
+  };
+
+  const selectUploadedSkin = (skin: WinampUploadedSkin) => {
+    if (uploadedSkinUrlRef.current && uploadedSkinUrlRef.current !== skin.objectUrl) {
+      URL.revokeObjectURL(uploadedSkinUrlRef.current);
+    }
+    uploadedSkinUrlRef.current = skin.objectUrl;
+    setActiveSkin(skin);
     notify(t('toast.skinApplied', { name: skin.name }));
   };
 
@@ -1357,7 +1386,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       availableSkins: WINAMP_SKIN_PRESETS,
       activeSkin,
       setSkin,
-      selectSkin
+      selectSkin,
+      selectUploadedSkin
     }),
     [activeSkin, player.current, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
@@ -1466,6 +1496,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearSearchDraft,
       globeFocusRegionId,
       setGlobeFocusRegionId,
+      skinLabOpen,
+      setSkinLabOpen,
       openWebAppExternally,
       clearCache
     }),
@@ -1482,6 +1514,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playerPresentation,
       refreshHomeSurface,
       searchDraft,
+      skinLabOpen,
       setActiveSection,
       setDetailsOpen,
       setHomeSnapshot,

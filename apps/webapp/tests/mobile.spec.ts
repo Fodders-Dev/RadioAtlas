@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 import {
   installMediaMocks,
   mockStations,
@@ -11,6 +12,8 @@ import {
   filterPreviewStations
 } from '../src/screens/homePreview';
 import { findNearestAreaToRotation } from '../src/components/globe/selection';
+
+const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
@@ -123,6 +126,30 @@ const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
       stations: stations.slice(0, 4)
     }
   });
+
+const mockSkinMuseumSearch = async (page: Page) => {
+  const purpleSkin = {
+    md5: 'purple-dream-md5',
+    filename: 'Purple_Dream.wsz',
+    download_url: 'http://127.0.0.1:5173/winamp-skins/base-2.91.wsz',
+    screenshot_url: null,
+    museum_url: 'https://skins.webamp.org/skin/purple-dream-md5/Purple_Dream.wsz',
+    nsfw: false
+  };
+
+  await page.route('https://skins.webamp.org/graphql', async (route) => {
+    const body = route.request().postDataJSON() as { query?: string } | null;
+    const responseBody = body?.query?.includes('fetch_skin_by_md5')
+      ? { data: { fetch_skin_by_md5: purpleSkin } }
+      : { data: { search_classic_skins: [purpleSkin] } };
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(responseBody)
+    });
+  });
+};
 
 test('home local preview filter caps dense results', () => {
   const matches = filterPreviewStations(stations, 'jpop', DENSE_SEARCH_PREVIEW_LIMIT);
@@ -571,6 +598,62 @@ test('mobile settings can open lite fullscreen shell without an active station',
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
   await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+});
+
+test('mobile settings opens skin lab and applies a previewed museum skin', async ({ page }) => {
+  await mockSkinMuseumSearch(page);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
+
+  await page.locator('.mobile-settings-trigger').click();
+  await expect(page.locator('.settings-panel')).toBeVisible();
+  await page.getByRole('button', { name: /Открыть Skin Lab|Open Skin Lab/ }).click();
+
+  await expect(page.locator('[data-skin-lab]')).toBeVisible();
+  await page.locator('#skin-lab-search').fill('purple');
+  const purpleCard = page.locator('.skin-lab-card').filter({ hasText: 'Purple_Dream.wsz' }).first();
+  await expect(purpleCard).toBeVisible();
+
+  await purpleCard.locator('.skin-lab-card-main').click();
+  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-source', 'museum');
+  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-name', 'Purple_Dream.wsz');
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
+
+  await page.locator('.skin-lab-preview-panel').getByRole('button', { name: /Применить|Apply/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'museum');
+  await expect(page.locator('html')).toHaveAttribute('data-skin-name', 'Purple_Dream.wsz');
+});
+
+test('mobile skin lab previews uploaded skins for the current session only', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
+
+  await page.locator('.mobile-settings-trigger').click();
+  await page.getByRole('button', { name: /Открыть Skin Lab|Open Skin Lab/ }).click();
+  await expect(page.locator('[data-skin-lab]')).toBeVisible();
+
+  await page.locator('.skin-lab-upload input').setInputFiles(UPLOAD_SKIN_PATH);
+  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-source', 'uploaded');
+  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-name', 'base-2.91.wsz');
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
+
+  await page.locator('.skin-lab-preview-panel').getByRole('button', { name: /Применить|Apply/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'uploaded');
+
+  const storedSkinSource = await page.evaluate(() => {
+    const raw = window.localStorage.getItem('radio:player:v2');
+    if (!raw) return null;
+    return (JSON.parse(raw) as { skin?: { source?: string } }).skin?.source || null;
+  });
+  expect(storedSkinSource).toBe('preset');
+
+  await page.reload();
+  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
 });
 
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {

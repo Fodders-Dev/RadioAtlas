@@ -35,6 +35,8 @@ export const resolveStoredActiveSkin = async (storedSkin: StoredSkin) => {
 };
 
 export const applyActiveSkinTheme = async (activeSkin: ActiveWinampSkin) => {
+  document.documentElement.dataset.skinSource = activeSkin.source;
+  document.documentElement.dataset.skinName = activeSkin.name;
   if (activeSkin.palette) {
     return applySkinPalette(activeSkin.palette);
   }

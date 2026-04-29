@@ -31,7 +31,7 @@ export const LitePlayerOverlay = ({
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { winamp, openWebAppExternally } = useShell();
+  const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
     getOverlayMode()
   );
@@ -246,6 +246,7 @@ export const LitePlayerOverlay = ({
               : 'calc(54px + env(safe-area-inset-top)) 10px calc(76px + env(safe-area-inset-bottom))'
         }}
         onClose={() => winamp.setExpanded(false)}
+        onOpenSkinLab={() => setSkinLabOpen(true)}
         onPlayHistoryStation={playOverlayHistoryStation}
         onPlayQueueStation={playOverlayQueueStation}
         onResetLayout={() => {}}

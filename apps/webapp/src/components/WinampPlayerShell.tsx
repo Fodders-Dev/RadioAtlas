@@ -92,7 +92,7 @@ export const WinampPlayerShell = ({
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { winamp, openWebAppExternally } = useShell();
+  const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
 
   const compactHostRef = useRef<HTMLDivElement | null>(null);
   const webampRef = useRef<WebampInstance | null>(null);
@@ -1236,6 +1236,7 @@ export const WinampPlayerShell = ({
             loading={loadingShell}
             mainStyle={expandedMainStyle}
             onClose={() => winamp.setExpanded(false)}
+            onOpenSkinLab={() => setSkinLabOpen(true)}
             onPlayHistoryStation={playOverlayHistoryStation}
             onPlayQueueStation={playOverlayQueueStation}
             onResetLayout={resetExpandedLayout}

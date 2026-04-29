@@ -17,6 +17,7 @@ import type {
   Station,
   StationLite,
   WinampMuseumSkin,
+  WinampUploadedSkin,
   WinampSkinPreset,
   WinampSkinSource
 } from '../../types';
@@ -119,6 +120,7 @@ export type WinampState = {
   activeSkin: ActiveWinampSkin;
   setSkin: (skinId: string) => void;
   selectSkin: (skin: WinampMuseumSkin) => void;
+  selectUploadedSkin: (skin: WinampUploadedSkin) => void;
 };
 
 export type PlayStationOptions = {
@@ -196,6 +198,8 @@ export type ShellContextValue = {
   clearSearchDraft: () => void;
   globeFocusRegionId: string | null;
   setGlobeFocusRegionId: (regionId: string | null) => void;
+  skinLabOpen: boolean;
+  setSkinLabOpen: (value: boolean) => void;
   openWebAppExternally: () => void;
   clearCache: () => void;
 };
