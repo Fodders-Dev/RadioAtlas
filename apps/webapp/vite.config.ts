@@ -128,9 +128,6 @@ export default defineConfig({
           ) {
             return 'webamp-metadata-vendor';
           }
-          if (id.includes('node_modules/webamp')) {
-            return 'webamp-core-vendor';
-          }
           if (id.includes('node_modules/hls.js')) {
             return 'hls-core-vendor';
           }

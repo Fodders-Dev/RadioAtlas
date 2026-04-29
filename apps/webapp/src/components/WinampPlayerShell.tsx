@@ -107,6 +107,7 @@ export const WinampPlayerShell = ({
   const expandedRecoveryAttemptsRef = useRef(0);
   const compactRecoveryAttemptsRef = useRef(0);
   const recoveredSkinRef = useRef<string | null>(null);
+  const runtimeSkinUrlRef = useRef<string | null>(null);
 
   const [webampReady, setWebampReady] = useState(false);
   const [webampFailed, setWebampFailed] = useState(false);
@@ -686,6 +687,7 @@ export const WinampPlayerShell = ({
         webampRef.current = result.instance;
         unsubscribeWillClose = result.unsubscribeWillClose;
         unsubscribeClosed = result.unsubscribeClosed;
+        runtimeSkinUrlRef.current = winamp.activeSkin.url;
         setWebampReady(true);
         setWebampFailed(false);
         setBootError(null);
@@ -721,11 +723,46 @@ export const WinampPlayerShell = ({
       unsubscribeClosed?.();
       disposeWebampInstance(mountedInstance);
       resetWebampWindowPlacement();
+      runtimeSkinUrlRef.current = null;
       if (webampRef.current === mountedInstance) {
         webampRef.current = null;
       }
     };
-  }, [bootCycle, figmaCaptureMode, liteFullscreenMode, winamp.activeSkin.url]);
+  }, [bootCycle, figmaCaptureMode, liteFullscreenMode]);
+
+  useEffect(() => {
+    if (!webampReady || figmaCaptureMode || liteFullscreenMode) return;
+    const instance = webampRef.current;
+    if (!instance) return;
+
+    const nextSkinUrl = winamp.activeSkin.url;
+    if (runtimeSkinUrlRef.current === nextSkinUrl) return;
+
+    if (!instance.setSkinFromUrl) {
+      setBootCycle((value) => value + 1);
+      return;
+    }
+
+    let cancelled = false;
+    const applySkin = async () => {
+      try {
+        await instance.setSkinFromUrl?.(toAssetUrl(nextSkinUrl));
+        if (cancelled) return;
+        runtimeSkinUrlRef.current = nextSkinUrl;
+        setWebampFailed(false);
+        setBootError(null);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Winamp skin swap failed', error);
+        setBootCycle((value) => value + 1);
+      }
+    };
+
+    void applySkin();
+    return () => {
+      cancelled = true;
+    };
+  }, [figmaCaptureMode, liteFullscreenMode, webampReady, winamp.activeSkin.url]);
 
   useEffect(() => {
     if (!webampReady) return;
@@ -956,7 +993,6 @@ export const WinampPlayerShell = ({
   }, [runtimeExpanded, webamp, webamp.compactMode, webamp.activeSkin.url, webampReady]);
 
   const { quietWebampPlayback } = useWinampTransportSync({
-    activeSkinUrl: winamp.activeSkin.url,
     lastAppliedBalanceRef,
     lastAppliedVolumeRef,
     lastElapsedTimeSyncRef,

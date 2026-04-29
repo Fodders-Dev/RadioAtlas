@@ -128,11 +128,19 @@ const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
   });
 
 const mockSkinMuseumSearch = async (page: Page) => {
+  await page.route('**/__skin-preview.svg', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"><rect width="320" height="240" fill="#261447"/><rect x="24" y="26" width="272" height="48" rx="10" fill="#8f6cff"/><rect x="24" y="92" width="156" height="42" rx="8" fill="#111827"/><rect x="24" y="154" width="272" height="58" rx="8" fill="#0f172a"/></svg>'
+    });
+  });
+
   const purpleSkin = {
     md5: 'purple-dream-md5',
     filename: 'Purple_Dream.wsz',
     download_url: 'http://127.0.0.1:5173/winamp-skins/base-2.91.wsz',
-    screenshot_url: null,
+    screenshot_url: 'http://127.0.0.1:5173/__skin-preview.svg',
     museum_url: 'https://skins.webamp.org/skin/purple-dream-md5/Purple_Dream.wsz',
     nsfw: false
   };
@@ -189,6 +197,8 @@ for (const width of [360, 390]) {
     await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
     await expect(page.locator('.home-explore-card')).toHaveCount(0);
     await expect(page.locator('.home-hero-companions')).toHaveCount(0);
+    await expect(page.locator('[data-home-hero] .home-hero-actions .home-primary-btn')).toHaveCount(1);
+    await expect(page.locator('[data-home-hero] .home-hero-actions .home-secondary-btn')).toHaveCount(0);
     await expect(page.locator('[data-home-resume="true"]')).toBeVisible();
     await expect(page.locator('[data-home-rail]')).toHaveCount(1);
     await expectNoHomeHorizontalOverflow(page);
@@ -211,6 +221,28 @@ for (const width of [360, 390]) {
     await expect(page.locator('.globe-hint')).not.toContainText(/scroll|колес/i);
     await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
     await expectNoGlobeHorizontalOverflow(page);
+
+    const denseControlMetrics = await page.evaluate(() => {
+      const reticle = document.querySelector('.globe-reticle')?.getBoundingClientRect();
+      const footer = document.querySelector('.screen-globe-minimal[data-density="dense"] .globe-command-footer')?.getBoundingClientRect();
+      const footerNode = document.querySelector('.screen-globe-minimal[data-density="dense"] .globe-command-footer');
+      const footerStyle = footerNode ? window.getComputedStyle(footerNode) : null;
+      return {
+        reticleCenterY: reticle ? reticle.top + reticle.height / 2 : null,
+        footerTop: footer?.top ?? null,
+        footerBottom: footer?.bottom ?? null,
+        footerBackground: footerStyle?.backgroundColor || '',
+        footerBackdrop: footerStyle?.backdropFilter || ''
+      };
+    });
+    expect(denseControlMetrics.reticleCenterY).not.toBeNull();
+    expect(denseControlMetrics.footerTop).not.toBeNull();
+    expect(denseControlMetrics.footerBottom).not.toBeNull();
+    expect(
+      denseControlMetrics.reticleCenterY! < denseControlMetrics.footerTop! - 24 ||
+        denseControlMetrics.reticleCenterY! > denseControlMetrics.footerBottom! + 24
+    ).toBe(true);
+    expect(denseControlMetrics.footerBackground).not.toBe('rgba(0, 0, 0, 0)');
 
     const sheetRect = await page.locator('.globe-focus-card').evaluate((node) => {
       const rect = node.getBoundingClientRect();
@@ -520,6 +552,14 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.move(box!.x + box!.width / 2 + 18, box!.y + box!.height / 2);
+  await page.waitForTimeout(520);
+  await page.mouse.up();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
+
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
   await page.waitForTimeout(520);
   await page.mouse.up();
   await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toBeVisible();
@@ -536,6 +576,9 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   });
   expect(trayMetrics.overflowY).toBe('auto');
   expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
+
+  await page.locator('.player-dock-tray[data-mode="volume"] .dock-skin-btn').click();
+  await expect(page.locator('[data-skin-lab]')).toBeVisible();
 });
 
 test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {
@@ -606,6 +649,55 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   const tokyoRow = page.locator('[data-library-collection-row][data-station-id="uuid-tokyo"]');
   await tokyoRow.getByRole('button', { name: /Tokyo FM/ }).click();
   await expect(tokyoRow).toHaveCount(0);
+});
+
+test('mobile library restores collection scroll after closing detail', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations,
+    collections: Array.from({ length: 8 }, (_, index) => ({
+      id: `collection-${index}`,
+      name: `Collection ${index + 1}`,
+      stationIds: stations.slice(0, 4).map((station) => station.stationuuid)
+    }))
+  });
+
+  await page.goto('/');
+  const targetCard = page.locator('.library-collection-card').nth(6);
+  await targetCard.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(0);
+
+  await targetCard.getByRole('button', { name: /Открыть|Open/ }).click();
+  await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
+  await page.locator('[data-library-collection-detail]').getByRole('button', { name: /Назад|Back/ }).click();
+  await expect(page.locator('[data-library-collection-detail]')).toHaveCount(0);
+  await page.waitForFunction(() => window.scrollY > 0);
+  const after = await page.evaluate(() => window.scrollY);
+  expect(after).toBeGreaterThan(0);
+});
+
+test('mobile library coerces legacy recent tabs without writing shell state', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'tracks',
+    stationCache: stations,
+    recent: [stations[0]],
+    playbackHistory: [stations[1]]
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.library-tab-chip.active')).toContainText(/Недавнее|Recent/);
+  await page.waitForTimeout(220);
+  const storedTab = await page.evaluate(() => {
+    const raw = window.localStorage.getItem('radio:app:v2');
+    if (!raw) return null;
+    return (JSON.parse(raw) as { shell?: { libraryTab?: string } }).shell?.libraryTab || null;
+  });
+  expect(storedTab).toBe('tracks');
 });
 
 test('mobile library creates collections inline without native prompt', async ({ page }) => {
@@ -753,6 +845,7 @@ test('mobile settings opens skin lab and applies a previewed museum skin', async
   await purpleCard.locator('.skin-lab-card-main').click();
   await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-source', 'museum');
   await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-name', 'Purple_Dream.wsz');
+  await expect(page.locator('.skin-lab-preview-shell .skin-lab-preview-image')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
 
   await page.locator('.skin-lab-preview-panel').getByRole('button', { name: /Применить|Apply/ }).click();

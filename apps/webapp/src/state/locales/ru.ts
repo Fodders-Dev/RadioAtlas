@@ -613,6 +613,7 @@ export const ruDictionary = {
     "useDefault": "Вернуть стандартный",
     "resetClassic": "Вернуть классику",
     "preview": "Превью",
+    "previewWillRender": "Примени, чтобы отрисовать этот скин в оболочке плеера.",
     "libraryTitle": "Библиотека",
     "libraryCopy": "Ищи в Webamp Skin Museum или выбери встроенный пресет.",
     "museum": "Museum",

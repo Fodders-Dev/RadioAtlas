@@ -1075,88 +1075,59 @@ input {
 }
 
 .skin-lab-preview-shell {
-  display: grid;
-  gap: 8px;
   width: 100%;
   max-width: 460px;
-  padding: 10px;
-  border: 1px solid var(--skin-preview-border);
-  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(5, 10, 18, 0.52);
+}
+
+.skin-lab-preview-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.skin-lab-preview-fallback-panel {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  gap: 8px;
+  padding: 22px;
+  text-align: center;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--skin-preview-panel) 78%, #ffffff 8%), var(--skin-preview-bg)),
-    var(--skin-preview-bg);
-  color: var(--skin-preview-text);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    radial-gradient(circle at 30% 18%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(5, 10, 18, 0.72));
 }
 
-.skin-lab-preview-titlebar,
-.skin-lab-preview-display,
-.skin-lab-preview-playlist {
-  border: 1px solid color-mix(in srgb, var(--skin-preview-border) 72%, #ffffff 12%);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--skin-preview-panel) 82%, #000000 16%);
+.skin-lab-preview-fallback-panel span {
+  display: grid;
+  width: 58px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
 }
 
-.skin-lab-preview-titlebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 9px;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.skin-lab-preview-titlebar strong,
-.skin-lab-preview-display span,
-.skin-lab-preview-display strong,
-.skin-lab-preview-playlist div {
-  min-width: 0;
+.skin-lab-preview-fallback-panel strong,
+.skin-lab-preview-fallback-panel small {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.skin-lab-preview-display {
-  display: grid;
-  gap: 3px;
-  padding: 10px;
+.skin-lab-preview-fallback-panel strong {
+  color: var(--text);
 }
 
-.skin-lab-preview-display span {
-  font-size: 12px;
-  color: color-mix(in srgb, var(--skin-preview-muted) 84%, var(--skin-preview-text));
-}
-
-.skin-lab-preview-display strong {
-  font-size: 15px;
-}
-
-.skin-lab-preview-controls {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.skin-lab-preview-controls span {
-  display: block;
-  min-height: 18px;
-  border: 1px solid var(--skin-preview-border);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--skin-preview-panel) 86%, #ffffff 9%);
-}
-
-.skin-lab-preview-controls span.active {
-  background: var(--skin-preview-accent);
-}
-
-.skin-lab-preview-playlist {
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  font-family: monospace;
-  font-size: 11px;
-  color: color-mix(in srgb, var(--skin-preview-muted) 80%, var(--skin-preview-text));
+.skin-lab-preview-fallback-panel small {
+  color: var(--muted);
 }
 
 .skin-lab-grid {

@@ -52,6 +52,7 @@ export const Library = () => {
   const [trackJournalOpen, setTrackJournalOpen] = useState(false);
   const [collectionReorderMode, setCollectionReorderMode] = useState(false);
   const collectionScrollYRef = useRef(0);
+  const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -60,15 +61,28 @@ export const Library = () => {
   }, []);
 
   useEffect(() => {
-    if (VISIBLE_LIBRARY_TABS.has(libraryTab)) return;
-    setLibraryTab(libraryTab === 'tracks' || libraryTab === 'history' ? 'recent' : 'favorites');
-  }, [libraryTab, setLibraryTab]);
-
-  useEffect(() => {
     if (!collectionNotice) return;
     const timeout = window.setTimeout(() => setCollectionNotice(null), 2800);
     return () => window.clearTimeout(timeout);
   }, [collectionNotice]);
+
+  useEffect(() => {
+    if (selectedCollectionId !== null || pendingCollectionScrollRestoreRef.current === null) return;
+    const scrollY = pendingCollectionScrollRestoreRef.current;
+    let innerFrame = 0;
+    const outerFrame = window.requestAnimationFrame(() => {
+      innerFrame = window.requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, behavior: 'auto' });
+        pendingCollectionScrollRestoreRef.current = null;
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(outerFrame);
+      if (innerFrame) {
+        window.cancelAnimationFrame(innerFrame);
+      }
+    };
+  }, [selectedCollectionId]);
 
   const compactRows = viewportWidth < 720;
   const stationMap = useMemo(
@@ -209,9 +223,9 @@ export const Library = () => {
     setSelectedCollectionId(collectionId);
   };
   const closeCollectionDetail = () => {
+    pendingCollectionScrollRestoreRef.current = collectionScrollYRef.current;
     setSelectedCollectionId(null);
     setCollectionReorderMode(false);
-    window.requestAnimationFrame(() => window.scrollTo({ top: collectionScrollYRef.current }));
   };
   const addCurrentToCollection = (collectionId: string, collectionName: string) => {
     if (!player.current) return;

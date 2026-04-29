@@ -613,6 +613,7 @@ export const enDictionary = {
     "useDefault": "Use default",
     "resetClassic": "Reset to classic",
     "preview": "Preview",
+    "previewWillRender": "Apply to render this skin in the player shell.",
     "libraryTitle": "Library",
     "libraryCopy": "Search the Webamp Skin Museum or pick a bundled preset.",
     "museum": "Museum",

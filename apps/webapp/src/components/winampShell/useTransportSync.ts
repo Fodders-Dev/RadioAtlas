@@ -26,11 +26,9 @@ type UseWinampTransportSyncArgs = {
   lastAppliedBalanceRef: MutableRefObject<number | null>;
   suppressVolumeSyncUntilRef: MutableRefObject<number>;
   syncExpandedEqStateFromDom: () => void;
-  activeSkinUrl: string;
 };
 
 export const useWinampTransportSync = ({
-  activeSkinUrl,
   lastAppliedBalanceRef,
   lastAppliedVolumeRef,
   lastElapsedTimeSyncRef,
@@ -142,7 +140,7 @@ export const useWinampTransportSync = ({
     } catch (error) {
       console.error('Winamp time mode sync failed', error);
     }
-  }, [activeSkinUrl, webampReady, webampRef]);
+  }, [webampReady, webampRef]);
 
   useEffect(() => {
     const instance = webampRef.current;

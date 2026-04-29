@@ -203,7 +203,7 @@ export const HomeHeroCard = ({
 
           <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
             <strong>{isActive && activeTrack ? activeTrack : stationTags(station)}</strong>
-            <span>{isActive ? t('app.liveBadge') : t('home.heroExploreHint')}</span>
+            {isActive ? <span>{t('app.liveBadge')}</span> : null}
           </div>
 
           <div className="home-hero-actions">
@@ -214,13 +214,15 @@ export const HomeHeroCard = ({
             >
               {isActive ? t('common.pause') : t('common.play')}
             </button>
-            <button
-              className="home-secondary-btn"
-              type="button"
-              onClick={() => onExplore(module.querySuggestion)}
-            >
-              {t('home.heroExploreAction')}
-            </button>
+            {!dense ? (
+              <button
+                className="home-secondary-btn"
+                type="button"
+                onClick={() => onExplore(module.querySuggestion)}
+              >
+                {t('home.heroExploreAction')}
+              </button>
+            ) : null}
             <button
               className={`home-icon-btn ${liked ? 'is-liked' : ''}`.trim()}
               type="button"

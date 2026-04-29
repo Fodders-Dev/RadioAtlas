@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { searchMuseumSkins } from '../lib/skinMuseum';
 import { extractSkinPaletteFromBlob, extractSkinPaletteFromUrl } from '../lib/skinTheme';
 import { WINAMP_CLASSIC_PALETTE } from '../lib/winampSkins';
@@ -20,12 +20,6 @@ type SkinLabSheetProps = {
   onClose: () => void;
 };
 
-const SAMPLE_STATION = {
-  name: 'RadioAtlas Lab FM',
-  meta: 'Preview only - no audio',
-  track: 'Mock Song - Purple Signals'
-};
-
 const candidateKey = (skin: SkinLabCandidate | ActiveWinampSkin | null) => {
   if (!skin) return 'none';
   if (skin.source === 'museum') return `museum:${skin.md5}`;
@@ -39,42 +33,23 @@ const toCandidate = (skin: ActiveWinampSkin): SkinLabCandidate => {
 };
 
 const PreviewShell = ({ skin }: { skin: SkinLabCandidate }) => {
-  const palette: SkinPalette = skin.palette || WINAMP_CLASSIC_PALETTE;
-  const style = {
-    '--skin-preview-bg': palette.bg,
-    '--skin-preview-panel': palette.panel,
-    '--skin-preview-accent': palette.accent,
-    '--skin-preview-muted': palette.muted,
-    '--skin-preview-border': palette.border,
-    '--skin-preview-text': palette.text
-  } as CSSProperties;
+  const { t } = useLocale();
 
   return (
     <div
       className="skin-lab-preview-shell"
-      style={style}
       data-preview-skin-source={skin.source}
       data-preview-skin-name={skin.name}
     >
-      <div className="skin-lab-preview-titlebar">
-        <span>WINAMP</span>
-        <strong>{skin.name}</strong>
-      </div>
-      <div className="skin-lab-preview-display">
-        <span>{SAMPLE_STATION.name}</span>
-        <strong>{SAMPLE_STATION.track}</strong>
-      </div>
-      <div className="skin-lab-preview-controls" aria-hidden="true">
-        <span />
-        <span />
-        <span className="active" />
-        <span />
-        <span />
-      </div>
-      <div className="skin-lab-preview-playlist">
-        <div>{SAMPLE_STATION.meta}</div>
-        <div>01. {SAMPLE_STATION.name}</div>
-      </div>
+      {skin.source === 'museum' && skin.screenshotUrl ? (
+        <img className="skin-lab-preview-image" src={skin.screenshotUrl} alt={skin.name} />
+      ) : (
+        <div className="skin-lab-preview-fallback-panel" data-preview-fallback={skin.source}>
+          <span>{skin.source === 'uploaded' ? 'WSZ' : 'WIN'}</span>
+          <strong>{skin.name}</strong>
+          <small>{t('skin.previewWillRender')}</small>
+        </div>
+      )}
     </div>
   );
 };

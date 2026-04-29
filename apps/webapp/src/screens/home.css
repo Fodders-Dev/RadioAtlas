@@ -564,11 +564,12 @@
 }
 
 .home-hero-card.is-dense .home-hero-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
   gap: 6px;
 }
 
-.home-hero-card.is-dense .home-primary-btn,
-.home-hero-card.is-dense .home-secondary-btn {
+.home-hero-card.is-dense .home-primary-btn {
   min-height: 36px;
   padding: 0 11px;
 }
@@ -725,7 +726,7 @@
 
   .home-hero-card.is-dense .home-hero-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+    grid-template-columns: minmax(0, 1fr) 34px;
     gap: 6px;
   }
 

@@ -15,6 +15,7 @@ type WebampInstance = {
   renderWhenReady: (node: HTMLElement) => Promise<void>;
   dispose: () => void;
   setTracksToPlay?: (tracks: WebampTrack[]) => void;
+  setSkinFromUrl?: (url: string) => Promise<void> | void;
   play?: () => void;
   setVolume?: (volume: number) => void;
   setBalance?: (balance: number) => void;

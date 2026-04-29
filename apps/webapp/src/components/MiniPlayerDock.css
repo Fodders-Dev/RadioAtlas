@@ -9,7 +9,8 @@
   max-width: min(168px, calc(100vw - 90px));
 }
 
-.player-dock .player-dock-title {
+.player-dock.player-dock-bar .player-dock-title,
+.player-dock.player-dock-peek .player-dock-title {
   font-size: 14px;
   font-weight: 700;
   line-height: 1.18;
@@ -19,7 +20,7 @@
   text-overflow: ellipsis;
 }
 
-.player-dock .player-peek-label {
+.player-dock.player-dock-peek .player-peek-label {
   display: block;
   max-width: 60vw;
   min-width: 0;
@@ -97,7 +98,8 @@
 }
 
 @media (max-width: 430px) {
-  .player-dock .player-dock-title {
+  .player-dock.player-dock-bar .player-dock-title,
+  .player-dock.player-dock-peek .player-dock-title {
     font-size: 14px;
     line-height: 1.18;
   }
