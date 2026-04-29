@@ -287,14 +287,30 @@ for (const width of [360, 390]) {
         heroHeight: hero?.height || 0,
         visibleRailTiles,
         railDisplay: railListStyle.display,
-        railOverflowX: railListStyle.overflowX
+        railOverflowX: railListStyle.overflowX,
+        railRows: railListStyle.gridTemplateRows
       };
     });
     expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
     expect(compactHomeMetrics.heroHeight).toBeLessThanOrEqual(92);
-    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(3);
-    expect(compactHomeMetrics.railDisplay).toBe('flex');
+    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(5);
+    expect(compactHomeMetrics.railDisplay).toBe('grid');
+    expect(compactHomeMetrics.railRows).not.toBe('none');
     expect(compactHomeMetrics.railOverflowX).toBe('auto');
+    await expect(page.locator('.home-rail-scroll-controls')).toBeVisible();
+    const railScroll = page.locator('[data-home-rail] .home-horizontal-scroll');
+    const beforeScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
+    const afterWheelScrollLeft = await railScroll.evaluate((node) => {
+      node.dispatchEvent(new WheelEvent('wheel', { deltaY: 360, bubbles: true, cancelable: true }));
+      return node.scrollLeft;
+    });
+    const canScrollRail = await railScroll.evaluate((node) => node.scrollWidth > node.clientWidth);
+    if (canScrollRail) {
+      expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
+      await page.locator('.home-rail-scroll-btn').last().click();
+      const afterButtonScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
+      expect(afterButtonScrollLeft).toBeGreaterThanOrEqual(afterWheelScrollLeft);
+    }
     await expectNoHomeHorizontalOverflow(page);
 
     await page.locator('[data-home-rail] [data-home-station] .home-action-btn-play').first().click();

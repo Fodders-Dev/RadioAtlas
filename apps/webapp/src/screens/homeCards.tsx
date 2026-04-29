@@ -1,3 +1,4 @@
+import { useRef, type WheelEvent } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import type {
   HomeHeroModule,
@@ -369,6 +370,26 @@ export const HomeRail = ({
   onExplore
 }: HomeRailProps) => {
   const { t } = useLocale();
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const visibleStations = module.stations.slice(0, dense ? 6 : module.stations.length);
+  const scrollRail = (direction: -1 | 1) => {
+    const node = railRef.current;
+    if (!node) return;
+    node.scrollBy({
+      left: direction * Math.max(node.clientWidth * 0.72, 220),
+      behavior: 'smooth'
+    });
+  };
+  const handleRailWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!dense || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const node = railRef.current;
+    if (!node || node.scrollWidth <= node.clientWidth) return;
+    const maxScrollLeft = node.scrollWidth - node.clientWidth;
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, node.scrollLeft + event.deltaY));
+    if (nextScrollLeft === node.scrollLeft) return;
+    event.preventDefault();
+    node.scrollLeft = nextScrollLeft;
+  };
 
   return (
     <section
@@ -389,10 +410,34 @@ export const HomeRail = ({
             {module.label}
           </button>
         ) : null}
+        {dense && visibleStations.length > 3 ? (
+          <div className="home-rail-scroll-controls">
+            <button
+              className="home-rail-scroll-btn"
+              type="button"
+              aria-label={t('common.back')}
+              onClick={() => scrollRail(-1)}
+            >
+              ‹
+            </button>
+            <button
+              className="home-rail-scroll-btn"
+              type="button"
+              aria-label={t('common.next')}
+              onClick={() => scrollRail(1)}
+            >
+              ›
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="home-horizontal-scroll home-rail-list">
-        {module.stations.slice(0, dense ? 4 : module.stations.length).map((station) => (
+      <div
+        className="home-horizontal-scroll home-rail-list"
+        ref={railRef}
+        onWheel={handleRailWheel}
+      >
+        {visibleStations.map((station) => (
           <HomeStationTile
             key={station.stationuuid}
             station={station}
