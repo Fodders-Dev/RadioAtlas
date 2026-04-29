@@ -383,6 +383,23 @@ input {
   min-height: 136px;
 }
 
+.screen-skeleton-home-hero {
+  display: grid;
+  gap: 12px;
+}
+
+.screen-skeleton-home-hero-card {
+  min-height: 220px;
+  align-content: end;
+}
+
+.screen-skeleton-home-ribbon {
+  grid-template-columns: 42px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
 .screen-skeleton-lines {
   display: grid;
   gap: 9px;
@@ -3106,6 +3123,7 @@ body {
 }
 
 .player-peek-label {
+  max-width: 60vw;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

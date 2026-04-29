@@ -3,7 +3,7 @@ import type { AppSection } from '../types';
 
 type AppScreenSkeletonProps = {
   section: AppSection;
-  scope?: 'screen' | 'sheet' | 'overlay';
+  scope?: 'screen' | 'sheet' | 'overlay' | 'home-hero';
 };
 
 const SKELETON_ROWS: Record<AppSection, number> = {
@@ -19,6 +19,36 @@ export const AppScreenSkeleton = ({
 }: AppScreenSkeletonProps) => {
   const { t } = useLocale();
   const rows = SKELETON_ROWS[section];
+
+  if (scope === 'home-hero') {
+    return (
+      <section
+        className="screen-skeleton screen-skeleton-home-hero"
+        aria-label={t('common.loading')}
+        aria-busy="true"
+      >
+        <div className="glass-card screen-skeleton-card screen-skeleton-home-hero-card">
+          <div className="screen-skeleton-lines">
+            <span className="screen-skeleton-line short" />
+            <span className="screen-skeleton-line title" />
+            <span className="screen-skeleton-line medium" />
+          </div>
+          <div className="screen-skeleton-chip-row">
+            <span className="screen-skeleton-chip" />
+            <span className="screen-skeleton-chip long" />
+          </div>
+        </div>
+        <div className="glass-card screen-skeleton-card screen-skeleton-home-ribbon">
+          <span className="screen-skeleton-avatar" />
+          <div className="screen-skeleton-lines">
+            <span className="screen-skeleton-line medium" />
+            <span className="screen-skeleton-line short" />
+          </div>
+          <span className="screen-skeleton-pill" />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

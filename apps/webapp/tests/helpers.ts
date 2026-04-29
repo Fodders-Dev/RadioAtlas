@@ -225,6 +225,7 @@ type MockStationsOptions = {
     google?: boolean;
     vk?: boolean;
   };
+  summaryHandler?: Parameters<Page['route']>[1];
 };
 
 const buildStationCache = (items: SeedStation[]) =>
@@ -389,7 +390,8 @@ export const mockStations = async (
       telegram: false,
       google: false,
       vk: false
-    }
+    },
+    summaryHandler
   }: MockStationsOptions = {}
 ) => {
   const body = JSON.stringify(stations);
@@ -469,8 +471,11 @@ export const mockStations = async (
   await page.route('**/json/stations/search**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
   );
-  await page.route('**/catalog/summary**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: summaryBody })
+  await page.route(
+    '**/catalog/summary**',
+    summaryHandler ||
+      ((route) =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: summaryBody }))
   );
   await page.route('**/catalog/search**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: searchBody })
@@ -558,12 +563,28 @@ export const mockStations = async (
 };
 
 export const playHomeStation = async (page: Page, name: string) => {
-  const searchInput = page.locator('#home-search-launcher').first();
   await page.locator('[data-home-hero]').waitFor({ state: 'visible' });
-  await searchInput.waitFor({ state: 'visible' });
-  await searchInput.fill(name);
-  await page.waitForTimeout(450);
-  const row = page.locator('[data-home-search-preview] [data-home-station]').filter({ hasText: name }).first();
+  const searchInput = page.locator('#home-search-launcher').first();
+  if (await searchInput.isVisible().catch(() => false)) {
+    await searchInput.fill(name);
+    await page.waitForTimeout(450);
+    const row = page.locator('[data-home-search-preview] [data-home-station]').filter({ hasText: name }).first();
+    await row.waitFor({ state: 'visible' });
+    await row.locator('.home-action-btn-play').click();
+    return;
+  }
+
+  const homeRow = page.locator('[data-home-station]').filter({ hasText: name }).first();
+  if (await homeRow.isVisible().catch(() => false)) {
+    await homeRow.locator('.home-action-btn-play').click();
+    return;
+  }
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+  const discoverInput = page.locator('.search-command-card .search-bar input').first();
+  await discoverInput.waitFor({ state: 'visible' });
+  await discoverInput.fill(name);
+  const row = page.locator('.station-row').filter({ hasText: name }).first();
   await row.waitFor({ state: 'visible' });
-  await row.locator('.home-action-btn-play').click();
+  await row.locator('button[aria-label="Воспроизвести"], button[aria-label="Play"], .station-compact-play').first().click();
 };
