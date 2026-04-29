@@ -194,6 +194,8 @@ export type ShellContextValue = {
   searchDraft: string;
   setSearchDraft: (value: string) => void;
   clearSearchDraft: () => void;
+  globeFocusRegionId: string | null;
+  setGlobeFocusRegionId: (regionId: string | null) => void;
   openWebAppExternally: () => void;
   clearCache: () => void;
 };

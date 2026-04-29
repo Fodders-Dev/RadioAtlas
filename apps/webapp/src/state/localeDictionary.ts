@@ -18,7 +18,10 @@ export const defaultDictionary: DictionaryTree = {
     close: 'Close',
     play: 'Play',
     pause: 'Pause',
-    next: 'Next'
+    next: 'Next',
+    back: 'Назад',
+    save: 'Сохранить',
+    cancel: 'Отмена'
   },
   nav: {
     home: 'Главная',
@@ -51,7 +54,17 @@ export const defaultDictionary: DictionaryTree = {
   },
   library: {
     topbarSubtitle: 'Твоё избранное, очередь и история',
-    kicker: 'Library'
+    kicker: 'Library',
+    collectionAdded: '{station} добавлена в {collection}',
+    collectionCreated: 'Коллекция создана: {name}',
+    openCollection: 'Открыть',
+    seeAllStations: 'Все станции',
+    collectionOpenHint: 'Открой, чтобы слушать и убирать станции.',
+    removeStationFromCollection: 'Убрать {station} из коллекции',
+    reorderMode: 'Порядок',
+    reorderDone: 'Готово',
+    unfollow: 'Отписаться',
+    openRegion: 'Открыть глобус'
   },
   account: {
     title: 'Аккаунт',

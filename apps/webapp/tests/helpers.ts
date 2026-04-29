@@ -212,11 +212,45 @@ const DEFAULT_HOME_SEED = 424242;
 
 type SeedStation = (typeof stations)[number];
 type SeedRadioStateOptions = {
+  activeSection?: 'home' | 'search' | 'globe' | 'library';
+  libraryTab?: string;
   homeSessionSeed?: number;
   favorites?: SeedStation[];
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
   queue?: SeedStation[];
+  stationCache?: SeedStation[];
+  collections?: Array<{
+    id: string;
+    name: string;
+    stationIds: string[];
+    isPublic?: boolean;
+    updatedAt?: number;
+    createdAt?: number;
+    pinned?: boolean;
+  }>;
+  followedStations?: Array<{
+    stationId: string;
+    stationName: string;
+    country: string;
+    createdAt?: number;
+    pinned?: boolean;
+    alerts?: Array<'back-online' | 'track' | 'live-show'>;
+  }>;
+  followedRegions?: Array<{
+    id: string;
+    label: string;
+    scope: 'country' | 'area';
+    createdAt?: number;
+    pinned?: boolean;
+  }>;
+  trackHistory?: Array<{
+    id: string;
+    stationId: string;
+    stationName: string;
+    track: string;
+    timestamp: number;
+  }>;
 };
 
 type MockStationsOptions = {
@@ -262,14 +296,22 @@ export const mockStreamAudio = createSilentWav();
 export const seedRadioState = async (
   page: Page,
   {
+    activeSection = 'home',
+    libraryTab = 'favorites',
     homeSessionSeed = DEFAULT_HOME_SEED,
     favorites = [],
     recent = [],
     playbackHistory = [],
-    queue = []
+    queue = [],
+    stationCache = [],
+    collections = [],
+    followedStations = [],
+    followedRegions = [],
+    trackHistory = []
   }: SeedRadioStateOptions = {}
 ) => {
   const cachedStations = buildStationCache([
+    ...stationCache,
     ...favorites,
     ...recent,
     ...playbackHistory,
@@ -288,9 +330,9 @@ export const seedRadioState = async (
         version: 2,
         shell: {
           version: 3,
-          activeSection: 'home',
+          activeSection,
           playerPresentation: 'peek',
-          libraryTab: 'favorites',
+          libraryTab,
           detailsOpen: false,
           home: {
             sessionSeed: homeSessionSeed,
@@ -320,11 +362,26 @@ export const seedRadioState = async (
         version: 2,
         favorites,
         recent,
-        collections: [],
-        followedStations: [],
-        followedRegions: [],
+        collections: collections.map((collection) => ({
+          isPublic: false,
+          updatedAt: FIXED_GENERATED_AT,
+          createdAt: FIXED_GENERATED_AT,
+          pinned: false,
+          ...collection
+        })),
+        followedStations: followedStations.map((station) => ({
+          createdAt: FIXED_GENERATED_AT,
+          pinned: false,
+          alerts: [],
+          ...station
+        })),
+        followedRegions: followedRegions.map((region) => ({
+          createdAt: FIXED_GENERATED_AT,
+          pinned: false,
+          ...region
+        })),
         alerts: [],
-        trackHistory: [],
+        trackHistory,
         playbackHistory,
         stationCache: cachedStations
       },

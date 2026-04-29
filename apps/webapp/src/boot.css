@@ -89,10 +89,23 @@ a {
 .app-stage-v2 {
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 
 .app-screen-frame {
   min-height: 100%;
+  min-width: 0;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(1180px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  padding-bottom: 8px;
 }
 
 .app-navigation-mobile {
@@ -129,6 +142,23 @@ a {
   min-height: 58px;
   padding: 8px 6px;
   font-size: 0.76rem;
+}
+
+.library-tab-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.library-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.library-tab-chip {
+  flex: 0 0 auto;
 }
 
 .mobile-nav-icon svg,

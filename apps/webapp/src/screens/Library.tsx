@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import { stationLocation } from '../lib/stationUtils';
@@ -7,7 +7,8 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
 
-const TAB_ORDER: LibraryTab[] = ['favorites', 'tracks', 'queue', 'recent', 'history', 'collections'];
+const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'collections'];
+const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
 
 export const Library = () => {
   const {
@@ -27,10 +28,12 @@ export const Library = () => {
     toggleCollectionPinned,
     addStationToCollection,
     removeStationFromCollection,
+    toggleFollowStation,
+    toggleFollowRegion,
     markAlertRead
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playLast, playNext } = usePlayback();
-  const { setActiveSection, libraryTab, setLibraryTab } = useShell();
+  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId } = useShell();
   const {
     status: sessionStatus,
     profile,
@@ -42,12 +45,30 @@ export const Library = () => {
     typeof window !== 'undefined' ? window.innerWidth : 1024
   );
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [collectionNameDraft, setCollectionNameDraft] = useState('');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const [collectionNotice, setCollectionNotice] = useState<string | null>(null);
+  const [trackJournalOpen, setTrackJournalOpen] = useState(false);
+  const [collectionReorderMode, setCollectionReorderMode] = useState(false);
+  const collectionScrollYRef = useRef(0);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (VISIBLE_LIBRARY_TABS.has(libraryTab)) return;
+    setLibraryTab(libraryTab === 'tracks' || libraryTab === 'history' ? 'recent' : 'favorites');
+  }, [libraryTab, setLibraryTab]);
+
+  useEffect(() => {
+    if (!collectionNotice) return;
+    const timeout = window.setTimeout(() => setCollectionNotice(null), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [collectionNotice]);
 
   const compactRows = viewportWidth < 720;
   const stationMap = useMemo(
@@ -112,22 +133,100 @@ export const Library = () => {
         left.name.localeCompare(right.name, locale)
     );
   }, [collectionSort, collections, locale]);
+  const recentStations = useMemo(() => {
+    const seen = new Set<string>();
+    return [player.current, ...recent, ...playbackHistory.slice().reverse()]
+      .filter((station): station is StationLite => Boolean(station))
+      .filter((station) => {
+        if (seen.has(station.stationuuid)) return false;
+        seen.add(station.stationuuid);
+        return true;
+      });
+  }, [playbackHistory, player.current, recent]);
+  const selectedCollection =
+    selectedCollectionId ? collections.find((collection) => collection.id === selectedCollectionId) || null : null;
+  const selectedCollectionStations = useMemo(() => {
+    if (!selectedCollection) return [];
+    return selectedCollection.stationIds
+      .map((stationId) => stationMap.get(stationId))
+      .filter(Boolean) as StationLite[];
+  }, [selectedCollection, stationMap]);
+  const followedStationRows = useMemo(
+    () =>
+      libraryFeed.followedStationsPreview.map((follow) => {
+        const station = stationMap.get(follow.stationId) || null;
+        const fallbackStation: StationLite =
+          station || {
+            stationuuid: follow.stationId,
+            name: follow.stationName,
+            url_resolved: '',
+            homepage: '',
+            favicon: '',
+            tags: '',
+            country: follow.country,
+            state: '',
+            geo_lat: null,
+            geo_long: null
+          };
+        return {
+          follow,
+          station,
+          fallbackStation
+        };
+      }),
+    [libraryFeed.followedStationsPreview, stationMap]
+  );
+  const activeLibraryTab = VISIBLE_LIBRARY_TABS.has(libraryTab) ? libraryTab : 'recent';
   const tabCounts: Record<LibraryTab, number> = {
     favorites: favorites.length,
     tracks: trackHistory.length,
     queue: queue.items.length,
-    recent: recent.length,
+    recent: recentStations.length,
     history: playbackHistory.length,
     collections: collections.length
   };
   const returnToAirStations = libraryFeed.returnToAir;
 
-  const promptCreateCollection = () => {
-    const name = window.prompt(t('library.createCollectionPrompt'), '');
+  const beginCreateCollection = () => {
+    setCollectionNameDraft('');
+    setIsCreatingCollection(true);
+  };
+  const cancelCreateCollection = () => {
+    setCollectionNameDraft('');
+    setIsCreatingCollection(false);
+  };
+  const saveCollection = () => {
+    const name = collectionNameDraft.trim();
     if (!name) return;
     createCollection(name);
+    setCollectionNotice(t('library.collectionCreated', { name }));
+    cancelCreateCollection();
   };
   const openLibraryTab = (tab: LibraryTab) => setLibraryTab(tab);
+  const openCollectionDetail = (collectionId: string) => {
+    collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
+    setCollectionReorderMode(false);
+    setSelectedCollectionId(collectionId);
+  };
+  const closeCollectionDetail = () => {
+    setSelectedCollectionId(null);
+    setCollectionReorderMode(false);
+    window.requestAnimationFrame(() => window.scrollTo({ top: collectionScrollYRef.current }));
+  };
+  const addCurrentToCollection = (collectionId: string, collectionName: string) => {
+    if (!player.current) return;
+    addStationToCollection(collectionId, player.current);
+    setCollectionNotice(
+      t('library.collectionAdded', {
+        station: player.current.name,
+        collection: collectionName
+      })
+    );
+  };
+  const openFollowedRegion = (regionId: string) => {
+    setGlobeFocusRegionId(regionId);
+    setActiveSection('globe');
+  };
   const queueLeadStation =
     player.current ??
     (queue.currentIndex >= 0 ? queue.items[queue.currentIndex] : null) ??
@@ -137,12 +236,12 @@ export const Library = () => {
   const queueSlotValue = queue.items.length
     ? `${Math.min(Math.max(queue.currentIndex, 0) + 1, queue.items.length)}/${queue.items.length}`
     : '0/0';
-  const recentSessionPreview = playbackHistory.slice().reverse().slice(0, 4);
+  const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
   const playHistoryStation = (station: StationLite) => {
     playStation(station, {
-      playlist: recentSessionPreview.length ? recentSessionPreview : [station],
-      sourceId: 'history',
+      playlist: recentStations.length ? recentStations : [station],
+      sourceId: 'recent',
       sourceLabel: t('playlist.historyTitle')
     });
   };
@@ -173,7 +272,7 @@ export const Library = () => {
         {TAB_ORDER.map((tab) => (
           <button
             key={tab}
-            className={`chip library-tab-chip ${libraryTab === tab ? 'active' : ''}`}
+            className={`chip library-tab-chip ${activeLibraryTab === tab ? 'active' : ''}`}
             type="button"
             onClick={() => setLibraryTab(tab)}
           >
@@ -183,7 +282,7 @@ export const Library = () => {
         ))}
       </div>
 
-      {libraryTab === 'favorites' ? (
+      {activeLibraryTab === 'favorites' ? (
         <div className="glass-card">
           <div className="library-section-head">
             <div>
@@ -222,7 +321,7 @@ export const Library = () => {
         </div>
       ) : null}
 
-      {libraryTab === 'queue' ? (
+      {activeLibraryTab === 'queue' ? (
         <div className="glass-card library-queue-shell">
           <div className="library-section-head">
             <div>
@@ -245,7 +344,7 @@ export const Library = () => {
               <button className="chip" type="button" onClick={playNext} disabled={queue.items.length <= 1}>
                 {t('common.next')}
               </button>
-              <button className="chip" type="button" onClick={() => openLibraryTab('history')}>
+              <button className="chip" type="button" onClick={() => openLibraryTab('recent')}>
                 {t('library.openHistoryAction')}
               </button>
               <button className="chip" type="button" onClick={() => queue.clearQueue()} disabled={!queue.items.length}>
@@ -408,7 +507,7 @@ export const Library = () => {
                   className="chip"
                   type="button"
                   onClick={playLast}
-                  disabled={!returnToAirStations.length && !recent.length && !player.current}
+                disabled={!returnToAirStations.length && !recentStations.length && !player.current}
                 >
                   {t('common.resume')}
                 </button>
@@ -418,7 +517,7 @@ export const Library = () => {
         </div>
       ) : null}
 
-      {libraryTab === 'recent' ? (
+      {activeLibraryTab === 'recent' ? (
         <div className="glass-card">
           <div className="library-section-head">
             <div>
@@ -429,13 +528,63 @@ export const Library = () => {
               {t('settings.clearRecent')}
             </button>
           </div>
-          {recent.length ? (
-            <StationTable
-              stations={recent}
-              compact={compactRows}
-              sourceId="recent"
-              nowPlayingMode="viewport"
-            />
+          {recentStations.length ? (
+            <>
+              <StationTable
+                stations={recentStations}
+                compact={compactRows}
+                sourceId="recent"
+                nowPlayingMode="viewport"
+              />
+              <div className="library-track-journal-panel">
+                <div className="library-section-head">
+                  <div>
+                    <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
+                    <div className="section-subtitle">{t('library.trackJournalCollapsed')}</div>
+                  </div>
+                  <div className="chip-row">
+                    <button
+                      className={`chip ${trackJournalOpen ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setTrackJournalOpen((value) => !value)}
+                      disabled={!trackHistory.length}
+                    >
+                      {trackJournalOpen ? t('library.trackJournalCollapse') : t('library.trackJournalExpand')}
+                    </button>
+                    {trackHistory.length ? (
+                      <button className="chip" type="button" onClick={clearTrackHistory}>
+                        {t('common.clear')}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                {trackJournalOpen ? (
+                  trackHistory.length ? (
+                    <div className="track-list track-list-scroll">
+                      {trackHistory.map((item) => (
+                        <div key={item.id} className="track-card">
+                          <div className="track-card-copy">
+                            <div className="track-title">{item.track}</div>
+                            <div className="track-meta">
+                              {item.stationName} · {formatTime(item.timestamp)}
+                            </div>
+                          </div>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(item.track)}
+                          >
+                            {t('common.copy')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
+                  )
+                ) : null}
+              </div>
+            </>
           ) : (
             <div className="empty-state library-empty-state">
               <div className="library-empty-title">{t('explore.recentTitle')}</div>
@@ -453,91 +602,98 @@ export const Library = () => {
         </div>
       ) : null}
 
-      {libraryTab === 'tracks' ? (
-        <div className="glass-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
-              <div className="section-subtitle">{t('library.trackJournal')}</div>
+      {activeLibraryTab === 'collections' ? (
+        <div className="library-collections-stack">
+          {collectionNotice ? (
+            <div className="library-inline-toast" role="status">
+              {collectionNotice}
             </div>
-            {trackHistory.length ? (
-              <button className="chip" type="button" onClick={clearTrackHistory}>
-                {t('common.clear')}
-              </button>
-            ) : null}
-          </div>
-          <div className="library-journal-summary">
-            <div className="globe-selection-pill">
-              <span>{t('favoritesScreen.journalTitle')}</span>
-              <strong>{t('library.trackJournalCount', { count: trackHistory.length })}</strong>
-            </div>
-            {trackHistory[0] ? (
-              <div className="globe-selection-pill">
-                <span>{t('common.song')}</span>
-                <strong title={trackHistory[0].track}>{trackHistory[0].track}</strong>
-              </div>
-            ) : null}
-          </div>
-          {trackHistory.length ? (
-            <div className="track-list track-list-scroll">
-              {trackHistory.map((item) => (
-                <div key={item.id} className="track-card">
-                  <div className="track-card-copy">
-                    <div className="track-title">{item.track}</div>
-                    <div className="track-meta">
-                      {item.stationName} · {formatTime(item.timestamp)}
-                    </div>
+          ) : null}
+
+          {selectedCollection ? (
+            <div className="glass-card library-collection-detail" data-library-collection-detail>
+              <div className="library-section-head">
+                <div>
+                  <button className="chip" type="button" onClick={closeCollectionDetail}>
+                    {t('common.back')}
+                  </button>
+                  <div className="section-title">{selectedCollection.name}</div>
+                  <div className="section-subtitle">
+                    {t('library.collectionCount', { count: selectedCollection.stationIds.length })}
                   </div>
-                  <button className="chip" type="button" onClick={() => navigator.clipboard.writeText(item.track)}>
-                    {t('common.copy')}
+                </div>
+                <div className="chip-row">
+                  <button
+                    className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => toggleCollectionPinned(selectedCollection.id)}
+                  >
+                    {selectedCollection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
+                  </button>
+                  {player.current ? (
+                    <button
+                      className="chip active"
+                      type="button"
+                      onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}
+                    >
+                      {t('library.addCurrentToCollection')}
+                    </button>
+                  ) : null}
+                  <button
+                    className={`chip ${collectionReorderMode ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setCollectionReorderMode((value) => !value)}
+                  >
+                    {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
                   </button>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state library-empty-state">
-              <div className="library-empty-title">{t('favoritesScreen.journalTitle')}</div>
-              <div className="section-subtitle">{t('favoritesScreen.journalEmpty')}</div>
-              <div className="hero-chip-row">
-                <button className="chip active" type="button" onClick={() => setActiveSection('search')}>
-                  {t('home.openSearch')}
-                </button>
-                <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
-                  {t('home.openGlobe')}
-                </button>
               </div>
-            </div>
-          )}
-        </div>
-      ) : null}
 
-      {libraryTab === 'history' ? (
-        <div className="library-history-grid">
-          <div className="glass-card">
-            <div className="section-title">{t('playlist.historyTitle')}</div>
-            <div className="section-subtitle">{t('library.stationHistory')}</div>
-            {playbackHistory.length ? (
-              <div className="playlist-history-list">
-                {playbackHistory
-                  .slice()
-                  .reverse()
-                  .slice(0, 16)
-                  .map((station) => (
-                    <div key={`${station.stationuuid}-${station.name}`} className="playlist-history-item">
-                      <div className="playlist-history-name">{station.name}</div>
-                      <div className="playlist-history-meta">{stationLocation(station)}</div>
+              {selectedCollectionStations.length ? (
+                <div className="library-detail-station-list">
+                  {selectedCollectionStations.map((station, index) => (
+                    <div
+                      key={`${selectedCollection.id}-${station.stationuuid}`}
+                      className="playlist-row library-detail-station-row"
+                      data-library-collection-row
+                      data-station-id={station.stationuuid}
+                    >
+                      <div className="playlist-order">{index + 1}</div>
+                      <div className="playlist-body">
+                        <div className="playlist-name">{station.name}</div>
+                        <div className="playlist-meta">{stationLocation(station)}</div>
+                      </div>
+                      <div className="playlist-actions">
+                        <button
+                          className="chip active"
+                          type="button"
+                          onClick={() =>
+                            playStation(station, {
+                              playlist: selectedCollectionStations,
+                              sourceId: `collection-${selectedCollection.id}`,
+                              sourceLabel: selectedCollection.name
+                            })
+                          }
+                        >
+                          {t('common.play')}
+                        </button>
+                        <button
+                          className="chip"
+                          type="button"
+                          aria-label={t('library.removeStationFromCollection', { station: station.name })}
+                          onClick={() => removeStationFromCollection(selectedCollection.id, station.stationuuid)}
+                        >
+                          {t('common.remove')}
+                        </button>
+                      </div>
                     </div>
                   ))}
-              </div>
-            ) : (
-              <div className="empty-state">{t('playlist.historyEmpty')}</div>
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {libraryTab === 'collections' ? (
-        <div className="library-collections-stack">
+                </div>
+              ) : (
+                <div className="empty-state library-empty-state">{t('library.collectionEmpty')}</div>
+              )}
+            </div>
+          ) : (
           <div className="glass-card">
             <div className="library-section-head">
               <div>
@@ -566,23 +722,53 @@ export const Library = () => {
                 >
                   {t('library.sortName')}
                 </button>
-                <button className="chip active" type="button" onClick={promptCreateCollection}>
+                <button className="chip active" type="button" onClick={beginCreateCollection}>
                   {t('library.createCollection')}
                 </button>
               </div>
             </div>
+            {isCreatingCollection ? (
+              <form
+                className="library-create-collection-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  saveCollection();
+                }}
+              >
+                <input
+                  value={collectionNameDraft}
+                  onChange={(event) => setCollectionNameDraft(event.target.value)}
+                  placeholder={t('library.createCollectionPrompt')}
+                  aria-label={t('library.createCollectionPrompt')}
+                  autoFocus
+                />
+                <button className="chip active" type="submit" disabled={!collectionNameDraft.trim()}>
+                  {t('common.save')}
+                </button>
+                <button className="chip" type="button" onClick={cancelCreateCollection}>
+                  {t('common.cancel')}
+                </button>
+              </form>
+            ) : null}
             <div className="library-collection-grid">
               {sortedCollections.length ? (
                 sortedCollections.map((collection) => (
                   <div key={collection.id} className="library-collection-card">
                     <div className="library-collection-head">
-                      <div>
+                      <button
+                        className="library-collection-title-button"
+                        type="button"
+                        onClick={() => openCollectionDetail(collection.id)}
+                      >
                         <div className="section-title">{collection.name}</div>
                         <div className="section-subtitle">
                           {t('library.collectionCount', { count: collection.stationIds.length })}
                         </div>
-                      </div>
+                      </button>
                       <div className="chip-row">
+                        <button className="chip active" type="button" onClick={() => openCollectionDetail(collection.id)}>
+                          {t('library.openCollection')}
+                        </button>
                         <button
                           className={`chip ${collection.pinned ? 'active' : ''}`}
                           type="button"
@@ -590,33 +776,24 @@ export const Library = () => {
                         >
                           {collection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
                         </button>
-                        <button
-                          className="chip"
-                          type="button"
-                          onClick={() => {
-                            const station = player.current || favorites[0] || recent[0];
-                            if (station) {
-                              addStationToCollection(collection.id, station);
-                            }
-                          }}
-                        >
-                          {t('library.addCurrentToCollection')}
-                        </button>
+                        {player.current ? (
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => addCurrentToCollection(collection.id, collection.name)}
+                          >
+                            {t('library.addCurrentToCollection')}
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     {renderCollectionStations(collection)}
                     {collection.stationIds.length ? (
-                      <div className="chip-row">
-                        {collection.stationIds.slice(0, 4).map((stationId) => (
-                          <button
-                            key={`${collection.id}-${stationId}`}
-                            className="chip"
-                            type="button"
-                            onClick={() => removeStationFromCollection(collection.id, stationId)}
-                          >
-                            {t('library.removeFromCollection')}
-                          </button>
-                        ))}
+                      <div className="library-collection-footer">
+                        <button className="chip" type="button" onClick={() => openCollectionDetail(collection.id)}>
+                          {t('library.seeAllStations')}
+                        </button>
+                        <span>{t('library.collectionOpenHint')}</span>
                       </div>
                     ) : null}
                   </div>
@@ -626,7 +803,7 @@ export const Library = () => {
                   <div className="library-empty-title">{t('library.collectionsEmptyTitle')}</div>
                   <div className="section-subtitle">{t('library.collectionsEmptyCopy')}</div>
                   <div className="hero-chip-row">
-                    <button className="chip active" type="button" onClick={promptCreateCollection}>
+                    <button className="chip active" type="button" onClick={beginCreateCollection}>
                       {t('library.createCollection')}
                     </button>
                     <button className="chip" type="button" onClick={() => setActiveSection('search')}>
@@ -640,17 +817,45 @@ export const Library = () => {
               )}
             </div>
           </div>
+          )}
 
           <div className="library-history-grid">
             <div className="glass-card">
               <div className="section-title">{t('library.followedStationsTitle')}</div>
               <div className="section-subtitle">{t('library.followedStationsCopy')}</div>
-              {libraryFeed.followedStationsPreview.length ? (
+              {followedStationRows.length ? (
                 <div className="playlist-history-list">
-                  {libraryFeed.followedStationsPreview.map((station) => (
-                    <div key={station.stationId} className="playlist-history-item">
-                      <div className="playlist-history-name">{station.stationName}</div>
-                      <div className="playlist-history-meta">{station.country}</div>
+                  {followedStationRows.map(({ follow, station, fallbackStation }) => (
+                    <div key={follow.stationId} className="playlist-history-item library-follow-row">
+                      <div className="playlist-history-name">{follow.stationName}</div>
+                      <div className="playlist-history-meta">{follow.country}</div>
+                      <div className="chip-row library-follow-actions">
+                        <button
+                          className="chip active"
+                          type="button"
+                          disabled={!station}
+                          onClick={() =>
+                            station
+                              ? playStation(station, {
+                                  playlist: followedStationRows
+                                    .map((row) => row.station)
+                                    .filter(Boolean) as StationLite[],
+                                  sourceId: 'followed-stations',
+                                  sourceLabel: t('library.followedStationsTitle')
+                                })
+                              : undefined
+                          }
+                        >
+                          {t('common.play')}
+                        </button>
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => toggleFollowStation(fallbackStation)}
+                        >
+                          {t('library.unfollow')}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -665,9 +870,17 @@ export const Library = () => {
               {libraryFeed.followedRegionsPreview.length ? (
                 <div className="playlist-history-list">
                   {libraryFeed.followedRegionsPreview.map((region) => (
-                    <div key={region.id} className="playlist-history-item">
+                    <div key={region.id} className="playlist-history-item library-follow-row">
                       <div className="playlist-history-name">{region.label}</div>
                       <div className="playlist-history-meta">{region.scope}</div>
+                      <div className="chip-row library-follow-actions">
+                        <button className="chip active" type="button" onClick={() => openFollowedRegion(region.id)}>
+                          {t('library.openRegion')}
+                        </button>
+                        <button className="chip" type="button" onClick={() => toggleFollowRegion(region)}>
+                          {t('library.unfollow')}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

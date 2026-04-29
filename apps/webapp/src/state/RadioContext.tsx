@@ -272,6 +272,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [playbackHistoryCursor, setPlaybackHistoryCursor] = useState(() =>
     playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
   );
+  const [globeFocusRegionId, setGlobeFocusRegionId] = useState<string | null>(null);
   const debugLoggingEnabled =
     import.meta.env.DEV ||
     (typeof window !== 'undefined' &&
@@ -1463,6 +1464,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       searchDraft,
       setSearchDraft,
       clearSearchDraft,
+      globeFocusRegionId,
+      setGlobeFocusRegionId,
       openWebAppExternally,
       clearCache
     }),
@@ -1472,6 +1475,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearSearchDraft,
       debugLogs,
       detailsOpen,
+      globeFocusRegionId,
       homeState,
       libraryTab,
       openWebAppExternally,

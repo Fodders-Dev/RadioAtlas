@@ -19,7 +19,7 @@ export const GlobeScreen = () => {
   const { summary, summaryLoading, fetchAreas, fetchAreaStations } = useCatalog();
   const { favorites, recent, followedRegions, toggleFollowRegion } = useLibrary();
   const { player, playStation } = usePlayback();
-  const { setActiveSection, setLibraryTab } = useShell();
+  const { setActiveSection, setLibraryTab, globeFocusRegionId, setGlobeFocusRegionId } = useShell();
   const isCompactLayout = useCompactLayout();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [areas, setAreas] = useState<CatalogArea[]>([]);
@@ -140,6 +140,24 @@ export const GlobeScreen = () => {
   const isSelectedRegionFollowed = selectedArea
     ? followedRegions.some((region) => region.id === selectedArea.id)
     : false;
+
+  useEffect(() => {
+    if (!globeFocusRegionId || !areas.length) return;
+    const targetArea =
+      areaById.get(globeFocusRegionId) ||
+      areas.find(
+        (area) =>
+          area.id.toLowerCase() === globeFocusRegionId.toLowerCase() ||
+          area.label.toLowerCase() === globeFocusRegionId.toLowerCase()
+      ) ||
+      null;
+    if (!targetArea) return;
+    seededAreaRef.current = true;
+    selectedAnchorRef.current = { lat: targetArea.lat, lon: targetArea.lon };
+    setSelectedAreaId(targetArea.id);
+    setZoomLevel((value) => Math.max(value, 1));
+    setGlobeFocusRegionId(null);
+  }, [areaById, areas, globeFocusRegionId, setGlobeFocusRegionId]);
 
   const openLibraryRegions = () => {
     setLibraryTab('collections');

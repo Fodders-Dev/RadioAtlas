@@ -430,6 +430,119 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
 });
 
+test('mobile library keeps four non-wrapping tabs and opens collection detail', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations,
+    collections: [
+      {
+        id: 'collection-japan',
+        name: 'Japan set',
+        stationIds: stations.slice(0, 5).map((station) => station.stationuuid)
+      }
+    ]
+  });
+
+  await page.goto('/');
+  const tabs = page.locator('.library-tab-chip');
+  await expect(tabs).toHaveCount(4);
+  await expect(tabs.filter({ hasText: /Tracks|Треки|History|История/ })).toHaveCount(0);
+  const tabStrip = await page.locator('.library-tab-strip').evaluate((node) => {
+    const computed = window.getComputedStyle(node);
+    const tops = Array.from(node.children).map((child) => child.getBoundingClientRect().top);
+    return {
+      flexWrap: computed.flexWrap,
+      overflowX: computed.overflowX,
+      rows: new Set(tops.map((top) => Math.round(top))).size
+    };
+  });
+  expect(tabStrip.flexWrap).toBe('nowrap');
+  expect(tabStrip.overflowX).toBe('auto');
+  expect(tabStrip.rows).toBe(1);
+  await expectNoDocumentHorizontalOverflow(page);
+
+  await expect(page.locator('.library-collection-card')).toHaveCount(1);
+  await expect(page.locator('.library-collection-card').getByRole('button', { name: /^Убрать$|^Remove$/ })).toHaveCount(0);
+  await page.locator('.library-collection-card').getByRole('button', { name: /Открыть|Open/ }).first().click();
+  await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
+  await expect(page.locator('[data-library-collection-row]')).toHaveCount(5);
+
+  const tokyoRow = page.locator('[data-library-collection-row][data-station-id="uuid-tokyo"]');
+  await tokyoRow.getByRole('button', { name: /Tokyo FM/ }).click();
+  await expect(tokyoRow).toHaveCount(0);
+});
+
+test('mobile library creates collections inline without native prompt', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations
+  });
+  let promptCalled = false;
+  page.on('dialog', async (dialog) => {
+    promptCalled = true;
+    await dialog.dismiss();
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: /Новая коллекция|New collection/ }).first().click();
+  await page.getByLabel(/Название коллекции|Collection name/).fill('Night drives');
+  await page.getByRole('button', { name: /Сохранить|Save/ }).click();
+
+  expect(promptCalled).toBe(false);
+  await expect(page.locator('.library-collection-card').filter({ hasText: 'Night drives' })).toBeVisible();
+});
+
+test('mobile library followed stations can play and unfollow in place', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations,
+    followedStations: [
+      {
+        stationId: 'uuid-tokyo',
+        stationName: 'Tokyo FM',
+        country: 'Japan'
+      }
+    ]
+  });
+
+  await page.goto('/');
+  const followRow = page.locator('.library-follow-row').filter({ hasText: 'Tokyo FM' });
+  await followRow.getByRole('button', { name: /Слушать|Play/ }).click();
+  await expect(page.locator('.player-dock-title')).toHaveText(/Tokyo FM/);
+
+  await followRow.getByRole('button', { name: /Отписаться|Unfollow/ }).click();
+  await expect(page.locator('.library-follow-row').filter({ hasText: 'Tokyo FM' })).toHaveCount(0);
+});
+
+test('mobile library followed regions route to focused globe area', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations,
+    followedRegions: [
+      {
+        id: 'asia-japan',
+        label: 'Japan',
+        scope: 'country'
+      }
+    ]
+  });
+
+  await page.goto('/');
+  const regionRow = page.locator('.library-follow-row').filter({ hasText: 'Japan' });
+  await regionRow.getByRole('button', { name: /Открыть глобус|Open in Globe/ }).click();
+  await expect(page.locator('.screen-globe-v2')).toBeVisible();
+  await expect(page.locator('.globe-focus-card .section-title')).toHaveText(/Japan/);
+  await expectNoGlobeHorizontalOverflow(page);
+});
+
 test('mobile startup stays free of playback runtime render loops', async ({ page }) => {
   const runtimeWarnings: string[] = [];
   page.on('console', (message) => {

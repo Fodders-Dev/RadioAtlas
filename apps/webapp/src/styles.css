@@ -8486,3 +8486,142 @@ body {
     flex-grow: 1.24;
   }
 }
+
+/* Stage 4: mobile library simplification */
+.library-tab-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.library-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.library-tab-chip {
+  flex: 0 0 auto;
+}
+
+.library-inline-toast {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(180, 241, 239, 0.2);
+  background: rgba(180, 241, 239, 0.1);
+  color: #efffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.library-create-collection-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.library-create-collection-row input {
+  min-width: 0;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 241, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.library-collection-title-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.library-collection-title-button:hover .section-title,
+.library-collection-title-button:focus-visible .section-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.library-collection-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.library-collection-detail {
+  display: grid;
+  gap: 14px;
+}
+
+.library-detail-station-list {
+  display: grid;
+  gap: 10px;
+}
+
+.library-detail-station-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.library-track-journal-panel {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.library-follow-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.library-follow-row .playlist-history-name,
+.library-follow-row .playlist-history-meta {
+  grid-column: 1;
+}
+
+.library-follow-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .library-create-collection-row {
+    grid-template-columns: 1fr;
+  }
+
+  .library-collection-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .library-collection-head,
+  .library-collection-footer,
+  .library-follow-row {
+    grid-template-columns: 1fr;
+  }
+
+  .library-follow-actions {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .library-detail-station-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .library-detail-station-row .playlist-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
