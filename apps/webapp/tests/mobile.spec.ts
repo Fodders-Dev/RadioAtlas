@@ -583,6 +583,18 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   expect(tabStrip.flexWrap).toBe('nowrap');
   expect(tabStrip.overflowX).toBe('auto');
   expect(tabStrip.rows).toBe(1);
+  const tabScroll = await page.locator('.library-tab-strip').evaluate((node) => {
+    const before = node.scrollLeft;
+    node.scrollLeft = node.scrollWidth;
+    return {
+      before,
+      after: node.scrollLeft,
+      scrollWidth: node.scrollWidth,
+      clientWidth: node.clientWidth
+    };
+  });
+  expect(tabScroll.scrollWidth).toBeGreaterThan(tabScroll.clientWidth);
+  expect(tabScroll.after).toBeGreaterThan(tabScroll.before);
   await expectNoDocumentHorizontalOverflow(page);
 
   await expect(page.locator('.library-collection-card')).toHaveCount(1);
