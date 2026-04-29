@@ -238,6 +238,87 @@ for (const width of [360, 390]) {
   });
 }
 
+test('mobile globe retuning the selected area deselects instead of zooming further', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
+
+  if (await page.locator('[data-globe-clear]').isVisible().catch(() => false)) {
+    await page.locator('[data-globe-clear]').click();
+  }
+  await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
+  await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
+
+  await page.locator('[data-globe-tune]').click();
+  await expect(page.locator('[data-globe-clear]')).toBeVisible();
+  const zoomAfterSelect = await page.locator('.screen-globe-v2').getAttribute('data-zoom-level');
+
+  await page.locator('[data-globe-tune]').click();
+  await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
+  await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
+  expect(Number(zoomAfterSelect)).toBeGreaterThanOrEqual(1);
+});
+
+test('mobile globe wheel zoom keeps one canvas wheel listener', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalAdd = EventTarget.prototype.addEventListener;
+    const originalRemove = EventTarget.prototype.removeEventListener;
+    let wheelAdds = 0;
+    let wheelRemoves = 0;
+
+    EventTarget.prototype.addEventListener = function (...args) {
+      if (args[0] === 'wheel' && this instanceof HTMLCanvasElement) {
+        wheelAdds += 1;
+      }
+      return originalAdd.apply(this, args);
+    };
+    EventTarget.prototype.removeEventListener = function (...args) {
+      if (args[0] === 'wheel' && this instanceof HTMLCanvasElement) {
+        wheelRemoves += 1;
+      }
+      return originalRemove.apply(this, args);
+    };
+    Object.defineProperty(window, '__globeWheelListenerCounts', {
+      configurable: true,
+      value: () => ({ wheelAdds, wheelRemoves })
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('.globe canvas')).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (window as typeof window & {
+          __globeWheelListenerCounts?: () => { wheelAdds: number; wheelRemoves: number };
+        }).__globeWheelListenerCounts?.().wheelAdds ?? 0
+      )
+    )
+    .toBeGreaterThan(0);
+
+  const before = await page.evaluate(() =>
+    (window as typeof window & {
+      __globeWheelListenerCounts: () => { wheelAdds: number; wheelRemoves: number };
+    }).__globeWheelListenerCounts()
+  );
+  const canvasBox = await page.locator('.globe canvas').boundingBox();
+  expect(canvasBox).not.toBeNull();
+  await page.mouse.move(canvasBox!.x + canvasBox!.width / 2, canvasBox!.y + canvasBox!.height / 2);
+  await page.mouse.wheel(0, -180);
+  await expect(page.locator('.screen-globe-v2')).not.toHaveAttribute('data-zoom-level', '1.00');
+  const after = await page.evaluate(() =>
+    (window as typeof window & {
+      __globeWheelListenerCounts: () => { wheelAdds: number; wheelRemoves: number };
+    }).__globeWheelListenerCounts()
+  );
+
+  expect(after.wheelAdds).toBe(before.wheelAdds);
+  expect(after.wheelRemoves).toBe(before.wheelRemoves);
+});
+
 test('home cold load shows hero skeleton while summary is pending', async ({ page }) => {
   await page.unroute('**/catalog/summary**');
   await page.route('**/catalog/summary**', async (route) => {
@@ -457,6 +538,20 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
 });
 
+test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+
+  await page.evaluate(() => {
+    const audio = document.querySelector('audio');
+    audio?.dispatchEvent(new Event('waiting'));
+  });
+
+  await expect(page.locator('.player-dock-status-pill')).toContainText(/Буферизация|Buffering|Переподключение|Reconnecting/);
+  await expect(page.locator('.player-dock-track-button-text')).not.toContainText(/Загрузка|Loading/i);
+});
+
 test('mobile library keeps four non-wrapping tabs and opens collection detail', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, {
@@ -521,6 +616,33 @@ test('mobile library creates collections inline without native prompt', async ({
 
   expect(promptCalled).toBe(false);
   await expect(page.locator('.library-collection-card').filter({ hasText: 'Night drives' })).toBeVisible();
+});
+
+test('mobile library hides add-current collection action without a current station', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'collections',
+    stationCache: stations,
+    favorites: [stations[0]],
+    recent: [stations[1]],
+    collections: [
+      {
+        id: 'collection-empty',
+        name: 'No fallback set',
+        stationIds: []
+      }
+    ]
+  });
+
+  await page.goto('/');
+  const collectionCard = page.locator('.library-collection-card').filter({ hasText: 'No fallback set' });
+  await expect(collectionCard).toBeVisible();
+  await expect(collectionCard.getByRole('button', { name: /Добавить текущее|Add current/ })).toHaveCount(0);
+  await collectionCard.getByRole('button', { name: /Открыть|Open/ }).first().click();
+  await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Добавить текущее|Add current/ })).toHaveCount(0);
+  await expect(page.locator('[data-library-collection-row]')).toHaveCount(0);
 });
 
 test('mobile library followed stations can play and unfollow in place', async ({ page }) => {

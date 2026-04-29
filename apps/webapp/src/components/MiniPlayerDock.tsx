@@ -3,6 +3,7 @@ import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
+import './MiniPlayerDock.css';
 
 type DockTrayMode = 'queue' | 'volume' | null;
 
