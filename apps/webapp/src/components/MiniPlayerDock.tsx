@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { stationLocation } from '../lib/stationUtils';
+import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
@@ -60,7 +61,14 @@ export const MiniPlayerDock = () => {
     : current
       ? t('dock.liveNow')
       : t('dock.ready');
-  const activeTrack = nowPlaying?.trim() || '';
+  const trackTrust = resolveNowPlayingTrust({
+    station: current,
+    track: nowPlaying,
+    metadataStatus: nowPlayingStatus,
+    playerStatus: player.status,
+    failure: player.failure
+  });
+  const activeTrack = trackTrust.track || '';
   const playbackState =
     current && player.status === 'buffering'
       ? {
@@ -89,13 +97,7 @@ export const MiniPlayerDock = () => {
   const trackTitle = activeTrack
     ? activeTrack
     : current
-      ? playbackState
-        ? t('dock.currentTrackUnavailable')
-        : player.status === 'buffering'
-          ? t('common.loading')
-        : nowPlayingStatus === 'loading'
-          ? t('common.loading')
-          : t('dock.currentTrackUnavailable')
+      ? t('dock.currentTrackUnavailable')
       : t('dock.emptySubtitle');
   const trackAriaLabel = activeTrack
     ? t('dock.copyCurrentTrack')
@@ -242,6 +244,7 @@ export const MiniPlayerDock = () => {
       className="player-dock player-dock-bar"
       data-has-station={current ? 'true' : 'false'}
       data-tray-open={trayMode ? 'true' : 'false'}
+      data-track-trust={trackTrust.kind}
     >
       <div className="player-dock-media">
         <button

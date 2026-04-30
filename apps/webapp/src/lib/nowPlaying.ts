@@ -3,6 +3,7 @@ import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 import { buildStationStreamTargets } from './stationStreams';
+import { normalizeTrustedTrackTitle } from './trackTrust';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
 const ICY_METADATA_ENCODINGS = ['utf-8', 'shift_jis'] as const;
@@ -82,12 +83,8 @@ const concat = (left: Uint8Array, right: Uint8Array) => {
 };
 
 const normalizeTrackTitle = (value?: string | null) => {
-  if (typeof value !== 'string') return null;
-  const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
-  if (!cleaned) return null;
-  if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
-  if (isTechnicalTrackPayload(cleaned)) return null;
-  return cleaned;
+  if (isTechnicalTrackPayload(value || '')) return null;
+  return normalizeTrustedTrackTitle(value);
 };
 
 const buildTrack = (artist?: string, title?: string) => {

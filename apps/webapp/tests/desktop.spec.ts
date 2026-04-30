@@ -215,6 +215,19 @@ test('metadata state recovers from unavailable to live track without losing play
   await expect(page.locator('.player-dock-track-button-text')).toContainText('Recovered - Song', {
     timeout: 5000
   });
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const stored = window.localStorage.getItem('radio:library:v2');
+        const library = stored ? JSON.parse(stored) : null;
+        return Boolean(
+          library?.trackHistory?.some?.(
+            (item: { track?: string }) => item.track === 'Recovered - Song'
+          )
+        );
+      })
+    )
+    .toBe(true);
 });
 
 test('home discovery modules stay non-duplicative across main station shelves', async ({ page }) => {

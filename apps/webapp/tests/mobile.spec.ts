@@ -32,6 +32,11 @@ import {
   recordStationHealthSignal,
   resolveBestPlayableCandidate
 } from '../src/lib/stationHealth';
+import {
+  normalizeTrustedTrackTitle,
+  resolveNowPlayingTrust,
+  upsertTrustedTrackHistory
+} from '../src/lib/trackTrust';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
@@ -361,6 +366,78 @@ test('station health suppresses repeated failures but accepts metadata misses an
   expect(getStationHealthScore(withProxySuccess, httpStation, now)).toBeGreaterThan(0);
   expect(resolved.preferredTransport).toBe('proxy');
   expect(resolved.suppressed).toBe(false);
+});
+
+test('track trust separates missing metadata from questionable streams and dedupes history', () => {
+  const now = Date.UTC(2026, 3, 20, 11, 0, 0);
+  const station = stations[0];
+
+  expect(normalizeTrustedTrackTitle('{"status":"error"}', station)).toBeNull();
+  expect(normalizeTrustedTrackTitle('Tokyo FM', station)).toBeNull();
+  expect(normalizeTrustedTrackTitle('Perfume - Night Flight', station)).toBe('Perfume - Night Flight');
+  expect(
+    resolveNowPlayingTrust({
+      station,
+      track: null,
+      metadataStatus: 'loading',
+      playerStatus: 'playing',
+      failure: null
+    }).kind
+  ).toBe('without-metadata');
+  expect(
+    resolveNowPlayingTrust({
+      station,
+      track: null,
+      metadataStatus: 'unavailable',
+      playerStatus: 'error',
+      failure: {
+        kind: 'unsupported-transport',
+        message: 'media source not supported',
+        recoverable: false
+      }
+    }).kind
+  ).toBe('questionable-stream');
+
+  const first = upsertTrustedTrackHistory(
+    [],
+    {
+      id: 'track-1',
+      stationId: station.stationuuid,
+      stationName: station.name,
+      track: 'Perfume - Night Flight',
+      timestamp: now
+    },
+    10,
+    now
+  );
+  const duplicate = upsertTrustedTrackHistory(
+    first,
+    {
+      id: 'track-2',
+      stationId: station.stationuuid,
+      stationName: station.name,
+      track: 'Perfume - Night Flight',
+      timestamp: now + 1000
+    },
+    10,
+    now + 1000
+  );
+  const garbage = upsertTrustedTrackHistory(
+    duplicate,
+    {
+      id: 'track-3',
+      stationId: station.stationuuid,
+      stationName: station.name,
+      track: 'Loading...',
+      timestamp: now + 2000
+    },
+    10,
+    now + 2000
+  );
+
+  expect(first).toHaveLength(1);
+  expect(duplicate).toHaveLength(1);
+  expect(garbage).toHaveLength(1);
 });
 
 for (const width of [360, 390]) {

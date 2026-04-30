@@ -43,6 +43,10 @@ import {
   DEFAULT_TASTE_PROFILE_V2,
   recordTasteSignal
 } from '../lib/tasteProfile';
+import {
+  normalizeTrustedTrackTitle,
+  upsertTrustedTrackHistory
+} from '../lib/trackTrust';
 import type {
   TasteProfileV2,
   TasteSignalAction,
@@ -1283,6 +1287,31 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(t('toast.shareFailed'));
   };
 
+  const rememberTrackHistory = (
+    station: Station | StationLite,
+    track: string,
+    timestamp = Date.now()
+  ) => {
+    const lite = toLite(station);
+    const trustedTrack = normalizeTrustedTrackTitle(track, lite);
+    if (!trustedTrack) return false;
+    const entry: TrackHistoryItem = {
+      id: `${timestamp}-${lite.stationuuid}`,
+      stationId: lite.stationuuid,
+      stationName: lite.name,
+      track: trustedTrack,
+      timestamp
+    };
+    setTrackHistory((prev) => upsertTrustedTrackHistory(prev, entry, MAX_TRACK_HISTORY, timestamp));
+    return true;
+  };
+
+  useEffect(() => {
+    const station = player.current;
+    if (!station || !nowPlaying) return;
+    rememberTrackHistory(station, nowPlaying);
+  }, [nowPlaying, player.current]);
+
   const clearFavorites = () => {
     setFavorites([]);
     syncCloudLibraryImmediately({
@@ -1433,31 +1462,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const copyTrack = async () => {
     const station = player.current;
-    if (!station || !nowPlaying) {
+    const trustedTrack = normalizeTrustedTrackTitle(nowPlaying, station);
+    if (!station || !trustedTrack) {
       notify(t('toast.noTrackInfo'));
       return;
     }
     try {
-      await navigator.clipboard.writeText(nowPlaying);
-      const entry: TrackHistoryItem = {
-        id: `${Date.now()}-${station.stationuuid}`,
-        stationId: station.stationuuid,
-        stationName: station.name,
-        track: nowPlaying,
-        timestamp: Date.now()
-      };
-      setTrackHistory((prev) => {
-        const deduped =
-          prev[0]?.stationId === entry.stationId && prev[0]?.track === entry.track
-            ? prev.slice(1)
-            : prev.filter(
-                (item) =>
-                  item.stationId !== entry.stationId ||
-                  item.track !== entry.track ||
-                  entry.timestamp - item.timestamp > 1000 * 60 * 10
-                );
-        return [entry, ...deduped].slice(0, MAX_TRACK_HISTORY);
-      });
+      await navigator.clipboard.writeText(trustedTrack);
+      rememberTrackHistory(station, trustedTrack);
       recordBehaviorForStation(station, 'track-copy');
       notify(t('toast.trackCopied'));
     } catch {

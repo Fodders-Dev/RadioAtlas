@@ -5,6 +5,7 @@ import { getDeviceProfile } from '../lib/deviceProfile';
 import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import { StationArtwork } from './StationArtwork';
@@ -120,19 +121,28 @@ const StationTableRow = ({
     });
   };
 
-  const activeTrack = active ? nowPlaying?.trim() || null : null;
-  const displayTrack = activeTrack || snapshot.track;
+  const activeTrust = active
+    ? resolveNowPlayingTrust({
+        station,
+        track: nowPlaying,
+        metadataStatus: nowPlayingStatus,
+        playerStatus: player.status,
+        failure: player.failure
+      })
+    : null;
+  const activeTrack = activeTrust?.track || null;
+  const displayTrack = activeTrack || normalizeTrustedTrackTitle(snapshot.track, station);
   const displayStatus =
     active && !activeTrack && nowPlayingStatus !== 'idle'
-      ? snapshot.track
+      ? displayTrack
         ? 'ready'
-        : nowPlayingStatus
+        : 'unavailable'
       : displayTrack
         ? 'ready'
         : snapshot.status;
   const trackLabel =
-    displayTrack || (displayStatus === 'loading' ? t('common.loading') : t('app.metadataUnavailable'));
-  const showTagline = compact && Boolean(compactTags) && !displayTrack && displayStatus !== 'loading';
+    displayTrack || t('app.metadataUnavailable');
+  const showTagline = compact && Boolean(compactTags) && !displayTrack;
 
   return (
     <div

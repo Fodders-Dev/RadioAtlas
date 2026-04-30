@@ -28,7 +28,7 @@ API proxy уже реализован и используется через `VI
   - Локальный + API-assisted health index: reachable, startup time, proxy/direct/HLS success, repeated failures, duplicates.
   - Metadata absence не считается плохим качеством.
   - `resolveBestPlayableCandidate(...)`.
-- [ ] Stage 5: Now Playing / Track Trust
+- [x] Stage 5: Now Playing / Track Trust
   - Явно разделить: играет с metadata, играет без metadata, поток сомнительный.
   - Не засорять track history пустыми/повторяющимися строками.
   - Убрать конфликтующие loading/status сообщения.
@@ -82,6 +82,9 @@ API proxy уже реализован и используется через `VI
 - Taste Profile V2 records play, 30s listen, early skip, like/unlike, collection/save and failure signals locally with decay.
 - Station Health V1 records direct/proxy/HLS/extracted success, startup time, repeated failures and metadata misses without treating missing metadata as bad quality.
 - Home, Personal Radio and Search ranking use taste/playability/health without showing recommendation reasons.
+- Now Playing trust separates real track metadata, passive missing metadata, and questionable stream states.
+- Track history auto-saves trusted metadata, rejects technical/filler payloads, and dedupes repeats.
+- Player dock and station rows do not show conflicting loading text as the track title.
 
 ## Test Plan
 
@@ -93,4 +96,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Stage 5: Now Playing / Track Trust. Separate "playing without metadata" from bad streams, keep track history clean, and remove conflicting loading/status messages in the player.
+Stage 6: Search as a fast path to listening. Make results more compact and playable, keep query intent above promotion, and add a queue-start action for result sets.
