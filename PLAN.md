@@ -32,16 +32,16 @@ API proxy уже реализован и используется через `VI
   - Явно разделить: играет с metadata, играет без metadata, поток сомнительный.
   - Не засорять track history пустыми/повторяющимися строками.
   - Убрать конфликтующие loading/status сообщения.
-- [ ] Stage 6: Search как быстрый путь к прослушиванию
+- [x] Stage 6: Search как быстрый путь к прослушиванию
   - Compact result cards с play overlay.
   - Exact/prefix выше weak/promoted.
   - Recent searches/plays.
   - "Play all results" / "Start radio from this search".
-- [ ] Stage 7: Library как личная музыкальная память
+- [x] Stage 7: Library как личная музыкальная память
   - Favorites, Recent, Collections, Queue.
   - Коллекции как плейлисты радиостанций: play, shuffle, reorder, remove, rename.
   - Followed regions/stations запускают playable очереди.
-- [ ] Stage 8: Cloud sync без трения
+- [x] Stage 8: Cloud sync без трения
   - Telegram auth как основной путь.
   - Sync favorites, recent, collections, followed, taste profile.
   - Combine-first conflict strategy.
@@ -85,6 +85,9 @@ API proxy уже реализован и используется через `VI
 - Now Playing trust separates real track metadata, passive missing metadata, and questionable stream states.
 - Track history auto-saves trusted metadata, rejects technical/filler payloads, and dedupes repeats.
 - Player dock and station rows do not show conflicting loading text as the track title.
+- Search 390px renders compact station cards with direct play overlay and can start a queue from current results.
+- Library collections can play, shuffle, rename, reorder rows, and remove stations from the focused detail view.
+- Cloud library sync preserves `tasteProfile` through webapp and API sanitize/merge with combine-first behavior.
 
 ## Test Plan
 
@@ -96,4 +99,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Stage 6: Search as a fast path to listening. Make results more compact and playable, keep query intent above promotion, and add a queue-start action for result sets.
+Stage 9: Globe as discovery mode. Keep it secondary to Home, but make every focused region quickly playable and feed followed regions back into Home/Personal Radio.

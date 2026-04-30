@@ -180,6 +180,115 @@
   min-width: 0;
 }
 
+.search-results-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.search-result-grid .search-station-card {
+  display: grid;
+  grid-template-columns: minmax(0, 86px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 18px;
+  content-visibility: visible;
+  contain: layout paint style;
+  contain-intrinsic-size: auto;
+}
+
+.search-station-card-main {
+  position: relative;
+  min-width: 0;
+  min-height: 86px;
+  padding: 0;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.search-station-card-main .station-artwork-card {
+  width: 100%;
+  height: 100%;
+  min-height: 86px;
+  border-radius: 15px;
+}
+
+.search-card-play-overlay {
+  position: absolute;
+  inset: auto 8px 8px auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(204, 255, 247, 0.88);
+  color: #06202c;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+}
+
+.search-station-card-copy {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.search-card-title,
+.search-card-meta,
+.search-card-tags {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-card-title {
+  color: #f6fdff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.16;
+}
+
+.search-card-meta {
+  color: rgba(211, 226, 240, 0.76);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.search-card-tags {
+  color: rgba(180, 241, 239, 0.86);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.search-card-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+}
+
+.search-card-actions .play-btn,
+.search-card-actions .icon-btn {
+  min-height: 38px;
+}
+
 .globe-command-card {
   background:
     radial-gradient(circle at top, rgba(129, 205, 255, 0.14), transparent 34%),
@@ -314,6 +423,11 @@
     flex-wrap: wrap;
   }
 
+  .search-results-head-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .search-command-status,
   .search-results-meta {
     min-height: 30px;
@@ -429,6 +543,25 @@
   .search-command-card .search-bar input,
   .search-links-stack .settings-input {
     min-height: 42px;
+  }
+
+  .search-result-grid {
+    gap: 8px;
+  }
+
+  .search-result-grid .search-station-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+    padding: 9px;
+    border-radius: 16px;
+  }
+
+  .search-station-card-main,
+  .search-station-card-main .station-artwork-card {
+    min-height: 76px;
+  }
+
+  .search-card-title {
+    font-size: 12px;
   }
 
   .search-command-card .chip,

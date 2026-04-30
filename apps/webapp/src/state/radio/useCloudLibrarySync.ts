@@ -20,6 +20,11 @@ import {
 } from './helpers';
 import type { StationLite } from '../../types';
 import type { TrackHistoryItem } from './types';
+import {
+  mergeTasteProfiles,
+  tasteProfilesMatch,
+  type TasteProfileV2
+} from '../../lib/tasteProfile';
 
 type CloudSetter<T> = (next: T) => void;
 
@@ -37,6 +42,7 @@ type UseCloudLibrarySyncArgs = {
   followedStations: FollowedStation[];
   followedRegions: FollowedRegion[];
   alerts: ListenerAlert[];
+  tasteProfile: TasteProfileV2;
   setFavorites: CloudSetter<StationLite[]>;
   setRecent: CloudSetter<StationLite[]>;
   setTrackHistory: CloudSetter<TrackHistoryItem[]>;
@@ -44,6 +50,7 @@ type UseCloudLibrarySyncArgs = {
   setFollowedStations: CloudSetter<FollowedStation[]>;
   setFollowedRegions: CloudSetter<FollowedRegion[]>;
   setAlerts: CloudSetter<ListenerAlert[]>;
+  setTasteProfile: CloudSetter<TasteProfileV2>;
 };
 
 export const useCloudLibrarySync = ({
@@ -64,6 +71,8 @@ export const useCloudLibrarySync = ({
   setFollowedStations,
   setRecent,
   setTrackHistory,
+  setTasteProfile,
+  tasteProfile,
   trackHistory
 }: UseCloudLibrarySyncArgs) => {
   const hydratedCloudProfileRef = useRef<string | null>(null);
@@ -107,6 +116,7 @@ export const useCloudLibrarySync = ({
       .sort((left, right) => right.createdAt - left.createdAt)
       .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
       .slice(0, 160);
+    const mergedTasteProfile = mergeTasteProfiles(cloudLibrary.tasteProfile, tasteProfile);
 
     if (!stationsMatch(mergedFavorites, favorites)) {
       setFavorites(mergedFavorites);
@@ -129,6 +139,9 @@ export const useCloudLibrarySync = ({
     if (!alertsMatch(mergedAlerts, alerts)) {
       setAlerts(mergedAlerts);
     }
+    if (!tasteProfilesMatch(mergedTasteProfile, tasteProfile)) {
+      setTasteProfile(mergedTasteProfile);
+    }
 
     const remoteNeedsUpdate =
       !stationsMatch(mergedFavorites, cloudLibrary.favorites) ||
@@ -137,7 +150,8 @@ export const useCloudLibrarySync = ({
       !collectionsMatch(mergedCollections, cloudLibrary.collections) ||
       !followedStationsMatch(mergedFollowedStations, cloudLibrary.followedStations) ||
       !followedRegionsMatch(mergedFollowedRegions, cloudLibrary.followedRegions) ||
-      !alertsMatch(mergedAlerts, cloudLibrary.alerts);
+      !alertsMatch(mergedAlerts, cloudLibrary.alerts) ||
+      !tasteProfilesMatch(mergedTasteProfile, cloudLibrary.tasteProfile);
 
     if (remoteNeedsUpdate) {
       void replaceCloudLibrary({
@@ -147,7 +161,8 @@ export const useCloudLibrarySync = ({
         collections: mergedCollections,
         followedStations: mergedFollowedStations,
         followedRegions: mergedFollowedRegions,
-        alerts: mergedAlerts
+        alerts: mergedAlerts,
+        tasteProfile: mergedTasteProfile
       });
     }
   }, [
@@ -167,7 +182,9 @@ export const useCloudLibrarySync = ({
     setFollowedRegions,
     setFollowedStations,
     setRecent,
+    setTasteProfile,
     setTrackHistory,
+    tasteProfile,
     trackHistory
   ]);
 
@@ -189,7 +206,8 @@ export const useCloudLibrarySync = ({
       collections,
       followedStations,
       followedRegions,
-      alerts
+      alerts,
+      tasteProfile
     };
     const sameAsCloud = cloudLibraryMatches(nextLibrary, cloudLibrary);
 
@@ -208,6 +226,7 @@ export const useCloudLibrarySync = ({
     cloudLibrary?.followedRegions,
     cloudLibrary?.followedStations,
     cloudLibrary?.recent,
+    cloudLibrary?.tasteProfile,
     cloudLibrary?.trackHistory,
     collections,
     favorites,
@@ -217,6 +236,7 @@ export const useCloudLibrarySync = ({
     replaceCloudLibrary,
     sessionProfileId,
     sessionStatus,
+    tasteProfile,
     trackHistory
   ]);
 

@@ -6,6 +6,7 @@ import type {
   UserCollection
 } from '../../domain/contracts';
 import { toLite } from '../../lib/stationUtils';
+import { tasteProfilesMatch } from '../../lib/tasteProfile';
 import type { Station, StationLite } from '../../types';
 import { MAX_QUEUE_ITEMS, MAX_TRACK_HISTORY } from './defaults';
 import type { QueueSnapshot, TrackHistoryItem } from './types';
@@ -117,7 +118,14 @@ export const alertsMatch = (left: ListenerAlert[], right: ListenerAlert[]) =>
 
 type ComparableCloudLibrary = Pick<
   CloudLibrary,
-  'favorites' | 'recent' | 'trackHistory' | 'collections' | 'followedStations' | 'followedRegions' | 'alerts'
+  | 'favorites'
+  | 'recent'
+  | 'trackHistory'
+  | 'collections'
+  | 'followedStations'
+  | 'followedRegions'
+  | 'alerts'
+  | 'tasteProfile'
 >;
 
 const EMPTY_CLOUD_LIBRARY: ComparableCloudLibrary = {
@@ -127,7 +135,8 @@ const EMPTY_CLOUD_LIBRARY: ComparableCloudLibrary = {
   collections: [],
   followedStations: [],
   followedRegions: [],
-  alerts: []
+  alerts: [],
+  tasteProfile: null
 };
 
 export const cloudLibraryMatches = (
@@ -143,7 +152,8 @@ export const cloudLibraryMatches = (
     collectionsMatch(leftValue.collections, rightValue.collections) &&
     followedStationsMatch(leftValue.followedStations, rightValue.followedStations) &&
     followedRegionsMatch(leftValue.followedRegions, rightValue.followedRegions) &&
-    alertsMatch(leftValue.alerts, rightValue.alerts)
+    alertsMatch(leftValue.alerts, rightValue.alerts) &&
+    tasteProfilesMatch(leftValue.tasteProfile, rightValue.tasteProfile)
   );
 };
 

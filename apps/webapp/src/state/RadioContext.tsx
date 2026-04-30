@@ -544,7 +544,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setFollowedRegions,
     setFollowedStations,
     setRecent,
+    setTasteProfile,
     setTrackHistory,
+    tasteProfile,
     trackHistory
   });
 
@@ -1012,7 +1014,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       collections,
       followedStations,
       followedRegions,
-      alerts
+      alerts,
+      tasteProfile
     });
   };
 
@@ -1321,7 +1324,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       collections,
       followedStations,
       followedRegions,
-      alerts
+      alerts,
+      tasteProfile
     });
   };
   const clearRecent = () => setRecent([]);
@@ -1356,6 +1360,45 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
               updatedAt: Date.now()
             }
       )
+    );
+  };
+  const renameCollection = (collectionId: string, name: string) => {
+    const normalized = name.trim().slice(0, 48);
+    if (!normalized) return;
+    setCollections((prev) =>
+      prev.map((collection) =>
+        collection.id !== collectionId || collection.name === normalized
+          ? collection
+          : {
+              ...collection,
+              name: normalized,
+              updatedAt: Date.now()
+            }
+      )
+    );
+  };
+  const moveStationInCollection = (
+    collectionId: string,
+    stationId: string,
+    direction: -1 | 1
+  ) => {
+    setCollections((prev) =>
+      prev.map((collection) => {
+        if (collection.id !== collectionId) return collection;
+        const index = collection.stationIds.indexOf(stationId);
+        const nextIndex = index + direction;
+        if (index < 0 || nextIndex < 0 || nextIndex >= collection.stationIds.length) {
+          return collection;
+        }
+        const stationIds = [...collection.stationIds];
+        const [moved] = stationIds.splice(index, 1);
+        stationIds.splice(nextIndex, 0, moved);
+        return {
+          ...collection,
+          stationIds,
+          updatedAt: Date.now()
+        };
+      })
     );
   };
   const addStationToCollection = (collectionId: string, station: Station | StationLite) => {
@@ -1713,6 +1756,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearTrackHistory,
       createCollection,
       toggleCollectionPinned,
+      renameCollection,
+      moveStationInCollection,
       addStationToCollection,
       removeStationFromCollection,
       toggleFollowStation,
@@ -1735,8 +1780,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       isFavorite,
       knownStations,
       markAlertRead,
+      moveStationInCollection,
       playbackHistoryEntries,
       playabilityProfile,
+      renameCollection,
       tasteProfile,
       stationHealthProfile,
       recent,

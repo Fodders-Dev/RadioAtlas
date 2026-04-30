@@ -26,13 +26,15 @@ export const Library = () => {
     clearTrackHistory,
     createCollection,
     toggleCollectionPinned,
+    renameCollection,
+    moveStationInCollection,
     addStationToCollection,
     removeStationFromCollection,
     toggleFollowStation,
     toggleFollowRegion,
     markAlertRead
   } = useLibrary();
-  const { queue, player, nowPlaying, playStation, playLast, playNext } = usePlayback();
+  const { queue, player, nowPlaying, playStation, playStationQueue, playLast, playNext } = usePlayback();
   const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId } = useShell();
   const {
     status: sessionStatus,
@@ -47,6 +49,8 @@ export const Library = () => {
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [collectionNameDraft, setCollectionNameDraft] = useState('');
+  const [collectionRenameDraft, setCollectionRenameDraft] = useState('');
+  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [collectionNotice, setCollectionNotice] = useState<string | null>(null);
   const [trackJournalOpen, setTrackJournalOpen] = useState(false);
@@ -220,12 +224,14 @@ export const Library = () => {
   const openCollectionDetail = (collectionId: string) => {
     collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
     setCollectionReorderMode(false);
+    setRenamingCollectionId(null);
     setSelectedCollectionId(collectionId);
   };
   const closeCollectionDetail = () => {
     pendingCollectionScrollRestoreRef.current = collectionScrollYRef.current;
     setSelectedCollectionId(null);
     setCollectionReorderMode(false);
+    setRenamingCollectionId(null);
   };
   const addCurrentToCollection = (collectionId: string, collectionName: string) => {
     if (!player.current) return;
@@ -240,6 +246,43 @@ export const Library = () => {
   const openFollowedRegion = (regionId: string) => {
     setGlobeFocusRegionId(regionId);
     setActiveSection('globe');
+  };
+  const resolveCollectionStations = (collection: (typeof collections)[number]) =>
+    collection.stationIds
+      .map((stationId) => stationMap.get(stationId))
+      .filter(Boolean) as StationLite[];
+  const shuffleStations = (items: StationLite[]) => {
+    const seeded = [...items];
+    let seed = Date.now() % 2147483647;
+    for (let index = seeded.length - 1; index > 0; index -= 1) {
+      seed = (seed * 48271) % 2147483647;
+      const swapIndex = seed % (index + 1);
+      [seeded[index], seeded[swapIndex]] = [seeded[swapIndex], seeded[index]];
+    }
+    return seeded;
+  };
+  const playCollection = (collection: (typeof collections)[number], shuffle = false) => {
+    const collectionStations = resolveCollectionStations(collection);
+    if (!collectionStations.length) return;
+    playStationQueue(shuffle ? shuffleStations(collectionStations) : collectionStations, {
+      sourceId: `collection-${collection.id}`,
+      sourceLabel: collection.name
+    });
+  };
+  const beginRenameCollection = (collection: (typeof collections)[number]) => {
+    setCollectionRenameDraft(collection.name);
+    setRenamingCollectionId(collection.id);
+  };
+  const cancelRenameCollection = () => {
+    setCollectionRenameDraft('');
+    setRenamingCollectionId(null);
+  };
+  const saveCollectionRename = (collectionId: string) => {
+    const name = collectionRenameDraft.trim();
+    if (!name) return;
+    renameCollection(collectionId, name);
+    setCollectionNotice(t('library.collectionRenamed', { name }));
+    cancelRenameCollection();
   };
   const queueLeadStation =
     player.current ??
@@ -261,9 +304,7 @@ export const Library = () => {
   };
 
   const renderCollectionStations = (collection: (typeof collections)[number]) => {
-    const collectionStations = collection.stationIds
-      .map((stationId) => stationMap.get(stationId))
-      .filter(Boolean) as StationLite[];
+    const collectionStations = resolveCollectionStations(collection);
 
     if (!collectionStations.length) {
       return <div className="empty-state library-empty-state">{t('library.collectionEmpty')}</div>;
@@ -631,12 +672,61 @@ export const Library = () => {
                   <button className="chip" type="button" onClick={closeCollectionDetail}>
                     {t('common.back')}
                   </button>
-                  <div className="section-title">{selectedCollection.name}</div>
-                  <div className="section-subtitle">
-                    {t('library.collectionCount', { count: selectedCollection.stationIds.length })}
-                  </div>
+                  {renamingCollectionId === selectedCollection.id ? (
+                    <form
+                      className="library-rename-collection-row"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        saveCollectionRename(selectedCollection.id);
+                      }}
+                    >
+                      <input
+                        value={collectionRenameDraft}
+                        onChange={(event) => setCollectionRenameDraft(event.target.value)}
+                        placeholder={t('library.renameCollectionPrompt')}
+                        aria-label={t('library.renameCollectionPrompt')}
+                        autoFocus
+                      />
+                      <button className="chip active" type="submit" disabled={!collectionRenameDraft.trim()}>
+                        {t('common.save')}
+                      </button>
+                      <button className="chip" type="button" onClick={cancelRenameCollection}>
+                        {t('common.cancel')}
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="section-title">{selectedCollection.name}</div>
+                      <div className="section-subtitle">
+                        {t('library.collectionCount', { count: selectedCollection.stationIds.length })}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="chip-row">
+                  <button
+                    className="chip active"
+                    type="button"
+                    onClick={() => playCollection(selectedCollection)}
+                    disabled={!selectedCollectionStations.length}
+                  >
+                    {t('library.playCollection')}
+                  </button>
+                  <button
+                    className="chip"
+                    type="button"
+                    onClick={() => playCollection(selectedCollection, true)}
+                    disabled={!selectedCollectionStations.length}
+                  >
+                    {t('library.shuffleCollection')}
+                  </button>
+                  <button
+                    className="chip"
+                    type="button"
+                    onClick={() => beginRenameCollection(selectedCollection)}
+                  >
+                    {t('library.renameCollection')}
+                  </button>
                   <button
                     className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
                     type="button"
@@ -699,6 +789,28 @@ export const Library = () => {
                         >
                           {t('common.remove')}
                         </button>
+                        {collectionReorderMode ? (
+                          <>
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, -1)}
+                              disabled={index === 0}
+                              aria-label={t('library.moveStationUp', { station: station.name })}
+                            >
+                              {t('library.moveUp')}
+                            </button>
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, 1)}
+                              disabled={index === selectedCollectionStations.length - 1}
+                              aria-label={t('library.moveStationDown', { station: station.name })}
+                            >
+                              {t('library.moveDown')}
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -780,6 +892,22 @@ export const Library = () => {
                         </div>
                       </button>
                       <div className="chip-row">
+                        <button
+                          className="chip active"
+                          type="button"
+                          onClick={() => playCollection(collection)}
+                          disabled={!collection.stationIds.length}
+                        >
+                          {t('library.playCollection')}
+                        </button>
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => playCollection(collection, true)}
+                          disabled={!collection.stationIds.length}
+                        >
+                          {t('library.shuffleCollection')}
+                        </button>
                         <button className="chip active" type="button" onClick={() => openCollectionDetail(collection.id)}>
                           {t('library.openCollection')}
                         </button>

@@ -150,6 +150,91 @@ export const getTasteProfileUpdatedAt = (profile: TasteProfileV2 | null | undefi
   profile?.signals?.reduce((latest, signal) => Math.max(latest, signal.timestamp), 0) ||
   0;
 
+const normalizeTasteProfile = (profile: TasteProfileV2 | null | undefined): TasteProfileV2 =>
+  profile?.version === 2 ? profile : DEFAULT_TASTE_PROFILE_V2;
+
+const mergeScoreMaps = (limit: number, ...sources: Array<Record<string, number> | null | undefined>) =>
+  trimScores(
+    sources.reduce<Record<string, number>>((scores, source) => {
+      Object.entries(source || {}).forEach(([key, value]) => {
+        if (!Number.isFinite(value)) return;
+        addScore(scores, key, value);
+      });
+      return scores;
+    }, {}),
+    limit
+  );
+
+const scoreMapsMatch = (left: Record<string, number>, right: Record<string, number>) => {
+  const leftEntries = Object.entries(left).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+  const rightEntries = Object.entries(right).sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+  return (
+    leftEntries.length === rightEntries.length &&
+    leftEntries.every(([key, value], index) => {
+      const candidate = rightEntries[index];
+      return key === candidate?.[0] && value === candidate?.[1];
+    })
+  );
+};
+
+export const mergeTasteProfiles = (
+  ...profiles: Array<TasteProfileV2 | null | undefined>
+): TasteProfileV2 => {
+  const validProfiles = profiles.map(normalizeTasteProfile);
+  const latest = Math.max(0, ...validProfiles.map((profile) => profile.lastUpdatedAt || 0));
+  const now = latest || Date.now();
+  const signalMap = new Map<string, TasteSignal>();
+
+  validProfiles
+    .flatMap((profile) => profile.signals || [])
+    .forEach((signal) => {
+      if (!signal.stationId || !Number.isFinite(signal.timestamp) || !Number.isFinite(signal.weight)) return;
+      const key = `${signal.stationId}:${signal.action}:${signal.mode}:${signal.timestamp}`;
+      const previous = signalMap.get(key);
+      if (!previous || Math.abs(signal.weight) > Math.abs(previous.weight)) {
+        signalMap.set(key, signal);
+      }
+    });
+
+  return {
+    version: 2,
+    lastUpdatedAt: latest || null,
+    signals: trimSignals(Array.from(signalMap.values()), now),
+    stationScores: mergeScoreMaps(MAX_STATION_SCORES, ...validProfiles.map((profile) => profile.stationScores)),
+    tagScores: mergeScoreMaps(MAX_TAG_SCORES, ...validProfiles.map((profile) => profile.tagScores)),
+    countryScores: mergeScoreMaps(MAX_COUNTRY_SCORES, ...validProfiles.map((profile) => profile.countryScores)),
+    languageScores: mergeScoreMaps(MAX_LANGUAGE_SCORES, ...validProfiles.map((profile) => profile.languageScores)),
+    modeScores: mergeScoreMaps(MAX_LANGUAGE_SCORES, ...validProfiles.map((profile) => profile.modeScores))
+  };
+};
+
+export const tasteProfilesMatch = (
+  left: TasteProfileV2 | null | undefined,
+  right: TasteProfileV2 | null | undefined
+) => {
+  const leftValue = normalizeTasteProfile(left);
+  const rightValue = normalizeTasteProfile(right);
+  return (
+    leftValue.lastUpdatedAt === rightValue.lastUpdatedAt &&
+    leftValue.signals.length === rightValue.signals.length &&
+    leftValue.signals.every((signal, index) => {
+      const candidate = rightValue.signals[index];
+      return (
+        signal.stationId === candidate?.stationId &&
+        signal.action === candidate?.action &&
+        signal.mode === candidate?.mode &&
+        signal.timestamp === candidate?.timestamp &&
+        signal.weight === candidate?.weight
+      );
+    }) &&
+    scoreMapsMatch(leftValue.stationScores, rightValue.stationScores) &&
+    scoreMapsMatch(leftValue.tagScores, rightValue.tagScores) &&
+    scoreMapsMatch(leftValue.countryScores, rightValue.countryScores) &&
+    scoreMapsMatch(leftValue.languageScores, rightValue.languageScores) &&
+    scoreMapsMatch(leftValue.modeScores as Record<string, number>, rightValue.modeScores as Record<string, number>)
+  );
+};
+
 export const recordTasteSignal = (
   profile: TasteProfileV2,
   station: StationLite,

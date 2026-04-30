@@ -22,6 +22,7 @@ import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 import {
   DEFAULT_TASTE_PROFILE_V2,
+  mergeTasteProfiles,
   rankStationsForUser,
   recordTasteSignal
 } from '../src/lib/tasteProfile';
@@ -327,6 +328,25 @@ test('taste profile v2 promotes liked stations and demotes early skips', () => {
   expect(ranked.findIndex((station) => station.stationuuid === 'uuid-hamburg')).toBeGreaterThan(
     ranked.findIndex((station) => station.stationuuid === 'uuid-munich')
   );
+});
+
+test('taste profile cloud merge keeps local and remote signals combine-first', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 0, 0);
+  const remote = recordTasteSignal(DEFAULT_TASTE_PROFILE_V2, stations[0], 'liked', {
+    mode: 'personal',
+    now: now - 2000
+  });
+  const local = recordTasteSignal(DEFAULT_TASTE_PROFILE_V2, stations[4], 'skip-before-10s', {
+    mode: 'search',
+    now
+  });
+  const merged = mergeTasteProfiles(remote, local);
+
+  expect(merged.signals.map((signal) => signal.stationId)).toEqual(
+    expect.arrayContaining(['uuid-tokyo', 'uuid-berlin'])
+  );
+  expect(merged.stationScores['uuid-tokyo']).toBeGreaterThan(0);
+  expect(merged.stationScores['uuid-berlin']).toBeLessThan(0);
 });
 
 test('station health suppresses repeated failures but accepts metadata misses and proxy success', () => {
@@ -776,6 +796,31 @@ test('search ranks playable tag matches above failed matches', async ({ page }) 
   await expect(page.locator('.station-row').first()).toContainText('Osaka Nights');
 });
 
+test('mobile search uses compact result cards and can start a result queue', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: stations
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('.search-command-card .search-bar input').first().fill('jpop');
+  await expect(page.locator('[data-search-station-card]')).toHaveCount(12);
+  await expect(page.locator('[data-search-station-card]').first()).toContainText(/Tokyo FM|Osaka Nights/);
+  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:player:v2');
+        return raw ? JSON.parse(raw).queue?.sourceId : null;
+      })
+    )
+    .toBe('search-results');
+  await expect(page.locator('.player-dock-title')).toContainText(/Tokyo FM|Osaka Nights/);
+});
+
 test('home summary error banner is one-shot and clears after summary succeeds', async ({ page }) => {
   let attempts = 0;
   await page.unroute('**/catalog/summary**');
@@ -1038,8 +1083,30 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
   await expect(page.locator('[data-library-collection-row]')).toHaveCount(5);
 
+  const detail = page.locator('[data-library-collection-detail]');
+  await detail.getByRole('button', { name: /^Слушать$|^Play$/ }).first().click();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:player:v2');
+        return raw ? JSON.parse(raw).queue : null;
+      })
+    )
+    .toMatchObject({
+      sourceId: 'collection-collection-japan',
+      items: expect.arrayContaining([expect.objectContaining({ stationuuid: 'uuid-tokyo' })])
+    });
+
+  await detail.getByRole('button', { name: /Переименовать|Rename/ }).click();
+  await detail.getByLabel(/Новое название|New collection name/).fill('Japan radio');
+  await detail.getByRole('button', { name: /Сохранить|Save/ }).click();
+  await expect(detail.locator('.section-title').first()).toContainText('Japan radio');
+
+  await detail.getByRole('button', { name: /Порядок|Reorder/ }).click();
   const tokyoRow = page.locator('[data-library-collection-row][data-station-id="uuid-tokyo"]');
-  await tokyoRow.getByRole('button', { name: /Tokyo FM/ }).click();
+  await tokyoRow.getByRole('button', { name: /Опустить Tokyo FM|Move Tokyo FM down/ }).click();
+  await expect(detail.locator('[data-library-collection-row]').first()).not.toHaveAttribute('data-station-id', 'uuid-tokyo');
+  await tokyoRow.getByRole('button', { name: /Убрать Tokyo FM из коллекции|Remove Tokyo FM from collection/ }).click();
   await expect(tokyoRow).toHaveCount(0);
 });
 

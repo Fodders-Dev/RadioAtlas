@@ -57,6 +57,37 @@ export type ListenerAlert = {
   readAt: number | null;
 };
 
+export type SyncedTasteSignalAction =
+  | 'play-started'
+  | 'listened-30s'
+  | 'skip-before-10s'
+  | 'liked'
+  | 'unliked'
+  | 'saved-to-collection'
+  | 'replayed-later'
+  | 'station-failed';
+
+export type SyncedTasteSessionMode = 'personal' | 'resume' | 'search' | 'globe' | 'collection';
+
+export type SyncedTasteSignal = {
+  stationId: string;
+  action: SyncedTasteSignalAction;
+  mode: SyncedTasteSessionMode;
+  timestamp: number;
+  weight: number;
+};
+
+export type SyncedTasteProfile = {
+  version: 2;
+  lastUpdatedAt: number | null;
+  signals: SyncedTasteSignal[];
+  stationScores: Record<string, number>;
+  tagScores: Record<string, number>;
+  countryScores: Record<string, number>;
+  languageScores: Record<string, number>;
+  modeScores: Partial<Record<SyncedTasteSessionMode, number>>;
+};
+
 export type SyncedLibrary = {
   favorites: SyncedStation[];
   recent: SyncedStation[];
@@ -65,6 +96,7 @@ export type SyncedLibrary = {
   followedStations: FollowedStation[];
   followedRegions: FollowedRegion[];
   alerts: ListenerAlert[];
+  tasteProfile: SyncedTasteProfile;
   updatedAt: number;
 };
 
@@ -152,6 +184,7 @@ export type LibraryCounts = {
   followedStations: number;
   followedRegions: number;
   alerts: number;
+  tasteSignals: number;
 };
 
 export type MergePreviewParty = {

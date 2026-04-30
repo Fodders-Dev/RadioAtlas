@@ -43,7 +43,9 @@ export const defaultDictionary: DictionaryTree = {
   },
   search: {
     topbarSubtitle: 'Поиск по станциям, странам и жанрам',
-    kicker: 'Search'
+    kicker: 'Search',
+    playAllResults: 'Играть выдачу',
+    queueFromQuery: 'Поиск: {query}'
   },
   explore: {
     globeSubtitle: 'Путешествуй по радиоэфиру мира'
@@ -61,10 +63,19 @@ export const defaultDictionary: DictionaryTree = {
     kicker: 'Library',
     collectionAdded: '{station} добавлена в {collection}',
     collectionCreated: 'Коллекция создана: {name}',
+    collectionRenamed: 'Коллекция переименована: {name}',
     openCollection: 'Открыть',
     seeAllStations: 'Все станции',
     collectionOpenHint: 'Открой, чтобы слушать и убирать станции.',
     removeStationFromCollection: 'Убрать {station} из коллекции',
+    playCollection: 'Слушать',
+    shuffleCollection: 'Вперемешку',
+    renameCollection: 'Переименовать',
+    renameCollectionPrompt: 'Новое название',
+    moveUp: 'Выше',
+    moveDown: 'Ниже',
+    moveStationUp: 'Поднять {station}',
+    moveStationDown: 'Опустить {station}',
     reorderMode: 'Порядок',
     reorderDone: 'Готово',
     unfollow: 'Отписаться',

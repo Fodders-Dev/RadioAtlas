@@ -19,6 +19,10 @@ import type {
   SupporterTier,
   SyncedLibrary,
   SyncedStation,
+  SyncedTasteProfile,
+  SyncedTasteSessionMode,
+  SyncedTasteSignal,
+  SyncedTasteSignalAction,
   SyncedTrackHistoryItem,
   UserCollection
 } from './types.js';
@@ -212,6 +216,139 @@ export const sanitizeAlert = (value: unknown): ListenerAlert | null => {
   };
 };
 
+const TASTE_SIGNAL_ACTIONS = new Set<SyncedTasteSignalAction>([
+  'play-started',
+  'listened-30s',
+  'skip-before-10s',
+  'liked',
+  'unliked',
+  'saved-to-collection',
+  'replayed-later',
+  'station-failed'
+]);
+
+const TASTE_SESSION_MODES = new Set<SyncedTasteSessionMode>([
+  'personal',
+  'resume',
+  'search',
+  'globe',
+  'collection'
+]);
+
+const DEFAULT_TASTE_PROFILE: SyncedTasteProfile = {
+  version: 2,
+  lastUpdatedAt: null,
+  signals: [],
+  stationScores: {},
+  tagScores: {},
+  countryScores: {},
+  languageScores: {},
+  modeScores: {}
+};
+
+const sanitizeTasteSignal = (value: unknown): SyncedTasteSignal | null => {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  const stationId = safeText(item.stationId);
+  const action = safeText(item.action) as SyncedTasteSignalAction;
+  const mode = safeText(item.mode) as SyncedTasteSessionMode;
+  const timestamp = safeNumber(item.timestamp);
+  const weight = safeNumber(item.weight);
+  if (
+    !stationId ||
+    !TASTE_SIGNAL_ACTIONS.has(action) ||
+    !TASTE_SESSION_MODES.has(mode) ||
+    timestamp === null ||
+    weight === null
+  ) {
+    return null;
+  }
+  return {
+    stationId,
+    action,
+    mode,
+    timestamp,
+    weight: Math.max(-40, Math.min(40, weight))
+  };
+};
+
+const sanitizeScoreMap = (value: unknown, limit: number) => {
+  const source = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return Object.fromEntries(
+    Object.entries(source)
+      .map(([key, score]) => [safeText(key), safeNumber(score)] as const)
+      .filter((entry): entry is readonly [string, number] => Boolean(entry[0]) && entry[1] !== null)
+      .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]) || left[0].localeCompare(right[0]))
+      .slice(0, limit)
+  );
+};
+
+export const sanitizeTasteProfile = (value: unknown): SyncedTasteProfile => {
+  if (!value || typeof value !== 'object') return DEFAULT_TASTE_PROFILE;
+  const payload = value as Record<string, unknown>;
+  if (safeNumber(payload.version) !== 2) return DEFAULT_TASTE_PROFILE;
+  const signals = Array.isArray(payload.signals)
+    ? (payload.signals.map(sanitizeTasteSignal).filter(Boolean) as SyncedTasteSignal[])
+    : [];
+  const uniqueSignals = signals
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .filter((signal, index, source) => {
+      const key = `${signal.stationId}:${signal.action}:${signal.mode}:${signal.timestamp}`;
+      return source.findIndex((candidate) => `${candidate.stationId}:${candidate.action}:${candidate.mode}:${candidate.timestamp}` === key) === index;
+    })
+    .slice(0, 240);
+
+  return {
+    version: 2,
+    lastUpdatedAt: safeNumber(payload.lastUpdatedAt),
+    signals: uniqueSignals,
+    stationScores: sanitizeScoreMap(payload.stationScores, 140),
+    tagScores: sanitizeScoreMap(payload.tagScores, 36),
+    countryScores: sanitizeScoreMap(payload.countryScores, 30),
+    languageScores: sanitizeScoreMap(payload.languageScores, 24),
+    modeScores: sanitizeScoreMap(payload.modeScores, 8) as Partial<Record<SyncedTasteSessionMode, number>>
+  };
+};
+
+const mergeScoreMaps = (limit: number, ...maps: Array<Record<string, number>>) =>
+  sanitizeScoreMap(
+    maps.reduce<Record<string, number>>((merged, map) => {
+      Object.entries(map).forEach(([key, value]) => {
+        merged[key] = Number(((merged[key] || 0) + value).toFixed(4));
+      });
+      return merged;
+    }, {}),
+    limit
+  );
+
+export const mergeTasteProfiles = (
+  primary: SyncedTasteProfile,
+  secondary: SyncedTasteProfile
+): SyncedTasteProfile => {
+  const left = sanitizeTasteProfile(primary);
+  const right = sanitizeTasteProfile(secondary);
+  const signalMap = new Map<string, SyncedTasteSignal>();
+  [...left.signals, ...right.signals].forEach((signal) => {
+    const key = `${signal.stationId}:${signal.action}:${signal.mode}:${signal.timestamp}`;
+    const previous = signalMap.get(key);
+    if (!previous || Math.abs(signal.weight) > Math.abs(previous.weight)) {
+      signalMap.set(key, signal);
+    }
+  });
+  return {
+    version: 2,
+    lastUpdatedAt: Math.max(left.lastUpdatedAt || 0, right.lastUpdatedAt || 0) || null,
+    signals: Array.from(signalMap.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 240),
+    stationScores: mergeScoreMaps(140, left.stationScores, right.stationScores),
+    tagScores: mergeScoreMaps(36, left.tagScores, right.tagScores),
+    countryScores: mergeScoreMaps(30, left.countryScores, right.countryScores),
+    languageScores: mergeScoreMaps(24, left.languageScores, right.languageScores),
+    modeScores: mergeScoreMaps(8, left.modeScores, right.modeScores) as Partial<Record<SyncedTasteSessionMode, number>>
+  };
+};
+
 export const uniqueStations = (items: SyncedStation[]) => {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -315,6 +452,7 @@ export const sanitizeLibrary = (value: unknown): SyncedLibrary => {
         ? (payload.alerts.map(sanitizeAlert).filter(Boolean) as ListenerAlert[])
         : []
     ).slice(0, 160),
+    tasteProfile: sanitizeTasteProfile(payload.tasteProfile),
     updatedAt: Date.now()
   };
 };
@@ -365,6 +503,7 @@ export const mergeLibraries = (
     ),
     followedRegions: uniqueFollowedRegions([...primary.followedRegions, ...secondary.followedRegions]).slice(0, 40),
     alerts: uniqueAlerts([...primary.alerts, ...secondary.alerts]).slice(0, 160),
+    tasteProfile: mergeTasteProfiles(primary.tasteProfile, secondary.tasteProfile),
     updatedAt: Date.now()
   };
 };
@@ -379,7 +518,8 @@ export const libraryCounts = (library: SyncedLibrary): LibraryCounts => ({
   collections: library.collections.length,
   followedStations: library.followedStations.length,
   followedRegions: library.followedRegions.length,
-  alerts: library.alerts.length
+  alerts: library.alerts.length,
+  tasteSignals: library.tasteProfile.signals.length
 });
 
 export const EMPTY_LIBRARY_COUNTS: LibraryCounts = {
@@ -389,7 +529,8 @@ export const EMPTY_LIBRARY_COUNTS: LibraryCounts = {
   collections: 0,
   followedStations: 0,
   followedRegions: 0,
-  alerts: 0
+  alerts: 0,
+  tasteSignals: 0
 };
 
 export const normalizeEntitlements = (

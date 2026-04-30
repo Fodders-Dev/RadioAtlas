@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StationTable } from '../components/StationTable';
+import { StationArtwork } from '../components/StationArtwork';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
+import { stationLocation, stationTags } from '../lib/stationUtils';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
@@ -17,11 +19,88 @@ const mergeStations = (left: StationLite[], right: StationLite[]) => {
   return Array.from(merged.values());
 };
 
+type SearchResultCardProps = {
+  station: StationLite;
+  stations: StationLite[];
+  sourceId: string;
+};
+
+const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps) => {
+  const { t } = useLocale();
+  const { playStation, player } = usePlayback();
+  const { toggleFavorite, isFavorite } = useLibrary();
+  const active = player.current?.stationuuid === station.stationuuid;
+  const liked = isFavorite(station.stationuuid);
+  const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
+  const tags = stationTags(station);
+  const location = stationLocation(station);
+
+  const toggleStation = () => {
+    if (active) {
+      void player.toggle();
+      return;
+    }
+    playStation(station, {
+      playlist: stations,
+      sourceId,
+      sourceLabel: t('radio.searchResults')
+    });
+  };
+
+  return (
+    <article
+      className={`search-station-card station-row ${active ? 'active' : ''}`}
+      data-search-station-card
+      data-station-id={station.stationuuid}
+    >
+      <button
+        className="search-station-card-main"
+        type="button"
+        onClick={toggleStation}
+        aria-label={`${playLabel}: ${station.name}`}
+      >
+        <StationArtwork station={station} size="card" />
+        <span className="search-card-play-overlay" aria-hidden="true">
+          {active && player.isPlaying ? 'II' : '>'}
+        </span>
+      </button>
+      <div className="search-station-card-copy">
+        <div className="search-card-title" title={station.name}>
+          {station.name}
+        </div>
+        <div className="search-card-meta" title={location}>
+          {location}
+        </div>
+        {tags ? (
+          <div className="search-card-tags" title={tags}>
+            {tags}
+          </div>
+        ) : null}
+      </div>
+      <div className="search-card-actions">
+        <button className="play-btn search-card-play" type="button" onClick={toggleStation}>
+          {playLabel}
+        </button>
+        <button
+          className={`icon-btn search-card-fav ${liked ? 'active' : ''}`}
+          type="button"
+          onClick={() => toggleFavorite(station)}
+          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+          </svg>
+        </button>
+      </div>
+    </article>
+  );
+};
+
 export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
   const { recent, playbackHistory, behaviorProfile, playabilityProfile, stationHealthProfile } = useLibrary();
-  const { playStation, player } = usePlayback();
+  const { playStation, playStationQueue, player } = usePlayback();
   const { searchDraft, clearSearchDraft } = useShell();
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1024
@@ -81,6 +160,18 @@ export const Discover = () => {
       }),
     [behaviorProfile, playabilityProfile, stationHealthProfile, stationSearch.query, stationSearch.results]
   );
+  const searchQueue = useMemo(
+    () => rankedSearchResults.slice(0, compactResults ? 18 : 24),
+    [compactResults, rankedSearchResults]
+  );
+  const startSearchRadio = () => {
+    if (!searchQueue.length) return;
+    const query = stationSearch.query.trim();
+    playStationQueue(searchQueue, {
+      sourceId: 'search-results',
+      sourceLabel: query ? t('search.queueFromQuery', { query }) : t('radio.searchResults')
+    });
+  };
 
   return (
     <section className="screen screen-search screen-search-v2">
@@ -365,11 +456,21 @@ export const Discover = () => {
           <div className="glass-card search-results-card">
             <div className="search-results-head-minimal">
               <div className="section-title">{t('search.resultsTitle')}</div>
-              <div className="search-results-meta">
-                <span>{t('common.view')}</span>
-                <strong>
-                  {rankedSearchResults.length}/{stationSearch.searchTotal}
-                </strong>
+              <div className="search-results-head-actions">
+                <button
+                  className="chip active search-play-all-btn"
+                  type="button"
+                  onClick={startSearchRadio}
+                  disabled={!searchQueue.length}
+                >
+                  {t('search.playAllResults')}
+                </button>
+                <div className="search-results-meta">
+                  <span>{t('common.view')}</span>
+                  <strong>
+                    {rankedSearchResults.length}/{stationSearch.searchTotal}
+                  </strong>
+                </div>
               </div>
             </div>
             {stationSearch.searchError ? <div className="error">{stationSearch.searchError}</div> : null}
@@ -377,12 +478,25 @@ export const Discover = () => {
               {stationSearch.searchLoading && !stationSearch.results.length ? (
                 <div className="empty-state">{t('common.loading')}</div>
               ) : rankedSearchResults.length ? (
-                <StationTable
-                  stations={rankedSearchResults}
-                  sourceId="discover-stations"
-                  compact={compactResults}
-                  nowPlayingMode="viewport"
-                />
+                compactResults ? (
+                  <div className="search-result-grid">
+                    {rankedSearchResults.slice(0, 24).map((station) => (
+                      <SearchResultCard
+                        key={`search-card-${station.stationuuid}`}
+                        station={station}
+                        stations={rankedSearchResults}
+                        sourceId="search-results"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <StationTable
+                    stations={rankedSearchResults}
+                    sourceId="discover-stations"
+                    compact={compactResults}
+                    nowPlayingMode="viewport"
+                  />
+                )
               ) : (
                 <div className="empty-state">{t('stationTable.empty')}</div>
               )}

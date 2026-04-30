@@ -385,7 +385,8 @@ const readLibraryTelemetryCounts = (library: SessionTelemetryLibrary) => ({
   collections: library?.collections.length || 0,
   followedStations: library?.followedStations.length || 0,
   followedRegions: library?.followedRegions.length || 0,
-  alerts: library?.alerts.length || 0
+  alerts: library?.alerts.length || 0,
+  tasteSignals: library?.tasteProfile?.signals.length || 0
 });
 
 const buildLibraryTelemetrySignature = (library: SessionTelemetryLibrary) => {
@@ -397,7 +398,8 @@ const buildLibraryTelemetrySignature = (library: SessionTelemetryLibrary) => {
     counts.collections,
     counts.followedStations,
     counts.followedRegions,
-    counts.alerts
+    counts.alerts,
+    counts.tasteSignals
   ].join(':');
 };
 

@@ -101,6 +101,11 @@ test('logged-in playback bursts coalesce cloud library sync writes', async ({ pa
   await page.waitForTimeout(1800);
   await expect(page.locator('.player-dock-title')).toContainText('Kyoto Groove');
   expect(syncBodies).toHaveLength(1);
+  const syncedLibrary = JSON.parse(syncBodies[0]) as {
+    tasteProfile?: { signals?: Array<{ stationId: string }> };
+  };
+  expect(syncedLibrary.tasteProfile?.signals?.length || 0).toBeGreaterThan(0);
+  expect(syncedLibrary.tasteProfile?.signals?.some((signal) => signal.stationId === 'uuid-kyoto')).toBe(true);
 
   await page.getByRole('button', { name: 'Медиатека' }).first().click();
   await expect(page.locator('.screen-library-v2')).toBeVisible();
