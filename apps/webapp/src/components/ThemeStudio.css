@@ -77,6 +77,14 @@
   padding: 14px;
 }
 
+.theme-studio-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
 .theme-studio-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
@@ -135,6 +143,86 @@
 .theme-studio-card-copy small {
   color: var(--muted);
   font-size: 12px;
+}
+
+.theme-studio-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  gap: 10px;
+}
+
+.theme-studio-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-studio-field input[type='range'] {
+  width: 100%;
+  accent-color: var(--theme-studio-accent, var(--accent));
+}
+
+.theme-studio-builder-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--theme-studio-accent) 34%, var(--border));
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 14% 8%, color-mix(in srgb, var(--theme-studio-accent) 22%, transparent), transparent 28%),
+    var(--theme-studio-bg);
+  font-family: var(--theme-studio-font);
+}
+
+.theme-studio-builder-preview div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.theme-studio-builder-preview span:not(.theme-studio-builder-icon) {
+  color: rgba(245, 251, 255, 0.7);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-studio-builder-preview strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-studio-builder-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--theme-studio-icon-radius, var(--theme-icon-radius, 999px));
+  background: linear-gradient(135deg, var(--theme-studio-accent), var(--theme-studio-accent-2));
+  color: rgba(5, 10, 18, 0.92);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.theme-studio-builder-status {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-studio-builder-status.is-error {
+  color: var(--danger);
 }
 
 @media (max-width: 420px) {

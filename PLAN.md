@@ -15,7 +15,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
 - [x] 17.3 Theme Studio UI
   - Add the real Theme Studio sheet for bundled themes and one-tap apply.
-- [ ] 17.4 Theme Builder
+- [x] 17.4 Theme Builder
   - Add simple background, accent, icon, and font editing for local themes.
 - [ ] 17.5 Decorative theme layers
   - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17.4 Theme Builder, after 17.3 review.
+Next: Stage 17.5 Decorative theme layers, after 17.4 review.

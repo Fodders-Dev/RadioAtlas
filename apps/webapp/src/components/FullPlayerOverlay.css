@@ -181,13 +181,13 @@
   place-items: center;
   width: 46px;
   height: 46px;
-  border-radius: 16px;
+  border-radius: var(--theme-icon-radius, 16px);
 }
 
 .full-player-controls .full-player-icon-btn {
   width: 58px;
   height: 58px;
-  border-radius: 22px;
+  border-radius: var(--theme-icon-radius, 22px);
 }
 
 .full-player-primary-btn {
@@ -195,7 +195,7 @@
   place-items: center;
   width: 100%;
   min-height: 66px;
-  border-radius: 999px;
+  border-radius: var(--theme-icon-radius, 999px);
   color: var(--bg);
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 72%, white));
   box-shadow: 0 16px 42px color-mix(in srgb, var(--accent) 28%, transparent);
@@ -236,7 +236,7 @@
   justify-content: center;
   gap: 7px;
   padding: 8px;
-  border-radius: 16px;
+  border-radius: var(--theme-icon-radius, 16px);
 }
 
 .full-player-action-chip.active {

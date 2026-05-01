@@ -655,7 +655,31 @@ export const enDictionary = {
     "current": "Current theme",
     "previewStation": "RadioAtlas FM · live",
     "bundledTitle": "Bundled themes",
-    "bundledCopy": "Tap a card to apply it immediately."
+    "bundledCopy": "Tap a card to apply it immediately.",
+    "builderTitle": "Build a local theme",
+    "builderCopy": "Saved only on this device.",
+    "customDefaultName": "My theme",
+    "nameLabel": "Name",
+    "accentHue": "Color",
+    "accentSat": "Saturation",
+    "backgroundLabel": "Background",
+    "fontLabel": "Font",
+    "iconLabel": "Icons",
+    "previewLabel": "Preview",
+    "saveAndApply": "Save and apply",
+    "builderSaved": "Theme applied",
+    "builderError": "Theme save failed",
+    "font": {
+      "system": "System",
+      "rounded": "Rounded",
+      "serif": "Serif",
+      "mono": "Mono"
+    },
+    "icon": {
+      "round": "Round",
+      "soft": "Soft",
+      "sharp": "Sharp"
+    }
   },
   "skin": {
     "kicker": "Skin Lab",

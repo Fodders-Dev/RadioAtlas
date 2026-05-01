@@ -655,7 +655,31 @@ export const ruDictionary = {
     "current": "Текущая тема",
     "previewStation": "RadioAtlas FM · прямой эфир",
     "bundledTitle": "Готовые темы",
-    "bundledCopy": "Тап по карточке сразу применяет тему."
+    "bundledCopy": "Тап по карточке сразу применяет тему.",
+    "builderTitle": "Собрать локальную тему",
+    "builderCopy": "Сохраняется только на этом устройстве.",
+    "customDefaultName": "Моя тема",
+    "nameLabel": "Название",
+    "accentHue": "Цвет",
+    "accentSat": "Насыщенность",
+    "backgroundLabel": "Фон",
+    "fontLabel": "Шрифт",
+    "iconLabel": "Иконки",
+    "previewLabel": "Превью",
+    "saveAndApply": "Сохранить и применить",
+    "builderSaved": "Тема применена",
+    "builderError": "Не удалось сохранить тему",
+    "font": {
+      "system": "Системный",
+      "rounded": "Мягкий",
+      "serif": "Serif",
+      "mono": "Mono"
+    },
+    "icon": {
+      "round": "Круглые",
+      "soft": "Мягкие",
+      "sharp": "Чёткие"
+    }
   },
   "skin": {
     "kicker": "Skin Lab",

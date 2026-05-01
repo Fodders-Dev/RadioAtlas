@@ -20,7 +20,11 @@ export type ThemeBackgroundLayer =
       gradient: string;
     };
 
-export type ThemeIconLayer = Partial<Record<'play' | 'pause' | 'next' | 'prev' | 'like', string>>;
+export type ThemeIconStyle = 'round' | 'soft' | 'sharp';
+
+export type ThemeIconLayer = Partial<Record<'play' | 'pause' | 'next' | 'prev' | 'like', string>> & {
+  style?: ThemeIconStyle;
+};
 
 export type ThemeFontLayer = {
   family: 'system' | 'serif' | 'mono' | 'rounded';

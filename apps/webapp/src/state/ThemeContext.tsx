@@ -30,6 +30,7 @@ type ThemeContextValue = {
   ready: boolean;
   applyTheme: (themeId: string) => boolean;
   saveDraft: (theme: ThemeDraftInput) => Promise<RadioAtlasTheme>;
+  saveDraftAndApply: (theme: ThemeDraftInput) => Promise<RadioAtlasTheme>;
   removeTheme: (themeId: string) => Promise<void>;
   saveAsset: (asset: ThemeAssetInput) => Promise<ThemeAsset>;
   removeAsset: (assetId: string) => Promise<void>;
@@ -115,6 +116,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     root.style.setProperty('--theme-accent-2', vars.accent2);
     root.style.setProperty('--theme-bg-image', vars.background);
     root.style.setProperty('--theme-font-family', vars.font);
+    root.style.setProperty('--theme-icon-radius', vars.iconRadius);
   }, [assetUrls, currentTheme]);
 
   const applyTheme = useCallback(
@@ -136,6 +138,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     });
     return saved;
   }, []);
+
+  const saveDraftAndApply = useCallback(
+    async (theme: ThemeDraftInput) => {
+      const saved = await saveDraft(theme);
+      setCurrentThemeId(saved.id);
+      return saved;
+    },
+    [saveDraft, setCurrentThemeId]
+  );
 
   const removeTheme = useCallback(
     async (themeId: string) => {
@@ -190,6 +201,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       ready,
       applyTheme,
       saveDraft,
+      saveDraftAndApply,
       removeTheme,
       saveAsset,
       removeAsset,
@@ -205,6 +217,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       removeAsset,
       removeTheme,
       saveAsset,
+      saveDraftAndApply,
       saveDraft
     ]
   );

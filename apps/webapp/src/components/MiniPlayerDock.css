@@ -79,6 +79,10 @@
   order: 2;
 }
 
+.player-dock .dock-icon-btn {
+  border-radius: var(--theme-icon-radius, 14px);
+}
+
 .player-dock .dock-volume-btn[data-muted='true'] {
   color: #dffff9;
   border-color: rgba(174, 240, 228, 0.24);

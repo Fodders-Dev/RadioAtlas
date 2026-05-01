@@ -55,7 +55,8 @@ import {
   themeAccentPairToCss,
   themeAccentToCss,
   themeBackgroundToCss,
-  themeFontToCss
+  themeFontToCss,
+  themeIconRadiusToCss
 } from '../src/lib/theme/runtime';
 import {
   clearThemeStorageForTests,
@@ -516,6 +517,7 @@ test('theme runtime maps theme layers to shell css variables', () => {
   expect(themeAccentPairToCss(neon?.layers.accent)).toBe('hsl(344 65% 70%)');
   expect(themeBackgroundToCss(neon?.layers.background)).toContain('#5526ff');
   expect(themeFontToCss({ family: 'rounded' })).toContain('Trebuchet MS');
+  expect(themeIconRadiusToCss({ style: 'sharp' })).toBe('10px');
 });
 
 test('theme storage saves custom themes and assets locally', async () => {
@@ -1577,6 +1579,46 @@ test('mobile settings opens Theme Studio and applies bundled themes', async ({ p
   );
   expect(accent).toBe('hsl(302 88% 68%)');
   await expect(page.locator('#webamp')).toHaveCount(0);
+});
+
+test('mobile Theme Studio builder saves and applies a local theme', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await page.locator('.mobile-settings-trigger').click();
+  await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
+  await page.getByLabel(/Name|Название/).fill('Codex Local');
+  await page.locator('[data-theme-builder-hue]').evaluate((node) => {
+    const input = node as HTMLInputElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    valueSetter?.call(input, '210');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.locator('[data-theme-builder-sat]').evaluate((node) => {
+    const input = node as HTMLInputElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    valueSetter?.call(input, '82');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.locator('.theme-studio-field').filter({ hasText: /Font|Шрифт/ }).locator('select').selectOption('mono');
+  await page.locator('.theme-studio-field').filter({ hasText: /Icons|Иконки/ }).locator('select').selectOption('sharp');
+  await page.getByRole('button', { name: /Save and apply|Сохранить и применить/ }).click();
+
+  await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme || '')).toContain(
+    'custom-codex-local'
+  );
+  await expect(page.locator('[data-theme-card]').filter({ hasText: 'Codex Local' })).toBeVisible();
+  const vars = await page.evaluate(() => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    return {
+      accent: rootStyle.getPropertyValue('--theme-accent').trim(),
+      iconRadius: rootStyle.getPropertyValue('--theme-icon-radius').trim()
+    };
+  });
+  expect(vars.accent).toBe('hsl(210 82% 68%)');
+  expect(vars.iconRadius).toBe('10px');
 });
 
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {

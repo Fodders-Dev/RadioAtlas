@@ -1,4 +1,4 @@
-import type { RadioAtlasTheme, ThemeBackgroundLayer, ThemeFontLayer } from './types';
+import type { RadioAtlasTheme, ThemeBackgroundLayer, ThemeFontLayer, ThemeIconLayer } from './types';
 
 export const THEME_DEFAULT_ACCENT = '#94f0ea';
 export const THEME_DEFAULT_ACCENT_2 = '#93b7ff';
@@ -6,6 +6,7 @@ export const THEME_DEFAULT_BACKGROUND =
   'radial-gradient(circle at 12% 8%, rgba(140, 247, 230, 0.2), transparent 18%), radial-gradient(circle at 82% 4%, rgba(150, 193, 255, 0.24), transparent 18%), radial-gradient(circle at 50% 78%, rgba(76, 137, 255, 0.16), transparent 28%), linear-gradient(180deg, #07111c 0%, #091824 34%, #0b1724 68%, #07111b 100%)';
 export const THEME_DEFAULT_FONT =
   "'Manrope', 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+export const THEME_DEFAULT_ICON_RADIUS = '999px';
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
@@ -41,6 +42,18 @@ export const themeFontToCss = (font?: ThemeFontLayer) => {
   }
 };
 
+export const themeIconRadiusToCss = (icons?: ThemeIconLayer) => {
+  switch (icons?.style) {
+    case 'sharp':
+      return '10px';
+    case 'soft':
+      return '18px';
+    case 'round':
+    default:
+      return THEME_DEFAULT_ICON_RADIUS;
+  }
+};
+
 export const themeBackgroundToCss = (
   background: ThemeBackgroundLayer | undefined,
   resolveAssetUrl?: (assetId: string) => string | null
@@ -61,5 +74,6 @@ export const themeRuntimeVars = (
   accent: themeAccentToCss(theme.layers.accent),
   accent2: themeAccentPairToCss(theme.layers.accent),
   background: themeBackgroundToCss(theme.layers.background, resolveAssetUrl),
-  font: themeFontToCss(theme.layers.font)
+  font: themeFontToCss(theme.layers.font),
+  iconRadius: themeIconRadiusToCss(theme.layers.icons)
 });
