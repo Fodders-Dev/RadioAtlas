@@ -23,10 +23,20 @@ test('start payload includes deep link and opens the shared mini app URL', () =>
   assert.equal(payload.buttonUrl, 'https://radioatlas.duckdns.org/?api=%2Fapi&v=abc1234');
 });
 
-test('support, premium and gift payloads keep mini app routing stable', () => {
-  assert.match(buildSupportPayload(helpers).buttonUrl || '', /start=support/);
-  assert.match(buildPremiumPayload(helpers).buttonUrl || '', /start=premium/);
-  assert.match(buildGiftPayload(helpers, 'friend42').buttonUrl || '', /start=gift%3Afriend42/);
+test('deferred paid payloads route back to core radio', () => {
+  const payloads = [
+    buildSupportPayload(helpers),
+    buildPremiumPayload(helpers),
+    buildGiftPayload(helpers, 'friend42')
+  ];
+
+  for (const payload of payloads) {
+    assert.match(payload.text, /закрыты|фокусируется/);
+    assert.doesNotMatch(payload.text, /Stars|Premium/);
+    assert.equal(payload.buttonLabel, 'Открыть RadioAtlas');
+    assert.match(payload.buttonUrl || '', /start=radio/);
+    assert.doesNotMatch(payload.buttonUrl || '', /start=(support|premium|gift)/);
+  }
 });
 
 test('share payload keeps simple command smoke contracts', () => {

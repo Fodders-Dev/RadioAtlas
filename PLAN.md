@@ -64,13 +64,16 @@ API proxy уже реализован и используется через `VI
 - [x] Stage 14: Observability and product analytics
   - Local/API events for open, impression, play attempt/success, startup time, skip, like, search, failure, queue source, session duration.
   - No personal data by default.
-- [ ] Stage 15: Telegram mobile hardening
+- [x] Stage 15: Telegram mobile hardening
   - 360-395px first.
-  - Fast first useful paint.
-  - No horizontal overflow on 360/390/412.
-  - Lazy heavy surfaces and robust API fallback.
-- [ ] Stage 16: Public/shared features later
-  - No public collections, marketplace, paid packs, Stars, editorial portal, owner dashboard until core loop is stable.
+  - Fast first useful paint: boot provider waterfall removed; Home shell mounts before heavy surfaces.
+  - No horizontal overflow on 360/390/412 across Home, Search, Globe, and Library.
+  - Heavy surfaces stay lazy on Home first paint: Globe, Skin Lab, Winamp overlays are not requested before user intent.
+  - Robust API fallback: webapp can build Home/Search/Globe catalog data from direct HTTPS Radio Browser stations when `/catalog/*` fails.
+- [x] Stage 16: Public/shared features later
+  - Public collections, marketplace, paid packs, Stars billing, editorial portal, owner dashboard, and station claims are guarded off.
+  - Account billing no longer fetches products or opens Telegram invoices while paid surfaces are disabled.
+  - Bot support/premium/gift commands route back to core RadioAtlas instead of surfacing paid entry points.
 
 ## Current Acceptance
 
@@ -96,6 +99,8 @@ API proxy уже реализован и используется через `VI
 - Expanded player shows current station artwork, queue context, recent tracks, details entry, and hide/show recommendation control.
 - Station details exposes stream trust, preferred transport, recent tracks, favorite/follow, report broken, open stream/site, and hide/show from recommendations.
 - Product analytics records app open, Home station impressions, search query hash, play attempt/success, stream failure, skip, like, queue source, station details/report/hide, and session duration without raw search text or station names in product events.
+- Telegram mobile hardening removes the startup provider waterfall, verifies no horizontal overflow on 360/390/412, keeps Globe/Skin Lab/Winamp overlays lazy on Home first paint, and falls back to direct HTTPS Radio Browser catalog data when the app API is unavailable.
+- Deferred public/shared/paid surfaces are disabled by explicit guards: no Stars billing, marketplace, paid packs, public collections, editorial portal, owner dashboard, or station claims are exposed before the core loop is stable.
 
 ## Test Plan
 
@@ -107,4 +112,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Stage 15: Telegram mobile hardening. Keep 360-395px primary, verify first useful paint, no horizontal overflow on 360/390/412, and lazy/fallback behavior for heavy surfaces and API errors.
+Core roadmap through Stage 16 is closed. Next: review on real Telegram Android/iOS devices, collect QA findings, and only then decide whether to start a new roadmap; public/shared monetization stays deferred until the listening loop is proven stable.

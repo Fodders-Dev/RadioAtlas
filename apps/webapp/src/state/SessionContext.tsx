@@ -19,6 +19,7 @@ import type {
 } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
 import { reportClientEvent } from '../lib/observability';
+import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
@@ -1277,6 +1278,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   const createTelegramInvoice = useCallback(
     async (productId: BillingProductId, recipientAccountId?: string | null) => {
+      if (!shouldExposeProductSurface('billing') || !shouldExposeProductSurface('stars')) {
+        return null;
+      }
       const token = getStoredToken();
       if (!apiBase || !token || !profile) return null;
       try {
@@ -1623,7 +1627,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   }, [accountSheetOpen, apiBase, hasGoogleClient]);
 
   useEffect(() => {
-    if (!apiBase || !accountSheetOpen || status !== 'authenticated') {
+    if (
+      !shouldExposeProductSurface('billing') ||
+      !shouldExposeProductSurface('stars') ||
+      !apiBase ||
+      !accountSheetOpen ||
+      status !== 'authenticated'
+    ) {
       setBillingProducts([]);
       return;
     }

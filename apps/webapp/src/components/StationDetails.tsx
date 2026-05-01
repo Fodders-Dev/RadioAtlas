@@ -11,6 +11,7 @@ import {
   reportProductEvent,
   stationAnalyticsMeta
 } from '../lib/productAnalytics';
+import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
@@ -126,6 +127,9 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         ? t('details.trustWeak')
         : t('details.trustUnknown');
   const hiddenFromRecommendations = isStationHiddenFromRecommendations(current.stationuuid);
+  const stationClaimsEnabled =
+    shouldExposeProductSurface('stationClaims') &&
+    shouldExposeProductSurface('ownerDashboard');
 
   const handlePlay = () => {
     player.toggle();
@@ -339,7 +343,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
             <div className="section-subtitle">{t('details.recentTracksEmpty')}</div>
           )}
         </div>
-        {status === 'authenticated' && !profileSummary?.ownerAccountId ? (
+        {stationClaimsEnabled && status === 'authenticated' && !profileSummary?.ownerAccountId ? (
           <div className="settings-actions">
             <button
               className="chip"

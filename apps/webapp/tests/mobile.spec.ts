@@ -47,6 +47,10 @@ import {
   buildListenerAlerts,
   buildRadioDigests
 } from '../src/lib/retention';
+import {
+  PRODUCT_SURFACE_GUARDS,
+  shouldExposeProductSurface
+} from '../src/lib/productSurfaceGuards';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
@@ -1028,15 +1032,18 @@ test('home summary error banner is one-shot and clears after summary succeeds', 
       body: summaryBody(Date.UTC(2026, 3, 20, 10, 0, 0))
     });
   });
+  await page.route('**/json/stations/topvote/**', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'fallback fixture failed' })
+    })
+  );
 
   await page.goto('/');
   await expect(page.locator('.home-status-banner')).toBeVisible();
   await page.locator('.home-status-banner .home-inline-link').click();
   await expect(page.locator('.home-status-banner')).toHaveCount(0);
-  const fallbackRefresh = page.locator('.home-hero-empty .home-secondary-btn');
-  if (await fallbackRefresh.isVisible().catch(() => false)) {
-    await fallbackRefresh.click();
-  }
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await expect(page.locator('.home-status-banner')).toHaveCount(0);
 });
@@ -1738,4 +1745,85 @@ test('telegram mobile fullscreen falls back to lite winamp mode', async ({ page 
   await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
   await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
   await expect(page.locator('.winamp-overlay-visualizer-card')).toHaveCount(0);
+});
+
+test('deferred public and paid product surfaces stay disabled', () => {
+  expect(PRODUCT_SURFACE_GUARDS).toMatchObject({
+    billing: false,
+    stars: false,
+    marketplace: false,
+    paidPacks: false,
+    publicCollections: false,
+    editorialPortal: false,
+    ownerDashboard: false,
+    stationClaims: false
+  });
+  expect(shouldExposeProductSurface('billing')).toBe(false);
+  expect(shouldExposeProductSurface('publicCollections')).toBe(false);
+  expect(shouldExposeProductSurface('stationClaims')).toBe(false);
+});
+
+test('home falls back to direct Radio Browser catalog when API summary fails', async ({ page }) => {
+  await page.unroute('**/catalog/summary**');
+  await page.route('**/catalog/summary**', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'catalog offline' })
+    })
+  );
+  await page.route('**/json/stations/topvote/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(stations)
+    })
+  );
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-rail] [data-home-station]').first()).toBeVisible();
+  await expect(page.locator('.home-status-banner')).toHaveCount(0);
+  await expectNoHomeHorizontalOverflow(page);
+});
+
+test('core mobile screens have no document overflow on 360 390 and 412 widths', async ({
+  page
+}) => {
+  for (const width of [360, 390, 412]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+    await expectNoDocumentHorizontalOverflow(page);
+
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+    await expect(page.locator('.search-command-card')).toBeVisible();
+    await expectNoDocumentHorizontalOverflow(page);
+
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+    await expect(page.locator('.screen-globe-v2')).toBeVisible();
+    await expectNoDocumentHorizontalOverflow(page);
+
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Медиатека|Library/ }).click();
+    await expect(page.locator('.library-tab-strip')).toBeVisible();
+    await expectNoDocumentHorizontalOverflow(page);
+  }
+});
+
+test('home first useful paint does not load globe skin lab or winamp overlays', async ({
+  page
+}) => {
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    requested.push(request.url());
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  expect(
+    requested.some((url) =>
+      /GlobeScreen|Globe\.tsx|SkinLab|WinampPlayerShell|LitePlayerOverlay|webamp/i.test(url)
+    )
+  ).toBe(false);
 });

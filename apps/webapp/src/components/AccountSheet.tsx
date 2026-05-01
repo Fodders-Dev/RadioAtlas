@@ -6,6 +6,7 @@ import {
   type SessionAuditEvent,
   type TelegramWidgetAuthData
 } from '../state/SessionContext';
+import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { SettingsSheet } from './SettingsSheet';
 
 declare global {
@@ -148,10 +149,16 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const googleAvailability = providerAvailability.google;
   const vkAvailability = providerAvailability.vk;
   const canUnlinkProvider = (profile?.providers.length || 0) > 1;
-  const premiumProducts = billingProducts.filter((product) => product.kind === 'premium' || product.kind === 'gift-premium');
-  const donationProducts = billingProducts.filter((product) => product.kind === 'donation');
+  const billingSurfaceEnabled =
+    shouldExposeProductSurface('billing') && shouldExposeProductSurface('stars');
+  const premiumProducts = billingSurfaceEnabled
+    ? billingProducts.filter((product) => product.kind === 'premium' || product.kind === 'gift-premium')
+    : [];
+  const donationProducts = billingSurfaceEnabled
+    ? billingProducts.filter((product) => product.kind === 'donation')
+    : [];
   const shouldShowMergeControls = Boolean(profile?.providers.length || pendingLinkPreview);
-  const shouldShowBilling = Boolean(profile && billingProducts.length);
+  const shouldShowBilling = billingSurfaceEnabled && Boolean(profile && billingProducts.length);
   const shouldShowAudit = Boolean(profile && auditTrail.length);
   const canRenderGoogleButton = googleAvailability.configured && hasGoogleClient;
   const canStartVkAuth = hasVkAuth && vkAvailability.configured;
@@ -342,6 +349,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   };
 
   const openInvoice = async (productId: (typeof billingProducts)[number]['id']) => {
+    if (!billingSurfaceEnabled) return;
     setBillingBusyId(productId);
     setBillingHint(t('account.billingOpeningHint'));
     const invoice = await createTelegramInvoice(productId);

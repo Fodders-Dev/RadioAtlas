@@ -16,6 +16,13 @@ import type {
 } from '../domain/contracts';
 import type { Station, StationLite } from '../types';
 import { getApiBase } from '../lib/apiBase';
+import {
+  fetchRadioBrowserFallbackStationById,
+  listRadioBrowserFallbackAreaStations,
+  listRadioBrowserFallbackAreas,
+  loadRadioBrowserFallbackSummary,
+  searchRadioBrowserFallback
+} from '../lib/radioBrowserFallback';
 
 type SearchStationsInput = {
   q?: string;
@@ -45,6 +52,7 @@ type CatalogContextValue = {
 };
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
+const CATALOG_REQUEST_TIMEOUT_MS = 6000;
 
 const toStationLite = (station: Station | StationLite): StationLite => ({
   stationuuid: station.stationuuid,
@@ -89,15 +97,20 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     }
 
     let response: Response;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), CATALOG_REQUEST_TIMEOUT_MS);
     try {
       response = await fetch(`${apiBase}${path}`, {
         headers: {
           Accept: 'application/json'
         },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: controller.signal
       });
     } catch {
       throw new Error('Catalog temporarily unavailable');
+    } finally {
+      window.clearTimeout(timeout);
     }
 
     const contentType = response.headers.get('content-type') || '';
@@ -167,8 +180,23 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
         setSummary(nextSummary);
         return nextSummary;
       } catch (error) {
-        setSummaryError(error instanceof Error ? error.message : 'Catalog summary failed');
-        return null;
+        try {
+          const fallbackSummary = await loadRadioBrowserFallbackSummary(seed);
+          rememberStations([
+            ...fallbackSummary.catalogPool,
+            ...fallbackSummary.freshSignals,
+            ...fallbackSummary.searchLaunch,
+            ...fallbackSummary.sponsored,
+            ...(fallbackSummary.countrySpotlight?.stations || []),
+            ...(fallbackSummary.genreSpotlight?.stations || [])
+          ]);
+          setSummary(fallbackSummary);
+          setSummaryError(null);
+          return fallbackSummary;
+        } catch {
+          setSummaryError(error instanceof Error ? error.message : 'Catalog summary failed');
+          return null;
+        }
       } finally {
         setSummaryLoading(false);
       }
@@ -190,7 +218,12 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (input.continent?.trim()) params.set('continent', input.continent.trim());
       params.set('limit', String(input.limit || 50));
       if (input.cursor) params.set('cursor', input.cursor);
-      const response = await requestJson<CatalogSearchResponse>(`/catalog/search?${params.toString()}`);
+      let response: CatalogSearchResponse;
+      try {
+        response = await requestJson<CatalogSearchResponse>(`/catalog/search?${params.toString()}`);
+      } catch {
+        response = await searchRadioBrowserFallback(input);
+      }
       rememberStations(response.items);
       return response;
     },
@@ -204,7 +237,12 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (cached) {
         return cached;
       }
-      const response = await requestJson<CatalogAreaListResponse>(`/catalog/areas?zoom=${bucket}`);
+      let response: CatalogAreaListResponse;
+      try {
+        response = await requestJson<CatalogAreaListResponse>(`/catalog/areas?zoom=${bucket}`);
+      } catch {
+        response = await listRadioBrowserFallbackAreas(zoomLevel);
+      }
       areaCacheRef.current.set(bucket, response);
       return response;
     },
@@ -216,9 +254,14 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       const params = new URLSearchParams();
       params.set('limit', String(options?.limit || 50));
       if (options?.cursor) params.set('cursor', options.cursor);
-      const response = await requestJson<CatalogAreaStationsResponse>(
-        `/catalog/areas/${encodeURIComponent(areaId)}/stations?${params.toString()}`
-      );
+      let response: CatalogAreaStationsResponse;
+      try {
+        response = await requestJson<CatalogAreaStationsResponse>(
+          `/catalog/areas/${encodeURIComponent(areaId)}/stations?${params.toString()}`
+        );
+      } catch {
+        response = await listRadioBrowserFallbackAreaStations(areaId, options);
+      }
       rememberStations(response.items);
       return response;
     },
@@ -231,13 +274,19 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (cached) {
         return cached;
       }
-      const response = await requestJson<{ item: StationLite | null }>(
-        `/catalog/stations/${encodeURIComponent(stationId)}`
-      );
-      if (response.item) {
-        rememberStations([response.item]);
+      let item: StationLite | null = null;
+      try {
+        const response = await requestJson<{ item: StationLite | null }>(
+          `/catalog/stations/${encodeURIComponent(stationId)}`
+        );
+        item = response.item || null;
+      } catch {
+        item = await fetchRadioBrowserFallbackStationById(stationId);
       }
-      return response.item || null;
+      if (item) {
+        rememberStations([item]);
+      }
+      return item;
     },
     [rememberStations, requestJson]
   );

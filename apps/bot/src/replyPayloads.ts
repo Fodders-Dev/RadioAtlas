@@ -34,24 +34,23 @@ export const buildStartPayload = (
 };
 
 export const buildSupportPayload = (helpers: SharedUrlHelpers): ReplyPayload => ({
-  text: 'Поддержать RadioAtlas можно прямо в мини-приложении через Telegram Stars.',
-  buttonLabel: helpers.webAppUrl ? 'Поддержать RadioAtlas' : undefined,
-  buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam('support') : undefined
+  text: 'Платные функции пока закрыты. Откройте RadioAtlas и слушайте радио.',
+  buttonLabel: helpers.webAppUrl ? 'Открыть RadioAtlas' : undefined,
+  buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam('radio') : undefined
 });
 
 export const buildPremiumPayload = (helpers: SharedUrlHelpers): ReplyPayload => ({
-  text: 'Открываю экран Premium в RadioAtlas.',
-  buttonLabel: helpers.webAppUrl ? 'Открыть Premium' : undefined,
-  buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam('premium') : undefined
+  text: 'Платные функции пока закрыты. Сейчас RadioAtlas фокусируется на радио-ядре.',
+  buttonLabel: helpers.webAppUrl ? 'Открыть RadioAtlas' : undefined,
+  buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam('radio') : undefined
 });
 
 export const buildGiftPayload = (helpers: SharedUrlHelpers, rawPayload?: string | null): ReplyPayload => {
-  const payload = rawPayload?.trim();
-  const param = payload ? `gift:${payload}` : 'gift';
+  void rawPayload;
   return {
-    text: 'Подарить Premium можно из мини-приложения.',
-    buttonLabel: helpers.webAppUrl ? 'Подарить Premium' : undefined,
-    buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam(param) : undefined
+    text: 'Подарки и платные функции пока закрыты. Откройте RadioAtlas и слушайте радио.',
+    buttonLabel: helpers.webAppUrl ? 'Открыть RadioAtlas' : undefined,
+    buttonUrl: helpers.webAppUrl ? helpers.withMiniAppParam('radio') : undefined
   };
 };
 
