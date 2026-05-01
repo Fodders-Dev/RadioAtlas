@@ -116,9 +116,13 @@ const getWebampLazyDependencies = () => ({
   }
 });
 
+const LEGACY_WEBAMP_MODULE_URL = '/vendor/webamp/webamp.lazy-bundle.min.mjs';
+
 const loadWebampCtor = async () => {
   if (!webampCtorPromise) {
-    webampCtorPromise = import('webamp/lazy').then((mod) => mod.default as unknown as WebampCtor);
+    webampCtorPromise = import(/* @vite-ignore */ LEGACY_WEBAMP_MODULE_URL).then(
+      (mod) => mod.default as unknown as WebampCtor
+    );
   }
   try {
     return await webampCtorPromise;
