@@ -501,14 +501,30 @@ test('generated artwork is stable per station and varies by seed', () => {
   expect(first).not.toEqual(other);
 });
 
-test('theme defaults expose three bundled shell themes', () => {
+test('theme defaults expose bundled shell themes', () => {
   expect(DEFAULT_RADIOATLAS_THEMES.map((theme) => theme.id)).toEqual([
     'classic',
     'neon',
-    'pastel'
+    'pastel',
+    'aurora-field',
+    'signal-grid',
+    'sunrise-dial'
   ]);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.builtin)).toBe(true);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.layers.background?.kind === 'gradient')).toBe(true);
+});
+
+test('generated bundled themes ship css background assets and reactions', () => {
+  const generatedThemes = DEFAULT_RADIOATLAS_THEMES.filter((theme) =>
+    ['aurora-field', 'signal-grid', 'sunrise-dial'].includes(theme.id)
+  );
+
+  expect(generatedThemes).toHaveLength(3);
+  for (const theme of generatedThemes) {
+    expect(theme.layers.background?.kind).toBe('gradient');
+    expect(themeBackgroundToCss(theme.layers.background)).toContain('/theme-backgrounds/');
+    expect(theme.layers.emojiReactions?.length).toBeGreaterThan(0);
+  }
 });
 
 test('theme runtime maps theme layers to shell css variables', () => {
@@ -517,6 +533,9 @@ test('theme runtime maps theme layers to shell css variables', () => {
   expect(themeAccentToCss(neon?.layers.accent)).toBe('hsl(302 88% 68%)');
   expect(themeAccentPairToCss(neon?.layers.accent)).toBe('hsl(344 65% 70%)');
   expect(themeBackgroundToCss(neon?.layers.background)).toContain('#5526ff');
+  expect(themeBackgroundToCss({ kind: 'image', assetId: 'print-1' }, (assetId) => `blob:${assetId}`)).toBe(
+    'url("blob:print-1")'
+  );
   expect(themeFontToCss({ family: 'rounded' })).toContain('Trebuchet MS');
   expect(themeIconRadiusToCss({ style: 'sharp' })).toBe('10px');
 });
@@ -1340,6 +1359,7 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   expect(trayMetrics.overflowY).toBe('auto');
   expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
   await expect(page.locator('.player-dock-tray[data-mode="volume"] .dock-skin-btn')).toHaveCount(0);
+  await expect(page.locator('.player-dock-tray[data-mode="volume"] .dock-theme-btn')).toBeVisible();
 });
 
 test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {
@@ -1619,7 +1639,7 @@ test('mobile settings opens Theme Studio and applies bundled themes', async ({ p
   await page.locator('.mobile-settings-trigger').click();
   await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
   await expect(page.locator('[data-theme-studio]')).toBeVisible();
-  await expect(page.locator('[data-theme-card]')).toHaveCount(3);
+  await expect(page.locator('[data-theme-card]')).toHaveCount(DEFAULT_RADIOATLAS_THEMES.length);
 
   await page.locator('[data-theme-card="neon"]').click();
   await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
@@ -1633,6 +1653,15 @@ test('mobile settings opens Theme Studio and applies bundled themes', async ({ p
     getComputedStyle(document.documentElement).getPropertyValue('--theme-accent').trim()
   );
   expect(accent).toBe('hsl(302 88% 68%)');
+
+  await page.locator('[data-theme-card="aurora-field"]').click();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+    'aurora-field'
+  );
+  const background = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--theme-bg-image').trim()
+  );
+  expect(background).toContain('radioatlas-aurora.svg');
   await expect(page.locator('#webamp')).toHaveCount(0);
 });
 
@@ -1660,6 +1689,29 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
   await page.locator('[data-theme-builder-emoji]').fill('⚡');
   await page.locator('.theme-studio-field').filter({ hasText: /Font|Шрифт/ }).locator('select').selectOption('mono');
   await page.locator('.theme-studio-field').filter({ hasText: /Icons|Иконки/ }).locator('select').selectOption('sharp');
+  await page.locator('[data-theme-builder-print]').setInputFiles({
+    name: 'radioatlas-print.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#06121d"/><circle cx="20" cy="22" r="14" fill="#65e4ff"/><path d="M0 52 C18 36 34 64 64 42 V64 H0Z" fill="#ff6ec7"/></svg>'
+    )
+  });
+  await expect(page.locator('[data-theme-print-name]')).toContainText('radioatlas-print.svg');
+  await expect(page.locator('[data-theme-builder-background="print"]')).toBeVisible();
+  await page.locator('[data-theme-builder-icon="pause"]').setInputFiles({
+    name: 'pause-icon.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="2" fill="#ffffff"/><rect x="14" y="4" width="5" height="16" rx="2" fill="#ffffff"/></svg>'
+    )
+  });
+  await page.locator('[data-theme-builder-sticker]').setInputFiles({
+    name: 'corner-sticker.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M32 4 39 24 60 24 43 37 49 58 32 46 15 58 21 37 4 24 25 24Z" fill="#65e4ff"/></svg>'
+    )
+  });
   await page.getByRole('button', { name: /Save and apply|Сохранить и применить/ }).click();
 
   await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme || '')).toContain(
@@ -1670,15 +1722,34 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
     const rootStyle = getComputedStyle(document.documentElement);
     return {
       accent: rootStyle.getPropertyValue('--theme-accent').trim(),
-      iconRadius: rootStyle.getPropertyValue('--theme-icon-radius').trim()
+      iconRadius: rootStyle.getPropertyValue('--theme-icon-radius').trim(),
+      background: rootStyle.getPropertyValue('--theme-bg-image').trim()
     };
   });
   expect(vars.accent).toBe('hsl(210 82% 68%)');
   expect(vars.iconRadius).toBe('10px');
+  expect(vars.background).toContain('blob:');
 
   await page.locator('.settings-sheet').last().locator('.settings-sheet-head .chip').click();
   await page.locator('.settings-sheet').last().locator('.settings-sheet-head .chip').click();
   await playHomeStation(page, 'Tokyo FM');
+  const dockBackground = await page.locator('.player-dock-bar').evaluate((node) =>
+    getComputedStyle(node).backgroundImage
+  );
+  expect(dockBackground).toContain('blob:');
+  await expect(page.locator('.dock-play-btn [data-theme-action-icon="pause"]')).toBeVisible();
+  await expect(page.locator('[data-theme-decoration="sticker"][data-theme-slot="dockLeft"]')).toBeVisible();
+
+  await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
+    (node as HTMLButtonElement).click();
+  });
+  const fullPlayerBackground = await page.locator('[data-full-player-overlay]').evaluate((node) =>
+    getComputedStyle(node).backgroundImage
+  );
+  expect(fullPlayerBackground).toContain('blob:');
+  await expect(page.locator('[data-full-player-overlay] [data-theme-action-icon="pause"]')).toBeVisible();
+  await page.locator('[data-full-player-overlay]').getByRole('button', { name: /Закрыть|Close/ }).click();
+
   const reaction = page.locator('[data-theme-decoration="emoji"][data-theme-trigger="play"]');
   await expect(reaction).toBeVisible();
   await expect(reaction).toHaveText('⚡');

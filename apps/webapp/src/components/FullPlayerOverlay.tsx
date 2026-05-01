@@ -5,6 +5,7 @@ import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
 import { StationArtwork } from './StationArtwork';
+import { ThemeActionIcon } from './ThemeActionIcon';
 import './FullPlayerOverlay.css';
 
 type FullPlayerOverlayProps = {
@@ -206,7 +207,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             disabled={!canResume}
             aria-label={t('common.previous')}
           >
-            <Icon>{actionIcon.previous}</Icon>
+            <ThemeActionIcon name="prev">{actionIcon.previous}</ThemeActionIcon>
           </button>
           <button
             className={`full-player-primary-btn ${player.isPlaying ? 'active' : ''}`}
@@ -215,7 +216,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             disabled={!canResume}
             aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
           >
-            <Icon>{player.isPlaying ? actionIcon.pause : actionIcon.play}</Icon>
+            <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
+              {player.isPlaying ? actionIcon.pause : actionIcon.play}
+            </ThemeActionIcon>
           </button>
           <button
             className="full-player-icon-btn"
@@ -224,7 +227,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             disabled={!canResume}
             aria-label={t('common.next')}
           >
-            <Icon>{actionIcon.next}</Icon>
+            <ThemeActionIcon name="next">{actionIcon.next}</ThemeActionIcon>
           </button>
         </section>
 
@@ -236,7 +239,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             disabled={!current}
             aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
           >
-            <Icon>{actionIcon.like}</Icon>
+            <ThemeActionIcon name="like">{actionIcon.like}</ThemeActionIcon>
             <span>{liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}</span>
           </button>
           <button

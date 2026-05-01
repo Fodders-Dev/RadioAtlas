@@ -15,12 +15,21 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
 - [x] 17.3 Theme Studio UI
   - Add the real Theme Studio sheet for bundled themes and one-tap apply.
+  - Theme Studio opens from Settings and from the dock volume tray.
+  - Bundled/custom cards support apply, remix, edit for custom themes, and delete for custom themes.
 - [x] 17.4 Theme Builder
-  - Add simple background, accent, icon, and font editing for local themes.
+  - Add background print upload, accent, font, icon style, custom player icon uploads, and remix/edit saves for local themes.
 - [x] 17.5 Decorative theme layers
   - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
+  - Builder can upload sticker/GIF assets and choose fixed slots/triggers.
 - [x] 17.6 Webamp easter egg
   - Unlock the legacy Lite/Webamp path through the R++ brand gesture; keep `?winamp=1` as a dev bypass if useful.
+- [x] 17.7 Generated bundled theme pack
+  - Add RadioAtlas-generated SVG backgrounds and bundled Theme Studio presets for Aurora Field, Signal Grid, and Sunrise Dial.
+- [x] 17.8 Local print uploads for shell/player themes
+  - Theme Studio can save a user image print as a local background asset.
+  - Dock and native Full Player consume the active theme print, not only accent colors.
+  - Dock and native Full Player consume custom play/pause/next/prev/like icon assets.
 
 ## Deferred
 

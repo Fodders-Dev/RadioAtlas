@@ -93,8 +93,6 @@
 
 .theme-studio-card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  align-items: center;
   gap: 10px;
   min-width: 0;
   padding: 10px;
@@ -104,6 +102,14 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
+}
+
+.theme-studio-card-main {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .theme-studio-card[data-theme-active='true'] {
@@ -145,6 +151,18 @@
   font-size: 12px;
 }
 
+.theme-studio-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.theme-studio-card-actions .chip {
+  min-height: 30px;
+  padding: 6px 9px;
+  font-size: 11px;
+}
+
 .theme-studio-builder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
@@ -165,6 +183,37 @@
   accent-color: var(--theme-studio-accent, var(--accent));
 }
 
+.theme-studio-print-field small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-studio-print-field input[type='file'] {
+  min-height: 42px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.theme-studio-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(245, 250, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-studio-asset-title {
+  align-content: center;
+  color: var(--text);
+}
+
 .theme-studio-builder-preview {
   position: relative;
   display: flex;
@@ -182,7 +231,24 @@
   overflow: hidden;
 }
 
+.theme-studio-builder-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--theme-studio-accent) 24%, transparent), transparent 48%),
+    rgba(5, 10, 18, 0.28);
+  pointer-events: none;
+}
+
+.theme-studio-builder-preview[data-theme-builder-background='print'] {
+  min-height: 110px;
+  background-position: center;
+  background-size: cover;
+}
+
 .theme-studio-builder-preview div {
+  position: relative;
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -204,6 +270,7 @@
 }
 
 .theme-studio-builder-icon {
+  position: relative;
   display: grid;
   width: 48px;
   height: 48px;

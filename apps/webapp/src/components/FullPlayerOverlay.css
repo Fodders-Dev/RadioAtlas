@@ -9,9 +9,13 @@
   overflow: hidden;
   color: var(--text);
   background:
+    linear-gradient(180deg, rgba(3, 7, 14, 0.42), rgba(3, 7, 14, 0.72)),
     radial-gradient(circle at 22% 14%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 30%),
     radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--accent-2) 20%, transparent), transparent 28%),
+    var(--theme-bg-image),
     linear-gradient(160deg, color-mix(in srgb, var(--bg) 92%, #000), var(--surface-overlay-strong));
+  background-position: center;
+  background-size: auto, auto, auto, cover, auto;
 }
 
 .full-player-backdrop {
@@ -92,8 +96,11 @@
 .full-player-artwork.station-artwork-card {
   width: 100%;
   height: 100%;
-  border-radius: 24px;
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, rgba(255, 255, 255, 0.16));
+  border-radius: calc(var(--theme-icon-radius, 18px) + 10px);
+  box-shadow:
+    0 0 0 8px color-mix(in srgb, var(--accent) 8%, transparent),
+    0 22px 60px rgba(0, 0, 0, 0.28);
 }
 
 .full-player-copy {
@@ -148,13 +155,18 @@
 }
 
 .full-player-track svg,
+.full-player-track .theme-action-icon,
 .full-player-icon-btn svg,
+.full-player-icon-btn .theme-action-icon,
 .full-player-primary-btn svg,
-.full-player-action-chip svg {
+.full-player-primary-btn .theme-action-icon,
+.full-player-action-chip svg,
+.full-player-action-chip .theme-action-icon {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
   fill: currentColor;
+  object-fit: contain;
 }
 
 .full-player-controls {
@@ -202,6 +214,11 @@
 }
 
 .full-player-primary-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+.full-player-primary-btn .theme-action-icon {
   width: 28px;
   height: 28px;
 }
@@ -266,7 +283,11 @@
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--surface-overlay) 76%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay) 84%, transparent), color-mix(in srgb, var(--surface-overlay-strong) 74%, transparent)),
+    var(--theme-bg-image);
+  background-position: center;
+  background-size: auto, cover;
   backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
 }

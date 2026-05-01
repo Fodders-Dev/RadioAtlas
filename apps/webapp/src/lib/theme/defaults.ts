@@ -71,6 +71,105 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
         family: 'rounded'
       }
     }
+  },
+  {
+    version: 1,
+    id: 'aurora-field',
+    name: 'Aurora Field',
+    author: 'RadioAtlas',
+    createdAt: BUILT_AT,
+    updatedAt: BUILT_AT,
+    builtin: true,
+    layers: {
+      accent: {
+        hue: 164,
+        sat: 84
+      },
+      background: {
+        kind: 'gradient',
+        gradient:
+          "url('/theme-backgrounds/radioatlas-aurora.svg'), linear-gradient(180deg, #06151e 0%, #102a31 55%, #07111b 100%)"
+      },
+      font: {
+        family: 'rounded'
+      },
+      icons: {
+        style: 'soft'
+      },
+      emojiReactions: [
+        {
+          emoji: '✦',
+          trigger: 'play',
+          slot: 'dockRight'
+        }
+      ]
+    }
+  },
+  {
+    version: 1,
+    id: 'signal-grid',
+    name: 'Signal Grid',
+    author: 'RadioAtlas',
+    createdAt: BUILT_AT,
+    updatedAt: BUILT_AT,
+    builtin: true,
+    layers: {
+      accent: {
+        hue: 214,
+        sat: 88
+      },
+      background: {
+        kind: 'gradient',
+        gradient:
+          "url('/theme-backgrounds/radioatlas-signal-grid.svg'), linear-gradient(180deg, #030914 0%, #09162d 54%, #050812 100%)"
+      },
+      font: {
+        family: 'mono'
+      },
+      icons: {
+        style: 'sharp'
+      },
+      emojiReactions: [
+        {
+          emoji: '⚡',
+          trigger: 'play',
+          slot: 'dockRight'
+        }
+      ]
+    }
+  },
+  {
+    version: 1,
+    id: 'sunrise-dial',
+    name: 'Sunrise Dial',
+    author: 'RadioAtlas',
+    createdAt: BUILT_AT,
+    updatedAt: BUILT_AT,
+    builtin: true,
+    layers: {
+      accent: {
+        hue: 24,
+        sat: 82
+      },
+      background: {
+        kind: 'gradient',
+        gradient:
+          "url('/theme-backgrounds/radioatlas-sunrise-dial.svg'), linear-gradient(160deg, #1a0b2e 0%, #6b1d69 34%, #ef7441 70%, #0d1f2f 100%)"
+      },
+      font: {
+        family: 'system'
+      },
+      icons: {
+        style: 'round'
+      },
+      emojiReactions: [
+        {
+          emoji: '☀',
+          trigger: 'like',
+          slot: 'homeHeroCorner'
+        }
+      ]
+    }
   }
 ];
 

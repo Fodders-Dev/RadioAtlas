@@ -4,6 +4,7 @@ import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
+import { ThemeActionIcon } from './ThemeActionIcon';
 import './MiniPlayerDock.css';
 
 type DockTrayMode = 'queue' | 'volume' | null;
@@ -32,6 +33,7 @@ export const MiniPlayerDock = () => {
     libraryTab,
     setLibraryTab,
     setDetailsOpen,
+    setSkinLabOpen,
     winamp
   } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
@@ -298,6 +300,18 @@ export const MiniPlayerDock = () => {
                     onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
                   />
                 </label>
+                <div className="player-dock-tray-actions">
+                  <button
+                    className="chip dock-theme-btn"
+                    type="button"
+                    onClick={() => {
+                      setTrayMode(null);
+                      setSkinLabOpen(true);
+                    }}
+                  >
+                    {t('theme.openStudio')}
+                  </button>
+                </div>
               </>
             ) : (
               <div className="player-dock-queue-tray">
@@ -461,13 +475,13 @@ export const MiniPlayerDock = () => {
           disabled={!current}
           aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
             {player.isPlaying ? (
               <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
             ) : (
               <path d="M8 5v14l11-7z" />
             )}
-          </svg>
+          </ThemeActionIcon>
         </button>
         <button
           className="dock-icon-btn dock-next-btn"
@@ -475,9 +489,9 @@ export const MiniPlayerDock = () => {
           onClick={playNext}
           aria-label={t('common.next')}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <ThemeActionIcon name="next">
             <path d="M6 6v12l8.5-6L6 6Zm9 0v12h2V6h-2Z" />
-          </svg>
+          </ThemeActionIcon>
         </button>
         <button
           className={`dock-icon-btn dock-like-btn ${liked ? 'active' : ''}`}
@@ -486,9 +500,9 @@ export const MiniPlayerDock = () => {
           disabled={!current}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
+          <ThemeActionIcon name="like">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-          </svg>
+          </ThemeActionIcon>
         </button>
       </div>
     </div>

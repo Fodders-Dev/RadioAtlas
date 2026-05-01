@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 2560" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#06121d"/>
+      <stop offset="0.46" stop-color="#0b2631"/>
+      <stop offset="1" stop-color="#071019"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="18%" cy="10%" r="70%">
+      <stop offset="0" stop-color="#53ffe1" stop-opacity="0.5"/>
+      <stop offset="0.4" stop-color="#2dd2b9" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#2dd2b9" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="76%" cy="28%" r="58%">
+      <stop offset="0" stop-color="#a8b8ff" stop-opacity="0.44"/>
+      <stop offset="0.42" stop-color="#4778ff" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#4778ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ribbonA" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#8dfff3" stop-opacity="0"/>
+      <stop offset="0.18" stop-color="#8dfff3" stop-opacity="0.44"/>
+      <stop offset="0.48" stop-color="#79b8ff" stop-opacity="0.3"/>
+      <stop offset="0.78" stop-color="#b88cff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#b88cff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ribbonB" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#00ffd4" stop-opacity="0"/>
+      <stop offset="0.28" stop-color="#00ffd4" stop-opacity="0.24"/>
+      <stop offset="0.58" stop-color="#55c2ff" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#55c2ff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soften">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence baseFrequency="0.7" numOctaves="3" seed="17" type="fractalNoise"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA tableValues="0 0.12" type="table"/>
+      </feComponentTransfer>
+    </filter>
+    <radialGradient id="vignette" cx="50%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#01050c" stop-opacity="0"/>
+      <stop offset="0.64" stop-color="#01050c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#01050c" stop-opacity="0.28"/>
+    </radialGradient>
+  </defs>
+  <rect width="1440" height="2560" fill="url(#sky)"/>
+  <rect width="1440" height="2560" fill="url(#glowA)"/>
+  <rect width="1440" height="2560" fill="url(#glowB)"/>
+  <path d="M-160 830 C180 690 375 980 690 795 C1015 605 1160 700 1590 520 L1590 1040 C1195 1140 920 940 680 1095 C390 1284 155 1030 -160 1220 Z" fill="url(#ribbonA)" filter="url(#soften)"/>
+  <path d="M-130 1120 C210 1040 385 1275 710 1135 C1060 985 1275 1165 1580 1005 L1580 1345 C1160 1450 985 1255 700 1390 C420 1525 130 1360 -130 1510 Z" fill="url(#ribbonB)" filter="url(#soften)"/>
+  <path d="M-120 1730 C250 1605 430 1770 760 1610 C1020 1482 1225 1518 1580 1375" fill="none" stroke="#97fff1" stroke-opacity="0.2" stroke-width="6"/>
+  <path d="M-90 1815 C190 1712 455 1930 805 1766 C1030 1662 1250 1664 1545 1555" fill="none" stroke="#81b7ff" stroke-opacity="0.14" stroke-width="4"/>
+  <g fill="#f7fffb" opacity="0.36">
+    <circle cx="214" cy="282" r="2.4"/>
+    <circle cx="1057" cy="186" r="2"/>
+    <circle cx="1180" cy="492" r="2.2"/>
+    <circle cx="344" cy="606" r="1.8"/>
+    <circle cx="924" cy="916" r="1.6"/>
+    <circle cx="1258" cy="1390" r="2"/>
+    <circle cx="472" cy="1512" r="1.8"/>
+    <circle cx="196" cy="2020" r="2.1"/>
+  </g>
+  <rect width="1440" height="2560" filter="url(#grain)" opacity="0.38"/>
+  <rect width="1440" height="2560" fill="url(#vignette)"/>
+</svg>

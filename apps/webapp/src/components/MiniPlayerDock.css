@@ -4,6 +4,23 @@
   overflow: hidden;
 }
 
+.player-dock.player-dock-bar,
+.player-dock.player-dock-peek {
+  border-color: color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.14));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-overlay-strong) 86%, transparent), color-mix(in srgb, var(--surface-raised) 76%, transparent)),
+    var(--theme-bg-image);
+  background-position: center;
+  background-size: auto, cover;
+}
+
+.player-dock.player-dock-bar::before,
+.player-dock.player-dock-peek::before {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), transparent 46%),
+    rgba(255, 255, 255, 0.05);
+}
+
 .player-peek-handle,
 .player-peek-handle.dormant {
   max-width: min(168px, calc(100vw - 90px));
@@ -60,6 +77,11 @@
   max-height: min(40vh, 360px);
   overflow: auto;
   overscroll-behavior: contain;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay-strong) 88%, transparent), color-mix(in srgb, var(--surface-raised) 78%, transparent)),
+    var(--theme-bg-image);
+  background-position: center;
+  background-size: auto, cover;
 }
 
 .player-dock .player-dock-queue-empty {
@@ -81,6 +103,12 @@
 
 .player-dock .dock-icon-btn {
   border-radius: var(--theme-icon-radius, 14px);
+}
+
+.player-dock .theme-action-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .player-dock .dock-volume-btn[data-muted='true'] {
