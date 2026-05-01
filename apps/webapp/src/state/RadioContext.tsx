@@ -232,9 +232,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     () => Object.values(storedLibraryState.stationCache),
     [storedLibraryState.stationCache]
   );
-  const storedQueue = storedPlayerState.queue;
-  const storedSkin = storedPlayerState.skin;
-  const storedLayout = storedPlayerState.layout;
+  const storedQueue = storedPlayerState.queue ?? DEFAULT_PLAYER_STATE.queue;
+  const storedSkin = { ...DEFAULT_PLAYER_STATE.skin, ...(storedPlayerState.skin ?? {}) };
+  const storedLayout = storedPlayerState.layout ?? DEFAULT_PLAYER_STATE.layout;
 
   const setStoredShellState = (next: StoredShellState | ((prev: StoredShellState) => StoredShellState)) =>
     setStoredAppState((prev) => ({

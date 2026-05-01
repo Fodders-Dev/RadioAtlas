@@ -841,6 +841,12 @@
   }
 }
 
+@media (max-width: 600px) {
+  .screen-home-next[data-density='dense'] .home-station-tile .home-station-caption {
+    display: none;
+  }
+}
+
 .app-shell-v2[data-low-power='true'] .home-hero-card,
 .app-shell-v2[data-low-power='true'] .home-search-launcher,
 .app-shell-v2[data-low-power='true'] .home-resume-strip,
