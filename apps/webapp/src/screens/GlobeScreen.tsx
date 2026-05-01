@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { RegionArtwork } from '../components/RegionArtwork';
 import { StationTable } from '../components/StationTable';
 import { findNearestAreaToPoint } from '../components/globe/selection';
 import { resolveCountryCoords, resolveStationCoords } from '../lib/geoResolver';
@@ -18,7 +19,7 @@ export const GlobeScreen = () => {
   const { t } = useLocale();
   const { summary, summaryLoading, fetchAreas, fetchAreaStations } = useCatalog();
   const { favorites, recent, followedRegions, toggleFollowRegion } = useLibrary();
-  const { player, playStation } = usePlayback();
+  const { player, playStationQueue } = usePlayback();
   const { setActiveSection, setLibraryTab, globeFocusRegionId, setGlobeFocusRegionId } = useShell();
   const isCompactLayout = useCompactLayout();
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -245,6 +246,13 @@ export const GlobeScreen = () => {
 
   const focusStations = selectedArea ? selectedStations : fallbackStations;
   const selectedLeadStation = selectedStations[0] || null;
+  const playRegionRadio = () => {
+    if (!selectedStations.length || !selectedArea) return;
+    playStationQueue(selectedStations, {
+      sourceId: `globe-region-${selectedArea.id}`,
+      sourceLabel: selectedArea.label
+    });
+  };
 
   return (
     <section
@@ -329,6 +337,19 @@ export const GlobeScreen = () => {
 
       <div className="glass-card globe-focus-card">
         <div className="search-results-head-minimal">
+          <RegionArtwork
+            region={
+              selectedArea
+                ? {
+                    id: selectedArea.id,
+                    label: selectedArea.label,
+                    scope: selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count }) ? 'area' : 'country'
+                  }
+                : null
+            }
+            count={selectedArea?.count || areas.length}
+            className="globe-focus-artwork"
+          />
           <div>
             <div className="section-title">
               {selectedArea ? selectedArea.label : t('globe.nearby')}
@@ -353,17 +374,11 @@ export const GlobeScreen = () => {
               <button
                 className="search-mini-chip active"
                 type="button"
-                onClick={() =>
-                  selectedLeadStation
-                    ? playStation(selectedLeadStation, {
-                        playlist: selectedStations,
-                        sourceId: 'globe-area'
-                      })
-                    : undefined
-                }
+                data-globe-play-region
+                onClick={playRegionRadio}
                 disabled={!selectedLeadStation}
               >
-                <span className="search-mini-chip-label">{t('common.play')}</span>
+                <span className="search-mini-chip-label">{t('globe.playRegionRadio')}</span>
                 <strong className="search-mini-chip-meta">
                   {selectedLeadStation?.name || selectedArea.subtitle}
                 </strong>

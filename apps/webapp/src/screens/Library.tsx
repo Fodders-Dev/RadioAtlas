@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CollectionArtwork } from '../components/CollectionArtwork';
+import { RegionArtwork } from '../components/RegionArtwork';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
+import { stationsForRegions } from '../lib/regionRecommendations';
 import { stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -19,6 +22,8 @@ export const Library = () => {
     followedStations,
     followedRegions,
     alerts,
+    digests,
+    notificationPreference,
     trackHistory,
     playbackHistory,
     clearFavorites,
@@ -32,7 +37,9 @@ export const Library = () => {
     removeStationFromCollection,
     toggleFollowStation,
     toggleFollowRegion,
-    markAlertRead
+    markAlertRead,
+    markDigestRead,
+    updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast, playNext } = usePlayback();
   const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId } = useShell();
@@ -267,6 +274,24 @@ export const Library = () => {
     playStationQueue(shuffle ? shuffleStations(collectionStations) : collectionStations, {
       sourceId: `collection-${collection.id}`,
       sourceLabel: collection.name
+    });
+  };
+  const playFollowedRegion = (region: (typeof followedRegions)[number]) => {
+    const regionStations = stationsForRegions(knownStations, [region], 16);
+    if (!regionStations.length) return;
+    playStationQueue(regionStations, {
+      sourceId: `region-${region.id}`,
+      sourceLabel: region.label
+    });
+  };
+  const playDigest = (digest: (typeof digests)[number]) => {
+    const digestStations = digest.stationIds
+      .map((stationId) => stationMap.get(stationId))
+      .filter(Boolean) as StationLite[];
+    if (!digestStations.length) return;
+    playStationQueue(digestStations, {
+      sourceId: `digest-${digest.kind}`,
+      sourceLabel: digest.title
     });
   };
   const beginRenameCollection = (collection: (typeof collections)[number]) => {
@@ -668,7 +693,9 @@ export const Library = () => {
           {selectedCollection ? (
             <div className="glass-card library-collection-detail" data-library-collection-detail>
               <div className="library-section-head">
-                <div>
+                <div className="library-collection-detail-title">
+                  <CollectionArtwork label={selectedCollection.name} stations={selectedCollectionStations} />
+                  <div>
                   <button className="chip" type="button" onClick={closeCollectionDetail}>
                     {t('common.back')}
                   </button>
@@ -702,6 +729,7 @@ export const Library = () => {
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
                 <div className="chip-row">
                   <button
@@ -878,7 +906,9 @@ export const Library = () => {
             ) : null}
             <div className="library-collection-grid">
               {sortedCollections.length ? (
-                sortedCollections.map((collection) => (
+                sortedCollections.map((collection) => {
+                  const collectionStations = resolveCollectionStations(collection);
+                  return (
                   <div key={collection.id} className="library-collection-card">
                     <div className="library-collection-head">
                       <button
@@ -886,9 +916,12 @@ export const Library = () => {
                         type="button"
                         onClick={() => openCollectionDetail(collection.id)}
                       >
-                        <div className="section-title">{collection.name}</div>
-                        <div className="section-subtitle">
-                          {t('library.collectionCount', { count: collection.stationIds.length })}
+                        <CollectionArtwork label={collection.name} stations={collectionStations} />
+                        <div>
+                          <div className="section-title">{collection.name}</div>
+                          <div className="section-subtitle">
+                            {t('library.collectionCount', { count: collection.stationIds.length })}
+                          </div>
                         </div>
                       </button>
                       <div className="chip-row">
@@ -939,7 +972,8 @@ export const Library = () => {
                       </div>
                     ) : null}
                   </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="empty-state library-empty-state">
                   <div className="library-empty-title">{t('library.collectionsEmptyTitle')}</div>
@@ -1013,9 +1047,22 @@ export const Library = () => {
                 <div className="playlist-history-list">
                   {libraryFeed.followedRegionsPreview.map((region) => (
                     <div key={region.id} className="playlist-history-item library-follow-row">
-                      <div className="playlist-history-name">{region.label}</div>
-                      <div className="playlist-history-meta">{region.scope}</div>
+                      <div className="library-follow-main">
+                        <RegionArtwork region={region} />
+                        <div>
+                          <div className="playlist-history-name">{region.label}</div>
+                          <div className="playlist-history-meta">{region.scope}</div>
+                        </div>
+                      </div>
                       <div className="chip-row library-follow-actions">
+                        <button
+                          className="chip active"
+                          type="button"
+                          onClick={() => playFollowedRegion(region)}
+                          disabled={!stationsForRegions(knownStations, [region], 1).length}
+                        >
+                          {t('common.play')}
+                        </button>
                         <button className="chip active" type="button" onClick={() => openFollowedRegion(region.id)}>
                           {t('library.openRegion')}
                         </button>
@@ -1038,11 +1085,64 @@ export const Library = () => {
                 <div className="section-title">{t('library.alertsTitle')}</div>
                 <div className="section-subtitle">{t('library.alertsCopy')}</div>
               </div>
-              <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
-                <span>{t('library.alertsUnread')}</span>
-                <strong>{libraryFeed.unreadAlerts}</strong>
+              <div className="chip-row">
+                <button
+                  className={`chip ${notificationPreference.inAppAlerts ? 'active' : ''}`}
+                  type="button"
+                  onClick={() =>
+                    updateNotificationPreference({
+                      inAppAlerts: !notificationPreference.inAppAlerts
+                    })
+                  }
+                >
+                  {notificationPreference.inAppAlerts
+                    ? t('library.alertsEnabled')
+                    : t('library.alertsDisabled')}
+                </button>
+                <button
+                  className={`chip ${notificationPreference.telegramBotOptIn ? 'active' : ''}`}
+                  type="button"
+                  onClick={() =>
+                    updateNotificationPreference({
+                      telegramBotOptIn: !notificationPreference.telegramBotOptIn
+                    })
+                  }
+                >
+                  {notificationPreference.telegramBotOptIn
+                    ? t('library.botOptedIn')
+                    : t('library.botOptIn')}
+                </button>
+                <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
+                  <span>{t('library.alertsUnread')}</span>
+                  <strong>{libraryFeed.unreadAlerts}</strong>
+                </div>
               </div>
             </div>
+            {digests.length ? (
+              <div className="track-list track-list-scroll library-digest-list">
+                {digests.slice(0, 4).map((digest) => (
+                  <div key={digest.id} className={`track-card ${digest.readAt ? '' : 'active'}`}>
+                    <div className="track-card-copy">
+                      <div className="track-title">{digest.title}</div>
+                      <div className="track-meta">{digest.body}</div>
+                    </div>
+                    <div className="chip-row">
+                      <button
+                        className="chip active"
+                        type="button"
+                        onClick={() => playDigest(digest)}
+                        disabled={!digest.stationIds.some((stationId) => stationMap.has(stationId))}
+                      >
+                        {t('library.digestPlay')}
+                      </button>
+                      <button className="chip" type="button" onClick={() => markDigestRead(digest.id)}>
+                        {digest.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {alerts.length ? (
               <div className="track-list track-list-scroll">
                 {alerts.slice(0, 8).map((alert) => (
@@ -1058,7 +1158,7 @@ export const Library = () => {
                 ))}
               </div>
             ) : (
-              <div className="empty-state">{t('library.alertsEmpty')}</div>
+              !digests.length ? <div className="empty-state">{t('library.alertsEmpty')}</div> : null
             )}
           </div>
         </div>

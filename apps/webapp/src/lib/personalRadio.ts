@@ -1,4 +1,4 @@
-import type { FollowedStation, UserCollection } from '../domain/contracts';
+import type { FollowedRegion, FollowedStation, UserCollection } from '../domain/contracts';
 import type { StationLite } from '../types';
 import {
   createHomeRecommendationFeed,
@@ -12,6 +12,7 @@ import {
   rankStationsForUser,
   type TasteProfileV2
 } from './tasteProfile';
+import { stationsForRegions } from './regionRecommendations';
 
 export type RadioSessionMode = 'personal' | 'resume' | 'search' | 'globe' | 'collection';
 
@@ -83,6 +84,7 @@ export const buildPersonalRadioQueue = ({
   trackHistory,
   collections,
   followedStations,
+  followedRegions,
   behaviorProfile,
   playabilityProfile,
   tasteProfile,
@@ -97,6 +99,7 @@ export const buildPersonalRadioQueue = ({
   trackHistory: Array<{ stationId: string }>;
   collections: UserCollection[];
   followedStations: FollowedStation[];
+  followedRegions?: FollowedRegion[];
   behaviorProfile: BehaviorProfile;
   playabilityProfile: StationPlayabilityProfile;
   tasteProfile?: TasteProfileV2 | null;
@@ -122,18 +125,21 @@ export const buildPersonalRadioQueue = ({
     trackHistory,
     collections,
     followedStations,
+    followedRegions: followedRegions || [],
     behaviorProfile,
     currentStation: context.currentStation,
     rotationSeed: context.seed
   });
   const collectionStations = stationsFromCollections(rankedCatalog, collections);
   const followedStationPool = stationsFromFollows(rankedCatalog, followedStations);
+  const followedRegionPool = stationsForRegions(rankedCatalog, followedRegions || [], 18);
   const currentId = context.currentStation?.stationuuid || null;
   const queue = mergeStations(
     recommendationFeed.tunedForYou,
     recommendationFeed.becauseYouLiked,
     favorites,
     followedStationPool,
+    followedRegionPool,
     collectionStations,
     recent,
     recommendationFeed.outsideOrbit,

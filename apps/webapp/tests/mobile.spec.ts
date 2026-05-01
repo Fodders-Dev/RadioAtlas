@@ -38,6 +38,13 @@ import {
   resolveNowPlayingTrust,
   upsertTrustedTrackHistory
 } from '../src/lib/trackTrust';
+import { createGeneratedArtworkPalette } from '../src/lib/artwork';
+import { stationsForRegions } from '../src/lib/regionRecommendations';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCE,
+  buildListenerAlerts,
+  buildRadioDigests
+} from '../src/lib/retention';
 
 const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
@@ -141,11 +148,15 @@ const expectNoGlobeHorizontalOverflow = async (page: Page) => {
 };
 
 const expectNoDocumentHorizontalOverflow = async (page: Page) => {
-  const metrics = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth
-  }));
-  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+        ),
+      { timeout: 5000 }
+    )
+    .toBeLessThanOrEqual(0);
 };
 
 const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
@@ -328,6 +339,133 @@ test('taste profile v2 promotes liked stations and demotes early skips', () => {
   expect(ranked.findIndex((station) => station.stationuuid === 'uuid-hamburg')).toBeGreaterThan(
     ranked.findIndex((station) => station.stationuuid === 'uuid-munich')
   );
+});
+
+test('followed regions feed Home and personal radio station pools', () => {
+  const regionStations = stationsForRegions(stations, [
+    {
+      id: 'asia-japan',
+      label: 'Japan',
+      scope: 'country',
+      createdAt: 1,
+      pinned: false
+    }
+  ]);
+
+  expect(regionStations.map((station) => station.stationuuid)).toContain('uuid-tokyo');
+  expect(regionStations.every((station) => station.country === 'Japan')).toBe(true);
+
+  const queue = buildPersonalRadioQueue({
+    catalog: stations,
+    favorites: [],
+    recent: [],
+    queuePreview: [],
+    playbackHistory: [],
+    trackHistory: [],
+    collections: [],
+    followedStations: [],
+    followedRegions: [
+      {
+        id: 'europe-germany',
+        label: 'Germany',
+        scope: 'country',
+        createdAt: 1,
+        pinned: false
+      }
+    ],
+    behaviorProfile: behaviorProfile(),
+    playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+    tasteProfile: DEFAULT_TASTE_PROFILE_V2,
+    healthProfile: DEFAULT_STATION_HEALTH_PROFILE,
+    context: {
+      mode: 'personal',
+      currentStation: null,
+      seed: 42,
+      limit: 6,
+      now: Date.now()
+    }
+  });
+
+  expect(queue.stations.some((station) => station.country === 'Germany')).toBe(true);
+});
+
+test('retention builds opt-in local alerts and digests without bot opt-in', () => {
+  const copy = {
+    trackAvailable: (stationName: string, track: string) => ({
+      title: `${stationName} track`,
+      body: track
+    }),
+    stationBackOnline: (stationName: string) => ({
+      title: `${stationName} online`,
+      body: 'back'
+    }),
+    regionActivity: (regionName: string, stationName: string) => ({
+      title: regionName,
+      body: stationName
+    }),
+    digest: (kind: 'continue-yesterday' | 'morning-mix' | 'evening-mix', stationNames: string[]) => ({
+      title: kind,
+      body: stationNames.join(', ')
+    })
+  };
+  const preference = {
+    ...DEFAULT_NOTIFICATION_PREFERENCE,
+    telegramBotOptIn: false
+  };
+  const alerts = buildListenerAlerts({
+    currentStation: stations[0],
+    trustedTrack: 'Artist - Song',
+    followedStations: [
+      {
+        stationId: stations[0].stationuuid,
+        stationName: stations[0].name,
+        country: stations[0].country,
+        createdAt: 1,
+        pinned: false,
+        alerts: ['track']
+      }
+    ],
+    followedRegions: [
+      {
+        id: 'asia-japan',
+        label: 'Japan',
+        scope: 'country',
+        createdAt: 1,
+        pinned: false
+      }
+    ],
+    knownStations: stations,
+    stationHealthProfile: DEFAULT_STATION_HEALTH_PROFILE,
+    existingAlerts: [],
+    notificationPreference: preference,
+    copy,
+    now: Date.UTC(2026, 3, 21, 8, 0, 0)
+  });
+  const digests = buildRadioDigests({
+    recent: stations.slice(0, 2),
+    playbackHistory: [],
+    favorites: [],
+    followedRegions: [],
+    existingDigests: [],
+    notificationPreference: preference,
+    copy,
+    now: Date.UTC(2026, 3, 21, 8, 0, 0)
+  });
+
+  expect(preference.telegramBotOptIn).toBe(false);
+  expect(alerts.some((alert) => alert.kind === 'track-available')).toBe(true);
+  expect(alerts.some((alert) => alert.kind === 'region-activity')).toBe(true);
+  expect(digests.map((digest) => digest.kind)).toContain('continue-yesterday');
+  expect(digests.map((digest) => digest.kind)).toContain('morning-mix');
+});
+
+test('generated artwork is stable per station and varies by seed', () => {
+  const first = createGeneratedArtworkPalette(stations[0].stationuuid);
+  const second = createGeneratedArtworkPalette(stations[0].stationuuid);
+  const other = createGeneratedArtworkPalette(stations[1].stationuuid);
+
+  expect(first).toEqual(second);
+  expect(first).not.toEqual(other);
 });
 
 test('taste profile cloud merge keeps local and remote signals combine-first', () => {
@@ -603,6 +741,7 @@ for (const width of [360, 390]) {
     await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-density', 'dense');
     await expect(page.locator('.globe-reticle')).toBeVisible();
     await expect(page.locator('[data-globe-tune]')).toBeVisible();
+    await expect(page.locator('[data-globe-play-region]')).toBeVisible();
     await expect(page.locator('.globe-hint')).not.toContainText(/scroll|колес/i);
     await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
     await expectNoGlobeHorizontalOverflow(page);
@@ -641,6 +780,9 @@ for (const width of [360, 390]) {
     expect(sheetRect.top).toBeLessThan(sheetRect.viewportHeight - 80);
     expect(sheetRect.bottom).toBeGreaterThan(sheetRect.top + 80);
     expect(sheetRect.scrollY).toBe(0);
+
+    await page.locator('[data-globe-play-region]').click();
+    await expect(page.locator('.player-dock-bar')).toBeVisible();
 
     await page.locator('[data-globe-clear]').click();
     await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
@@ -864,9 +1006,7 @@ test('player peek label clamps long station names', async ({ page }) => {
       maxWidth: computed.maxWidth,
       overflow: computed.overflow,
       textOverflow: computed.textOverflow,
-      whiteSpace: computed.whiteSpace,
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth
+      whiteSpace: computed.whiteSpace
     };
   });
 
@@ -874,7 +1014,7 @@ test('player peek label clamps long station names', async ({ page }) => {
   expect(styles.overflow).toBe('hidden');
   expect(styles.textOverflow).toBe('ellipsis');
   expect(styles.whiteSpace).toBe('nowrap');
-  expect(styles.scrollWidth).toBeLessThanOrEqual(styles.clientWidth);
+  await expectNoDocumentHorizontalOverflow(page);
 });
 
 test('mobile cold load mounts the peek dock immediately', async ({ page }) => {
@@ -1078,6 +1218,7 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   await expectNoDocumentHorizontalOverflow(page);
 
   await expect(page.locator('.library-collection-card')).toHaveCount(1);
+  await expect(page.locator('[data-collection-artwork]')).toBeVisible();
   await expect(page.locator('.library-collection-card').getByRole('button', { name: /^Убрать$|^Remove$/ })).toHaveCount(0);
   await page.locator('.library-collection-card').getByRole('button', { name: /Открыть|Open/ }).first().click();
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
@@ -1249,6 +1390,9 @@ test('mobile library followed regions route to focused globe area', async ({ pag
 
   await page.goto('/');
   const regionRow = page.locator('.library-follow-row').filter({ hasText: 'Japan' });
+  await expect(regionRow.locator('[data-region-artwork]')).toBeVisible();
+  await regionRow.getByRole('button', { name: /^Слушать$|^Play$/ }).click();
+  await expect(page.locator('.player-dock-title')).toHaveText(/Tokyo FM|Osaka Nights|Kyoto Groove|Sapporo City Pop/);
   await regionRow.getByRole('button', { name: /Открыть глобус|Open in Globe/ }).click();
   await expect(page.locator('.screen-globe-v2')).toBeVisible();
   await expect(page.locator('.globe-focus-card .section-title')).toHaveText(/Japan/);

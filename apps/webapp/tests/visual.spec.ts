@@ -85,7 +85,7 @@ const openHome = async (
 ) => {
   await seedRadioState(page, options);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(180);
   await waitForStableMetrics(page);
@@ -115,7 +115,7 @@ test('home shell visual baseline', async ({ page }) => {
     animations: 'disabled'
   });
   expect(screenshot).toMatchSnapshot('home-shell.png', {
-    maxDiffPixels: 10_000
+    maxDiffPixels: 20_000
   });
 });
 

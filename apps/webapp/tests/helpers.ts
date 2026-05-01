@@ -12,6 +12,7 @@ import {
   DEFAULT_TASTE_PROFILE_V2,
   type TasteProfileV2
 } from '../src/lib/tasteProfile';
+import { DEFAULT_NOTIFICATION_PREFERENCE } from '../src/lib/retention';
 
 export const stations = [
   {
@@ -268,6 +269,16 @@ type SeedRadioStateOptions = {
     track: string;
     timestamp: number;
   }>;
+  alerts?: Array<{
+    id: string;
+    kind: 'station-back-online' | 'track-available' | 'live-show' | 'region-activity';
+    stationId: string | null;
+    regionId: string | null;
+    title: string;
+    body: string;
+    createdAt: number;
+    readAt: number | null;
+  }>;
 };
 
 type MockStationsOptions = {
@@ -328,7 +339,8 @@ export const seedRadioState = async (
     collections = [],
     followedStations = [],
     followedRegions = [],
-    trackHistory = []
+    trackHistory = [],
+    alerts = []
   }: SeedRadioStateOptions = {}
 ) => {
   const cachedStations = buildStationCache([
@@ -404,7 +416,9 @@ export const seedRadioState = async (
           pinned: false,
           ...region
         })),
-        alerts: [],
+        alerts,
+        digests: [],
+        notificationPreference: DEFAULT_NOTIFICATION_PREFERENCE,
         trackHistory,
         playbackHistory,
         stationCache: cachedStations

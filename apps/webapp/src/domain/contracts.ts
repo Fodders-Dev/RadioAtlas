@@ -102,6 +102,30 @@ export type ListenerAlert = {
   readAt: number | null;
 };
 
+export type RadioDigestKind = 'continue-yesterday' | 'morning-mix' | 'evening-mix';
+
+export type RadioDigest = {
+  id: string;
+  kind: RadioDigestKind;
+  title: string;
+  body: string;
+  stationIds: string[];
+  createdAt: number;
+  readAt: number | null;
+};
+
+export type NotificationPreference = {
+  version: 1;
+  inAppAlerts: boolean;
+  telegramBotOptIn: boolean;
+  stationBackOnline: boolean;
+  trackAlerts: boolean;
+  regionActivity: boolean;
+  morningMix: boolean;
+  eveningMix: boolean;
+  updatedAt: number | null;
+};
+
 export type SyncedTasteSignalAction =
   | 'play-started'
   | 'listened-30s'

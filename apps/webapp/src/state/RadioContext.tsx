@@ -4,7 +4,9 @@ import type {
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
+  NotificationPreference,
   PlaybackCandidate,
+  RadioDigest,
   UserCollection
 } from '../domain/contracts';
 import type {
@@ -47,6 +49,13 @@ import {
   normalizeTrustedTrackTitle,
   upsertTrustedTrackHistory
 } from '../lib/trackTrust';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCE,
+  buildListenerAlerts,
+  buildRadioDigests,
+  upsertListenerAlerts,
+  upsertRadioDigests
+} from '../lib/retention';
 import type {
   TasteProfileV2,
   TasteSignalAction,
@@ -205,6 +214,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const followedStations = storedLibraryState.followedStations;
   const followedRegions = storedLibraryState.followedRegions;
   const alerts = storedLibraryState.alerts;
+  const digests = storedLibraryState.digests || [];
+  const notificationPreference =
+    storedLibraryState.notificationPreference?.version === 1
+      ? storedLibraryState.notificationPreference
+      : DEFAULT_NOTIFICATION_PREFERENCE;
   const trackHistory = storedLibraryState.trackHistory;
   const playbackHistoryEntries = storedLibraryState.playbackHistory;
   const knownStations = useMemo(
@@ -324,7 +338,26 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const setAlerts = (next: ListenerAlert[] | ((prev: ListenerAlert[]) => ListenerAlert[])) =>
     setStoredLibraryState((prev) => ({
       ...prev,
-      alerts: resolveUpdater(prev.alerts, next)
+      alerts: resolveUpdater(prev.alerts || [], next)
+    }));
+  const setDigests = (next: RadioDigest[] | ((prev: RadioDigest[]) => RadioDigest[])) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      digests: resolveUpdater(prev.digests || [], next)
+    }));
+  const setNotificationPreference = (
+    next:
+      | NotificationPreference
+      | ((prev: NotificationPreference) => NotificationPreference)
+  ) =>
+    setStoredLibraryState((prev) => ({
+      ...prev,
+      notificationPreference: resolveUpdater(
+        prev.notificationPreference?.version === 1
+          ? prev.notificationPreference
+          : DEFAULT_NOTIFICATION_PREFERENCE,
+        next
+      )
     }));
   const setTrackHistory = (
     next: TrackHistoryItem[] | ((prev: TrackHistoryItem[]) => TrackHistoryItem[])
@@ -1315,6 +1348,80 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     rememberTrackHistory(station, nowPlaying);
   }, [nowPlaying, player.current]);
 
+  useEffect(() => {
+    const nextDigests = buildRadioDigests({
+      recent,
+      playbackHistory: playbackHistoryEntries,
+      favorites,
+      followedRegions,
+      existingDigests: digests,
+      notificationPreference,
+      copy: {
+        trackAvailable: () => ({ title: '', body: '' }),
+        stationBackOnline: () => ({ title: '', body: '' }),
+        regionActivity: () => ({ title: '', body: '' }),
+        digest: (kind, stationNames) => ({
+          title: t(`retention.${kind}Title`),
+          body: t(`retention.${kind}Body`, {
+            stations: stationNames.join(', ')
+          })
+        })
+      }
+    });
+    if (!nextDigests.length) return;
+    setDigests((prev) => upsertRadioDigests(prev, nextDigests));
+  }, [
+    digests,
+    favorites,
+    followedRegions,
+    notificationPreference,
+    playbackHistoryEntries,
+    recent,
+    t
+  ]);
+
+  useEffect(() => {
+    const station = player.current;
+    const trustedTrack = station ? normalizeTrustedTrackTitle(nowPlaying, station) : null;
+    const nextAlerts = buildListenerAlerts({
+      currentStation: station,
+      trustedTrack,
+      followedStations,
+      followedRegions,
+      knownStations,
+      stationHealthProfile,
+      existingAlerts: alerts,
+      notificationPreference,
+      copy: {
+        trackAvailable: (stationName, track) => ({
+          title: t('retention.trackAvailableTitle', { station: stationName }),
+          body: t('retention.trackAvailableBody', { track })
+        }),
+        stationBackOnline: (stationName) => ({
+          title: t('retention.stationBackOnlineTitle', { station: stationName }),
+          body: t('retention.stationBackOnlineBody')
+        }),
+        regionActivity: (regionName, stationName) => ({
+          title: t('retention.regionActivityTitle', { region: regionName }),
+          body: t('retention.regionActivityBody', { station: stationName })
+        }),
+        digest: () => ({ title: '', body: '' })
+      }
+    });
+    if (!nextAlerts.length) return;
+    setAlerts((prev) => upsertListenerAlerts(prev, nextAlerts));
+  }, [
+    alerts,
+    followedRegions,
+    followedStations,
+    knownStations,
+    notificationPreference,
+    nowPlaying,
+    player.current,
+    stationHealthProfile,
+    t
+  ]);
+
   const clearFavorites = () => {
     setFavorites([]);
     syncCloudLibraryImmediately({
@@ -1480,6 +1587,26 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           : alert
       )
     );
+  };
+  const markDigestRead = (digestId: string) => {
+    setDigests((prev) =>
+      prev.map((digest) =>
+        digest.id === digestId && digest.readAt === null
+          ? {
+              ...digest,
+              readAt: Date.now()
+            }
+          : digest
+      )
+    );
+  };
+  const updateNotificationPreference = (next: Partial<NotificationPreference>) => {
+    setNotificationPreference((prev) => ({
+      ...prev,
+      ...next,
+      version: 1,
+      updatedAt: Date.now()
+    }));
   };
   const clearCache = () => {
     setStoredLibraryState((prev) => ({
@@ -1743,6 +1870,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       followedStations,
       followedRegions,
       alerts,
+      digests,
+      notificationPreference,
       trackHistory,
       playbackHistory: playbackHistoryEntries,
       behaviorProfile,
@@ -1763,6 +1892,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       toggleFollowStation,
       toggleFollowRegion,
       markAlertRead,
+      markDigestRead,
+      updateNotificationPreference,
       rememberStations
     }),
     [
@@ -1774,13 +1905,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearTrackHistory,
       collections,
       createCollection,
+      digests,
       favorites,
       followedRegions,
       followedStations,
       isFavorite,
       knownStations,
       markAlertRead,
+      markDigestRead,
       moveStationInCollection,
+      notificationPreference,
       playbackHistoryEntries,
       playabilityProfile,
       renameCollection,
@@ -1793,7 +1927,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       toggleCollectionPinned,
       toggleFollowRegion,
       toggleFollowStation,
-      trackHistory
+      trackHistory,
+      updateNotificationPreference
     ]
   );
 

@@ -56,7 +56,8 @@ export const defaultDictionary: DictionaryTree = {
     controlsHintMobile: 'Тяни · pinch · точка',
     tuneHere: 'Поймать здесь',
     nearby: 'Станции рядом',
-    toggleSpin: 'Вращение'
+    toggleSpin: 'Вращение',
+    playRegionRadio: 'Слушать регион'
   },
   library: {
     topbarSubtitle: 'Твоё избранное, очередь и история',
@@ -79,7 +80,26 @@ export const defaultDictionary: DictionaryTree = {
     reorderMode: 'Порядок',
     reorderDone: 'Готово',
     unfollow: 'Отписаться',
-    openRegion: 'Открыть глобус'
+    openRegion: 'Открыть глобус',
+    alertsEnabled: 'Алерты вкл.',
+    alertsDisabled: 'Алерты выкл.',
+    botOptIn: 'Включить бота',
+    botOptedIn: 'Бот включён',
+    digestPlay: 'Слушать'
+  },
+  retention: {
+    'continue-yesterdayTitle': 'Продолжить вчерашний эфир',
+    'continue-yesterdayBody': '{stations}',
+    'morning-mixTitle': 'Утренний radio mix',
+    'morning-mixBody': '{stations}',
+    'evening-mixTitle': 'Вечерний radio mix',
+    'evening-mixBody': '{stations}',
+    stationBackOnlineTitle: '{station} снова доступна',
+    stationBackOnlineBody: 'Можно вернуться к эфиру.',
+    trackAvailableTitle: '{station}: новый трек',
+    trackAvailableBody: '{track}',
+    regionActivityTitle: 'Новый эфир: {region}',
+    regionActivityBody: '{station}'
   },
   account: {
     title: 'Аккаунт',

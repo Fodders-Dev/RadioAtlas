@@ -3,7 +3,9 @@ import type {
   FollowedRegion,
   FollowedStation,
   ListenerAlert,
+  NotificationPreference,
   NowPlayingSnapshot,
+  RadioDigest,
   UserCollection
 } from '../../domain/contracts';
 import type { BehaviorProfile } from '../../lib/homeProfile';
@@ -94,6 +96,8 @@ export type StoredLibraryState = {
   followedStations: FollowedStation[];
   followedRegions: FollowedRegion[];
   alerts: ListenerAlert[];
+  digests: RadioDigest[];
+  notificationPreference: NotificationPreference;
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
   stationCache: Record<string, StationLite>;
@@ -170,6 +174,8 @@ export type LibraryContextValue = {
   followedStations: FollowedStation[];
   followedRegions: FollowedRegion[];
   alerts: ListenerAlert[];
+  digests: RadioDigest[];
+  notificationPreference: NotificationPreference;
   trackHistory: TrackHistoryItem[];
   playbackHistory: StationLite[];
   behaviorProfile: BehaviorProfile;
@@ -190,6 +196,8 @@ export type LibraryContextValue = {
   toggleFollowStation: (station: Station | StationLite) => void;
   toggleFollowRegion: (region: { id: string; label: string; scope: 'country' | 'area' }) => void;
   markAlertRead: (alertId: string) => void;
+  markDigestRead: (digestId: string) => void;
+  updateNotificationPreference: (next: Partial<NotificationPreference>) => void;
   rememberStations: (stations: Array<Station | StationLite | null | undefined>) => void;
 };
 

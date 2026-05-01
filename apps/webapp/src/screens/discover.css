@@ -36,6 +36,14 @@
   gap: 10px;
 }
 
+.globe-focus-card .search-results-head-minimal {
+  justify-content: flex-start;
+}
+
+.globe-focus-card .search-results-meta {
+  margin-left: auto;
+}
+
 .search-mode-switcher {
   flex-wrap: wrap;
 }
@@ -378,8 +386,13 @@
   line-height: 1.45;
 }
 
-.globe-focus-card .search-results-head-minimal > :first-child {
+.globe-focus-card .search-results-head-minimal > :not(.region-artwork) {
   min-width: 0;
+}
+
+.globe-focus-artwork {
+  width: 46px;
+  height: 46px;
 }
 
 .globe-focus-card .empty-state {

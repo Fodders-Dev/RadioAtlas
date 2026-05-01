@@ -171,6 +171,7 @@ const buildSurfaceFeed = (input: {
   collections: ReturnType<typeof useLibrary>['collections'];
   favorites: StationLite[];
   followedStations: ReturnType<typeof useLibrary>['followedStations'];
+  followedRegions: ReturnType<typeof useLibrary>['followedRegions'];
   behaviorProfile: ReturnType<typeof useLibrary>['behaviorProfile'];
   playabilityProfile: ReturnType<typeof useLibrary>['playabilityProfile'];
   tasteProfile: ReturnType<typeof useLibrary>['tasteProfile'];
@@ -199,6 +200,7 @@ const buildSurfaceFeed = (input: {
     trackHistory: input.trackHistory,
     collections: input.collections,
     followedStations: input.followedStations,
+    followedRegions: input.followedRegions,
     behaviorProfile: input.behaviorProfile,
     currentStation: input.currentStation,
     rotationSeed: input.seed
@@ -299,6 +301,7 @@ export const Home = () => {
     recent,
     collections,
     followedStations,
+    followedRegions,
     trackHistory,
     playbackHistory,
     behaviorProfile,
@@ -396,6 +399,7 @@ export const Home = () => {
       queuePreview,
       currentStation: player.current,
       followedStations,
+      followedRegions,
       collections,
       playbackHistory,
       playabilityProfile,
@@ -412,6 +416,7 @@ export const Home = () => {
     behaviorProfile,
     favorites,
     followedStations,
+    followedRegions,
     homeState.sessionSeed,
     homeState.snapshot,
     metrics,
@@ -457,6 +462,7 @@ export const Home = () => {
         trackHistory,
         collections,
         followedStations,
+        followedRegions,
         behaviorProfile,
         playabilityProfile,
         tasteProfile,
@@ -474,6 +480,7 @@ export const Home = () => {
       collections,
       favorites,
       followedStations,
+      followedRegions,
       homeState.sessionSeed,
       playbackHistory,
       playabilityProfile,
@@ -598,6 +605,7 @@ export const Home = () => {
         queuePreview,
         currentStation: player.current,
         followedStations,
+        followedRegions,
         collections,
         playbackHistory,
         playabilityProfile,

@@ -1,4 +1,5 @@
-import type { FollowedStation, UserCollection } from '../domain/contracts';
+import type { FollowedRegion, FollowedStation, UserCollection } from '../domain/contracts';
+import { stationsForRegions } from './regionRecommendations';
 import type { AppSection, StationLite } from '../types';
 
 type ScoreMap = Record<string, number>;
@@ -47,6 +48,7 @@ type CreateHomeRecommendationFeedInput = {
   trackHistory: Array<{ stationId: string }>;
   collections: UserCollection[];
   followedStations: FollowedStation[];
+  followedRegions?: FollowedRegion[];
   behaviorProfile: BehaviorProfile;
   currentStation: StationLite | null;
   rotationSeed: number;
@@ -245,6 +247,7 @@ export const createHomeRecommendationFeed = ({
   trackHistory,
   collections,
   followedStations,
+  followedRegions = [],
   behaviorProfile,
   currentStation,
   rotationSeed
@@ -264,10 +267,12 @@ export const createHomeRecommendationFeed = ({
     .map((item) => stationById.get(item.stationId) || null)
     .filter(Boolean) as StationLite[];
   const historySeed = [...playbackHistory].slice(-8).reverse();
+  const regionSeed = stationsForRegions(catalog, followedRegions, 16);
 
   const seedProfile = buildAffinityProfile([
     { stations: favorites, weight: 8 },
     { stations: followedSeed, weight: 7 },
+    { stations: regionSeed, weight: 6 },
     { stations: collectionSeed, weight: 5 },
     { stations: copiedTrackSeed, weight: 9 },
     { stations: historySeed, weight: 4 }

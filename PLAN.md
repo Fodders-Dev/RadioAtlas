@@ -45,13 +45,13 @@ API proxy уже реализован и используется через `VI
   - Telegram auth как основной путь.
   - Sync favorites, recent, collections, followed, taste profile.
   - Combine-first conflict strategy.
-- [ ] Stage 9: Globe как discovery mode
+- [x] Stage 9: Globe как discovery mode
   - Tune here, playable bottom sheet, follow region, play region radio.
   - Nearby/current region seed.
-- [ ] Stage 10: Retention
+- [x] Stage 10: Retention
   - Continue yesterday, station back online, favorite-station track, new playable region stations, morning/evening mix.
   - Telegram bot notifications only opt-in.
-- [ ] Stage 11: Visual identity and artwork
+- [x] Stage 11: Visual identity and artwork
   - Stable generated station covers.
   - Collection mosaic covers.
   - Region mini-art.
@@ -88,6 +88,11 @@ API proxy уже реализован и используется через `VI
 - Search 390px renders compact station cards with direct play overlay and can start a queue from current results.
 - Library collections can play, shuffle, rename, reorder rows, and remove stations from the focused detail view.
 - Cloud library sync preserves `tasteProfile` through webapp and API sanitize/merge with combine-first behavior.
+- Globe focused regions expose a direct "play region radio" action and followed regions feed Home/Personal Radio recommendations.
+- Library followed regions can start regional queues without leaving the screen.
+- Local retention now builds in-app digests and alerts for yesterday's session, morning/evening mixes, followed-station tracks, back-online stations, and followed-region activity.
+- Telegram bot notifications remain opt-in only; no bot notification side effects run by default.
+- Station, collection, and region fallback artwork is stable, generated from deterministic seeds, and covered by visual snapshots.
 
 ## Test Plan
 
@@ -99,4 +104,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Stage 9: Globe as discovery mode. Keep it secondary to Home, but make every focused region quickly playable and feed followed regions back into Home/Personal Radio.
+Stage 12: Player as core product object. Keep the dock compact, make expanded player the listening hub, and add a clear "hide station from recommendations" path.

@@ -2,6 +2,7 @@ import { DEFAULT_BEHAVIOR_PROFILE } from '../../lib/homeProfile';
 import { DEFAULT_PLAYABILITY_PROFILE } from '../../lib/stationPlayability';
 import { DEFAULT_STATION_HEALTH_PROFILE } from '../../lib/stationHealth';
 import { DEFAULT_TASTE_PROFILE_V2 } from '../../lib/tasteProfile';
+import { DEFAULT_NOTIFICATION_PREFERENCE } from '../../lib/retention';
 import {
   DEFAULT_WINAMP_SKIN_ID,
   WINAMP_CLASSIC_PALETTE,
@@ -75,6 +76,8 @@ export const DEFAULT_LIBRARY_STATE: StoredLibraryState = {
   followedStations: [],
   followedRegions: [],
   alerts: [],
+  digests: [],
+  notificationPreference: DEFAULT_NOTIFICATION_PREFERENCE,
   trackHistory: [],
   playbackHistory: [],
   stationCache: {}
