@@ -20,6 +20,8 @@ export const defaultDictionary: DictionaryTree = {
     play: 'Play',
     pause: 'Pause',
     next: 'Next',
+    previous: 'Previous',
+    actions: 'Actions',
     back: 'Назад',
     save: 'Сохранить',
     cancel: 'Отмена',
@@ -153,7 +155,8 @@ export const defaultDictionary: DictionaryTree = {
     peekLabel: 'Мини-плеер',
     peekHint: 'Подними плеер',
     queueProgress: '{current} из {total}',
-    copyCurrentTrack: 'Скопировать трек'
+    copyCurrentTrack: 'Скопировать трек',
+    openWinamp: 'Открыть плеер'
   },
   details: {
     close: 'Закрыть',

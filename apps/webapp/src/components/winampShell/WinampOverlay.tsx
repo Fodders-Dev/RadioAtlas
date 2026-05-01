@@ -39,7 +39,6 @@ type WinampOverlayProps = {
   trackLine: ReactNode;
   actionStrip: ReactNode;
   onClose: () => void;
-  onOpenSkinLab: () => void;
   onResetLayout: () => void;
   onPlayQueueStation: (station: StationLite) => void;
   onPlayHistoryStation: (station: StationLite) => void;
@@ -78,7 +77,6 @@ export default function WinampOverlay({
   onClose,
   onDetails,
   onHideStation,
-  onOpenSkinLab,
   onPlayHistoryStation,
   onPlayQueueStation,
   onResetLayout,
@@ -123,9 +121,6 @@ export default function WinampOverlay({
               <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6 6.4 5Z" />
             </svg>
             <span>{t('winamp.closeWinamp')}</span>
-          </button>
-          <button className="chip active" type="button" onClick={onOpenSkinLab}>
-            {t('skin.openLab')}
           </button>
           {expandedLayoutMode === 'desktop' ? (
             <button className="chip" type="button" onClick={onResetLayout}>

@@ -1,115 +1,31 @@
-# RadioAtlas Active Roadmap: Spotify для радио
+# RadioAtlas Active Roadmap
 
-## Product Loop
+Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces stay deferred until the radio loop is proven stable on real Telegram mobile devices.
 
-Главный цикл продукта: открыл -> одним тапом запустил подходящее радио -> легко переключил -> приложение запомнило вкус -> завтра стало лучше.
+## Theme Studio (in progress)
 
-RadioAtlas не должен выглядеть как каталог станций или админка. Пользователь не видит объяснения рекомендаций вроде "по твоим лайкам"; он видит понятные станции, быстрый play и надежное продолжение эфира.
+- [x] 17.0 Hide Webamp behind easter-egg gate
+  - Primary `winamp.expanded` path opens the native RadioAtlas `FullPlayerOverlay`.
+  - Legacy Lite/Webamp path remains available only with `?winamp=1`.
+  - Skin Lab / `.wsz` entry points are removed from Settings, dock tray, and legacy overlay controls.
+  - Webamp/Skin Lab source files stay in the repo for the future easter egg path.
+- [ ] 17.1 Theme schema + IndexedDB storage
+  - Add local theme/assets types and persistence for RadioAtlas shell themes.
+- [ ] 17.2 CSS theme injection
+  - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
+- [ ] 17.3 Theme Studio UI
+  - Add the real Theme Studio sheet for bundled themes and one-tap apply.
+- [ ] 17.4 Theme Builder
+  - Add simple background, accent, icon, and font editing for local themes.
+- [ ] 17.5 Decorative theme layers
+  - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
+- [ ] 17.6 Webamp easter egg
+  - Unlock the legacy Lite/Webamp path through the R++ brand gesture; keep `?winamp=1` as a dev bypass if useful.
 
-API proxy уже реализован и используется через `VITE_API_URL`. Дальше работаем не над созданием proxy, а над тем, чтобы Home, Search и Personal Radio аккуратно учитывали playability/health сигналы.
+## Deferred
 
-## Stages
-
-- [x] Stage 1: "Моя волна" MVP
-  - One-tap CTA на Home.
-  - Локальный `buildPersonalRadioQueue(...)` на 10-20 станций по taste/playability.
-  - Запуск очереди через `playStationQueue(...)` с fallback на следующую станцию, если кандидат не стартует.
-  - Базовые public types: `RadioSessionMode`, `RadioSessionEvent`, `RecommendationContext`, `PersonalRadioQueue`.
-- [x] Stage 2: Home как музыкальная лента
-  - Mobile dense: compact topbar -> "Моя волна" -> недавнее -> 3-5 горизонтальных station rails.
-  - Без giant hero на весь экран.
-  - Без reason-copy.
-  - Desktop: стрелки и wheel/trackpad scroll для station rails.
-- [x] Stage 3: Taste Profile V2
-  - Сигналы: play started, listened 30s+, early skip, like/unlike, saved, replayed, fail, country/tag/language, time of day, session mode.
-  - Decay: свежие действия важнее старых, failures забываются, случайная сессия не ломает профиль.
-  - `rankStationsForUser(...)`.
-- [x] Stage 4: Station Health V1
-  - Локальный + API-assisted health index: reachable, startup time, proxy/direct/HLS success, repeated failures, duplicates.
-  - Metadata absence не считается плохим качеством.
-  - `resolveBestPlayableCandidate(...)`.
-- [x] Stage 5: Now Playing / Track Trust
-  - Явно разделить: играет с metadata, играет без metadata, поток сомнительный.
-  - Не засорять track history пустыми/повторяющимися строками.
-  - Убрать конфликтующие loading/status сообщения.
-- [x] Stage 6: Search как быстрый путь к прослушиванию
-  - Compact result cards с play overlay.
-  - Exact/prefix выше weak/promoted.
-  - Recent searches/plays.
-  - "Play all results" / "Start radio from this search".
-- [x] Stage 7: Library как личная музыкальная память
-  - Favorites, Recent, Collections, Queue.
-  - Коллекции как плейлисты радиостанций: play, shuffle, reorder, remove, rename.
-  - Followed regions/stations запускают playable очереди.
-- [x] Stage 8: Cloud sync без трения
-  - Telegram auth как основной путь.
-  - Sync favorites, recent, collections, followed, taste profile.
-  - Combine-first conflict strategy.
-- [x] Stage 9: Globe как discovery mode
-  - Tune here, playable bottom sheet, follow region, play region radio.
-  - Nearby/current region seed.
-- [x] Stage 10: Retention
-  - Continue yesterday, station back online, favorite-station track, new playable region stations, morning/evening mix.
-  - Telegram bot notifications only opt-in.
-- [x] Stage 11: Visual identity and artwork
-  - Stable generated station covers.
-  - Collection mosaic covers.
-  - Region mini-art.
-- [x] Stage 12: Player as core product object
-  - Compact dock: station, track, play/pause, next, like, mute.
-  - Expanded player: artwork, queue, recent tracks, station details.
-  - Hide station from recommendations.
-- [x] Stage 13: Station details and trust
-  - Country/city/tags, stream health, recent tracks, website, favorite/follow, report broken, open externally.
-- [x] Stage 14: Observability and product analytics
-  - Local/API events for open, impression, play attempt/success, startup time, skip, like, search, failure, queue source, session duration.
-  - No personal data by default.
-- [x] Stage 15: Telegram mobile hardening
-  - 360-395px first.
-  - Fast first useful paint: boot provider waterfall removed; Home shell mounts before heavy surfaces.
-  - No horizontal overflow on 360/390/412 across Home, Search, Globe, and Library.
-  - Heavy surfaces stay lazy on Home first paint: Globe, Skin Lab, Winamp overlays are not requested before user intent.
-  - Robust API fallback: webapp can build Home/Search/Globe catalog data from direct HTTPS Radio Browser stations when `/catalog/*` fails.
-- [x] Stage 16: Public/shared features later
-  - Public collections, marketplace, paid packs, Stars billing, editorial portal, owner dashboard, and station claims are guarded off.
-  - Account billing no longer fetches products or opens Telegram invoices while paid surfaces are disabled.
-  - Bot support/premium/gift commands route back to core RadioAtlas instead of surfacing paid entry points.
-
-## Current Acceptance
-
-- Home 390px shows "Моя волна" CTA plus at least six station choices without a giant hero card.
-- Home has no visible recommendation reason-copy.
-- Personal Radio starts from one tap and builds a queue from playable/taste-ranked stations.
-- Failed primary candidates are skipped instead of creating a dead end.
-- Desktop station rails have explicit arrows and wheel/trackpad horizontal scroll.
-- Taste Profile V2 records play, 30s listen, early skip, like/unlike, collection/save and failure signals locally with decay.
-- Station Health V1 records direct/proxy/HLS/extracted success, startup time, repeated failures and metadata misses without treating missing metadata as bad quality.
-- Home, Personal Radio and Search ranking use taste/playability/health without showing recommendation reasons.
-- Now Playing trust separates real track metadata, passive missing metadata, and questionable stream states.
-- Track history auto-saves trusted metadata, rejects technical/filler payloads, and dedupes repeats.
-- Player dock and station rows do not show conflicting loading text as the track title.
-- Search 390px renders compact station cards with direct play overlay and can start a queue from current results.
-- Library collections can play, shuffle, rename, reorder rows, and remove stations from the focused detail view.
-- Cloud library sync preserves `tasteProfile` through webapp and API sanitize/merge with combine-first behavior.
-- Globe focused regions expose a direct "play region radio" action and followed regions feed Home/Personal Radio recommendations.
-- Library followed regions can start regional queues without leaving the screen.
-- Local retention now builds in-app digests and alerts for yesterday's session, morning/evening mixes, followed-station tracks, back-online stations, and followed-region activity.
-- Telegram bot notifications remain opt-in only; no bot notification side effects run by default.
-- Station, collection, and region fallback artwork is stable, generated from deterministic seeds, and covered by visual snapshots.
-- Expanded player shows current station artwork, queue context, recent tracks, details entry, and hide/show recommendation control.
-- Station details exposes stream trust, preferred transport, recent tracks, favorite/follow, report broken, open stream/site, and hide/show from recommendations.
-- Product analytics records app open, Home station impressions, search query hash, play attempt/success, stream failure, skip, like, queue source, station details/report/hide, and session duration without raw search text or station names in product events.
-- Telegram mobile hardening removes the startup provider waterfall, verifies no horizontal overflow on 360/390/412, keeps Globe/Skin Lab/Winamp overlays lazy on Home first paint, and falls back to direct HTTPS Radio Browser catalog data when the app API is unavailable.
-- Deferred public/shared/paid surfaces are disabled by explicit guards: no Stars billing, marketplace, paid packs, public collections, editorial portal, owner dashboard, or station claims are exposed before the core loop is stable.
-
-## Test Plan
-
-- `npm --workspace apps/webapp run build`
-- `npm --workspace apps/webapp run test:e2e -- mobile.spec.ts`
-- `npm --workspace apps/webapp run test:e2e -- visual.spec.ts`
-- `npm --workspace apps/api run test`
-- Full gate before release: `npm test`
+- [ ] Stage 18: marketplace, server theme publishing, currency, moderation, copyright checks.
 
 ## Next:
 
-Core roadmap through Stage 16 is closed. Next: review on real Telegram Android/iOS devices, collect QA findings, and only then decide whether to start a new roadmap; public/shared monetization stays deferred until the listening loop is proven stable.
+Finish Stage 17.0 verification, then start 17.1 only after review approval.

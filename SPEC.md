@@ -25,15 +25,15 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 - Settings
   - Clear cache/favorites/recent.
 
-## Winamp player mode
-- Always visible Winamp compact shell at bottom (main window).
-- Expand opens full-height overlay with main + EQ + playlist stack.
+## Player mode
+- Always visible RadioAtlas dock at bottom.
+- Tapping dock artwork opens the native Full Player overlay.
 - Prev/Next, Play/Pause, station title, location, favorite toggle, share, info, open external, volume.
 - Status: buffering/playing/error.
 - Track info can be copied and saved locally.
 - Share uses bot deep link when configured.
-- Skin manager: local presets + uploaded `.wsz` (uploaded skin applies for current session).
-- Global app theme colors are derived from active skin with Winamp Classic fallback.
+- Legacy Webamp/Skin Lab code is hidden behind the `?winamp=1` easter-egg/debug path.
+- Theme Studio for the native shell is planned separately; `.wsz` compatibility is not part of the main UX.
 
 ## Streaming
 - HTML5 audio with auto-reconnect on error/stall.

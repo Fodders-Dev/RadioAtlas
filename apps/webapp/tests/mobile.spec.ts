@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
 import {
   installMediaMocks,
   mockStations,
@@ -52,7 +51,6 @@ import {
   shouldExposeProductSurface
 } from '../src/lib/productSurfaceGuards';
 
-const UPLOAD_SKIN_PATH = fileURLToPath(new URL('../public/winamp-skins/base-2.91.wsz', import.meta.url));
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
   version: 1,
   lastUpdatedAt: Date.UTC(2026, 3, 20, 9, 30, 0),
@@ -187,38 +185,6 @@ const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
       stations: stations.slice(0, 4)
     }
   });
-
-const mockSkinMuseumSearch = async (page: Page) => {
-  await page.route('**/__skin-preview.svg', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"><rect width="320" height="240" fill="#261447"/><rect x="24" y="26" width="272" height="48" rx="10" fill="#8f6cff"/><rect x="24" y="92" width="156" height="42" rx="8" fill="#111827"/><rect x="24" y="154" width="272" height="58" rx="8" fill="#0f172a"/></svg>'
-    });
-  });
-
-  const purpleSkin = {
-    md5: 'purple-dream-md5',
-    filename: 'Purple_Dream.wsz',
-    download_url: 'http://127.0.0.1:5173/winamp-skins/base-2.91.wsz',
-    screenshot_url: 'http://127.0.0.1:5173/__skin-preview.svg',
-    museum_url: 'https://skins.webamp.org/skin/purple-dream-md5/Purple_Dream.wsz',
-    nsfw: false
-  };
-
-  await page.route('https://skins.webamp.org/graphql', async (route) => {
-    const body = route.request().postDataJSON() as { query?: string } | null;
-    const responseBody = body?.query?.includes('fetch_skin_by_md5')
-      ? { data: { fetch_skin_by_md5: purpleSkin } }
-      : { data: { search_classic_skins: [purpleSkin] } };
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(responseBody)
-    });
-  });
-};
 
 test('home local preview filter caps dense results', () => {
   const matches = filterPreviewStations(stations, 'jpop', DENSE_SEARCH_PREVIEW_LIMIT);
@@ -1204,9 +1170,7 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   });
   expect(trayMetrics.overflowY).toBe('auto');
   expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
-
-  await page.locator('.player-dock-tray[data-mode="volume"] .dock-skin-btn').click();
-  await expect(page.locator('[data-skin-lab]')).toBeVisible();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"] .dock-skin-btn')).toHaveCount(0);
 });
 
 test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {
@@ -1469,74 +1433,14 @@ test('mobile startup stays free of playback runtime render loops', async ({ page
   expect(runtimeWarnings).toEqual([]);
 });
 
-test('mobile settings can open lite fullscreen shell without an active station', async ({ page }) => {
+test('mobile settings no longer exposes Skin Lab or fullscreen player controls', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await page.locator('.mobile-settings-trigger').click();
   await expect(page.locator('.settings-panel')).toBeVisible();
-  await page.getByRole('button', { name: 'Открыть полноэкранный плеер' }).click();
-
-  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
-  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
-  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
-});
-
-test('mobile settings opens skin lab and applies a previewed museum skin', async ({ page }) => {
-  await mockSkinMuseumSearch(page);
-  await page.setViewportSize({ width: 360, height: 780 });
-  await page.goto('/');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
-
-  await page.locator('.mobile-settings-trigger').click();
-  await expect(page.locator('.settings-panel')).toBeVisible();
-  await page.getByRole('button', { name: /Открыть Skin Lab|Open Skin Lab/ }).click();
-
-  await expect(page.locator('[data-skin-lab]')).toBeVisible();
-  await page.locator('#skin-lab-search').fill('purple');
-  const purpleCard = page.locator('.skin-lab-card').filter({ hasText: 'Purple_Dream.wsz' }).first();
-  await expect(purpleCard).toBeVisible();
-
-  await purpleCard.locator('.skin-lab-card-main').click();
-  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-source', 'museum');
-  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-name', 'Purple_Dream.wsz');
-  await expect(page.locator('.skin-lab-preview-shell .skin-lab-preview-image')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
-
-  await page.locator('.skin-lab-preview-panel').getByRole('button', { name: /Применить|Apply/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'museum');
-  await expect(page.locator('html')).toHaveAttribute('data-skin-name', 'Purple_Dream.wsz');
-});
-
-test('mobile skin lab previews uploaded skins for the current session only', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 780 });
-  await page.goto('/');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
-
-  await page.locator('.mobile-settings-trigger').click();
-  await page.getByRole('button', { name: /Открыть Skin Lab|Open Skin Lab/ }).click();
-  await expect(page.locator('[data-skin-lab]')).toBeVisible();
-
-  await page.locator('.skin-lab-upload input').setInputFiles(UPLOAD_SKIN_PATH);
-  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-source', 'uploaded');
-  await expect(page.locator('.skin-lab-preview-shell')).toHaveAttribute('data-preview-skin-name', 'base-2.91.wsz');
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
-
-  await page.locator('.skin-lab-preview-panel').getByRole('button', { name: /Применить|Apply/ }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'uploaded');
-
-  const storedSkinSource = await page.evaluate(() => {
-    const raw = window.localStorage.getItem('radio:player:v2');
-    if (!raw) return null;
-    return (JSON.parse(raw) as { skin?: { source?: string } }).skin?.source || null;
-  });
-  expect(storedSkinSource).toBe('preset');
-
-  await page.reload();
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-skin-source', 'preset');
+  await expect(page.getByRole('button', { name: /Skin Lab|Открыть Skin Lab/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Открыть полноэкранный плеер|Open fullscreen player/i })).toHaveCount(0);
 });
 
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
@@ -1555,15 +1459,14 @@ test('mobile shell keeps dock and bottom nav separately tappable', async ({ page
   await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
     (node as HTMLButtonElement).click();
   });
-  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
-  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
-  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await expect(page.locator('#webamp')).toHaveCount(0);
 
-  await page.locator('.winamp-overlay-header .winamp-close-btn').click();
+  await page.locator('[data-full-player-overlay]').getByRole('button', { name: /Закрыть|Close/ }).click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 });
 
-test('expanded player shows artwork, recent tracks, details and hide action', async ({ page }) => {
+test('mobile dock artwork opens full player', async ({ page }) => {
   await seedRadioState(page, {
     trackHistory: [
       {
@@ -1583,13 +1486,17 @@ test('expanded player shows artwork, recent tracks, details and hide action', as
     (node as HTMLButtonElement).click();
   });
 
-  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
-  await expect(page.locator('.winamp-now-artwork').first()).toBeVisible();
-  await expect(page.locator('.winamp-overlay-track-list')).toContainText('Mock Song');
-  await expect(page.locator('.winamp-overlay-footer')).toContainText(/Детали|Details/);
+  const overlay = page.locator('[data-full-player-overlay]');
+  await expect(overlay).toBeVisible();
+  await expect(page.locator('#webamp')).toHaveCount(0);
+  await expect(overlay.locator('.full-player-artwork').first()).toBeVisible();
+  await expect(overlay.locator('[data-full-player-track]')).toContainText(/Mock Song|Название трека пока недоступно|Track title unavailable/i);
+  await expect(overlay.locator('.full-player-track-list')).toContainText('Mock Song');
+  await expect(overlay.locator('[data-full-player-queue]')).toContainText(/Tokyo FM|Станций в очереди|stations in queue/i);
+  await expect(overlay).toContainText(/Детали|Details/);
 
   await page
-    .locator('.winamp-overlay-footer')
+    .locator('[data-full-player-overlay]')
     .getByRole('button', { name: /^Скрыть$|^Hide$/ })
     .first()
     .click();
@@ -1731,9 +1638,24 @@ test('telegram mobile playback sticks to proxy transport candidates', async ({ p
     .toBe('proxy');
 });
 
-test('telegram mobile fullscreen falls back to lite winamp mode', async ({ page }) => {
+test('telegram mobile fullscreen opens full player by default', async ({ page }) => {
   await enableTelegramMobileSafeMode(page);
   await page.goto('/?tgWebAppPlatform=ios');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await playHomeStation(page, 'Tokyo FM');
+  await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
+    (node as HTMLButtonElement).click();
+  });
+
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toHaveCount(0);
+  await expect(page.locator('#webamp')).toHaveCount(0);
+});
+
+test('query flag keeps legacy lite winamp easter egg', async ({ page }) => {
+  await enableTelegramMobileSafeMode(page);
+  await page.goto('/?tgWebAppPlatform=ios&winamp=1');
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
@@ -1744,6 +1666,7 @@ test('telegram mobile fullscreen falls back to lite winamp mode', async ({ page 
   await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
   await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
   await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+  await expect(page.locator('[data-full-player-overlay]')).toHaveCount(0);
   await expect(page.locator('.winamp-overlay-visualizer-card')).toHaveCount(0);
 });
 
@@ -1810,7 +1733,19 @@ test('core mobile screens have no document overflow on 360 390 and 412 widths', 
   }
 });
 
-test('home first useful paint does not load globe skin lab or winamp overlays', async ({
+test('mobile cold load does not load webamp bundle', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    requested.push(request.url());
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  expect(requested.some((url) => /webamp-zip-vendor/i.test(url))).toBe(false);
+});
+
+test('home first useful paint does not load globe skin lab or player overlays', async ({
   page
 }) => {
   const requested: string[] = [];
@@ -1823,7 +1758,7 @@ test('home first useful paint does not load globe skin lab or winamp overlays', 
 
   expect(
     requested.some((url) =>
-      /GlobeScreen|Globe\.tsx|SkinLab|WinampPlayerShell|LitePlayerOverlay|webamp/i.test(url)
+      /GlobeScreen|Globe\.tsx|SkinLab|WinampPlayerShell|LitePlayerOverlay|FullPlayerOverlay|webamp/i.test(url)
     )
   ).toBe(false);
 });

@@ -36,7 +36,7 @@ export const LitePlayerOverlay = ({
     unhideStationFromRecommendations,
     isStationHiddenFromRecommendations
   } = useLibrary();
-  const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
+  const { winamp, openWebAppExternally } = useShell();
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
     getOverlayMode()
   );
@@ -277,7 +277,6 @@ export const LitePlayerOverlay = ({
             ? unhideStationFromRecommendations(current)
             : hideStationFromRecommendations(current))
         }
-        onOpenSkinLab={() => setSkinLabOpen(true)}
         onPlayHistoryStation={playOverlayHistoryStation}
         onPlayQueueStation={playOverlayQueueStation}
         onResetLayout={() => {}}

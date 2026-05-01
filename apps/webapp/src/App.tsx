@@ -70,8 +70,8 @@ const StationDetailsLazy = lazy(loadStationDetails);
 const LitePlayerOverlayLazy = lazy(() =>
   import('./components/LitePlayerOverlay').then((mod) => ({ default: mod.LitePlayerOverlay }))
 );
-const SkinLabSheetLazy = lazy(() =>
-  import('./components/SkinLab').then((mod) => ({ default: mod.SkinLabSheet }))
+const FullPlayerOverlayLazy = lazy(() =>
+  import('./components/FullPlayerOverlay').then((mod) => ({ default: mod.FullPlayerOverlay }))
 );
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
@@ -94,9 +94,7 @@ const App = () => {
     playerPresentation,
     setLibraryTab,
     detailsOpen,
-    setDetailsOpen,
-    skinLabOpen,
-    setSkinLabOpen
+    setDetailsOpen
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
@@ -107,6 +105,10 @@ const App = () => {
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
   const lowPowerShell = useMemo(() => getDeviceProfile().lowPower, []);
+  const legacyWinampOverlay = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('winamp') === '1';
+  }, []);
 
   useEffect(() => {
     activeSectionRef.current = activeSection;
@@ -170,12 +172,6 @@ const App = () => {
       setSettingsOpen(false);
     }
   }, [winamp.expanded]);
-
-  useEffect(() => {
-    if (skinLabOpen) {
-      setSettingsOpen(false);
-    }
-  }, [skinLabOpen]);
 
   useEffect(() => {
     setSectionMotionTick((value) => value + 1);
@@ -405,12 +401,11 @@ const App = () => {
       ) : null}
       {winamp.expanded ? (
         <Suspense fallback={<AppScreenSkeleton section={activeSection} scope="overlay" />}>
-          <LitePlayerOverlayLazy onDetails={() => setDetailsOpen(true)} />
-        </Suspense>
-      ) : null}
-      {skinLabOpen ? (
-        <Suspense fallback={<AppScreenSkeleton section={activeSection} scope="sheet" />}>
-          <SkinLabSheetLazy open={skinLabOpen} onClose={() => setSkinLabOpen(false)} />
+          {legacyWinampOverlay ? (
+            <LitePlayerOverlayLazy onDetails={() => setDetailsOpen(true)} />
+          ) : (
+            <FullPlayerOverlayLazy onDetails={() => setDetailsOpen(true)} />
+          )}
         </Suspense>
       ) : null}
       <Toast message={toast} />

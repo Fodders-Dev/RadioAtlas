@@ -32,7 +32,6 @@ export const MiniPlayerDock = () => {
     libraryTab,
     setLibraryTab,
     setDetailsOpen,
-    setSkinLabOpen,
     winamp
   } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
@@ -191,7 +190,7 @@ export const MiniPlayerDock = () => {
     toggleMute();
   };
 
-  const openWinamp = () => {
+  const openFullPlayer = () => {
     if (!current) return;
     setTrayMode(null);
     winamp.setExpanded(true);
@@ -250,7 +249,7 @@ export const MiniPlayerDock = () => {
         <button
           className="player-dock-artwork-trigger"
           type="button"
-          onClick={openWinamp}
+          onClick={openFullPlayer}
           disabled={!current}
           aria-label={current ? t('dock.openWinamp') : stationTitle}
           title={current ? t('dock.openWinamp') : stationTitle}
@@ -287,20 +286,6 @@ export const MiniPlayerDock = () => {
                       ) : (
                         <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
                       )}
-                    </svg>
-                  </button>
-                  <button
-                    className="dock-mini-btn dock-skin-btn"
-                    type="button"
-                    onClick={() => {
-                      setTrayMode(null);
-                      setSkinLabOpen(true);
-                    }}
-                    aria-label={t('skin.openLab')}
-                    title={t('skin.openLab')}
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M12 3a9 9 0 0 0-9 9c0 3.86 3.13 7 7 7h1.1c.85 0 1.4-.88 1.04-1.65a1.18 1.18 0 0 1 1.07-1.68H15a6 6 0 0 0 0-12h-3Zm-4.75 8.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm3-3.5a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm5.5.5a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Zm2 4a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5Z" />
                     </svg>
                   </button>
                 </div>

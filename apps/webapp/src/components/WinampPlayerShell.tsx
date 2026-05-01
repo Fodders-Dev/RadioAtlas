@@ -96,7 +96,7 @@ export const WinampPlayerShell = ({
     unhideStationFromRecommendations,
     isStationHiddenFromRecommendations
   } = useLibrary();
-  const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
+  const { winamp, openWebAppExternally } = useShell();
 
   const compactHostRef = useRef<HTMLDivElement | null>(null);
   const webampRef = useRef<WebampInstance | null>(null);
@@ -1297,7 +1297,6 @@ export const WinampPlayerShell = ({
                 ? unhideStationFromRecommendations(current)
                 : hideStationFromRecommendations(current))
             }
-            onOpenSkinLab={() => setSkinLabOpen(true)}
             onPlayHistoryStation={playOverlayHistoryStation}
             onPlayQueueStation={playOverlayQueueStation}
             onResetLayout={resetExpandedLayout}

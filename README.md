@@ -87,8 +87,8 @@ VITE_API_URL=https://your-domain/api
 - Webapp pulls stations from Radio Browser and filters https streams.
 - Favorites and recently played are stored locally in the browser.
 - Station catalog source: https://docs.radio-browser.info/ (community-maintained).
-- Player mode is Winamp-only (Webamp UI) with compact shell + full overlay.
-- Preset skins are in `apps/webapp/public/winamp-skins`; upload `.wsz` is session-only.
+- Primary player mode is the RadioAtlas dock + native Full Player overlay.
+- Legacy Webamp/Skin Lab code is kept for an easter-egg/debug path behind `?winamp=1`; `.wsz` compatibility is not part of the main UX.
 
 ## Legacy debug tools
 - One-off webapp debug scripts were moved to `tools/legacy-debug/webapp`.

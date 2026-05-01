@@ -43,7 +43,7 @@ const waitForStableMetrics = async (
   await page.evaluate(() => document.fonts?.ready.then(() => undefined));
 };
 
-const openWinampShell = async (page: Page) => {
+const openFullPlayerOverlay = async (page: Page) => {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt > 0) {
       await page.goto('/?api=/api');
@@ -59,15 +59,8 @@ const openWinampShell = async (page: Page) => {
       await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'true', {
         timeout: 5000
       });
-      await expect
-        .poll(
-          async () =>
-            page.evaluate(
-              () => Boolean(document.querySelector('.winamp-overlay-footer') || document.querySelector('#webamp'))
-            ),
-          { timeout: 25000 }
-        )
-        .toBe(true);
+      await expect(page.locator('[data-full-player-overlay]')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('#webamp')).toHaveCount(0);
       return;
     } catch (error) {
       if (attempt === 1) {
@@ -185,82 +178,29 @@ test('library screen visual baseline', async ({ page }) => {
   });
 });
 
-test('winamp overlay visual baseline', async ({ page }) => {
-  await seedRadioState(page);
-  await page.goto('/?api=/api');
-  await openWinampShell(page);
-  await page.evaluate(() => {
-    (
-      window as Window & {
-        __radioAtlasWinamp?: {
-          resetExpandedLayout?: () => void;
-        };
+test('full player overlay visual baseline', async ({ page }) => {
+  await seedRadioState(page, {
+    trackHistory: [
+      {
+        id: 'track-visual-tokyo',
+        stationId: 'uuid-tokyo',
+        stationName: 'Tokyo FM',
+        track: 'Mock Song',
+        timestamp: Date.UTC(2026, 3, 20, 10, 0, 0)
       }
-    ).__radioAtlasWinamp?.resetExpandedLayout?.();
+    ]
   });
-  await page.waitForTimeout(900);
+  await page.goto('/?api=/api');
+  await openFullPlayerOverlay(page);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(() => {
     const active = document.activeElement as HTMLElement | null;
     active?.blur?.();
   });
-  await page.addStyleTag({
-    content: `
-      .winamp-loading {
-        opacity: 0 !important;
-      }
-      .winamp-overlay-visualizer-card {
-        visibility: hidden !important;
-      }
-      .winamp-overlay-visualizer > * {
-        opacity: 0 !important;
-      }
-    `
-  });
-  await expect(page.locator('.winamp-overlay-label').first()).not.toContainText('winamp.');
-  await waitForStableMetrics(page, '.winamp-overlay-footer');
-  await expect(page.locator('.winamp-overlay-footer .winamp-trackline-label')).toContainText('Mock Song');
-  await expect(
-    page.locator('.winamp-overlay-footer .winamp-actions.overlay').getByRole('button', { name: 'Пауза' })
-  ).toBeVisible();
-  const footerShot = await page.locator('.winamp-overlay-footer').screenshot({
+  await expect(page.locator('[data-full-player-overlay]')).toContainText(/Tokyo FM|Mock Song/);
+  await waitForStableMetrics(page, '[data-full-player-overlay]');
+  const overlayShot = await page.locator('[data-full-player-overlay]').screenshot({
     animations: 'disabled'
   });
-  expect(footerShot).toMatchSnapshot('winamp-overlay.png');
-});
-
-test('winamp runtime shell visual baseline', async ({ page }) => {
-  await seedRadioState(page);
-  await page.goto('/?api=/api');
-  await openWinampShell(page);
-  await page.evaluate(() => {
-    (
-      window as Window & {
-        __radioAtlasWinamp?: {
-          resetExpandedLayout?: () => void;
-        };
-      }
-    ).__radioAtlasWinamp?.resetExpandedLayout?.();
-  });
-  await page.waitForTimeout(1000);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.addStyleTag({
-    content: `
-      .winamp-loading {
-        opacity: 0 !important;
-      }
-      .winamp-overlay-visualizer > * {
-        opacity: 0 !important;
-      }
-      .ra-visualizer-overlay {
-        opacity: 0 !important;
-      }
-    `
-  });
-  const runtimeShot = await page.screenshot({
-    animations: 'disabled'
-  });
-  expect(runtimeShot).toMatchSnapshot('winamp-runtime-shell.png', {
-    maxDiffPixels: 400
-  });
+  expect(overlayShot).toMatchSnapshot('full-player-overlay.png');
 });

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await seedRadioState(page);
 });
 
-test('desktop shell keeps navigation, queue, and expanded winamp flow intact', async ({ page }) => {
+test('desktop shell keeps navigation, queue, and expanded player flow intact', async ({ page }) => {
   await page.goto('/?api=http://127.0.0.1:4311');
   await expect(page.locator('[data-home-hero]')).toBeVisible();
 
@@ -21,13 +21,12 @@ test('desktop shell keeps navigation, queue, and expanded winamp flow intact', a
   await expect(page.locator('.player-dock-bar')).toBeVisible();
   await expect(page.locator('.player-dock-title')).toContainText('Tokyo FM');
 
-  await page.getByRole('button', { name: 'Winamp' }).click();
-  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
-  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
-  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Плеер' }).click();
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await expect(page.locator('#webamp')).toHaveCount(0);
 
   await page.evaluate(() => {
-    (document.querySelector('.winamp-overlay-header .winamp-close-btn') as HTMLButtonElement | null)?.click();
+    (document.querySelector('[data-full-player-overlay] button[aria-label="Закрыть"]') as HTMLButtonElement | null)?.click();
   });
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 

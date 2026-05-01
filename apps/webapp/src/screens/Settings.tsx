@@ -9,9 +9,7 @@ export const Settings = () => {
   const {
     clearCache,
     openWebAppExternally,
-    debugLogs,
-    winamp,
-    setSkinLabOpen
+    debugLogs
   } = useShell();
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
@@ -59,32 +57,6 @@ export const Settings = () => {
           >
             {t('common.openApp')}
           </button>
-        </div>
-      </div>
-
-      <div className="section">
-        <div className="section-title">{t('settings.skinTitle')}</div>
-        <div className="settings-card stack">
-          <div>
-            <div className="settings-label">{t('settings.skinModeLabel')}</div>
-            <div className="settings-desc">{t('settings.skinModeDesc')}</div>
-          </div>
-          <div className="settings-actions">
-            <button
-              className="chip active"
-              type="button"
-              onClick={() => setSkinLabOpen(true)}
-            >
-              {t('skin.openLab')}
-            </button>
-            <button
-              className={`chip ${winamp.expanded ? 'active' : ''}`}
-              type="button"
-              onClick={() => winamp.setExpanded(!winamp.expanded)}
-            >
-              {winamp.expanded ? t('settings.closeFullscreen') : t('settings.openFullscreen')}
-            </button>
-          </div>
         </div>
       </div>
 
