@@ -52,6 +52,12 @@ import {
 } from '../src/lib/productSurfaceGuards';
 import { DEFAULT_RADIOATLAS_THEMES } from '../src/lib/theme/defaults';
 import {
+  themeAccentPairToCss,
+  themeAccentToCss,
+  themeBackgroundToCss,
+  themeFontToCss
+} from '../src/lib/theme/runtime';
+import {
   clearThemeStorageForTests,
   deleteStoredAsset,
   deleteStoredTheme,
@@ -503,6 +509,15 @@ test('theme defaults expose three bundled shell themes', () => {
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.layers.background?.kind === 'gradient')).toBe(true);
 });
 
+test('theme runtime maps theme layers to shell css variables', () => {
+  const neon = DEFAULT_RADIOATLAS_THEMES.find((theme) => theme.id === 'neon');
+  expect(neon).toBeTruthy();
+  expect(themeAccentToCss(neon?.layers.accent)).toBe('hsl(302 88% 68%)');
+  expect(themeAccentPairToCss(neon?.layers.accent)).toBe('hsl(344 65% 70%)');
+  expect(themeBackgroundToCss(neon?.layers.background)).toContain('#5526ff');
+  expect(themeFontToCss({ family: 'rounded' })).toContain('Trebuchet MS');
+});
+
 test('theme storage saves custom themes and assets locally', async () => {
   await clearThemeStorageForTests();
   const savedTheme = await saveStoredTheme({
@@ -552,6 +567,31 @@ test('theme storage saves custom themes and assets locally', async () => {
   await deleteStoredAsset('asset-cover-night');
   expect((await listStoredThemes()).map((theme) => theme.id)).not.toContain('custom-night-drive');
   expect(await getStoredAsset('asset-cover-night')).toBeNull();
+});
+
+test('theme runtime applies the selected shell theme to css variables', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('radio:theme-current:v1', JSON.stringify('neon'));
+  });
+  await page.goto('/');
+  await expect(page.locator('.app-shell-v2')).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+    'neon'
+  );
+
+  const vars = await page.evaluate(() => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    return {
+      accent: rootStyle.getPropertyValue('--theme-accent').trim(),
+      accent2: rootStyle.getPropertyValue('--theme-accent-2').trim(),
+      background: rootStyle.getPropertyValue('--theme-bg-image').trim(),
+      font: rootStyle.getPropertyValue('--theme-font-family').trim()
+    };
+  });
+  expect(vars.accent).toBe('hsl(302 88% 68%)');
+  expect(vars.accent2).toBe('hsl(344 65% 70%)');
+  expect(vars.background).toContain('#5526ff');
+  expect(vars.font).toContain('Manrope');
 });
 
 test('taste profile cloud merge keeps local and remote signals combine-first', () => {

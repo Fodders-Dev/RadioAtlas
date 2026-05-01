@@ -20,7 +20,8 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
       },
       background: {
         kind: 'gradient',
-        gradient: 'linear-gradient(160deg, #081825 0%, #0d2636 48%, #132d3c 100%)'
+        gradient:
+          'radial-gradient(circle at 12% 8%, rgba(140, 247, 230, 0.2), transparent 18%), radial-gradient(circle at 82% 4%, rgba(150, 193, 255, 0.24), transparent 18%), radial-gradient(circle at 50% 78%, rgba(76, 137, 255, 0.16), transparent 28%), linear-gradient(180deg, #07111c 0%, #091824 34%, #0b1724 68%, #07111b 100%)'
       },
       font: {
         family: 'system'

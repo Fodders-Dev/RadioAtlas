@@ -8,8 +8,16 @@
   --border: rgba(236, 247, 255, 0.12);
   --text: #f5fbff;
   --muted: rgba(225, 238, 249, 0.64);
-  --accent: #94f0ea;
-  --accent-2: #93b7ff;
+  --theme-accent: #94f0ea;
+  --theme-accent-2: #93b7ff;
+  --theme-bg-image:
+    radial-gradient(circle at 12% 8%, rgba(140, 247, 230, 0.2), transparent 18%),
+    radial-gradient(circle at 82% 4%, rgba(150, 193, 255, 0.24), transparent 18%),
+    radial-gradient(circle at 50% 78%, rgba(76, 137, 255, 0.16), transparent 28%),
+    linear-gradient(180deg, #07111c 0%, #091824 34%, #0b1724 68%, #07111b 100%);
+  --theme-font-family: 'Manrope', 'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --accent: var(--theme-accent, #94f0ea);
+  --accent-2: var(--theme-accent-2, #93b7ff);
   --danger: #ff6f59;
   --player-gap: 14px;
   --nav-height: 64px;
@@ -59,8 +67,8 @@
 
 body {
   margin: 0;
-  font-family: 'Manrope', 'Space Grotesk', sans-serif;
-  background: radial-gradient(circle at top, var(--bg-2) 0%, var(--bg) 64%);
+  font-family: var(--theme-font-family, 'Manrope', 'Space Grotesk', sans-serif);
+  background: var(--theme-bg-image);
   color: var(--text);
   min-height: 100vh;
 }
@@ -2002,11 +2010,7 @@ input {
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 10%, rgba(112, 231, 219, 0.24), transparent 28%),
-    radial-gradient(circle at 84% 6%, rgba(150, 190, 255, 0.28), transparent 22%),
-    radial-gradient(circle at 50% 100%, rgba(96, 210, 245, 0.16), transparent 26%),
-    linear-gradient(180deg, #0a1623 0%, #0c1828 40%, #0b1421 100%);
+  background: var(--theme-bg-image);
 }
 
 .app-shell-v2 {
@@ -2024,9 +2028,10 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 18% 22%, rgba(109, 226, 218, 0.1), transparent 18%),
-    radial-gradient(circle at 78% 18%, rgba(133, 173, 255, 0.12), transparent 15%),
-    radial-gradient(circle at 56% 66%, rgba(255, 255, 255, 0.06), transparent 22%);
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 18%),
+    radial-gradient(circle at 78% 18%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 15%),
+    radial-gradient(circle at 56% 66%, rgba(255, 255, 255, 0.06), transparent 22%),
+    var(--theme-bg-image);
   pointer-events: none;
   z-index: -1;
 }
@@ -4867,18 +4872,15 @@ body {
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 8%, rgba(140, 247, 230, 0.2), transparent 18%),
-    radial-gradient(circle at 82% 4%, rgba(150, 193, 255, 0.24), transparent 18%),
-    radial-gradient(circle at 50% 78%, rgba(76, 137, 255, 0.16), transparent 28%),
-    linear-gradient(180deg, #07111c 0%, #091824 34%, #0b1724 68%, #07111b 100%);
+  background: var(--theme-bg-image);
 }
 
 .app-shell-v2::before {
   background:
-    radial-gradient(circle at 16% 20%, rgba(145, 246, 229, 0.16), transparent 16%),
-    radial-gradient(circle at 82% 14%, rgba(162, 201, 255, 0.16), transparent 15%),
-    radial-gradient(circle at 56% 64%, rgba(255, 255, 255, 0.06), transparent 18%);
+    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 16%),
+    radial-gradient(circle at 82% 14%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 15%),
+    radial-gradient(circle at 56% 64%, rgba(255, 255, 255, 0.06), transparent 18%),
+    var(--theme-bg-image);
 }
 
 .app-shell-v2::after {

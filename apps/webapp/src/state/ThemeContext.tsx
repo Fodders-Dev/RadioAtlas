@@ -3,12 +3,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode
 } from 'react';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
+import { themeRuntimeVars } from '../lib/theme/runtime';
 import {
   deleteStoredAsset,
   deleteStoredTheme,
@@ -103,6 +105,17 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       DEFAULT_RADIOATLAS_THEMES[0],
     [availableThemes, currentThemeId]
   );
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const vars = themeRuntimeVars(currentTheme, (assetId) => assetUrls.get(assetId) || null);
+
+    root.dataset.theme = currentTheme.id;
+    root.style.setProperty('--theme-accent', vars.accent);
+    root.style.setProperty('--theme-accent-2', vars.accent2);
+    root.style.setProperty('--theme-bg-image', vars.background);
+    root.style.setProperty('--theme-font-family', vars.font);
+  }, [assetUrls, currentTheme]);
 
   const applyTheme = useCallback(
     (themeId: string) => {

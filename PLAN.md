@@ -11,7 +11,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Webamp/Skin Lab source files stay in the repo for the future easter egg path.
 - [x] 17.1 Theme schema + IndexedDB storage
   - Add local theme/assets types and persistence for RadioAtlas shell themes.
-- [ ] 17.2 CSS theme injection
+- [x] 17.2 CSS theme injection
   - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
 - [ ] 17.3 Theme Studio UI
   - Add the real Theme Studio sheet for bundled themes and one-tap apply.
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17.2 CSS theme injection, after 17.1 review.
+Next: Stage 17.3 Theme Studio UI, after 17.2 review.
