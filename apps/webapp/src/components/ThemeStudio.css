@@ -166,6 +166,7 @@
 }
 
 .theme-studio-builder-preview {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,6 +179,7 @@
     radial-gradient(circle at 14% 8%, color-mix(in srgb, var(--theme-studio-accent) 22%, transparent), transparent 28%),
     var(--theme-studio-bg);
   font-family: var(--theme-studio-font);
+  overflow: hidden;
 }
 
 .theme-studio-builder-preview div {
@@ -212,6 +214,19 @@
   color: rgba(5, 10, 18, 0.92);
   font-size: 18px;
   font-weight: 900;
+}
+
+.theme-studio-builder-emoji {
+  position: absolute;
+  right: 72px;
+  top: 12px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-studio-accent) 20%, rgba(5, 10, 18, 0.58));
+  font-size: 20px;
 }
 
 .theme-studio-builder-status {

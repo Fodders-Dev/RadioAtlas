@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AppScreenSkeleton } from './components/AppScreenSkeleton';
 import { SettingsSheet } from './components/SettingsSheet';
+import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
 import { getDeviceProfile } from './lib/deviceProfile';
@@ -289,6 +290,7 @@ const App = () => {
       data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
       data-active-section={activeSection}
     >
+      <ThemeDecorations />
       <Suspense fallback={null}>
         <AppNavigationLazy
           active={activeSection}

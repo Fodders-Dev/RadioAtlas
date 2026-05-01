@@ -665,6 +665,8 @@ export const ruDictionary = {
     "backgroundLabel": "Фон",
     "fontLabel": "Шрифт",
     "iconLabel": "Иконки",
+    "emojiLabel": "Эмодзи реакции",
+    "decorationSlotLabel": "Место реакции",
     "previewLabel": "Превью",
     "saveAndApply": "Сохранить и применить",
     "builderSaved": "Тема применена",
@@ -679,6 +681,14 @@ export const ruDictionary = {
       "round": "Круглые",
       "soft": "Мягкие",
       "sharp": "Чёткие"
+    },
+    "slot": {
+      "dockLeft": "Слева у дока",
+      "dockRight": "Справа у дока",
+      "fullPlayerCorner": "У плеера",
+      "fullPlayerBackdrop": "Фон плеера",
+      "homeHeroCorner": "Главная",
+      "globeOverlay": "Глобус"
     }
   },
   "skin": {

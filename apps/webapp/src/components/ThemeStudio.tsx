@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { themeRuntimeVars } from '../lib/theme/runtime';
-import type { RadioAtlasTheme, ThemeFontLayer, ThemeIconStyle } from '../lib/theme/types';
+import type { RadioAtlasTheme, ThemeFontLayer, ThemeIconStyle, ThemeSlot } from '../lib/theme/types';
 import { useLocale } from '../state/LocaleContext';
 import { useTheme } from '../state/ThemeContext';
 import { SettingsSheet } from './SettingsSheet';
@@ -13,6 +13,7 @@ type ThemeStudioSheetProps = {
 
 const FONT_OPTIONS: ThemeFontLayer['family'][] = ['system', 'rounded', 'serif', 'mono'];
 const ICON_STYLE_OPTIONS: ThemeIconStyle[] = ['round', 'soft', 'sharp'];
+const DECORATION_SLOT_OPTIONS: ThemeSlot[] = ['dockRight', 'homeHeroCorner', 'fullPlayerCorner', 'globeOverlay'];
 
 const createThemeId = (name: string) => {
   const slug = name
@@ -54,6 +55,8 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
   const [draftBackgroundThemeId, setDraftBackgroundThemeId] = useState('classic');
   const [draftFont, setDraftFont] = useState<ThemeFontLayer['family']>('system');
   const [draftIconStyle, setDraftIconStyle] = useState<ThemeIconStyle>('round');
+  const [draftEmoji, setDraftEmoji] = useState('✦');
+  const [draftEmojiSlot, setDraftEmojiSlot] = useState<ThemeSlot>('dockRight');
   const [builderState, setBuilderState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const bundledThemes = availableThemes.filter((theme) => theme.builtin);
   const selectableThemes = [...bundledThemes, ...customThemes];
@@ -87,10 +90,19 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
         },
         icons: {
           style: draftIconStyle
-        }
+        },
+        emojiReactions: draftEmoji.trim()
+          ? [
+              {
+                emoji: draftEmoji.trim().slice(0, 4),
+                trigger: 'play',
+                slot: draftEmojiSlot
+              }
+            ]
+          : []
       }
     }),
-    [draftBackground, draftFont, draftHue, draftIconStyle, draftName, draftSat, t]
+    [draftBackground, draftEmoji, draftEmojiSlot, draftFont, draftHue, draftIconStyle, draftName, draftSat, t]
   );
 
   const handleSaveDraft = async () => {
@@ -260,6 +272,37 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
                 ))}
               </select>
             </label>
+            <label className="theme-studio-field">
+              <span>{t('theme.emojiLabel')}</span>
+              <input
+                className="settings-input"
+                data-theme-builder-emoji
+                maxLength={4}
+                onChange={(event) => {
+                  setDraftEmoji(event.target.value);
+                  setBuilderState('idle');
+                }}
+                type="text"
+                value={draftEmoji}
+              />
+            </label>
+            <label className="theme-studio-field">
+              <span>{t('theme.decorationSlotLabel')}</span>
+              <select
+                className="settings-input"
+                onChange={(event) => {
+                  setDraftEmojiSlot(event.target.value as ThemeSlot);
+                  setBuilderState('idle');
+                }}
+                value={draftEmojiSlot}
+              >
+                {DECORATION_SLOT_OPTIONS.map((slot) => (
+                  <option key={slot} value={slot}>
+                    {t(`theme.slot.${slot}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="theme-studio-builder-preview" style={themeStyle(draftTheme, getAssetUrl)}>
@@ -270,6 +313,11 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
             <span className="theme-studio-builder-icon" aria-hidden="true">
               ▶
             </span>
+            {draftTheme.layers.emojiReactions?.[0] ? (
+              <span className="theme-studio-builder-emoji" data-theme-preview-emoji>
+                {draftTheme.layers.emojiReactions[0].emoji}
+              </span>
+            ) : null}
           </div>
 
           <div className="settings-actions">

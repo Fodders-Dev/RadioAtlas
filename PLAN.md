@@ -17,7 +17,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Add the real Theme Studio sheet for bundled themes and one-tap apply.
 - [x] 17.4 Theme Builder
   - Add simple background, accent, icon, and font editing for local themes.
-- [ ] 17.5 Decorative theme layers
+- [x] 17.5 Decorative theme layers
   - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
 - [ ] 17.6 Webamp easter egg
   - Unlock the legacy Lite/Webamp path through the R++ brand gesture; keep `?winamp=1` as a dev bypass if useful.
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17.5 Decorative theme layers, after 17.4 review.
+Next: Stage 17.6 Webamp easter egg, after 17.5 review.

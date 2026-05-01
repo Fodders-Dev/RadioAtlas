@@ -47,6 +47,7 @@ export type ThemeGifLayer = {
 export type ThemeEmojiReactionLayer = {
   emoji: string;
   trigger: 'play' | 'like';
+  slot?: ThemeSlot;
 };
 
 export type RadioAtlasThemeLayers = {

@@ -665,6 +665,8 @@ export const enDictionary = {
     "backgroundLabel": "Background",
     "fontLabel": "Font",
     "iconLabel": "Icons",
+    "emojiLabel": "Reaction emoji",
+    "decorationSlotLabel": "Reaction slot",
     "previewLabel": "Preview",
     "saveAndApply": "Save and apply",
     "builderSaved": "Theme applied",
@@ -679,6 +681,14 @@ export const enDictionary = {
       "round": "Round",
       "soft": "Soft",
       "sharp": "Sharp"
+    },
+    "slot": {
+      "dockLeft": "Dock left",
+      "dockRight": "Dock right",
+      "fullPlayerCorner": "Player corner",
+      "fullPlayerBackdrop": "Player backdrop",
+      "homeHeroCorner": "Home",
+      "globeOverlay": "Globe"
     }
   },
   "skin": {

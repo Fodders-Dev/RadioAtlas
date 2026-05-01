@@ -17,6 +17,7 @@ import {
   rankStationsForSearch,
   recordPlaybackOutcome
 } from '../src/lib/stationPlayability';
+import { resolveThemeDecorations } from '../src/lib/theme/decorations';
 import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 import {
@@ -518,6 +519,60 @@ test('theme runtime maps theme layers to shell css variables', () => {
   expect(themeBackgroundToCss(neon?.layers.background)).toContain('#5526ff');
   expect(themeFontToCss({ family: 'rounded' })).toContain('Trebuchet MS');
   expect(themeIconRadiusToCss({ style: 'sharp' })).toBe('10px');
+});
+
+test('theme decorations resolve asset layers and active emoji reactions', () => {
+  const decorations = resolveThemeDecorations(
+    {
+      version: 1,
+      id: 'decor-test',
+      name: 'Decor test',
+      createdAt: 0,
+      updatedAt: 0,
+      layers: {
+        stickers: [
+          {
+            assetId: 'sticker-1',
+            slot: 'homeHeroCorner',
+            x: 4,
+            y: 8,
+            scale: 1.2
+          }
+        ],
+        gifs: [
+          {
+            assetId: 'gif-1',
+            slot: 'globeOverlay',
+            trigger: 'play'
+          }
+        ],
+        emojiReactions: [
+          {
+            emoji: '✨',
+            trigger: 'play',
+            slot: 'dockRight'
+          },
+          {
+            emoji: '♥',
+            trigger: 'like',
+            slot: 'homeHeroCorner'
+          }
+        ]
+      }
+    },
+    (assetId) => `blob:${assetId}`,
+    {
+      playing: true,
+      liked: false
+    }
+  );
+
+  expect(decorations.map((decoration) => decoration.kind)).toEqual(['asset', 'asset', 'emoji']);
+  expect(decorations.map((decoration) => decoration.slot)).toEqual([
+    'homeHeroCorner',
+    'globeOverlay',
+    'dockRight'
+  ]);
 });
 
 test('theme storage saves custom themes and assets locally', async () => {
@@ -1602,6 +1657,7 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
+  await page.locator('[data-theme-builder-emoji]').fill('⚡');
   await page.locator('.theme-studio-field').filter({ hasText: /Font|Шрифт/ }).locator('select').selectOption('mono');
   await page.locator('.theme-studio-field').filter({ hasText: /Icons|Иконки/ }).locator('select').selectOption('sharp');
   await page.getByRole('button', { name: /Save and apply|Сохранить и применить/ }).click();
@@ -1619,6 +1675,13 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
   });
   expect(vars.accent).toBe('hsl(210 82% 68%)');
   expect(vars.iconRadius).toBe('10px');
+
+  await page.locator('.settings-sheet').last().locator('.settings-sheet-head .chip').click();
+  await page.locator('.settings-sheet').last().locator('.settings-sheet-head .chip').click();
+  await playHomeStation(page, 'Tokyo FM');
+  const reaction = page.locator('[data-theme-decoration="emoji"][data-theme-trigger="play"]');
+  await expect(reaction).toBeVisible();
+  await expect(reaction).toHaveText('⚡');
 });
 
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
