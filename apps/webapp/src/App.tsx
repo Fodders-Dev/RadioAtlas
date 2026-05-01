@@ -73,6 +73,9 @@ const LitePlayerOverlayLazy = lazy(() =>
 const FullPlayerOverlayLazy = lazy(() =>
   import('./components/FullPlayerOverlay').then((mod) => ({ default: mod.FullPlayerOverlay }))
 );
+const ThemeStudioSheetLazy = lazy(() =>
+  import('./components/ThemeStudio').then((mod) => ({ default: mod.ThemeStudioSheet }))
+);
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
   home: HomeScreen,
@@ -94,7 +97,9 @@ const App = () => {
     playerPresentation,
     setLibraryTab,
     detailsOpen,
-    setDetailsOpen
+    setDetailsOpen,
+    skinLabOpen,
+    setSkinLabOpen
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
@@ -394,6 +399,11 @@ const App = () => {
           <SettingsScreen />
         </Suspense>
       </SettingsSheet>
+      {skinLabOpen ? (
+        <Suspense fallback={null}>
+          <ThemeStudioSheetLazy open={skinLabOpen} onClose={() => setSkinLabOpen(false)} />
+        </Suspense>
+      ) : null}
       {accountSheetOpen ? (
         <Suspense fallback={null}>
           <AccountSheetLazy open={accountSheetOpen} onClose={closeAccountSheet} />

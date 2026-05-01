@@ -13,7 +13,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Add local theme/assets types and persistence for RadioAtlas shell themes.
 - [x] 17.2 CSS theme injection
   - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
-- [ ] 17.3 Theme Studio UI
+- [x] 17.3 Theme Studio UI
   - Add the real Theme Studio sheet for bundled themes and one-tap apply.
 - [ ] 17.4 Theme Builder
   - Add simple background, accent, icon, and font editing for local themes.
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17.3 Theme Studio UI, after 17.2 review.
+Next: Stage 17.4 Theme Builder, after 17.3 review.

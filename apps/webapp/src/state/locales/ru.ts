@@ -646,6 +646,17 @@ export const ruDictionary = {
     "clipboardDenied": "Нет доступа к буферу обмена",
     "playLink": "Слушать ссылку"
   },
+  "theme": {
+    "kicker": "Theme Studio",
+    "title": "Theme Studio",
+    "settingsLabel": "Оформление RadioAtlas",
+    "settingsDesc": "Переключай наши темы оболочки для главной, глобуса, дока и плеера.",
+    "openStudio": "Открыть Theme Studio",
+    "current": "Текущая тема",
+    "previewStation": "RadioAtlas FM · прямой эфир",
+    "bundledTitle": "Готовые темы",
+    "bundledCopy": "Тап по карточке сразу применяет тему."
+  },
   "skin": {
     "kicker": "Skin Lab",
     "title": "Skin Lab",

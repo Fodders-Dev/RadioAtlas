@@ -9,7 +9,8 @@ export const Settings = () => {
   const {
     clearCache,
     openWebAppExternally,
-    debugLogs
+    debugLogs,
+    setSkinLabOpen
   } = useShell();
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
@@ -56,6 +57,19 @@ export const Settings = () => {
             type="button"
           >
             {t('common.openApp')}
+          </button>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">{t('theme.title')}</div>
+        <div className="settings-card">
+          <div>
+            <div className="settings-label">{t('theme.settingsLabel')}</div>
+            <div className="settings-desc">{t('theme.settingsDesc')}</div>
+          </div>
+          <button className="chip active" onClick={() => setSkinLabOpen(true)} type="button">
+            {t('theme.openStudio')}
           </button>
         </div>
       </div>

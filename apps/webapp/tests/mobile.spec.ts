@@ -1555,6 +1555,30 @@ test('mobile settings no longer exposes Skin Lab or fullscreen player controls',
   await expect(page.getByRole('button', { name: /Открыть полноэкранный плеер|Open fullscreen player/i })).toHaveCount(0);
 });
 
+test('mobile settings opens Theme Studio and applies bundled themes', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await page.locator('.mobile-settings-trigger').click();
+  await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
+  await expect(page.locator('[data-theme-studio]')).toBeVisible();
+  await expect(page.locator('[data-theme-card]')).toHaveCount(3);
+
+  await page.locator('[data-theme-card="neon"]').click();
+  await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+    'neon'
+  );
+  await expect(page.locator('[data-theme-card="neon"]')).toHaveAttribute(
+    'data-theme-active',
+    'true'
+  );
+  const accent = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--theme-accent').trim()
+  );
+  expect(accent).toBe('hsl(302 88% 68%)');
+  await expect(page.locator('#webamp')).toHaveCount(0);
+});
+
 test('mobile shell keeps dock and bottom nav separately tappable', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();

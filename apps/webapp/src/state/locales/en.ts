@@ -646,6 +646,17 @@ export const enDictionary = {
     "clipboardDenied": "Clipboard access denied",
     "playLink": "Play link"
   },
+  "theme": {
+    "kicker": "Theme Studio",
+    "title": "Theme Studio",
+    "settingsLabel": "RadioAtlas appearance",
+    "settingsDesc": "Switch native shell themes across Home, Globe, dock, and player.",
+    "openStudio": "Open Theme Studio",
+    "current": "Current theme",
+    "previewStation": "RadioAtlas FM · live",
+    "bundledTitle": "Bundled themes",
+    "bundledCopy": "Tap a card to apply it immediately."
+  },
   "skin": {
     "kicker": "Skin Lab",
     "title": "Skin Lab",
