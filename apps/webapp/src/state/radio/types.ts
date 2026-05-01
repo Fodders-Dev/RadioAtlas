@@ -184,6 +184,10 @@ export type LibraryContextValue = {
   stationHealthProfile: StationHealthProfile;
   toggleFavorite: (station: Station | StationLite) => void;
   isFavorite: (stationId: string) => boolean;
+  hideStationFromRecommendations: (station: Station | StationLite) => void;
+  unhideStationFromRecommendations: (station: Station | StationLite) => void;
+  isStationHiddenFromRecommendations: (stationId: string) => boolean;
+  reportStationBroken: (station: Station | StationLite) => void;
   clearFavorites: () => void;
   clearRecent: () => void;
   clearTrackHistory: () => void;

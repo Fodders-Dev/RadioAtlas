@@ -691,7 +691,18 @@ export const enDictionary = {
     "description": "Description",
     "schedule": "Schedule",
     "claimStation": "Claim station",
-    "claimViaAccount": "Station claims are submitted through your account."
+    "claimViaAccount": "Station claims are submitted through your account.",
+    "streamTrust": "Stream trust",
+    "trustGood": "Good",
+    "trustWeak": "Unstable",
+    "trustBad": "Recently broken",
+    "trustUnknown": "No data",
+    "preferredTransport": "Best stream",
+    "recentTracks": "Recent tracks",
+    "recentTracksEmpty": "No tracks saved for this station yet.",
+    "reportBroken": "Report broken",
+    "hideFromRecommendations": "Hide",
+    "showInRecommendations": "Show again"
   },
   "winamp": {
     "fullscreen": "Open fullscreen player",
@@ -714,7 +725,12 @@ export const enDictionary = {
     "loadingFailed": "Winamp load failed. Retry",
     "figmaPlaceholder": "Winamp shell placeholder for Figma capture",
     "copyTrackTitle": "Copy track title",
-    "trackUnavailable": "Track title unavailable"
+    "trackUnavailable": "Track title unavailable",
+    "recentTracks": "Recent tracks",
+    "stationDetails": "Details",
+    "hideStation": "Hide",
+    "showStation": "Show again",
+    "artwork": "Artwork"
   },
   "radio": {
     "queueDefault": "Playback queue",
@@ -749,6 +765,9 @@ export const enDictionary = {
     "noTrackInfo": "No track info",
     "trackCopied": "Track copied",
     "copyFailed": "Copy failed",
-    "skinApplied": "Skin: {name}"
+    "skinApplied": "Skin: {name}",
+    "stationHidden": "{station} hidden from recommendations",
+    "stationUnhidden": "{station} restored to recommendations",
+    "stationReportedBroken": "Thanks, marked {station} as problematic"
   }
 } satisfies DictionaryTree;

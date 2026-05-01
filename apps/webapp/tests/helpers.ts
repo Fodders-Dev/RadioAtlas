@@ -615,6 +615,21 @@ export const mockStations = async (
       body: JSON.stringify({ item: stations[0] })
     })
   );
+  await page.route('**/stations/**/profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        profile: {
+          stationUuid: stations[0].stationuuid,
+          ownerAccountId: null,
+          isVerified: true,
+          description: 'Mock station profile',
+          scheduleNote: null
+        }
+      })
+    })
+  );
   await page.route('https://stream.example.com/**', (route) =>
     route.fulfill({ status: 200, contentType: 'audio/wav', body: mockStreamAudio })
   );
@@ -677,6 +692,13 @@ export const mockStations = async (
         google: { configured: Boolean(authProviders.google), label: 'Google' },
         vk: { configured: Boolean(authProviders.vk), label: 'VK' }
       })
+    })
+  );
+  await page.route('**/auth/telegram', (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'telegram auth unavailable in tests' })
     })
   );
   await page.route('**/billing/telegram/products', (route) =>

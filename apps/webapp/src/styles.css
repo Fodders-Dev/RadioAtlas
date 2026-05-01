@@ -869,6 +869,11 @@ input {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
+.player-btn.danger {
+  background: color-mix(in srgb, #ff6b7a 18%, transparent);
+  color: #ffd7dd;
+}
+
 .search-bar {
   display: flex;
   gap: 8px;
@@ -1366,6 +1371,9 @@ input {
   position: relative;
   width: min(560px, calc(100% - 24px));
   margin: 0 12px calc(var(--player-stack-offset) + 26px);
+  max-height: min(78vh, 680px);
+  overflow: auto;
+  overscroll-behavior: contain;
   background: color-mix(in srgb, var(--surface-overlay) 92%, transparent);
   border: 1px solid var(--accent-border);
   border-radius: 22px;
@@ -1384,9 +1392,27 @@ input {
   gap: 12px;
 }
 
+.details-identity {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.details-heading {
+  min-width: 0;
+}
+
+.details-artwork {
+  width: 76px;
+  height: 76px;
+  border-radius: 16px;
+}
+
 .details-title {
   font-size: 20px;
   font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .details-sub {
@@ -1439,6 +1465,36 @@ input {
 
 .details-link:hover {
   color: var(--accent-2);
+}
+
+.details-track-section {
+  display: grid;
+  gap: 8px;
+}
+
+.details-row-heading {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.details-track-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.details-track-chip {
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .track-copy {
@@ -1623,6 +1679,17 @@ input {
 
   .details-card {
     margin-bottom: calc(var(--player-stack-offset) + 22px);
+    max-height: min(82vh, 640px);
+  }
+
+  .details-identity {
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+  }
+
+  .details-artwork {
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
   }
 
   .details-grid {

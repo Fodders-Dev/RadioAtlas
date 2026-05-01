@@ -1,5 +1,9 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CatalogCountryBucket } from '../../domain/contracts';
+import {
+  hashAnalyticsValue,
+  reportProductEvent
+} from '../../lib/productAnalytics';
 import { useDebounce } from '../../lib/useDebounce';
 import { useInfiniteScroll } from '../../lib/useInfiniteScroll';
 import type { ContinentId, StationLite } from '../../types';
@@ -166,6 +170,23 @@ export const useStationSearch = ({
     if (!showStations) return;
     const normalized = debounced.trim();
     if (normalized.length < 2) return;
+    const queryHash = hashAnalyticsValue(normalized.toLowerCase());
+    reportProductEvent(
+      'search_query',
+      {
+        queryHash,
+        queryLength: normalized.length,
+        tokenCount: normalized.split(/\s+/).filter(Boolean).length,
+        countryFilter: countryFilter === 'All' ? null : countryFilter,
+        tagFilter: tagFilter === 'All' ? null : tagFilter,
+        languageFilter: languageFilter === 'All' ? null : languageFilter,
+        continentFilter: continentFilter === 'All' ? null : continentFilter
+      },
+      {
+        dedupeKey: `search_query:${queryHash}:${countryFilter}:${tagFilter}:${languageFilter}:${continentFilter}`,
+        dedupeMs: 30_000
+      }
+    );
     const timeout = window.setTimeout(() => {
       setRecentQueries((previous) => {
         const next = [
@@ -177,7 +198,7 @@ export const useStationSearch = ({
       });
     }, 320);
     return () => window.clearTimeout(timeout);
-  }, [debounced, showStations]);
+  }, [continentFilter, countryFilter, debounced, languageFilter, showStations, tagFilter]);
 
   useEffect(() => {
     if (!countries.includes(countryFilter)) setCountryFilter('All');

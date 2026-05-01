@@ -43,6 +43,9 @@ import {
 import type { StationHealthProfile } from '../lib/stationHealth';
 import {
   DEFAULT_TASTE_PROFILE_V2,
+  hideStationFromTasteProfile,
+  isStationHiddenFromRecommendations as isStationHiddenByTaste,
+  unhideStationFromTasteProfile,
   recordTasteSignal
 } from '../lib/tasteProfile';
 import {
@@ -113,6 +116,10 @@ import type {
 import { createPlaybackPlayerPlaceholder, type PlaybackRuntimeSnapshot } from './radio/playbackRuntimeBridge';
 import { useCloudLibrarySync } from './radio/useCloudLibrarySync';
 import { IDLE_NOW_PLAYING_STATE } from './radio/nowPlayingDefaults';
+import {
+  reportProductEvent,
+  stationAnalyticsMeta
+} from '../lib/productAnalytics';
 
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
 const LibraryContext = createContext<LibraryContextValue | null>(null);
@@ -610,6 +617,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     };
 
     setStoredQueue((prev) => (snapshotsEqual(prev, queueSnapshot) ? prev : queueSnapshot));
+    reportProductEvent(
+      'queue_source',
+      {
+        sourceId: queueSnapshot.sourceId || null,
+        queueCount: queueSnapshot.items.length,
+        currentIndex: queueSnapshot.currentIndex
+      },
+      {
+        dedupeKey: `queue_source:${queueSnapshot.sourceId || 'none'}:${queueSnapshot.items.length}`,
+        dedupeMs: 10_000
+      }
+    );
   };
 
   const resolveQueueSnapshot = (
@@ -872,6 +891,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     recordTasteForStation(lite, 'station-failed');
   };
 
+  const reportStationBroken = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    rememberStations([lite]);
+    recordPlaybackOutcomeForStation(lite, 'stream-unavailable');
+    reportProductEvent(
+      'station_report_broken',
+      {
+        ...stationAnalyticsMeta(lite),
+        mode: sessionModeFromSourceId(queueRef.current.sourceId),
+        sourceId: queueRef.current.sourceId || null
+      },
+      {
+        dedupeKey: `station_report_broken:${lite.stationuuid}:${Date.now()}`
+      }
+    );
+    notify(t('toast.stationReportedBroken', { station: lite.name }));
+  };
+
   useEffect(() => {
     const station = player.current;
     if (!station || !player.isPlaying) return;
@@ -929,18 +966,51 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     const lite = toLite(station);
     rememberStations([lite]);
+    const sourceId = options?.sourceId || queueRef.current.sourceId || null;
     if (!lite.url_resolved) {
       recordPlaybackOutcomeForStation(lite, 'no-playable-candidate');
+      reportProductEvent('stream_failure', {
+        ...stationAnalyticsMeta(lite),
+        failureKind: 'missing-stream',
+        sourceId,
+        mode: sessionModeFromSourceId(sourceId)
+      });
       notify(t('toast.missingStream'));
       return false;
     }
+
+    reportProductEvent(
+      'play_attempt',
+      {
+        ...stationAnalyticsMeta(lite),
+        sourceId,
+        mode: sessionModeFromSourceId(sourceId),
+        queueCount: options?.playlist?.length || queueRef.current.items.length || 1
+      },
+      {
+        dedupeKey: `play_attempt:${lite.stationuuid}:${Date.now()}`
+      }
+    );
 
     const result = await player.playStation(lite);
     if (!result.ok) {
       if (result.error === 'playback superseded') {
         return false;
       }
-      recordPlaybackOutcomeForStation(lite, normalizePlaybackOutcome(result.error));
+      const outcome = normalizePlaybackOutcome(result.error);
+      recordPlaybackOutcomeForStation(lite, outcome);
+      reportProductEvent(
+        'stream_failure',
+        {
+          ...stationAnalyticsMeta(lite),
+          failureKind: outcome,
+          sourceId,
+          mode: sessionModeFromSourceId(sourceId)
+        },
+        {
+          dedupeKey: `stream_failure:${lite.stationuuid}:${outcome}:${Date.now()}`
+        }
+      );
       if (!options?.suppressErrorToast) {
         notify(resolvePlaybackToastMessage(result.error));
       }
@@ -956,6 +1026,21 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     rememberStations([playedStation]);
     const nextQueue =
       options?.queueSnapshot ?? resolveQueueSnapshot(playedStation, options, queueRef.current);
+    reportProductEvent(
+      'play_success',
+      {
+        ...stationAnalyticsMeta(playedStation),
+        sourceId: nextQueue.sourceId || sourceId,
+        mode: sessionModeFromSourceId(nextQueue.sourceId || sourceId),
+        startupMs: result.startupMs ?? null,
+        queueCount: nextQueue.items.length,
+        transportMode: result.activeCandidate?.mode || null,
+        transportFallback: Boolean(result.activeCandidate?.isFallback)
+      },
+      {
+        dedupeKey: `play_success:${playedStation.stationuuid}:${Date.now()}`
+      }
+    );
     updateQueue(nextQueue);
     setStoredShellState((prev) => ({
       ...prev,
@@ -1040,6 +1125,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     } else {
       recordTasteForStation(lite, 'unliked');
     }
+    reportProductEvent(
+      'like',
+      {
+        ...stationAnalyticsMeta(lite),
+        liked: !alreadyFavorite,
+        mode: sessionModeFromSourceId(queueRef.current.sourceId),
+        sourceId: queueRef.current.sourceId || null
+      },
+      {
+        dedupeKey: `like:${lite.stationuuid}:${!alreadyFavorite}:${Date.now()}`
+      }
+    );
     syncCloudLibraryImmediately({
       favorites: nextFavorites,
       recent: recent.slice(0, MAX_RECENT),
@@ -1128,6 +1225,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const startedAt = currentStartedAtRef.current;
     if (currentStation && startedAt && Date.now() - startedAt < 10_000) {
       recordTasteForStation(currentStation, 'skip-before-10s');
+      reportProductEvent(
+        'skip',
+        {
+          ...stationAnalyticsMeta(currentStation),
+          mode: sessionModeFromSourceId(queueRef.current.sourceId),
+          sourceId: queueRef.current.sourceId || null,
+          listenedMs: Date.now() - startedAt
+        },
+        {
+          dedupeKey: `skip:${currentStation.stationuuid}:${startedAt}`
+        }
+      );
     }
 
     const playFromQueue = async () => {
@@ -1468,6 +1577,48 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             }
       )
     );
+  };
+
+  const isStationHiddenFromRecommendations = (stationId: string) =>
+    isStationHiddenByTaste(tasteProfile, stationId);
+
+  const hideStationFromRecommendations = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    const mode = sessionModeFromSourceId(queueRef.current.sourceId);
+    rememberStations([lite]);
+    setTasteProfile((prev) => hideStationFromTasteProfile(prev, lite));
+    recordTasteForStation(lite, 'skip-before-10s', mode, -12);
+    reportProductEvent(
+      'station_hidden',
+      {
+        ...stationAnalyticsMeta(lite),
+        mode,
+        hidden: true
+      },
+      {
+        dedupeKey: `station_hidden:${lite.stationuuid}:${Date.now()}`
+      }
+    );
+    notify(t('toast.stationHidden', { station: lite.name }));
+  };
+
+  const unhideStationFromRecommendations = (station: Station | StationLite) => {
+    const lite = toLite(station);
+    const mode = sessionModeFromSourceId(queueRef.current.sourceId);
+    rememberStations([lite]);
+    setTasteProfile((prev) => unhideStationFromTasteProfile(prev, lite));
+    reportProductEvent(
+      'station_hidden',
+      {
+        ...stationAnalyticsMeta(lite),
+        mode,
+        hidden: false
+      },
+      {
+        dedupeKey: `station_unhidden:${lite.stationuuid}:${Date.now()}`
+      }
+    );
+    notify(t('toast.stationUnhidden', { station: lite.name }));
   };
   const renameCollection = (collectionId: string, name: string) => {
     const normalized = name.trim().slice(0, 48);
@@ -1880,6 +2031,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       stationHealthProfile,
       toggleFavorite,
       isFavorite,
+      hideStationFromRecommendations,
+      unhideStationFromRecommendations,
+      isStationHiddenFromRecommendations,
+      reportStationBroken,
       clearFavorites,
       clearRecent,
       clearTrackHistory,
@@ -1909,6 +2064,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       favorites,
       followedRegions,
       followedStations,
+      hideStationFromRecommendations,
+      isStationHiddenFromRecommendations,
       isFavorite,
       knownStations,
       markAlertRead,
@@ -1923,11 +2080,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       recent,
       rememberStations,
       removeStationFromCollection,
+      reportStationBroken,
       toggleFavorite,
       toggleCollectionPinned,
       toggleFollowRegion,
       toggleFollowStation,
       trackHistory,
+      unhideStationFromRecommendations,
       updateNotificationPreference
     ]
   );

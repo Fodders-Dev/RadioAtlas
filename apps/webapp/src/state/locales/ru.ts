@@ -691,7 +691,18 @@ export const ruDictionary = {
     "description": "Описание",
     "schedule": "Расписание",
     "claimStation": "Заявить станцию",
-    "claimViaAccount": "Заявка на профиль станции отправляется через аккаунт."
+    "claimViaAccount": "Заявка на профиль станции отправляется через аккаунт.",
+    "streamTrust": "Надёжность",
+    "trustGood": "Хорошая",
+    "trustWeak": "Нестабильная",
+    "trustBad": "Сломана недавно",
+    "trustUnknown": "Нет данных",
+    "preferredTransport": "Лучший поток",
+    "recentTracks": "Недавние треки",
+    "recentTracksEmpty": "Треки этой станции пока не сохранялись.",
+    "reportBroken": "Пожаловаться",
+    "hideFromRecommendations": "Скрыть",
+    "showInRecommendations": "Вернуть"
   },
   "winamp": {
     "fullscreen": "Открыть полноэкранный плеер",
@@ -714,7 +725,12 @@ export const ruDictionary = {
     "loadingFailed": "Winamp не загрузился. Повторить",
     "figmaPlaceholder": "Заглушка Winamp для Figma capture",
     "copyTrackTitle": "Скопировать название трека",
-    "trackUnavailable": "Название трека недоступно"
+    "trackUnavailable": "Название трека недоступно",
+    "recentTracks": "Недавние треки",
+    "stationDetails": "Детали",
+    "hideStation": "Скрыть",
+    "showStation": "Вернуть",
+    "artwork": "Обложка"
   },
   "radio": {
     "queueDefault": "Очередь воспроизведения",
@@ -749,6 +765,9 @@ export const ruDictionary = {
     "noTrackInfo": "Нет данных о треке",
     "trackCopied": "Трек скопирован",
     "copyFailed": "Не удалось скопировать",
-    "skinApplied": "Скин: {name}"
+    "skinApplied": "Скин: {name}",
+    "stationHidden": "{station} скрыта из рекомендаций",
+    "stationUnhidden": "{station} вернулась в рекомендации",
+    "stationReportedBroken": "Спасибо, пометили {station} как проблемную"
   }
 } satisfies DictionaryTree;

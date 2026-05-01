@@ -89,8 +89,12 @@ export const WinampPlayerShell = ({
   } = usePlayback();
   const {
     playbackHistory,
+    trackHistory,
     toggleFavorite,
-    isFavorite
+    isFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
   } = useLibrary();
   const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
 
@@ -376,6 +380,7 @@ export const WinampPlayerShell = ({
   );
 
   const liked = current ? isFavorite(current.stationuuid) : false;
+  const stationHidden = current ? isStationHiddenFromRecommendations(current.stationuuid) : false;
   const canResume = Boolean(playbackHistory.length || queue.items.length);
   const trackTitle = nowPlaying?.trim() || '';
   const displayTrackTitle =
@@ -1093,6 +1098,19 @@ export const WinampPlayerShell = ({
         </button>
       )}
       <button
+        className={`chip ${stationHidden ? 'active' : ''}`}
+        onClick={() =>
+          current &&
+          (stationHidden
+            ? unhideStationFromRecommendations(current)
+            : hideStationFromRecommendations(current))
+        }
+        type="button"
+        disabled={!current}
+      >
+        {stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}
+      </button>
+      <button
         className="chip"
         onClick={() => current && shareStation(current)}
         type="button"
@@ -1272,6 +1290,13 @@ export const WinampPlayerShell = ({
             loading={loadingShell}
             mainStyle={expandedMainStyle}
             onClose={() => winamp.setExpanded(false)}
+            onDetails={onDetails}
+            onHideStation={() =>
+              current &&
+              (stationHidden
+                ? unhideStationFromRecommendations(current)
+                : hideStationFromRecommendations(current))
+            }
             onOpenSkinLab={() => setSkinLabOpen(true)}
             onPlayHistoryStation={playOverlayHistoryStation}
             onPlayQueueStation={playOverlayQueueStation}
@@ -1279,7 +1304,9 @@ export const WinampPlayerShell = ({
             playbackHistory={playbackHistory}
             queue={queue}
             showVisualizer={!liteFullscreenMode}
+            stationHidden={stationHidden}
             t={t}
+            trackHistory={trackHistory}
             trackLine={trackLine('overlay')}
             visualizer={player.visualizer}
           />

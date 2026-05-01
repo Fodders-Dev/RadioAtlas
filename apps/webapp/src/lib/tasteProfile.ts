@@ -33,6 +33,7 @@ export type TasteProfileV2 = {
   version: 2;
   lastUpdatedAt: number | null;
   signals: TasteSignal[];
+  hiddenStationIds: string[];
   stationScores: Record<string, number>;
   tagScores: Record<string, number>;
   countryScores: Record<string, number>;
@@ -53,6 +54,7 @@ export const DEFAULT_TASTE_PROFILE_V2: TasteProfileV2 = {
   version: 2,
   lastUpdatedAt: null,
   signals: [],
+  hiddenStationIds: [],
   stationScores: {},
   tagScores: {},
   countryScores: {},
@@ -151,7 +153,15 @@ export const getTasteProfileUpdatedAt = (profile: TasteProfileV2 | null | undefi
   0;
 
 const normalizeTasteProfile = (profile: TasteProfileV2 | null | undefined): TasteProfileV2 =>
-  profile?.version === 2 ? profile : DEFAULT_TASTE_PROFILE_V2;
+  profile?.version === 2
+    ? {
+        ...DEFAULT_TASTE_PROFILE_V2,
+        ...profile,
+        hiddenStationIds: Array.isArray(profile.hiddenStationIds)
+          ? profile.hiddenStationIds.filter(Boolean).slice(0, 160)
+          : []
+      }
+    : DEFAULT_TASTE_PROFILE_V2;
 
 const mergeScoreMaps = (limit: number, ...sources: Array<Record<string, number> | null | undefined>) =>
   trimScores(
@@ -200,6 +210,9 @@ export const mergeTasteProfiles = (
     version: 2,
     lastUpdatedAt: latest || null,
     signals: trimSignals(Array.from(signalMap.values()), now),
+    hiddenStationIds: Array.from(
+      new Set(validProfiles.flatMap((profile) => profile.hiddenStationIds || []))
+    ).slice(0, 160),
     stationScores: mergeScoreMaps(MAX_STATION_SCORES, ...validProfiles.map((profile) => profile.stationScores)),
     tagScores: mergeScoreMaps(MAX_TAG_SCORES, ...validProfiles.map((profile) => profile.tagScores)),
     countryScores: mergeScoreMaps(MAX_COUNTRY_SCORES, ...validProfiles.map((profile) => profile.countryScores)),
@@ -216,6 +229,8 @@ export const tasteProfilesMatch = (
   const rightValue = normalizeTasteProfile(right);
   return (
     leftValue.lastUpdatedAt === rightValue.lastUpdatedAt &&
+    leftValue.hiddenStationIds.length === rightValue.hiddenStationIds.length &&
+    leftValue.hiddenStationIds.every((stationId, index) => stationId === rightValue.hiddenStationIds[index]) &&
     leftValue.signals.length === rightValue.signals.length &&
     leftValue.signals.every((signal, index) => {
       const candidate = rightValue.signals[index];
@@ -249,7 +264,7 @@ export const recordTasteSignal = (
     weightOverride?: number;
   } = {}
 ): TasteProfileV2 => {
-  const base = profile?.version === 2 ? profile : DEFAULT_TASTE_PROFILE_V2;
+  const base = normalizeTasteProfile(profile);
   const weight = weightOverride ?? ACTION_WEIGHTS[action];
   if (!station.stationuuid || !Number.isFinite(weight) || weight === 0) return base;
 
@@ -285,11 +300,55 @@ export const recordTasteSignal = (
       ],
       now
     ),
+    hiddenStationIds: base.hiddenStationIds || [],
     stationScores: trimScores(nextStationScores, MAX_STATION_SCORES),
     tagScores: trimScores(nextTagScores, MAX_TAG_SCORES),
     countryScores: trimScores(nextCountryScores, MAX_COUNTRY_SCORES),
     languageScores: trimScores(nextLanguageScores, MAX_LANGUAGE_SCORES),
     modeScores: nextModeScores
+  };
+};
+
+export const isStationHiddenFromRecommendations = (
+  profile: TasteProfileV2 | null | undefined,
+  station: StationLite | string
+) => {
+  const stationId = typeof station === 'string' ? station : station.stationuuid;
+  if (!stationId) return false;
+  return normalizeTasteProfile(profile).hiddenStationIds.includes(stationId);
+};
+
+export const hideStationFromTasteProfile = (
+  profile: TasteProfileV2,
+  station: StationLite | string,
+  now = Date.now()
+): TasteProfileV2 => {
+  const base = normalizeTasteProfile(profile);
+  const stationId = typeof station === 'string' ? station : station.stationuuid;
+  if (!stationId || base.hiddenStationIds.includes(stationId)) return base;
+  return {
+    ...base,
+    lastUpdatedAt: now,
+    hiddenStationIds: [stationId, ...base.hiddenStationIds].slice(0, 160),
+    stationScores: {
+      ...base.stationScores,
+      [stationId]: Math.min(-18, base.stationScores[stationId] || 0)
+    }
+  };
+};
+
+export const unhideStationFromTasteProfile = (
+  profile: TasteProfileV2,
+  station: StationLite | string,
+  now = Date.now()
+): TasteProfileV2 => {
+  const base = normalizeTasteProfile(profile);
+  const stationId = typeof station === 'string' ? station : station.stationuuid;
+  if (!stationId || !base.hiddenStationIds.includes(stationId)) return base;
+  return {
+    ...base,
+    lastUpdatedAt: now,
+    hiddenStationIds: base.hiddenStationIds.filter((item) => item !== stationId)
   };
 };
 
@@ -318,8 +377,9 @@ export const rankStationsForUser = (
   }: TasteRecommendationContext = { mode: 'personal' }
 ) => {
   const currentId = currentStation?.stationuuid || null;
+  const hiddenIds = new Set(normalizeTasteProfile(profile).hiddenStationIds);
   return filterStationsByPlayability(uniqueStations(stations), playabilityProfile, now, healthProfile)
-    .filter((station) => station.stationuuid !== currentId)
+    .filter((station) => station.stationuuid !== currentId && !hiddenIds.has(station.stationuuid))
     .map((station, index) => {
       const jitter = (hashValue(`${station.stationuuid}:${seed}`) % 1000) / 1000;
       const score =

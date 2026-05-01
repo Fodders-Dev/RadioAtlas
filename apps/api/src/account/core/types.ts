@@ -81,6 +81,7 @@ export type SyncedTasteProfile = {
   version: 2;
   lastUpdatedAt: number | null;
   signals: SyncedTasteSignal[];
+  hiddenStationIds: string[];
   stationScores: Record<string, number>;
   tagScores: Record<string, number>;
   countryScores: Record<string, number>;

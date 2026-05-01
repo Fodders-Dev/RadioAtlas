@@ -2,10 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { StationProfileSummary } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
+import {
+  getStationHealthScore,
+  resolveBestPlayableCandidate
+} from '../lib/stationHealth';
+import { getStationPlayabilityScore } from '../lib/stationPlayability';
+import {
+  reportProductEvent,
+  stationAnalyticsMeta
+} from '../lib/productAnalytics';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
+import { StationArtwork } from './StationArtwork';
 
 type StationDetailsProps = {
   open: boolean;
@@ -19,7 +29,14 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
     toggleFavorite,
     isFavorite,
     followedStations,
-    toggleFollowStation
+    toggleFollowStation,
+    trackHistory,
+    playabilityProfile,
+    stationHealthProfile,
+    reportStationBroken,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
   } = useLibrary();
   const {
     player,
@@ -37,26 +54,17 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
     : false;
   const [profileSummary, setProfileSummary] = useState<StationProfileSummary | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const apiBase = getApiBase();
 
   const full = useMemo(() => {
     if (!current) return null;
     return knownStations.find((station) => station.stationuuid === current.stationuuid) ?? null;
   }, [knownStations, current]);
 
-  if (!open || !current) return null;
-
-  const info = full ?? current;
-  const location = stationLocation(info);
-  const tags = stationTags(info);
-  const homepage = full?.homepage;
-  const codec = full?.codec;
-  const bitrate = full?.bitrate;
-  const apiBase = getApiBase();
-
   useEffect(() => {
     let cancelled = false;
     setProfileSummary(null);
-    if (!current || !apiBase) return;
+    if (!open || !current || !apiBase) return;
     void (async () => {
       try {
         const response = await fetch(`${apiBase}/stations/${current.stationuuid}/profile`);
@@ -74,7 +82,50 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
     return () => {
       cancelled = true;
     };
-  }, [apiBase, current?.stationuuid]);
+  }, [apiBase, current?.stationuuid, open]);
+
+  useEffect(() => {
+    if (!open || !current) return;
+    reportProductEvent(
+      'station_details_opened',
+      stationAnalyticsMeta(current),
+      {
+        dedupeKey: `station_details_opened:${current.stationuuid}`,
+        dedupeMs: 20_000
+      }
+    );
+  }, [current, open]);
+
+  const recentTracks = useMemo(() => {
+    if (!current) return [];
+    return trackHistory
+      .filter((item) => item.stationId === current.stationuuid && item.track.trim())
+      .slice(0, 5);
+  }, [current, trackHistory]);
+
+  if (!open || !current) return null;
+
+  const info = full ?? current;
+  const location = stationLocation(info);
+  const tags = stationTags(info);
+  const homepage = full?.homepage;
+  const codec = full?.codec;
+  const bitrate = full?.bitrate;
+  const candidate = resolveBestPlayableCandidate(info, stationHealthProfile, {
+    apiAvailable: Boolean(apiBase),
+    apiBase
+  });
+  const healthScore =
+    getStationHealthScore(stationHealthProfile, info) +
+    getStationPlayabilityScore(playabilityProfile, info);
+  const trustLabel = candidate.suppressed
+    ? t('details.trustBad')
+    : healthScore >= 2
+      ? t('details.trustGood')
+      : healthScore <= -1
+        ? t('details.trustWeak')
+        : t('details.trustUnknown');
+  const hiddenFromRecommendations = isStationHiddenFromRecommendations(current.stationuuid);
 
   const handlePlay = () => {
     player.toggle();
@@ -109,8 +160,9 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         aria-label={t('details.closeAria')}
       />
       <div className="details-card">
-        <div className="details-header">
-          <div>
+        <div className="details-header details-identity">
+          <StationArtwork station={info} size="card" className="details-artwork" />
+          <div className="details-heading">
             <div className="details-title">{current.name}</div>
             <div className="details-sub">{location}</div>
           </div>
@@ -158,6 +210,26 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
               {t('common.site')}
             </button>
           )}
+          <button
+            className="player-btn danger"
+            onClick={() => reportStationBroken(current)}
+            type="button"
+          >
+            {t('details.reportBroken')}
+          </button>
+          <button
+            className={`player-btn ${hiddenFromRecommendations ? 'active' : ''}`}
+            onClick={() =>
+              hiddenFromRecommendations
+                ? unhideStationFromRecommendations(current)
+                : hideStationFromRecommendations(current)
+            }
+            type="button"
+          >
+            {hiddenFromRecommendations
+              ? t('details.showInRecommendations')
+              : t('details.hideFromRecommendations')}
+          </button>
         </div>
 
         <div className="details-grid">
@@ -189,6 +261,14 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
             >
               {current.url_resolved}
             </a>
+          </div>
+          <div className="details-row">
+            <span>{t('details.streamTrust')}</span>
+            <div>{trustLabel}</div>
+          </div>
+          <div className="details-row">
+            <span>{t('details.preferredTransport')}</span>
+            <div>{candidate.preferredTransport}</div>
           </div>
           {homepage && (
             <div className="details-row">
@@ -244,6 +324,20 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
               <div>{profileSummary.scheduleNote}</div>
             </div>
           ) : null}
+        </div>
+        <div className="details-track-section">
+          <div className="details-row-heading">{t('details.recentTracks')}</div>
+          {recentTracks.length ? (
+            <div className="details-track-list">
+              {recentTracks.map((item) => (
+                <div className="details-track-chip" key={item.id}>
+                  {item.track}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="section-subtitle">{t('details.recentTracksEmpty')}</div>
+          )}
         </div>
         {status === 'authenticated' && !profileSummary?.ownerAccountId ? (
           <div className="settings-actions">

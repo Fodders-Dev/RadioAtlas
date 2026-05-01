@@ -1,6 +1,8 @@
 import { Suspense, lazy, type CSSProperties, type ReactNode } from 'react';
 import type { StationLite } from '../../types';
+import type { TrackHistoryItem } from '../../state/radio/types';
 import type { ResponsiveExpandedMode } from './runtime';
+import { StationArtwork } from '../StationArtwork';
 
 const LazyMilkdropVisualizer = lazy(async () => {
   const mod = await import('../WinampMilkdropVisualizer');
@@ -28,6 +30,7 @@ type WinampOverlayProps = {
   current: StationLite | null;
   queue: QueuePreview;
   playbackHistory: StationLite[];
+  trackHistory: TrackHistoryItem[];
   visualizer: VisualizerState;
   showVisualizer?: boolean;
   mainStyle?: CSSProperties;
@@ -40,6 +43,9 @@ type WinampOverlayProps = {
   onResetLayout: () => void;
   onPlayQueueStation: (station: StationLite) => void;
   onPlayHistoryStation: (station: StationLite) => void;
+  onDetails?: () => void;
+  onHideStation?: () => void;
+  stationHidden?: boolean;
 };
 
 const renderStationMeta = (
@@ -70,6 +76,8 @@ export default function WinampOverlay({
   loading,
   mainStyle,
   onClose,
+  onDetails,
+  onHideStation,
   onOpenSkinLab,
   onPlayHistoryStation,
   onPlayQueueStation,
@@ -77,7 +85,9 @@ export default function WinampOverlay({
   playbackHistory,
   queue,
   showVisualizer = true,
+  stationHidden = false,
   t,
+  trackHistory,
   trackLine,
   visualizer
 }: WinampOverlayProps) {
@@ -88,6 +98,12 @@ export default function WinampOverlay({
   const currentStationName = current?.name || queue.items[queue.currentIndex]?.name || t('winamp.noStation');
   const queueLabel = queue.sourceLabel || t('radio.queueDefault');
   const unknownLabel = t('common.unknown');
+  const recentTrackPreview = (current
+    ? trackHistory.filter((item) => item.stationId === current.stationuuid)
+    : trackHistory
+  )
+    .filter((item) => item.track.trim())
+    .slice(0, 4);
 
   return (
     <>
@@ -123,11 +139,28 @@ export default function WinampOverlay({
         {host}
         {expandedLayoutMode === 'desktop' ? (
           <aside className="winamp-overlay-sidebar">
-            <div className="winamp-overlay-card">
+            <div className="winamp-overlay-card winamp-overlay-now-card">
               <div className="winamp-overlay-label">{t('winamp.nowTuned')}</div>
-              <div className="winamp-overlay-title">{currentStationName}</div>
-              <div className="winamp-overlay-copy">
-                {queueLabel} - {t('winamp.queueReady', { count: queue.items.length })}
+              <div className="winamp-overlay-art-row">
+                <StationArtwork station={current} size="card" className="winamp-now-artwork" />
+                <div>
+                  <div className="winamp-overlay-title">{currentStationName}</div>
+                  <div className="winamp-overlay-copy">
+                    {queueLabel} - {t('winamp.queueReady', { count: queue.items.length })}
+                  </div>
+                </div>
+              </div>
+              <div className="winamp-overlay-mini-actions">
+                {onDetails ? (
+                  <button className="chip" type="button" onClick={onDetails} disabled={!current}>
+                    {t('winamp.stationDetails')}
+                  </button>
+                ) : null}
+                {onHideStation ? (
+                  <button className="chip" type="button" onClick={onHideStation} disabled={!current}>
+                    {stationHidden ? t('winamp.showStation') : t('winamp.hideStation')}
+                  </button>
+                ) : null}
               </div>
             </div>
             <div className="winamp-overlay-card">
@@ -177,11 +210,43 @@ export default function WinampOverlay({
               </div>
             </div>
           ) : null}
-          <div className="winamp-overlay-card">
+          <div className="winamp-overlay-card winamp-overlay-now-card">
             <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
-            <div className="winamp-overlay-title">{currentStationName}</div>
-            <div className="winamp-overlay-copy">
-              {queueLabel} - {t('winamp.queueCount', { count: queue.items.length })}
+            <div className="winamp-overlay-art-row">
+              <StationArtwork station={current} size="card" className="winamp-now-artwork" />
+              <div>
+                <div className="winamp-overlay-title">{currentStationName}</div>
+                <div className="winamp-overlay-copy">
+                  {queueLabel} - {t('winamp.queueCount', { count: queue.items.length })}
+                </div>
+              </div>
+            </div>
+            <div className="winamp-overlay-mini-actions">
+              {onDetails ? (
+                <button className="chip" type="button" onClick={onDetails} disabled={!current}>
+                  {t('winamp.stationDetails')}
+                </button>
+              ) : null}
+              {onHideStation ? (
+                <button className="chip" type="button" onClick={onHideStation} disabled={!current}>
+                  {stationHidden ? t('winamp.showStation') : t('winamp.hideStation')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="winamp-overlay-card">
+            <div className="winamp-overlay-label">{t('winamp.recentTracks')}</div>
+            <div className="winamp-overlay-track-list">
+              {recentTrackPreview.length ? (
+                recentTrackPreview.map((item) => (
+                  <div className="winamp-overlay-track-item" key={item.id}>
+                    <strong>{item.track}</strong>
+                    <span>{item.stationName}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="winamp-overlay-empty">{t('details.recentTracksEmpty')}</div>
+              )}
             </div>
           </div>
           <div className="winamp-overlay-card">

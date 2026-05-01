@@ -4,6 +4,7 @@ import { SettingsSheet } from './components/SettingsSheet';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
 import { getDeviceProfile } from './lib/deviceProfile';
+import { reportProductEvent } from './lib/productAnalytics';
 import { useCompactLayout } from './lib/useCompactLayout';
 import {
   loadAccountSheet,
@@ -100,9 +101,63 @@ const App = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const startHandledRef = useRef(false);
+  const activeSectionRef = useRef(activeSection);
+  const sessionStartedAtRef = useRef(Date.now());
+  const sessionDurationReportedRef = useRef(false);
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
   const lowPowerShell = useMemo(() => getDeviceProfile().lowPower, []);
+
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
+
+  useEffect(() => {
+    const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
+    const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+    reportProductEvent(
+      'app_opened',
+      {
+        initialSection: activeSectionRef.current,
+        compact: isCompactLayout,
+        lowPower: lowPowerShell,
+        viewportWidth,
+        viewportHeight,
+        telegram: Boolean(window.Telegram?.WebApp)
+      },
+      {
+        dedupeKey: 'app_opened',
+        dedupeMs: 60_000
+      }
+    );
+
+    const reportDuration = () => {
+      if (sessionDurationReportedRef.current) return;
+      sessionDurationReportedRef.current = true;
+      reportProductEvent(
+        'session_duration',
+        {
+          durationMs: Date.now() - sessionStartedAtRef.current,
+          lastSection: activeSectionRef.current
+        },
+        {
+          dedupeKey: `session_duration:${sessionStartedAtRef.current}`
+        }
+      );
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        reportDuration();
+      }
+    };
+    window.addEventListener('pagehide', reportDuration);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', reportDuration);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      reportDuration();
+    };
+  }, [isCompactLayout, lowPowerShell]);
 
   useEffect(() => {
     if (!player.current && detailsOpen) {

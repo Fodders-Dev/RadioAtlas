@@ -55,13 +55,13 @@ API proxy уже реализован и используется через `VI
   - Stable generated station covers.
   - Collection mosaic covers.
   - Region mini-art.
-- [ ] Stage 12: Player as core product object
+- [x] Stage 12: Player as core product object
   - Compact dock: station, track, play/pause, next, like, mute.
   - Expanded player: artwork, queue, recent tracks, station details.
   - Hide station from recommendations.
-- [ ] Stage 13: Station details and trust
+- [x] Stage 13: Station details and trust
   - Country/city/tags, stream health, recent tracks, website, favorite/follow, report broken, open externally.
-- [ ] Stage 14: Observability and product analytics
+- [x] Stage 14: Observability and product analytics
   - Local/API events for open, impression, play attempt/success, startup time, skip, like, search, failure, queue source, session duration.
   - No personal data by default.
 - [ ] Stage 15: Telegram mobile hardening
@@ -93,6 +93,9 @@ API proxy уже реализован и используется через `VI
 - Local retention now builds in-app digests and alerts for yesterday's session, morning/evening mixes, followed-station tracks, back-online stations, and followed-region activity.
 - Telegram bot notifications remain opt-in only; no bot notification side effects run by default.
 - Station, collection, and region fallback artwork is stable, generated from deterministic seeds, and covered by visual snapshots.
+- Expanded player shows current station artwork, queue context, recent tracks, details entry, and hide/show recommendation control.
+- Station details exposes stream trust, preferred transport, recent tracks, favorite/follow, report broken, open stream/site, and hide/show from recommendations.
+- Product analytics records app open, Home station impressions, search query hash, play attempt/success, stream failure, skip, like, queue source, station details/report/hide, and session duration without raw search text or station names in product events.
 
 ## Test Plan
 
@@ -104,4 +107,4 @@ API proxy уже реализован и используется через `VI
 
 ## Next:
 
-Stage 12: Player as core product object. Keep the dock compact, make expanded player the listening hub, and add a clear "hide station from recommendations" path.
+Stage 15: Telegram mobile hardening. Keep 360-395px primary, verify first useful paint, no horizontal overflow on 360/390/412, and lazy/fallback behavior for heavy surfaces and API errors.

@@ -17,6 +17,7 @@ import {
   PERSONAL_RADIO_QUEUE_LIMIT
 } from '../lib/personalRadio';
 import { getDeviceProfile } from '../lib/deviceProfile';
+import { reportProductEvent } from '../lib/productAnalytics';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useDebounce } from '../lib/useDebounce';
 import { useCatalog } from '../state/CatalogContext';
@@ -27,7 +28,10 @@ import {
   filterStationsByPlayability,
   rankStationsForHome
 } from '../lib/stationPlayability';
-import { rankStationsForUser } from '../lib/tasteProfile';
+import {
+  isStationHiddenFromRecommendations,
+  rankStationsForUser
+} from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
   HomeHeroCard,
@@ -327,6 +331,7 @@ export const Home = () => {
   const [refreshing, setRefreshing] = useState(false);
   const sessionBucketPrimedRef = useRef(false);
   const dismissedSummaryErrorRef = useRef<string | null>(null);
+  const homeImpressionSignatureRef = useRef('');
   const debouncedQuery = useDebounce(query, 180);
 
   const catalog = useMemo(
@@ -497,8 +502,8 @@ export const Home = () => {
       rankStationsForHome(catalog, playabilityProfile, {
         limit: Math.min(catalog.length, 36),
         healthProfile: stationHealthProfile
-      }),
-    [catalog, playabilityProfile, stationHealthProfile]
+      }).filter((station) => !isStationHiddenFromRecommendations(tasteProfile, station)),
+    [catalog, playabilityProfile, stationHealthProfile, tasteProfile]
   );
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
@@ -552,6 +557,30 @@ export const Home = () => {
 
     return rails.slice(0, limit);
   }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
+
+  useEffect(() => {
+    const stationIds = mergeStations(
+      personalRadioQueue.stations.slice(0, 12),
+      visibleRails.flatMap((rail) => rail.stations.slice(0, 8))
+    ).map((station) => station.stationuuid);
+    if (!stationIds.length) return;
+    const signature = `${denseLayout ? 'dense' : 'wide'}:${stationIds.join('|')}`;
+    if (homeImpressionSignatureRef.current === signature) return;
+    homeImpressionSignatureRef.current = signature;
+    reportProductEvent(
+      'home_station_impression',
+      {
+        stationIds,
+        stationCount: stationIds.length,
+        railCount: visibleRails.length,
+        dense: denseLayout
+      },
+      {
+        dedupeKey: `home_station_impression:${signature}`,
+        dedupeMs: 60_000
+      }
+    );
+  }, [denseLayout, personalRadioQueue.stations, visibleRails]);
 
   useEffect(() => {
     if (!summary || sessionBucketPrimedRef.current) return;

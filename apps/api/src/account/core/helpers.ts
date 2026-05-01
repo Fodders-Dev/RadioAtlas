@@ -239,6 +239,7 @@ const DEFAULT_TASTE_PROFILE: SyncedTasteProfile = {
   version: 2,
   lastUpdatedAt: null,
   signals: [],
+  hiddenStationIds: [],
   stationScores: {},
   tagScores: {},
   countryScores: {},
@@ -302,6 +303,9 @@ export const sanitizeTasteProfile = (value: unknown): SyncedTasteProfile => {
     version: 2,
     lastUpdatedAt: safeNumber(payload.lastUpdatedAt),
     signals: uniqueSignals,
+    hiddenStationIds: Array.isArray(payload.hiddenStationIds)
+      ? Array.from(new Set(payload.hiddenStationIds.map(safeText).filter(Boolean))).slice(0, 160)
+      : [],
     stationScores: sanitizeScoreMap(payload.stationScores, 140),
     tagScores: sanitizeScoreMap(payload.tagScores, 36),
     countryScores: sanitizeScoreMap(payload.countryScores, 30),
@@ -341,6 +345,7 @@ export const mergeTasteProfiles = (
     signals: Array.from(signalMap.values())
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 240),
+    hiddenStationIds: Array.from(new Set([...left.hiddenStationIds, ...right.hiddenStationIds])).slice(0, 160),
     stationScores: mergeScoreMaps(140, left.stationScores, right.stationScores),
     tagScores: mergeScoreMaps(36, left.tagScores, right.tagScores),
     countryScores: mergeScoreMaps(30, left.countryScores, right.countryScores),

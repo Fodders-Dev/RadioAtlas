@@ -155,6 +155,32 @@ export const defaultDictionary: DictionaryTree = {
     queueProgress: '{current} из {total}',
     copyCurrentTrack: 'Скопировать трек'
   },
+  details: {
+    close: 'Закрыть',
+    streamTrust: 'Надёжность',
+    trustGood: 'Хорошая',
+    trustWeak: 'Нестабильная',
+    trustBad: 'Сломана недавно',
+    trustUnknown: 'Нет данных',
+    preferredTransport: 'Лучший поток',
+    recentTracks: 'Недавние треки',
+    recentTracksEmpty: 'Треки этой станции пока не сохранялись.',
+    reportBroken: 'Пожаловаться',
+    hideFromRecommendations: 'Скрыть',
+    showInRecommendations: 'Вернуть'
+  },
+  winamp: {
+    currentStation: 'Текущая станция',
+    recentTracks: 'Недавние треки',
+    stationDetails: 'Детали',
+    hideStation: 'Скрыть',
+    showStation: 'Вернуть'
+  },
+  toast: {
+    stationHidden: '{station} скрыта из рекомендаций',
+    stationUnhidden: '{station} вернулась в рекомендации',
+    stationReportedBroken: 'Спасибо, пометили {station} как проблемную'
+  },
   stationTable: {
     favorite: 'В избранное',
     unfavorite: 'Убрать из избранного'

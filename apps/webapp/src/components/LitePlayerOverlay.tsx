@@ -3,6 +3,7 @@ import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import WinampOverlay from './winampShell/WinampOverlay';
 import type { StationLite } from '../types';
+import { StationArtwork } from './StationArtwork';
 import './winampShell/winamp.css';
 
 type ResponsiveExpandedMode = 'mobile' | 'desktop';
@@ -28,8 +29,12 @@ export const LitePlayerOverlay = ({
   } = usePlayback();
   const {
     playbackHistory,
+    trackHistory,
     toggleFavorite,
-    isFavorite
+    isFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
   } = useLibrary();
   const { winamp, openWebAppExternally, setSkinLabOpen } = useShell();
   const [expandedLayoutMode, setExpandedLayoutMode] = useState<ResponsiveExpandedMode>(() =>
@@ -38,6 +43,7 @@ export const LitePlayerOverlay = ({
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
+  const stationHidden = current ? isStationHiddenFromRecommendations(current.stationuuid) : false;
   const canResume = Boolean(playbackHistory.length || queue.items.length);
   const trackTitle = nowPlaying?.trim() || '';
   const canCopyTrackTitle = Boolean(trackTitle);
@@ -121,6 +127,19 @@ export const LitePlayerOverlay = ({
         </button>
       )}
       <button
+        className={`chip ${stationHidden ? 'active' : ''}`}
+        onClick={() =>
+          current &&
+          (stationHidden
+            ? unhideStationFromRecommendations(current)
+            : hideStationFromRecommendations(current))
+        }
+        type="button"
+        disabled={!current}
+      >
+        {stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}
+      </button>
+      <button
         className="chip"
         onClick={() => current && shareStation(current)}
         type="button"
@@ -179,11 +198,16 @@ export const LitePlayerOverlay = ({
       <div className="winamp-lite-panel" data-winamp-lite-panel="true">
         <div className="winamp-overlay-card">
           <div className="winamp-overlay-label">{t('winamp.currentStation')}</div>
-          <div className="winamp-overlay-title">{current?.name || t('winamp.noStation')}</div>
-          <div className="winamp-overlay-copy">
-            {player.status === 'buffering'
-              ? t('dock.buffering')
-              : trackTitle || t('winamp.trackUnavailable')}
+          <div className="winamp-overlay-art-row">
+            <StationArtwork station={current} size="card" className="winamp-now-artwork" />
+            <div>
+              <div className="winamp-overlay-title">{current?.name || t('winamp.noStation')}</div>
+              <div className="winamp-overlay-copy">
+                {player.status === 'buffering'
+                  ? t('dock.buffering')
+                  : trackTitle || t('winamp.trackUnavailable')}
+              </div>
+            </div>
           </div>
         </div>
         <div className="winamp-overlay-card">
@@ -246,6 +270,13 @@ export const LitePlayerOverlay = ({
               : 'calc(54px + env(safe-area-inset-top)) 10px calc(76px + env(safe-area-inset-bottom))'
         }}
         onClose={() => winamp.setExpanded(false)}
+        onDetails={onDetails}
+        onHideStation={() =>
+          current &&
+          (stationHidden
+            ? unhideStationFromRecommendations(current)
+            : hideStationFromRecommendations(current))
+        }
         onOpenSkinLab={() => setSkinLabOpen(true)}
         onPlayHistoryStation={playOverlayHistoryStation}
         onPlayQueueStation={playOverlayQueueStation}
@@ -253,7 +284,9 @@ export const LitePlayerOverlay = ({
         playbackHistory={playbackHistory}
         queue={queue}
         showVisualizer={false}
+        stationHidden={stationHidden}
         t={t}
+        trackHistory={trackHistory}
         trackLine={trackLine}
         visualizer={{
           active: false,

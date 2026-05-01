@@ -376,6 +376,30 @@
   background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
 }
 
+.winamp-overlay-now-card {
+  gap: 10px;
+}
+
+.winamp-overlay-art-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.winamp-now-artwork {
+  width: 74px;
+  height: 74px;
+  border-radius: 16px;
+}
+
+.winamp-overlay-mini-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .winamp-overlay-label {
   font-size: 11px;
   color: var(--muted);
@@ -436,6 +460,37 @@
 .winamp-overlay-list {
   display: grid;
   gap: 8px;
+}
+
+.winamp-overlay-track-list {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.winamp-overlay-track-item {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-overlay) 72%, transparent);
+}
+
+.winamp-overlay-track-item strong,
+.winamp-overlay-track-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.winamp-overlay-track-item strong {
+  font-size: 12px;
+}
+
+.winamp-overlay-track-item span {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .winamp-overlay-item {
@@ -526,6 +581,16 @@
 
   .winamp-overlay-summary {
     grid-template-columns: 1fr;
+  }
+
+  .winamp-overlay-art-row {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .winamp-now-artwork {
+    width: 58px;
+    height: 58px;
+    border-radius: 14px;
   }
 
   .winamp-compact.fullscreen-ui[data-expanded-layout='mobile'] {

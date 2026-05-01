@@ -9,6 +9,7 @@ import {
 } from './stationPlayability';
 import type { StationHealthProfile } from './stationHealth';
 import {
+  isStationHiddenFromRecommendations,
   rankStationsForUser,
   type TasteProfileV2
 } from './tasteProfile';
@@ -144,7 +145,10 @@ export const buildPersonalRadioQueue = ({
     recent,
     recommendationFeed.outsideOrbit,
     rankedCatalog
-  ).filter((station) => station.stationuuid !== currentId);
+  ).filter(
+    (station) =>
+      station.stationuuid !== currentId && !isStationHiddenFromRecommendations(tasteProfile, station)
+  );
 
   return {
     mode: 'personal',

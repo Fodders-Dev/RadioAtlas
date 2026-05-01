@@ -22,6 +22,8 @@ import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 import {
   DEFAULT_TASTE_PROFILE_V2,
+  hideStationFromTasteProfile,
+  isStationHiddenFromRecommendations,
   mergeTasteProfiles,
   rankStationsForUser,
   recordTasteSignal
@@ -341,6 +343,48 @@ test('taste profile v2 promotes liked stations and demotes early skips', () => {
   );
 });
 
+test('hidden stations stay out of recommendations and personal radio queues', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 5, 0);
+  const profile = hideStationFromTasteProfile(DEFAULT_TASTE_PROFILE_V2, stations[4], now);
+  const ranked = rankStationsForUser(
+    [stations[4], stations[5], stations[6]],
+    profile,
+    DEFAULT_PLAYABILITY_PROFILE,
+    {
+      mode: 'personal',
+      seed: 11,
+      now
+    }
+  );
+  const queue = buildPersonalRadioQueue({
+    catalog: stations,
+    favorites: [stations[4]],
+    recent: [],
+    queuePreview: [],
+    playbackHistory: [],
+    trackHistory: [],
+    collections: [],
+    followedStations: [],
+    behaviorProfile: behaviorProfile({
+      stationScores: { 'uuid-berlin': 200, 'uuid-hamburg': 80 }
+    }),
+    playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+    tasteProfile: profile,
+    healthProfile: DEFAULT_STATION_HEALTH_PROFILE,
+    context: {
+      mode: 'personal',
+      currentStation: null,
+      seed: 11,
+      limit: 8,
+      now
+    }
+  });
+
+  expect(isStationHiddenFromRecommendations(profile, stations[4])).toBe(true);
+  expect(ranked.map((station) => station.stationuuid)).not.toContain('uuid-berlin');
+  expect(queue.stations.map((station) => station.stationuuid)).not.toContain('uuid-berlin');
+});
+
 test('followed regions feed Home and personal radio station pools', () => {
   const regionStations = stationsForRegions(stations, [
     {
@@ -478,13 +522,15 @@ test('taste profile cloud merge keeps local and remote signals combine-first', (
     mode: 'search',
     now
   });
-  const merged = mergeTasteProfiles(remote, local);
+  const hiddenLocal = hideStationFromTasteProfile(local, stations[5], now + 1000);
+  const merged = mergeTasteProfiles(remote, hiddenLocal);
 
   expect(merged.signals.map((signal) => signal.stationId)).toEqual(
     expect.arrayContaining(['uuid-tokyo', 'uuid-berlin'])
   );
   expect(merged.stationScores['uuid-tokyo']).toBeGreaterThan(0);
   expect(merged.stationScores['uuid-berlin']).toBeLessThan(0);
+  expect(merged.hiddenStationIds).toContain('uuid-hamburg');
 });
 
 test('station health suppresses repeated failures but accepts metadata misses and proxy success', () => {
@@ -1508,6 +1554,137 @@ test('mobile shell keeps dock and bottom nav separately tappable', async ({ page
 
   await page.locator('.winamp-overlay-header .winamp-close-btn').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
+});
+
+test('expanded player shows artwork, recent tracks, details and hide action', async ({ page }) => {
+  await seedRadioState(page, {
+    trackHistory: [
+      {
+        id: 'track-tokyo-1',
+        stationId: 'uuid-tokyo',
+        stationName: 'Tokyo FM',
+        track: 'Mock Song',
+        timestamp: Date.UTC(2026, 3, 20, 10, 0, 0)
+      }
+    ]
+  });
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await playHomeStation(page, 'Tokyo FM');
+  await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
+    (node as HTMLButtonElement).click();
+  });
+
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
+  await expect(page.locator('.winamp-now-artwork').first()).toBeVisible();
+  await expect(page.locator('.winamp-overlay-track-list')).toContainText('Mock Song');
+  await expect(page.locator('.winamp-overlay-footer')).toContainText(/Детали|Details/);
+
+  await page
+    .locator('.winamp-overlay-footer')
+    .getByRole('button', { name: /^Скрыть$|^Hide$/ })
+    .first()
+    .click();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:app:v2');
+        if (!raw) return [];
+        return (JSON.parse(raw) as { tasteProfile?: { hiddenStationIds?: string[] } }).tasteProfile
+          ?.hiddenStationIds || [];
+      })
+    )
+    .toContain('uuid-tokyo');
+});
+
+test('station details exposes trust, recent tracks, report broken and recommendation hide', async ({ page }) => {
+  await seedRadioState(page, {
+    trackHistory: [
+      {
+        id: 'track-tokyo-2',
+        stationId: 'uuid-tokyo',
+        stationName: 'Tokyo FM',
+        track: 'Mock Song',
+        timestamp: Date.UTC(2026, 3, 20, 10, 5, 0)
+      }
+    ]
+  });
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await playHomeStation(page, 'Tokyo FM');
+  await page.locator('.player-dock-station').click();
+
+  await expect(page.locator('.details-card')).toBeVisible();
+  await expect(page.locator('.details-artwork')).toBeVisible();
+  await expect(page.locator('.details-card')).toContainText(/Надёжность|Stream trust/);
+  await expect(page.locator('.details-card')).toContainText('Mock Song');
+
+  await page.getByRole('button', { name: /Пожаловаться|Report broken/ }).click();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:app:v2');
+        if (!raw) return null;
+        return (JSON.parse(raw) as { stationHealthProfile?: { signals?: Record<string, { failures?: number }> } })
+          .stationHealthProfile?.signals?.['uuid-tokyo']?.failures || 0;
+      })
+    )
+    .toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: /^Скрыть$|^Hide$/ }).click();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:app:v2');
+        if (!raw) return [];
+        return (JSON.parse(raw) as { tasteProfile?: { hiddenStationIds?: string[] } }).tasteProfile
+          ?.hiddenStationIds || [];
+      })
+    )
+    .toContain('uuid-tokyo');
+});
+
+test('product analytics records app, home, search and playback events without raw query text', async ({ page }) => {
+  const events: Array<{ name?: string; meta?: Record<string, unknown> }> = [];
+  await page.route('**/observability/client-event', async (route) => {
+    const raw = route.request().postData();
+    if (raw) {
+      events.push(JSON.parse(raw) as { name?: string; meta?: Record<string, unknown> });
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+  const discoverInput = page.locator('.search-command-card .search-bar input').first();
+  await discoverInput.waitFor({ state: 'visible' });
+  await discoverInput.fill('Tokyo');
+  await page.waitForTimeout(500);
+  await page.locator('.search-card-play, .station-compact-play').first().click();
+
+  await expect.poll(() => events.map((event) => event.name)).toEqual(
+    expect.arrayContaining([
+      'app_opened',
+      'home_station_impression',
+      'search_query',
+      'play_attempt',
+      'play_success'
+    ])
+  );
+  const searchEvent = events.find((event) => event.name === 'search_query');
+  expect(searchEvent?.meta).toMatchObject({
+    queryHash: expect.any(String),
+    queryLength: 5
+  });
+  expect(JSON.stringify(searchEvent?.meta)).not.toContain('Tokyo');
 });
 
 test('mobile library queue survives navigation after playback starts', async ({ page }) => {
