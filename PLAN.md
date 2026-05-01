@@ -19,7 +19,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Add simple background, accent, icon, and font editing for local themes.
 - [x] 17.5 Decorative theme layers
   - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
-- [ ] 17.6 Webamp easter egg
+- [x] 17.6 Webamp easter egg
   - Unlock the legacy Lite/Webamp path through the R++ brand gesture; keep `?winamp=1` as a dev bypass if useful.
 
 ## Deferred
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17.6 Webamp easter egg, after 17.5 review.
+Next: Stage 17 complete; keep Theme Studio local-only until a separate review opens Stage 18.

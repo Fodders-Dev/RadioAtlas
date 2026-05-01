@@ -1911,6 +1911,23 @@ test('query flag keeps legacy lite winamp easter egg', async ({ page }) => {
   await expect(page.locator('.winamp-overlay-visualizer-card')).toHaveCount(0);
 });
 
+test('R++ brand gesture unlocks legacy lite winamp easter egg', async ({ page }) => {
+  await enableTelegramMobileSafeMode(page);
+  await page.goto('/?tgWebAppPlatform=ios');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await playHomeStation(page, 'Tokyo FM');
+  const trigger = page.locator('[data-winamp-easter-egg-trigger="title"]');
+  for (let i = 0; i < 5; i += 1) {
+    await trigger.click();
+  }
+
+  await expect(page.locator('.winamp-compact.fullscreen-ui')).toBeVisible();
+  await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
+  await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
+  await expect(page.locator('[data-full-player-overlay]')).toHaveCount(0);
+});
+
 test('deferred public and paid product surfaces stay disabled', () => {
   expect(PRODUCT_SURFACE_GUARDS).toMatchObject({
     billing: false,

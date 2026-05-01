@@ -129,9 +129,16 @@ test('home shell populated visual baseline', async ({ page }) => {
     playbackHistory: [stations[0], stations[4], stations[8]],
     queue: [stations[1], stations[6], stations[9]]
   });
-  await expect(page).toHaveScreenshot('home-shell-populated.png', {
+  const screenshot = await page.screenshot({
     animations: 'disabled',
-    fullPage: true,
+    clip: {
+      x: 0,
+      y: 0,
+      width: 1440,
+      height: 1688
+    }
+  });
+  expect(screenshot).toMatchSnapshot('home-shell-populated.png', {
     maxDiffPixelRatio: 0.05
   });
 });

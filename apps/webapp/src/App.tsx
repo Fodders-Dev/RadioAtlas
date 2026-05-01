@@ -106,15 +106,18 @@ const App = () => {
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const startHandledRef = useRef(false);
   const activeSectionRef = useRef(activeSection);
+  const brandGestureRef = useRef({ count: 0, startedAt: 0 });
   const sessionStartedAtRef = useRef(Date.now());
   const sessionDurationReportedRef = useRef(false);
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
   const lowPowerShell = useMemo(() => getDeviceProfile().lowPower, []);
-  const legacyWinampOverlay = useMemo(() => {
+  const legacyWinampQuery = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('winamp') === '1';
   }, []);
+  const [legacyWinampUnlocked, setLegacyWinampUnlocked] = useState(false);
+  const legacyWinampOverlay = legacyWinampQuery || legacyWinampUnlocked;
 
   useEffect(() => {
     activeSectionRef.current = activeSection;
@@ -281,6 +284,19 @@ const App = () => {
     }
     setActiveSection(section);
   };
+  const handleBrandGesture = () => {
+    const now = Date.now();
+    const previous = brandGestureRef.current;
+    const count = now - previous.startedAt > 2_400 ? 1 : previous.count + 1;
+    brandGestureRef.current = {
+      count,
+      startedAt: count === 1 ? now : previous.startedAt
+    };
+    if (count < 5) return;
+    brandGestureRef.current = { count: 0, startedAt: 0 };
+    setLegacyWinampUnlocked(true);
+    winamp.setExpanded(true);
+  };
 
   return (
     <div
@@ -309,13 +325,23 @@ const App = () => {
         <header className={`glass-card app-topbar-v2 ${lowPowerShell ? '' : 'motion-rise'}`.trim()}>
           <div className="app-topbar-copy">
             <div className="app-topbar-brandline">
-              <div className="app-brand-pill" title={`${t('app.title')} • ${versionLabel}`}>
+              <button
+                className="app-brand-pill"
+                data-winamp-easter-egg-trigger="brand"
+                onClick={handleBrandGesture}
+                title={`${t('app.title')} • ${versionLabel}`}
+                type="button"
+              >
                 <span className="app-brand-mark">R++</span>
                 <span>{t('app.title')}</span>
-              </div>
+              </button>
             </div>
             <div className="app-topbar-main-row">
-              <div className="app-topbar-title-stack">
+              <div
+                className="app-topbar-title-stack"
+                data-winamp-easter-egg-trigger="title"
+                onClick={handleBrandGesture}
+              >
                 <div className="shell-kicker">{meta.context}</div>
                 <div className="app-topbar-title">{meta.title}</div>
               </div>
