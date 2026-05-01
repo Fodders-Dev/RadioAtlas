@@ -87,6 +87,8 @@ export default defineConfig({
             id.includes('/src/App.tsx') ||
             id.includes('/src/state/LocaleContext') ||
             id.includes('/src/state/localeDictionary') ||
+            id.includes('/src/state/ThemeContext') ||
+            id.includes('/src/lib/theme/') ||
             id.includes('/src/state/SessionContext') ||
             id.includes('/src/lib/authSession') ||
             id.includes('/src/state/CatalogContext') ||

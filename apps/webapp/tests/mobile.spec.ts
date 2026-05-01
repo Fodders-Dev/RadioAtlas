@@ -50,6 +50,17 @@ import {
   PRODUCT_SURFACE_GUARDS,
   shouldExposeProductSurface
 } from '../src/lib/productSurfaceGuards';
+import { DEFAULT_RADIOATLAS_THEMES } from '../src/lib/theme/defaults';
+import {
+  clearThemeStorageForTests,
+  deleteStoredAsset,
+  deleteStoredTheme,
+  getStoredAsset,
+  listStoredAssets,
+  listStoredThemes,
+  saveStoredAsset,
+  saveStoredTheme
+} from '../src/lib/theme/storage';
 
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
   version: 1,
@@ -480,6 +491,67 @@ test('generated artwork is stable per station and varies by seed', () => {
 
   expect(first).toEqual(second);
   expect(first).not.toEqual(other);
+});
+
+test('theme defaults expose three bundled shell themes', () => {
+  expect(DEFAULT_RADIOATLAS_THEMES.map((theme) => theme.id)).toEqual([
+    'classic',
+    'neon',
+    'pastel'
+  ]);
+  expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.builtin)).toBe(true);
+  expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.layers.background?.kind === 'gradient')).toBe(true);
+});
+
+test('theme storage saves custom themes and assets locally', async () => {
+  await clearThemeStorageForTests();
+  const savedTheme = await saveStoredTheme({
+    id: 'custom-night-drive',
+    name: 'Night Drive',
+    author: 'Tester',
+    layers: {
+      accent: {
+        hue: 210,
+        sat: 82
+      },
+      background: {
+        kind: 'gradient',
+        gradient: 'linear-gradient(180deg, #001, #123)'
+      },
+      font: {
+        family: 'mono'
+      }
+    }
+  });
+
+  expect(savedTheme).toMatchObject({
+    version: 1,
+    id: 'custom-night-drive',
+    builtin: false
+  });
+  await expect.poll(async () => (await listStoredThemes()).map((theme) => theme.id)).toContain(
+    'custom-night-drive'
+  );
+
+  const savedAsset = await saveStoredAsset({
+    id: 'asset-cover-night',
+    kind: 'background',
+    name: 'Night cover',
+    mimeType: 'image/png',
+    blob: new Blob(['theme-asset'], { type: 'image/png' })
+  });
+  expect(savedAsset.version).toBe(1);
+  await expect.poll(async () => (await listStoredAssets()).map((asset) => asset.id)).toContain(
+    'asset-cover-night'
+  );
+  await expect.poll(async () => (await getStoredAsset('asset-cover-night'))?.mimeType).toBe(
+    'image/png'
+  );
+
+  await deleteStoredTheme('custom-night-drive');
+  await deleteStoredAsset('asset-cover-night');
+  expect((await listStoredThemes()).map((theme) => theme.id)).not.toContain('custom-night-drive');
+  expect(await getStoredAsset('asset-cover-night')).toBeNull();
 });
 
 test('taste profile cloud merge keeps local and remote signals combine-first', () => {

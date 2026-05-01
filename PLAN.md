@@ -9,7 +9,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Legacy Lite/Webamp path remains available only with `?winamp=1`.
   - Skin Lab / `.wsz` entry points are removed from Settings, dock tray, and legacy overlay controls.
   - Webamp/Skin Lab source files stay in the repo for the future easter egg path.
-- [ ] 17.1 Theme schema + IndexedDB storage
+- [x] 17.1 Theme schema + IndexedDB storage
   - Add local theme/assets types and persistence for RadioAtlas shell themes.
 - [ ] 17.2 CSS theme injection
   - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
@@ -28,4 +28,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Finish Stage 17.0 verification, then start 17.1 only after review approval.
+Next: Stage 17.2 CSS theme injection, after 17.1 review.
