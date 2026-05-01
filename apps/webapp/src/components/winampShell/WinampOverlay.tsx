@@ -1,8 +1,9 @@
 import { Suspense, lazy, type CSSProperties, type ReactNode } from 'react';
 import type { StationLite } from '../../types';
 import type { TrackHistoryItem } from '../../state/radio/types';
-import type { ResponsiveExpandedMode } from './runtime';
 import { StationArtwork } from '../StationArtwork';
+
+type ResponsiveExpandedMode = 'mobile' | 'desktop';
 
 const LazyMilkdropVisualizer = lazy(async () => {
   const mod = await import('../WinampMilkdropVisualizer');

@@ -30,6 +30,9 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Theme Studio can save a user image print as a local background asset.
   - Dock and native Full Player consume the active theme print, not only accent colors.
   - Dock and native Full Player consume custom play/pause/next/prev/like icon assets.
+- [x] 17.9 Drop dead Webamp boot pipeline
+  - Legacy Lite is now a decorative-only easter egg.
+  - Removed the unused Webamp boot/runtime/transport pipeline and nonexistent vendor module path.
 
 ## Deferred
 

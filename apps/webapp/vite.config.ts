@@ -119,16 +119,7 @@ export default defineConfig({
             return 'dock-shell';
           }
           if (id.includes('node_modules/jszip')) {
-            return 'webamp-zip-vendor';
-          }
-          if (
-            id.includes('node_modules/music-metadata-browser') ||
-            id.includes('node_modules/music-metadata') ||
-            id.includes('node_modules/strtok3') ||
-            id.includes('node_modules/token-types') ||
-            id.includes('node_modules/peek-readable')
-          ) {
-            return 'webamp-metadata-vendor';
+            return 'skin-zip-vendor';
           }
           if (id.includes('node_modules/hls.js')) {
             return 'hls-core-vendor';

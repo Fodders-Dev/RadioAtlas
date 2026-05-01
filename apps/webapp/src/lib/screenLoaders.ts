@@ -18,6 +18,3 @@ export const loadAccountSheet = () =>
 
 export const loadStationDetails = () =>
   import('../components/StationDetails').then((mod) => ({ default: mod.StationDetails }));
-
-export const loadWinampPlayerShell = () =>
-  import('../components/WinampPlayerShell').then((mod) => ({ default: mod.WinampPlayerShell }));
