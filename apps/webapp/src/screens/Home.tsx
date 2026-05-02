@@ -637,7 +637,7 @@ export const Home = () => {
     const seed = Date.now();
     setRefreshing(true);
     try {
-      const nextSummary = await refreshSummary(seed);
+      const nextSummary = await refreshSummary(seed, { forceNetwork: true });
       const effectiveSummary = nextSummary || summary;
       const nextCatalog = mergeStations(effectiveSummary?.catalogPool || [], knownStations);
       if (!effectiveSummary || !nextCatalog.length) {

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
+import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, useShell } from '../state/RadioContext';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 
 export const Settings = () => {
   const { clearFavorites, clearRecent } = useLibrary();
+  const { clearCatalogCache } = useCatalog();
   const {
     clearCache,
     openWebAppExternally,
@@ -40,6 +42,11 @@ export const Settings = () => {
     clearApiBase();
     setApiUrl('');
     window.location.reload();
+  };
+
+  const handleClearCache = () => {
+    clearCatalogCache();
+    clearCache();
   };
 
   return (
@@ -124,7 +131,7 @@ export const Settings = () => {
             <div className="settings-label">{t('settings.cacheLabel')}</div>
             <div className="settings-desc">{t('settings.cacheDesc')}</div>
           </div>
-          <button className="chip" onClick={clearCache} type="button">
+          <button className="chip" onClick={handleClearCache} type="button">
             {t('settings.clearCache')}
           </button>
         </div>

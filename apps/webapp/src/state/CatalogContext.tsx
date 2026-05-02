@@ -17,12 +17,10 @@ import type {
 import type { Station, StationLite } from '../types';
 import { getApiBase } from '../lib/apiBase';
 import {
-  fetchRadioBrowserFallbackStationById,
-  listRadioBrowserFallbackAreaStations,
-  listRadioBrowserFallbackAreas,
-  loadRadioBrowserFallbackSummary,
-  searchRadioBrowserFallback
-} from '../lib/radioBrowserFallback';
+  clearCatalogCacheStorage,
+  readCatalogCache,
+  writeCatalogCache
+} from '../lib/catalogCache';
 
 type SearchStationsInput = {
   q?: string;
@@ -38,7 +36,10 @@ type CatalogContextValue = {
   summary: CatalogSummary | null;
   summaryLoading: boolean;
   summaryError: string | null;
-  refreshSummary: (seed?: number) => Promise<CatalogSummary | null>;
+  refreshSummary: (
+    seed?: number,
+    options?: { forceNetwork?: boolean }
+  ) => Promise<CatalogSummary | null>;
   searchStations: (input: SearchStationsInput) => Promise<CatalogSearchResponse>;
   fetchAreas: (zoomLevel: number) => Promise<CatalogAreaListResponse>;
   fetchAreaStations: (
@@ -53,6 +54,14 @@ type CatalogContextValue = {
 
 const CatalogContext = createContext<CatalogContextValue | null>(null);
 const CATALOG_REQUEST_TIMEOUT_MS = 6000;
+const SUMMARY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
+const AREAS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const AREA_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const STATION_BY_ID_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const SUMMARY_CACHE_KEY = 'summary:v1';
+
+const loadFallbackCatalog = () => import('../lib/radioBrowserFallback');
 
 const toStationLite = (station: Station | StationLite): StationLite => ({
   stationuuid: station.stationuuid,
@@ -82,6 +91,35 @@ const normalizeZoomBucket = (zoomLevel: number) => {
   if (zoomLevel >= 1.4) return '2';
   return '1';
 };
+
+const collectSummaryStations = (summary: CatalogSummary) => [
+  ...summary.catalogPool,
+  ...summary.freshSignals,
+  ...summary.searchLaunch,
+  ...summary.sponsored,
+  ...(summary.countrySpotlight?.stations || []),
+  ...(summary.genreSpotlight?.stations || [])
+];
+
+const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
+  q: input.q?.trim() || '',
+  country: input.country?.trim() || '',
+  language: input.language?.trim() || '',
+  tag: input.tag?.trim() || '',
+  continent: input.continent?.trim() || '',
+  limit: input.limit || 50,
+  cursor: input.cursor || ''
+});
+
+const searchCacheKey = (input: SearchStationsInput) =>
+  `search:v1:${JSON.stringify(normalizeSearchCacheInput(input))}`;
+
+const areaStationsCacheKey = (
+  areaId: string,
+  options?: { limit?: number; cursor?: string | null }
+) => `area-stations:v1:${areaId}:${options?.limit || 50}:${options?.cursor || ''}`;
+
+const stationByIdCacheKey = (stationId: string) => `station:v1:${stationId}`;
 
 export const CatalogProvider = ({ children }: { children: ReactNode }) => {
   const [summary, setSummary] = useState<CatalogSummary | null>(null);
@@ -163,34 +201,63 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  const applySummary = useCallback(
+    (nextSummary: CatalogSummary) => {
+      rememberStations(collectSummaryStations(nextSummary));
+      setSummary(nextSummary);
+    },
+    [rememberStations]
+  );
+
+  const fetchNetworkSummary = useCallback(
+    async (seed: number) => {
+      const nextSummary = await requestJson<CatalogSummary>(`/catalog/summary?seed=${seed}`);
+      await writeCatalogCache(SUMMARY_CACHE_KEY, nextSummary, SUMMARY_CACHE_TTL_MS);
+      return nextSummary;
+    },
+    [requestJson]
+  );
+
   const refreshSummary = useCallback(
-    async (seed = Date.now()) => {
+    async (seed = Date.now(), options?: { forceNetwork?: boolean }) => {
       setSummaryLoading(true);
       setSummaryError(null);
+      if (!options?.forceNetwork) {
+        const cached = await readCatalogCache<CatalogSummary>(SUMMARY_CACHE_KEY);
+        if (cached) {
+          applySummary(cached.payload);
+          setSummaryLoading(false);
+          void fetchNetworkSummary(seed)
+            .then((nextSummary) => {
+              applySummary(nextSummary);
+              setSummaryError(null);
+            })
+            .catch(() => {
+              // Cached summary is already usable; keep cold paint fast and quiet.
+            });
+          return cached.payload;
+        }
+      }
+
       try {
-        const nextSummary = await requestJson<CatalogSummary>(`/catalog/summary?seed=${seed}`);
-        rememberStations([
-          ...nextSummary.catalogPool,
-          ...nextSummary.freshSignals,
-          ...nextSummary.searchLaunch,
-          ...nextSummary.sponsored,
-          ...(nextSummary.countrySpotlight?.stations || []),
-          ...(nextSummary.genreSpotlight?.stations || [])
-        ]);
-        setSummary(nextSummary);
+        const nextSummary = await fetchNetworkSummary(seed);
+        applySummary(nextSummary);
         return nextSummary;
       } catch (error) {
+        const staleSummary = await readCatalogCache<CatalogSummary>(SUMMARY_CACHE_KEY, {
+          allowExpired: true
+        });
+        if (staleSummary) {
+          applySummary(staleSummary.payload);
+          setSummaryError(null);
+          return staleSummary.payload;
+        }
+
         try {
-          const fallbackSummary = await loadRadioBrowserFallbackSummary(seed);
-          rememberStations([
-            ...fallbackSummary.catalogPool,
-            ...fallbackSummary.freshSignals,
-            ...fallbackSummary.searchLaunch,
-            ...fallbackSummary.sponsored,
-            ...(fallbackSummary.countrySpotlight?.stations || []),
-            ...(fallbackSummary.genreSpotlight?.stations || [])
-          ]);
-          setSummary(fallbackSummary);
+          const fallback = await loadFallbackCatalog();
+          const fallbackSummary = await fallback.loadRadioBrowserFallbackSummary(seed);
+          await writeCatalogCache(SUMMARY_CACHE_KEY, fallbackSummary, SUMMARY_CACHE_TTL_MS);
+          applySummary(fallbackSummary);
           setSummaryError(null);
           return fallbackSummary;
         } catch {
@@ -201,7 +268,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
         setSummaryLoading(false);
       }
     },
-    [rememberStations, requestJson]
+    [applySummary, fetchNetworkSummary]
   );
 
   useEffect(() => {
@@ -218,11 +285,26 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (input.continent?.trim()) params.set('continent', input.continent.trim());
       params.set('limit', String(input.limit || 50));
       if (input.cursor) params.set('cursor', input.cursor);
+      const cacheKey = searchCacheKey(input);
+      const cached = await readCatalogCache<CatalogSearchResponse>(cacheKey);
+      if (cached) {
+        rememberStations(cached.payload.items);
+        return cached.payload;
+      }
+
       let response: CatalogSearchResponse;
       try {
         response = await requestJson<CatalogSearchResponse>(`/catalog/search?${params.toString()}`);
+        await writeCatalogCache(cacheKey, response, SEARCH_CACHE_TTL_MS);
       } catch {
-        response = await searchRadioBrowserFallback(input);
+        const stale = await readCatalogCache<CatalogSearchResponse>(cacheKey, { allowExpired: true });
+        if (stale) {
+          response = stale.payload;
+        } else {
+          const fallback = await loadFallbackCatalog();
+          response = await fallback.searchRadioBrowserFallback(input);
+          await writeCatalogCache(cacheKey, response, SEARCH_CACHE_TTL_MS);
+        }
       }
       rememberStations(response.items);
       return response;
@@ -237,11 +319,26 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (cached) {
         return cached;
       }
+      const cacheKey = `areas:v1:${bucket}`;
+      const cachedStorage = await readCatalogCache<CatalogAreaListResponse>(cacheKey);
+      if (cachedStorage) {
+        areaCacheRef.current.set(bucket, cachedStorage.payload);
+        return cachedStorage.payload;
+      }
+
       let response: CatalogAreaListResponse;
       try {
         response = await requestJson<CatalogAreaListResponse>(`/catalog/areas?zoom=${bucket}`);
+        await writeCatalogCache(cacheKey, response, AREAS_CACHE_TTL_MS);
       } catch {
-        response = await listRadioBrowserFallbackAreas(zoomLevel);
+        const stale = await readCatalogCache<CatalogAreaListResponse>(cacheKey, { allowExpired: true });
+        if (stale) {
+          response = stale.payload;
+        } else {
+          const fallback = await loadFallbackCatalog();
+          response = await fallback.listRadioBrowserFallbackAreas(zoomLevel);
+          await writeCatalogCache(cacheKey, response, AREAS_CACHE_TTL_MS);
+        }
       }
       areaCacheRef.current.set(bucket, response);
       return response;
@@ -254,13 +351,30 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       const params = new URLSearchParams();
       params.set('limit', String(options?.limit || 50));
       if (options?.cursor) params.set('cursor', options.cursor);
+      const cacheKey = areaStationsCacheKey(areaId, options);
+      const cached = await readCatalogCache<CatalogAreaStationsResponse>(cacheKey);
+      if (cached) {
+        rememberStations(cached.payload.items);
+        return cached.payload;
+      }
+
       let response: CatalogAreaStationsResponse;
       try {
         response = await requestJson<CatalogAreaStationsResponse>(
           `/catalog/areas/${encodeURIComponent(areaId)}/stations?${params.toString()}`
         );
+        await writeCatalogCache(cacheKey, response, AREA_STATIONS_CACHE_TTL_MS);
       } catch {
-        response = await listRadioBrowserFallbackAreaStations(areaId, options);
+        const stale = await readCatalogCache<CatalogAreaStationsResponse>(cacheKey, {
+          allowExpired: true
+        });
+        if (stale) {
+          response = stale.payload;
+        } else {
+          const fallback = await loadFallbackCatalog();
+          response = await fallback.listRadioBrowserFallbackAreaStations(areaId, options);
+          await writeCatalogCache(cacheKey, response, AREA_STATIONS_CACHE_TTL_MS);
+        }
       }
       rememberStations(response.items);
       return response;
@@ -274,14 +388,31 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (cached) {
         return cached;
       }
+      const cacheKey = stationByIdCacheKey(stationId);
+      const cachedStorage = await readCatalogCache<StationLite | null>(cacheKey);
+      if (cachedStorage) {
+        if (cachedStorage.payload) {
+          rememberStations([cachedStorage.payload]);
+        }
+        return cachedStorage.payload;
+      }
+
       let item: StationLite | null = null;
       try {
         const response = await requestJson<{ item: StationLite | null }>(
           `/catalog/stations/${encodeURIComponent(stationId)}`
         );
         item = response.item || null;
+        await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
       } catch {
-        item = await fetchRadioBrowserFallbackStationById(stationId);
+        const stale = await readCatalogCache<StationLite | null>(cacheKey, { allowExpired: true });
+        if (stale) {
+          item = stale.payload;
+        } else {
+          const fallback = await loadFallbackCatalog();
+          item = await fallback.fetchRadioBrowserFallbackStationById(stationId);
+          await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
+        }
       }
       if (item) {
         rememberStations([item]);
@@ -301,6 +432,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     setSummaryLoading(false);
     stationCacheRef.current.clear();
     areaCacheRef.current.clear();
+    void clearCatalogCacheStorage();
   }, []);
 
   const value = useMemo<CatalogContextValue>(

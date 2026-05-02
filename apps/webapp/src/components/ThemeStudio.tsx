@@ -1,8 +1,8 @@
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 import { themeRuntimeVars } from '../lib/theme/runtime';
 import type { RadioAtlasTheme } from '../lib/theme/types';
 import { useLocale } from '../state/LocaleContext';
-import { useTheme } from '../state/ThemeContext';
+import { collectThemeAssetIds, useTheme } from '../state/ThemeContext';
 import { SettingsSheet } from './SettingsSheet';
 import { ThemeBuilder } from './ThemeBuilder';
 import './ThemeStudio.css';
@@ -38,6 +38,7 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
     availableThemes,
     currentThemeId,
     customThemes,
+    ensureThemeAssets,
     getAssetUrl,
     removeTheme
   } = useTheme();
@@ -45,10 +46,25 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
     mode: 'create',
     theme: null
   });
-  const bundledThemes = availableThemes.filter((theme) => theme.builtin);
-  const selectableThemes = [...bundledThemes, ...customThemes];
+  const bundledThemes = useMemo(
+    () => availableThemes.filter((theme) => theme.builtin),
+    [availableThemes]
+  );
+  const selectableThemes = useMemo(
+    () => [...bundledThemes, ...customThemes],
+    [bundledThemes, customThemes]
+  );
+  const selectableAssetIds = useMemo(
+    () => selectableThemes.flatMap(collectThemeAssetIds),
+    [selectableThemes]
+  );
   const activeTheme =
     selectableThemes.find((theme) => theme.id === currentThemeId) || bundledThemes[0] || availableThemes[0];
+
+  useEffect(() => {
+    if (!open) return;
+    void ensureThemeAssets(selectableAssetIds);
+  }, [ensureThemeAssets, open, selectableAssetIds]);
 
   const handleRemix = (event: MouseEvent, theme: RadioAtlasTheme) => {
     event.stopPropagation();

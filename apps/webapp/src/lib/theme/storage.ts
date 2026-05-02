@@ -133,6 +133,8 @@ export const listStoredThemes = async () => {
   return themes.map(cloneTheme);
 };
 
+export const listStoredThemeManifests = listStoredThemes;
+
 export const saveStoredTheme = async (theme: ThemeDraftInput) => {
   const normalized = normalizeTheme(theme);
   if (!hasIndexedDb()) {
@@ -189,6 +191,20 @@ export const getStoredAsset = async (assetId: string) => {
     return memoryAsset ? cloneAsset(memoryAsset) : null;
   }
   return asset ? cloneAsset(asset) : null;
+};
+
+export const getStoredAssets = async (assetIds: string[]) => {
+  const uniqueIds = [...new Set(assetIds.filter(Boolean))];
+  if (!uniqueIds.length) return [];
+  if (!hasIndexedDb()) {
+    return uniqueIds
+      .map((assetId) => memoryAssets.get(assetId))
+      .filter(Boolean)
+      .map((asset) => cloneAsset(asset as ThemeAsset));
+  }
+
+  const assets = await Promise.all(uniqueIds.map((assetId) => getStoredAsset(assetId)));
+  return assets.filter(Boolean) as ThemeAsset[];
 };
 
 export const saveStoredAsset = async (asset: ThemeAssetInput) => {

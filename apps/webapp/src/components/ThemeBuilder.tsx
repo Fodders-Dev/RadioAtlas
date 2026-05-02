@@ -8,7 +8,7 @@ import type {
   ThemeSlot
 } from '../lib/theme/types';
 import { useLocale } from '../state/LocaleContext';
-import { useTheme } from '../state/ThemeContext';
+import { collectThemeAssetIds, useTheme } from '../state/ThemeContext';
 
 type ThemeBuilderProps = {
   bundledThemes: RadioAtlasTheme[];
@@ -90,7 +90,7 @@ const fileMatches = (file: File, matcher: RegExp, maxBytes: number) =>
 
 export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSaved }: ThemeBuilderProps) => {
   const { t } = useLocale();
-  const { getAssetUrl, saveAsset, saveDraftAndApply } = useTheme();
+  const { ensureThemeAssets, getAssetUrl, saveAsset, saveDraftAndApply } = useTheme();
   const firstBundledThemeId = bundledThemes[0]?.id || 'classic';
   const [draftName, setDraftName] = useState(t('theme.customDefaultName'));
   const [draftHue, setDraftHue] = useState(178);
@@ -149,6 +149,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       return null;
     });
   }, [firstBundledThemeId, mode, seedTheme, t]);
+
+  useEffect(() => {
+    void ensureThemeAssets(collectThemeAssetIds(seedTheme));
+  }, [ensureThemeAssets, seedTheme]);
 
   useEffect(
     () => () => {

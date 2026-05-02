@@ -10,14 +10,11 @@ import type {
   UserCollection
 } from '../domain/contracts';
 import type {
-  ActiveWinampSkin,
   AppSection,
   LibraryTab,
   PlayerPresentation,
   Station,
-  StationLite,
-  WinampMuseumSkin,
-  WinampUploadedSkin
+  StationLite
 } from '../types';
 import { toLite } from '../lib/stationUtils';
 import {
@@ -74,28 +71,21 @@ import type {
   TasteSessionMode
 } from '../lib/tasteProfile';
 import { makeDeepLink } from '../lib/telegram';
+import { getDeviceProfile } from '../lib/deviceProfile';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { usePersistentState } from '../lib/persistentState';
-import {
-  WINAMP_SKIN_PRESETS,
-  findPresetSkin
-} from '../lib/winampSkins';
 import {
   DEFAULT_APP_STATE,
   DEFAULT_LAYOUT,
   DEFAULT_LIBRARY_STATE,
   DEFAULT_PLAYER_STATE,
   DEFAULT_SHELL_STATE,
-  DEFAULT_WINAMP_SKIN_ID,
   MAX_QUEUE_ITEMS,
   MAX_PLAYBACK_HISTORY,
   MAX_RECENT,
-  MAX_TRACK_HISTORY,
-  WINAMP_CLASSIC_PALETTE,
-  toActiveSkin,
-  toMuseumActiveSkin
+  MAX_TRACK_HISTORY
 } from './radio/defaults';
 import {
   clampQueueIndex,
@@ -118,12 +108,11 @@ import type {
   StoredLibraryState,
   StoredPlayerState,
   StoredShellState,
-  StoredSkin,
   StoredWinampLayout,
   TrackHistoryItem,
   WinampState
 } from './radio/types';
-import { createPlaybackPlayerPlaceholder, type PlaybackRuntimeSnapshot } from './radio/playbackRuntimeBridge';
+import { createPlaybackPlayerPlaceholder, type PlaybackRuntimeSnapshot } from './radio/playbackBridge';
 import { useCloudLibrarySync } from './radio/useCloudLibrarySync';
 import { IDLE_NOW_PLAYING_STATE } from './radio/nowPlayingDefaults';
 import {
@@ -137,6 +126,18 @@ const ShellContext = createContext<ShellContextValue | null>(null);
 const PlaybackRuntimeLazy = lazy(() =>
   import('./radio/PlaybackRuntime').then((mod) => ({ default: mod.PlaybackRuntime }))
 );
+const scheduleDeferredTask = (callback: () => void, timeout = 1800) => {
+  const win = window as Window & {
+    requestIdleCallback?: (cb: () => void, options?: { timeout?: number }) => number;
+    cancelIdleCallback?: (id: number) => void;
+  };
+  if (win.requestIdleCallback) {
+    const id = win.requestIdleCallback(callback, { timeout });
+    return () => win.cancelIdleCallback?.(id);
+  }
+  const id = window.setTimeout(callback, timeout);
+  return () => window.clearTimeout(id);
+};
 const LIBRARY_PERSIST_WRITE_DELAY_MS = 1_200;
 const PLAYER_PERSIST_WRITE_DELAY_MS = 900;
 const PLAYBACK_OUTCOME_MESSAGES: Record<string, PlaybackOutcomeKind> = {
@@ -226,7 +227,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const radioSessionEvents = Array.isArray(storedAppState.radioSessionEvents)
     ? storedAppState.radioSessionEvents
     : DEFAULT_APP_STATE.radioSessionEvents;
-  const homeState = storedShellState.home;
+  const [transientHomeState, setTransientHomeState] = useState(storedShellState.home);
+  const homeState = transientHomeState;
   const searchDraft = storedShellState.searchDraft;
   const favorites = storedLibraryState.favorites;
   const recent = storedLibraryState.recent;
@@ -246,33 +248,26 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     [storedLibraryState.stationCache]
   );
   const storedQueue = storedPlayerState.queue ?? DEFAULT_PLAYER_STATE.queue;
-  const storedSkin = { ...DEFAULT_PLAYER_STATE.skin, ...(storedPlayerState.skin ?? {}) };
   const storedLayout = storedPlayerState.layout ?? DEFAULT_PLAYER_STATE.layout;
 
   const setStoredShellState = (next: StoredShellState | ((prev: StoredShellState) => StoredShellState)) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      shell: resolveUpdater(prev.shell, next)
-    }));
+    setStoredAppState((prev) => {
+      const shell = resolveUpdater(prev.shell, next);
+      return Object.is(shell, prev.shell) ? prev : { ...prev, shell };
+    });
   const setHomeSnapshot = (snapshot: HomeSurfaceFeed) =>
-    setStoredShellState((prev) => ({
+    setTransientHomeState((prev) => ({
       ...prev,
-      home: {
-        ...prev.home,
-        sessionSeed: snapshot.seed,
-        lastBuiltAt: snapshot.builtAt,
-        snapshot
-      }
+      sessionSeed: snapshot.seed,
+      lastBuiltAt: snapshot.builtAt,
+      snapshot
     }));
   const refreshHomeSurface = (seed = Date.now()) =>
-    setStoredShellState((prev) => ({
-      ...prev,
-      home: {
-        sessionSeed: seed,
-        lastBuiltAt: null,
-        snapshot: null
-      }
-    }));
+    setTransientHomeState({
+      sessionSeed: seed,
+      lastBuiltAt: null,
+      snapshot: null
+    });
   const setSearchDraft = (value: string) =>
     setStoredShellState((prev) =>
       prev.searchDraft === value
@@ -286,51 +281,53 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const setBehaviorProfile = (
     next: BehaviorProfile | ((prev: BehaviorProfile) => BehaviorProfile)
   ) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      behaviorProfile: resolveUpdater(prev.behaviorProfile || DEFAULT_APP_STATE.behaviorProfile, next)
-    }));
+    setStoredAppState((prev) => {
+      const behaviorProfile = resolveUpdater(prev.behaviorProfile || DEFAULT_APP_STATE.behaviorProfile, next);
+      return Object.is(behaviorProfile, prev.behaviorProfile) ? prev : { ...prev, behaviorProfile };
+    });
   const setPlayabilityProfile = (
     next:
       | StationPlayabilityProfile
       | ((prev: StationPlayabilityProfile) => StationPlayabilityProfile)
   ) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      playabilityProfile: resolveUpdater(
+    setStoredAppState((prev) => {
+      const playabilityProfile = resolveUpdater(
         prev.playabilityProfile || DEFAULT_PLAYABILITY_PROFILE,
         next
-      )
-    }));
+      );
+      return Object.is(playabilityProfile, prev.playabilityProfile) ? prev : { ...prev, playabilityProfile };
+    });
   const setTasteProfile = (
     next: TasteProfileV2 | ((prev: TasteProfileV2) => TasteProfileV2)
   ) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      tasteProfile: resolveUpdater(
+    setStoredAppState((prev) => {
+      const tasteProfile = resolveUpdater(
         prev.tasteProfile || DEFAULT_TASTE_PROFILE_V2,
         next
-      )
-    }));
+      );
+      return Object.is(tasteProfile, prev.tasteProfile) ? prev : { ...prev, tasteProfile };
+    });
   const setStationHealthProfile = (
     next:
       | StationHealthProfile
       | ((prev: StationHealthProfile) => StationHealthProfile)
   ) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      stationHealthProfile: resolveUpdater(
+    setStoredAppState((prev) => {
+      const stationHealthProfile = resolveUpdater(
         prev.stationHealthProfile || DEFAULT_STATION_HEALTH_PROFILE,
         next
-      )
-    }));
+      );
+      return Object.is(stationHealthProfile, prev.stationHealthProfile)
+        ? prev
+        : { ...prev, stationHealthProfile };
+    });
   const setRadioSessionEvents = (
     next: RadioSessionEvent[] | ((prev: RadioSessionEvent[]) => RadioSessionEvent[])
   ) =>
-    setStoredAppState((prev) => ({
-      ...prev,
-      radioSessionEvents: resolveUpdater(prev.radioSessionEvents || [], next)
-    }));
+    setStoredAppState((prev) => {
+      const radioSessionEvents = resolveUpdater(prev.radioSessionEvents || [], next);
+      return Object.is(radioSessionEvents, prev.radioSessionEvents) ? prev : { ...prev, radioSessionEvents };
+    });
   const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
     setStoredLibraryState((prev) => ({
       ...prev,
@@ -412,11 +409,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       ...prev,
       queue: resolveUpdater(prev.queue, next)
     }));
-  const setStoredSkin = (next: StoredSkin | ((prev: StoredSkin) => StoredSkin)) =>
-    setStoredPlayerState((prev) => ({
-      ...prev,
-      skin: resolveUpdater(prev.skin, next)
-    }));
   const setStoredLayout = (
     next: StoredWinampLayout | ((prev: StoredWinampLayout) => StoredWinampLayout)
   ) =>
@@ -426,9 +418,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }));
 
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const [activeSkin, setActiveSkin] = useState<ActiveWinampSkin>(
-    toActiveSkin(storedSkin.id)
-  );
   const [playbackHistoryCursor, setPlaybackHistoryCursor] = useState(() =>
     playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
   );
@@ -479,8 +468,35 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     nowPlayingStatus: 'idle',
     nowPlayingState: IDLE_NOW_PLAYING_STATE
   }));
+  const [playbackRuntimeMounted, setPlaybackRuntimeMounted] = useState(
+    () => storedQueue.currentIndex >= 0 && storedQueue.items.length > 0
+  );
+  const playbackRuntimeRef = useRef(playbackRuntime);
+  const playbackRuntimeReadyRef = useRef(false);
+  const playbackRuntimeWaitersRef = useRef<Array<() => void>>([]);
   const handlePlaybackRuntimeSnapshot = useCallback((snapshot: PlaybackRuntimeSnapshot) => {
+    playbackRuntimeRef.current = snapshot;
+    playbackRuntimeReadyRef.current = true;
+    if (playbackRuntimeWaitersRef.current.length) {
+      const waiters = playbackRuntimeWaitersRef.current;
+      playbackRuntimeWaitersRef.current = [];
+      waiters.forEach((resolve) => resolve());
+    }
     setPlaybackRuntime(snapshot);
+  }, []);
+  useEffect(() => {
+    playbackRuntimeRef.current = playbackRuntime;
+  }, [playbackRuntime]);
+  const ensurePlaybackRuntimeMounted = useCallback(async () => {
+    if (playbackRuntimeReadyRef.current) return;
+    setPlaybackRuntimeMounted(true);
+    await new Promise<void>((resolve) => {
+      if (playbackRuntimeReadyRef.current) {
+        resolve();
+        return;
+      }
+      playbackRuntimeWaitersRef.current.push(resolve);
+    });
   }, []);
   const player = playbackRuntime.player;
   const nowPlaying = playbackRuntime.nowPlaying;
@@ -488,7 +504,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const nowPlayingState = playbackRuntime.nowPlayingState;
   const fullscreenRetryRef = useRef<number | null>(null);
   const manualPresentationRef = useRef(false);
-  const uploadedSkinUrlRef = useRef<string | null>(null);
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -503,14 +518,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const detailsOpen = storedShellState.detailsOpen;
   const winampExpanded = playerPresentation === 'expanded';
 
-  useEffect(
-    () => () => {
-      if (uploadedSkinUrlRef.current) {
-        URL.revokeObjectURL(uploadedSkinUrlRef.current);
-      }
-    },
-    []
-  );
+  useEffect(() => {
+    if (playbackRuntimeMounted) return;
+    if (storedQueue.currentIndex >= 0 && storedQueue.items.length > 0) {
+      setPlaybackRuntimeMounted(true);
+      return;
+    }
+    const deviceProfile = getDeviceProfile();
+    if (deviceProfile.lowPower) {
+      return;
+    }
+    return scheduleDeferredTask(() => setPlaybackRuntimeMounted(true));
+  }, [playbackRuntimeMounted, storedQueue.currentIndex, storedQueue.items.length]);
 
   useEffect(() => {
     queueRef.current = storedQueue;
@@ -749,68 +768,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    let cancelled = false;
-
-    const restoreSkin = async () => {
-      try {
-        const runtime = await import('./radio/winampSkinRuntime');
-        const result = await runtime.resolveStoredActiveSkin(storedSkin);
-        if (cancelled) return;
-        setActiveSkin(result.skin);
-        if (result.restoredName) {
-          logDebug(`Skin restored: ${result.restoredName}`);
-        }
-        if (result.usedFallback) {
-          setStoredSkin({ source: 'preset', id: result.skin.id });
-          notify(t('toast.savedSkinFallback'));
-        }
-      } catch (restoreError) {
-        if (cancelled) return;
-        logDebug(
-          `Skin restore failed: ${
-            restoreError instanceof Error ? restoreError.message : String(restoreError)
-          }`
-        );
-        const fallback = toActiveSkin(DEFAULT_WINAMP_SKIN_ID);
-        setActiveSkin(fallback);
-        setStoredSkin({ source: 'preset', id: fallback.id });
-        notify(t('toast.savedSkinFallback'));
-      }
-    };
-
-    void restoreSkin();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    const applyTheme = async () => {
-      const runtime = await import('./radio/winampSkinRuntime');
-      const palette = await runtime.applyActiveSkinTheme(activeSkin);
-
-      const tg = window.Telegram?.WebApp;
-      tg?.setHeaderColor?.(palette.bg);
-      tg?.setBackgroundColor?.(palette.bg);
-      if (mounted) {
-        logDebug(`Skin: ${activeSkin.name}`);
-      }
-    };
-
-    applyTheme().catch(() => {
-      void import('./radio/winampSkinRuntime').then((runtime) => {
-        runtime.applyClassicSkinTheme();
-      });
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [activeSkin]);
-
-  useEffect(() => {
     const tg = window.Telegram?.WebApp;
     tg?.ready?.();
     tg?.expand?.();
@@ -1034,7 +991,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    const result = await player.playStation(lite);
+    await ensurePlaybackRuntimeMounted();
+    const runtimePlayer = playbackRuntimeRef.current.player;
+    const result = await runtimePlayer.playStation(lite);
     if (!result.ok) {
       if (result.error === 'playback superseded') {
         return false;
@@ -1973,13 +1932,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       ...prev,
       stationCache: {}
     }));
+    setTransientHomeState((prev) => ({
+      ...prev,
+      lastBuiltAt: null,
+      snapshot: null
+    }));
     setStoredShellState((prev) => ({
       ...prev,
-      home: {
-        ...prev.home,
-        lastBuiltAt: null,
-        snapshot: null
-      },
       searchDraft: ''
     }));
     try {
@@ -2005,40 +1964,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       notify(t('toast.copyFailed'));
     }
-  };
-
-  const setSkin = (skinId: string) => {
-    if (uploadedSkinUrlRef.current) {
-      URL.revokeObjectURL(uploadedSkinUrlRef.current);
-      uploadedSkinUrlRef.current = null;
-    }
-    const preset = findPresetSkin(skinId);
-    setActiveSkin({ ...preset, source: 'preset' });
-    setStoredSkin({ source: 'preset', id: preset.id });
-    notify(t('toast.skinApplied', { name: preset.name }));
-  };
-
-  const selectSkin = (skin: WinampMuseumSkin) => {
-    if (uploadedSkinUrlRef.current) {
-      URL.revokeObjectURL(uploadedSkinUrlRef.current);
-      uploadedSkinUrlRef.current = null;
-    }
-    setActiveSkin(toMuseumActiveSkin(skin));
-    setStoredSkin({
-      source: 'museum',
-      md5: skin.md5,
-      name: skin.name
-    });
-    notify(t('toast.skinApplied', { name: skin.name }));
-  };
-
-  const selectUploadedSkin = (skin: WinampUploadedSkin) => {
-    if (uploadedSkinUrlRef.current && uploadedSkinUrlRef.current !== skin.objectUrl) {
-      URL.revokeObjectURL(uploadedSkinUrlRef.current);
-    }
-    uploadedSkinUrlRef.current = skin.objectUrl;
-    setActiveSkin(skin);
-    notify(t('toast.skinApplied', { name: skin.name }));
   };
 
   const queue = useMemo<QueueState>(
@@ -2276,13 +2201,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
               }
         ),
       resetLayout: () => setStoredLayout(DEFAULT_LAYOUT),
-      availableSkins: WINAMP_SKIN_PRESETS,
-      activeSkin,
-      setSkin,
-      selectSkin,
-      selectUploadedSkin
     }),
-    [activeSkin, player.current, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
+    [player.current, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
   const playbackValue = useMemo<PlaybackContextValue>(
     () => ({
@@ -2453,12 +2373,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     <PlaybackContext.Provider value={playbackValue}>
       <LibraryContext.Provider value={libraryValue}>
         <ShellContext.Provider value={shellValue}>
-          <Suspense fallback={null}>
-            <PlaybackRuntimeLazy
-              logDebug={logDebug}
-              onSnapshot={handlePlaybackRuntimeSnapshot}
-            />
-          </Suspense>
+          {playbackRuntimeMounted ? (
+            <Suspense fallback={null}>
+              <PlaybackRuntimeLazy
+                logDebug={logDebug}
+                onSnapshot={handlePlaybackRuntimeSnapshot}
+              />
+            </Suspense>
+          ) : null}
           {children}
         </ShellContext.Provider>
       </LibraryContext.Provider>

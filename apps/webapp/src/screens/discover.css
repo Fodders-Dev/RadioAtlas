@@ -210,9 +210,9 @@
   min-width: 0;
   padding: 10px;
   border-radius: 18px;
-  content-visibility: visible;
+  content-visibility: auto;
   contain: layout paint style;
-  contain-intrinsic-size: auto;
+  contain-intrinsic-size: 108px;
 }
 
 .search-station-card-main {

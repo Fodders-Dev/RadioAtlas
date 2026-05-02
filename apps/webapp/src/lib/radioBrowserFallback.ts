@@ -6,6 +6,7 @@ import type {
   CatalogSummary
 } from '../domain/contracts';
 import type { StationLite } from '../types';
+import { readCatalogCache, writeCatalogCache } from './catalogCache';
 
 type FallbackStation = {
   stationuuid?: string;
@@ -50,6 +51,8 @@ const RADIO_BROWSER_HOSTS = [
 
 const FALLBACK_TIMEOUT_MS = 4500;
 const FALLBACK_LIMIT = 80;
+const FALLBACK_DATASET_CACHE_KEY = 'fallback:dataset:v1';
+const FALLBACK_DATASET_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const COUNTRY_CONTINENTS: Record<string, string> = {
   Argentina: 'South America',
@@ -232,13 +235,32 @@ const buildAreas = (stations: StationLite[]) => {
 
 const loadDataset = async (): Promise<FallbackDataset> => {
   if (!datasetPromise) {
-    datasetPromise = fetchJson<FallbackStation[]>(
-      `/json/stations/topvote/${FALLBACK_LIMIT}?hidebroken=true`
-    ).then((items) => {
-      const stations = uniqueStations(items.map(toStationLite).filter(Boolean) as StationLite[]);
-      const { areas, areaStations } = buildAreas(stations);
-      return { stations, areas, areaStations };
-    });
+    datasetPromise = (async () => {
+      const cached = await readCatalogCache<StationLite[]>(FALLBACK_DATASET_CACHE_KEY);
+      if (cached?.payload?.length) {
+        const { areas, areaStations } = buildAreas(cached.payload);
+        return { stations: cached.payload, areas, areaStations };
+      }
+
+      try {
+        const items = await fetchJson<FallbackStation[]>(
+          `/json/stations/topvote/${FALLBACK_LIMIT}?hidebroken=true`
+        );
+        const stations = uniqueStations(items.map(toStationLite).filter(Boolean) as StationLite[]);
+        await writeCatalogCache(FALLBACK_DATASET_CACHE_KEY, stations, FALLBACK_DATASET_CACHE_TTL_MS);
+        const { areas, areaStations } = buildAreas(stations);
+        return { stations, areas, areaStations };
+      } catch (error) {
+        const stale = await readCatalogCache<StationLite[]>(FALLBACK_DATASET_CACHE_KEY, {
+          allowExpired: true
+        });
+        if (stale?.payload?.length) {
+          const { areas, areaStations } = buildAreas(stale.payload);
+          return { stations: stale.payload, areas, areaStations };
+        }
+        throw error;
+      }
+    })();
   }
   return datasetPromise;
 };

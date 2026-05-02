@@ -70,38 +70,3 @@ export type StationLite = Pick<
   | 'scheduleNote'
 > &
   Partial<Pick<Station, 'url'>>;
-
-export type SkinPalette = {
-  bg: string;
-  panel: string;
-  accent: string;
-  muted: string;
-  border: string;
-  text: string;
-};
-
-export type WinampSkinSource = 'preset' | 'museum' | 'uploaded';
-
-export type WinampSkinPreset = {
-  id: string;
-  name: string;
-  url: string;
-  palette?: SkinPalette;
-};
-
-export type WinampMuseumSkin = WinampSkinPreset & {
-  md5: string;
-  museumUrl: string;
-  screenshotUrl: string | null;
-  nsfw: boolean;
-};
-
-export type WinampUploadedSkin = WinampSkinPreset & {
-  source: 'uploaded';
-  objectUrl: string;
-};
-
-export type ActiveWinampSkin =
-  | (WinampSkinPreset & { source: 'preset' })
-  | (WinampMuseumSkin & { source: 'museum' })
-  | WinampUploadedSkin;

@@ -71,67 +71,66 @@ export default defineConfig({
   build: {
     modulePreload: false,
     rollupOptions: {
-      external: ['react', 'react-dom/client', 'react/jsx-runtime'],
       output: {
-        paths: {
-          react: 'https://esm.sh/react@18.3.1',
-          'react-dom/client': 'https://esm.sh/react-dom@18.3.1/client',
-          'react/jsx-runtime': 'https://esm.sh/react@18.3.1/jsx-runtime'
-        },
         manualChunks(id) {
-          if (id.includes('vite/preload-helper')) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (normalizedId.includes('vite/preload-helper')) {
             return 'boot-preload';
           }
+          if (normalizedId.includes('node_modules/react') || normalizedId.includes('node_modules/scheduler')) {
+            return 'react-vendor';
+          }
+          if (normalizedId.includes('/src/lib/radioBrowserFallback')) {
+            return 'catalog-fallback';
+          }
+          if (normalizedId.includes('node_modules/hls.js')) {
+            return 'hls-core-vendor';
+          }
           if (
-            id.includes('/src/RuntimeProviders') ||
-            id.includes('/src/App.tsx') ||
-            id.includes('/src/state/LocaleContext') ||
-            id.includes('/src/state/localeDictionary') ||
-            id.includes('/src/state/ThemeContext') ||
-            id.includes('/src/lib/theme/') ||
-            id.includes('/src/state/SessionContext') ||
-            id.includes('/src/lib/authSession') ||
-            id.includes('/src/state/CatalogContext') ||
-            id.includes('/src/lib/apiBase') ||
-            id.includes('/src/domain/contracts') ||
-            id.includes('/src/components/SettingsSheet') ||
-            id.includes('/src/components/Toast') ||
-            id.includes('/src/lib/buildInfo') ||
-            id.includes('/src/lib/screenLoaders') ||
-            id.includes('/src/lib/telegram') ||
-            id.includes('/src/lib/useCompactLayout')
+            normalizedId.includes('/src/state/radio/PlaybackRuntime') ||
+            normalizedId.includes('/src/state/radio/useNowPlayingSync') ||
+            normalizedId.includes('/src/lib/useAudioPlayer') ||
+            normalizedId.includes('/src/lib/nowPlaying') ||
+            normalizedId.includes('/src/lib/playbackTransport') ||
+            normalizedId.includes('/src/lib/stationStreams') ||
+            normalizedId.includes('/src/lib/apiAvailability')
+          ) {
+            return undefined;
+          }
+          if (normalizedId.includes('/src/lib/geoResolver') || normalizedId.includes('/src/assets/countries-110m.json')) {
+            return 'globe-geo-data';
+          }
+          if (normalizedId.includes('node_modules/d3-geo') || normalizedId.includes('node_modules/topojson-client')) {
+            return 'globe-vendor';
+          }
+          if (
+            normalizedId.includes('/src/RuntimeProviders') ||
+            normalizedId.includes('/src/App.tsx') ||
+            normalizedId.includes('/src/state/LocaleContext') ||
+            normalizedId.includes('/src/state/localeDictionary') ||
+            normalizedId.includes('/src/state/ThemeContext') ||
+            normalizedId.includes('/src/lib/theme/') ||
+            normalizedId.includes('/src/state/SessionContext') ||
+            normalizedId.includes('/src/lib/authSession') ||
+            normalizedId.includes('/src/state/CatalogContext') ||
+            normalizedId.includes('/src/lib/apiBase') ||
+            normalizedId.includes('/src/domain/contracts') ||
+            normalizedId.includes('/src/components/SettingsSheet') ||
+            normalizedId.includes('/src/components/Toast') ||
+            normalizedId.includes('/src/lib/buildInfo') ||
+            normalizedId.includes('/src/lib/screenLoaders') ||
+            normalizedId.includes('/src/lib/telegram') ||
+            normalizedId.includes('/src/lib/useCompactLayout')
           ) {
             return 'runtime-shell';
           }
           if (
-            id.includes('/src/state/RadioContext') ||
-            id.includes('/src/state/radio/') ||
-            id.includes('/src/lib/persistentState') ||
-            id.includes('/src/lib/deviceProfile') ||
-            id.includes('/src/lib/silentAudio')
+            normalizedId.includes('/src/state/RadioContext') ||
+            normalizedId.includes('/src/state/radio/') ||
+            normalizedId.includes('/src/lib/persistentState') ||
+            normalizedId.includes('/src/lib/deviceProfile')
           ) {
             return 'radio-state';
-          }
-          if (
-            id.includes('/src/components/MiniPlayerDock') ||
-            id.includes('/src/components/StationArtwork')
-          ) {
-            return 'dock-shell';
-          }
-          if (id.includes('node_modules/jszip')) {
-            return 'skin-zip-vendor';
-          }
-          if (id.includes('node_modules/hls.js')) {
-            return 'hls-core-vendor';
-          }
-          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
-            return 'react-vendor';
-          }
-          if (id.includes('/src/lib/geoResolver') || id.includes('/src/assets/countries-110m.json')) {
-            return 'globe-geo-data';
-          }
-          if (id.includes('node_modules/d3-geo') || id.includes('node_modules/topojson-client')) {
-            return 'globe-vendor';
           }
           return undefined;
         }

@@ -16,16 +16,11 @@ import type { TasteProfileV2 } from '../../lib/tasteProfile';
 import type { RadioSessionEvent } from '../../lib/radioSession';
 import type { useAudioPlayer } from '../../lib/useAudioPlayer';
 import type {
-  ActiveWinampSkin,
   AppSection,
   LibraryTab,
   PlayerPresentation,
   Station,
-  StationLite,
-  WinampMuseumSkin,
-  WinampUploadedSkin,
-  WinampSkinPreset,
-  WinampSkinSource
+  StationLite
 } from '../../types';
 
 export type TrackHistoryItem = {
@@ -37,7 +32,7 @@ export type TrackHistoryItem = {
 };
 
 export type StoredSkin = {
-  source: WinampSkinSource;
+  source: 'preset' | 'museum' | 'uploaded';
   id?: string;
   md5?: string;
   name?: string;
@@ -130,11 +125,6 @@ export type WinampState = {
   windowVisibility: LayoutWindowVisibility;
   setWindowVisibility: (id: keyof LayoutWindowVisibility, visible: boolean) => void;
   resetLayout: () => void;
-  availableSkins: WinampSkinPreset[];
-  activeSkin: ActiveWinampSkin;
-  setSkin: (skinId: string) => void;
-  selectSkin: (skin: WinampMuseumSkin) => void;
-  selectUploadedSkin: (skin: WinampUploadedSkin) => void;
 };
 
 export type PlayStationOptions = {

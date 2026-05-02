@@ -73,6 +73,7 @@ import {
   saveStoredAsset,
   saveStoredTheme
 } from '../src/lib/theme/storage';
+import { catalogCacheStorageKey } from '../src/lib/catalogCache';
 
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
   version: 1,
@@ -2544,6 +2545,10 @@ test('deferred public and paid product surfaces stay disabled', () => {
 });
 
 test('home falls back to direct Radio Browser catalog when API summary fails', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (request) => {
+    requested.push(request.url());
+  });
   await page.unroute('**/catalog/summary**');
   await page.route('**/catalog/summary**', (route) =>
     route.fulfill({
@@ -2565,6 +2570,7 @@ test('home falls back to direct Radio Browser catalog when API summary fails', a
   await expect(page.locator('[data-home-rail] [data-home-station]').first()).toBeVisible();
   await expect(page.locator('.home-status-banner')).toHaveCount(0);
   await expectNoHomeHorizontalOverflow(page);
+  expect(requested.some((url) => /radioBrowserFallback|catalog-fallback/i.test(url))).toBe(true);
 });
 
 test('core mobile screens have no document overflow on 360 390 and 412 widths', async ({
@@ -2591,6 +2597,7 @@ test('core mobile screens have no document overflow on 360 390 and 412 widths', 
 });
 
 test('mobile cold load does not load webamp bundle', async ({ page }) => {
+  await enableTelegramMobileSafeMode(page);
   const requested: string[] = [];
   page.on('request', (request) => {
     requested.push(request.url());
@@ -2599,12 +2606,14 @@ test('mobile cold load does not load webamp bundle', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
+  expect(requested.some((url) => /esm\.sh|react@18|react-dom@18/i.test(url))).toBe(false);
   expect(requested.some((url) => /webamp-zip-vendor/i.test(url))).toBe(false);
 });
 
 test('home first useful paint does not load globe skin lab or player overlays', async ({
   page
 }) => {
+  await enableTelegramMobileSafeMode(page);
   const requested: string[] = [];
   page.on('request', (request) => {
     requested.push(request.url());
@@ -2615,7 +2624,77 @@ test('home first useful paint does not load globe skin lab or player overlays', 
 
   expect(
     requested.some((url) =>
-      /GlobeScreen|Globe\.tsx|SkinLab|WinampPlayerShell|LitePlayerOverlay|FullPlayerOverlay|webamp/i.test(url)
+      /GlobeScreen|Globe\.tsx|globe-geo-data|catalog-fallback|radioBrowserFallback|PlaybackRuntime|playback-runtime|hls-core-vendor|ThemeStudio|SkinLab|WinampPlayerShell|LitePlayerOverlay|FullPlayerOverlay|webamp/i.test(url)
     )
   ).toBe(false);
+});
+
+test('cached summary renders home while catalog summary is offline', async ({ page }) => {
+  await enableTelegramMobileSafeMode(page);
+  const payload = JSON.parse(summaryBody());
+  await page.addInitScript(
+    ({ storageKey, cachedSummary }) => {
+      const now = Date.now();
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          'summary:v1': {
+            version: 1,
+            key: 'summary:v1',
+            payload: cachedSummary,
+            createdAt: now,
+            expiresAt: now + 60 * 60 * 1000
+          }
+        })
+      );
+    },
+    { storageKey: catalogCacheStorageKey, cachedSummary: payload }
+  );
+  await page.unroute('**/catalog/summary**');
+  await page.route('**/catalog/summary**', async () => {
+    await new Promise(() => {});
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('.screen-skeleton-home-hero')).toHaveCount(0);
+  await expectNoHomeHorizontalOverflow(page);
+});
+
+test('mounting app does not rewrite persistent app library or player state', async ({ page }) => {
+  await enableTelegramMobileSafeMode(page);
+  await page.addInitScript(() => {
+    const trackedKeys = new Set(['radio:app:v2', 'radio:library:v2', 'radio:player:v2']);
+    const writes: string[] = [];
+    const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
+    Object.defineProperty(window, '__radioAtlasTrackedWrites', {
+      configurable: true,
+      value: writes
+    });
+    queueMicrotask(() => {
+      Object.defineProperty(window, '__radioAtlasTrackPersistentWrites', {
+        configurable: true,
+        value: true
+      });
+    });
+    window.localStorage.setItem = (key: string, value: string) => {
+      if (
+        (window as Window & { __radioAtlasTrackPersistentWrites?: boolean })
+          .__radioAtlasTrackPersistentWrites &&
+        trackedKeys.has(key)
+      ) {
+        writes.push(key);
+      }
+      return originalSetItem(key, value);
+    };
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await page.waitForTimeout(350);
+
+  const writes = await page.evaluate(
+    () => (window as Window & { __radioAtlasTrackedWrites?: string[] }).__radioAtlasTrackedWrites || []
+  );
+  expect(writes).toEqual([]);
 });

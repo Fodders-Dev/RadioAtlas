@@ -14,8 +14,8 @@ import { themeRuntimeVars } from '../lib/theme/runtime';
 import {
   deleteStoredAsset,
   deleteStoredTheme,
-  listStoredAssets,
-  listStoredThemes,
+  getStoredAssets,
+  listStoredThemeManifests,
   saveStoredAsset,
   saveStoredTheme
 } from '../lib/theme/storage';
@@ -34,6 +34,7 @@ type ThemeContextValue = {
   removeTheme: (themeId: string) => Promise<void>;
   saveAsset: (asset: ThemeAssetInput) => Promise<ThemeAsset>;
   removeAsset: (assetId: string) => Promise<void>;
+  ensureThemeAssets: (assetIds: string[]) => Promise<void>;
   getAssetUrl: (assetId: string) => string | null;
 };
 
@@ -51,6 +52,24 @@ const createAssetUrls = (assets: ThemeAsset[]) => {
   return new Map(assets.map((asset) => [asset.id, URL.createObjectURL(asset.blob)]));
 };
 
+export const collectThemeAssetIds = (theme: RadioAtlasTheme | null | undefined) => {
+  if (!theme) return [];
+  const ids = new Set<string>();
+  const backgroundAssetId =
+    theme.layers.background?.kind === 'image' ? theme.layers.background.assetId : null;
+  if (backgroundAssetId) ids.add(backgroundAssetId);
+  const iconLayer = theme.layers.icons;
+  if (iconLayer) {
+    (['play', 'pause', 'next', 'prev', 'like'] as const).forEach((iconName) => {
+      const assetId = iconLayer[iconName];
+      if (assetId) ids.add(assetId);
+    });
+  }
+  theme.layers.stickers?.forEach((item) => ids.add(item.assetId));
+  theme.layers.gifs?.forEach((item) => ids.add(item.assetId));
+  return [...ids];
+};
+
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [currentThemeId, setCurrentThemeId] = useLocalStorage(CURRENT_THEME_KEY, DEFAULT_THEME_ID);
   const [customThemes, setCustomThemes] = useState<RadioAtlasTheme[]>([]);
@@ -64,14 +83,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([listStoredThemes(), listStoredAssets()])
-      .then(([themes, assets]) => {
+    void listStoredThemeManifests()
+      .then((themes) => {
         if (cancelled) return;
         setCustomThemes(themes.filter((theme) => !theme.builtin));
-        const nextAssetUrls = createAssetUrls(assets);
-        const previousUrls = assetUrlsRef.current;
-        setAssetUrls(nextAssetUrls);
-        previousUrls.forEach((url) => URL.revokeObjectURL?.(url));
       })
       .finally(() => {
         if (!cancelled) {
@@ -82,6 +97,28 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const ensureThemeAssets = useCallback(async (assetIds: string[]) => {
+    const missingIds = [...new Set(assetIds)].filter(
+      (assetId) => assetId && !assetUrlsRef.current.has(assetId)
+    );
+    if (!missingIds.length) return;
+
+    const assets = await getStoredAssets(missingIds);
+    if (!assets.length) return;
+    const nextUrls = createAssetUrls(assets);
+    setAssetUrls((prev) => {
+      const next = new Map(prev);
+      nextUrls.forEach((url, assetId) => {
+        const previousUrl = next.get(assetId);
+        if (previousUrl && previousUrl !== url) {
+          URL.revokeObjectURL?.(previousUrl);
+        }
+        next.set(assetId, url);
+      });
+      return next;
+    });
   }, []);
 
   useEffect(
@@ -106,6 +143,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       DEFAULT_RADIOATLAS_THEMES[0],
     [availableThemes, currentThemeId]
   );
+  const currentThemeAssetIds = useMemo(() => collectThemeAssetIds(currentTheme), [currentTheme]);
+
+  useEffect(() => {
+    void ensureThemeAssets(currentThemeAssetIds);
+  }, [currentThemeAssetIds, ensureThemeAssets]);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -142,10 +184,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const saveDraftAndApply = useCallback(
     async (theme: ThemeDraftInput) => {
       const saved = await saveDraft(theme);
+      await ensureThemeAssets(collectThemeAssetIds(saved));
       setCurrentThemeId(saved.id);
       return saved;
     },
-    [saveDraft, setCurrentThemeId]
+    [ensureThemeAssets, saveDraft, setCurrentThemeId]
   );
 
   const removeTheme = useCallback(
@@ -205,6 +248,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       removeTheme,
       saveAsset,
       removeAsset,
+      ensureThemeAssets,
       getAssetUrl
     }),
     [
@@ -213,6 +257,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       currentTheme,
       customThemes,
       getAssetUrl,
+      ensureThemeAssets,
       ready,
       removeAsset,
       removeTheme,

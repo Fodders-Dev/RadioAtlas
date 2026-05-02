@@ -3,11 +3,6 @@ import { DEFAULT_PLAYABILITY_PROFILE } from '../../lib/stationPlayability';
 import { DEFAULT_STATION_HEALTH_PROFILE } from '../../lib/stationHealth';
 import { DEFAULT_TASTE_PROFILE_V2 } from '../../lib/tasteProfile';
 import { DEFAULT_NOTIFICATION_PREFERENCE } from '../../lib/retention';
-import {
-  DEFAULT_WINAMP_SKIN_ID,
-  WINAMP_CLASSIC_PALETTE,
-  findPresetSkin
-} from '../../lib/winampSkins';
 import type {
   QueueSnapshot,
   StoredAppState,
@@ -17,7 +12,6 @@ import type {
   StoredSkin,
   StoredWinampLayout
 } from './types';
-import type { ActiveWinampSkin, WinampMuseumSkin } from '../../types';
 
 export const MAX_RECENT = 20;
 export const MAX_TRACK_HISTORY = 200;
@@ -26,7 +20,7 @@ export const MAX_QUEUE_ITEMS = 120;
 
 export const DEFAULT_STORED_SKIN: StoredSkin = {
   source: 'preset',
-  id: DEFAULT_WINAMP_SKIN_ID
+  id: 'legacy-lite'
 };
 
 export const DEFAULT_QUEUE: QueueSnapshot = {
@@ -90,18 +84,3 @@ export const DEFAULT_PLAYER_STATE: StoredPlayerState = {
   skin: DEFAULT_STORED_SKIN,
   layout: DEFAULT_LAYOUT
 };
-
-export const toActiveSkin = (presetId: string | undefined): ActiveWinampSkin => {
-  const preset = findPresetSkin(presetId);
-  return {
-    ...preset,
-    source: 'preset'
-  };
-};
-
-export const toMuseumActiveSkin = (skin: WinampMuseumSkin): ActiveWinampSkin => ({
-  ...skin,
-  source: 'museum'
-});
-
-export { DEFAULT_WINAMP_SKIN_ID, WINAMP_CLASSIC_PALETTE };

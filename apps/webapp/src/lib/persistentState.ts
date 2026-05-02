@@ -10,10 +10,12 @@ export const usePersistentState = <T,>(
   initialValue: T,
   {
     writeDelayMs = 120,
-    clearLegacyKeys = []
+    clearLegacyKeys = [],
+    writeOnMount = false
   }: {
     writeDelayMs?: number;
     clearLegacyKeys?: string[];
+    writeOnMount?: boolean;
   } = {}
 ) => {
   const [value, setValueState] = useState<T>(() => {
@@ -29,6 +31,7 @@ export const usePersistentState = <T,>(
   });
   const writeTimerRef = useRef<number | null>(null);
   const clearedLegacyRef = useRef(false);
+  const dirtyRef = useRef(writeOnMount);
 
   useEffect(() => {
     if (clearedLegacyRef.current) return;
@@ -43,12 +46,16 @@ export const usePersistentState = <T,>(
   }, [clearLegacyKeys]);
 
   useEffect(() => {
+    if (!dirtyRef.current) {
+      return;
+    }
     if (writeTimerRef.current !== null) {
       window.clearTimeout(writeTimerRef.current);
     }
     writeTimerRef.current = window.setTimeout(() => {
       try {
         window.localStorage.setItem(key, JSON.stringify(value));
+        dirtyRef.current = false;
       } catch {
         // Ignore write failures.
       }
@@ -63,10 +70,17 @@ export const usePersistentState = <T,>(
   }, [key, value, writeDelayMs]);
 
   const setValue = (next: SetStateAction<T>) => {
-    setValueState((previous) => resolveNextValue(previous, next));
+    setValueState((previous) => {
+      const resolved = resolveNextValue(previous, next);
+      if (!Object.is(previous, resolved)) {
+        dirtyRef.current = true;
+      }
+      return resolved;
+    });
   };
 
   const clearValue = () => {
+    dirtyRef.current = false;
     setValueState(initialValue);
     try {
       window.localStorage.removeItem(key);

@@ -35,13 +35,36 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Details and Library paths
   - Full Player keeps direct access to Station Details and can jump to the Library queue tab.
 
+## Performance Hardening Sprint (closed)
+
+- [x] Cold-start bundle hardening
+  - React/ReactDOM are bundled from the app origin; no `esm.sh`/React CDN path remains.
+  - Cold Home does not request Globe, HLS, fallback catalog, PlaybackRuntime, Theme Studio, Lite, or Full Player overlay chunks.
+  - PlaybackRuntime mounts after idle or first playback intent; low-power Telegram WebView waits until playback is requested.
+- [x] Catalog TTL cache
+  - Added local IndexedDB cache with localStorage fallback for summary, search, areas, area stations, station details, and fallback dataset.
+  - Fresh summary cache can render Home immediately while network refresh runs in the background.
+  - Manual refresh still forces network and updates cache.
+  - Clear cache now clears catalog TTL cache and last-known track cache.
+- [x] Theme asset deferral
+  - Theme startup loads manifests first, not every stored blob.
+  - Asset object URLs are created only for the active theme and visible Theme Studio previews.
+- [x] Persistent-state write hygiene
+  - `usePersistentState` no longer writes on mount by default.
+  - App/library/player storage writes are dirty-only; Home generated snapshot is session-local instead of an automatic localStorage write.
+- [x] Legacy skin/zip cleanup
+  - Removed unreachable Skin Lab / `.wsz` runtime files and `jszip` dependency.
+  - Decorative Lite easter egg remains; Theme Studio is the real theme path.
+- [x] Mobile performance gates
+  - Added tests for CDN-free cold load, lazy chunk isolation, cached summary offline render, fallback catalog lazy load, and no mount-time persistent rewrites.
+
 ## Theme Studio (in progress)
 
 - [x] 17.0 Hide Webamp behind easter-egg gate
   - Primary `winamp.expanded` path opens the native RadioAtlas `FullPlayerOverlay`.
   - Legacy Lite/Webamp path remains available only with `?winamp=1`.
   - Skin Lab / `.wsz` entry points are removed from Settings, dock tray, and legacy overlay controls.
-  - Webamp/Skin Lab source files stay in the repo for the future easter egg path.
+  - Old Webamp/Skin Lab compatibility code is removed when unreachable; decorative Lite stays as the easter egg.
 - [x] 17.1 Theme schema + IndexedDB storage
   - Add local theme/assets types and persistence for RadioAtlas shell themes.
 - [x] 17.2 CSS theme injection
@@ -73,4 +96,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: live Telegram mobile QA for one-tap radio recovery, Search ranking, and Full Player queue editing with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.
+Next: live Telegram mobile QA on low-power Android/iOS WebView for cold Home, cached summary recovery, one-tap radio failover, and Full Player queue editing with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.
