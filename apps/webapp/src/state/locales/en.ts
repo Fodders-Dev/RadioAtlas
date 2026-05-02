@@ -556,6 +556,14 @@ export const enDictionary = {
     "fallbackCandidate": "Fallback stream",
     "externalOpen": "Open externally"
   },
+  "queue": {
+    "nowPlaying": "Now playing",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "remove": "Remove from queue",
+    "clearUpcoming": "Clear upcoming",
+    "openLibrary": "Open queue"
+  },
   "favoritesScreen": {
     "profileTitle": "Profile",
     "profileName": "You",

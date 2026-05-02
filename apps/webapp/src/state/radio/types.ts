@@ -115,6 +115,8 @@ export type StoredPlayerState = {
 export type QueueState = QueueSnapshot & {
   playAtIndex: (index: number) => void;
   removeAtIndex: (index: number) => void;
+  moveAtIndex: (index: number, direction: -1 | 1) => void;
+  clearUpcoming: () => void;
   clearQueue: () => void;
 };
 

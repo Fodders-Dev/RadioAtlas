@@ -209,6 +209,46 @@ const summaryBody = (generatedAt = Date.UTC(2026, 3, 20, 9, 0, 0)) =>
     }
   });
 
+const startSearchQueueAndOpenFullPlayer = async (page: Page, query = 'jpop') => {
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: stations
+  });
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('.search-command-card .search-bar input').first().fill(query);
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return queue?.items?.length || 0;
+    })
+    .toBeGreaterThan(1);
+  await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
+    (node as HTMLButtonElement).click();
+  });
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      const activeId = queue?.items?.[queue.currentIndex]?.stationuuid;
+      if (!activeId) return false;
+      return page
+        .locator(`[data-full-player-queue-item="${activeId}"]`)
+        .evaluate((node) => node.classList.contains('active'))
+        .catch(() => false);
+    })
+    .toBe(true);
+};
+
+const readStoredQueue = async (page: Page) =>
+  page.evaluate(() => {
+    const raw = window.localStorage.getItem('radio:player:v2');
+    return raw ? JSON.parse(raw).queue : null;
+  });
+
 test('home local preview filter caps dense results', () => {
   const matches = filterPreviewStations(stations, 'jpop', DENSE_SEARCH_PREVIEW_LIMIT);
 
@@ -2128,6 +2168,189 @@ test('mobile dock artwork opens full player', async ({ page }) => {
       })
     )
     .toContain('uuid-tokyo');
+});
+
+test('mobile full player queue can play reorder remove and clear upcoming', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSearchQueueAndOpenFullPlayer(page);
+
+  const initialQueue = await readStoredQueue(page);
+  expect(initialQueue.items.length).toBeGreaterThanOrEqual(4);
+  const current = initialQueue.items[initialQueue.currentIndex];
+  const firstUpcoming = initialQueue.items[initialQueue.currentIndex + 1];
+  const secondUpcoming = initialQueue.items[initialQueue.currentIndex + 2];
+  expect(current?.stationuuid).toBeTruthy();
+  expect(firstUpcoming?.stationuuid).toBeTruthy();
+  expect(secondUpcoming?.stationuuid).toBeTruthy();
+
+  await page
+    .locator(`[data-full-player-queue-item="${secondUpcoming.stationuuid}"] .full-player-queue-btn`)
+    .first()
+    .click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return {
+        current: queue.items[queue.currentIndex]?.stationuuid,
+        next: queue.items[queue.currentIndex + 1]?.stationuuid
+      };
+    })
+    .toEqual({
+      current: current.stationuuid,
+      next: secondUpcoming.stationuuid
+    });
+
+  await page
+    .locator(`[data-full-player-queue-item="${secondUpcoming.stationuuid}"] .full-player-queue-main`)
+    .click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return queue.items[queue.currentIndex]?.stationuuid;
+    })
+    .toBe(secondUpcoming.stationuuid);
+  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(secondUpcoming.name);
+
+  const afterPlayQueue = await readStoredQueue(page);
+  const removeTarget = afterPlayQueue.items[afterPlayQueue.currentIndex + 1];
+  expect(removeTarget?.stationuuid).toBeTruthy();
+  await page
+    .locator(`[data-full-player-queue-item="${removeTarget.stationuuid}"] .full-player-queue-btn.danger`)
+    .click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return {
+        activeId: queue.items[queue.currentIndex]?.stationuuid,
+        hasRemovedTarget: queue.items.some(
+          (station: { stationuuid: string }) => station.stationuuid === removeTarget.stationuuid
+        )
+      };
+    })
+    .toEqual({
+      activeId: secondUpcoming.stationuuid,
+      hasRemovedTarget: false
+    });
+  const afterRemoveQueue = await readStoredQueue(page);
+  expect(afterRemoveQueue.items[afterRemoveQueue.currentIndex].stationuuid).toBe(secondUpcoming.stationuuid);
+
+  await page.locator('[data-full-player-queue]').getByRole('button', { name: /Очистить дальше|Clear upcoming/ }).click();
+  const afterClearQueue = await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return {
+        activeId: queue.items[queue.currentIndex]?.stationuuid,
+        length: queue.items.length,
+        expectedLength: queue.currentIndex + 1
+      };
+    })
+    .toEqual({
+      activeId: secondUpcoming.stationuuid,
+      length: 2,
+      expectedLength: 2
+    })
+    .then(() => readStoredQueue(page));
+  expect(afterClearQueue.items[afterClearQueue.currentIndex].stationuuid).toBe(secondUpcoming.stationuuid);
+  expect(afterClearQueue.items.length).toBe(afterClearQueue.currentIndex + 1);
+  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(secondUpcoming.name);
+});
+
+test('mobile full player removing current starts next or stops when queue is empty', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSearchQueueAndOpenFullPlayer(page);
+
+  const initialQueue = await readStoredQueue(page);
+  const current = initialQueue.items[initialQueue.currentIndex];
+  const next = initialQueue.items[initialQueue.currentIndex + 1];
+  expect(current?.stationuuid).toBeTruthy();
+  expect(next?.stationuuid).toBeTruthy();
+
+  await page
+    .locator(`[data-full-player-queue-item="${current.stationuuid}"] .full-player-queue-btn.danger`)
+    .click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return queue.items[queue.currentIndex]?.stationuuid;
+    })
+    .toBe(next.stationuuid);
+  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(next.name);
+  await expect
+    .poll(async () =>
+      page
+        .locator(`[data-full-player-queue-item="${next.stationuuid}"]`)
+        .evaluate((node) => node.classList.contains('active'))
+        .catch(() => false)
+    )
+    .toBe(true);
+
+  await page.getByRole('button', { name: /Очистить дальше|Clear upcoming/ }).click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return {
+        length: queue.items.length,
+        keepLength: queue.currentIndex + 1,
+        activeId: queue.items[queue.currentIndex]?.stationuuid
+      };
+    })
+    .toEqual({
+      length: 1,
+      keepLength: 1,
+      activeId: next.stationuuid
+    });
+  const singleQueue = await readStoredQueue(page);
+  const active = singleQueue.items[singleQueue.currentIndex];
+  await page
+    .locator(`[data-full-player-queue-item="${active.stationuuid}"] .full-player-queue-btn.danger`)
+    .click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return queue.items.length;
+    })
+    .toBe(0);
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await expect(page.locator('[data-full-player-overlay]')).toContainText(
+    /Станция не выбрана|No station selected/
+  );
+});
+
+test('mobile full player opens library queue and station details', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startSearchQueueAndOpenFullPlayer(page);
+
+  await page
+    .locator('[data-full-player-overlay]')
+    .getByRole('button', { name: /Детали|Details/ })
+    .click();
+  await expect(page.locator('.details-overlay')).toBeVisible();
+  await expect(page.locator('.details-overlay')).toContainText(/Пожаловаться|Report broken/);
+  await expect(page.locator('.details-overlay')).toContainText(/Скрыть|Hide/);
+  await page.locator('.details-backdrop').click({ force: true });
+
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await page.getByRole('button', { name: /Открыть очередь|Open queue/ }).click();
+  await expect(page.locator('[data-full-player-overlay]')).toHaveCount(0);
+  await expect(page.locator('.screen-library-v2')).toBeVisible();
+  await expect(page.locator('.library-tab-chip.active')).toContainText(/Очередь|Queue/);
+});
+
+test('mobile full player has no horizontal overflow on core widths', async ({ page }) => {
+  await startSearchQueueAndOpenFullPlayer(page);
+  for (const width of [360, 390, 412]) {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+    await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+          ),
+        { timeout: 3000 }
+      )
+      .toBeLessThanOrEqual(0);
+  }
 });
 
 test('station details exposes trust, recent tracks, report broken and recommendation hide', async ({ page }) => {

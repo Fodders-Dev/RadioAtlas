@@ -556,6 +556,14 @@ export const ruDictionary = {
     "fallbackCandidate": "Резервный поток",
     "externalOpen": "Открыть снаружи"
   },
+  "queue": {
+    "nowPlaying": "Сейчас играет",
+    "moveUp": "Выше",
+    "moveDown": "Ниже",
+    "remove": "Убрать из очереди",
+    "clearUpcoming": "Очистить дальше",
+    "openLibrary": "Открыть очередь"
+  },
   "favoritesScreen": {
     "profileTitle": "Профиль",
     "profileName": "Ты",

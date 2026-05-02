@@ -22,6 +22,19 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Personal Radio refills the tail near the end of the queue without changing the active station.
   - Search/Globe/Collection queues keep finite failover only.
 
+## Player Loop Sprint (closed)
+
+- [x] Queue-first Full Player
+  - Full Player shows current + upcoming queue rows with play, move, and remove controls.
+  - Current row stays protected from reorder but can be removed to fail over to the next station.
+- [x] Queue continuity controls
+  - `clearUpcoming` keeps the current station playing and removes only the queue tail.
+  - `moveAtIndex` reorders upcoming stations without changing the active station.
+- [x] Dock stays compact
+  - Dock remains a quick controller; heavy queue edits live in Full Player.
+- [x] Details and Library paths
+  - Full Player keeps direct access to Station Details and can jump to the Library queue tab.
+
 ## Theme Studio (in progress)
 
 - [x] 17.0 Hide Webamp behind easter-egg gate
@@ -60,4 +73,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: live Telegram mobile QA for one-tap radio recovery and Search ranking with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.
+Next: live Telegram mobile QA for one-tap radio recovery, Search ranking, and Full Player queue editing with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.

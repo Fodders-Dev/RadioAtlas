@@ -37,6 +37,11 @@ const actionIcon = {
   ),
   copy: (
     <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H10V7h9v14Z" />
+  ),
+  up: <path d="M7 14.5 12 9l5 5.5-1.5 1.4L12 12l-3.5 3.9L7 14.5Z" />,
+  down: <path d="m7 9.5 1.5-1.4L12 12l3.5-3.9L17 9.5 12 15 7 9.5Z" />,
+  remove: (
+    <path d="M7 6V4h10v2h4v2h-2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8H3V6h4Zm0 2v11h10V8H7Zm2 2h2v7H9v-7Zm4 0h2v7h-2v-7Z" />
   )
 };
 
@@ -72,7 +77,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     unhideStationFromRecommendations,
     isStationHiddenFromRecommendations
   } = useLibrary();
-  const { winamp } = useShell();
+  const { setActiveSection, setLibraryTab, winamp } = useShell();
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -97,7 +102,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const queuePreview = useMemo(() => {
     if (!queue.items.length) return [];
     const start = Math.max(activeQueueIndex, 0);
-    return queue.items.slice(start, start + 8);
+    return queue.items.slice(start, start + 13);
   }, [activeQueueIndex, queue.items]);
   const recentTracks = useMemo(
     () =>
@@ -132,23 +137,64 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     }
   };
 
+  const openLibraryQueue = () => {
+    setLibraryTab('queue');
+    setActiveSection('library');
+    winamp.setExpanded(false);
+  };
+
   const renderQueueItem = (station: StationLite, index: number) => {
     const absoluteIndex = Math.max(activeQueueIndex, 0) + index;
     const active = current?.stationuuid === station.stationuuid;
+    const canMoveUp = !active && absoluteIndex > Math.max(activeQueueIndex + 1, 0);
+    const canMoveDown = !active && absoluteIndex < queue.items.length - 1;
     return (
-      <button
+      <article
         className={`full-player-queue-item ${active ? 'active' : ''}`}
         key={`${station.stationuuid}-${absoluteIndex}`}
-        type="button"
-        onClick={() => queue.playAtIndex(absoluteIndex)}
         data-full-player-queue-item={station.stationuuid}
+        data-queue-index={absoluteIndex}
       >
         <StationArtwork station={station} size="sm" />
-        <span>
+        <button
+          className="full-player-queue-main"
+          type="button"
+          onClick={() => queue.playAtIndex(absoluteIndex)}
+          aria-label={`${active ? t('queue.nowPlaying') : t('common.play')}: ${station.name}`}
+        >
           <strong>{station.name}</strong>
           <small>{stationLocation(station)}</small>
+          {active ? <em>{t('queue.nowPlaying')}</em> : null}
+        </button>
+        <span className="full-player-queue-actions">
+          <button
+            className="full-player-queue-btn"
+            type="button"
+            onClick={() => queue.moveAtIndex(absoluteIndex, -1)}
+            disabled={!canMoveUp}
+            aria-label={`${t('queue.moveUp')}: ${station.name}`}
+          >
+            <Icon>{actionIcon.up}</Icon>
+          </button>
+          <button
+            className="full-player-queue-btn"
+            type="button"
+            onClick={() => queue.moveAtIndex(absoluteIndex, 1)}
+            disabled={!canMoveDown}
+            aria-label={`${t('queue.moveDown')}: ${station.name}`}
+          >
+            <Icon>{actionIcon.down}</Icon>
+          </button>
+          <button
+            className="full-player-queue-btn danger"
+            type="button"
+            onClick={() => queue.removeAtIndex(absoluteIndex)}
+            aria-label={`${t('queue.remove')}: ${station.name}`}
+          >
+            <Icon>{actionIcon.remove}</Icon>
+          </button>
         </span>
-      </button>
+      </article>
     );
   };
 
@@ -289,6 +335,19 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             <div className="full-player-panel-head">
               <h3>{t('winamp.upNext')}</h3>
               <span>{t('winamp.queueCount', { count: queue.items.length })}</span>
+            </div>
+            <div className="full-player-queue-toolbar">
+              <button
+                className="full-player-small-chip"
+                type="button"
+                onClick={queue.clearUpcoming}
+                disabled={activeQueueIndex < 0 || activeQueueIndex >= queue.items.length - 1}
+              >
+                {t('queue.clearUpcoming')}
+              </button>
+              <button className="full-player-small-chip" type="button" onClick={openLibraryQueue}>
+                {t('queue.openLibrary')}
+              </button>
             </div>
             <div className="full-player-queue-list">
               {queuePreview.length ? (

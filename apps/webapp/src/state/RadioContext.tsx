@@ -2059,6 +2059,21 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         const target = currentQueue.items[index];
         if (!target) return;
 
+        recordSessionEventForStation(target, 'hide', currentQueue.sourceId);
+        reportProductEvent(
+          'queue_remove',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length,
+            index,
+            activeIndex: currentQueue.currentIndex,
+            removingCurrent: index === currentQueue.currentIndex
+          },
+          {
+            dedupeKey: `queue_remove:${target.stationuuid}:${index}:${Date.now()}`
+          }
+        );
+
         const nextItems = currentQueue.items.filter((_, itemIndex) => itemIndex !== index);
         if (!nextItems.length) {
           updateQueue({
@@ -2096,8 +2111,89 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           currentIndex:
             index < currentQueue.currentIndex
               ? Math.max(0, currentQueue.currentIndex - 1)
-              : currentQueue.currentIndex
+            : currentQueue.currentIndex
         });
+      },
+      moveAtIndex: (index, direction) => {
+        const currentQueue = queueRef.current;
+        const targetIndex = index + direction;
+        if (
+          index < 0 ||
+          targetIndex < 0 ||
+          index >= currentQueue.items.length ||
+          targetIndex >= currentQueue.items.length ||
+          index === currentQueue.currentIndex ||
+          targetIndex === currentQueue.currentIndex
+        ) {
+          return;
+        }
+
+        const nextItems = [...currentQueue.items];
+        const [target] = nextItems.splice(index, 1);
+        if (!target) return;
+        nextItems.splice(targetIndex, 0, target);
+        updateQueue({
+          ...currentQueue,
+          items: nextItems
+        });
+        reportProductEvent(
+          'queue_reorder',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length,
+            fromIndex: index,
+            toIndex: targetIndex,
+            activeIndex: currentQueue.currentIndex
+          },
+          {
+            dedupeKey: `queue_reorder:${target.stationuuid}:${index}:${targetIndex}:${Date.now()}`
+          }
+        );
+      },
+      clearUpcoming: () => {
+        const currentQueue = queueRef.current;
+        if (!currentQueue.items.length) return;
+        if (currentQueue.currentIndex < 0) {
+          updateQueue({
+            ...currentQueue,
+            items: [],
+            currentIndex: -1
+          });
+          reportProductEvent(
+            'queue_clear_upcoming',
+            {
+              sourceId: currentQueue.sourceId || null,
+              queueCount: currentQueue.items.length,
+              activeIndex: currentQueue.currentIndex,
+              removedCount: currentQueue.items.length
+            },
+            {
+              dedupeKey: `queue_clear_upcoming:none:${Date.now()}`
+            }
+          );
+          return;
+        }
+
+        const nextItems = currentQueue.items.slice(0, currentQueue.currentIndex + 1);
+        const removedCount = currentQueue.items.length - nextItems.length;
+        if (removedCount <= 0) return;
+        updateQueue({
+          ...currentQueue,
+          items: nextItems,
+          currentIndex: Math.min(currentQueue.currentIndex, nextItems.length - 1)
+        });
+        reportProductEvent(
+          'queue_clear_upcoming',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length,
+            activeIndex: currentQueue.currentIndex,
+            removedCount
+          },
+          {
+            dedupeKey: `queue_clear_upcoming:${currentQueue.sourceId || 'none'}:${Date.now()}`
+          }
+        );
       },
       clearQueue: () => {
         updateQueue({
