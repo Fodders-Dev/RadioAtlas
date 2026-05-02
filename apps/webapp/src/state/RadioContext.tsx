@@ -59,6 +59,15 @@ import {
   upsertListenerAlerts,
   upsertRadioDigests
 } from '../lib/retention';
+import {
+  PERSONAL_RADIO_QUEUE_LIMIT,
+  buildPersonalRadioQueue,
+  refillPersonalRadioQueueItems
+} from '../lib/personalRadio';
+import {
+  recordRadioSessionEvent,
+  type RadioSessionEvent
+} from '../lib/radioSession';
 import type {
   TasteProfileV2,
   TasteSignalAction,
@@ -80,6 +89,7 @@ import {
   DEFAULT_PLAYER_STATE,
   DEFAULT_SHELL_STATE,
   DEFAULT_WINAMP_SKIN_ID,
+  MAX_QUEUE_ITEMS,
   MAX_PLAYBACK_HISTORY,
   MAX_RECENT,
   MAX_TRACK_HISTORY,
@@ -213,6 +223,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     storedAppState.stationHealthProfile?.version === 1
       ? storedAppState.stationHealthProfile
       : DEFAULT_STATION_HEALTH_PROFILE;
+  const radioSessionEvents = Array.isArray(storedAppState.radioSessionEvents)
+    ? storedAppState.radioSessionEvents
+    : DEFAULT_APP_STATE.radioSessionEvents;
   const homeState = storedShellState.home;
   const searchDraft = storedShellState.searchDraft;
   const favorites = storedLibraryState.favorites;
@@ -310,6 +323,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         prev.stationHealthProfile || DEFAULT_STATION_HEALTH_PROFILE,
         next
       )
+    }));
+  const setRadioSessionEvents = (
+    next: RadioSessionEvent[] | ((prev: RadioSessionEvent[]) => RadioSessionEvent[])
+  ) =>
+    setStoredAppState((prev) => ({
+      ...prev,
+      radioSessionEvents: resolveUpdater(prev.radioSessionEvents || [], next)
     }));
   const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
     setStoredLibraryState((prev) => ({
@@ -473,6 +493,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
   const currentStartedAtRef = useRef<number | null>(null);
+  const currentStartedStationIdRef = useRef<string | null>(null);
+  const runtimeFailureSignatureRef = useRef('');
+  const personalRadioRefillSignatureRef = useRef('');
   const listened30sRef = useRef<string | null>(null);
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
@@ -821,6 +844,23 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     return 'resume';
   };
 
+  const recordSessionEventForStation = (
+    station: Station | StationLite,
+    action: RadioSessionEvent['action'],
+    sourceId: string | null | undefined = queueRef.current.sourceId
+  ) => {
+    const lite = toLite(station);
+    if (!lite.stationuuid) return;
+    setRadioSessionEvents((prev) =>
+      recordRadioSessionEvent(prev, {
+        stationId: lite.stationuuid,
+        action,
+        mode: sessionModeFromSourceId(sourceId),
+        timestamp: Date.now()
+      })
+    );
+  };
+
   const recordTasteForStation = (
     station: Station | StationLite,
     action: TasteSignalAction,
@@ -885,6 +925,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       );
       return;
     }
+    recordSessionEventForStation(lite, 'failed');
     setStationHealthProfile((prev) =>
       recordStationHealthSignal(prev, lite, stationHealthFailureKindForPlayback(outcome))
     );
@@ -967,6 +1008,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const lite = toLite(station);
     rememberStations([lite]);
     const sourceId = options?.sourceId || queueRef.current.sourceId || null;
+    currentStartedStationIdRef.current = null;
     if (!lite.url_resolved) {
       recordPlaybackOutcomeForStation(lite, 'no-playable-candidate');
       reportProductEvent('stream_failure', {
@@ -1053,7 +1095,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
     recordBehaviorForStation(playedStation, 'play');
     currentStartedAtRef.current = playStartedAt;
+    currentStartedStationIdRef.current = playedStation.stationuuid;
     listened30sRef.current = null;
+    recordSessionEventForStation(
+      playedStation,
+      'play-started',
+      nextQueue.sourceId || sourceId
+    );
+    recordSessionEventForStation(
+      playedStation,
+      'play-success',
+      nextQueue.sourceId || sourceId
+    );
     recordTasteForStation(
       playedStation,
       'play-started',
@@ -1085,6 +1138,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const sourceId = options?.sourceId ?? 'station-queue';
       const sourceLabel = getQueueSourceLabel(sourceId, options?.sourceLabel, items, t);
       const maxAttempts = Math.min(items.length, 20);
+      items.slice(0, maxAttempts).forEach((station) => {
+        recordSessionEventForStation(station, 'queued', sourceId);
+      });
 
       for (let index = 0; index < maxAttempts; index += 1) {
         const station = items[index];
@@ -1108,6 +1164,156 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify(t('toast.noPlayable'));
     })();
 
+  useEffect(() => {
+    const failure = player.failure;
+    if (player.status !== 'error' || !failure || failure.kind === 'superseded') return;
+
+    const currentQueue = queueRef.current;
+    const failedStation =
+      player.current ||
+      (currentQueue.currentIndex >= 0 ? currentQueue.items[currentQueue.currentIndex] : null);
+    if (!failedStation || currentStartedStationIdRef.current !== failedStation.stationuuid) {
+      return;
+    }
+
+    const signature = [
+      failedStation.stationuuid,
+      failure.kind,
+      failure.message,
+      currentQueue.sourceId || 'none',
+      currentQueue.currentIndex
+    ].join(':');
+    if (runtimeFailureSignatureRef.current === signature) return;
+    runtimeFailureSignatureRef.current = signature;
+
+    const outcome: PlaybackOutcomeKind =
+      failure.kind === 'superseded' ? 'superseded' : failure.kind;
+    recordPlaybackOutcomeForStation(failedStation, outcome);
+    reportProductEvent(
+      'stream_failure',
+      {
+        ...stationAnalyticsMeta(failedStation),
+        failureKind: outcome,
+        sourceId: currentQueue.sourceId || null,
+        mode: sessionModeFromSourceId(currentQueue.sourceId)
+      },
+      {
+        dedupeKey: `runtime_stream_failure:${failedStation.stationuuid}:${outcome}:${Date.now()}`
+      }
+    );
+
+    void (async () => {
+      if (
+        currentQueue.currentIndex < 0 ||
+        currentQueue.currentIndex >= currentQueue.items.length - 1
+      ) {
+        notify(t('toast.noPlayable'));
+        return;
+      }
+
+      for (
+        let nextIndex = currentQueue.currentIndex + 1;
+        nextIndex < currentQueue.items.length;
+        nextIndex += 1
+      ) {
+        const nextStation = currentQueue.items[nextIndex];
+        if (!nextStation) continue;
+        const nextQueue: QueueSnapshot = {
+          ...currentQueue,
+          currentIndex: nextIndex
+        };
+        const ok = await playStationInternal(nextStation, {
+          recordHistory: false,
+          addToRecent: false,
+          queueSnapshot: nextQueue,
+          suppressErrorToast: true
+        });
+        if (ok) return;
+      }
+
+      notify(t('toast.noPlayable'));
+    })();
+  }, [player.current, player.failure, player.status]);
+
+  useEffect(() => {
+    const currentQueue = queueRef.current;
+    if (currentQueue.sourceId !== 'personal-radio') return;
+    if (currentQueue.currentIndex < 0 || !currentQueue.items.length) return;
+    const remainingAfterCurrent = currentQueue.items.length - currentQueue.currentIndex - 1;
+    if (remainingAfterCurrent > 4 || currentQueue.items.length >= MAX_QUEUE_ITEMS) return;
+
+    const signature = [
+      currentQueue.currentIndex,
+      currentQueue.items.length,
+      tasteProfile.lastUpdatedAt || 0,
+      Object.keys(playabilityProfile.signals || {}).length,
+      Object.keys(stationHealthProfile.signals || {}).length,
+      radioSessionEvents[0]?.timestamp || 0
+    ].join(':');
+    if (personalRadioRefillSignatureRef.current === signature) return;
+    personalRadioRefillSignatureRef.current = signature;
+
+    const catalog = mergeUniqueStations(
+      knownStations,
+      currentQueue.items,
+      favorites,
+      recent,
+      playbackHistoryEntries
+    );
+    if (!catalog.length) return;
+
+    const generatedQueue = buildPersonalRadioQueue({
+      catalog,
+      favorites,
+      recent,
+      queuePreview: currentQueue.items.slice(currentQueue.currentIndex, currentQueue.currentIndex + 4),
+      playbackHistory: playbackHistoryEntries,
+      trackHistory,
+      collections,
+      followedStations,
+      followedRegions,
+      behaviorProfile,
+      playabilityProfile,
+      tasteProfile,
+      healthProfile: stationHealthProfile,
+      sessionEvents: radioSessionEvents,
+      context: {
+        mode: 'personal',
+        currentStation: player.current,
+        seed: Date.now(),
+        limit: PERSONAL_RADIO_QUEUE_LIMIT
+      }
+    });
+    const nextItems = refillPersonalRadioQueueItems({
+      currentItems: currentQueue.items,
+      currentIndex: currentQueue.currentIndex,
+      candidates: generatedQueue.stations,
+      tailSize: PERSONAL_RADIO_QUEUE_LIMIT,
+      maxItems: MAX_QUEUE_ITEMS
+    });
+    if (nextItems.length <= currentQueue.items.length) return;
+
+    updateQueue({
+      ...currentQueue,
+      items: nextItems
+    });
+  }, [
+    behaviorProfile,
+    collections,
+    favorites,
+    followedRegions,
+    followedStations,
+    knownStations,
+    playbackHistoryEntries,
+    playabilityProfile,
+    player.current,
+    radioSessionEvents,
+    recent,
+    stationHealthProfile,
+    tasteProfile,
+    trackHistory
+  ]);
+
   const isFavorite = (stationId: string) =>
     favorites.some((item) => item.stationuuid === stationId);
 
@@ -1122,6 +1328,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!alreadyFavorite) {
       recordBehaviorForStation(lite, 'favorite');
       recordTasteForStation(lite, 'liked');
+      recordSessionEventForStation(lite, 'like');
     } else {
       recordTasteForStation(lite, 'unliked');
     }
@@ -1225,6 +1432,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const startedAt = currentStartedAtRef.current;
     if (currentStation && startedAt && Date.now() - startedAt < 10_000) {
       recordTasteForStation(currentStation, 'skip-before-10s');
+      recordSessionEventForStation(currentStation, 'skip');
       reportProductEvent(
         'skip',
         {
@@ -1588,6 +1796,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     rememberStations([lite]);
     setTasteProfile((prev) => hideStationFromTasteProfile(prev, lite));
     recordTasteForStation(lite, 'skip-before-10s', mode, -12);
+    recordSessionEventForStation(lite, 'hide');
     reportProductEvent(
       'station_hidden',
       {
@@ -2029,6 +2238,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playabilityProfile,
       tasteProfile,
       stationHealthProfile,
+      radioSessionEvents,
       toggleFavorite,
       isFavorite,
       hideStationFromRecommendations,
@@ -2074,6 +2284,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notificationPreference,
       playbackHistoryEntries,
       playabilityProfile,
+      radioSessionEvents,
       renameCollection,
       tasteProfile,
       stationHealthProfile,

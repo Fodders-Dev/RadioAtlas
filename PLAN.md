@@ -2,6 +2,26 @@
 
 Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces stay deferred until the radio loop is proven stable on real Telegram mobile devices.
 
+## Radio Core Sprint (closed)
+
+- [x] Runtime failure recovery
+  - Startup failover still walks the queued station candidates.
+  - Runtime playback errors now record playability + health failure once and try the next queued station silently.
+  - Metadata-unavailable remains a passive now-playing state, not a negative playability signal.
+- [x] Session events as ranking input
+  - Local app state stores the latest 120 radio session events.
+  - `queued`, `play-started`, `play-success`, `skip`, `like`, `hide`, and `failed` now bias Home, Search, and Personal Radio for the current session.
+- [x] Search intent ranking
+  - Multi-token queries like `jazz japan` reward tag/place/name coverage.
+  - Explicit query intent outranks weak promoted or taste-biased matches.
+- [x] Personal Radio and Home quality
+  - Personal Radio avoids recently failed/hidden stations.
+  - Dense Home dedupes the top recommendation/resume/rail slots without reintroducing reason-copy.
+  - Empty-profile fallback is ranked through health/playability instead of raw shuffle.
+- [x] Queue continuity
+  - Personal Radio refills the tail near the end of the queue without changing the active station.
+  - Search/Globe/Collection queues keep finite failover only.
+
 ## Theme Studio (in progress)
 
 - [x] 17.0 Hide Webamp behind easter-egg gate
@@ -40,4 +60,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: Stage 17 complete; keep Theme Studio local-only until a separate review opens Stage 18.
+Next: live Telegram mobile QA for one-tap radio recovery and Search ranking with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.

@@ -99,7 +99,14 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
 export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
-  const { recent, playbackHistory, behaviorProfile, playabilityProfile, stationHealthProfile } = useLibrary();
+  const {
+    recent,
+    playbackHistory,
+    behaviorProfile,
+    playabilityProfile,
+    stationHealthProfile,
+    radioSessionEvents
+  } = useLibrary();
   const { playStation, playStationQueue, player } = usePlayback();
   const { searchDraft, clearSearchDraft } = useShell();
   const [viewportWidth, setViewportWidth] = useState(() =>
@@ -156,9 +163,17 @@ export const Discover = () => {
         query: stationSearch.query,
         behaviorProfile,
         playabilityProfile,
-        healthProfile: stationHealthProfile
+        healthProfile: stationHealthProfile,
+        sessionEvents: radioSessionEvents
       }),
-    [behaviorProfile, playabilityProfile, stationHealthProfile, stationSearch.query, stationSearch.results]
+    [
+      behaviorProfile,
+      playabilityProfile,
+      radioSessionEvents,
+      stationHealthProfile,
+      stationSearch.query,
+      stationSearch.results
+    ]
   );
   const searchQueue = useMemo(
     () => rankedSearchResults.slice(0, compactResults ? 18 : 24),

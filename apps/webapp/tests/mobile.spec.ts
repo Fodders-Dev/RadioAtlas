@@ -18,7 +18,11 @@ import {
   recordPlaybackOutcome
 } from '../src/lib/stationPlayability';
 import { resolveThemeDecorations } from '../src/lib/theme/decorations';
-import { buildPersonalRadioQueue } from '../src/lib/personalRadio';
+import {
+  buildPersonalRadioQueue,
+  refillPersonalRadioQueueItems
+} from '../src/lib/personalRadio';
+import { recordRadioSessionEvent } from '../src/lib/radioSession';
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 import {
   DEFAULT_TASTE_PROFILE_V2,
@@ -265,6 +269,43 @@ test('search ranking keeps exact playable matches above weak promoted matches', 
   expect(ranked[0].stationuuid).toBe('uuid-tokyo');
 });
 
+test('search ranking matches multi-token place and tag intent before weak promotion', () => {
+  const japaneseJazz = {
+    ...stations[0],
+    stationuuid: 'uuid-tokyo-jazz',
+    name: 'Blue Note Tokyo Radio',
+    tags: 'jazz,bebop',
+    country: 'Japan',
+    state: 'Tokyo',
+    language: 'Japanese',
+    promoted: false
+  };
+  const weakPromoted = {
+    ...stations[8],
+    stationuuid: 'uuid-promoted-jazz',
+    name: 'Jazz Promo Network',
+    tags: 'samba,pop',
+    country: 'Brazil',
+    state: 'Rio de Janeiro',
+    language: 'Portuguese',
+    promoted: true
+  };
+  const ranked = rankStationsForSearch([weakPromoted, stations[4], japaneseJazz], {
+    query: 'jazz japan',
+    behaviorProfile: behaviorProfile({
+      tagScores: { samba: 220 },
+      countryScores: { Brazil: 90 }
+    }),
+    playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+    now: Date.UTC(2026, 3, 20, 10, 10, 0)
+  });
+
+  expect(ranked[0].stationuuid).toBe('uuid-tokyo-jazz');
+  expect(ranked.findIndex((station) => station.stationuuid === 'uuid-promoted-jazz')).toBeGreaterThan(
+    ranked.findIndex((station) => station.stationuuid === 'uuid-tokyo-jazz')
+  );
+});
+
 test('personal radio queue favors taste and skips hard failed stations', () => {
   const now = Date.now();
   const playabilityProfile = recordPlaybackOutcome(
@@ -301,6 +342,118 @@ test('personal radio queue favors taste and skips hard failed stations', () => {
   expect(queue.stations.length).toBeLessThanOrEqual(10);
   expect(queue.stations[0].stationuuid).not.toBe('uuid-berlin');
   expect(queue.stations.map((station) => station.stationuuid)).toContain('uuid-hamburg');
+});
+
+test('session failures suppress stations from primary personal radio slots', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 12, 0);
+  const sessionEvents = recordRadioSessionEvent([], {
+    stationId: 'uuid-berlin',
+    action: 'failed',
+    mode: 'personal',
+    timestamp: now
+  });
+  const queue = buildPersonalRadioQueue({
+    catalog: stations,
+    favorites: [stations[4]],
+    recent: [],
+    queuePreview: [],
+    playbackHistory: [],
+    trackHistory: [],
+    collections: [],
+    followedStations: [],
+    behaviorProfile: behaviorProfile({
+      tagScores: { techno: 90 },
+      countryScores: { Germany: 40 },
+      stationScores: { 'uuid-berlin': 240, 'uuid-hamburg': 80 }
+    }),
+    playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+    tasteProfile: DEFAULT_TASTE_PROFILE_V2,
+    healthProfile: DEFAULT_STATION_HEALTH_PROFILE,
+    sessionEvents,
+    context: {
+      mode: 'personal',
+      currentStation: null,
+      seed: 12,
+      limit: 8,
+      now
+    }
+  });
+
+  expect(queue.stations.map((station) => station.stationuuid)).not.toContain('uuid-berlin');
+  expect(queue.stations.map((station) => station.stationuuid)).toContain('uuid-hamburg');
+});
+
+test('session skip lowers a station in later personal ranking', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 14, 0);
+  const sessionEvents = recordRadioSessionEvent([], {
+    stationId: 'uuid-berlin',
+    action: 'skip',
+    mode: 'personal',
+    timestamp: now
+  });
+  const ranked = rankStationsForUser(
+    [stations[4], stations[6], stations[8]],
+    DEFAULT_TASTE_PROFILE_V2,
+    DEFAULT_PLAYABILITY_PROFILE,
+    {
+      mode: 'personal',
+      seed: 14,
+      now,
+      sessionEvents
+    }
+  );
+
+  expect(ranked.findIndex((station) => station.stationuuid === 'uuid-berlin')).toBeGreaterThan(
+    ranked.findIndex((station) => station.stationuuid === 'uuid-munich')
+  );
+});
+
+test('session like promotes related country and tag stations', () => {
+  const now = Date.UTC(2026, 3, 20, 10, 16, 0);
+  const sessionEvents = recordRadioSessionEvent([], {
+    stationId: 'uuid-berlin',
+    action: 'like',
+    mode: 'personal',
+    timestamp: now
+  });
+  const ranked = rankStationsForUser(
+    [stations[8], stations[6], stations[5], stations[4]],
+    DEFAULT_TASTE_PROFILE_V2,
+    DEFAULT_PLAYABILITY_PROFILE,
+    {
+      mode: 'personal',
+      currentStation: stations[4],
+      seed: 16,
+      now,
+      sessionEvents
+    }
+  );
+
+  expect(ranked[0].country).toBe('Germany');
+  expect(ranked.findIndex((station) => station.stationuuid === 'uuid-rio')).toBeGreaterThan(0);
+});
+
+test('personal radio refill keeps a fresh tail without duplicating stations', () => {
+  const extraStations = Array.from({ length: 44 }, (_, index) => ({
+    ...stations[index % stations.length],
+    stationuuid: `uuid-refill-${index}`,
+    name: `Refill ${index}`,
+    url: `https://stream.example.com/refill-${index}`,
+    url_resolved: `https://stream.example.com/refill-${index}`
+  }));
+  const currentItems = extraStations.slice(0, 15);
+  const currentIndex = 12;
+  const nextItems = refillPersonalRadioQueueItems({
+    currentItems,
+    currentIndex,
+    candidates: [...currentItems, ...extraStations],
+    tailSize: 18,
+    maxItems: 120
+  });
+
+  expect(nextItems[currentIndex].stationuuid).toBe(currentItems[currentIndex].stationuuid);
+  expect(nextItems.length - currentIndex - 1).toBe(18);
+  expect(new Set(nextItems.map((station) => station.stationuuid)).size).toBe(nextItems.length);
 });
 
 test('taste profile v2 promotes liked stations and demotes early skips', () => {
@@ -891,6 +1044,100 @@ for (const width of [360, 390]) {
   });
 }
 
+test('mobile personal radio fails over from a broken first station', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    let playAttempts = 0;
+    HTMLMediaElement.prototype.play = function () {
+      playAttempts += 1;
+      this.setAttribute('data-ra-play-attempt', String(playAttempts));
+      if (playAttempts === 1) {
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new DOMException('mock startup failure', 'NotSupportedError'));
+      }
+      this.setAttribute('data-ra-state', 'playing');
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    };
+  });
+  await seedRadioState(page, {
+    stationCache: stations,
+    behaviorProfile: behaviorProfile({
+      tagScores: { jpop: 90 },
+      countryScores: { Japan: 60 },
+      stationScores: { 'uuid-tokyo': 300, 'uuid-osaka': 140 }
+    })
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await page.locator('[data-home-personal-radio] .home-personal-play').click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:player:v2');
+        return raw ? JSON.parse(raw).queue?.currentIndex : -1;
+      })
+    )
+    .toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:app:v2');
+        const events = raw ? JSON.parse(raw).radioSessionEvents || [] : [];
+        return {
+          failed: events.some((event: { action: string }) => event.action === 'failed'),
+          success: events.some((event: { action: string }) => event.action === 'play-success')
+        };
+      })
+    )
+    .toEqual({ failed: true, success: true });
+});
+
+test('mobile personal radio recovers from a runtime stream error after start', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    stationCache: stations,
+    behaviorProfile: behaviorProfile({
+      tagScores: { jpop: 90 },
+      countryScores: { Japan: 60 },
+      stationScores: { 'uuid-tokyo': 300, 'uuid-osaka': 140 }
+    })
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await page.locator('[data-home-personal-radio] .home-personal-play').click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  const initialIndex = await page.evaluate(() => {
+    const raw = window.localStorage.getItem('radio:player:v2');
+    return raw ? JSON.parse(raw).queue?.currentIndex : -1;
+  });
+
+  await page.evaluate(() => {
+    document.querySelector('audio')?.dispatchEvent(new Event('error'));
+  });
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:player:v2');
+        return raw ? JSON.parse(raw).queue?.currentIndex : -1;
+      })
+    )
+    .toBeGreaterThan(initialIndex);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:app:v2');
+        const events = raw ? JSON.parse(raw).radioSessionEvents || [] : [];
+        return events.some((event: { action: string }) => event.action === 'failed');
+      })
+    )
+    .toBe(true);
+});
+
 test('mobile home promotes behavior-profile recommendations without reason copy', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedRadioState(page, {
@@ -1165,6 +1412,64 @@ test('mobile search uses compact result cards and can start a result queue', asy
     )
     .toBe('search-results');
   await expect(page.locator('.player-dock-title')).toContainText(/Tokyo FM|Osaka Nights/);
+});
+
+test('mobile search ranks jazz japan by query intent and playability', async ({ page }) => {
+  const japaneseJazz = {
+    ...stations[0],
+    stationuuid: 'uuid-tokyo-jazz',
+    name: 'Blue Note Tokyo Radio',
+    tags: 'jazz,bebop',
+    country: 'Japan',
+    state: 'Tokyo',
+    language: 'Japanese',
+    promoted: false
+  };
+  const weakPromoted = {
+    ...stations[8],
+    stationuuid: 'uuid-promoted-jazz',
+    name: 'Jazz Promo Network',
+    tags: 'samba,pop',
+    country: 'Brazil',
+    state: 'Rio de Janeiro',
+    language: 'Portuguese',
+    promoted: true
+  };
+  const searchItems = [weakPromoted, ...stations, japaneseJazz];
+  await page.unroute('**/catalog/search**');
+  await page.route('**/catalog/search**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: searchItems,
+        total: searchItems.length,
+        nextCursor: null,
+        facets: {
+          countries: ['All', 'Japan', 'Brazil', 'Germany'],
+          tags: ['All', 'jazz', 'jpop', 'samba', 'techno'],
+          languages: ['All', 'Japanese', 'Portuguese', 'German'],
+          continentCounts: [],
+          featuredCountries: []
+        }
+      })
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: searchItems,
+    behaviorProfile: behaviorProfile({
+      tagScores: { samba: 220 },
+      countryScores: { Brazil: 90 }
+    })
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('.search-command-card .search-bar input').first().fill('jazz japan');
+  await expect(page.locator('[data-search-station-card]').first()).toContainText('Blue Note Tokyo Radio');
+  await expect(page.locator('[data-search-station-card]').first()).not.toContainText('Jazz Promo Network');
 });
 
 test('home summary error banner is one-shot and clears after summary succeeds', async ({ page }) => {

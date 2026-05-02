@@ -6,6 +6,11 @@ import {
   isStationSuppressedByHealth,
   type StationHealthProfile
 } from './stationHealth';
+import {
+  getSessionExcludedStationIds,
+  getSessionStationScore,
+  type RadioSessionEvent
+} from './radioSession';
 
 export type PlaybackOutcomeKind = 'success' | 'metadata-unavailable' | PlaybackFailureKind;
 
@@ -29,6 +34,7 @@ type RankHomeOptions = {
   limit?: number;
   now?: number;
   healthProfile?: StationHealthProfile | null;
+  sessionEvents?: RadioSessionEvent[];
 };
 
 type RankSearchOptions = {
@@ -37,6 +43,7 @@ type RankSearchOptions = {
   playabilityProfile: StationPlayabilityProfile;
   healthProfile?: StationHealthProfile | null;
   now?: number;
+  sessionEvents?: RadioSessionEvent[];
 };
 
 export const DEFAULT_PLAYABILITY_PROFILE: StationPlayabilityProfile = {
@@ -61,6 +68,13 @@ const HARD_FAILURE_KINDS = new Set<PlaybackOutcomeKind>([
 ]);
 
 const normalize = (value?: string | null) => value?.trim().replace(/\s+/g, ' ').toLowerCase() || '';
+
+const queryTokens = (query: string) =>
+  normalize(query)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2)
+    .slice(0, 6);
 
 const firstTags = (station: StationLite, limit = 5) =>
   (station.tags || '')
@@ -228,13 +242,17 @@ export const filterStationsByPlayability = (
 export const rankStationsForHome = (
   stations: StationLite[],
   profile: StationPlayabilityProfile | null | undefined,
-  { limit = stations.length, now = Date.now(), healthProfile = null }: RankHomeOptions = {}
-) =>
-  filterStationsByPlayability(stations, profile, now, healthProfile)
+  { limit = stations.length, now = Date.now(), healthProfile = null, sessionEvents = [] }: RankHomeOptions = {}
+) => {
+  const stationPool = uniqueStations(stations);
+  const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
+  return filterStationsByPlayability(stationPool, profile, now, healthProfile)
+    .filter((station) => !sessionExcludedIds.has(station.stationuuid))
     .map((station, index) => ({
       station,
       index,
       score:
+        getSessionStationScore(station, sessionEvents, stationPool, now) +
         getStationPlayabilityScore(profile, station, now) +
         getStationHealthScore(healthProfile, station, now) * 2.4 +
         stationQualityScore(station)
@@ -242,6 +260,7 @@ export const rankStationsForHome = (
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, limit)
     .map((item) => item.station);
+};
 
 const queryIntentScore = (station: StationLite, query: string) => {
   const normalizedQuery = normalize(query);
@@ -251,6 +270,7 @@ const queryIntentScore = (station: StationLite, query: string) => {
   const country = normalize(station.country);
   const state = normalize(station.state);
   const tags = firstTags(station).map(normalize);
+  const language = normalize((station as StationLite & { language?: string }).language);
   const searchable = [name, country, state, normalize(station.tags)].join(' ');
   let score = 0;
 
@@ -263,6 +283,60 @@ const queryIntentScore = (station: StationLite, query: string) => {
   if (tags.includes(normalizedQuery)) score += 24;
   if (tags.some((tag) => tag.startsWith(normalizedQuery))) score += 16;
   if (!score && searchable.includes(normalizedQuery)) score += 10;
+
+  const tokens = queryTokens(query);
+  if (tokens.length > 1) {
+    const matchedBuckets = new Set<string>();
+    let matchedTokenCount = 0;
+    tokens.forEach((token) => {
+      let tokenMatched = false;
+      if (name === token) {
+        score += 34;
+        matchedBuckets.add('name');
+        tokenMatched = true;
+      } else if (name.startsWith(token)) {
+        score += 26;
+        matchedBuckets.add('name');
+        tokenMatched = true;
+      } else if (name.includes(token)) {
+        score += 14;
+        matchedBuckets.add('name');
+        tokenMatched = true;
+      }
+
+      if (country === token || state === token || language === token) {
+        score += 24;
+        matchedBuckets.add('place');
+        tokenMatched = true;
+      } else if (country.startsWith(token) || state.startsWith(token) || language.startsWith(token)) {
+        score += 16;
+        matchedBuckets.add('place');
+        tokenMatched = true;
+      }
+
+      if (tags.includes(token)) {
+        score += 22;
+        matchedBuckets.add('tag');
+        tokenMatched = true;
+      } else if (tags.some((tag) => tag.startsWith(token) || tag.includes(token))) {
+        score += 12;
+        matchedBuckets.add('tag');
+        tokenMatched = true;
+      }
+      if (tokenMatched) matchedTokenCount += 1;
+    });
+    if (matchedBuckets.size >= Math.min(tokens.length, 2)) {
+      score += 28;
+    }
+    if (matchedBuckets.has('place') && matchedBuckets.has('tag')) {
+      score += 22;
+    }
+    if (matchedTokenCount === tokens.length) {
+      score += 28;
+    } else {
+      score -= (tokens.length - matchedTokenCount) * 30;
+    }
+  }
 
   return score;
 };
@@ -280,15 +354,22 @@ const behaviorScore = (station: StationLite, profile: BehaviorProfile) => {
 
 export const rankStationsForSearch = (
   stations: StationLite[],
-  { query, behaviorProfile, playabilityProfile, healthProfile = null, now = Date.now() }: RankSearchOptions
-) =>
-  filterStationsByPlayability(stations, playabilityProfile, now, healthProfile)
+  { query, behaviorProfile, playabilityProfile, healthProfile = null, now = Date.now(), sessionEvents = [] }: RankSearchOptions
+) => {
+  const stationPool = uniqueStations(stations);
+  const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
+  const explicitQuery = queryTokens(query).length > 1;
+  return filterStationsByPlayability(stationPool, playabilityProfile, now, healthProfile)
     .map((station, index) => {
       const intent = queryIntentScore(station, query);
       const promotedBoost = intent >= 20 ? 0.1 : station.promoted ? 1 : 0;
+      const sessionPenalty = sessionExcludedIds.has(station.stationuuid) ? -28 : 0;
+      const behaviorBoost = behaviorScore(station, behaviorProfile) * (explicitQuery ? 0.28 : 1);
       const score =
         intent +
-        behaviorScore(station, behaviorProfile) +
+        sessionPenalty +
+        getSessionStationScore(station, sessionEvents, stationPool, now) +
+        behaviorBoost +
         getStationPlayabilityScore(playabilityProfile, station, now) * 3.6 +
         getStationHealthScore(healthProfile, station, now) * 2.8 +
         stationQualityScore(station) +
@@ -302,3 +383,4 @@ export const rankStationsForSearch = (
     })
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map((item) => item.station);
+};

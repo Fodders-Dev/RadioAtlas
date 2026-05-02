@@ -13,6 +13,7 @@ import type { HomeSurfaceFeed } from '../../lib/homeSurface';
 import type { StationHealthProfile } from '../../lib/stationHealth';
 import type { StationPlayabilityProfile } from '../../lib/stationPlayability';
 import type { TasteProfileV2 } from '../../lib/tasteProfile';
+import type { RadioSessionEvent } from '../../lib/radioSession';
 import type { useAudioPlayer } from '../../lib/useAudioPlayer';
 import type {
   ActiveWinampSkin,
@@ -86,6 +87,7 @@ export type StoredAppState = {
   playabilityProfile: StationPlayabilityProfile;
   tasteProfile: TasteProfileV2;
   stationHealthProfile: StationHealthProfile;
+  radioSessionEvents: RadioSessionEvent[];
 };
 
 export type StoredLibraryState = {
@@ -182,6 +184,7 @@ export type LibraryContextValue = {
   playabilityProfile: StationPlayabilityProfile;
   tasteProfile: TasteProfileV2;
   stationHealthProfile: StationHealthProfile;
+  radioSessionEvents: RadioSessionEvent[];
   toggleFavorite: (station: Station | StationLite) => void;
   isFavorite: (stationId: string) => boolean;
   hideStationFromRecommendations: (station: Station | StationLite) => void;

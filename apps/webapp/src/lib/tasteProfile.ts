@@ -8,6 +8,11 @@ import {
   getStationHealthScore,
   type StationHealthProfile
 } from './stationHealth';
+import {
+  getSessionExcludedStationIds,
+  getSessionStationScore,
+  type RadioSessionEvent
+} from './radioSession';
 
 export type TasteSignalAction =
   | 'play-started'
@@ -48,6 +53,7 @@ export type TasteRecommendationContext = {
   limit?: number;
   now?: number;
   healthProfile?: StationHealthProfile | null;
+  sessionEvents?: RadioSessionEvent[];
 };
 
 export const DEFAULT_TASTE_PROFILE_V2: TasteProfileV2 = {
@@ -373,17 +379,22 @@ export const rankStationsForUser = (
     seed = 0,
     limit = stations.length,
     now = Date.now(),
-    healthProfile = null
+    healthProfile = null,
+    sessionEvents = []
   }: TasteRecommendationContext = { mode: 'personal' }
 ) => {
   const currentId = currentStation?.stationuuid || null;
   const hiddenIds = new Set(normalizeTasteProfile(profile).hiddenStationIds);
-  return filterStationsByPlayability(uniqueStations(stations), playabilityProfile, now, healthProfile)
+  const stationPool = uniqueStations(stations);
+  const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
+  return filterStationsByPlayability(stationPool, playabilityProfile, now, healthProfile)
     .filter((station) => station.stationuuid !== currentId && !hiddenIds.has(station.stationuuid))
+    .filter((station) => !sessionExcludedIds.has(station.stationuuid))
     .map((station, index) => {
       const jitter = (hashValue(`${station.stationuuid}:${seed}`) % 1000) / 1000;
       const score =
         tasteScore(station, profile) +
+        getSessionStationScore(station, sessionEvents, stationPool, now) +
         getStationPlayabilityScore(playabilityProfile, station, now) * 2.8 +
         getStationHealthScore(healthProfile, station, now) * 2.4 +
         qualityScore(station) +

@@ -13,6 +13,7 @@ import {
   type TasteProfileV2
 } from '../src/lib/tasteProfile';
 import { DEFAULT_NOTIFICATION_PREFERENCE } from '../src/lib/retention';
+import type { RadioSessionEvent } from '../src/lib/radioSession';
 
 export const stations = [
   {
@@ -233,6 +234,7 @@ type SeedRadioStateOptions = {
   playabilityProfile?: StationPlayabilityProfile;
   tasteProfile?: TasteProfileV2;
   stationHealthProfile?: StationHealthProfile;
+  radioSessionEvents?: RadioSessionEvent[];
   favorites?: SeedStation[];
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
@@ -331,6 +333,7 @@ export const seedRadioState = async (
     playabilityProfile = DEFAULT_PLAYABILITY_PROFILE,
     tasteProfile = DEFAULT_TASTE_PROFILE_V2,
     stationHealthProfile = DEFAULT_STATION_HEALTH_PROFILE,
+    radioSessionEvents = [],
     favorites = [],
     recent = [],
     playbackHistory = [],
@@ -392,7 +395,8 @@ export const seedRadioState = async (
         },
         playabilityProfile,
         tasteProfile,
-        stationHealthProfile
+        stationHealthProfile,
+        radioSessionEvents
       },
       libraryState: {
         version: 2,

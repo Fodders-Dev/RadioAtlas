@@ -180,6 +180,7 @@ const buildSurfaceFeed = (input: {
   playabilityProfile: ReturnType<typeof useLibrary>['playabilityProfile'];
   tasteProfile: ReturnType<typeof useLibrary>['tasteProfile'];
   stationHealthProfile: ReturnType<typeof useLibrary>['stationHealthProfile'];
+  radioSessionEvents: ReturnType<typeof useLibrary>['radioSessionEvents'];
   metrics: HomeSurfaceFeed['metrics'];
   queuePreview: StationLite[];
   recent: StationLite[];
@@ -193,7 +194,8 @@ const buildSurfaceFeed = (input: {
     currentStation: input.currentStation,
     seed: input.seed,
     limit: input.catalog.length,
-    healthProfile: input.stationHealthProfile
+    healthProfile: input.stationHealthProfile,
+    sessionEvents: input.radioSessionEvents
   });
   const recommendationFeed = createHomeRecommendationFeed({
     catalog: rankedCatalog,
@@ -312,6 +314,7 @@ export const Home = () => {
     playabilityProfile,
     tasteProfile,
     stationHealthProfile,
+    radioSessionEvents,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -410,6 +413,7 @@ export const Home = () => {
       playabilityProfile,
       tasteProfile,
       stationHealthProfile,
+      radioSessionEvents,
       trackHistory,
       seed: homeState.sessionSeed,
       metrics,
@@ -429,6 +433,7 @@ export const Home = () => {
     playabilityProfile,
     tasteProfile,
     stationHealthProfile,
+    radioSessionEvents,
     player.current,
     queuePreview,
     recent,
@@ -472,6 +477,7 @@ export const Home = () => {
         playabilityProfile,
         tasteProfile,
         healthProfile: stationHealthProfile,
+        sessionEvents: radioSessionEvents,
         context: {
           mode: 'personal',
           currentStation: player.current,
@@ -491,6 +497,7 @@ export const Home = () => {
       playabilityProfile,
       tasteProfile,
       stationHealthProfile,
+      radioSessionEvents,
       player.current,
       queuePreview,
       recent,
@@ -501,18 +508,32 @@ export const Home = () => {
     () =>
       rankStationsForHome(catalog, playabilityProfile, {
         limit: Math.min(catalog.length, 36),
-        healthProfile: stationHealthProfile
+        healthProfile: stationHealthProfile,
+        sessionEvents: radioSessionEvents
       }).filter((station) => !isStationHiddenFromRecommendations(tasteProfile, station)),
-    [catalog, playabilityProfile, stationHealthProfile, tasteProfile]
+    [catalog, playabilityProfile, radioSessionEvents, stationHealthProfile, tasteProfile]
   );
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
-    const rails = surfaceRails.slice(0, limit);
+    const usedStationIds = new Set<string>();
+    personalRadioQueue.stations.slice(0, 1).forEach((station) => {
+      usedStationIds.add(station.stationuuid);
+    });
+    resumeModule?.stations
+      .slice(0, denseLayout ? 1 : resumeModule.stations.length)
+      .forEach((station) => {
+        usedStationIds.add(station.stationuuid);
+      });
+    const rails: HomeRailModule[] = [];
+    surfaceRails.forEach((rail) => {
+      if (rails.length >= limit) return;
+      const stations = rail.stations.filter((station) => !usedStationIds.has(station.stationuuid));
+      if (!stations.length) return;
+      stations.forEach((station) => usedStationIds.add(station.stationuuid));
+      rails.push({ ...rail, stations });
+    });
     if (!denseLayout || rails.length >= limit) return rails;
 
-    const usedStationIds = new Set(
-      rails.flatMap((rail) => rail.stations.map((station) => station.stationuuid))
-    );
     const pickStations = (stations: StationLite[]) => {
       const merged = mergeStations(stations);
       const fresh = merged.filter((station) => !usedStationIds.has(station.stationuuid));
@@ -556,7 +577,7 @@ export const Home = () => {
     );
 
     return rails.slice(0, limit);
-  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
+  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, resumeModule, surfaceRails]);
 
   useEffect(() => {
     const stationIds = mergeStations(
@@ -640,6 +661,7 @@ export const Home = () => {
         playabilityProfile,
         tasteProfile,
         stationHealthProfile,
+        radioSessionEvents,
         trackHistory,
         seed: nextSeed,
         metrics: effectiveSummary.counts

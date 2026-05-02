@@ -9,20 +9,20 @@ import {
 } from './stationPlayability';
 import type { StationHealthProfile } from './stationHealth';
 import {
+  getSessionExcludedStationIds,
+  recordRadioSessionEvent,
+  type RadioSessionEvent,
+  type RadioSessionMode
+} from './radioSession';
+import {
   isStationHiddenFromRecommendations,
   rankStationsForUser,
   type TasteProfileV2
 } from './tasteProfile';
 import { stationsForRegions } from './regionRecommendations';
 
-export type RadioSessionMode = 'personal' | 'resume' | 'search' | 'globe' | 'collection';
-
-export type RadioSessionEvent = {
-  stationId: string;
-  action: 'queued' | 'play-started' | 'play-success' | 'skip' | 'like' | 'hide' | 'failed';
-  mode: RadioSessionMode;
-  timestamp: number;
-};
+export { recordRadioSessionEvent };
+export type { RadioSessionEvent, RadioSessionMode };
 
 export type RecommendationContext = {
   mode: RadioSessionMode;
@@ -40,7 +40,6 @@ export type PersonalRadioQueue = {
 };
 
 export const PERSONAL_RADIO_QUEUE_LIMIT = 18;
-const MAX_SESSION_EVENTS = 120;
 
 const mergeStations = (...groups: StationLite[][]) => {
   const seen = new Set<string>();
@@ -71,11 +70,6 @@ const stationsFromFollows = (catalog: StationLite[], followedStations: FollowedS
     .filter((station): station is StationLite => Boolean(station));
 };
 
-export const recordRadioSessionEvent = (
-  events: RadioSessionEvent[],
-  event: RadioSessionEvent
-): RadioSessionEvent[] => [event, ...events].slice(0, MAX_SESSION_EVENTS);
-
 export const buildPersonalRadioQueue = ({
   catalog,
   favorites,
@@ -90,6 +84,7 @@ export const buildPersonalRadioQueue = ({
   playabilityProfile,
   tasteProfile,
   healthProfile,
+  sessionEvents = [],
   context
 }: {
   catalog: StationLite[];
@@ -105,6 +100,7 @@ export const buildPersonalRadioQueue = ({
   playabilityProfile: StationPlayabilityProfile;
   tasteProfile?: TasteProfileV2 | null;
   healthProfile?: StationHealthProfile | null;
+  sessionEvents?: RadioSessionEvent[];
   context: RecommendationContext;
 }): PersonalRadioQueue => {
   const limit = Math.max(1, Math.min(context.limit ?? PERSONAL_RADIO_QUEUE_LIMIT, 20));
@@ -115,7 +111,8 @@ export const buildPersonalRadioQueue = ({
     seed: context.seed,
     limit: catalog.length,
     now,
-    healthProfile
+    healthProfile,
+    sessionEvents
   });
   const recommendationFeed = createHomeRecommendationFeed({
     catalog: rankedCatalog,
@@ -135,6 +132,7 @@ export const buildPersonalRadioQueue = ({
   const followedStationPool = stationsFromFollows(rankedCatalog, followedStations);
   const followedRegionPool = stationsForRegions(rankedCatalog, followedRegions || [], 18);
   const currentId = context.currentStation?.stationuuid || null;
+  const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
   const queue = mergeStations(
     recommendationFeed.tunedForYou,
     recommendationFeed.becauseYouLiked,
@@ -147,7 +145,9 @@ export const buildPersonalRadioQueue = ({
     rankedCatalog
   ).filter(
     (station) =>
-      station.stationuuid !== currentId && !isStationHiddenFromRecommendations(tasteProfile, station)
+      station.stationuuid !== currentId &&
+      !sessionExcludedIds.has(station.stationuuid) &&
+      !isStationHiddenFromRecommendations(tasteProfile, station)
   );
 
   return {
@@ -156,4 +156,35 @@ export const buildPersonalRadioQueue = ({
     stations: queue.slice(0, limit),
     builtAt: Date.now()
   };
+};
+
+export const refillPersonalRadioQueueItems = ({
+  currentItems,
+  currentIndex,
+  candidates,
+  tailSize = PERSONAL_RADIO_QUEUE_LIMIT,
+  maxItems = 120
+}: {
+  currentItems: StationLite[];
+  currentIndex: number;
+  candidates: StationLite[];
+  tailSize?: number;
+  maxItems?: number;
+}) => {
+  if (currentIndex < 0 || !currentItems.length) {
+    return currentItems.slice(0, maxItems);
+  }
+
+  const existingIds = new Set(currentItems.map((station) => station.stationuuid));
+  const additions = candidates.filter((station) => {
+    if (existingIds.has(station.stationuuid)) return false;
+    existingIds.add(station.stationuuid);
+    return true;
+  });
+  const targetLength = Math.min(maxItems, currentIndex + 1 + tailSize);
+  if (currentItems.length >= targetLength || !additions.length) {
+    return currentItems.slice(0, maxItems);
+  }
+
+  return [...currentItems, ...additions].slice(0, targetLength);
 };
