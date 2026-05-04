@@ -1145,8 +1145,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (runtimeFailureSignatureRef.current === signature) return;
     runtimeFailureSignatureRef.current = signature;
 
-    const outcome: PlaybackOutcomeKind =
-      failure.kind === 'superseded' ? 'superseded' : failure.kind;
+    // `superseded` is filtered out above; this is the real failure kind.
+    const outcome: PlaybackOutcomeKind = failure.kind;
     recordPlaybackOutcomeForStation(failedStation, outcome);
     reportProductEvent(
       'stream_failure',

@@ -612,7 +612,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           }
           throw new Error(`profile load failed (${response.status})`);
         }
-        const data = (await response.json()) as { profile: SessionPayload['profile'] };
+        const data = (await response.json()) as {
+          profile: SessionPayload['profile'];
+          auditTrail?: SessionAuditEvent[];
+        };
         applySessionPayload({
           token,
           profile: data.profile,
@@ -1747,7 +1750,12 @@ export const useSession = () => {
   return context;
 };
 
-export type { AccountMergePreview, LibraryCounts, SessionAuditEvent };
+export type {
+  AccountMergePreview,
+  LibraryCounts,
+  SessionAuditEvent,
+  TelegramWidgetAuthData
+};
 export type {
   BillingInvoice,
   BillingProduct,
@@ -1755,7 +1763,6 @@ export type {
   CloudLibrary,
   FollowedRegion,
   FollowedStation,
-  TelegramWidgetAuthData,
   LibraryMergeStrategy,
   ListenerAlert,
   MergePreviewParty,

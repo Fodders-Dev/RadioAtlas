@@ -59,7 +59,9 @@ const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const AREAS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AREA_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATION_BY_ID_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const SUMMARY_CACHE_KEY = 'summary:v1';
+const SUMMARY_CACHE_KEY = 'summary:v2';
+const AREAS_CACHE_PREFIX = 'areas:v5';
+const MIN_GLOBE_MAPPED_STATIONS = 1400;
 
 const loadFallbackCatalog = () => import('../lib/radioBrowserFallback');
 
@@ -117,9 +119,19 @@ const searchCacheKey = (input: SearchStationsInput) =>
 const areaStationsCacheKey = (
   areaId: string,
   options?: { limit?: number; cursor?: string | null }
-) => `area-stations:v1:${areaId}:${options?.limit || 50}:${options?.cursor || ''}`;
+) => `area-stations:v3:${areaId}:${options?.limit || 50}:${options?.cursor || ''}`;
 
 const stationByIdCacheKey = (stationId: string) => `station:v1:${stationId}`;
+
+const isFallbackAreaId = (areaId: string) => areaId.startsWith('fallback-bucket:');
+
+const pickRicherAreaResponse = (
+  primary: CatalogAreaListResponse,
+  fallback: CatalogAreaListResponse
+) => {
+  if (fallback.mappedStations <= primary.mappedStations) return primary;
+  return fallback;
+};
 
 export const CatalogProvider = ({ children }: { children: ReactNode }) => {
   const [summary, setSummary] = useState<CatalogSummary | null>(null);
@@ -190,7 +202,10 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Catalog temporarily unavailable');
     }
 
-    return payload;
+    // Past `response.ok` and the explicit error-envelope branch above, the
+    // payload is the real `T`; the union-with-error shape is only used to
+    // describe the raw bytes coming off the wire.
+    return payload as T;
   }, []);
 
   const rememberStations = useCallback((stations: Array<Station | StationLite>) => {
@@ -319,7 +334,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (cached) {
         return cached;
       }
-      const cacheKey = `areas:v1:${bucket}`;
+      const cacheKey = `${AREAS_CACHE_PREFIX}:${bucket}`;
       const cachedStorage = await readCatalogCache<CatalogAreaListResponse>(cacheKey);
       if (cachedStorage) {
         areaCacheRef.current.set(bucket, cachedStorage.payload);
@@ -329,6 +344,15 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       let response: CatalogAreaListResponse;
       try {
         response = await requestJson<CatalogAreaListResponse>(`/catalog/areas?zoom=${bucket}`);
+        if (response.mappedStations < MIN_GLOBE_MAPPED_STATIONS) {
+          try {
+            const fallback = await loadFallbackCatalog();
+            const fallbackResponse = await fallback.listRadioBrowserFallbackAreas(zoomLevel);
+            response = pickRicherAreaResponse(response, fallbackResponse);
+          } catch {
+            // Keep the API result if the enrichment path is unavailable.
+          }
+        }
         await writeCatalogCache(cacheKey, response, AREAS_CACHE_TTL_MS);
       } catch {
         const stale = await readCatalogCache<CatalogAreaListResponse>(cacheKey, { allowExpired: true });
@@ -360,9 +384,14 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
 
       let response: CatalogAreaStationsResponse;
       try {
-        response = await requestJson<CatalogAreaStationsResponse>(
-          `/catalog/areas/${encodeURIComponent(areaId)}/stations?${params.toString()}`
-        );
+        if (isFallbackAreaId(areaId)) {
+          const fallback = await loadFallbackCatalog();
+          response = await fallback.listRadioBrowserFallbackAreaStations(areaId, options);
+        } else {
+          response = await requestJson<CatalogAreaStationsResponse>(
+            `/catalog/areas/${encodeURIComponent(areaId)}/stations?${params.toString()}`
+          );
+        }
         await writeCatalogCache(cacheKey, response, AREA_STATIONS_CACHE_TTL_MS);
       } catch {
         const stale = await readCatalogCache<CatalogAreaStationsResponse>(cacheKey, {

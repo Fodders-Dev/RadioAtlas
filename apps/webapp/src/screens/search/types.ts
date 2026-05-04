@@ -37,7 +37,7 @@ export type ExtractItem = {
 };
 
 export type ExtractResponse = {
-  type: 'stream' | 'playlist';
+  type: 'stream' | 'playlist' | 'error';
   service?: string;
   url?: string;
   title?: string;

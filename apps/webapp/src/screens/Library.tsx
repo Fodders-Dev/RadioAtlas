@@ -208,7 +208,8 @@ export const Library = () => {
     queue: queue.items.length,
     recent: recentStations.length,
     history: playbackHistory.length,
-    collections: collections.length
+    collections: collections.length,
+    settings: 0
   };
   const returnToAirStations = libraryFeed.returnToAir;
 

@@ -132,12 +132,13 @@ const resolveContinent = (station: CatalogStation) => {
 };
 
 const bucketSizeForZoom = (zoomLevel: number) => {
-  if (zoomLevel >= 5) return 1;
-  if (zoomLevel >= 3.5) return 1.8;
-  if (zoomLevel >= 2.4) return 3;
-  if (zoomLevel >= 1.6) return 5;
-  if (zoomLevel >= 1.1) return 8;
-  return 13;
+  if (zoomLevel >= 7) return 0.35;
+  if (zoomLevel >= 5) return 0.55;
+  if (zoomLevel >= 3.2) return 0.8;
+  if (zoomLevel >= 2.4) return 1.2;
+  if (zoomLevel >= 1.6) return 2.4;
+  if (zoomLevel >= 1.1) return 5;
+  return 10;
 };
 
 const bucketKeyForCoords = (lat: number, lon: number, bucketSize: number) => {
@@ -204,7 +205,9 @@ const buildCountrySpotlight = (stations: CatalogStation[], seed: number): Catalo
     .filter(([, items]) => items.length >= 4)
     .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]));
   if (!ranked.length) return null;
-  const [label, items] = ranked[seed % ranked.length];
+  const entry = ranked[seed % ranked.length];
+  if (!entry) return null;
+  const [label, items] = entry;
   return {
     label,
     stations: sortByTopSignal(items).slice(0, 8).map(toStationLite)
@@ -229,7 +232,9 @@ const buildGenreSpotlight = (stations: CatalogStation[], seed: number): CatalogS
     .filter(([, items]) => items.length >= 4)
     .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]));
   if (!ranked.length) return null;
-  const [label, items] = ranked[seed % ranked.length];
+  const entry = ranked[seed % ranked.length];
+  if (!entry) return null;
+  const [label, items] = entry;
   return {
     label,
     stations: sortByTopSignal(items).slice(0, 8).map(toStationLite)

@@ -73,7 +73,7 @@ export const useNowPlayingSync = ({
         previousSnapshot.source === 'nightride-sse' &&
         previousSnapshot.updatedAt !== null &&
         Date.now() - previousSnapshot.updatedAt < Math.max(basePollMs * 2, 12000);
-      const effectiveSnapshot = preserveFreshSseTrack
+      const effectiveSnapshot: NowPlayingSnapshot = preserveFreshSseTrack
         ? {
             ...snapshot,
             track: previousSnapshot.track,

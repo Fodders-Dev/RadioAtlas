@@ -151,7 +151,7 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
   return async (req: express.Request, res: express.Response) => {
     const parsed = parseHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error);
+      sendJsonError(res, 400, parsed.error ?? 'invalid url');
       return;
     }
 
@@ -305,7 +305,7 @@ export const createImageHandler = (options: MediaRouteOptions) => {
   return async (req: express.Request, res: express.Response) => {
     const parsed = parseHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error);
+      sendJsonError(res, 400, parsed.error ?? 'invalid url');
       return;
     }
 
@@ -451,7 +451,7 @@ export const createFetchHandler = (options: MediaRouteOptions) => {
   return async (req: express.Request, res: express.Response) => {
     const parsed = parseHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error);
+      sendJsonError(res, 400, parsed.error ?? 'invalid url');
       return;
     }
 

@@ -14,13 +14,29 @@ declare global {
           url: string,
           options?: { try_instant_view?: boolean }
         ) => void;
+        openTelegramLink?: (url: string) => void;
+        openInvoice?: (
+          url: string,
+          callback?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void
+        ) => void;
         setHeaderColor?: (color: string) => void;
         setBackgroundColor?: (color: string) => void;
         platform?: string;
         version?: string;
         isActive?: boolean;
+        initData?: string;
         initDataUnsafe?: {
           start_param?: string;
+          user?: {
+            id?: number;
+            first_name?: string;
+            last_name?: string;
+            username?: string;
+            language_code?: string;
+            photo_url?: string;
+          };
+          auth_date?: number;
+          hash?: string;
         };
       };
     };

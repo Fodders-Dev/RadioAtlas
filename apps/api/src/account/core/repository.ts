@@ -3,6 +3,8 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
+  AccountAuditEventType,
+  AccountMergePreview,
   AccountProvider,
   BillingProductId,
   BillingProvider,

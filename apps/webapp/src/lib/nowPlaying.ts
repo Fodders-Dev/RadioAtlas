@@ -295,8 +295,8 @@ type StationSnapshotEntry = {
   snapshot: NowPlayingSnapshot;
   listeners: Set<StationSnapshotListener>;
   inFlight: Promise<void> | null;
-  timer: ReturnType<typeof window.setTimeout> | null;
-  cleanupTimer: ReturnType<typeof window.setTimeout> | null;
+  timer: number | null;
+  cleanupTimer: number | null;
   liveUnsubscribe: (() => void) | null;
 };
 
@@ -322,7 +322,7 @@ const idleSnapshot = (): NowPlayingSnapshot => ({
   updatedAt: null
 });
 
-const readStoredTrackCache = () => {
+const readStoredTrackCache = (): Record<string, { track: string; updatedAt: number }> => {
   if (storedTrackCache) return storedTrackCache;
   if (typeof window === 'undefined') {
     storedTrackCache = {};
@@ -335,7 +335,7 @@ const readStoredTrackCache = () => {
   } catch {
     storedTrackCache = {};
   }
-  return storedTrackCache;
+  return storedTrackCache as Record<string, { track: string; updatedAt: number }>;
 };
 
 const persistStoredTrackCache = (cache: Record<string, { track: string; updatedAt: number }>) => {

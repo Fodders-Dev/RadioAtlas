@@ -116,7 +116,7 @@ export const AccountCard = () => {
               {t('account.signInAndSync')}
             </button>
             {!isTelegramMiniApp && canOpenTelegram ? (
-              <button className="chip" type="button" onClick={openTelegramAccess}>
+              <button className="chip" type="button" onClick={() => openTelegramAccess()}>
                 {t('account.openTelegram')}
               </button>
             ) : null}

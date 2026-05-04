@@ -757,7 +757,7 @@ export const Home = () => {
       {showSummaryErrorBanner ? (
         <section
           className={`home-status-banner ${denseLayout ? 'is-dense' : ''}`.trim()}
-          title={summaryError}
+          title={summaryError ?? undefined}
         >
           <div className="home-status-copy">
             <strong>{t('home.catalogUnavailableTitle')}</strong>

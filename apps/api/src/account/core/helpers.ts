@@ -6,6 +6,7 @@ import type {
   AccountProvider,
   BillingProduct,
   BillingProvider,
+  DatabaseLike,
   FollowedRegion,
   FollowedStation,
   LibraryCounts,
@@ -304,7 +305,7 @@ export const sanitizeTasteProfile = (value: unknown): SyncedTasteProfile => {
     lastUpdatedAt: safeNumber(payload.lastUpdatedAt),
     signals: uniqueSignals,
     hiddenStationIds: Array.isArray(payload.hiddenStationIds)
-      ? Array.from(new Set(payload.hiddenStationIds.map(safeText).filter(Boolean))).slice(0, 160)
+      ? Array.from(new Set(payload.hiddenStationIds.map((value) => safeText(value)).filter(Boolean))).slice(0, 160)
       : [],
     stationScores: sanitizeScoreMap(payload.stationScores, 140),
     tagScores: sanitizeScoreMap(payload.tagScores, 36),

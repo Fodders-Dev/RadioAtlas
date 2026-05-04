@@ -69,4 +69,4 @@ export type StationLite = Pick<
   | 'websiteUrl'
   | 'scheduleNote'
 > &
-  Partial<Pick<Station, 'url'>>;
+  Partial<Pick<Station, 'url' | 'language' | 'codec' | 'bitrate'>>;

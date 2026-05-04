@@ -79,7 +79,8 @@ const trimList = <T,>(target: T[], maxItems: number) => {
 const pruneByAge = <T extends { ts: number }>(target: T[]) => {
   const cutoff = Date.now() - ENTRY_RETENTION_MS;
   for (let index = target.length - 1; index >= 0; index -= 1) {
-    if (target[index].ts < cutoff) {
+    const entry = target[index];
+    if (entry && entry.ts < cutoff) {
       target.splice(index, 1);
     }
   }
