@@ -79,7 +79,15 @@ wait_for_api_health() {
 }
 
 start_pm2_release() {
-  pm2 startOrReload "$CURRENT_LINK/ecosystem.config.cjs" --update-env
+  # `pm2 reload` in fork mode SHOULD be a SIGINT+restart, but in
+  # practice we've seen reloads where the worker keeps serving the
+  # previous bundle — likely because PM2 caches the resolved script
+  # path. Force a hard restart so dist/index.js is re-required.
+  if pm2 describe radioatlas-api >/dev/null 2>&1; then
+    pm2 restart "$CURRENT_LINK/ecosystem.config.cjs" --update-env
+  else
+    pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
+  fi
   pm2 save
 }
 
