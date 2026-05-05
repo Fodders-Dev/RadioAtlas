@@ -79,15 +79,16 @@ wait_for_api_health() {
 }
 
 start_pm2_release() {
-  # `pm2 reload` in fork mode SHOULD be a SIGINT+restart, but in
-  # practice we've seen reloads where the worker keeps serving the
-  # previous bundle — likely because PM2 caches the resolved script
-  # path. Force a hard restart so dist/index.js is re-required.
-  if pm2 describe radioatlas-api >/dev/null 2>&1; then
-    pm2 restart "$CURRENT_LINK/ecosystem.config.cjs" --update-env
-  else
-    pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
-  fi
+  # PM2 caches the resolved cwd / script path on first `start`. Even
+  # after we move the `current` symlink to a new release, `pm2 reload`
+  # and `pm2 restart` keep loading dist/index.js from the OLD release
+  # dir because __dirname in ecosystem.config.cjs was resolved when the
+  # process was first registered. The only reliable way to make the
+  # config re-evaluate __dirname (and therefore pick up the new
+  # release) is delete + start.
+  pm2 delete radioatlas-api >/dev/null 2>&1 || true
+  pm2 delete radioatlas-bot >/dev/null 2>&1 || true
+  pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
   pm2 save
 }
 
