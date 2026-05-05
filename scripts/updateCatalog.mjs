@@ -12,7 +12,11 @@ const API_URLS = [
 const USER_AGENT = 'RadioAtlas/1.0';
 const FAST_LIMIT = Number(process.env.FAST_LIMIT || 10000);
 const FULL_LIMIT = Number(process.env.FULL_LIMIT || 10000);
-const FULL_PAGES = Number(process.env.FULL_PAGES || 5);
+// Radio Browser publishes ~55k stations as of 2026; capping at 5 pages
+// (=50k) was visibly clipping the long tail. 12 pages × 10k = 120k upper
+// bound covers the whole catalog with margin while the loop still bails
+// on the first short page so we don't burn quota.
+const FULL_PAGES = Number(process.env.FULL_PAGES || 12);
 const MODE = (process.env.MODE || 'both').toLowerCase();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..');

@@ -87,7 +87,12 @@ export const GlobeScreen = () => {
     })();
   }, [debouncedZoom, fetchAreas]);
 
-  const usePointsLayer = points.length > 0 && zoomLevel >= SATELLITE_THRESHOLD;
+  // Once per-station points have streamed in we ALWAYS render them, no
+  // matter the zoom — switching datasets mid-zoom made dots jump from
+  // country centroids to their real coordinates, which looked like the
+  // map was sliding sideways under the user. Country-area pills only act
+  // as a placeholder until the points payload arrives.
+  const usePointsLayer = points.length > 0;
 
   const globePoints = useMemo(() => {
     if (usePointsLayer) {
