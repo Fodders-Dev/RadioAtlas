@@ -519,7 +519,7 @@ export const Discover = () => {
             <div className="search-section">
               <div className="search-section-head">
                 <span className="search-section-label">
-                  {t('home.searchCountrySection') || 'Страны'}
+                  {t('search.countriesTitle')}
                 </span>
               </div>
               <div className="search-rail">
@@ -547,7 +547,7 @@ export const Discover = () => {
           {stationSearch.featuredTags.length ? (
             <div className="search-section">
               <div className="search-section-head">
-                <span className="search-section-label">{t('discover.tagTitle')}</span>
+                <span className="search-section-label">{t('search.genresTitle')}</span>
               </div>
               <div className="search-rail">
                 {stationSearch.featuredTags.map((tag) => (

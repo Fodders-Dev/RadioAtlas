@@ -429,7 +429,9 @@ export const enDictionary = {
     "resultsCopy": "Showing {loaded} of {total} right now.",
     "recentQueryHint": "Recent search",
     "playAllResults": "Play results",
-    "queueFromQuery": "Search: {query}"
+    "queueFromQuery": "Search: {query}",
+    "countriesTitle": "Countries",
+    "genresTitle": "Genres"
   },
   "library": {
     "kicker": "Personal space",

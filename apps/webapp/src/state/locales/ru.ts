@@ -429,7 +429,9 @@ export const ruDictionary = {
     "resultsCopy": "Сейчас загружено {loaded} из {total}.",
     "recentQueryHint": "Недавний запрос",
     "playAllResults": "Играть выдачу",
-    "queueFromQuery": "Поиск: {query}"
+    "queueFromQuery": "Поиск: {query}",
+    "countriesTitle": "Страны",
+    "genresTitle": "Жанры"
   },
   "library": {
     "kicker": "Личное пространство",
