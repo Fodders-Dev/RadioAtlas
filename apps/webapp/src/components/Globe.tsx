@@ -485,17 +485,25 @@ export const Globe = ({
     let userHasDragged = false;
     let settleTimeout: number | null = null;
 
+    // Returns the station whose rendered dot is *visually* closest to
+    // the reticle right now. The pixel cap means we only commit when
+    // a dot is within ~140 px of the crosshair — beyond that the
+    // user clearly aimed at empty space and we should not auto-tune.
+    const RETICLE_LOCK_RADIUS_PX = 140;
+
     const findNearestStation = (): string | null => {
       const canvas = map.getCanvasContainer();
       const cx = canvas.clientWidth / 2;
       const cy = canvas.clientHeight / 2;
-      const radius = 280;
+      // Wide search bbox so we don't miss the nearest, but the
+      // cap below decides whether we're actually willing to commit.
+      const search = 320;
       let features: MapGeoJSONFeature[] = [];
       try {
         features = map.queryRenderedFeatures(
           [
-            [cx - radius, cy - radius],
-            [cx + radius, cy + radius]
+            [cx - search, cy - search],
+            [cx + search, cy + search]
           ],
           { layers: ['stations-dot'] }
         ) as MapGeoJSONFeature[];
@@ -519,6 +527,11 @@ export const Globe = ({
           nearestDist = d;
           nearestId = id;
         }
+      }
+      // Reject far-away matches so the reticle never tunes to a
+      // station the user clearly wasn't aiming at.
+      if (nearestDist > RETICLE_LOCK_RADIUS_PX * RETICLE_LOCK_RADIUS_PX) {
+        return null;
       }
       return nearestId;
     };
@@ -551,24 +564,59 @@ export const Globe = ({
       cancelSettle();
     };
 
-    const commitSettle = (target: string) => {
+    // Schedule a settle. The actual "nearest station" decision is
+    // re-computed *inside* the timer rather than at the moment we
+    // queued it, because MapLibre's drag inertia keeps the camera
+    // moving for ~300 ms after touch release. Picking the target at
+    // dragend produced wildly wrong tunes (commit to a station the
+    // user wasn't aiming at, on the other side of the viewport).
+    const scheduleSettle = () => {
+      cancelSettle();
       settleTimeout = window.setTimeout(() => {
-        // Reticle "tunes in": dashed → solid green pulse while the
-        // camera animates toward the chosen station and the stream
-        // loads. The parent receives the settle event in the same
-        // tick so it can fire the easeTo + playStation pipeline.
-        setReticle('tuning');
-        onReticleSettleRef.current?.(target);
-        // After ~900 ms the easeTo (700 ms) and the loading pulse
-        // are done. Drop into the steady "idle" state — solid green
-        // ring around the centred station — until the user starts
-        // another drag.
-        window.setTimeout(() => {
-          if (reticleStateRef.current === 'tuning') setReticle('idle');
-        }, 900);
-        userHasDragged = false;
         settleTimeout = null;
+        // If the camera is still gliding (long inertia after a flick
+        // or a programmatic easeTo), wait it out — re-arm a short
+        // follow-up timer so we recompute once it actually stops.
+        if (map.isMoving()) {
+          settleTimeout = window.setTimeout(() => {
+            settleTimeout = null;
+            const id = findNearestStation();
+            if (!id) {
+              userHasDragged = false;
+              setReticle('idle');
+              return;
+            }
+            fireSettle(id);
+          }, 300);
+          return;
+        }
+        const id = findNearestStation();
+        if (!id) {
+          // Aimed at empty space — don't tune, just relax the
+          // reticle back to idle so the user can try again.
+          userHasDragged = false;
+          setReticle('idle');
+          return;
+        }
+        fireSettle(id);
       }, SETTLE_DELAY_MS);
+    };
+
+    const fireSettle = (target: string) => {
+      // Reticle "tunes in": dashed → solid green pulse while the
+      // camera animates toward the chosen station and the stream
+      // loads. The parent receives the settle event in the same
+      // tick so it can fire the easeTo + playStation pipeline.
+      setReticle('tuning');
+      onReticleSettleRef.current?.(target);
+      // After ~900 ms the easeTo (700 ms) and the loading pulse
+      // are done. Drop into the steady "idle" state — solid green
+      // ring around the centred station — until the user starts
+      // another drag.
+      window.setTimeout(() => {
+        if (reticleStateRef.current === 'tuning') setReticle('idle');
+      }, 900);
+      userHasDragged = false;
     };
 
     const handleDragEnd = () => {
@@ -579,23 +627,15 @@ export const Globe = ({
       if (map.isZooming()) return;
       if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
         userHasDragged = false;
-        // Stay in 'aiming' so the user knows auto-tune is paused at
-        // this zoom; CSS will show the loose dashed ring.
         return;
       }
-      const id = findNearestStation();
-      if (!id) {
-        userHasDragged = false;
-        return;
-      }
-      commitSettle(id);
+      scheduleSettle();
     };
 
     // Pinch / wheel zoom shouldn't trigger settle, but if a settle is
     // already pending from a previous drag and the user starts
     // zooming during the debounce, they've signalled they're not done
-    // yet — postpone the auto-tune until the zoom finishes by
-    // refreshing the timer at zoomend.
+    // yet — postpone the auto-tune until the zoom finishes.
     const handleZoomEnd = () => {
       if (settleTimeout === null) return;
       cancelSettle();
@@ -604,12 +644,7 @@ export const Globe = ({
         userHasDragged = false;
         return;
       }
-      const id = findNearestStation();
-      if (!id) {
-        userHasDragged = false;
-        return;
-      }
-      commitSettle(id);
+      scheduleSettle();
     };
 
     map.on('dragstart', handleDragStart);
