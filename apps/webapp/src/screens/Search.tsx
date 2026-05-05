@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StationTable } from '../components/StationTable';
 import { StationArtwork } from '../components/StationArtwork';
 import { useCatalog } from '../state/CatalogContext';
@@ -96,6 +96,58 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
   );
 };
 
+// Curated music-genre rail for the idle search screen. The
+// auto-derived top tags from radio-browser facets are noisy
+// ("estación", "méxico", "music") and feel boring. This list is
+// what most music discovery apps actually surface — users
+// recognise these labels at a glance. Each chip toggles the
+// underlying tagFilter, so behaviour is identical to the old
+// auto-derived rail; we just curate the labels.
+const FEATURED_GENRES: ReadonlyArray<string> = [
+  'pop',
+  'rock',
+  'jazz',
+  'electronic',
+  'hip hop',
+  'classical',
+  'dance',
+  'indie',
+  'blues',
+  'reggae',
+  'country',
+  'metal',
+  'ambient',
+  'lounge',
+  'soul',
+  'funk',
+  'latin',
+  'house',
+  'techno',
+  'chillout',
+  'folk',
+  'world',
+  'news',
+  'talk',
+  'sports',
+  '80s',
+  '90s',
+  '00s'
+];
+
+// Vertical wheel deltas convert into horizontal scroll on the
+// chip rails so a desktop user with no trackpad can browse
+// continents / countries / genres without aiming at the scrollbar.
+const railWheelHandler = (event: import('react').WheelEvent<HTMLDivElement>) => {
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  const node = event.currentTarget;
+  if (!node || node.scrollWidth <= node.clientWidth) return;
+  const maxScrollLeft = node.scrollWidth - node.clientWidth;
+  const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, node.scrollLeft + event.deltaY));
+  if (nextScrollLeft === node.scrollLeft) return;
+  event.preventDefault();
+  node.scrollLeft = nextScrollLeft;
+};
+
 export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
@@ -157,22 +209,51 @@ export const Discover = () => {
   }, [player.current, recent, playbackHistory]);
 
   const compactQuickReturnStations = quickReturnStations.slice(0, viewportWidth < 860 ? 3 : 4);
+  // Only re-rank when the actual search inputs change (query string,
+  // result array identity, or active filter set). The previous deps
+  // included `radioSessionEvents`, `playabilityProfile`, etc. — those
+  // tick on every play/pause/metadata update, and each tick re-ran
+  // rankStationsForSearch with a fresh `now`, which silently re-
+  // ordered the visible rows. The user perceived this as "the list
+  // shuffles itself while I scroll, I can't read past the first
+  // page". Now the order is captured at the moment the result list
+  // arrives and stays put until the user types a new query or
+  // changes a filter. Recommendation signals still feed back into
+  // the *next* search, just not into the one the user is reading.
+  //
+  // The snapshot deliberately ignores changes to
+  // behaviorProfile / playabilityProfile / sessionEvents /
+  // stationHealthProfile — those are read once per snapshot via
+  // refs so a stale closure problem can't quietly use frozen scoring
+  // signals from app boot, but they don't trigger re-renders.
+  const behaviorProfileRef = useRef(behaviorProfile);
+  const playabilityProfileRef = useRef(playabilityProfile);
+  const stationHealthProfileRef = useRef(stationHealthProfile);
+  const radioSessionEventsRef = useRef(radioSessionEvents);
+  useEffect(() => {
+    behaviorProfileRef.current = behaviorProfile;
+    playabilityProfileRef.current = playabilityProfile;
+    stationHealthProfileRef.current = stationHealthProfile;
+    radioSessionEventsRef.current = radioSessionEvents;
+  });
+
   const rankedSearchResults = useMemo(
     () =>
       rankStationsForSearch(stationSearch.results, {
         query: stationSearch.query,
-        behaviorProfile,
-        playabilityProfile,
-        healthProfile: stationHealthProfile,
-        sessionEvents: radioSessionEvents
+        behaviorProfile: behaviorProfileRef.current,
+        playabilityProfile: playabilityProfileRef.current,
+        healthProfile: stationHealthProfileRef.current,
+        sessionEvents: radioSessionEventsRef.current
       }),
     [
-      behaviorProfile,
-      playabilityProfile,
-      radioSessionEvents,
-      stationHealthProfile,
       stationSearch.query,
-      stationSearch.results
+      stationSearch.results,
+      // include the active filter set so chip-toggles still reorder
+      stationSearch.countryFilter,
+      stationSearch.tagFilter,
+      stationSearch.languageFilter,
+      stationSearch.continentFilter
     ]
   );
   const searchQueue = useMemo(
@@ -206,6 +287,11 @@ export const Discover = () => {
       {showStations ? (
         <div className="glass-card search-hero-card">
           <div className="search-hero-input-row">
+            {/* Hero input takes the full row so it reads as the
+                primary action — earlier we had a "+ URL" button next
+                to it, which users mistook for a "search" submit
+                button. The URL importer now lives as a quiet
+                tertiary link at the bottom of the idle screen. */}
             <label className="search-hero-input" htmlFor="search-hero-input">
               <svg
                 className="search-hero-icon"
@@ -239,15 +325,6 @@ export const Discover = () => {
                 </button>
               ) : null}
             </label>
-            <button
-              className="search-hero-link-btn"
-              type="button"
-              onClick={() => setMode('links')}
-              aria-label={t('discover.linksMode')}
-              title={t('discover.linksMode')}
-            >
-              + URL
-            </button>
           </div>
 
           {!queryActive && stationSearch.recentQueries.length ? (
@@ -484,7 +561,7 @@ export const Discover = () => {
               <div className="search-section-head">
                 <span className="search-section-label">{t('search.scopeRegion')}</span>
               </div>
-              <div className="search-rail search-rail-continent">
+              <div className="search-rail search-rail-continent" onWheel={railWheelHandler}>
                 <button
                   className={`search-rail-chip ${
                     stationSearch.continentFilter === 'All' ? 'active' : ''
@@ -522,7 +599,7 @@ export const Discover = () => {
                   {t('search.countriesTitle')}
                 </span>
               </div>
-              <div className="search-rail">
+              <div className="search-rail" onWheel={railWheelHandler}>
                 {stationSearch.visibleCountryBuckets.slice(0, 12).map((bucket) => (
                   <button
                     key={bucket.key}
@@ -544,29 +621,42 @@ export const Discover = () => {
             </div>
           ) : null}
 
-          {stationSearch.featuredTags.length ? (
-            <div className="search-section">
-              <div className="search-section-head">
-                <span className="search-section-label">{t('search.genresTitle')}</span>
-              </div>
-              <div className="search-rail">
-                {stationSearch.featuredTags.map((tag) => (
-                  <button
-                    key={tag}
-                    className={`search-rail-chip ${
-                      stationSearch.tagFilter === tag ? 'active' : ''
-                    }`}
-                    type="button"
-                    onClick={() =>
-                      stationSearch.setTagFilter(stationSearch.tagFilter === tag ? 'All' : tag)
-                    }
-                  >
-                    <span className="search-rail-chip-label">{tag}</span>
-                  </button>
-                ))}
-              </div>
+          <div className="search-section">
+            <div className="search-section-head">
+              <span className="search-section-label">{t('search.genresTitle')}</span>
             </div>
-          ) : null}
+            <div className="search-rail" onWheel={railWheelHandler}>
+              {FEATURED_GENRES.map((tag) => (
+                <button
+                  key={tag}
+                  className={`search-rail-chip ${
+                    stationSearch.tagFilter === tag ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() =>
+                    stationSearch.setTagFilter(stationSearch.tagFilter === tag ? 'All' : tag)
+                  }
+                >
+                  <span className="search-rail-chip-label">{tag}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tertiary action: import a custom audio URL. Lives down
+              here so the empty search screen reads as a discovery
+              tool first; advanced users can still find the importer
+              at the bottom of the page. */}
+          <div className="search-import-link-row">
+            <button
+              className="search-import-link"
+              type="button"
+              onClick={() => setMode('links')}
+            >
+              + {t('common.addLink') || 'Добавить URL'} ·{' '}
+              <span className="search-import-link-meta">m3u / mp3 / pls</span>
+            </button>
+          </div>
         </>
       ) : null}
 
