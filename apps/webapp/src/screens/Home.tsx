@@ -504,14 +504,34 @@ export const Home = () => {
       trackHistory
     ]
   );
+  // Snapshot the per-tick inputs so the home rails don't re-shuffle
+  // every time the user plays/likes a station. Re-ranking still
+  // happens when the catalog or hide-list (tasteProfile) changes,
+  // and the user can force a fresh ordering via the "Обновить
+  // витрину" button. Without this, every playback tick changed
+  // radioSessionEvents → re-ran rankStationsForHome with a fresh
+  // Date.now() → reordered the visible cards mid-scroll. Same root
+  // cause as the Search list jitter, same fix.
+  const homeRankInputsRef = useRef({
+    playabilityProfile,
+    stationHealthProfile,
+    radioSessionEvents
+  });
+  useEffect(() => {
+    homeRankInputsRef.current = {
+      playabilityProfile,
+      stationHealthProfile,
+      radioSessionEvents
+    };
+  });
   const rankedCatalogRails = useMemo(
     () =>
-      rankStationsForHome(catalog, playabilityProfile, {
+      rankStationsForHome(catalog, homeRankInputsRef.current.playabilityProfile, {
         limit: Math.min(catalog.length, 36),
-        healthProfile: stationHealthProfile,
-        sessionEvents: radioSessionEvents
+        healthProfile: homeRankInputsRef.current.stationHealthProfile,
+        sessionEvents: homeRankInputsRef.current.radioSessionEvents
       }).filter((station) => !isStationHiddenFromRecommendations(tasteProfile, station)),
-    [catalog, playabilityProfile, radioSessionEvents, stationHealthProfile, tasteProfile]
+    [catalog, tasteProfile, homeState.sessionSeed]
   );
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
