@@ -1,0 +1,231 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  buildStateAnchors,
+  resolveStationCoords,
+  resolveCountryCoords,
+  setStateAnchors,
+  type StateAnchors
+} from './geoResolver';
+
+const moscowLat = 55.7558;
+const moscowLon = 37.6173;
+const tulaLat = 54.1933;
+const tulaLon = 37.6175;
+const novosibLat = 55.0084;
+const novosibLon = 82.9357;
+
+afterEach(() => {
+  // Tests share module-level state in geoResolver, so reset anchors
+  // between cases.
+  setStateAnchors(null);
+});
+
+describe('resolveStationCoords', () => {
+  it('returns the station coords verbatim when geo_lat/geo_long are valid', () => {
+    const resolved = resolveStationCoords({
+      stationuuid: 's1',
+      country: 'Russian Federation',
+      geo_lat: moscowLat,
+      geo_long: moscowLon
+    });
+    expect(resolved).not.toBeNull();
+    expect(resolved!.source).toBe('station');
+    expect(resolved!.lat).toBeCloseTo(moscowLat, 4);
+    expect(resolved!.lon).toBeCloseTo(moscowLon, 4);
+  });
+
+  it('treats (0, 0) as missing coords and falls through to country fallback', () => {
+    const resolved = resolveStationCoords({
+      stationuuid: 's2',
+      country: 'Russia',
+      geo_lat: 0,
+      geo_long: 0
+    });
+    expect(resolved).not.toBeNull();
+    expect(resolved!.source).not.toBe('station');
+    expect(resolved!.countryKey).toBe('russia');
+  });
+
+  it('returns null when no country matches and no coords are provided', () => {
+    const resolved = resolveStationCoords({
+      stationuuid: 's3',
+      country: 'Atlantis',
+      geo_lat: null,
+      geo_long: null
+    });
+    expect(resolved).toBeNull();
+  });
+
+  it('falls back to the country pool when no state anchor matches', () => {
+    const a = resolveStationCoords({
+      stationuuid: 'pool-1',
+      country: 'Russia',
+      geo_lat: null,
+      geo_long: null
+    });
+    expect(a).not.toBeNull();
+    expect(a!.source).toBe('country-pool');
+    // Stable across calls — same UUID, same hash, same pool slot.
+    const b = resolveStationCoords({
+      stationuuid: 'pool-1',
+      country: 'Russia',
+      geo_lat: null,
+      geo_long: null
+    });
+    expect(b!.lat).toBeCloseTo(a!.lat, 6);
+    expect(b!.lon).toBeCloseTo(a!.lon, 6);
+  });
+
+  it('uses the registered state anchor when one exists for the (country, state) tuple', () => {
+    const anchors: StateAnchors = new Map();
+    anchors.set('russian federation::Тульская область', {
+      lat: tulaLat,
+      lon: tulaLon,
+      n: 12
+    });
+    setStateAnchors(anchors);
+
+    const tulaStation = resolveStationCoords({
+      stationuuid: 'tula-station-1',
+      country: 'Russian Federation',
+      state: 'Тульская область',
+      geo_lat: null,
+      geo_long: null
+    });
+
+    expect(tulaStation).not.toBeNull();
+    // Stays inside ±0.2° of the Tula anchor — the resolver applies
+    // a small jitter (up to ±0.18°) but never further.
+    expect(Math.abs(tulaStation!.lat - tulaLat)).toBeLessThanOrEqual(0.2);
+    expect(Math.abs(tulaStation!.lon - tulaLon)).toBeLessThanOrEqual(0.2);
+  });
+
+  it('produces the same dot for the same UUID across re-renders (stable jitter)', () => {
+    const anchors: StateAnchors = new Map();
+    anchors.set('russian federation::Новосибирская область', {
+      lat: novosibLat,
+      lon: novosibLon,
+      n: 8
+    });
+    setStateAnchors(anchors);
+
+    const first = resolveStationCoords({
+      stationuuid: 'novosib-radio',
+      country: 'Russian Federation',
+      state: 'Новосибирская область',
+      geo_lat: null,
+      geo_long: null
+    });
+    const second = resolveStationCoords({
+      stationuuid: 'novosib-radio',
+      country: 'Russian Federation',
+      state: 'Новосибирская область',
+      geo_lat: null,
+      geo_long: null
+    });
+    expect(first).not.toBeNull();
+    expect(first!.lat).toBeCloseTo(second!.lat, 8);
+    expect(first!.lon).toBeCloseTo(second!.lon, 8);
+  });
+
+  it('places stations sharing a state-anchor near each other', () => {
+    const anchors: StateAnchors = new Map();
+    anchors.set('russian federation::Тульская область', {
+      lat: tulaLat,
+      lon: tulaLon,
+      n: 5
+    });
+    setStateAnchors(anchors);
+
+    const points = ['t-1', 't-2', 't-3', 't-4', 't-5'].map((id) =>
+      resolveStationCoords({
+        stationuuid: id,
+        country: 'Russian Federation',
+        state: 'Тульская область',
+        geo_lat: null,
+        geo_long: null
+      })
+    );
+
+    const inside = points.every(
+      (p) =>
+        p &&
+        Math.abs(p.lat - tulaLat) <= 0.25 &&
+        Math.abs(p.lon - tulaLon) <= 0.25
+    );
+    expect(inside).toBe(true);
+  });
+});
+
+describe('buildStateAnchors', () => {
+  it('builds a centroid only when at least 2 sibling stations have explicit coords', () => {
+    // Single-coord cluster: should NOT yield an anchor (one outlier
+    // shouldn't drag the rest of the state's coord-less stations).
+    const onePoint = buildStateAnchors([
+      { country: 'Russia', state: 'Тульская область', lat: tulaLat, lon: tulaLon }
+    ]);
+    expect(onePoint.size).toBe(0);
+
+    // Three-coord cluster: anchor lands on the median.
+    const threePoints = buildStateAnchors([
+      { country: 'Russia', state: 'Тульская область', lat: 54.0, lon: 37.0 },
+      { country: 'Russia', state: 'Тульская область', lat: 54.5, lon: 38.0 },
+      { country: 'Russia', state: 'Тульская область', lat: 53.5, lon: 36.5 }
+    ]);
+    const anchor = threePoints.get('russia::Тульская область');
+    expect(anchor).toBeDefined();
+    expect(anchor!.n).toBe(3);
+    expect(anchor!.lat).toBeCloseTo(54.0, 5);
+    expect(anchor!.lon).toBeCloseTo(37.0, 5);
+  });
+
+  it('skips rows missing country, state, or coords', () => {
+    const result = buildStateAnchors([
+      { country: 'Russia', state: '', lat: 55, lon: 37 },
+      { country: '', state: 'X', lat: 55, lon: 37 },
+      { country: 'Russia', state: 'X', lat: null, lon: null },
+      { country: 'Russia', state: 'X', lat: 55, lon: 37 }
+    ]);
+    expect(result.size).toBe(0); // single coord-having station → no anchor
+  });
+
+  it('uses the median, not the mean, so an outlier station does not pull the centroid', () => {
+    const anchors = buildStateAnchors([
+      { country: 'Russia', state: 'Тульская область', lat: 54.0, lon: 37.0 },
+      { country: 'Russia', state: 'Тульская область', lat: 54.2, lon: 37.2 },
+      { country: 'Russia', state: 'Тульская область', lat: 54.1, lon: 37.1 },
+      // outlier — perhaps a station mis-tagged with this state
+      { country: 'Russia', state: 'Тульская область', lat: 30.0, lon: 100.0 }
+    ]);
+    const anchor = anchors.get('russia::Тульская область');
+    expect(anchor).toBeDefined();
+    // Median of [54.0, 54.1, 54.2, 30.0] sorted is 54.1 (lower of
+    // two middle values for even count). Mean would be ~48.
+    expect(anchor!.lat).toBeLessThan(60);
+    expect(anchor!.lat).toBeGreaterThan(50);
+  });
+});
+
+describe('resolveCountryCoords', () => {
+  it('returns coords + continent for a known country', () => {
+    const r = resolveCountryCoords('Russia');
+    expect(r).not.toBeNull();
+    expect(r!.continent).toBeDefined();
+    expect(typeof r!.lat).toBe('number');
+    expect(typeof r!.lon).toBe('number');
+  });
+
+  it('returns null for a nonsense country string', () => {
+    const r = resolveCountryCoords('Wakanda');
+    expect(r).toBeNull();
+  });
+
+  it('matches via alias map (e.g. Russian Federation → Russia)', () => {
+    const a = resolveCountryCoords('Russia');
+    const b = resolveCountryCoords('Russian Federation');
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(b!.lat).toBeCloseTo(a!.lat, 4);
+    expect(b!.lon).toBeCloseTo(a!.lon, 4);
+  });
+});

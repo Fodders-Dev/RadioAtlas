@@ -634,15 +634,38 @@ export const Globe = ({
     });
 
     // MapLibre globe-projection cold-mount bug: tiles fetch + decode
-    // but the renderer commits a black frame and never re-runs until
-    // the camera moves. The previous one-shot triggerRepaint after
-    // load wasn't enough — the tiles arrive AFTER load fires, so the
-    // repaint runs against an empty cache and locks in the black
-    // result. Subscribe instead to `sourcedata` for the satellite
-    // source: every time a tile finishes loading we ask MapLibre for
-    // a fresh frame. The condition `isSourceLoaded` short-circuits
-    // once enough tiles have arrived so we're not spamming repaint.
-    let firstSatelliteFrame = false;
+    // but the renderer commits a black frame and never re-runs
+    // until the camera moves. Three layered defences:
+    //
+    //   1. On every `sourcedata` event for the satellite source we
+    //      call triggerRepaint() — pushes a fresh frame whenever a
+    //      tile arrives, no matter how few.
+    //   2. On the FIRST sourcedata event for satellite (regardless
+    //      of isSourceLoaded), do the easeTo nudge that actually
+    //      unlocks the pipeline. Waiting for isSourceLoaded was
+    //      taking 5–15 s on production because the globe viewport
+    //      pulls many tiles before the source is fully "loaded".
+    //   3. A safety-net interval pulses triggerRepaint every 250 ms
+    //      for the first 3 s after mount. If sourcedata fires too
+    //      early to matter or if a CDN edge serves cached tiles
+    //      from disk and skips the event entirely, the interval
+    //      makes sure the camera still wakes up.
+    let kickedFirstFrame = false;
+    const kickFirstFrame = () => {
+      if (kickedFirstFrame) return;
+      kickedFirstFrame = true;
+      try {
+        const c = map.getCenter();
+        map.easeTo({
+          center: [c.lng + 0.0001, c.lat],
+          duration: 0,
+          essential: true
+        });
+        map.easeTo({ center: [c.lng, c.lat], duration: 0, essential: true });
+      } catch {
+        // ignore
+      }
+    };
     const handleSatelliteData = (
       e: maplibregl.MapDataEvent & { sourceId?: string; isSourceLoaded?: boolean }
     ) => {
@@ -652,26 +675,27 @@ export const Globe = ({
       } catch {
         // ignore
       }
-      if (!firstSatelliteFrame && e.isSourceLoaded) {
-        // First time the satellite source declares "loaded": one
-        // last nudge to make sure the panes render and then unhook
-        // — further repaints come from user gestures.
-        firstSatelliteFrame = true;
-        try {
-          const c = map.getCenter();
-          map.easeTo({
-            center: [c.lng + 0.0001, c.lat],
-            duration: 0,
-            essential: true
-          });
-          map.easeTo({ center: [c.lng, c.lat], duration: 0, essential: true });
-        } catch {
-          // ignore
-        }
-        map.off('sourcedata', handleSatelliteData);
-      }
+      if (!kickedFirstFrame) kickFirstFrame();
     };
     map.on('sourcedata', handleSatelliteData);
+
+    // Safety-net pulse: even if no sourcedata fires (cached tiles,
+    // weird CDN edge, etc.), this guarantees the camera composes a
+    // first real frame within ~3 s of cold mount.
+    let kickAttempts = 0;
+    const kickInterval = window.setInterval(() => {
+      kickAttempts += 1;
+      try {
+        map.triggerRepaint();
+      } catch {
+        // ignore
+      }
+      if (!kickedFirstFrame && kickAttempts >= 4) kickFirstFrame();
+      if (kickAttempts >= 12) {
+        window.clearInterval(kickInterval);
+        map.off('sourcedata', handleSatelliteData);
+      }
+    }, 250);
 
     map.on('zoom', () => {
       if (!onZoomChange) return;
@@ -702,6 +726,7 @@ export const Globe = ({
     });
 
     return () => {
+      window.clearInterval(kickInterval);
       mapRef.current = null;
       map.remove();
     };
