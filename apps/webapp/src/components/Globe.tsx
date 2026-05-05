@@ -12,6 +12,17 @@ type GlobePoint = {
   label?: string;
   subtitle?: string;
   count?: number;
+  // Free-text region from Radio Browser — the cluster key for the
+  // state-labels layer. Stations inside the same `(country, state)`
+  // tuple aggregate into a single label centred on their median
+  // coordinate.
+  state?: string;
+  // Country surfaces in the points feature collection so we can
+  // disambiguate same-named regions across countries.
+  country?: string;
+  // Station display name. At deep zoom we render it as a tiny
+  // symbol-layer label next to its dot.
+  name?: string;
 };
 
 type GlobeProps = {
@@ -149,10 +160,63 @@ const buildPointsFeatureCollection = (
       id: point.id,
       label: point.label || '',
       subtitle: point.subtitle || '',
-      count: point.count ?? 1
+      count: point.count ?? 1,
+      name: point.name || '',
+      country: point.country || '',
+      state: point.state || ''
     }
   }))
 });
+
+// Cluster stations by (country, state) and emit one label per
+// cluster at the median location of its members. This becomes the
+// "regions" layer that fills in mid-zoom — between country labels
+// (z 2.6+) and individual station names (z 8+). Median rather
+// than mean makes the label robust against outlier stations
+// dropped into a country's bounding box but mis-tagged with that
+// state's name.
+const buildStateLabelsFeatureCollection = (
+  points: GlobePoint[]
+): GeoJSON.FeatureCollection<GeoJSON.Point> => {
+  const clusters = new Map<
+    string,
+    { lats: number[]; lons: number[]; label: string; country: string }
+  >();
+  for (const point of points) {
+    const country = point.country || '';
+    const state = point.state || '';
+    if (!country || !state) continue;
+    const key = `${country}::${state}`;
+    let bucket = clusters.get(key);
+    if (!bucket) {
+      bucket = { lats: [], lons: [], label: state, country };
+      clusters.set(key, bucket);
+    }
+    bucket.lats.push(point.lat);
+    bucket.lons.push(point.lon);
+  }
+  const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+  clusters.forEach((bucket) => {
+    // 4-station floor: drops single mis-tagged outliers and very
+    // tiny city-level clusters that would otherwise overlap their
+    // neighbours and create label clutter.
+    if (bucket.lats.length < 4) return;
+    bucket.lats.sort((a, b) => a - b);
+    bucket.lons.sort((a, b) => a - b);
+    const lat = bucket.lats[Math.floor(bucket.lats.length / 2)];
+    const lon = bucket.lons[Math.floor(bucket.lons.length / 2)];
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lon, lat] },
+      properties: {
+        name: bucket.label,
+        country: bucket.country,
+        count: bucket.lats.length
+      }
+    });
+  });
+  return { type: 'FeatureCollection', features };
+};
 
 const buildStyle = (): maplibregl.StyleSpecification => ({
   version: 8,
@@ -172,6 +236,10 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
     'country-labels': {
       type: 'geojson',
       data: getCountryLayers().labels
+    },
+    'state-labels': {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
     },
     stations: {
       type: 'geojson',
@@ -256,9 +324,11 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
       id: 'country-labels',
       type: 'symbol',
       source: 'country-labels',
-      // Hide names at world-scale so the planet stays clean, fade
-      // them in once the user starts zooming into a region.
+      // Country names appear at world-scale, fade out when state
+      // labels take over so we don't stack two label tiers on top
+      // of each other in the same patch of viewport.
       minzoom: 2.6,
+      maxzoom: 6,
       layout: {
         'text-field': ['get', 'name'],
         'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
@@ -268,8 +338,7 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
           ['zoom'],
           2.6, 10,
           4, 12,
-          6, 14,
-          8, 16
+          6, 14
         ],
         'text-letter-spacing': 0.04,
         'text-allow-overlap': false,
@@ -280,7 +349,55 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
         'text-color': 'rgba(235, 247, 255, 0.92)',
         'text-halo-color': 'rgba(4, 8, 18, 0.85)',
         'text-halo-width': 1.4,
-        'text-halo-blur': 0.6
+        'text-halo-blur': 0.6,
+        'text-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          2.6, 0,
+          3.2, 1,
+          5.2, 1,
+          6, 0
+        ]
+      }
+    },
+    {
+      // Region / state / city tier — appears as countries fade.
+      // Cluster centroids derived from station data, so labels
+      // only show where stations actually live.
+      id: 'state-labels',
+      type: 'symbol',
+      source: 'state-labels',
+      minzoom: 4,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          4, 10,
+          6, 12,
+          8, 14
+        ],
+        'text-letter-spacing': 0.05,
+        'text-allow-overlap': false,
+        'text-padding': 4
+      },
+      paint: {
+        'text-color': 'rgba(220, 240, 252, 0.95)',
+        'text-halo-color': 'rgba(4, 8, 18, 0.9)',
+        'text-halo-width': 1.3,
+        'text-halo-blur': 0.5,
+        'text-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          4, 0,
+          4.8, 0.85,
+          7.5, 0.85,
+          8.5, 0.4
+        ]
       }
     },
     {
@@ -356,6 +473,37 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
         'circle-color': 'rgba(180, 245, 255, 0.92)',
         'circle-stroke-width': 1.5,
         'circle-stroke-color': 'rgba(255, 255, 255, 0.85)'
+      }
+    },
+    {
+      // Station-name labels appear only at street-level zoom so we
+      // don't carpet the planet with text. text-anchor:top puts the
+      // label below the dot so the dot itself remains visible.
+      id: 'stations-name',
+      type: 'symbol',
+      source: 'stations',
+      minzoom: 8,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          8, 10,
+          11, 13
+        ],
+        'text-anchor': 'top',
+        'text-offset': [0, 0.7],
+        'text-allow-overlap': false,
+        'text-padding': 2,
+        'text-optional': true
+      },
+      paint: {
+        'text-color': 'rgba(244, 252, 255, 0.92)',
+        'text-halo-color': 'rgba(4, 8, 18, 0.85)',
+        'text-halo-width': 1.2,
+        'text-halo-blur': 0.4
       }
     }
   ],
@@ -664,13 +812,20 @@ export const Globe = ({
     };
   }, [ready]);
 
-  // Push station points into the GeoJSON source whenever the prop changes.
+  // Push station points + derived state-label clusters into the
+  // matching GeoJSON sources whenever the prop changes. Doing both
+  // in a single effect keeps them updating in lockstep — the user
+  // never sees stations from one payload mismatched with stale
+  // labels from a previous payload.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const source = map.getSource('stations') as maplibregl.GeoJSONSource | undefined;
-    if (!source) return;
-    source.setData(buildPointsFeatureCollection(points));
+    const stations = map.getSource('stations') as maplibregl.GeoJSONSource | undefined;
+    const stateLabels = map.getSource('state-labels') as
+      | maplibregl.GeoJSONSource
+      | undefined;
+    if (stations) stations.setData(buildPointsFeatureCollection(points));
+    if (stateLabels) stateLabels.setData(buildStateLabelsFeatureCollection(points));
   }, [points, ready]);
 
   // Active (currently playing) station: highlight via filter.

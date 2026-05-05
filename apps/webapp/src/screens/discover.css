@@ -1108,6 +1108,19 @@
   text-overflow: ellipsis;
 }
 
+.screen-globe-v3 .globe-context-time {
+  margin-top: 4px;
+  padding: 2px 8px 3px;
+  border-radius: 999px;
+  background: rgba(80, 255, 162, 0.14);
+  border: 1px solid rgba(80, 255, 162, 0.32);
+  font-size: 10px;
+  font-weight: 600;
+  font-feature-settings: 'tnum';
+  letter-spacing: 0.04em;
+  color: rgba(120, 255, 195, 0.95);
+}
+
 @media (max-width: 720px) {
   .screen-globe-v3 .globe-context-card {
     top: max(10px, env(safe-area-inset-top));

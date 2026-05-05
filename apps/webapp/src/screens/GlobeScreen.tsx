@@ -110,6 +110,9 @@ export const GlobeScreen = () => {
         lon: number;
         label: string;
         subtitle: string;
+        country?: string;
+        state?: string;
+        name?: string;
       }> = [];
       points.forEach((point) => {
         const resolved = resolveStationCoords({
@@ -119,8 +122,17 @@ export const GlobeScreen = () => {
           geo_long: point.lon
         });
         if (!resolved) return;
+        // Only stations whose coordinates came directly from Radio
+        // Browser ('station' source) carry their state forward to
+        // the cluster builder. Country-pool fallbacks are synthesized
+        // points inside the country's bbox and would poison the
+        // state-label centroid with random in-country offsets.
+        const carryGeoText = resolved.source === 'station';
         result.push({
           id: `station:${point.id}`,
+          country: carryGeoText ? point.country : undefined,
+          state: carryGeoText ? point.state : undefined,
+          name: point.name,
           lat: resolved.lat,
           lon: resolved.lon,
           label: '',
@@ -208,6 +220,21 @@ export const GlobeScreen = () => {
     return map;
   }, [points]);
 
+  // Roughly approximate local time at a longitude. lon / 15° ≈ UTC
+  // offset hours. Inaccurate for political timezones in countries
+  // that span many longitudes (Russia, US, China) but good enough
+  // for "what time of day is it there?" — the user can look at the
+  // map and read "≈ 03:42" rather than guessing whether they're
+  // probably waking the locals up.
+  const formatLocalTime = (lon: number, now: Date): string => {
+    const offsetMinutes = (lon / 15) * 60;
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
+    const target = new Date(utcMs + offsetMinutes * 60_000);
+    const hh = String(target.getHours()).padStart(2, '0');
+    const mm = String(target.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   // What the reticle is currently sitting over. Drives the floating
   // "where am I" card so the user sees country / region / station
   // *before* committing — solves the "I'm zoomed in and have no idea
@@ -217,10 +244,13 @@ export const GlobeScreen = () => {
     const rawId = reticleStationId.slice('station:'.length);
     const point = pointsById.get(rawId);
     if (!point) return null;
+    const localTime =
+      typeof point.lon === 'number' ? formatLocalTime(point.lon, new Date()) : null;
     return {
       country: point.country || '',
       state: point.state || '',
-      name: point.name || ''
+      name: point.name || '',
+      localTime
     };
   }, [reticleStationId, pointsById]);
   // Highlight priority: explicitly tapped > reticle candidate > now
@@ -266,6 +296,14 @@ export const GlobeScreen = () => {
             {reticleContext.name ? (
               <div className="globe-context-name" title={reticleContext.name}>
                 {reticleContext.name}
+              </div>
+            ) : null}
+            {reticleContext.localTime ? (
+              <div
+                className="globe-context-time"
+                title="Approximate local time"
+              >
+                ≈ {reticleContext.localTime}
               </div>
             ) : null}
           </div>
