@@ -217,7 +217,7 @@ const startSearchQueueAndOpenFullPlayer = async (page: Page, query = 'jpop') => 
   });
   await page.goto('/');
   await expect(page.locator('.screen-search-v2')).toBeVisible();
-  await page.locator('.search-command-card .search-bar input').first().fill(query);
+  await page.locator('#search-hero-input').first().fill(query);
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
@@ -1455,7 +1455,7 @@ test('search ranks playable tag matches above failed matches', async ({ page }) 
 
   await page.goto('/');
   await expect(page.locator('.screen-search-v2')).toBeVisible();
-  await page.locator('.search-command-card .search-bar input').first().fill('jpop');
+  await page.locator('#search-hero-input').first().fill('jpop');
   await expect(page.locator('.station-row').first()).toContainText('Osaka Nights');
 });
 
@@ -1468,7 +1468,7 @@ test('mobile search uses compact result cards and can start a result queue', asy
 
   await page.goto('/');
   await expect(page.locator('.screen-search-v2')).toBeVisible();
-  await page.locator('.search-command-card .search-bar input').first().fill('jpop');
+  await page.locator('#search-hero-input').first().fill('jpop');
   await expect(page.locator('[data-search-station-card]')).toHaveCount(12);
   await expect(page.locator('[data-search-station-card]').first()).toContainText(/Tokyo FM|Osaka Nights/);
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
@@ -1537,7 +1537,7 @@ test('mobile search ranks jazz japan by query intent and playability', async ({ 
 
   await page.goto('/');
   await expect(page.locator('.screen-search-v2')).toBeVisible();
-  await page.locator('.search-command-card .search-bar input').first().fill('jazz japan');
+  await page.locator('#search-hero-input').first().fill('jazz japan');
   await expect(page.locator('[data-search-station-card]').first()).toContainText('Blue Note Tokyo Radio');
   await expect(page.locator('[data-search-station-card]').first()).not.toContainText('Jazz Promo Network');
 });
@@ -2455,7 +2455,7 @@ test('product analytics records app, home, search and playback events without ra
   await page.goto('/');
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
-  const discoverInput = page.locator('.search-command-card .search-bar input').first();
+  const discoverInput = page.locator('#search-hero-input').first();
   await discoverInput.waitFor({ state: 'visible' });
   await discoverInput.fill('Tokyo');
   await page.waitForTimeout(500);
@@ -2619,7 +2619,7 @@ test('core mobile screens have no document overflow on 360 390 and 412 widths', 
     await expectNoDocumentHorizontalOverflow(page);
 
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
-    await expect(page.locator('.search-command-card')).toBeVisible();
+    await expect(page.locator('.search-hero-card')).toBeVisible();
     await expectNoDocumentHorizontalOverflow(page);
 
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();

@@ -65,12 +65,15 @@ test('search shell exposes filter drawer and station results on desktop', async 
   await expect(page.locator('[data-home-hero]')).toBeVisible();
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();
-  await expect(page.locator('.search-command-card')).toBeVisible();
+  // v3 hero card replaces the legacy search-command-card.
+  await expect(page.locator('.search-hero-card')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Показать фильтры' }).click();
-  await expect(page.locator('.search-filters-drawer')).toBeVisible();
+  // Filter drawer is gated on having a query in the v3 design — type
+  // first, then expand. Keeps the idle screen calm.
+  await page.locator('#search-hero-input').fill('Berlin');
+  await page.getByRole('button', { name: /Показать фильтры/ }).click();
+  await expect(page.locator('.search-hero-drawer')).toBeVisible();
 
-  await page.locator('.search-bar input').first().fill('Berlin');
   await expect(page.locator('.station-row').filter({ hasText: 'Berlin Pulse' }).first()).toBeVisible({
     timeout: 10000
   });

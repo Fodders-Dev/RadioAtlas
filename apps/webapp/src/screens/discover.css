@@ -1,3 +1,407 @@
+/* ---------------------------------------------------------------
+ *  Search v3 — hero input, idle rails, slim result card
+ * --------------------------------------------------------------- */
+.screen-search-v3 {
+  display: grid;
+  gap: 14px;
+  padding-bottom: calc(var(--dock-offset-v2, 72px) + 24px);
+}
+
+.screen-search-v3 .search-hero-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.screen-search-v3 .search-hero-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.screen-search-v3 .search-hero-input {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  min-height: 48px;
+  border-radius: 14px;
+  background: rgba(8, 14, 24, 0.55);
+  border: 1px solid rgba(170, 220, 240, 0.16);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.screen-search-v3 .search-hero-input:focus-within {
+  border-color: rgba(120, 220, 255, 0.55);
+  background: rgba(8, 14, 24, 0.78);
+}
+
+.screen-search-v3 .search-hero-icon {
+  flex: 0 0 auto;
+  color: rgba(180, 220, 240, 0.62);
+}
+
+.screen-search-v3 .search-hero-input:focus-within .search-hero-icon {
+  color: rgba(120, 220, 255, 0.85);
+}
+
+.screen-search-v3 .search-hero-input input {
+  flex: 1 1 auto;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: rgba(244, 252, 255, 0.96);
+  font-size: 16px;
+  min-width: 0;
+}
+
+.screen-search-v3 .search-hero-input input::placeholder {
+  color: rgba(180, 215, 235, 0.55);
+}
+
+.screen-search-v3 .search-hero-clear {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(244, 252, 255, 0.85);
+  font-size: 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.screen-search-v3 .search-hero-clear:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: scale(1.05);
+}
+
+.screen-search-v3 .search-hero-link-btn {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px dashed rgba(180, 220, 240, 0.28);
+  background: rgba(8, 14, 24, 0.36);
+  color: rgba(220, 240, 252, 0.82);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.screen-search-v3 .search-hero-link-btn:hover {
+  border-color: rgba(120, 220, 255, 0.55);
+  color: rgba(244, 252, 255, 0.96);
+  background: rgba(8, 14, 24, 0.62);
+}
+
+/* Recent queries — rendered just under the input when idle. */
+.screen-search-v3 .search-hero-recent {
+  display: grid;
+  gap: 6px;
+}
+
+.screen-search-v3 .search-hero-recent-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(167, 247, 255, 0.7);
+}
+
+.screen-search-v3 .search-hero-recent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.screen-search-v3 .search-hero-recent-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 223, 255, 0.18);
+  background: rgba(8, 14, 24, 0.42);
+  color: rgba(229, 241, 255, 0.86);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.screen-search-v3 .search-hero-recent-chip:hover {
+  border-color: rgba(120, 220, 255, 0.5);
+  background: rgba(20, 32, 50, 0.62);
+  transform: translateY(-1px);
+}
+
+/* Result-bar sits inside the hero card while a query is active. */
+.screen-search-v3 .search-hero-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(170, 220, 240, 0.08);
+}
+
+.screen-search-v3 .search-hero-result-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: rgba(220, 240, 252, 0.7);
+}
+
+.screen-search-v3 .search-hero-result-count strong {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgba(122, 230, 255, 0.95);
+}
+
+.screen-search-v3 .search-hero-result-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.screen-search-v3 .search-hero-play-all {
+  background: linear-gradient(135deg, rgba(128, 226, 245, 0.98), rgba(202, 255, 249, 0.94));
+  color: rgba(4, 13, 22, 0.98);
+  font-weight: 700;
+  border: 0;
+}
+
+.screen-search-v3 .search-hero-play-all:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(180, 220, 240, 0.16);
+  color: rgba(220, 240, 252, 0.6);
+}
+
+.screen-search-v3 .search-hero-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.screen-search-v3 .search-hero-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 220, 255, 0.4);
+  background: rgba(20, 56, 88, 0.4);
+  color: rgba(190, 240, 255, 0.96);
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.screen-search-v3 .search-hero-filter-pill:hover {
+  background: rgba(20, 56, 88, 0.65);
+}
+
+.screen-search-v3 .search-hero-filter-pill-x {
+  font-size: 0.64rem;
+  opacity: 0.7;
+}
+
+.screen-search-v3 .search-hero-drawer {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(170, 220, 240, 0.08);
+}
+
+.screen-search-v3 .search-hero-drawer-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .screen-search-v3 .search-hero-drawer-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .screen-search-v3 .search-hero-drawer-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Idle rails — continents, popular countries, popular genres. */
+.screen-search-v3 .search-section {
+  display: grid;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.screen-search-v3 .search-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.screen-search-v3 .search-section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(167, 247, 255, 0.78);
+}
+
+.screen-search-v3 .search-rail {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scrollbar-width: none;
+}
+
+.screen-search-v3 .search-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.screen-search-v3 .search-rail-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 223, 255, 0.16);
+  background: rgba(8, 14, 24, 0.46);
+  color: rgba(229, 241, 255, 0.88);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.screen-search-v3 .search-rail-chip:hover {
+  border-color: rgba(120, 220, 255, 0.5);
+  background: rgba(20, 32, 50, 0.62);
+  transform: translateY(-1px);
+}
+
+.screen-search-v3 .search-rail-chip.active {
+  border-color: rgba(120, 220, 255, 0.85);
+  background: linear-gradient(135deg, rgba(36, 80, 116, 0.78), rgba(20, 56, 88, 0.78));
+  color: rgba(244, 252, 255, 0.98);
+}
+
+.screen-search-v3 .search-rail-chip-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(122, 230, 255, 0.95);
+  letter-spacing: 0.02em;
+}
+
+.screen-search-v3 .search-rail-chip.active .search-rail-chip-count {
+  color: rgba(180, 245, 255, 1);
+}
+
+/* Quick-return cards (recent stations). */
+.screen-search-v3 .search-quick-return-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.screen-search-v3 .search-quick-return-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(180, 223, 255, 0.14);
+  background: rgba(8, 14, 24, 0.4);
+  color: rgba(229, 241, 255, 0.92);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.screen-search-v3 .search-quick-return-card:hover {
+  border-color: rgba(120, 220, 255, 0.42);
+  background: rgba(20, 32, 50, 0.62);
+  transform: translateY(-1px);
+}
+
+.screen-search-v3 .search-quick-return-card.active {
+  border-color: rgba(80, 255, 162, 0.65);
+  background: linear-gradient(135deg, rgba(20, 60, 50, 0.78), rgba(8, 30, 20, 0.78));
+}
+
+.screen-search-v3 .search-quick-return-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.screen-search-v3 .search-quick-return-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-search-v3 .search-quick-return-meta {
+  font-size: 0.7rem;
+  color: rgba(190, 220, 235, 0.66);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-search-v3 .search-quick-return-play {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(120, 220, 255, 0.92);
+  padding: 0 4px;
+}
+
+/* Slim results card — header info already lives in the hero
+   result-bar, so the card itself holds only the list. */
+.screen-search-v3 .search-results-card-v3 {
+  padding: 8px;
+}
+
+.screen-search-v3 .search-empty-state {
+  display: grid;
+  gap: 6px;
+  padding: 28px 12px;
+  text-align: center;
+  color: rgba(220, 240, 252, 0.72);
+}
+
+.screen-search-v3 .search-empty-state strong {
+  font-size: 0.96rem;
+  color: rgba(244, 252, 255, 0.96);
+}
+
+.screen-search-v3 .search-empty-state span {
+  font-size: 0.82rem;
+}
+
+.screen-search-v3 .search-links-mode-back {
+  display: flex;
+  justify-content: flex-start;
+  padding: 4px 0 0;
+}
+
 .search-results-shell {
   display: flex;
   flex-direction: column;

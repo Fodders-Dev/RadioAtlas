@@ -188,209 +188,202 @@ export const Discover = () => {
     });
   };
 
-  return (
-    <section className="screen screen-search screen-search-v2">
-      <div className="glass-card search-command-card">
-        <div className="search-command-top">
-          <div className="chip-row search-mode-switcher">
-            <button
-              className={`chip ${showStations ? 'active' : ''}`}
-              type="button"
-              onClick={() => setMode('stations')}
-            >
-              {t('discover.stationsMode')}
-            </button>
-            <button
-              className={`chip ${showStations ? '' : 'active'}`}
-              type="button"
-              onClick={() => setMode('links')}
-            >
-              {t('discover.linksMode')}
-            </button>
-          </div>
-          <div className="search-command-status" aria-live="polite">
-            <span>{showStations ? t('search.resultsTitle') : t('discover.linksSaved')}</span>
-            <strong>
-              {showStations
-                ? `${rankedSearchResults.length}${stationSearch.nextCursor ? '+' : ''}/${stationSearch.searchTotal}`
-                : linksState.links.length}
-            </strong>
-          </div>
-        </div>
+  const trimmedQuery = stationSearch.query.trim();
+  const queryActive = trimmedQuery.length > 0;
+  const hasResults = rankedSearchResults.length > 0;
+  const showSkeleton = stationSearch.searchLoading && !stationSearch.results.length;
+  const filterCount = stationSearch.activeFilterCount;
 
-        {showStations ? (
-          <div className="search-command-body">
-            <div className="search-bar">
+  return (
+    <section
+      // Keep `screen-search-v2` alongside the new v3 class so existing
+      // e2e selectors (and any vendor analytics rules pinned to v2)
+      // still match. v3 governs the actual layout.
+      className="screen screen-search screen-search-v2 screen-search-v3"
+      data-search-mode={mode}
+      data-query-active={queryActive ? 'true' : 'false'}
+    >
+      {showStations ? (
+        <div className="glass-card search-hero-card">
+          <div className="search-hero-input-row">
+            <label className="search-hero-input" htmlFor="search-hero-input">
+              <svg
+                className="search-hero-icon"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M10.5 3a7.5 7.5 0 015.92 12.13l4.22 4.22-1.41 1.41-4.22-4.22A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"
+                />
+              </svg>
               <input
+                id="search-hero-input"
+                type="search"
+                inputMode="search"
+                autoComplete="off"
                 placeholder={t('discover.searchPlaceholder')}
                 value={stationSearch.query}
                 onChange={(event) => stationSearch.setQuery(event.target.value)}
               />
               {stationSearch.query ? (
-                <button className="clear-btn" type="button" onClick={() => stationSearch.setQuery('')}>
-                  {t('common.clear')}
+                <button
+                  className="search-hero-clear"
+                  type="button"
+                  onClick={() => stationSearch.setQuery('')}
+                  aria-label={t('common.clear')}
+                >
+                  ✕
                 </button>
               ) : null}
-            </div>
-            {!stationSearch.query.trim() && stationSearch.recentQueries.length ? (
-              <div className="search-chip-row">
-                {stationSearch.recentQueries.map((recentQuery) => (
+            </label>
+            <button
+              className="search-hero-link-btn"
+              type="button"
+              onClick={() => setMode('links')}
+              aria-label={t('discover.linksMode')}
+              title={t('discover.linksMode')}
+            >
+              + URL
+            </button>
+          </div>
+
+          {!queryActive && stationSearch.recentQueries.length ? (
+            <div className="search-hero-recent">
+              <span className="search-hero-recent-label">{t('search.recentQueryHint')}</span>
+              <div className="search-hero-recent-row">
+                {stationSearch.recentQueries.slice(0, 6).map((recentQuery) => (
                   <button
                     key={`recent-query-${recentQuery}`}
-                    className="search-mini-chip"
+                    className="search-hero-recent-chip"
                     type="button"
                     onClick={() => stationSearch.applyRecentQuery(recentQuery)}
                   >
-                    <span className="search-mini-chip-label">{recentQuery}</span>
-                    <strong className="search-mini-chip-meta">{t('search.recentQueryHint')}</strong>
+                    {recentQuery}
                   </button>
                 ))}
               </div>
-            ) : null}
-            <div className="search-toolbar-row search-toolbar-row-minimal">
-              <button
-                className={`chip ${stationSearch.filtersOpen ? 'active' : ''}`}
-                type="button"
-                onClick={() => stationSearch.setFiltersOpen((prev) => !prev)}
-              >
-                {stationSearch.filtersOpen ? t('search.hideFilters') : t('search.showFilters')}
-              </button>
-              <button
-                className="chip"
-                type="button"
-                onClick={stationSearch.resetSearchScope}
-                disabled={stationSearch.activeFilterCount === 0}
-              >
-                {t('search.clearAllFilters')}
-              </button>
             </div>
-            {stationSearch.activeFilters.length ? (
-              <div className="search-chip-row">
-                {stationSearch.activeFilters.map((filter) => (
-                  <button
-                    key={filter.id}
-                    className="search-mini-chip"
-                    type="button"
-                    onClick={filter.clear}
-                  >
-                    <span className="search-mini-chip-label">{filter.label}</span>
-                    <strong className="search-mini-chip-meta">{t('common.clear')}</strong>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+          ) : null}
 
-            {stationSearch.filtersOpen ? (
-              <div className="search-filters-drawer search-filters-drawer-minimal">
-                <div className="filters">
-                  <select
-                    className="filter-select"
-                    value={stationSearch.countryFilter}
-                    onChange={(event) => stationSearch.setCountryFilter(event.target.value)}
-                  >
-                    <option value="All">{t('discover.regionAll')}</option>
-                    {stationSearch.countries
-                      .filter((country) => country !== 'All')
-                      .map((country) => (
-                        <option key={country} value={country}>
-                          {country}
-                        </option>
-                      ))}
-                  </select>
-                  <select
-                    className="filter-select"
-                    value={stationSearch.tagFilter}
-                    onChange={(event) => stationSearch.setTagFilter(event.target.value)}
-                  >
-                    <option value="All">{t('discover.tagTitle')}</option>
-                    {stationSearch.tags
-                      .filter((tag) => tag !== 'All')
-                      .map((tag) => (
-                        <option key={tag} value={tag}>
-                          {tag}
-                        </option>
-                      ))}
-                  </select>
-                  <select
-                    className="filter-select"
-                    value={stationSearch.languageFilter}
-                    onChange={(event) => stationSearch.setLanguageFilter(event.target.value)}
-                  >
-                    <option value="All">{t('discover.regionAll')}</option>
-                    {stationSearch.languages
-                      .filter((lang) => lang !== 'All')
-                      .map((lang) => (
-                        <option key={lang} value={lang}>
-                          {lang}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div className="search-bar">
-                  <input
-                    placeholder={t('search.countrySearchPlaceholder')}
-                    value={stationSearch.countryQuery}
-                    onChange={(event) => stationSearch.setCountryQuery(event.target.value)}
-                  />
-                </div>
-                <div className="chip-row search-filter-chip-row">
+          {queryActive ? (
+            <div className="search-hero-result-bar">
+              <div className="search-hero-result-count">
+                <strong>
+                  {rankedSearchResults.length}
+                  {stationSearch.nextCursor ? '+' : ''}
+                </strong>
+                <span>
+                  / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
+                </span>
+              </div>
+              <div className="search-hero-result-actions">
+                <button
+                  className="chip search-hero-play-all"
+                  type="button"
+                  onClick={startSearchRadio}
+                  disabled={!searchQueue.length}
+                >
+                  ▶ {t('search.playAllResults')}
+                </button>
+                <button
+                  className={`chip search-hero-filters-toggle ${
+                    stationSearch.filtersOpen ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => stationSearch.setFiltersOpen((prev) => !prev)}
+                  aria-expanded={stationSearch.filtersOpen}
+                >
+                  {filterCount > 0
+                    ? `${t('search.showFilters')} · ${filterCount}`
+                    : stationSearch.filtersOpen
+                      ? t('search.hideFilters')
+                      : t('search.showFilters')}
+                </button>
+                {filterCount > 0 ? (
                   <button
-                    className={`chip ${stationSearch.continentFilter === 'All' ? 'active' : ''}`}
+                    className="chip search-hero-reset"
                     type="button"
-                    onClick={() => stationSearch.setContinentFilter('All')}
+                    onClick={stationSearch.resetSearchScope}
                   >
-                    {t('discover.regionAll')}
+                    {t('search.clearAllFilters')}
                   </button>
-                  {stationSearch.continentCounts.map((item) => (
-                    <button
-                      key={item.id}
-                      className={`chip ${stationSearch.continentFilter === item.id ? 'active' : ''}`}
-                      type="button"
-                      onClick={() => stationSearch.setContinentFilter(item.id)}
-                    >
-                      {item.id} · {item.count}
-                    </button>
-                  ))}
-                </div>
-                <div className="chip-row search-filter-chip-row">
-                  {stationSearch.featuredTags.map((tag) => (
-                    <button
-                      key={tag}
-                      className={`chip ${stationSearch.tagFilter === tag ? 'active' : ''}`}
-                      type="button"
-                      onClick={() =>
-                        stationSearch.setTagFilter(stationSearch.tagFilter === tag ? 'All' : tag)
-                      }
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-                {stationSearch.visibleCountryBuckets.length ? (
-                  <div className="search-chip-row">
-                    {stationSearch.visibleCountryBuckets.slice(0, 6).map((bucket) => (
-                      <button
-                        key={bucket.key}
-                        className={`search-mini-chip ${
-                          stationSearch.countryFilter === bucket.country ? 'active' : ''
-                        }`}
-                        type="button"
-                        onClick={() =>
-                          stationSearch.setCountryFilter(
-                            stationSearch.countryFilter === bucket.country ? 'All' : bucket.country
-                          )
-                        }
-                      >
-                        <span className="search-mini-chip-label">{bucket.country}</span>
-                        <strong className="search-mini-chip-meta">{bucket.count}</strong>
-                      </button>
-                    ))}
-                  </div>
                 ) : null}
               </div>
-            ) : null}
-          </div>
-        ) : (
+            </div>
+          ) : null}
+
+          {queryActive && stationSearch.activeFilters.length ? (
+            <div className="search-hero-active-filters">
+              {stationSearch.activeFilters.map((filter) => (
+                <button
+                  key={filter.id}
+                  className="search-hero-filter-pill"
+                  type="button"
+                  onClick={filter.clear}
+                  aria-label={`${filter.label} — ${t('common.clear')}`}
+                >
+                  <span>{filter.label}</span>
+                  <span className="search-hero-filter-pill-x" aria-hidden="true">
+                    ✕
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {queryActive && stationSearch.filtersOpen ? (
+            <div className="search-hero-drawer">
+              <div className="search-hero-drawer-row">
+                <select
+                  className="filter-select"
+                  value={stationSearch.countryFilter}
+                  onChange={(event) => stationSearch.setCountryFilter(event.target.value)}
+                >
+                  <option value="All">{t('discover.regionAll')}</option>
+                  {stationSearch.countries
+                    .filter((country) => country !== 'All')
+                    .map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                </select>
+                <select
+                  className="filter-select"
+                  value={stationSearch.tagFilter}
+                  onChange={(event) => stationSearch.setTagFilter(event.target.value)}
+                >
+                  <option value="All">{t('discover.tagTitle')}</option>
+                  {stationSearch.tags
+                    .filter((tag) => tag !== 'All')
+                    .map((tag) => (
+                      <option key={tag} value={tag}>
+                        {tag}
+                      </option>
+                    ))}
+                </select>
+                <select
+                  className="filter-select"
+                  value={stationSearch.languageFilter}
+                  onChange={(event) => stationSearch.setLanguageFilter(event.target.value)}
+                >
+                  <option value="All">{t('discover.regionAll')}</option>
+                  {stationSearch.languages
+                    .filter((lang) => lang !== 'All')
+                    .map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
           <div className="search-links-stack">
             <div className="settings-card stack">
               <input
@@ -434,21 +427,30 @@ export const Discover = () => {
               <div className="error">{t('discover.extractorOffline')}</div>
             ) : null}
             {linksState.linkError ? <div className="error">{linksState.linkError}</div> : null}
+            <div className="search-links-mode-back">
+              <button className="chip" type="button" onClick={() => setMode('stations')}>
+                ← {t('discover.stationsMode')}
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      {showStations ? (
+      {showStations && !queryActive ? (
         <>
           {compactQuickReturnStations.length ? (
-            <div className="glass-card search-shortcuts-card">
-              <div className="search-chip-row">
+            <div className="search-section">
+              <div className="search-section-head">
+                <span className="search-section-label">
+                  {t('search.quickReturnTitle')}
+                </span>
+              </div>
+              <div className="search-quick-return-row">
                 {compactQuickReturnStations.map((station) => {
                   const isActive = player.current?.stationuuid === station.stationuuid;
                   return (
                     <button
                       key={`return-${station.stationuuid}`}
-                      className={`search-mini-chip ${isActive ? 'active' : ''}`}
+                      className={`search-quick-return-card ${isActive ? 'active' : ''}`}
                       type="button"
                       onClick={() =>
                         playStation(station, {
@@ -457,10 +459,19 @@ export const Discover = () => {
                         })
                       }
                     >
-                      <span className="search-mini-chip-label">{station.name}</span>
-                      <strong className="search-mini-chip-meta">
-                        {isActive ? t('common.play') : station.country || t('common.unknown')}
-                      </strong>
+                      <StationArtwork station={station} size="sm" />
+                      <div className="search-quick-return-copy">
+                        <div className="search-quick-return-name">{station.name}</div>
+                        <div className="search-quick-return-meta">
+                          {station.country || t('common.unknown')}
+                        </div>
+                      </div>
+                      <span
+                        className="search-quick-return-play"
+                        aria-hidden="true"
+                      >
+                        {isActive && player.isPlaying ? '❚❚' : '▶'}
+                      </span>
                     </button>
                   );
                 })}
@@ -468,40 +479,111 @@ export const Discover = () => {
             </div>
           ) : null}
 
-          <div className="glass-card search-results-card">
-            <div className="search-results-head-minimal">
-              <div className="section-title">{t('search.resultsTitle')}</div>
-              <div className="search-results-head-actions">
+          {stationSearch.continentCounts.length ? (
+            <div className="search-section">
+              <div className="search-section-head">
+                <span className="search-section-label">{t('search.scopeRegion')}</span>
+              </div>
+              <div className="search-rail search-rail-continent">
                 <button
-                  className="chip active search-play-all-btn"
+                  className={`search-rail-chip ${
+                    stationSearch.continentFilter === 'All' ? 'active' : ''
+                  }`}
                   type="button"
-                  onClick={startSearchRadio}
-                  disabled={!searchQueue.length}
+                  onClick={() => stationSearch.setContinentFilter('All')}
                 >
-                  {t('search.playAllResults')}
+                  <span className="search-rail-chip-label">{t('discover.regionAll')}</span>
                 </button>
-                <div className="search-results-meta">
-                  <span>{t('common.view')}</span>
-                  <strong>
-                    {rankedSearchResults.length}/{stationSearch.searchTotal}
-                  </strong>
-                </div>
+                {stationSearch.continentCounts.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`search-rail-chip ${
+                      stationSearch.continentFilter === item.id ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() =>
+                      stationSearch.setContinentFilter(
+                        stationSearch.continentFilter === item.id ? 'All' : item.id
+                      )
+                    }
+                  >
+                    <span className="search-rail-chip-label">{item.id}</span>
+                    <strong className="search-rail-chip-count">{item.count}</strong>
+                  </button>
+                ))}
               </div>
             </div>
-            {stationSearch.searchError ? <div className="error">{stationSearch.searchError}</div> : null}
+          ) : null}
+
+          {stationSearch.visibleCountryBuckets.length ? (
+            <div className="search-section">
+              <div className="search-section-head">
+                <span className="search-section-label">
+                  {t('home.searchCountrySection') || 'Страны'}
+                </span>
+              </div>
+              <div className="search-rail">
+                {stationSearch.visibleCountryBuckets.slice(0, 12).map((bucket) => (
+                  <button
+                    key={bucket.key}
+                    className={`search-rail-chip ${
+                      stationSearch.countryFilter === bucket.country ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() =>
+                      stationSearch.setCountryFilter(
+                        stationSearch.countryFilter === bucket.country ? 'All' : bucket.country
+                      )
+                    }
+                  >
+                    <span className="search-rail-chip-label">{bucket.country}</span>
+                    <strong className="search-rail-chip-count">{bucket.count}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {stationSearch.featuredTags.length ? (
+            <div className="search-section">
+              <div className="search-section-head">
+                <span className="search-section-label">{t('discover.tagTitle')}</span>
+              </div>
+              <div className="search-rail">
+                {stationSearch.featuredTags.map((tag) => (
+                  <button
+                    key={tag}
+                    className={`search-rail-chip ${
+                      stationSearch.tagFilter === tag ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() =>
+                      stationSearch.setTagFilter(stationSearch.tagFilter === tag ? 'All' : tag)
+                    }
+                  >
+                    <span className="search-rail-chip-label">{tag}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {showStations && (queryActive || hasResults || showSkeleton) ? (
+        <>
+          <div className="glass-card search-results-card-v3">
+            {stationSearch.searchError ? (
+              <div className="error">{stationSearch.searchError}</div>
+            ) : null}
             <div className="search-results-shell">
-              {stationSearch.searchLoading && !stationSearch.results.length ? (
-                // While the very first request is in flight on a cold
-                // entry to /search, render skeleton rows instead of a
-                // bare "Загрузка..." string. Six rows of pulsing
-                // placeholders look like content arriving rather
-                // than "page is broken, still loading."
+              {showSkeleton ? (
                 <div className="search-results-skeleton" aria-busy="true">
                   {Array.from({ length: 6 }).map((_, index) => (
                     <div key={index} className="search-results-skeleton-row" />
                   ))}
                 </div>
-              ) : rankedSearchResults.length ? (
+              ) : hasResults ? (
                 compactResults ? (
                   <div className="search-result-grid">
                     {rankedSearchResults.slice(0, 24).map((station) => (
@@ -522,7 +604,13 @@ export const Discover = () => {
                   />
                 )
               ) : (
-                <div className="empty-state">{t('stationTable.empty')}</div>
+                <div className="search-empty-state">
+                  <strong>{t('stationTable.empty')}</strong>
+                  <span>
+                    {t('home.quickSearchNoResultsCopy') ||
+                      'Попробуй другое название, страну или жанр.'}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -540,7 +628,7 @@ export const Discover = () => {
           ) : null}
           <div className="scroll-sentinel" ref={stationSearch.sentinelRef} />
         </>
-      ) : (
+      ) : !showStations ? (
         <>
           <div className="glass-card search-results-card">
             <div className="search-results-head-minimal">
@@ -611,7 +699,7 @@ export const Discover = () => {
             </div>
           ) : null}
         </>
-      )}
+      ) : null}
     </section>
   );
 };
