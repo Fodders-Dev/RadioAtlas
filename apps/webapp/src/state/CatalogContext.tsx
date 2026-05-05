@@ -63,9 +63,18 @@ const AREA_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATION_BY_ID_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const SUMMARY_CACHE_KEY = 'summary:v2';
 const AREAS_CACHE_PREFIX = 'areas:v5';
-const POINTS_CACHE_KEY = 'points:v1';
+// Bumped to v3 to invalidate every user's stale cache: schemaVersion 3
+// of /catalog/points adds `state` and `name`, and we hit a regression
+// where a transient empty 200 response got cached and stuck because
+// fetchPoints would happily return a 0-item cache. Both are fixed
+// going forward — the version bump pours fresh data on top.
+const POINTS_CACHE_KEY = 'points:v3';
 const POINTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MIN_GLOBE_MAPPED_STATIONS = 1400;
+// A non-empty payload must have at least this many items to be
+// considered usable. Below the threshold we treat the cache as
+// poisoned and refetch from the network.
+const MIN_GLOBE_POINTS_ITEMS = 5000;
 
 const loadFallbackCatalog = () => import('../lib/radioBrowserFallback');
 
@@ -376,23 +385,34 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchPoints = useCallback(async () => {
     const cached = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY);
-    if (cached) {
+    // Only honour the cache when it actually has stations in it.
+    // We've seen cases where a transient bad upstream response got
+    // cached as a 200 with `items: []` and stuck for the full 24 h
+    // TTL — refetching every visit afterward is much cheaper than
+    // shipping a coord-less globe.
+    if (cached && (cached.payload.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
       return cached.payload;
     }
     let response: CatalogPointsResponse;
     try {
       response = await requestJson<CatalogPointsResponse>('/catalog/points');
-      await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+      // Same defence on the fresh response — never persist an empty
+      // payload, otherwise we'll just rewrite the same poison cache.
+      if ((response.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
+        await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+      }
     } catch {
       const stale = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY, {
         allowExpired: true
       });
-      if (stale) {
+      if (stale && (stale.payload.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
         response = stale.payload;
       } else {
         const fallback = await loadFallbackCatalog();
         response = await fallback.listRadioBrowserFallbackPoints();
-        await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+        if ((response.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
+          await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+        }
       }
     }
     return response;
