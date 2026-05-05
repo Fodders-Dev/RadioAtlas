@@ -280,6 +280,7 @@ export const GlobeScreen = () => {
             onPick={handlePick}
             onReticleHover={handleReticleHover}
             onReticleSettle={handleReticleSettle}
+            playbackActive={Boolean(player.isPlaying)}
             hintText=""
             statusText=""
             immersive

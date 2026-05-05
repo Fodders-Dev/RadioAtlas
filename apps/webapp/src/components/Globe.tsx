@@ -37,10 +37,16 @@ type GlobeProps = {
   // soft-highlight the candidate station as the globe moves under the
   // crosshair.
   onReticleHover?: (stationId: string | null) => void;
-  // Fires after the camera has been still for ~400 ms with the same
+  // Fires after the camera has been still for ~900 ms with the same
   // station as `onReticleHover` reported. The parent treats this as a
   // "play it" signal — Radio Garden style auto-tune.
   onReticleSettle?: (stationId: string) => void;
+  // Lets the reticle drop out of its `tuning` state the moment audio
+  // actually starts. When the parent flips this to true while the
+  // reticle is mid-tune the ring snaps to `idle` immediately instead
+  // of waiting for the fallback timer. False during streaming /
+  // buffering / paused.
+  playbackActive?: boolean;
   totalCount?: number;
   geoCount?: number;
   zoomLevel?: number;
@@ -520,6 +526,7 @@ export const Globe = ({
   onPick,
   onReticleHover,
   onReticleSettle,
+  playbackActive,
   zoomLevel,
   onZoomChange,
   hintText,
@@ -622,6 +629,15 @@ export const Globe = ({
     reticleStateRef.current = next;
     setReticleState(next);
   };
+
+  // When the parent reports playback has actually started while
+  // we're mid-tune, snap straight out — the user just heard the
+  // stream connect, no point in waiting out the fallback timer.
+  useEffect(() => {
+    if (!playbackActive) return;
+    if (reticleStateRef.current !== 'tuning') return;
+    setReticle('idle');
+  }, [playbackActive]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
