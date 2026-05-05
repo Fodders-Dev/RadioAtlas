@@ -22,7 +22,11 @@ const USER_AGENT = 'RadioAtlas/1.0';
 const CACHE_TTL_MS = 1000 * 60 * 30;
 const PAGE_LIMIT = 10000;
 const FAST_LIMIT = 10000;
-const MAX_PAGES = 5;
+// Radio Browser publishes ~80–110k stations on most days. We pull up to
+// 12 pages of 10k each so the globe can paint the long tail (русские
+// FM/интернет, Latam, Africa, etc.) instead of capping at the top 50k.
+// Override per-deploy via CATALOG_MAX_PAGES if memory is tight.
+const MAX_PAGES = Math.max(1, Number(process.env.CATALOG_MAX_PAGES) || 12);
 const EXTRACTOR_URL = process.env.EXTRACTOR_URL || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';

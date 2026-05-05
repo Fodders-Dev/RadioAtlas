@@ -470,6 +470,29 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
   return data;
 };
 
+// Compact per-station points payload for the immersive globe surface.
+// Sends only what's needed to draw a dot and identify it; the full
+// station record is fetched on selection through /catalog/stations/:id.
+const buildPointsResponse = (stations: CatalogStation[]) => {
+  const items: Array<{ id: string; lat: number; lon: number; country: string }> = [];
+  stations.forEach((station) => {
+    const lat = asNumber(station.geo_lat);
+    const lon = asNumber(station.geo_long);
+    if (lat === null || lon === null) return;
+    items.push({
+      id: station.stationuuid,
+      lat,
+      lon,
+      country: normalizeText(station.country) || ''
+    });
+  });
+  return {
+    items,
+    mappedStations: items.length,
+    totalStations: stations.length
+  };
+};
+
 export const createCatalogService = (dependencies: CatalogDependencies) => ({
   getCatalog: async (mode: 'fast' | 'full') => getProfiledCatalog(mode, dependencies),
   getSummary: async (seed: number) => buildCatalogSummary(await getProfiledCatalog('full', dependencies), seed),
@@ -479,6 +502,7 @@ export const createCatalogService = (dependencies: CatalogDependencies) => ({
     buildAreaListResponse(await getProfiledCatalog('full', dependencies), zoomLevel),
   listAreaStations: async (areaId: string, limit: number, cursor: number) =>
     buildAreaStationsResponse(await getProfiledCatalog('full', dependencies), areaId, limit, cursor),
+  listPoints: async () => buildPointsResponse(await getProfiledCatalog('full', dependencies)),
   getStationById: async (stationId: string) => {
     const stations = await getProfiledCatalog('full', dependencies);
     const item = stations.find((station) => station.stationuuid === stationId) || null;

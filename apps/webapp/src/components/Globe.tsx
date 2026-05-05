@@ -202,6 +202,9 @@ export const Globe = ({
 
   useEffect(() => {
     if (!focusPoint) return;
+    // Don't yank the planet out from under an active drag — that's how
+    // the globe ended up feeling magnetic when picking nearby regions.
+    if (draggingRef.current) return;
     const targetY = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, -focusPoint.lat));
     const targetRotation: [number, number, number] = [-focusPoint.lon, targetY, 0];
     if (immersive) {
@@ -356,7 +359,13 @@ export const Globe = ({
         .clipAngle(90);
 
       const rotation = rotationRef.current;
-      if (targetRotationRef.current) {
+      if (draggingRef.current) {
+        // Active drag wins over everything: rotation is already being
+        // updated in pointermove, and any outstanding focus tween or
+        // inertia must NOT pull the globe back toward a previous pick.
+        targetRotationRef.current = null;
+        dragVelocityRef.current = { x: 0, y: 0, sampledAt: 0 };
+      } else if (targetRotationRef.current) {
         const [targetX, targetY] = targetRotationRef.current;
         rotation[0] += (targetX - rotation[0]) * 0.08;
         rotation[1] += (targetY - rotation[1]) * 0.08;
@@ -369,9 +378,6 @@ export const Globe = ({
         }
         // A focus snap overrides any leftover drag inertia.
         dragVelocityRef.current = { x: 0, y: 0, sampledAt: 0 };
-      } else if (draggingRef.current) {
-        // Active drag: rotation is already updated in pointermove. Nothing
-        // else to do; we just want the inertia memory fresh.
       } else if (inertiaSpeed > 0.04) {
         // Apply leftover pointer momentum after release. The decay is
         // tuned per frame, scaled by the actual frame delta so heavy
@@ -761,9 +767,9 @@ export const Globe = ({
       }
 
       const baseDot = immersive
-        ? Math.max(2.3, 4.2 - (currentScale - 1) * 0.35)
+        ? Math.max(1.6, 3.0 - (currentScale - 1) * 0.18)
         : Math.max(2.2, 4.4 - (currentScale - 1) * 0.55);
-      const activeDot = baseDot + (immersive ? 2.8 : 2.2);
+      const activeDot = baseDot + (immersive ? 3.4 : 2.2);
       const pulse = focusPulseRef.current;
       focusPulseRef.current = Math.max(0, pulse - (deviceProfile.lowPower ? 0.05 : 0.02));
 
@@ -846,14 +852,22 @@ export const Globe = ({
         }
       >;
 
-      const featuredPointLimit = immersive ? (deviceProfile.lowPower ? 42 : 72) : Number.POSITIVE_INFINITY;
+      // In immersive mode every non-active point renders as a small flat
+      // green dot (Radio Garden sprinkle). Only the selected and the
+      // playing station get the full halo/glow treatment so the eye is
+      // drawn to them without the planet looking like a smear.
+      const featuredPointLimit = immersive
+        ? deviceProfile.lowPower
+          ? 8
+          : 16
+        : Number.POSITIVE_INFINITY;
       visiblePoints.forEach((point, index) => {
         const detailedPoint =
           !immersive || point.isSelected || point.isActive || index < featuredPointLimit;
         if (!detailedPoint) {
-          const simpleRadius = Math.max(1.15, Math.min(2.6, point.pointRadius * 0.42));
+          const simpleRadius = Math.max(1.0, Math.min(2.2, point.pointRadius * 0.45));
           ctx.beginPath();
-          ctx.fillStyle = 'rgba(0, 255, 132, 0.82)';
+          ctx.fillStyle = 'rgba(80, 255, 162, 0.86)';
           ctx.arc(point.x, point.y, simpleRadius, 0, Math.PI * 2);
           ctx.fill();
           return;
@@ -1037,6 +1051,11 @@ export const Globe = ({
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     event.preventDefault();
     setAutoRotate(false);
+    // Drag wins over any pending focus snap or leftover inertia. Without
+    // this, after picking a region the globe magnetically pulls back to
+    // it whenever you try to spin.
+    targetRotationRef.current = null;
+    dragVelocityRef.current = { x: 0, y: 0, sampledAt: 0 };
     draggingRef.current = true;
     dragMovedRef.current = false;
     dragDistanceRef.current = 0;

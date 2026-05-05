@@ -59,6 +59,15 @@ export const registerCatalogRoutes = (
     }
   });
 
+  app.get('/catalog/points', async (_req, res) => {
+    try {
+      res.set('Cache-Control', 'public, max-age=600');
+      res.json(await catalog.listPoints());
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : 'Catalog points failed' });
+    }
+  });
+
   app.get('/catalog/areas/:id/stations', async (req, res) => {
     try {
       res.json(

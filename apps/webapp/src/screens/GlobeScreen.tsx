@@ -8,7 +8,7 @@ import { useDebounce } from '../lib/useDebounce';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
-import type { CatalogArea } from '../domain/contracts';
+import type { CatalogArea, CatalogStationPoint } from '../domain/contracts';
 import type { StationLite } from '../types';
 import './discover.css';
 
@@ -17,13 +17,15 @@ const Globe = lazy(() => import('../components/Globe').then((mod) => ({ default:
 
 export const GlobeScreen = () => {
   const { t } = useLocale();
-  const { summary, summaryLoading, fetchAreas, fetchAreaStations } = useCatalog();
+  const { summary, summaryLoading, fetchAreas, fetchAreaStations, fetchPoints, fetchStationById } =
+    useCatalog();
   const { favorites, recent, followedRegions, toggleFollowRegion } = useLibrary();
-  const { player, playStationQueue } = usePlayback();
+  const { player, playStation, playStationQueue } = usePlayback();
   const { setActiveSection, setLibraryTab, globeFocusRegionId, setGlobeFocusRegionId } = useShell();
   const isCompactLayout = useCompactLayout();
   const [zoomLevel, setZoomLevel] = useState(1);
   const [areas, setAreas] = useState<CatalogArea[]>([]);
+  const [points, setPoints] = useState<CatalogStationPoint[]>([]);
   const [mappedStations, setMappedStations] = useState(0);
   const [totalStations, setTotalStations] = useState(0);
   const [areasLoading, setAreasLoading] = useState(false);
@@ -69,6 +71,27 @@ export const GlobeScreen = () => {
     };
   }, [areaZoomLevel, fetchAreas, t]);
 
+  // Per-station points: fetched once. The globe paints these as a dense
+  // green sprinkle once you start zooming in (~1.6+), so the planet feels
+  // like a real radio map instead of fat country pills.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetchPoints();
+        if (cancelled) return;
+        setPoints(response.items);
+        setMappedStations((prev) => Math.max(prev, response.mappedStations));
+        setTotalStations((prev) => Math.max(prev, response.totalStations));
+      } catch {
+        // Areas overview already covers the empty case; silently fall back.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPoints]);
+
   useEffect(() => {
     if (!selectedAreaId) return;
     if (areaStationCache[selectedAreaId]) return;
@@ -101,18 +124,30 @@ export const GlobeScreen = () => {
   const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
   const selectedArea = selectedAreaId ? areaById.get(selectedAreaId) || null : null;
   const selectedStations = selectedArea ? areaStationCache[selectedArea.id] || [] : [];
-  const globePoints = useMemo(
-    () =>
-      areas.map((area) => ({
-        id: area.id,
-        lat: area.lat,
-        lon: area.lon,
-        label: area.label,
-        subtitle: area.subtitle,
-        count: area.count
-      })),
-    [areas]
-  );
+  // Below zoom 1.6 we keep area cluster pills (a clean overview); above
+  // that we paint every individual station as a small dot — the Radio
+  // Garden style sprinkle the user is asking for. We fall back to the
+  // area pills if /catalog/points has not loaded yet.
+  const useStationPoints = points.length > 0 && zoomLevel >= 1.6;
+  const globePoints = useMemo(() => {
+    if (useStationPoints) {
+      return points.map((point) => ({
+        id: `station:${point.id}`,
+        lat: point.lat,
+        lon: point.lon,
+        label: '',
+        subtitle: point.country || ''
+      }));
+    }
+    return areas.map((area) => ({
+      id: area.id,
+      lat: area.lat,
+      lon: area.lon,
+      label: area.label,
+      subtitle: area.subtitle,
+      count: area.count
+    }));
+  }, [areas, points, useStationPoints]);
 
   const activeAreaId = useMemo(() => {
     if (!player.current) return undefined;
@@ -190,6 +225,24 @@ export const GlobeScreen = () => {
   };
 
   const handleSelectArea = (id: string) => {
+    // Station-uuid picks (raw points mode) bypass the area flow entirely
+    // and play the station like the Radio Garden tap-to-tune behaviour.
+    if (id.startsWith('station:')) {
+      const stationId = id.slice('station:'.length);
+      void (async () => {
+        try {
+          const station = await fetchStationById(stationId);
+          if (!station) return;
+          playStation(station, {
+            sourceId: 'globe-station',
+            sourceLabel: station.country || station.name
+          });
+        } catch {
+          // Silently ignore — the user will see no playback start.
+        }
+      })();
+      return;
+    }
     const area = areaById.get(id);
     if (!area) return;
     if (id === selectedAreaId) {

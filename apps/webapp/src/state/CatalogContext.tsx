@@ -11,6 +11,7 @@ import {
 import type {
   CatalogAreaListResponse,
   CatalogAreaStationsResponse,
+  CatalogPointsResponse,
   CatalogSearchResponse,
   CatalogSummary
 } from '../domain/contracts';
@@ -42,6 +43,7 @@ type CatalogContextValue = {
   ) => Promise<CatalogSummary | null>;
   searchStations: (input: SearchStationsInput) => Promise<CatalogSearchResponse>;
   fetchAreas: (zoomLevel: number) => Promise<CatalogAreaListResponse>;
+  fetchPoints: () => Promise<CatalogPointsResponse>;
   fetchAreaStations: (
     areaId: string,
     options?: { limit?: number; cursor?: string | null }
@@ -61,6 +63,8 @@ const AREA_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATION_BY_ID_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const SUMMARY_CACHE_KEY = 'summary:v2';
 const AREAS_CACHE_PREFIX = 'areas:v5';
+const POINTS_CACHE_KEY = 'points:v1';
+const POINTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MIN_GLOBE_MAPPED_STATIONS = 1400;
 
 const loadFallbackCatalog = () => import('../lib/radioBrowserFallback');
@@ -370,6 +374,30 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     [requestJson]
   );
 
+  const fetchPoints = useCallback(async () => {
+    const cached = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY);
+    if (cached) {
+      return cached.payload;
+    }
+    let response: CatalogPointsResponse;
+    try {
+      response = await requestJson<CatalogPointsResponse>('/catalog/points');
+      await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+    } catch {
+      const stale = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY, {
+        allowExpired: true
+      });
+      if (stale) {
+        response = stale.payload;
+      } else {
+        const fallback = await loadFallbackCatalog();
+        response = await fallback.listRadioBrowserFallbackPoints();
+        await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+      }
+    }
+    return response;
+  }, [requestJson]);
+
   const fetchAreaStations = useCallback(
     async (areaId: string, options?: { limit?: number; cursor?: string | null }) => {
       const params = new URLSearchParams();
@@ -472,6 +500,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       refreshSummary,
       searchStations,
       fetchAreas,
+      fetchPoints,
       fetchAreaStations,
       fetchStationById,
       rememberStations,
@@ -482,6 +511,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       clearCatalogCache,
       fetchAreaStations,
       fetchAreas,
+      fetchPoints,
       fetchStationById,
       getStationById,
       refreshSummary,

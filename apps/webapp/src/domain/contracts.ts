@@ -448,3 +448,16 @@ export type CatalogAreaStationsResponse = {
   items: StationLite[];
   nextCursor: string | null;
 };
+
+export type CatalogStationPoint = {
+  id: string;
+  lat: number;
+  lon: number;
+  country: string;
+};
+
+export type CatalogPointsResponse = {
+  items: CatalogStationPoint[];
+  mappedStations: number;
+  totalStations: number;
+};

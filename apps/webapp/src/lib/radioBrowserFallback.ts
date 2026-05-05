@@ -489,6 +489,25 @@ export const listRadioBrowserFallbackAreas = async (
   };
 };
 
+export const listRadioBrowserFallbackPoints = async () => {
+  const dataset = await loadDataset();
+  const items: Array<{ id: string; lat: number; lon: number; country: string }> = [];
+  dataset.stations.forEach((station) => {
+    if (station.geo_lat === null || station.geo_long === null) return;
+    items.push({
+      id: station.stationuuid,
+      lat: station.geo_lat,
+      lon: station.geo_long,
+      country: station.country || ''
+    });
+  });
+  return {
+    items,
+    mappedStations: items.length,
+    totalStations: dataset.stations.length
+  };
+};
+
 export const listRadioBrowserFallbackAreaStations = async (
   areaId: string,
   options?: { limit?: number; cursor?: string | null }
