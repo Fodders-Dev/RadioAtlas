@@ -1539,6 +1539,13 @@ test('home summary error banner is one-shot and clears after summary succeeds', 
       body: JSON.stringify({ error: 'fallback fixture failed' })
     })
   );
+  await page.route('**/json/stations/search**', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'fallback fixture failed' })
+    })
+  );
 
   await page.goto('/');
   await expect(page.locator('.home-status-banner')).toBeVisible();
@@ -2638,9 +2645,9 @@ test('cached summary renders home while catalog summary is offline', async ({ pa
       window.localStorage.setItem(
         storageKey,
         JSON.stringify({
-          'summary:v1': {
+          'summary:v2': {
             version: 1,
-            key: 'summary:v1',
+            key: 'summary:v2',
             payload: cachedSummary,
             createdAt: now,
             expiresAt: now + 60 * 60 * 1000

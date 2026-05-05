@@ -58,6 +58,26 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Mobile performance gates
   - Added tests for CDN-free cold load, lazy chunk isolation, cached summary offline render, fallback catalog lazy load, and no mount-time persistent rewrites.
 
+## Mobile Visual QA Sprint (done)
+
+- [x] Stage A: fixed bottom stack
+  - Add one safe bottom spacing contract for Home, Search, Library, and Globe scroll surfaces.
+  - Last station cards must scroll above mini player + bottom nav on 360/390/412.
+- [x] Stage B: Globe dense layer cleanup
+  - Reduce competing text in the dense focus sheet.
+  - Keep Tune Here controls and the reticle visually separated from the sheet.
+  - Replace the decorative globe texture path with a mobile-safe satellite globe plus zoomed satellite map mode.
+  - Invalidate stale tiny geo caches and load a larger geo fallback dataset when the API is unavailable.
+- [x] Stage C: mobile topbar fit
+  - Prevent long section titles like `Медиатека` from clipping on 360px.
+  - Compact status chip copy on dense widths.
+- [x] Stage D: Search result density
+  - Make dense search result cards readable first: wider title, less duplicated action chrome.
+  - Keep quick play/favorite reachable without horizontal overflow.
+- [x] Stage E: Full Player queue polish
+  - Reduce queue-row control noise on 360px.
+  - Keep current/upcoming actions explicit enough for Telegram WebView.
+
 ## Theme Studio (in progress)
 
 - [x] 17.0 Hide Webamp behind easter-egg gate
@@ -96,4 +116,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: live Telegram mobile QA on low-power Android/iOS WebView for cold Home, cached summary recovery, one-tap radio failover, and Full Player queue editing with real catalog data; keep Theme Studio local-only until a separate review opens Stage 18.
+Next: live Telegram mobile QA on low-power Android/iOS WebView for cold Home, Search, Globe, Library, and Full Player after the visual QA fixes; keep Theme Studio local-only until a separate review opens Stage 18.

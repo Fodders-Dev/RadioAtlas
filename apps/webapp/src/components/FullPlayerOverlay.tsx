@@ -172,6 +172,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             type="button"
             onClick={() => queue.moveAtIndex(absoluteIndex, -1)}
             disabled={!canMoveUp}
+            data-queue-action="move-up"
             aria-label={`${t('queue.moveUp')}: ${station.name}`}
           >
             <Icon>{actionIcon.up}</Icon>
@@ -181,6 +182,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             type="button"
             onClick={() => queue.moveAtIndex(absoluteIndex, 1)}
             disabled={!canMoveDown}
+            data-queue-action="move-down"
             aria-label={`${t('queue.moveDown')}: ${station.name}`}
           >
             <Icon>{actionIcon.down}</Icon>
@@ -189,6 +191,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             className="full-player-queue-btn danger"
             type="button"
             onClick={() => queue.removeAtIndex(absoluteIndex)}
+            data-queue-action="remove"
             aria-label={`${t('queue.remove')}: ${station.name}`}
           >
             <Icon>{actionIcon.remove}</Icon>

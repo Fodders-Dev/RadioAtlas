@@ -35,9 +35,11 @@ export const GlobeScreen = () => {
   const [tuneRequestKey, setTuneRequestKey] = useState(0);
   const [spinRequestKey, setSpinRequestKey] = useState(0);
   const [autoRotateEnabled, setAutoRotateEnabled] = useState(false);
+  const [focusedRegionLabel, setFocusedRegionLabel] = useState<string | null>(null);
   const selectedAnchorRef = useRef<{ lat: number; lon: number } | null>(null);
   const seededAreaRef = useRef(false);
   const debouncedZoom = useDebounce(zoomLevel, 120);
+  const areaZoomLevel = isCompactLayout ? Math.max(debouncedZoom + 1.2, 4) : debouncedZoom;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +47,7 @@ export const GlobeScreen = () => {
     setAreasError(null);
     void (async () => {
       try {
-        const response = await fetchAreas(debouncedZoom);
+        const response = await fetchAreas(areaZoomLevel);
         if (cancelled) return;
         setAreas(response.items);
         setMappedStations(response.mappedStations);
@@ -65,7 +67,7 @@ export const GlobeScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, [debouncedZoom, fetchAreas, t]);
+  }, [areaZoomLevel, fetchAreas, t]);
 
   useEffect(() => {
     if (!selectedAreaId) return;
@@ -139,26 +141,41 @@ export const GlobeScreen = () => {
   }, [favorites, player.current, recent]);
 
   const isSelectedRegionFollowed = selectedArea
-    ? followedRegions.some((region) => region.id === selectedArea.id)
+    ? followedRegions.some(
+        (region) =>
+          region.id === selectedArea.id ||
+          Boolean(focusedRegionLabel && region.label.toLowerCase() === focusedRegionLabel.toLowerCase())
+      )
     : false;
 
   useEffect(() => {
     if (!globeFocusRegionId || !areas.length) return;
+    const requestedRegion =
+      followedRegions.find(
+        (region) =>
+          region.id.toLowerCase() === globeFocusRegionId.toLowerCase() ||
+          region.label.toLowerCase() === globeFocusRegionId.toLowerCase()
+      ) || null;
+    const requestedLabel = requestedRegion?.label || globeFocusRegionId;
+    const normalizedRequest = requestedLabel.toLowerCase();
+    const regionMatches = areas.filter(
+      (area) =>
+        area.id.toLowerCase() === globeFocusRegionId.toLowerCase() ||
+        area.label.toLowerCase() === normalizedRequest ||
+        area.subtitle.toLowerCase() === normalizedRequest
+    );
     const targetArea =
       areaById.get(globeFocusRegionId) ||
-      areas.find(
-        (area) =>
-          area.id.toLowerCase() === globeFocusRegionId.toLowerCase() ||
-          area.label.toLowerCase() === globeFocusRegionId.toLowerCase()
-      ) ||
+      regionMatches.sort((left, right) => right.count - left.count)[0] ||
       null;
     if (!targetArea) return;
     seededAreaRef.current = true;
     selectedAnchorRef.current = { lat: targetArea.lat, lon: targetArea.lon };
+    setFocusedRegionLabel(requestedRegion?.scope === 'country' ? requestedRegion.label : null);
     setSelectedAreaId(targetArea.id);
     setZoomLevel((value) => Math.max(value, 1));
     setGlobeFocusRegionId(null);
-  }, [areaById, areas, globeFocusRegionId, setGlobeFocusRegionId]);
+  }, [areaById, areas, followedRegions, globeFocusRegionId, setGlobeFocusRegionId]);
 
   const openLibraryRegions = () => {
     setLibraryTab('collections');
@@ -167,6 +184,7 @@ export const GlobeScreen = () => {
 
   const clearSelection = () => {
     selectedAnchorRef.current = null;
+    setFocusedRegionLabel(null);
     setSelectedAreaId(null);
     setZoomLevel(1);
   };
@@ -179,6 +197,7 @@ export const GlobeScreen = () => {
       return;
     }
     selectedAnchorRef.current = { lat: area.lat, lon: area.lon };
+    setFocusedRegionLabel(null);
     setSelectedAreaId(id);
   };
 
@@ -246,11 +265,12 @@ export const GlobeScreen = () => {
 
   const focusStations = selectedArea ? selectedStations : fallbackStations;
   const selectedLeadStation = selectedStations[0] || null;
+  const selectedAreaTitle = focusedRegionLabel && selectedArea ? focusedRegionLabel : selectedArea?.label;
   const playRegionRadio = () => {
     if (!selectedStations.length || !selectedArea) return;
     playStationQueue(selectedStations, {
       sourceId: `globe-region-${selectedArea.id}`,
-      sourceLabel: selectedArea.label
+      sourceLabel: selectedAreaTitle || selectedArea.label
     });
   };
 
@@ -285,6 +305,7 @@ export const GlobeScreen = () => {
               hintText={
                 isCompactLayout ? t('globe.controlsHintMobile') : t('globe.controlsHintDesktop')
               }
+              immersive={isCompactLayout}
               statusText={t('globe.status', {
                 areas: areas.length,
                 mapped: mappedStations,
@@ -293,8 +314,29 @@ export const GlobeScreen = () => {
             />
           </Suspense>
         </div>
+        <div className="globe-zoom-controls" aria-label="Zoom">
+          <button
+            className="globe-zoom-btn"
+            type="button"
+            onClick={() => setZoomLevel((value) => Math.min(10, value + 0.75))}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          <button
+            className="globe-zoom-btn"
+            type="button"
+            onClick={() => setZoomLevel((value) => Math.max(0.5, value - 0.75))}
+            aria-label="Zoom out"
+          >
+            -
+          </button>
+        </div>
         <div className="globe-command-footer">
-          <div className="chip-row globe-command-actions">
+          <div
+            className="chip-row globe-command-actions"
+            data-has-selection={selectedArea ? 'true' : 'false'}
+          >
             <button
               className="chip active globe-tune-chip"
               type="button"
@@ -342,8 +384,12 @@ export const GlobeScreen = () => {
               selectedArea
                 ? {
                     id: selectedArea.id,
-                    label: selectedArea.label,
-                    scope: selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count }) ? 'area' : 'country'
+                    label: selectedAreaTitle || selectedArea.label,
+                    scope: focusedRegionLabel
+                      ? 'country'
+                      : selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count })
+                        ? 'area'
+                        : 'country'
                   }
                 : null
             }
@@ -352,7 +398,7 @@ export const GlobeScreen = () => {
           />
           <div>
             <div className="section-title">
-              {selectedArea ? selectedArea.label : t('globe.nearby')}
+              {selectedArea ? selectedAreaTitle || selectedArea.label : t('globe.nearby')}
             </div>
             <div className="globe-focus-copy">
               {selectedArea
@@ -389,9 +435,10 @@ export const GlobeScreen = () => {
                 onClick={() =>
                   toggleFollowRegion({
                     id: selectedArea.id,
-                    label: selectedArea.label,
-                    scope:
-                      selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count })
+                    label: selectedAreaTitle || selectedArea.label,
+                    scope: focusedRegionLabel
+                      ? 'country'
+                      : selectedArea.subtitle === t('globe.areaSubtitle', { count: selectedArea.count })
                         ? 'area'
                         : 'country'
                   })
@@ -404,7 +451,20 @@ export const GlobeScreen = () => {
               </button>
             </div>
             {selectedAreaError ? <div className="error">{selectedAreaError}</div> : null}
-            {selectedAreaLoading && !selectedStations.length ? (
+            {isCompactLayout ? (
+              <button
+                className="station-row station-compact-toggle globe-dense-station-line"
+                type="button"
+                onClick={playRegionRadio}
+                disabled={!selectedLeadStation}
+                data-globe-dense-station
+              >
+                <span className="globe-dense-station-name">
+                  {selectedLeadStation?.name || selectedArea.subtitle}
+                </span>
+                <span className="globe-dense-station-action">{t('common.play')}</span>
+              </button>
+            ) : selectedAreaLoading && !selectedStations.length ? (
               <div className="empty-state">{t('common.loading')}</div>
             ) : selectedStations.length ? (
               <StationTable

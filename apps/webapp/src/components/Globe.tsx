@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent, PointerEvent } from 'react';
+import type { MouseEvent, PointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { loadGlobeAssets, type GlobeAssets } from './globe/assets';
 import { findNearestAreaToRotation } from './globe/selection';
@@ -29,6 +29,7 @@ type GlobeProps = {
   spinRequestKey?: number;
   onAutoRotateChange?: (enabled: boolean) => void;
   hintText?: string;
+  immersive?: boolean;
   statusText?: string;
 };
 
@@ -37,9 +38,51 @@ const MAX_ZOOM = 10;
 const WHEEL_STEP = 0.25;
 const DRAG_THRESHOLD = 6;
 const TILT_LIMIT = 80;
+const TILE_SIZE = 256;
+const DEFAULT_SATELLITE_TILE_TEMPLATE =
+  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const SATELLITE_TILE_TEMPLATE =
+  import.meta.env.VITE_GLOBE_SATELLITE_TILE_URL || DEFAULT_SATELLITE_TILE_TEMPLATE;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const normalizeLongitudeDelta = (value: number) => ((((value + 540) % 360) + 360) % 360) - 180;
+
+const lonLatToWorldPixel = (lon: number, lat: number, zoom: number) => {
+  const boundedLat = clamp(lat, -85.05112878, 85.05112878);
+  const sinLat = Math.sin((boundedLat * Math.PI) / 180);
+  const worldSize = TILE_SIZE * 2 ** zoom;
+  return {
+    x: ((lon + 180) / 360) * worldSize,
+    y:
+      (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) *
+      worldSize,
+    worldSize
+  };
+};
+
+const satelliteTileUrl = (template: string, x: number, y: number, z: number) =>
+  template
+    .replace('{x}', String(x))
+    .replace('{y}', String(y))
+    .replace('{z}', String(z));
+
+type GlobeRenderState =
+  | { mode: 'sphere' }
+  | {
+      mode: 'map';
+      centerLat: number;
+      centerLon: number;
+      height: number;
+      latSpan: number;
+      lonSpan: number;
+      projection: 'equirect' | 'mercator';
+      centerPixelX?: number;
+      centerPixelY?: number;
+      worldSize?: number;
+      width: number;
+    };
 
 export const Globe = ({
   points,
@@ -56,6 +99,7 @@ export const Globe = ({
   spinRequestKey,
   onAutoRotateChange,
   hintText,
+  immersive = false,
   statusText
 }: GlobeProps) => {
   const deviceProfile = getDeviceProfile();
@@ -72,6 +116,11 @@ export const Globe = ({
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchRef = useRef<{ distance: number; scale: number } | null>(null);
   const projectionRef = useRef<any>(null);
+  const renderStateRef = useRef<GlobeRenderState>({ mode: 'sphere' });
+  const tileCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const textureRenderRef = useRef<{ canvas: HTMLCanvasElement; key: string } | null>(null);
+  const mapFrameRef = useRef<{ canvas: HTMLCanvasElement; key: string } | null>(null);
+  const lastDrawTimeRef = useRef(0);
   const scaleRef = useRef(1);
   const onZoomChangeRef = useRef(onZoomChange);
   const lastTuneRequestRef = useRef(0);
@@ -79,7 +128,7 @@ export const Globe = ({
 
   const [size, setSize] = useState({ width: 320, height: 320 });
   const [autoRotate, setAutoRotate] = useState(
-    () => !deviceProfile.lowPower && !deviceProfile.reducedMotion
+    () => !immersive && !deviceProfile.lowPower && !deviceProfile.reducedMotion
   );
   const [documentVisible, setDocumentVisible] = useState(
     () => typeof document === 'undefined' || !document.hidden
@@ -101,6 +150,16 @@ export const Globe = ({
     setScale(next);
     onZoomChangeRef.current?.(next);
   }, []);
+
+  const handleSurfaceWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const delta = Math.sign(event.deltaY);
+      commitScale(scaleRef.current - delta * WHEEL_STEP);
+    },
+    [commitScale]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -129,10 +188,16 @@ export const Globe = ({
   useEffect(() => {
     if (!focusPoint) return;
     const targetY = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, -focusPoint.lat));
-    targetRotationRef.current = [-focusPoint.lon, targetY, 0];
+    const targetRotation: [number, number, number] = [-focusPoint.lon, targetY, 0];
+    if (immersive) {
+      rotationRef.current = targetRotation;
+      targetRotationRef.current = null;
+    } else {
+      targetRotationRef.current = targetRotation;
+    }
     focusPulseRef.current = 1;
     setAutoRotate(false);
-  }, [focusPoint?.lat, focusPoint?.lon]);
+  }, [focusPoint?.lat, focusPoint?.lon, immersive]);
 
   useEffect(() => {
     if (typeof zoomLevel === 'number') {
@@ -206,7 +271,27 @@ export const Globe = ({
     if (!canvas || !documentVisible || !assets) return;
 
     let frame: number;
-    const draw = () => {
+    const draw = (timestamp = 0) => {
+      const mapLikely = immersive && scaleRef.current >= 2.7;
+      const moving =
+        draggingRef.current ||
+        autoRotate ||
+        Boolean(targetRotationRef.current) ||
+        focusPulseRef.current > 0.01;
+      const minFrameMs = mapLikely
+        ? deviceProfile.lowPower
+          ? 50
+          : 34
+        : moving
+          ? deviceProfile.lowPower
+            ? 56
+            : 34
+          : 90;
+      if (timestamp && timestamp - lastDrawTimeRef.current < minFrameMs) {
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+      lastDrawTimeRef.current = timestamp || performance.now();
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -221,7 +306,9 @@ export const Globe = ({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const baseRadius = Math.min(size.width, size.height) * 0.42;
+      const baseRadius = immersive
+        ? Math.min(size.height * 0.46, size.width * 0.86)
+        : Math.min(size.width, size.height) * 0.42;
       const radius = baseRadius * scale;
       const projection = assets.geoOrthographic()
         .translate([size.width / 2, size.height / 2])
@@ -247,9 +334,239 @@ export const Globe = ({
       projection.rotate(rotation);
       projectionRef.current = projection;
       const center: [number, number] = [-rotation[0], -rotation[1]];
+      const [projectionCenterX, projectionCenterY] = projection.translate() as [number, number];
+      const mapMode = immersive && scale >= 2.7 && Boolean(assets.earthTexture);
 
       const path = assets.geoPath(projection, ctx);
       const sphere = { type: 'Sphere' } as any;
+      const drawMapTexture = () => {
+        const texture = assets.earthTexture;
+        if (!texture) return false;
+        const centerLon = ((((center[0] + 180) % 360) + 360) % 360) - 180;
+        const centerLat = clamp(center[1], -78, 78);
+        const zoomPower = Math.max(1, Math.pow(scale, 1.42));
+        const lonSpan = clamp(360 / zoomPower, 10, 120);
+        const latSpan = clamp(lonSpan * (size.height / Math.max(1, size.width)), 8, 120);
+        const drawEquirectFallback = () => {
+          const sourceWidth = texture.width * (lonSpan / 360);
+          const sourceHeight = texture.height * (latSpan / 180);
+          const sourceCenterX =
+            (((((centerLon + 180) / 360) % 1) + 1) % 1) * texture.width;
+          const sourceCenterY = clamp(
+            ((90 - centerLat) / 180) * texture.height,
+            sourceHeight / 2,
+            texture.height - sourceHeight / 2
+          );
+          const sourceY = sourceCenterY - sourceHeight / 2;
+          let sourceX = sourceCenterX - sourceWidth / 2;
+          let targetX = 0;
+          let remaining = sourceWidth;
+
+          ctx.fillStyle = '#081831';
+          ctx.fillRect(0, 0, size.width, size.height);
+          while (remaining > 0.5) {
+            const wrappedX = ((sourceX % texture.width) + texture.width) % texture.width;
+            const segmentWidth = Math.min(remaining, texture.width - wrappedX);
+            const targetWidth = (segmentWidth / sourceWidth) * size.width;
+            ctx.drawImage(
+              texture.canvas,
+              wrappedX,
+              sourceY,
+              segmentWidth,
+              sourceHeight,
+              targetX,
+              0,
+              targetWidth + 0.5,
+              size.height
+            );
+            sourceX += segmentWidth;
+            targetX += targetWidth;
+            remaining -= segmentWidth;
+          }
+        };
+
+        const tileZoom = clamp(Math.round(3 + scale * 0.9), 4, 12);
+        const centerPixel = lonLatToWorldPixel(centerLon, centerLat, tileZoom);
+        const startX = centerPixel.x - size.width / 2;
+        const startY = centerPixel.y - size.height / 2;
+        const endX = startX + size.width;
+        const endY = startY + size.height;
+        const tileMinX = Math.floor(startX / TILE_SIZE);
+        const tileMaxX = Math.floor(endX / TILE_SIZE);
+        const tileMinY = Math.max(0, Math.floor(startY / TILE_SIZE));
+        const tileMaxY = Math.min(2 ** tileZoom - 1, Math.floor(endY / TILE_SIZE));
+        const tileDescriptors: Array<{
+          dx: number;
+          dy: number;
+          image: HTMLImageElement | null;
+        }> = [];
+        let drawnTiles = 0;
+
+        if (SATELLITE_TILE_TEMPLATE) {
+          for (let tileY = tileMinY; tileY <= tileMaxY; tileY += 1) {
+            for (let rawTileX = tileMinX; rawTileX <= tileMaxX; rawTileX += 1) {
+              const tileCount = 2 ** tileZoom;
+              const tileX = ((rawTileX % tileCount) + tileCount) % tileCount;
+              const url = satelliteTileUrl(SATELLITE_TILE_TEMPLATE, tileX, tileY, tileZoom);
+              let image = tileCacheRef.current.get(url);
+              if (!image && typeof Image !== 'undefined') {
+                image = new Image();
+                image.decoding = 'async';
+                image.src = url;
+                tileCacheRef.current.set(url, image);
+              }
+              const dx = rawTileX * TILE_SIZE - startX;
+              const dy = tileY * TILE_SIZE - startY;
+              const isLoaded = Boolean(image?.complete && image.naturalWidth);
+              if (isLoaded) drawnTiles += 1;
+              tileDescriptors.push({ dx, dy, image: isLoaded ? image! : null });
+            }
+          }
+        }
+
+        renderStateRef.current = {
+          mode: 'map',
+          centerLat,
+          centerLon,
+          centerPixelX: centerPixel.x,
+          centerPixelY: centerPixel.y,
+          height: size.height,
+          latSpan,
+          lonSpan,
+          projection: 'mercator',
+          width: size.width,
+          worldSize: centerPixel.worldSize
+        };
+
+        const requestedTiles = tileDescriptors.length;
+        const tileReadyRatio = requestedTiles ? drawnTiles / requestedTiles : 0;
+        const previousFrame = mapFrameRef.current;
+        const canUsePreviousFrame =
+          Boolean(previousFrame) &&
+          previousFrame!.canvas.width === canvas.width &&
+          previousFrame!.canvas.height === canvas.height;
+        if (requestedTiles && tileReadyRatio < 0.55 && canUsePreviousFrame) {
+          ctx.drawImage(previousFrame!.canvas, 0, 0, size.width, size.height);
+          ctx.fillStyle = 'rgba(0, 13, 28, 0.1)';
+          ctx.fillRect(0, 0, size.width, size.height);
+          return true;
+        }
+
+        drawEquirectFallback();
+
+        tileDescriptors.forEach(({ dx, dy, image }) => {
+          if (!image) return;
+          ctx.drawImage(image, dx, dy, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+        });
+
+        const shade = ctx.createRadialGradient(
+          size.width * 0.5,
+          size.height * 0.48,
+          Math.min(size.width, size.height) * 0.12,
+          size.width * 0.5,
+          size.height * 0.5,
+          Math.max(size.width, size.height) * 0.72
+        );
+        shade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        shade.addColorStop(0.78, 'rgba(2, 7, 15, 0.08)');
+        shade.addColorStop(1, 'rgba(2, 7, 15, 0.36)');
+        ctx.fillStyle = shade;
+        ctx.fillRect(0, 0, size.width, size.height);
+        ctx.fillStyle = 'rgba(0, 13, 28, 0.12)';
+        ctx.fillRect(0, 0, size.width, size.height);
+
+        if (!mapFrameRef.current) {
+          mapFrameRef.current = { canvas: document.createElement('canvas'), key: '' };
+        }
+        const mapFrame = mapFrameRef.current;
+        if (mapFrame.canvas.width !== canvas.width || mapFrame.canvas.height !== canvas.height) {
+          mapFrame.canvas.width = canvas.width;
+          mapFrame.canvas.height = canvas.height;
+        }
+        const mapFrameCtx = mapFrame.canvas.getContext('2d');
+        if (mapFrameCtx) {
+          mapFrameCtx.setTransform(1, 0, 0, 1, 0, 0);
+          mapFrameCtx.clearRect(0, 0, mapFrame.canvas.width, mapFrame.canvas.height);
+          mapFrameCtx.drawImage(canvas, 0, 0);
+          mapFrame.key = `${tileZoom}:${Math.round(centerLon * 10) / 10}:${Math.round(centerLat * 10) / 10}`;
+        }
+        return true;
+      };
+      const drawEarthTexture = () => {
+        const texture = assets.earthTexture;
+        if (!texture || typeof document === 'undefined') return false;
+        const renderScale = deviceProfile.lowPower ? 0.52 : 0.68;
+        const diameter = Math.max(120, Math.min(420, Math.round(radius * 2 * renderScale)));
+        const rotationKey = `${diameter}:${Math.round(rotation[0] * 2) / 2}:${
+          Math.round(rotation[1] * 2) / 2
+        }:${Math.round(size.width)}:${Math.round(size.height)}`;
+        let render = textureRenderRef.current;
+        if (!render) {
+          render = { canvas: document.createElement('canvas'), key: '' };
+          textureRenderRef.current = render;
+        }
+        if (render.key !== rotationKey) {
+          render.canvas.width = diameter;
+          render.canvas.height = diameter;
+          const renderCtx = render.canvas.getContext('2d', { willReadFrequently: true });
+          if (!renderCtx) return false;
+          const imageData = renderCtx.createImageData(diameter, diameter);
+          const target = imageData.data;
+          const half = diameter / 2;
+          for (let y = 0; y < diameter; y += 1) {
+            const normalizedY = (y + 0.5 - half) / half;
+            for (let x = 0; x < diameter; x += 1) {
+              const normalizedX = (x + 0.5 - half) / half;
+              if (normalizedX * normalizedX + normalizedY * normalizedY > 1) continue;
+              const projected = projection.invert?.([
+                projectionCenterX + normalizedX * radius,
+                projectionCenterY + normalizedY * radius
+              ]);
+              if (!projected) continue;
+              const [lon, lat] = projected;
+              const u = ((((lon + 180) % 360) + 360) % 360) / 360;
+              const v = clamp((90 - lat) / 180, 0, 1);
+              const sourceX = Math.min(texture.width - 1, Math.max(0, Math.floor(u * texture.width)));
+              const sourceY = Math.min(texture.height - 1, Math.max(0, Math.floor(v * texture.height)));
+              const sourceIndex = (sourceY * texture.width + sourceX) * 4;
+              const targetIndex = (y * diameter + x) * 4;
+              target[targetIndex] = texture.data[sourceIndex];
+              target[targetIndex + 1] = texture.data[sourceIndex + 1];
+              target[targetIndex + 2] = texture.data[sourceIndex + 2];
+              target[targetIndex + 3] = 255;
+            }
+          }
+          renderCtx.putImageData(imageData, 0, 0);
+          render.key = rotationKey;
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        path(sphere);
+        ctx.clip();
+        ctx.drawImage(
+          render.canvas,
+          projectionCenterX - radius,
+          projectionCenterY - radius,
+          radius * 2,
+          radius * 2
+        );
+        const limbShade = ctx.createRadialGradient(
+          size.width * 0.38,
+          size.height * 0.3,
+          radius * 0.18,
+          size.width * 0.5,
+          size.height * 0.52,
+          radius * 1.04
+        );
+        limbShade.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+        limbShade.addColorStop(0.62, 'rgba(6, 18, 30, 0.06)');
+        limbShade.addColorStop(1, 'rgba(2, 7, 14, 0.46)');
+        ctx.fillStyle = limbShade;
+        ctx.fillRect(0, 0, size.width, size.height);
+        ctx.restore();
+        return true;
+      };
       const drawRoundedRect = (
         x: number,
         y: number,
@@ -272,6 +589,11 @@ export const Globe = ({
       };
       const trimLabel = (value: string, maxLength: number) =>
         value.length > maxLength ? `${value.slice(0, Math.max(1, maxLength - 1))}\u2026` : value;
+      const mapDrawn = mapMode ? drawMapTexture() : false;
+      if (!mapDrawn) {
+        renderStateRef.current = { mode: 'sphere' };
+      }
+
       const oceanGradient = ctx.createRadialGradient(
         size.width * 0.26,
         size.height * 0.24,
@@ -285,104 +607,154 @@ export const Globe = ({
       oceanGradient.addColorStop(0.72, '#0b2037');
       oceanGradient.addColorStop(1, '#050b13');
 
-      ctx.beginPath();
-      path(sphere);
-      ctx.fillStyle = oceanGradient;
-      ctx.fill();
-
-      ctx.save();
-      ctx.beginPath();
-      path(sphere);
-      ctx.clip();
-      const hazeGradient = ctx.createRadialGradient(
-        size.width * 0.42,
-        size.height * 0.18,
-        radius * 0.1,
-        size.width * 0.5,
-        size.height * 0.52,
-        radius * 1.1
-      );
-      hazeGradient.addColorStop(0, 'rgba(196, 244, 255, 0.22)');
-      hazeGradient.addColorStop(0.44, 'rgba(92, 150, 214, 0.08)');
-      hazeGradient.addColorStop(1, 'rgba(6, 12, 21, 0)');
-      ctx.fillStyle = hazeGradient;
-      ctx.fillRect(0, 0, size.width, size.height);
-      ctx.restore();
-
-      const landGradient = ctx.createLinearGradient(
-        size.width * 0.22,
-        size.height * 0.18,
-        size.width * 0.78,
-        size.height * 0.84
-      );
-      landGradient.addColorStop(0, 'rgba(88, 121, 84, 0.98)');
-      landGradient.addColorStop(0.34, 'rgba(69, 96, 67, 0.96)');
-      landGradient.addColorStop(0.74, 'rgba(82, 92, 58, 0.94)');
-      landGradient.addColorStop(1, 'rgba(61, 64, 43, 0.94)');
-      ctx.beginPath();
-      path(assets.land as any);
-      ctx.fillStyle = landGradient;
-      ctx.fill();
-
-      ctx.save();
-      ctx.beginPath();
-      path(assets.land as any);
-      ctx.clip();
-      const terrainGlow = ctx.createRadialGradient(
-        size.width * 0.35,
-        size.height * 0.3,
-        radius * 0.12,
-        size.width * 0.44,
-        size.height * 0.44,
-        radius * 1.08
-      );
-      terrainGlow.addColorStop(0, 'rgba(144, 181, 105, 0.28)');
-      terrainGlow.addColorStop(0.48, 'rgba(95, 128, 84, 0.12)');
-      terrainGlow.addColorStop(1, 'rgba(25, 32, 22, 0)');
-      ctx.fillStyle = terrainGlow;
-      ctx.fillRect(0, 0, size.width, size.height);
-      ctx.restore();
-
-      ctx.beginPath();
-      path(assets.land as any);
-      ctx.strokeStyle = 'rgba(210, 243, 255, 0.16)';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-
-      if (assets.borders) {
+      if (!mapDrawn) {
         ctx.beginPath();
-        path(assets.borders as any);
-        ctx.strokeStyle = 'rgba(190, 232, 255, 0.34)';
-        ctx.lineWidth = scale >= 2 ? 0.9 : 0.72;
+        path(sphere);
+        ctx.fillStyle = oceanGradient;
+        ctx.fill();
+      }
+
+      const hasEarthTexture = !mapDrawn && drawEarthTexture();
+
+      if (!mapDrawn && !hasEarthTexture) {
+        ctx.save();
+        ctx.beginPath();
+        path(sphere);
+        ctx.clip();
+        const hazeGradient = ctx.createRadialGradient(
+          size.width * 0.42,
+          size.height * 0.18,
+          radius * 0.1,
+          size.width * 0.5,
+          size.height * 0.52,
+          radius * 1.1
+        );
+        hazeGradient.addColorStop(0, 'rgba(196, 244, 255, 0.22)');
+        hazeGradient.addColorStop(0.44, 'rgba(92, 150, 214, 0.08)');
+        hazeGradient.addColorStop(1, 'rgba(6, 12, 21, 0)');
+        ctx.fillStyle = hazeGradient;
+        ctx.fillRect(0, 0, size.width, size.height);
+        ctx.restore();
+
+        const landGradient = ctx.createLinearGradient(
+          size.width * 0.22,
+          size.height * 0.18,
+          size.width * 0.78,
+          size.height * 0.84
+        );
+        landGradient.addColorStop(0, 'rgba(88, 121, 84, 0.98)');
+        landGradient.addColorStop(0.34, 'rgba(69, 96, 67, 0.96)');
+        landGradient.addColorStop(0.74, 'rgba(82, 92, 58, 0.94)');
+        landGradient.addColorStop(1, 'rgba(61, 64, 43, 0.94)');
+        ctx.beginPath();
+        path(assets.land as any);
+        ctx.fillStyle = landGradient;
+        ctx.fill();
+
+        ctx.save();
+        ctx.beginPath();
+        path(assets.land as any);
+        ctx.clip();
+        const terrainGlow = ctx.createRadialGradient(
+          size.width * 0.35,
+          size.height * 0.3,
+          radius * 0.12,
+          size.width * 0.44,
+          size.height * 0.44,
+          radius * 1.08
+        );
+        terrainGlow.addColorStop(0, 'rgba(144, 181, 105, 0.28)');
+        terrainGlow.addColorStop(0.48, 'rgba(95, 128, 84, 0.12)');
+        terrainGlow.addColorStop(1, 'rgba(25, 32, 22, 0)');
+        ctx.fillStyle = terrainGlow;
+        ctx.fillRect(0, 0, size.width, size.height);
+        ctx.restore();
+      }
+
+      if (!mapDrawn) {
+        ctx.beginPath();
+        path(assets.land as any);
+        ctx.strokeStyle = hasEarthTexture ? 'rgba(210, 243, 255, 0.08)' : 'rgba(210, 243, 255, 0.16)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        if (assets.borders) {
+          ctx.beginPath();
+          path(assets.borders as any);
+          ctx.strokeStyle = hasEarthTexture ? 'rgba(190, 232, 255, 0.16)' : 'rgba(190, 232, 255, 0.34)';
+          ctx.lineWidth = scale >= 2 ? 0.9 : 0.72;
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        path(assets.geoGraticule10());
+        ctx.strokeStyle = 'rgba(220, 241, 255, 0.12)';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(212, 245, 255, 0.34)';
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        path(sphere);
         ctx.stroke();
       }
 
-      ctx.beginPath();
-      path(assets.geoGraticule10());
-      ctx.strokeStyle = 'rgba(220, 241, 255, 0.12)';
-      ctx.lineWidth = 0.6;
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(212, 245, 255, 0.34)';
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      path(sphere);
-      ctx.stroke();
-
-      const baseDot = Math.max(2.2, 4.4 - (scale - 1) * 0.55);
-      const activeDot = baseDot + 2.2;
+      const baseDot = immersive
+        ? Math.max(2.3, 4.2 - (scale - 1) * 0.35)
+        : Math.max(2.2, 4.4 - (scale - 1) * 0.55);
+      const activeDot = baseDot + (immersive ? 2.8 : 2.2);
       const pulse = focusPulseRef.current;
       focusPulseRef.current = Math.max(0, pulse - (deviceProfile.lowPower ? 0.05 : 0.02));
 
       const visiblePoints = points
         .map((point) => {
-          const distance = assets.geoDistance([point.lon, point.lat], center);
-          if (distance > Math.PI / 2) return null;
-          const coords = projection([point.lon, point.lat]);
-          if (!coords) return null;
-          const [x, y] = coords;
+          let x = 0;
+          let y = 0;
+          if (renderStateRef.current.mode === 'map') {
+            const state = renderStateRef.current;
+            if (
+              state.projection === 'mercator' &&
+              state.centerPixelX !== undefined &&
+              state.centerPixelY !== undefined &&
+              state.worldSize !== undefined
+            ) {
+              const pointPixel = lonLatToWorldPixel(
+                point.lon,
+                point.lat,
+                Math.log2(state.worldSize / TILE_SIZE)
+              );
+              let dx = pointPixel.x - state.centerPixelX;
+              if (Math.abs(dx) > state.worldSize / 2) {
+                dx += dx > 0 ? -state.worldSize : state.worldSize;
+              }
+              x = state.width / 2 + dx;
+              y = state.height / 2 + (pointPixel.y - state.centerPixelY);
+            } else {
+              const dx = normalizeLongitudeDelta(point.lon - state.centerLon);
+              const dy = point.lat - state.centerLat;
+              if (
+                Math.abs(dx) > state.lonSpan * 0.58 ||
+                Math.abs(dy) > state.latSpan * 0.58
+              ) {
+                return null;
+              }
+              x = state.width / 2 + (dx / state.lonSpan) * state.width;
+              y = state.height / 2 - (dy / state.latSpan) * state.height;
+            }
+            if (x < -20 || x > state.width + 20 || y < -20 || y > state.height + 20) {
+              return null;
+            }
+          } else {
+            const distance = assets.geoDistance([point.lon, point.lat], center);
+            if (distance > Math.PI / 2) return null;
+            const coords = projection([point.lon, point.lat]);
+            if (!coords) return null;
+            [x, y] = coords;
+          }
           const density = Math.min(5.8, Math.sqrt(point.count ?? 1));
-          const pointRadius = baseDot + Math.max(0, density - 1) * 1.05;
+          const pointRadius =
+            (renderStateRef.current.mode === 'map' ? Math.max(1.6, baseDot - 1.1) : baseDot) +
+            Math.max(0, density - 1) * (renderStateRef.current.mode === 'map' ? 0.55 : 1.05);
           return {
             ...point,
             x,
@@ -413,7 +785,19 @@ export const Globe = ({
         }
       >;
 
-      visiblePoints.forEach((point) => {
+      const featuredPointLimit = immersive ? (deviceProfile.lowPower ? 42 : 72) : Number.POSITIVE_INFINITY;
+      visiblePoints.forEach((point, index) => {
+        const detailedPoint =
+          !immersive || point.isSelected || point.isActive || index < featuredPointLimit;
+        if (!detailedPoint) {
+          const simpleRadius = Math.max(1.15, Math.min(2.6, point.pointRadius * 0.42));
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(0, 255, 132, 0.82)';
+          ctx.arc(point.x, point.y, simpleRadius, 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
+
         const haloRadius = point.isSelected
           ? point.pointRadius + 14
           : point.isActive
@@ -422,9 +806,11 @@ export const Globe = ({
         ctx.beginPath();
         ctx.fillStyle = point.isSelected
           ? 'rgba(208, 251, 255, 0.22)'
-          : point.isActive
-            ? 'rgba(136, 241, 222, 0.18)'
-            : 'rgba(152, 220, 255, 0.12)';
+            : point.isActive
+              ? 'rgba(136, 241, 222, 0.18)'
+            : immersive
+              ? 'rgba(0, 255, 132, 0.38)'
+              : 'rgba(152, 220, 255, 0.12)';
         ctx.arc(point.x, point.y, haloRadius, 0, Math.PI * 2);
         ctx.fill();
 
@@ -433,14 +819,18 @@ export const Globe = ({
           ? 'rgba(201, 250, 255, 0.48)'
           : point.isActive
             ? 'rgba(136, 241, 222, 0.42)'
-            : 'rgba(152, 220, 255, 0.28)';
-        ctx.shadowBlur = point.isSelected ? 18 : point.isActive ? 14 : 10;
+            : immersive
+              ? 'rgba(0, 255, 132, 0.5)'
+              : 'rgba(152, 220, 255, 0.28)';
+        ctx.shadowBlur = point.isSelected ? 18 : point.isActive ? 14 : immersive ? 11 : 10;
         ctx.beginPath();
         ctx.fillStyle = point.isSelected
           ? 'rgba(238, 254, 255, 0.98)'
           : point.isActive
             ? '#88f1de'
-            : 'rgba(159, 224, 255, 0.92)';
+            : immersive
+              ? '#00ff84'
+              : 'rgba(159, 224, 255, 0.92)';
         ctx.arc(
           point.x,
           point.y,
@@ -452,7 +842,11 @@ export const Globe = ({
         ctx.restore();
 
         ctx.beginPath();
-        ctx.fillStyle = point.isSelected ? 'rgba(53, 73, 90, 0.82)' : 'rgba(244, 252, 255, 0.82)';
+        ctx.fillStyle = point.isSelected
+          ? 'rgba(53, 73, 90, 0.82)'
+          : immersive
+            ? 'rgba(224, 255, 238, 0.92)'
+            : 'rgba(244, 252, 255, 0.82)';
         ctx.arc(point.x, point.y, Math.max(1.7, point.pointRadius * 0.34), 0, Math.PI * 2);
         ctx.fill();
 
@@ -478,7 +872,7 @@ export const Globe = ({
         }
       });
 
-      const labelLimitBase = scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
+      const labelLimitBase = immersive ? 0 : scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
       const labelLimit = deviceProfile.lowPower
         ? Math.max(2, Math.floor(labelLimitBase / 2))
         : labelLimitBase;
@@ -574,6 +968,7 @@ export const Globe = ({
     autoRotate,
     scale,
     documentVisible,
+    immersive,
     deviceProfile.lowPower
   ]);
 
@@ -659,6 +1054,67 @@ export const Globe = ({
     const rect = canvasRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    const renderState = renderStateRef.current;
+    if (renderState.mode === 'map') {
+      const maxPick = Math.max(12, 24 - (scale - 1) * 0.7);
+      const maxPickSq = maxPick * maxPick;
+      const candidates: { id: string; dist: number }[] = [];
+      points.forEach((point) => {
+        let px = 0;
+        let py = 0;
+        if (
+          renderState.projection === 'mercator' &&
+          renderState.centerPixelX !== undefined &&
+          renderState.centerPixelY !== undefined &&
+          renderState.worldSize !== undefined
+        ) {
+          const pointPixel = lonLatToWorldPixel(
+            point.lon,
+            point.lat,
+            Math.log2(renderState.worldSize / TILE_SIZE)
+          );
+          let dxMercator = pointPixel.x - renderState.centerPixelX;
+          if (Math.abs(dxMercator) > renderState.worldSize / 2) {
+            dxMercator += dxMercator > 0 ? -renderState.worldSize : renderState.worldSize;
+          }
+          px = renderState.width / 2 + dxMercator;
+          py = renderState.height / 2 + (pointPixel.y - renderState.centerPixelY);
+        } else {
+          const dxLon = normalizeLongitudeDelta(point.lon - renderState.centerLon);
+          const dyLat = point.lat - renderState.centerLat;
+          if (
+            Math.abs(dxLon) > renderState.lonSpan * 0.58 ||
+            Math.abs(dyLat) > renderState.latSpan * 0.58
+          ) {
+            return;
+          }
+          px = renderState.width / 2 + (dxLon / renderState.lonSpan) * renderState.width;
+          py = renderState.height / 2 - (dyLat / renderState.latSpan) * renderState.height;
+        }
+        const dx = px - x;
+        const dy = py - y;
+        const dist = dx * dx + dy * dy;
+        if (dist < maxPickSq) {
+          candidates.push({ id: point.id, dist });
+        }
+      });
+      if (!candidates.length) {
+        onPickCandidates?.([]);
+        return;
+      }
+      candidates.sort((a, b) => a.dist - b.dist || a.id.localeCompare(b.id));
+      if (candidates.length === 1) {
+        onPick?.(candidates[0].id);
+        onPickCandidates?.([]);
+        return;
+      }
+      if (onPickCandidates) {
+        onPickCandidates(candidates.slice(0, 8).map((item) => item.id));
+        return;
+      }
+      onPick?.(candidates[0].id);
+      return;
+    }
     const [cx, cy] = projectionRef.current.translate();
     const radius = projectionRef.current.scale();
     const dxSphere = x - cx;
@@ -709,7 +1165,7 @@ export const Globe = ({
   };
 
   return (
-    <div className="globe" ref={containerRef}>
+    <div className="globe" ref={containerRef} onWheelCapture={handleSurfaceWheel}>
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}

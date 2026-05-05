@@ -512,6 +512,10 @@
     width: 30px;
     height: 30px;
   }
+
+  .full-player-queue-item.active .full-player-queue-btn[data-queue-action^='move'] {
+    display: none;
+  }
 }
 
 @media (max-width: 380px) {
@@ -536,5 +540,9 @@
   .full-player-queue-btn {
     width: 28px;
     height: 28px;
+  }
+
+  .full-player-queue-actions {
+    gap: 3px;
   }
 }

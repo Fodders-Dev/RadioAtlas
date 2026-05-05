@@ -74,6 +74,48 @@ body {
   min-height: 100vh;
 }
 
+@media (max-width: 720px) {
+  .app-shell-v2[data-active-section='globe'] {
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-content-shell {
+    height: 100dvh;
+    min-height: 0;
+    gap: 0;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-topbar-v2 {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    right: max(14px, env(safe-area-inset-right));
+    z-index: 42;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-topbar-status-chip span {
+    display: none;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-stage-v2,
+  .app-shell-v2[data-active-section='globe'] .app-screen-frame {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .screen-globe-v2 {
+    height: 100%;
+    min-height: 100%;
+    padding-bottom: 0;
+  }
+}
+
 .boot-splash {
   min-height: 100vh;
   background:
@@ -2003,6 +2045,8 @@ input {
   --sidebar-width-v2: 244px;
   --mobile-nav-height-v2: 68px;
   --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + env(safe-area-inset-bottom));
+  --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 96px);
+  --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   --glass-bg: rgba(216, 231, 255, 0.048);
   --glass-bg-strong: rgba(16, 25, 40, 0.11);
   --glass-border: rgba(245, 250, 255, 0.28);
@@ -4545,14 +4589,15 @@ button.app-brand-pill {
 
 @media (max-width: 900px) {
   .app-stage-v2 {
-    padding-bottom: calc(var(--dock-offset-v2) + 56px);
+    padding-bottom: var(--screen-bottom-safe-v2);
   }
 
+  .screen-home-next,
   .screen-home-v2,
   .screen-library-v2,
   .screen-search-v2,
   .screen-globe-v2 {
-    padding-bottom: calc(var(--dock-offset-v2) + 56px);
+    padding-bottom: var(--screen-bottom-safe-v2);
   }
 
   .app-topbar-v2 .nav-utility-btn,
@@ -4590,7 +4635,7 @@ button.app-brand-pill {
   }
 
   .library-empty-state {
-    padding-bottom: calc(var(--dock-offset-v2) + 8px);
+    padding-bottom: var(--screen-bottom-safe-v2);
   }
 
   .player-peek-handle.dormant {
@@ -5220,6 +5265,8 @@ body {
   :root {
     --mobile-nav-height-v2: 60px;
     --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + env(safe-area-inset-bottom));
+    --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 132px);
+    --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   }
 
   .app-shell-v2 {
@@ -5228,11 +5275,12 @@ body {
   }
 
   .app-stage-v2,
+  .screen-home-next,
   .screen-home-v2,
   .screen-library-v2,
   .screen-search-v2,
   .screen-globe-v2 {
-    padding-bottom: calc(var(--dock-offset-v2) + 40px);
+    padding-bottom: var(--screen-bottom-safe-v2);
   }
 
   .app-topbar-v2,
@@ -8843,10 +8891,11 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
 
   .app-topbar-title-stack {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
   }
 
@@ -8859,25 +8908,28 @@ body {
   }
 
   .app-topbar-utility-row {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     justify-content: flex-start;
     min-width: 0;
   }
 
   .app-topbar-status-chip {
     min-height: 28px;
-    max-width: 150px;
+    max-width: 104px;
     padding: 0 9px;
     gap: 6px;
   }
 
   .app-topbar-status-chip span {
-    font-size: 8px;
+    display: none;
   }
 
   .app-topbar-status-chip strong {
-    max-width: 86px;
+    max-width: 78px;
     font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .app-topbar-actions {
@@ -8890,5 +8942,45 @@ body {
     width: 34px;
     min-width: 34px;
     min-height: 34px;
+  }
+
+  .app-shell-v2[data-active-section='globe'] {
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-content-shell {
+    height: 100dvh;
+    min-height: 0;
+    gap: 0;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-topbar-v2 {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    right: max(14px, env(safe-area-inset-right));
+    z-index: 42;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-topbar-status-chip span {
+    display: none;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .app-stage-v2,
+  .app-shell-v2[data-active-section='globe'] .app-screen-frame {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+
+  .app-shell-v2[data-active-section='globe'] .screen-globe-v2 {
+    height: 100%;
+    min-height: 100%;
+    padding-bottom: 0;
   }
 }

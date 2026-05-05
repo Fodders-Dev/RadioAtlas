@@ -152,7 +152,13 @@ test('home surface stays stable during like and play actions', async ({ page }) 
   await expect(page.locator('[data-home-resume]')).toBeVisible();
 
   const after = await readHomeSurfaceSignature(page);
-  expect(after).toEqual(before);
+  // Hero and rail composition stay the same; rail station lists may shrink
+  // because Personal Radio now claims its first station (and hides it from
+  // discovery rails) once playback starts. We just assert the discovery
+  // surface keeps the same shape and never drops a rail or swaps the hero.
+  expect(after.personalRadio).toBe(before.personalRadio);
+  expect(after.hero).toBe(before.hero);
+  expect(after.rails.map((rail) => rail.id)).toEqual(before.rails.map((rail) => rail.id));
 });
 
 test('home refresh rebuilds the discovery surface', async ({ page }) => {

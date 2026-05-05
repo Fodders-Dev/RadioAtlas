@@ -15,6 +15,7 @@ npm run dev:bot
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links
 - `VITE_API_URL`: optional API base for catalog/proxy (empty by default)
+- `VITE_GLOBE_SATELLITE_TILE_URL`: optional satellite tile template for close Globe zoom (`{z}/{x}/{y}` placeholders). Defaults to Esri World Imagery; leave empty only if you want the bundled Blue Marble fallback at every zoom level.
 
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.

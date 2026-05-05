@@ -709,6 +709,7 @@
 @media (max-width: 720px) {
   .screen-home-next {
     gap: 14px;
+    padding-bottom: var(--screen-bottom-safe-v2, calc(var(--dock-offset-v2, 0px) + 120px));
   }
 
   .home-hero-card,
@@ -751,6 +752,7 @@
 @media (max-width: 430px) {
   .screen-home-next {
     gap: 10px;
+    padding-bottom: var(--screen-bottom-safe-v2, calc(var(--dock-offset-v2, 0px) + 156px));
   }
 
   .home-hero-card,
