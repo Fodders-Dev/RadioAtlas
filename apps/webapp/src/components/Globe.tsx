@@ -631,36 +631,47 @@ export const Globe = ({
 
     map.on('load', () => {
       setReady(true);
-      // MapLibre globe-projection quirk: the first frame on a cold
-      // mount sometimes commits as a black canvas — the satellite
-      // raster source is loaded and its tiles are decoded, but the
-      // pipeline doesn't compose them until the camera moves. Any
-      // subsequent drag / wheel-zoom triggers the missing repaint
-      // and everything renders correctly. Force that nudge here so
-      // the user never sees the black gap on first navigation:
-      //   • triggerRepaint() asks for a frame on the next rAF
-      //   • a tiny no-op easeTo on the very next tick walks the
-      //     camera by a hair and back, which the WebGL renderer
-      //     does treat as a real change and flushes the tiles.
+    });
+
+    // MapLibre globe-projection cold-mount bug: tiles fetch + decode
+    // but the renderer commits a black frame and never re-runs until
+    // the camera moves. The previous one-shot triggerRepaint after
+    // load wasn't enough — the tiles arrive AFTER load fires, so the
+    // repaint runs against an empty cache and locks in the black
+    // result. Subscribe instead to `sourcedata` for the satellite
+    // source: every time a tile finishes loading we ask MapLibre for
+    // a fresh frame. The condition `isSourceLoaded` short-circuits
+    // once enough tiles have arrived so we're not spamming repaint.
+    let firstSatelliteFrame = false;
+    const handleSatelliteData = (
+      e: maplibregl.MapDataEvent & { sourceId?: string; isSourceLoaded?: boolean }
+    ) => {
+      if (e.sourceId !== 'satellite') return;
       try {
         map.triggerRepaint();
-        const c = map.getCenter();
-        // Schedule on next tick so it happens AFTER any synchronous
-        // setData() the parent useEffects fire in response to ready.
-        window.requestAnimationFrame(() => {
-          if (!mapRef.current) return;
+      } catch {
+        // ignore
+      }
+      if (!firstSatelliteFrame && e.isSourceLoaded) {
+        // First time the satellite source declares "loaded": one
+        // last nudge to make sure the panes render and then unhook
+        // — further repaints come from user gestures.
+        firstSatelliteFrame = true;
+        try {
+          const c = map.getCenter();
           map.easeTo({
             center: [c.lng + 0.0001, c.lat],
             duration: 0,
             essential: true
           });
           map.easeTo({ center: [c.lng, c.lat], duration: 0, essential: true });
-        });
-      } catch {
-        // Ignore — worst case the user sees a black globe until
-        // their first interaction, which was the prior behaviour.
+        } catch {
+          // ignore
+        }
+        map.off('sourcedata', handleSatelliteData);
       }
-    });
+    };
+    map.on('sourcedata', handleSatelliteData);
 
     map.on('zoom', () => {
       if (!onZoomChange) return;
