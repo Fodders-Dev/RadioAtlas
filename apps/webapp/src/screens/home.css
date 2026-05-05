@@ -2,7 +2,14 @@
   display: grid;
   gap: 16px;
   align-content: start;
-  padding-bottom: 8px;
+  /* Reserve space for the persistent player dock so the last rail
+     ("Для тебя", "Для вибранных") doesn't get clipped by the dock at any
+     viewport size. Mobile already had this in a media query; the
+     desktop reading was missing the same spacing and the bottom row
+     scrolled under the dock. Use the shared --dock-offset-v2 the
+     dock writes from JS so this stays correct when the dock height
+     changes (e.g., loading state vs. now-playing). */
+  padding-bottom: calc(var(--dock-offset-v2, 72px) + 24px);
 }
 
 .screen-home-next[data-density='dense'] {
@@ -26,7 +33,25 @@
   color: rgba(229, 241, 255, 0.84);
   font-size: 0.7rem;
   letter-spacing: 0.08em;
+}
+
+/* Section badges show fixed UI strings ("ДЛЯ ТЕБЯ", "МОЯ ВОЛНА")
+   so uppercase reads as confident metadata. Search-chip and
+   companion-chip render USER content — recent queries, country
+   names, station tags — and must not be uppercased; otherwise
+   "The United States Of America" turns into a shouty placeholder
+   and Cyrillic strings get mangled letter-spacing. */
+.home-section-badge,
+.home-refresh-chip,
+.home-inline-link {
   text-transform: uppercase;
+}
+
+.home-search-chip,
+.home-companion-chip {
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  font-weight: 500;
 }
 
 .home-refresh-chip svg {

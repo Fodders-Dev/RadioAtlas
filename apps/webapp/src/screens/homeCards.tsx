@@ -529,10 +529,16 @@ export const HomeSearchPreview = ({
   const hasQuery = Boolean(query.trim());
 
   if (!stations.length) {
+    // Only render the placeholder when the user has typed something
+    // and got no hits. In the cold-idle case the section header copy
+    // ("Один запрос — и сразу короткая выдача") plus the chip row
+    // already explain what to do — the second card just duplicated
+    // the message and made the launcher feel cluttered.
+    if (!hasQuery) return null;
     return (
       <div className={`home-search-idle ${dense ? 'is-dense' : ''}`.trim()}>
-        <strong>{t(hasQuery ? 'home.quickSearchNoResultsTitle' : 'home.quickSearchIdleTitle')}</strong>
-        <span>{t(hasQuery ? 'home.quickSearchNoResultsCopy' : 'home.quickSearchIdleCopy')}</span>
+        <strong>{t('home.quickSearchNoResultsTitle')}</strong>
+        <span>{t('home.quickSearchNoResultsCopy')}</span>
       </div>
     );
   }
