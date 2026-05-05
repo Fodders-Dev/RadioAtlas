@@ -457,6 +457,13 @@ export type CatalogStationPoint = {
   lat?: number;
   lon?: number;
   country: string;
+  // Free-text region from Radio Browser — usually a state, oblast or
+  // city, sometimes blank. Surfaced in the context pill near the
+  // reticle so the user can tell at a glance where they're aiming.
+  state?: string;
+  // Display name. Lets the reticle preview which station it would
+  // tune without round-tripping fetchStationById on every hover.
+  name?: string;
 };
 
 export type CatalogPointsResponse = {

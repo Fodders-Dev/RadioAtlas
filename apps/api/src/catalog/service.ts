@@ -485,12 +485,16 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
     lat?: number;
     lon?: number;
     country: string;
+    state?: string;
+    name?: string;
   }> = [];
   let mappedStations = 0;
   stations.forEach((station) => {
     const lat = asNumber(station.geo_lat);
     const lon = asNumber(station.geo_long);
     const country = normalizeText(station.country) || '';
+    const state = normalizeText(station.state) || '';
+    const name = normalizeText(station.name) || '';
     const hasCoords =
       lat !== null &&
       lon !== null &&
@@ -498,20 +502,28 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
       Math.abs(lon) <= 180 &&
       !(Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001);
     if (!hasCoords && !country) return;
+    const entry: {
+      id: string;
+      lat?: number;
+      lon?: number;
+      country: string;
+      state?: string;
+      name?: string;
+    } = { id: station.stationuuid, country };
     if (hasCoords) {
       mappedStations += 1;
-      items.push({ id: station.stationuuid, lat: lat as number, lon: lon as number, country });
-    } else {
-      items.push({ id: station.stationuuid, country });
+      entry.lat = lat as number;
+      entry.lon = lon as number;
     }
+    if (state) entry.state = state;
+    if (name) entry.name = name;
+    items.push(entry);
   });
   return {
     items,
     mappedStations,
     totalStations: stations.length,
-    // Build marker — bumped each time we change shape so I can confirm
-    // the deployed bundle picked up the change without SSH access.
-    schemaVersion: 2
+    schemaVersion: 3
   };
 };
 

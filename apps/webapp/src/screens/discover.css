@@ -1038,6 +1038,95 @@
   display: none;
 }
 
+/* Reticle context card — answers "where am I aiming?" without
+   committing playback. Sits at the top of the globe stage, fades
+   in/out as the reticle hovers a station and out when the user is
+   over empty water. */
+.screen-globe-v3 .globe-context-card {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 18px 12px;
+  min-width: 200px;
+  max-width: min(82vw, 460px);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(28, 50, 70, 0.78), rgba(8, 16, 30, 0.74));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(170, 220, 240, 0.16);
+  box-shadow:
+    0 6px 28px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  text-align: center;
+  animation: globe-context-fade 220ms ease both;
+}
+
+@keyframes globe-context-fade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.screen-globe-v3 .globe-context-country {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(186, 232, 250, 0.85);
+}
+
+.screen-globe-v3 .globe-context-state {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(244, 252, 255, 0.96);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-globe-v3 .globe-context-name {
+  margin-top: 1px;
+  font-size: 11px;
+  color: rgba(190, 220, 235, 0.74);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  .screen-globe-v3 .globe-context-card {
+    top: max(10px, env(safe-area-inset-top));
+    padding: 8px 14px 10px;
+    min-width: 160px;
+    max-width: calc(100vw - 32px);
+  }
+  .screen-globe-v3 .globe-context-country {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
+  .screen-globe-v3 .globe-context-state {
+    font-size: 13px;
+  }
+  .screen-globe-v3 .globe-context-name {
+    font-size: 10px;
+  }
+}
+
 .screen-globe-v3 .globe-zoom-stack {
   position: fixed;
   right: max(16px, env(safe-area-inset-right));

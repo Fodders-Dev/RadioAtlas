@@ -199,6 +199,30 @@ export const GlobeScreen = () => {
   const isSatelliteMode = zoomLevel >= SATELLITE_THRESHOLD;
   const activeStationId = player.current?.stationuuid;
   const activePointId = activeStationId ? `station:${activeStationId}` : undefined;
+
+  // O(1) lookup so the reticle context pill can pull country / state /
+  // name without re-walking the 54k points array on every hover tick.
+  const pointsById = useMemo(() => {
+    const map = new Map<string, CatalogStationPoint>();
+    points.forEach((point) => map.set(point.id, point));
+    return map;
+  }, [points]);
+
+  // What the reticle is currently sitting over. Drives the floating
+  // "where am I" card so the user sees country / region / station
+  // *before* committing — solves the "I'm zoomed in and have no idea
+  // which country this is" problem.
+  const reticleContext = useMemo(() => {
+    if (!reticleStationId || !reticleStationId.startsWith('station:')) return null;
+    const rawId = reticleStationId.slice('station:'.length);
+    const point = pointsById.get(rawId);
+    if (!point) return null;
+    return {
+      country: point.country || '',
+      state: point.state || '',
+      name: point.name || ''
+    };
+  }, [reticleStationId, pointsById]);
   // Highlight priority: explicitly tapped > reticle candidate > now
   // playing. The reticle hover wins over now-playing so the user gets
   // immediate visual feedback while panning, even if they're still
@@ -231,6 +255,21 @@ export const GlobeScreen = () => {
             immersive
           />
         </Suspense>
+        {reticleContext ? (
+          <div className="globe-context-card" data-globe-context>
+            {reticleContext.country ? (
+              <div className="globe-context-country">{reticleContext.country}</div>
+            ) : null}
+            {reticleContext.state ? (
+              <div className="globe-context-state">{reticleContext.state}</div>
+            ) : null}
+            {reticleContext.name ? (
+              <div className="globe-context-name" title={reticleContext.name}>
+                {reticleContext.name}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="globe-zoom-stack" aria-label={t('globe.zoom')}>
           <button
             className="globe-zoom-btn"

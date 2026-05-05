@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --workspace apps/webapp run build)",
+      "Bash(npm --workspace apps/webapp run test:e2e -- mobile.spec.ts)",
+      "Bash(npm --workspace apps/webapp run test:e2e -- visual.spec.ts)",
+      "WebFetch(domain:radioatlas.duckdns.org)"
+    ]
+  }
+}
