@@ -491,7 +491,16 @@ export const Discover = () => {
             {stationSearch.searchError ? <div className="error">{stationSearch.searchError}</div> : null}
             <div className="search-results-shell">
               {stationSearch.searchLoading && !stationSearch.results.length ? (
-                <div className="empty-state">{t('common.loading')}</div>
+                // While the very first request is in flight on a cold
+                // entry to /search, render skeleton rows instead of a
+                // bare "Загрузка..." string. Six rows of pulsing
+                // placeholders look like content arriving rather
+                // than "page is broken, still loading."
+                <div className="search-results-skeleton" aria-busy="true">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="search-results-skeleton-row" />
+                  ))}
+                </div>
               ) : rankedSearchResults.length ? (
                 compactResults ? (
                   <div className="search-result-grid">

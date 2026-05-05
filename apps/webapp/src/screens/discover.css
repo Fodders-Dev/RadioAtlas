@@ -4,6 +4,41 @@
   gap: 8px;
 }
 
+.search-results-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.search-results-skeleton-row {
+  height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(40, 56, 76, 0.45) 0%,
+    rgba(74, 96, 124, 0.62) 50%,
+    rgba(40, 56, 76, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  animation: search-results-shimmer 1.4s ease-in-out infinite;
+  border: 1px solid rgba(180, 220, 255, 0.06);
+}
+
+@keyframes search-results-shimmer {
+  0% {
+    background-position: 200% 0;
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.85;
+  }
+  100% {
+    background-position: -200% 0;
+    opacity: 0.55;
+  }
+}
+
 .screen-search .filters {
   margin-top: 4px;
 }

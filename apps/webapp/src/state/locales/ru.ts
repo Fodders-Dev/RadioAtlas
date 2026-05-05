@@ -8,7 +8,7 @@ export const ruDictionary = {
     "liveVersion": "Сборка",
     "catalogCount": "Станций: {count}",
     "favoritesCount": "Лайков: {count}",
-    "queueCount": "Очередь: {count}",
+    "queueCount": "{count} в эфире",
     "nowPlayingLabel": "Сейчас",
     "metadataUnavailable": "Трек ещё не пришёл",
     "playbackIssue": "Проблема с потоком"
@@ -595,9 +595,9 @@ export const ruDictionary = {
     "backgroundTitle": "Фоновое воспроизведение",
     "openBrowserLabel": "Открыть в системном браузере",
     "openBrowserDesc": "Рекомендуется для стабильного фонового воспроизведения.",
-    "skinTitle": "Скин плеера",
-    "skinModeLabel": "Режим скина Winamp",
-    "skinModeDesc": "Ищи, примеряй, загружай и применяй скины Winamp в одном месте.",
+    "skinTitle": "Theme Studio",
+    "skinModeLabel": "Режим темы RadioAtlas",
+    "skinModeDesc": "Собирай и применяй локальные темы оболочки в Theme Studio.",
     "closeFullscreen": "Закрыть полноэкранный плеер",
     "openFullscreen": "Открыть полноэкранный плеер",
     "generalTitle": "Параметры",
@@ -733,33 +733,6 @@ export const ruDictionary = {
       "like": "При лайке"
     }
   },
-  "skin": {
-    "kicker": "Skin Lab",
-    "title": "Skin Lab",
-    "openLab": "Открыть Skin Lab",
-    "current": "Текущий скин",
-    "useDefault": "Вернуть стандартный",
-    "resetClassic": "Вернуть классику",
-    "preview": "Превью",
-    "previewWillRender": "Примени, чтобы отрисовать этот скин в оболочке плеера.",
-    "libraryTitle": "Библиотека",
-    "libraryCopy": "Ищи в Webamp Skin Museum или выбери встроенный пресет.",
-    "museum": "Museum",
-    "preset": "Пресет",
-    "uploadTitle": "Загрузка",
-    "uploadCopy": "Предпросмотр .wsz или .zip только на эту сессию.",
-    "uploadAction": "Загрузить .wsz",
-    "uploading": "Читаем скин...",
-    "uploadInvalid": "Выбери .wsz или .zip файл.",
-    "uploadFailed": "Не удалось прочитать скин",
-    "uploaded": "Загружено",
-    "placeholder": "Поиск по skins.webamp.org",
-    "helper": "Ищи в Winamp Skin Museum и сохраняй выбранный скин между визитами.",
-    "searching": "Ищем скины...",
-    "searchFailed": "Не удалось найти скины",
-    "noResults": "Совпадений не найдено.",
-    "resultsLabel": "Результаты поиска скинов"
-  },
   "details": {
     "closeAria": "Закрыть карточку станции",
     "close": "Закрыть",
@@ -838,7 +811,6 @@ export const ruDictionary = {
     "resume": "Продолжить"
   },
   "toast": {
-    "savedSkinFallback": "Сохраненный скин недоступен. Вернул базовый Winamp Base 2.91.",
     "missingStream": "У станции нет адреса потока",
     "playbackFailed": "Не удалось запустить поток",
     "mixedContent": "Поток заблокирован браузером. Нужен защищенный HTTPS-источник.",
@@ -854,7 +826,6 @@ export const ruDictionary = {
     "noTrackInfo": "Нет данных о треке",
     "trackCopied": "Трек скопирован",
     "copyFailed": "Не удалось скопировать",
-    "skinApplied": "Скин: {name}",
     "stationHidden": "{station} скрыта из рекомендаций",
     "stationUnhidden": "{station} вернулась в рекомендации",
     "stationReportedBroken": "Спасибо, пометили {station} как проблемную"

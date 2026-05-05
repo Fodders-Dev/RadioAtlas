@@ -142,6 +142,11 @@ const StationTableRow = ({
         : snapshot.status;
   const trackLabel =
     displayTrack || t('app.metadataUnavailable');
+  // Only surface the "track unavailable" subtitle for the row that's
+  // actually playing — for the other 47 rows the line was just dead
+  // copy ("Трек ещё не пришёл" everywhere) that crowded the layout
+  // and made every station look broken.
+  const showTrackLine = active || Boolean(displayTrack);
   const showTagline = compact && Boolean(compactTags) && !displayTrack;
 
   return (
@@ -170,9 +175,11 @@ const StationTableRow = ({
                   {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
                 </div>
               ) : null}
-              <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
-                {trackLabel}
-              </div>
+              {showTrackLine ? (
+                <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
+                  {trackLabel}
+                </div>
+              ) : null}
               <div className="station-location" title={locationLabel}>
                 {locationLabel}
               </div>
@@ -229,9 +236,11 @@ const StationTableRow = ({
                     {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
                   </div>
                 ) : null}
-                <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
-                  {trackLabel}
-                </div>
+                {showTrackLine ? (
+                  <div className={`station-now-playing ${displayTrack ? '' : `is-${displayStatus}`}`.trim()} title={trackLabel}>
+                    {trackLabel}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

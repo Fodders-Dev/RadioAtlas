@@ -8,7 +8,7 @@ export const enDictionary = {
     "liveVersion": "Build",
     "catalogCount": "Stations: {count}",
     "favoritesCount": "Likes: {count}",
-    "queueCount": "Queue: {count}",
+    "queueCount": "{count} on air",
     "nowPlayingLabel": "Now",
     "metadataUnavailable": "Track metadata is not here yet",
     "playbackIssue": "Playback issue"
@@ -595,9 +595,9 @@ export const enDictionary = {
     "backgroundTitle": "Background audio",
     "openBrowserLabel": "Open in system browser",
     "openBrowserDesc": "Recommended for reliable background playback.",
-    "skinTitle": "Player skin",
-    "skinModeLabel": "Winamp skin mode",
-    "skinModeDesc": "Browse, preview, upload, and apply Winamp skins from one lab.",
+    "skinTitle": "Theme Studio",
+    "skinModeLabel": "RadioAtlas theme mode",
+    "skinModeDesc": "Build and apply local native shell themes in Theme Studio.",
     "closeFullscreen": "Close fullscreen player",
     "openFullscreen": "Open fullscreen player",
     "generalTitle": "Settings",
@@ -733,33 +733,6 @@ export const enDictionary = {
       "like": "On like"
     }
   },
-  "skin": {
-    "kicker": "Skin Lab",
-    "title": "Skin Lab",
-    "openLab": "Open Skin Lab",
-    "current": "Current skin",
-    "useDefault": "Use default",
-    "resetClassic": "Reset to classic",
-    "preview": "Preview",
-    "previewWillRender": "Apply to render this skin in the player shell.",
-    "libraryTitle": "Library",
-    "libraryCopy": "Search the Webamp Skin Museum or pick a bundled preset.",
-    "museum": "Museum",
-    "preset": "Preset",
-    "uploadTitle": "Upload",
-    "uploadCopy": "Preview a .wsz or .zip skin for this session.",
-    "uploadAction": "Upload .wsz",
-    "uploading": "Reading skin...",
-    "uploadInvalid": "Choose a .wsz or .zip file.",
-    "uploadFailed": "Skin upload failed",
-    "uploaded": "Uploaded",
-    "placeholder": "Search skins.webamp.org",
-    "helper": "Search the Winamp Skin Museum and keep the selected skin between visits.",
-    "searching": "Searching skins...",
-    "searchFailed": "Skin search failed",
-    "noResults": "No matching skins found.",
-    "resultsLabel": "Skin search results"
-  },
   "details": {
     "closeAria": "Close station card",
     "close": "Close",
@@ -838,7 +811,6 @@ export const enDictionary = {
     "resume": "Resume"
   },
   "toast": {
-    "savedSkinFallback": "Saved skin unavailable. Reverted to Winamp Base 2.91.",
     "missingStream": "Missing stream URL",
     "playbackFailed": "Playback failed",
     "mixedContent": "This stream is blocked by the browser. A secure HTTPS source is required.",
@@ -854,7 +826,6 @@ export const enDictionary = {
     "noTrackInfo": "No track info",
     "trackCopied": "Track copied",
     "copyFailed": "Copy failed",
-    "skinApplied": "Skin: {name}",
     "stationHidden": "{station} hidden from recommendations",
     "stationUnhidden": "{station} restored to recommendations",
     "stationReportedBroken": "Thanks, marked {station} as problematic"
