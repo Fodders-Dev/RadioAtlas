@@ -979,3 +979,228 @@
     flex-basis: 100%;
   }
 }
+
+/* -----------------------------------------------------------------
+ * Globe v3 — minimal Radio-Garden-ish stage. Just the planet, a
+ * reticle, zoom buttons and the currently selected station pill.
+ * Everything else stays out of the way.
+ * --------------------------------------------------------------- */
+.screen-globe-v3 {
+  position: relative;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.screen-globe-v3::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 48% 36%, rgba(0, 255, 132, 0.05), transparent 28%),
+    linear-gradient(180deg, #050d24 0%, #08123c 38%, #03081a 100%);
+  pointer-events: none;
+}
+
+.screen-globe-v3 .globe-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.screen-globe-v3 .globe {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  aspect-ratio: auto;
+}
+
+.screen-globe-v3 .globe canvas {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: grab;
+}
+
+.screen-globe-v3 .globe canvas:active {
+  cursor: grabbing;
+}
+
+.screen-globe-v3 .globe-overlay {
+  display: none;
+}
+
+.screen-globe-v3 .globe-zoom-stack {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(var(--dock-offset-v2, 72px) + 18px);
+  z-index: 24;
+  display: grid;
+  gap: 10px;
+}
+
+.screen-globe-v3 .globe-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(188, 231, 251, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(101, 153, 210, 0.08)),
+    rgba(8, 14, 24, 0.52);
+  color: #f5fcff;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.screen-globe-v3 .globe-zoom-btn:hover,
+.screen-globe-v3 .globe-zoom-btn:focus-visible {
+  transform: scale(1.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(101, 153, 210, 0.14)),
+    rgba(8, 14, 24, 0.62);
+}
+
+.screen-globe-v3 .globe-zoom-btn:active {
+  transform: scale(0.96);
+}
+
+.screen-globe-v3 .globe-now-playing {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(var(--dock-offset-v2, 72px) + 18px);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(340px, calc(100vw - 96px));
+  padding: 8px 12px 8px 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(188, 231, 251, 0.18);
+  background:
+    linear-gradient(180deg, rgba(237, 247, 255, 0.14), rgba(22, 40, 60, 0.78)),
+    rgba(13, 24, 38, 0.72);
+  box-shadow: 0 18px 34px rgba(2, 8, 16, 0.34);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: globe-now-rise 220ms ease-out both;
+}
+
+@keyframes globe-now-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.screen-globe-v3 .globe-now-art {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.screen-globe-v3 .globe-now-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.screen-globe-v3 .globe-now-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f5fcff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-globe-v3 .globe-now-meta {
+  font-size: 11px;
+  color: rgba(214, 234, 252, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screen-globe-v3 .globe-now-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5fcff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.screen-globe-v3 .globe-now-close:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: scale(1.06);
+}
+
+.screen-globe-v3 .globe-now-close[hidden] {
+  display: none;
+}
+
+.screen-globe-v3 .globe-error {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 80px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 168, 168, 0.28);
+  background: rgba(48, 14, 18, 0.62);
+  color: #ffe2e2;
+  font-size: 12px;
+  font-weight: 700;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: 0 14px 28px rgba(2, 8, 16, 0.28);
+}
+
+@media (max-width: 720px) {
+  .screen-globe-v3 .globe-zoom-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .screen-globe-v3 .globe-now-playing {
+    max-width: calc(100vw - 76px);
+    padding: 6px 10px 6px 6px;
+  }
+
+  .screen-globe-v3 .globe-now-art {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+}

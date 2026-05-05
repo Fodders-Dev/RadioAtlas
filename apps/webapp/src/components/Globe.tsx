@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { loadGlobeAssets, type GlobeAssets } from './globe/assets';
-import { findNearestAreaToRotation } from './globe/selection';
 import './globe/globe.css';
 
 type GlobePoint = {
@@ -25,13 +24,15 @@ type GlobeProps = {
   geoCount?: number;
   zoomLevel?: number;
   onZoomChange?: (value: number) => void;
-  tuneRequestKey?: number;
-  spinRequestKey?: number;
-  onAutoRotateChange?: (enabled: boolean) => void;
   hintText?: string;
   immersive?: boolean;
   statusText?: string;
 };
+
+// Cross over from the soft Blue Marble fallback to live satellite tiles
+// as soon as the user starts zooming in. The bitmap fallback only stays
+// visible at the cold "see the whole planet" view.
+const SATELLITE_MODE_THRESHOLD = 1.4;
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 10;
@@ -95,9 +96,6 @@ export const Globe = ({
   geoCount,
   zoomLevel,
   onZoomChange,
-  tuneRequestKey,
-  spinRequestKey,
-  onAutoRotateChange,
   hintText,
   immersive = false,
   statusText
@@ -124,8 +122,6 @@ export const Globe = ({
   const scaleRef = useRef(1);
   const targetScaleRef = useRef(1);
   const onZoomChangeRef = useRef(onZoomChange);
-  const lastTuneRequestRef = useRef(0);
-  const lastSpinRequestRef = useRef(0);
   // Pixels of pointer travel per millisecond, retained on pointer-up so the
   // globe keeps spinning briefly with inertia like a real planet.
   const dragVelocityRef = useRef<{ x: number; y: number; sampledAt: number }>({
@@ -197,10 +193,6 @@ export const Globe = ({
   }, []);
 
   useEffect(() => {
-    onAutoRotateChange?.(autoRotate);
-  }, [autoRotate, onAutoRotateChange]);
-
-  useEffect(() => {
     if (!focusPoint) return;
     // Don't yank the planet out from under an active drag — that's how
     // the globe ended up feeling magnetic when picking nearby regions.
@@ -225,28 +217,6 @@ export const Globe = ({
     }
   }, [zoomLevel]);
 
-  useEffect(() => {
-    if (!tuneRequestKey || tuneRequestKey === lastTuneRequestRef.current) return;
-    lastTuneRequestRef.current = tuneRequestKey;
-    const nearest = findNearestAreaToRotation(
-      points,
-      rotationRef.current,
-      assets?.geoDistance
-    );
-    if (!nearest) {
-      onPickCandidates?.([]);
-      return;
-    }
-    onPick?.(nearest.id);
-    onPickCandidates?.([]);
-  }, [assets?.geoDistance, onPick, onPickCandidates, points, tuneRequestKey]);
-
-  useEffect(() => {
-    if (!spinRequestKey || spinRequestKey === lastSpinRequestRef.current) return;
-    lastSpinRequestRef.current = spinRequestKey;
-    targetRotationRef.current = null;
-    setAutoRotate(true);
-  }, [spinRequestKey]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -308,7 +278,7 @@ export const Globe = ({
         dragVelocityRef.current.x,
         dragVelocityRef.current.y
       );
-      const mapLikely = immersive && currentScale >= 2.7;
+      const mapLikely = immersive && currentScale >= SATELLITE_MODE_THRESHOLD;
       const moving =
         draggingRef.current ||
         autoRotate ||
@@ -382,7 +352,7 @@ export const Globe = ({
         // Apply leftover pointer momentum after release. The decay is
         // tuned per frame, scaled by the actual frame delta so heavy
         // frames don't make the planet stop abruptly.
-        const speed = 0.4 / Math.max(1, currentScale);
+        const speed = 0.28 / Math.max(1, currentScale);
         rotation[0] += dragVelocityRef.current.x * speed * frameDeltaMs;
         rotation[1] = Math.max(
           -TILT_LIMIT,
@@ -402,7 +372,7 @@ export const Globe = ({
       projectionRef.current = projection;
       const center: [number, number] = [-rotation[0], -rotation[1]];
       const [projectionCenterX, projectionCenterY] = projection.translate() as [number, number];
-      const mapMode = immersive && currentScale >= 2.7 && Boolean(assets.earthTexture);
+      const mapMode = immersive && currentScale >= SATELLITE_MODE_THRESHOLD && Boolean(assets.earthTexture);
 
       const path = assets.geoPath(projection, ctx);
       const sphere = { type: 'Sphere' } as any;
@@ -1132,10 +1102,11 @@ export const Globe = ({
       pinchRef.current = null;
     }
     // Cap inertia velocity so a frantic flick doesn't fling the globe.
+    // Lower than before — the planet should drift, not spin.
     const v = dragVelocityRef.current;
     const speed = Math.hypot(v.x, v.y);
-    if (speed > 3) {
-      const factor = 3 / speed;
+    if (speed > 1.5) {
+      const factor = 1.5 / speed;
       dragVelocityRef.current = { x: v.x * factor, y: v.y * factor, sampledAt: performance.now() };
     }
     event.currentTarget.releasePointerCapture(event.pointerId);

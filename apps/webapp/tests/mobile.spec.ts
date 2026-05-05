@@ -1224,91 +1224,53 @@ test('mobile home demotes a repeatedly failed station from the primary hero', as
 });
 
 for (const width of [360, 390]) {
-  test(`mobile globe uses reticle tuning and a visible focus sheet at ${width}px`, async ({ page }) => {
+  test(`mobile globe is full-bleed with reticle and zoom controls at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
 
     await page.goto('/');
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
 
-    await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-density', 'dense');
+    // The new globe stage is full-bleed: canvas, reticle, zoom buttons.
+    // No chip-row, no breadcrumb, no focus card list.
+    await expect(page.locator('.screen-globe-v3')).toBeVisible();
+    await expect(page.locator('.globe canvas')).toBeVisible();
     await expect(page.locator('.globe-reticle')).toBeVisible();
-    await expect(page.locator('[data-globe-tune]')).toBeVisible();
-    await expect(page.locator('[data-globe-play-region]')).toBeVisible();
-    await expect(page.locator('.globe-hint')).not.toContainText(/scroll|колес/i);
-    await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
+    await expect(page.locator('.globe-zoom-stack .globe-zoom-btn')).toHaveCount(2);
+    await expect(page.locator('[data-globe-tune]')).toHaveCount(0);
+    await expect(page.locator('.globe-focus-card')).toHaveCount(0);
+    await expect(page.locator('[data-globe-breadcrumb]')).toHaveCount(0);
     await expectNoGlobeHorizontalOverflow(page);
 
-    const denseControlMetrics = await page.evaluate(() => {
+    // Zoom controls are bottom-right and clear of the reticle dead-zone.
+    const layout = await page.evaluate(() => {
       const reticle = document.querySelector('.globe-reticle')?.getBoundingClientRect();
-      const footer = document.querySelector('.screen-globe-minimal[data-density="dense"] .globe-command-footer')?.getBoundingClientRect();
-      const footerNode = document.querySelector('.screen-globe-minimal[data-density="dense"] .globe-command-footer');
-      const footerStyle = footerNode ? window.getComputedStyle(footerNode) : null;
+      const stack = document.querySelector('.globe-zoom-stack')?.getBoundingClientRect();
       return {
-        reticleCenterY: reticle ? reticle.top + reticle.height / 2 : null,
-        footerTop: footer?.top ?? null,
-        footerBottom: footer?.bottom ?? null,
-        footerBackground: footerStyle?.backgroundColor || '',
-        footerBackdrop: footerStyle?.backdropFilter || ''
+        reticleCenterX: reticle ? reticle.left + reticle.width / 2 : null,
+        stackLeft: stack?.left ?? null,
+        viewportWidth: window.innerWidth
       };
     });
-    expect(denseControlMetrics.reticleCenterY).not.toBeNull();
-    expect(denseControlMetrics.footerTop).not.toBeNull();
-    expect(denseControlMetrics.footerBottom).not.toBeNull();
-    expect(
-      denseControlMetrics.reticleCenterY! < denseControlMetrics.footerTop! - 24 ||
-        denseControlMetrics.reticleCenterY! > denseControlMetrics.footerBottom! + 24
-    ).toBe(true);
-    expect(denseControlMetrics.footerBackground).not.toBe('rgba(0, 0, 0, 0)');
-
-    const sheetRect = await page.locator('.globe-focus-card').evaluate((node) => {
-      const rect = node.getBoundingClientRect();
-      return {
-        top: rect.top,
-        bottom: rect.bottom,
-        viewportHeight: window.innerHeight,
-        scrollY: window.scrollY
-      };
-    });
-    expect(sheetRect.top).toBeLessThan(sheetRect.viewportHeight - 80);
-    expect(sheetRect.bottom).toBeGreaterThan(sheetRect.top + 80);
-    expect(sheetRect.scrollY).toBe(0);
-
-    await page.locator('[data-globe-play-region]').click();
-    await expect(page.locator('.player-dock-bar')).toBeVisible();
-
-    await page.locator('[data-globe-clear]').click();
-    await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
-    await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
-
-    await page.locator('[data-globe-tune]').click();
-    await expect(page.locator('[data-globe-clear]')).toBeVisible();
-    await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
-
-    await page.locator('.globe-focus-card .station-compact-toggle').first().click();
-    await expect(page.locator('.player-dock-bar')).toBeVisible();
+    expect(layout.reticleCenterX).not.toBeNull();
+    expect(layout.stackLeft).not.toBeNull();
+    // The zoom stack sits to the right of the centre reticle.
+    expect(layout.stackLeft!).toBeGreaterThan(layout.reticleCenterX!);
   });
 }
 
-test('mobile globe retuning the selected area deselects instead of zooming further', async ({ page }) => {
+test('mobile globe pressing zoom + brings up satellite mode', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
-  await expect(page.locator('.globe-focus-card .station-row').first()).toBeVisible();
+  await expect(page.locator('.screen-globe-v3')).toHaveAttribute('data-zoom-level', '1.00');
 
-  if (await page.locator('[data-globe-clear]').isVisible().catch(() => false)) {
-    await page.locator('[data-globe-clear]').click();
+  for (let i = 0; i < 3; i += 1) {
+    await page.locator('.globe-zoom-btn[aria-label*="zoom" i], .globe-zoom-btn').first().click();
+    await page.waitForTimeout(220);
   }
-  await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
-  await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
-
-  await page.locator('[data-globe-tune]').click();
-  await expect(page.locator('[data-globe-clear]')).toBeVisible();
-  const zoomAfterSelect = await page.locator('.screen-globe-v2').getAttribute('data-zoom-level');
-
-  await page.locator('[data-globe-tune]').click();
-  await expect(page.locator('[data-globe-clear]')).toHaveCount(0);
-  await expect(page.locator('.screen-globe-v2')).toHaveAttribute('data-zoom-level', '1.00');
-  expect(Number(zoomAfterSelect)).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(async () => page.locator('.screen-globe-v3').getAttribute('data-satellite'))
+    .toBe('true');
 });
 
 test('mobile globe wheel zoom keeps one canvas wheel listener', async ({ page }) => {
@@ -1359,7 +1321,7 @@ test('mobile globe wheel zoom keeps one canvas wheel listener', async ({ page })
   expect(canvasBox).not.toBeNull();
   await page.mouse.move(canvasBox!.x + canvasBox!.width / 2, canvasBox!.y + canvasBox!.height / 2);
   await page.mouse.wheel(0, -180);
-  await expect(page.locator('.screen-globe-v2')).not.toHaveAttribute('data-zoom-level', '1.00');
+  await expect(page.locator('.screen-globe-v3')).not.toHaveAttribute('data-zoom-level', '1.00');
   const after = await page.evaluate(() =>
     (window as typeof window & {
       __globeWheelListenerCounts: () => { wheelAdds: number; wheelRemoves: number };
@@ -1953,8 +1915,8 @@ test('mobile library followed regions route to focused globe area', async ({ pag
   await regionRow.getByRole('button', { name: /^Слушать$|^Play$/ }).click();
   await expect(page.locator('.player-dock-title')).toHaveText(/Tokyo FM|Osaka Nights|Kyoto Groove|Sapporo City Pop/);
   await regionRow.getByRole('button', { name: /Открыть глобус|Open in Globe/ }).click();
-  await expect(page.locator('.screen-globe-v2')).toBeVisible();
-  await expect(page.locator('.globe-focus-card .section-title')).toHaveText(/Japan/);
+  await expect(page.locator('.screen-globe-v3')).toBeVisible();
+  await expect(page.locator('.globe canvas')).toBeVisible();
   await expectNoGlobeHorizontalOverflow(page);
 });
 
@@ -2594,7 +2556,7 @@ test('core mobile screens have no document overflow on 360 390 and 412 widths', 
     await expectNoDocumentHorizontalOverflow(page);
 
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
-    await expect(page.locator('.screen-globe-v2')).toBeVisible();
+    await expect(page.locator('.screen-globe-v3')).toBeVisible();
     await expectNoDocumentHorizontalOverflow(page);
 
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Медиатека|Library/ }).click();
