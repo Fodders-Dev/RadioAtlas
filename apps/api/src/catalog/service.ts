@@ -508,7 +508,10 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
   return {
     items,
     mappedStations,
-    totalStations: stations.length
+    totalStations: stations.length,
+    // Build marker — bumped each time we change shape so I can confirm
+    // the deployed bundle picked up the change without SSH access.
+    schemaVersion: 2
   };
 };
 
