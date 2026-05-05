@@ -202,7 +202,12 @@ export const GlobeScreen = () => {
                 {visibleStation.name}
               </div>
               <div className="globe-now-meta">
-                {visibleStation.country || visibleStation.state || t('globe.unknownLocation')}
+                {[
+                  visibleStation.language?.split(',')[0]?.trim(),
+                  visibleStation.country || visibleStation.state
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || t('globe.unknownLocation')}
               </div>
             </div>
             <button
