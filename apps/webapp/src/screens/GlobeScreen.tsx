@@ -28,6 +28,9 @@ export const GlobeScreen = () => {
   const [overviewAreas, setOverviewAreas] = useState<CatalogArea[]>([]);
   const [pickedStation, setPickedStation] = useState<StationLite | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
+  // Whatever the reticle is hovering over right now, even before the
+  // camera settles. Drives the highlighted halo on the globe.
+  const [reticleStationId, setReticleStationId] = useState<string | null>(null);
   // When the user opens the globe through "Open in Globe" from a followed
   // region in the library, this is the lat/lon we snap to on entry. Once
   // applied, we clear globeFocusRegionId so the next mount stays neutral.
@@ -172,6 +175,23 @@ export const GlobeScreen = () => {
     })();
   };
 
+  // While dragging, just light up the candidate dot under the reticle.
+  // No fetch, no network, no playback — purely visual feedback so the
+  // user can see what they'd snap to.
+  const handleReticleHover = (stationId: string | null) => {
+    setReticleStationId(stationId);
+  };
+
+  // Camera has been still for ~450 ms; if the candidate the reticle
+  // landed on isn't already what's playing, route through the same
+  // pick pipeline a tap would use.
+  const handleReticleSettle = (stationId: string) => {
+    if (!stationId.startsWith('station:')) return;
+    const rawId = stationId.slice('station:'.length);
+    if (player.current?.stationuuid === rawId) return;
+    handlePick(stationId);
+  };
+
   // The selected station card collapses if the user pans away or stops a
   // station. Treat the dock player as the source of truth for "what's
   // currently playing" — `pickedStation` is just our last-tapped entry.
@@ -179,8 +199,14 @@ export const GlobeScreen = () => {
   const isSatelliteMode = zoomLevel >= SATELLITE_THRESHOLD;
   const activeStationId = player.current?.stationuuid;
   const activePointId = activeStationId ? `station:${activeStationId}` : undefined;
+  // Highlight priority: explicitly tapped > reticle candidate > now
+  // playing. The reticle hover wins over now-playing so the user gets
+  // immediate visual feedback while panning, even if they're still
+  // hearing the previous station before the settle fires.
   const selectedPointId =
-    pickedStation && pickedStation.stationuuid ? `station:${pickedStation.stationuuid}` : activePointId;
+    (pickedStation && pickedStation.stationuuid && `station:${pickedStation.stationuuid}`) ||
+    reticleStationId ||
+    activePointId;
 
   return (
     <section
@@ -198,6 +224,8 @@ export const GlobeScreen = () => {
             zoomLevel={zoomLevel}
             onZoomChange={setZoomLevel}
             onPick={handlePick}
+            onReticleHover={handleReticleHover}
+            onReticleSettle={handleReticleSettle}
             hintText=""
             statusText=""
             immersive

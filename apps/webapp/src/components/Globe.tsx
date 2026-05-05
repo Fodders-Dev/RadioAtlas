@@ -19,6 +19,15 @@ type GlobeProps = {
   focusPoint?: { lat: number; lon: number };
   onPick?: (id: string) => void;
   onPickCandidates?: (ids: string[]) => void;
+  // Fires while the user is panning/zooming with the station whose
+  // rendered dot sits closest to the reticle. The parent uses this to
+  // soft-highlight the candidate station as the globe moves under the
+  // crosshair.
+  onReticleHover?: (stationId: string | null) => void;
+  // Fires after the camera has been still for ~400 ms with the same
+  // station as `onReticleHover` reported. The parent treats this as a
+  // "play it" signal — Radio Garden style auto-tune.
+  onReticleSettle?: (stationId: string) => void;
   totalCount?: number;
   geoCount?: number;
   zoomLevel?: number;
@@ -179,6 +188,8 @@ export const Globe = ({
   selectedId,
   focusPoint,
   onPick,
+  onReticleHover,
+  onReticleSettle,
   zoomLevel,
   onZoomChange,
   hintText,
@@ -189,6 +200,14 @@ export const Globe = ({
   const [ready, setReady] = useState(false);
   const externalZoomRef = useRef<number | null>(null);
   const lastEmittedScaleRef = useRef<number>(1);
+  // Callbacks referenced from event handlers attached once on the map;
+  // refs keep them current without re-attaching on every render.
+  const onReticleHoverRef = useRef(onReticleHover);
+  const onReticleSettleRef = useRef(onReticleSettle);
+  useEffect(() => {
+    onReticleHoverRef.current = onReticleHover;
+    onReticleSettleRef.current = onReticleSettle;
+  });
 
   // Mount the map exactly once. Style and layers are loaded inside.
   useEffect(() => {
@@ -253,6 +272,118 @@ export const Globe = ({
     // synced through follow-up effects so the map instance stays alive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reticle-snap: while the user pans/zooms, highlight whichever
+  // station's rendered dot is closest to the viewport centre, and
+  // when the camera settles for ~450 ms emit a settle event so the
+  // parent can auto-tune to that station — Radio Garden style.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+
+    let lastHoverId: string | null = null;
+    let userHasDragged = false;
+    let settleTimeout: number | null = null;
+
+    const findNearestStation = (): string | null => {
+      const canvas = map.getCanvasContainer();
+      const cx = canvas.clientWidth / 2;
+      const cy = canvas.clientHeight / 2;
+      // Search radius in screen pixels — wide enough that the reticle
+      // always finds *something* unless the viewport is genuinely
+      // empty (middle of the Pacific etc.).
+      const radius = 280;
+      let features: MapGeoJSONFeature[] = [];
+      try {
+        features = map.queryRenderedFeatures(
+          [
+            [cx - radius, cy - radius],
+            [cx + radius, cy + radius]
+          ],
+          { layers: ['stations-dot'] }
+        ) as MapGeoJSONFeature[];
+      } catch {
+        return null;
+      }
+      if (!features.length) return null;
+      let nearestId: string | null = null;
+      let nearestDist = Infinity;
+      for (const feature of features) {
+        const id = feature.properties?.id;
+        if (typeof id !== 'string') continue;
+        const geom = feature.geometry;
+        if (!geom || geom.type !== 'Point') continue;
+        const [lon, lat] = geom.coordinates as [number, number];
+        const pt = map.project([lon, lat]);
+        const dx = pt.x - cx;
+        const dy = pt.y - cy;
+        const d = dx * dx + dy * dy;
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearestId = id;
+        }
+      }
+      return nearestId;
+    };
+
+    const cancelSettle = () => {
+      if (settleTimeout !== null) {
+        window.clearTimeout(settleTimeout);
+        settleTimeout = null;
+      }
+    };
+
+    const handleMove = () => {
+      const id = findNearestStation();
+      if (id !== lastHoverId) {
+        lastHoverId = id;
+        onReticleHoverRef.current?.(id);
+      }
+    };
+
+    const handleMoveStart = (event: maplibregl.MapLibreEvent) => {
+      // Only count direct user gestures (mouse / touch / wheel),
+      // not the programmatic easeTo / flyTo we fire when the parent
+      // updates focusPoint after a tap or library deeplink.
+      if ((event as { originalEvent?: unknown }).originalEvent) {
+        userHasDragged = true;
+      }
+      cancelSettle();
+    };
+
+    const handleMoveEnd = () => {
+      cancelSettle();
+      // Only auto-tune after the user actually moved the camera with
+      // their own input. Programmatic easeTo calls from focusPoint
+      // changes shouldn't hijack playback.
+      if (!userHasDragged) return;
+      const id = findNearestStation();
+      if (!id) return;
+      const target = id;
+      settleTimeout = window.setTimeout(() => {
+        onReticleSettleRef.current?.(target);
+        // Wait for the next genuine user gesture before auto-tuning
+        // again, so the post-pick easeTo animation doesn't re-trigger
+        // the settle on a different nearby station.
+        userHasDragged = false;
+        settleTimeout = null;
+      }, 450);
+    };
+
+    map.on('movestart', handleMoveStart);
+    map.on('move', handleMove);
+    map.on('moveend', handleMoveEnd);
+    // Initial pass so the parent can highlight what the reticle sees
+    // at mount time (without auto-playing).
+    handleMove();
+
+    return () => {
+      map.off('movestart', handleMoveStart);
+      map.off('move', handleMove);
+      map.off('moveend', handleMoveEnd);
+      cancelSettle();
+    };
+  }, [ready]);
 
   // Push station points into the GeoJSON source whenever the prop changes.
   useEffect(() => {
