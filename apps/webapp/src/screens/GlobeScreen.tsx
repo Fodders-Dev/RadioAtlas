@@ -274,11 +274,16 @@ export const GlobeScreen = () => {
     });
   };
 
+  const isSatelliteMode = zoomLevel >= 2.7;
+  const breadcrumbLabel =
+    isSatelliteMode && selectedArea ? selectedAreaTitle || selectedArea.label : null;
+
   return (
     <section
       className="screen screen-globe-v2 screen-globe-minimal"
       data-density={isCompactLayout ? 'dense' : 'regular'}
       data-zoom-level={zoomLevel.toFixed(2)}
+      data-satellite={isSatelliteMode ? 'true' : 'false'}
     >
       <div className="glass-card globe-command-card">
         <div className="globe-command-top">
@@ -288,6 +293,27 @@ export const GlobeScreen = () => {
             <strong>{selectedArea ? selectedArea.count : areas.length}</strong>
           </div>
         </div>
+        {breadcrumbLabel ? (
+          <div className="globe-breadcrumb" aria-live="polite" data-globe-breadcrumb>
+            <span className="globe-breadcrumb-glyph" aria-hidden="true">
+              ◎
+            </span>
+            <strong className="globe-breadcrumb-label">{breadcrumbLabel}</strong>
+            {selectedArea ? (
+              <span className="globe-breadcrumb-meta">
+                {t('globe.selectionCount')} <strong>{selectedArea.count}</strong>
+              </span>
+            ) : null}
+            <button
+              className="globe-breadcrumb-back"
+              type="button"
+              onClick={clearSelection}
+              aria-label={t('globe.clearSelection')}
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
         {areasError ? <div className="error">{areasError}</div> : null}
         <div className="globe-command-map">
           <Suspense fallback={<div className="globe globe-loading-surface" />}>
@@ -332,27 +358,31 @@ export const GlobeScreen = () => {
             -
           </button>
         </div>
-        <div className="globe-command-footer">
+        <div className="globe-command-footer" data-satellite={isSatelliteMode ? 'true' : 'false'}>
           <div
             className="chip-row globe-command-actions"
             data-has-selection={selectedArea ? 'true' : 'false'}
           >
-            <button
-              className="chip active globe-tune-chip"
-              type="button"
-              data-globe-tune
-              onClick={() => setTuneRequestKey((value) => value + 1)}
-            >
-              {t('globe.tuneHere')}
-            </button>
-            <button
-              className={`chip ${autoRotateEnabled ? 'active' : ''}`}
-              type="button"
-              data-globe-spin
-              onClick={() => setSpinRequestKey((value) => value + 1)}
-            >
-              {t('globe.toggleSpin')}
-            </button>
+            {!isSatelliteMode ? (
+              <>
+                <button
+                  className="chip active globe-tune-chip"
+                  type="button"
+                  data-globe-tune
+                  onClick={() => setTuneRequestKey((value) => value + 1)}
+                >
+                  {t('globe.tuneHere')}
+                </button>
+                <button
+                  className={`chip ${autoRotateEnabled ? 'active' : ''}`}
+                  type="button"
+                  data-globe-spin
+                  onClick={() => setSpinRequestKey((value) => value + 1)}
+                >
+                  {t('globe.toggleSpin')}
+                </button>
+              </>
+            ) : null}
             {!isCompactLayout ? (
               <>
                 <button className="chip" type="button" onClick={() => setActiveSection('search')}>

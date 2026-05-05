@@ -122,9 +122,18 @@ export const Globe = ({
   const mapFrameRef = useRef<{ canvas: HTMLCanvasElement; key: string } | null>(null);
   const lastDrawTimeRef = useRef(0);
   const scaleRef = useRef(1);
+  const targetScaleRef = useRef(1);
   const onZoomChangeRef = useRef(onZoomChange);
   const lastTuneRequestRef = useRef(0);
   const lastSpinRequestRef = useRef(0);
+  // Pixels of pointer travel per millisecond, retained on pointer-up so the
+  // globe keeps spinning briefly with inertia like a real planet.
+  const dragVelocityRef = useRef<{ x: number; y: number; sampledAt: number }>({
+    x: 0,
+    y: 0,
+    sampledAt: 0
+  });
+  const lastDrawTimestampRef = useRef(0);
 
   const [size, setSize] = useState({ width: 320, height: 320 });
   const [autoRotate, setAutoRotate] = useState(
@@ -144,11 +153,17 @@ export const Globe = ({
     scaleRef.current = scale;
   }, [scale]);
 
-  const commitScale = useCallback((value: number) => {
+  // commitScale used to be an instant jump; instead we set a target the
+  // draw loop tweens toward, which makes +/- buttons and pinch zoom feel
+  // smooth instead of stepping in 0.75 increments.
+  const commitScale = useCallback((value: number, options?: { instant?: boolean }) => {
     const next = clamp(value, MIN_ZOOM, MAX_ZOOM);
-    scaleRef.current = next;
-    setScale(next);
-    onZoomChangeRef.current?.(next);
+    targetScaleRef.current = next;
+    if (options?.instant) {
+      scaleRef.current = next;
+      setScale(next);
+      onZoomChangeRef.current?.(next);
+    }
   }, []);
 
   const handleSurfaceWheel = useCallback(
@@ -202,8 +217,8 @@ export const Globe = ({
   useEffect(() => {
     if (typeof zoomLevel === 'number') {
       const next = clamp(zoomLevel, MIN_ZOOM, MAX_ZOOM);
-      scaleRef.current = next;
-      setScale(next);
+      // External owner controls zoom; tween toward it instead of snapping.
+      targetScaleRef.current = next;
     }
   }, [zoomLevel]);
 
@@ -272,12 +287,32 @@ export const Globe = ({
 
     let frame: number;
     const draw = (timestamp = 0) => {
-      const mapLikely = immersive && scaleRef.current >= 2.7;
+      // Tween scale toward the target so +/- and pinch feel smooth.
+      const targetScale = targetScaleRef.current;
+      const scaleDelta = targetScale - scaleRef.current;
+      if (Math.abs(scaleDelta) > 0.0008) {
+        scaleRef.current += scaleDelta * 0.18;
+      } else if (scaleRef.current !== targetScale) {
+        scaleRef.current = targetScale;
+        // Once we settle, propagate the value back up so external state
+        // mirrors the actual zoom level.
+        setScale(targetScale);
+        onZoomChangeRef.current?.(targetScale);
+      }
+      const currentScale = scaleRef.current;
+      const isTweening = Math.abs(scaleDelta) > 0.0008;
+      const inertiaSpeed = Math.hypot(
+        dragVelocityRef.current.x,
+        dragVelocityRef.current.y
+      );
+      const mapLikely = immersive && currentScale >= 2.7;
       const moving =
         draggingRef.current ||
         autoRotate ||
         Boolean(targetRotationRef.current) ||
-        focusPulseRef.current > 0.01;
+        focusPulseRef.current > 0.01 ||
+        isTweening ||
+        inertiaSpeed > 0.04;
       const minFrameMs = mapLikely
         ? deviceProfile.lowPower
           ? 50
@@ -291,7 +326,12 @@ export const Globe = ({
         frame = window.requestAnimationFrame(draw);
         return;
       }
+      const previousTimestamp = lastDrawTimestampRef.current;
       lastDrawTimeRef.current = timestamp || performance.now();
+      lastDrawTimestampRef.current = timestamp || performance.now();
+      const frameDeltaMs = previousTimestamp
+        ? Math.min(64, lastDrawTimestampRef.current - previousTimestamp)
+        : 16;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -309,7 +349,7 @@ export const Globe = ({
       const baseRadius = immersive
         ? Math.min(size.height * 0.46, size.width * 0.86)
         : Math.min(size.width, size.height) * 0.42;
-      const radius = baseRadius * scale;
+      const radius = baseRadius * currentScale;
       const projection = assets.geoOrthographic()
         .translate([size.width / 2, size.height / 2])
         .scale(radius)
@@ -327,15 +367,36 @@ export const Globe = ({
         ) {
           targetRotationRef.current = null;
         }
-      } else if (!draggingRef.current && autoRotate) {
-        const autoSpeed = (deviceProfile.lowPower ? 0.006 : 0.01) / Math.max(1, scale);
+        // A focus snap overrides any leftover drag inertia.
+        dragVelocityRef.current = { x: 0, y: 0, sampledAt: 0 };
+      } else if (draggingRef.current) {
+        // Active drag: rotation is already updated in pointermove. Nothing
+        // else to do; we just want the inertia memory fresh.
+      } else if (inertiaSpeed > 0.04) {
+        // Apply leftover pointer momentum after release. The decay is
+        // tuned per frame, scaled by the actual frame delta so heavy
+        // frames don't make the planet stop abruptly.
+        const speed = 0.4 / Math.max(1, currentScale);
+        rotation[0] += dragVelocityRef.current.x * speed * frameDeltaMs;
+        rotation[1] = Math.max(
+          -TILT_LIMIT,
+          Math.min(TILT_LIMIT, rotation[1] - dragVelocityRef.current.y * speed * frameDeltaMs)
+        );
+        const decay = Math.pow(0.92, frameDeltaMs / 16);
+        dragVelocityRef.current = {
+          x: dragVelocityRef.current.x * decay,
+          y: dragVelocityRef.current.y * decay,
+          sampledAt: dragVelocityRef.current.sampledAt
+        };
+      } else if (autoRotate) {
+        const autoSpeed = (deviceProfile.lowPower ? 0.006 : 0.01) / Math.max(1, currentScale);
         rotation[0] += autoSpeed;
       }
       projection.rotate(rotation);
       projectionRef.current = projection;
       const center: [number, number] = [-rotation[0], -rotation[1]];
       const [projectionCenterX, projectionCenterY] = projection.translate() as [number, number];
-      const mapMode = immersive && scale >= 2.7 && Boolean(assets.earthTexture);
+      const mapMode = immersive && currentScale >= 2.7 && Boolean(assets.earthTexture);
 
       const path = assets.geoPath(projection, ctx);
       const sphere = { type: 'Sphere' } as any;
@@ -344,7 +405,7 @@ export const Globe = ({
         if (!texture) return false;
         const centerLon = ((((center[0] + 180) % 360) + 360) % 360) - 180;
         const centerLat = clamp(center[1], -78, 78);
-        const zoomPower = Math.max(1, Math.pow(scale, 1.42));
+        const zoomPower = Math.max(1, Math.pow(currentScale, 1.42));
         const lonSpan = clamp(360 / zoomPower, 10, 120);
         const latSpan = clamp(lonSpan * (size.height / Math.max(1, size.width)), 8, 120);
         const drawEquirectFallback = () => {
@@ -385,7 +446,7 @@ export const Globe = ({
           }
         };
 
-        const tileZoom = clamp(Math.round(3 + scale * 0.9), 4, 12);
+        const tileZoom = clamp(Math.round(3 + currentScale * 0.9), 4, 12);
         const centerPixel = lonLatToWorldPixel(centerLon, centerLat, tileZoom);
         const startX = centerPixel.x - size.width / 2;
         const startY = centerPixel.y - size.height / 2;
@@ -682,7 +743,7 @@ export const Globe = ({
           ctx.beginPath();
           path(assets.borders as any);
           ctx.strokeStyle = hasEarthTexture ? 'rgba(190, 232, 255, 0.16)' : 'rgba(190, 232, 255, 0.34)';
-          ctx.lineWidth = scale >= 2 ? 0.9 : 0.72;
+          ctx.lineWidth = currentScale >= 2 ? 0.9 : 0.72;
           ctx.stroke();
         }
 
@@ -700,8 +761,8 @@ export const Globe = ({
       }
 
       const baseDot = immersive
-        ? Math.max(2.3, 4.2 - (scale - 1) * 0.35)
-        : Math.max(2.2, 4.4 - (scale - 1) * 0.55);
+        ? Math.max(2.3, 4.2 - (currentScale - 1) * 0.35)
+        : Math.max(2.2, 4.4 - (currentScale - 1) * 0.55);
       const activeDot = baseDot + (immersive ? 2.8 : 2.2);
       const pulse = focusPulseRef.current;
       focusPulseRef.current = Math.max(0, pulse - (deviceProfile.lowPower ? 0.05 : 0.02));
@@ -872,7 +933,7 @@ export const Globe = ({
         }
       });
 
-      const labelLimitBase = immersive ? 0 : scale >= 3.6 ? 9 : scale >= 2.4 ? 7 : scale >= 1.5 ? 5 : 3;
+      const labelLimitBase = immersive ? 0 : currentScale >= 3.6 ? 9 : currentScale >= 2.4 ? 7 : currentScale >= 1.5 ? 5 : 3;
       const labelLimit = deviceProfile.lowPower
         ? Math.max(2, Math.floor(labelLimitBase / 2))
         : labelLimitBase;
@@ -883,7 +944,7 @@ export const Globe = ({
           if (labelSlots.length >= labelLimit && !point.isSelected) return;
           const title = trimLabel(point.label, point.isSelected ? 22 : 16);
           const detail =
-            point.isSelected || scale >= 2.6
+            point.isSelected || currentScale >= 2.6
               ? trimLabel(point.subtitle || '', point.isSelected ? 24 : 18)
               : '';
 
@@ -966,7 +1027,8 @@ export const Globe = ({
     selectedId,
     assets,
     autoRotate,
-    scale,
+    // scale is intentionally NOT in deps; we read scaleRef in the loop and
+    // tween between targetScaleRef so re-renders don't recreate the rAF.
     documentVisible,
     immersive,
     deviceProfile.lowPower
@@ -1028,6 +1090,19 @@ export const Globe = ({
       0
     ];
     lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    // Sample drag velocity (pixels per ms) so the draw loop can keep
+    // spinning the globe briefly after pointer release.
+    const now = event.timeStamp || performance.now();
+    const elapsed = Math.max(1, now - dragVelocityRef.current.sampledAt);
+    if (elapsed < 64) {
+      dragVelocityRef.current = {
+        x: dx / elapsed,
+        y: dy / elapsed,
+        sampledAt: now
+      };
+    } else {
+      dragVelocityRef.current = { x: 0, y: 0, sampledAt: now };
+    }
   };
 
   const handlePointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -1036,6 +1111,13 @@ export const Globe = ({
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size < 2) {
       pinchRef.current = null;
+    }
+    // Cap inertia velocity so a frantic flick doesn't fling the globe.
+    const v = dragVelocityRef.current;
+    const speed = Math.hypot(v.x, v.y);
+    if (speed > 3) {
+      const factor = 3 / speed;
+      dragVelocityRef.current = { x: v.x * factor, y: v.y * factor, sampledAt: performance.now() };
     }
     event.currentTarget.releasePointerCapture(event.pointerId);
     if (pointerIdRef.current === event.pointerId) {
@@ -1056,7 +1138,7 @@ export const Globe = ({
     const y = event.clientY - rect.top;
     const renderState = renderStateRef.current;
     if (renderState.mode === 'map') {
-      const maxPick = Math.max(12, 24 - (scale - 1) * 0.7);
+      const maxPick = Math.max(12, 24 - (scaleRef.current - 1) * 0.7);
       const maxPickSq = maxPick * maxPick;
       const candidates: { id: string; dist: number }[] = [];
       points.forEach((point) => {
@@ -1124,7 +1206,7 @@ export const Globe = ({
     }
     const rotation = rotationRef.current;
     const center: [number, number] = [-rotation[0], -rotation[1]];
-    const maxPick = Math.max(11, 22 - (scale - 1) * 0.9);
+    const maxPick = Math.max(11, 22 - (scaleRef.current - 1) * 0.9);
     const maxPickSq = maxPick * maxPick;
 
     const candidates: { id: string; dist: number }[] = [];

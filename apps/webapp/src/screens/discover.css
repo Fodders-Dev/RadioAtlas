@@ -431,6 +431,126 @@
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 18px 32px rgba(2, 8, 16, 0.34);
+  transition: max-height 220ms ease, transform 220ms ease;
+}
+
+/* Satellite (deep zoom) tweaks: hide the reticle and trim controls.
+   Once you're already at street level, "Tune here" / "Spin" become
+   noise — only Reset stays useful. The breadcrumb pill at the top
+   takes over as the contextual indicator. */
+.screen-globe-minimal[data-satellite='true'] .globe-reticle {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.globe-breadcrumb {
+  position: fixed;
+  top: calc(max(8px, env(safe-area-inset-top)) + 80px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 14px 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(188, 231, 251, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(112, 173, 215, 0.06)),
+    rgba(8, 14, 24, 0.7);
+  color: #f5fcff;
+  box-shadow: 0 18px 36px rgba(2, 8, 16, 0.34);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  animation: globe-breadcrumb-rise 240ms ease-out both;
+}
+
+@keyframes globe-breadcrumb-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.globe-breadcrumb-glyph {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(133, 230, 255, 0.34), rgba(54, 110, 168, 0.34));
+  color: #d4f5ff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.globe-breadcrumb-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.globe-breadcrumb-meta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(214, 234, 252, 0.78);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.globe-breadcrumb-meta strong {
+  color: #f7fdff;
+}
+
+.globe-breadcrumb-back {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-left: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7fdff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.globe-breadcrumb-back:hover,
+.globe-breadcrumb-back:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: scale(1.04);
+}
+
+/* Hide the duplicate clear chip in the action row when the breadcrumb
+   already exposes back-out, and shrink the floating action panel
+   while we're in satellite mode. */
+.screen-globe-minimal[data-satellite='true'] .globe-command-footer {
+  top: calc(max(8px, env(safe-area-inset-top)) + 132px);
+  padding: 6px 8px;
+}
+
+.screen-globe-minimal[data-satellite='true'] [data-globe-clear] {
+  display: none;
 }
 
 @media (min-width: 720px) {
