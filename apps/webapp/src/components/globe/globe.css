@@ -34,6 +34,15 @@
   pointer-events: none;
 }
 
+/* Reticle state machine — radio.garden parity:
+ *   idle   — solid green ring around the station the dock is playing.
+ *            Closed, calm, "you're locked in."
+ *   aiming — loose dashed ring + crosshair lines while the user is
+ *            actively dragging. "Choose a target."
+ *   tuning — pulsing solid ring + brief loading shimmer while the
+ *            camera animates and the stream connects.
+ * Transitions are pure CSS so the React state-machine just toggles
+ * data-state. */
 .globe-reticle {
   position: absolute;
   left: 50%;
@@ -42,21 +51,34 @@
   width: 54px;
   height: 54px;
   transform: translate(-50%, -50%);
-  border: 1px solid rgba(224, 255, 255, 0.72);
+  border: 1.5px solid rgba(86, 248, 192, 0.85);
   border-radius: 50%;
   box-shadow:
-    0 0 0 1px rgba(70, 244, 218, 0.14),
-    0 0 22px rgba(112, 242, 230, 0.22),
-    inset 0 0 18px rgba(236, 255, 255, 0.08);
+    0 0 0 1px rgba(70, 244, 218, 0.18),
+    0 0 24px rgba(80, 255, 162, 0.32),
+    inset 0 0 14px rgba(80, 255, 162, 0.12);
   pointer-events: none;
+  transition:
+    width 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    height 280ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    border-color 220ms ease,
+    border-style 0s,
+    box-shadow 320ms ease;
 }
 
 .globe-reticle::before {
   content: '';
   position: absolute;
   inset: 11px;
-  border: 1px solid rgba(224, 255, 255, 0.38);
+  border: 1px solid rgba(86, 248, 192, 0.5);
   border-radius: 50%;
+  opacity: 0;
+  transition: opacity 220ms ease, inset 220ms ease;
+}
+
+.globe-reticle-line,
+.globe-reticle-dot {
+  transition: opacity 220ms ease, transform 220ms ease, background 220ms ease;
 }
 
 .globe-reticle-line {
@@ -65,6 +87,7 @@
   top: 50%;
   background: rgba(224, 255, 255, 0.74);
   transform: translate(-50%, -50%);
+  opacity: 0;
 }
 
 .globe-reticle-line-x {
@@ -81,12 +104,86 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
+  background: rgba(80, 255, 162, 0.95);
+  box-shadow: 0 0 12px rgba(80, 255, 162, 0.8);
+}
+
+/* IDLE — closed, snug ring around the centred station. */
+.globe-reticle[data-state='idle'] {
+  width: 28px;
+  height: 28px;
+}
+
+/* AIMING — loose, dashed, with crosshair guides while the user
+   actively drags. Wider footprint so it stops feeling like a
+   "selected" indicator and more like a "choose your target"
+   reticle. */
+.globe-reticle[data-state='aiming'] {
+  width: 70px;
+  height: 70px;
+  border-style: dashed;
+  border-color: rgba(224, 255, 255, 0.7);
+  box-shadow:
+    0 0 0 1px rgba(220, 245, 255, 0.12),
+    0 0 26px rgba(200, 235, 255, 0.18),
+    inset 0 0 18px rgba(220, 245, 255, 0.08);
+  animation: globe-reticle-aim-rotate 14s linear infinite;
+}
+
+.globe-reticle[data-state='aiming']::before {
+  inset: 14px;
+  border-color: rgba(224, 255, 255, 0.32);
+  opacity: 1;
+}
+
+.globe-reticle[data-state='aiming'] .globe-reticle-line {
+  opacity: 0.85;
+  background: rgba(224, 255, 255, 0.7);
+}
+
+.globe-reticle[data-state='aiming'] .globe-reticle-dot {
   background: rgba(244, 255, 255, 0.95);
   box-shadow: 0 0 10px rgba(120, 255, 235, 0.5);
+}
+
+@keyframes globe-reticle-aim-rotate {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* TUNING — solid green pulse while the camera flies to the chosen
+   station and the stream is loading. Reads as "got it, hooking up". */
+.globe-reticle[data-state='tuning'] {
+  width: 38px;
+  height: 38px;
+  border-color: rgba(80, 255, 162, 1);
+  box-shadow:
+    0 0 0 2px rgba(80, 255, 162, 0.32),
+    0 0 38px rgba(80, 255, 162, 0.55),
+    inset 0 0 14px rgba(80, 255, 162, 0.18);
+  animation: globe-reticle-tune-pulse 700ms ease-in-out infinite alternate;
+}
+
+@keyframes globe-reticle-tune-pulse {
+  from {
+    transform: translate(-50%, -50%) scale(0.94);
+    box-shadow:
+      0 0 0 2px rgba(80, 255, 162, 0.22),
+      0 0 22px rgba(80, 255, 162, 0.4),
+      inset 0 0 10px rgba(80, 255, 162, 0.1);
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow:
+      0 0 0 2px rgba(80, 255, 162, 0.45),
+      0 0 44px rgba(80, 255, 162, 0.7),
+      inset 0 0 18px rgba(80, 255, 162, 0.22);
+  }
 }
 
 .globe-count {

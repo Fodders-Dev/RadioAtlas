@@ -463,6 +463,17 @@ export const Globe = ({
   // are pure exploration and shouldn't hijack playback. Auto-tune
   // also stays off below MapLibre zoom 3.5 (~continent view) where
   // the reticle covers half a continent and "nearest" is meaningless.
+  const [reticleState, setReticleState] = useState<'idle' | 'aiming' | 'tuning'>(
+    'idle'
+  );
+  // Use a ref so the state-machine inside the once-mounted map
+  // effect can flip the visual mode without forcing the effect to
+  // re-attach when reticleState changes from React's perspective.
+  const reticleStateRef = useRef<typeof reticleState>('idle');
+  const setReticle = (next: typeof reticleState) => {
+    reticleStateRef.current = next;
+    setReticleState(next);
+  };
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
@@ -535,8 +546,29 @@ export const Globe = ({
     const handleDragStart = (event: maplibregl.MapLibreEvent) => {
       if ((event as { originalEvent?: unknown }).originalEvent) {
         userHasDragged = true;
+        setReticle('aiming');
       }
       cancelSettle();
+    };
+
+    const commitSettle = (target: string) => {
+      settleTimeout = window.setTimeout(() => {
+        // Reticle "tunes in": dashed → solid green pulse while the
+        // camera animates toward the chosen station and the stream
+        // loads. The parent receives the settle event in the same
+        // tick so it can fire the easeTo + playStation pipeline.
+        setReticle('tuning');
+        onReticleSettleRef.current?.(target);
+        // After ~900 ms the easeTo (700 ms) and the loading pulse
+        // are done. Drop into the steady "idle" state — solid green
+        // ring around the centred station — until the user starts
+        // another drag.
+        window.setTimeout(() => {
+          if (reticleStateRef.current === 'tuning') setReticle('idle');
+        }, 900);
+        userHasDragged = false;
+        settleTimeout = null;
+      }, SETTLE_DELAY_MS);
     };
 
     const handleDragEnd = () => {
@@ -547,19 +579,16 @@ export const Globe = ({
       if (map.isZooming()) return;
       if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
         userHasDragged = false;
+        // Stay in 'aiming' so the user knows auto-tune is paused at
+        // this zoom; CSS will show the loose dashed ring.
         return;
       }
       const id = findNearestStation();
-      if (!id) return;
-      const target = id;
-      settleTimeout = window.setTimeout(() => {
-        onReticleSettleRef.current?.(target);
-        // Wait for the next genuine user gesture before auto-tuning
-        // again, so the post-pick easeTo animation doesn't re-trigger
-        // the settle on a different nearby station.
+      if (!id) {
         userHasDragged = false;
-        settleTimeout = null;
-      }, SETTLE_DELAY_MS);
+        return;
+      }
+      commitSettle(id);
     };
 
     // Pinch / wheel zoom shouldn't trigger settle, but if a settle is
@@ -576,13 +605,11 @@ export const Globe = ({
         return;
       }
       const id = findNearestStation();
-      if (!id) return;
-      const target = id;
-      settleTimeout = window.setTimeout(() => {
-        onReticleSettleRef.current?.(target);
+      if (!id) {
         userHasDragged = false;
-        settleTimeout = null;
-      }, SETTLE_DELAY_MS);
+        return;
+      }
+      commitSettle(id);
     };
 
     map.on('dragstart', handleDragStart);
@@ -655,7 +682,11 @@ export const Globe = ({
 
   return (
     <div className="globe globe-maplibre" ref={containerRef}>
-      <div className="globe-reticle" aria-hidden="true">
+      <div
+        className="globe-reticle"
+        data-state={reticleState}
+        aria-hidden="true"
+      >
         <span className="globe-reticle-line globe-reticle-line-x" />
         <span className="globe-reticle-line globe-reticle-line-y" />
         <span className="globe-reticle-dot" />
