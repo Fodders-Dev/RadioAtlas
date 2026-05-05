@@ -5,6 +5,27 @@ import { feature as topoFeature } from 'topojson-client';
 import worldData from '../assets/countries-110m.json';
 import './globe/globe.css';
 
+// Natural Earth 50m admin_1 boundaries — only the federations that
+// actually have multiple administrative tiers. Single-admin
+// countries don't need state borders. ~670 KB gzipped from
+// jsdelivr, lazily fetched once and cached at module scope so
+// remounts don't re-download.
+const ADMIN1_URL =
+  'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces_lakes.geojson';
+let admin1Promise: Promise<GeoJSON.FeatureCollection> | null = null;
+const fetchAdmin1 = (): Promise<GeoJSON.FeatureCollection> => {
+  if (admin1Promise) return admin1Promise;
+  admin1Promise = fetch(ADMIN1_URL)
+    .then((res) => res.json() as Promise<GeoJSON.FeatureCollection>)
+    .catch((err) => {
+      // Reset so a later remount can retry; not a fatal error
+      // — globe still works without admin-1 borders.
+      admin1Promise = null;
+      throw err;
+    });
+  return admin1Promise;
+};
+
 type GlobePoint = {
   id: string;
   lat: number;
@@ -243,6 +264,12 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
       type: 'geojson',
       data: getCountryLayers().labels
     },
+    admin1: {
+      type: 'geojson',
+      // Populated asynchronously after mount; starts empty so the
+      // style validates at construction time.
+      data: { type: 'FeatureCollection', features: [] }
+    },
     'state-labels': {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] }
@@ -294,6 +321,39 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
           3, 0.55,
           6, 0.7,
           10, 0.8
+        ]
+      }
+    },
+    // Admin-1 borders for the 9 federations Natural Earth ships at
+    // 50m: Russia, China, USA, Canada, Brazil, India, Indonesia,
+    // Australia, South Africa — the territories where "where in
+    // this country?" actually has a meaningful answer. Thinner and
+    // more transparent than country borders so they don't compete
+    // visually; fade out at low zoom so the world view stays clean.
+    {
+      id: 'admin1-borders',
+      type: 'line',
+      source: 'admin1',
+      minzoom: 3.5,
+      paint: {
+        'line-color': 'rgba(220, 245, 255, 0.5)',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          3.5, 0.3,
+          5, 0.6,
+          8, 1.0
+        ],
+        'line-blur': 0.4,
+        'line-dasharray': [3, 2],
+        'line-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          3.5, 0,
+          4.2, 0.45,
+          7, 0.6
         ]
       }
     },
@@ -843,6 +903,31 @@ export const Globe = ({
     if (stations) stations.setData(buildPointsFeatureCollection(points));
     if (stateLabels) stateLabels.setData(buildStateLabelsFeatureCollection(points));
   }, [points, ready]);
+
+  // Load admin-1 borders once the map is mounted. Lazy fetch so the
+  // initial paint doesn't block on a 670 KB download — borders fade
+  // in when they arrive. Cached at module scope so route remounts
+  // don't refetch.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    let cancelled = false;
+    fetchAdmin1()
+      .then((collection) => {
+        if (cancelled) return;
+        const source = map.getSource('admin1') as
+          | maplibregl.GeoJSONSource
+          | undefined;
+        if (source) source.setData(collection);
+      })
+      .catch(() => {
+        // Silent failure — globe stays usable, just without
+        // sub-national borders.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready]);
 
   // Active (currently playing) station: highlight via filter.
   useEffect(() => {
