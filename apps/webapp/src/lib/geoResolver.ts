@@ -7,8 +7,21 @@ type GeoStation = {
   stationuuid: string;
   name?: string;
   country?: string | null;
+  state?: string | null;
   geo_lat?: number | string | null;
   geo_long?: number | string | null;
+};
+
+export type StateAnchor = { lat: number; lon: number; n: number };
+// `${normalized country}::${raw state}` → median lat/lon of stations
+// in that state who DO have explicit geo coords. Built once per
+// points payload by the caller; resolveStationCoords reads it to
+// pin synthesized points to the right oblast / state instead of
+// scattering them anywhere inside the country bbox.
+export type StateAnchors = Map<string, StateAnchor>;
+let activeStateAnchors: StateAnchors | null = null;
+export const setStateAnchors = (anchors: StateAnchors | null) => {
+  activeStateAnchors = anchors;
 };
 
 export type ResolvedCoords = {
@@ -231,6 +244,32 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
     const country = resolveCountry(station.country);
     if (!country) return null;
 
+    // State-anchor enrichment: when Radio Browser doesn't ship
+    // geo_lat/geo_long for a station but DOES tag it with a state
+    // (city / oblast / region), pin it near other stations in the
+    // same state who DO have coords. So "NRJ Тула 101.4 FM" with
+    // state="Тула" lands inside Tula instead of getting flung
+    // into the Arctic by the country-bbox sampler.
+    if (station.state && activeStateAnchors) {
+      const key = `${normalizeCountryName(station.country || '')}::${station.state}`;
+      const anchor = activeStateAnchors.get(key);
+      if (anchor) {
+        const seed = fnv1a(station.stationuuid || station.name || key);
+        const rng = mulberry32(seed);
+        // ±0.18° ≈ ±20 km of jitter so multiple coord-less stations
+        // in the same state spread out around the cluster instead
+        // of stacking on its centroid.
+        const jLat = (rng() - 0.5) * 0.36;
+        const jLon = (rng() - 0.5) * 0.36;
+        return {
+          lat: clampLat(anchor.lat + jLat),
+          lon: clampLon(anchor.lon + jLon),
+          source: 'country-pool',
+          countryKey: country.key
+        };
+      }
+    }
+
     const pool = ensureSamplePool(country);
     if (pool.length) {
       const seed = fnv1a(station.stationuuid || station.name || country.key);
@@ -305,4 +344,47 @@ export const resolveCountryCoords = (country?: string | null) => {
 export const resolveContinent = (country?: string | null): ContinentId => {
   const coords = resolveCountryCoords(country);
   return coords?.continent ?? 'Other';
+};
+
+// Build a (normalizedCountry, rawState) → median {lat, lon} anchor
+// map from a list of stations that DO have explicit coords. Used by
+// resolveStationCoords to pin coord-less stations into the right
+// state instead of scattering them inside the country bbox.
+export const buildStateAnchors = (
+  rows: Array<{
+    country?: string | null;
+    state?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  }>
+): StateAnchors => {
+  const buckets = new Map<string, { lats: number[]; lons: number[] }>();
+  for (const row of rows) {
+    if (!row.country || !row.state) continue;
+    const lat = typeof row.lat === 'number' && Number.isFinite(row.lat) ? row.lat : null;
+    const lon = typeof row.lon === 'number' && Number.isFinite(row.lon) ? row.lon : null;
+    if (lat === null || lon === null) continue;
+    if (Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001) continue;
+    const key = `${normalizeCountryName(row.country)}::${row.state}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { lats: [], lons: [] };
+      buckets.set(key, bucket);
+    }
+    bucket.lats.push(lat);
+    bucket.lons.push(lon);
+  }
+  const result: StateAnchors = new Map();
+  buckets.forEach((bucket, key) => {
+    // Need at least 2 anchored stations before we trust the
+    // cluster — single-point clusters can be a misplaced station
+    // that would drag every other station's dot to its location.
+    if (bucket.lats.length < 2) return;
+    bucket.lats.sort((a, b) => a - b);
+    bucket.lons.sort((a, b) => a - b);
+    const lat = bucket.lats[Math.floor(bucket.lats.length / 2)];
+    const lon = bucket.lons[Math.floor(bucket.lons.length / 2)];
+    result.set(key, { lat, lon, n: bucket.lats.length });
+  });
+  return result;
 };

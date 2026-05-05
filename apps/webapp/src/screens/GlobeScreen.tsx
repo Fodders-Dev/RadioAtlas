@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { resolveCountryCoords, resolveStationCoords } from '../lib/geoResolver';
+import {
+  buildStateAnchors,
+  resolveCountryCoords,
+  resolveStationCoords,
+  setStateAnchors
+} from '../lib/geoResolver';
 import { useDebounce } from '../lib/useDebounce';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -97,6 +102,20 @@ export const GlobeScreen = () => {
   // as a placeholder until the points payload arrives.
   const usePointsLayer = points.length > 0;
 
+  // Pre-compute (country, state) anchors from stations that DO carry
+  // explicit Radio Browser geo coords, then register globally so
+  // resolveStationCoords can use them as fallback positions for
+  // coord-less stations. Done in a layout effect so the anchors are
+  // live before globePoints recomputes.
+  useEffect(() => {
+    if (!points.length) {
+      setStateAnchors(null);
+      return;
+    }
+    setStateAnchors(buildStateAnchors(points));
+    return () => setStateAnchors(null);
+  }, [points]);
+
   const globePoints = useMemo(() => {
     if (usePointsLayer) {
       // The API ships ~55k stations now; only ~11k carry explicit
@@ -118,6 +137,7 @@ export const GlobeScreen = () => {
         const resolved = resolveStationCoords({
           stationuuid: point.id,
           country: point.country,
+          state: point.state,
           geo_lat: point.lat,
           geo_long: point.lon
         });
