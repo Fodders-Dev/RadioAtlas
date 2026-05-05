@@ -631,6 +631,35 @@ export const Globe = ({
 
     map.on('load', () => {
       setReady(true);
+      // MapLibre globe-projection quirk: the first frame on a cold
+      // mount sometimes commits as a black canvas — the satellite
+      // raster source is loaded and its tiles are decoded, but the
+      // pipeline doesn't compose them until the camera moves. Any
+      // subsequent drag / wheel-zoom triggers the missing repaint
+      // and everything renders correctly. Force that nudge here so
+      // the user never sees the black gap on first navigation:
+      //   • triggerRepaint() asks for a frame on the next rAF
+      //   • a tiny no-op easeTo on the very next tick walks the
+      //     camera by a hair and back, which the WebGL renderer
+      //     does treat as a real change and flushes the tiles.
+      try {
+        map.triggerRepaint();
+        const c = map.getCenter();
+        // Schedule on next tick so it happens AFTER any synchronous
+        // setData() the parent useEffects fire in response to ready.
+        window.requestAnimationFrame(() => {
+          if (!mapRef.current) return;
+          map.easeTo({
+            center: [c.lng + 0.0001, c.lat],
+            duration: 0,
+            essential: true
+          });
+          map.easeTo({ center: [c.lng, c.lat], duration: 0, essential: true });
+        });
+      } catch {
+        // Ignore — worst case the user sees a black globe until
+        // their first interaction, which was the prior behaviour.
+      }
     });
 
     map.on('zoom', () => {
