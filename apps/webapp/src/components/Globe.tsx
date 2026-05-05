@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { feature as topoFeature } from 'topojson-client';
+import worldData from '../assets/countries-110m.json';
 import './globe/globe.css';
 
 type GlobePoint = {
@@ -54,6 +56,88 @@ const SCALE_TO_ZOOM = (scale: number) =>
 const ZOOM_TO_SCALE = (zoom: number) =>
   Math.max(0, Math.min(10, zoom - SCALE_BASE_OFFSET));
 
+// Country polygons + centroids extracted from the same Natural Earth
+// topology the resolver uses. Built once at module load — the file is
+// already in the bundle for geoResolver.
+const buildCountryLayers = () => {
+  const topology = worldData as unknown as {
+    objects: { countries: unknown };
+  };
+  const collection = topoFeature(
+    topology as Parameters<typeof topoFeature>[0],
+    (topology as { objects: { countries: Parameters<typeof topoFeature>[1] } })
+      .objects.countries
+  ) as GeoJSON.FeatureCollection<GeoJSON.MultiPolygon | GeoJSON.Polygon>;
+  // Filter out features without a name (some Natural Earth rows are
+  // disputed territories with empty properties — they'd render as
+  // unlabelled polygons otherwise).
+  const features = collection.features.filter(
+    (item) => typeof item.properties?.name === 'string' && item.properties?.name
+  );
+  const polygons: GeoJSON.FeatureCollection<
+    GeoJSON.MultiPolygon | GeoJSON.Polygon
+  > = {
+    type: 'FeatureCollection',
+    features
+  };
+  // Compute a label point per country. We use bounding-box centre
+  // here rather than d3 geoCentroid because a centroid for a
+  // multi-polygon (USA + Alaska + Hawaii) lands in the Pacific. The
+  // bbox centre puts the label inside the main land mass for almost
+  // every territory.
+  const labels: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+    type: 'FeatureCollection',
+    features: features.map((item) => {
+      const bbox = computeBoundingBox(item.geometry);
+      const lon = bbox ? (bbox.minLon + bbox.maxLon) / 2 : 0;
+      const lat = bbox ? (bbox.minLat + bbox.maxLat) / 2 : 0;
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+        properties: {
+          name: String(item.properties?.name || '')
+        }
+      };
+    })
+  };
+  return { polygons, labels };
+};
+
+const computeBoundingBox = (geometry: GeoJSON.Geometry) => {
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  const visit = (coords: GeoJSON.Position) => {
+    const [lon, lat] = coords;
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  };
+  const walk = (input: unknown) => {
+    if (!Array.isArray(input)) return;
+    if (typeof input[0] === 'number') {
+      visit(input as GeoJSON.Position);
+      return;
+    }
+    input.forEach(walk);
+  };
+  if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+    walk(geometry.coordinates);
+  }
+  if (!Number.isFinite(minLon)) return null;
+  return { minLon, maxLon, minLat, maxLat };
+};
+
+let countryLayersCache:
+  | { polygons: GeoJSON.FeatureCollection; labels: GeoJSON.FeatureCollection }
+  | null = null;
+const getCountryLayers = () => {
+  if (!countryLayersCache) countryLayersCache = buildCountryLayers();
+  return countryLayersCache;
+};
+
 const buildPointsFeatureCollection = (
   points: GlobePoint[]
 ): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
@@ -81,6 +165,14 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
       maxzoom: 19,
       attribution: SATELLITE_ATTRIBUTION
     },
+    countries: {
+      type: 'geojson',
+      data: getCountryLayers().polygons
+    },
+    'country-labels': {
+      type: 'geojson',
+      data: getCountryLayers().labels
+    },
     stations: {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] }
@@ -99,6 +191,96 @@ const buildStyle = (): maplibregl.StyleSpecification => ({
       paint: {
         'raster-opacity': 1,
         'raster-fade-duration': 240
+      }
+    },
+    // Country borders rendered above the satellite imagery but below
+    // the station dots — gives the planet a clear "here be Russia /
+    // here be Brazil" feel without the dots getting buried.
+    {
+      id: 'country-borders',
+      type: 'line',
+      source: 'countries',
+      paint: {
+        'line-color': 'rgba(220, 245, 255, 0.55)',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0, 0.4,
+          3, 0.7,
+          6, 1.1,
+          10, 1.6
+        ],
+        'line-blur': 0.4,
+        'line-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0, 0.35,
+          3, 0.55,
+          6, 0.7,
+          10, 0.8
+        ]
+      }
+    },
+    // Slim halo so country borders stay legible against bright
+    // landmasses too (Sahara desert, snowy Russia in winter imagery).
+    {
+      id: 'country-borders-halo',
+      type: 'line',
+      source: 'countries',
+      paint: {
+        'line-color': 'rgba(8, 12, 26, 0.55)',
+        'line-width': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0, 1.4,
+          3, 2.2,
+          6, 3.0,
+          10, 4.0
+        ],
+        'line-blur': 1.6,
+        'line-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0, 0.18,
+          3, 0.28,
+          6, 0.34,
+          10, 0.4
+        ]
+      }
+    },
+    {
+      id: 'country-labels',
+      type: 'symbol',
+      source: 'country-labels',
+      // Hide names at world-scale so the planet stays clean, fade
+      // them in once the user starts zooming into a region.
+      minzoom: 2.6,
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+        'text-size': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          2.6, 10,
+          4, 12,
+          6, 14,
+          8, 16
+        ],
+        'text-letter-spacing': 0.04,
+        'text-allow-overlap': false,
+        'text-padding': 6,
+        'text-transform': 'uppercase'
+      },
+      paint: {
+        'text-color': 'rgba(235, 247, 255, 0.92)',
+        'text-halo-color': 'rgba(4, 8, 18, 0.85)',
+        'text-halo-width': 1.4,
+        'text-halo-blur': 0.6
       }
     },
     {
