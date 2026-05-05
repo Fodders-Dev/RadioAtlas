@@ -24,7 +24,11 @@ type CountryGeoRecord = {
   key: string;
   name: string;
   centroid: CountryPoint | null;
-  samplePool: CountryPoint[];
+  // Lazily built on first access. Building is the expensive step (a
+  // few thousand rejection-sampled geoContains checks per country),
+  // and most rendered globes only ever touch ~50 of the 240
+  // territories, so eager construction wastes seconds on startup.
+  samplePool: CountryPoint[] | null;
   feature: unknown;
 };
 
@@ -53,8 +57,15 @@ const COUNTRY_ALIASES: Record<string, string> = {
   'czechia': 'czech republic'
 };
 
-const POINTS_PER_COUNTRY = 196;
-const MAX_SAMPLE_TRIES = 6000;
+// Big countries with hundreds of stations (Russia 3k, US 7k, Germany
+// 5.7k, China 2k) collapsed onto only 196 unique positions, so dozens
+// of stations stacked on a single pixel and the globe looked sparse.
+// 2048 slots gives Russia ~1700 unique positions visible. Higher
+// MAX_SAMPLE_TRIES makes sure rejection sampling can hit the target
+// for territories with low land-area-to-bounding-box ratio (Russia,
+// Indonesia, Norway).
+const POINTS_PER_COUNTRY = 2048;
+const MAX_SAMPLE_TRIES = 32000;
 
 const clampLat = (value: number) => Math.max(-85, Math.min(85, value));
 const clampLon = (value: number) => Math.max(-180, Math.min(180, value));
@@ -183,10 +194,16 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
       key,
       name,
       centroid,
-      samplePool: buildSamplePool(item, key, centroid),
+      samplePool: null,
       feature: item
     });
   });
+
+  const ensureSamplePool = (record: CountryGeoRecord): CountryPoint[] => {
+    if (record.samplePool) return record.samplePool;
+    record.samplePool = buildSamplePool(record.feature, record.key, record.centroid);
+    return record.samplePool;
+  };
 
   const resolveCountry = (country?: string | null) => {
     if (!country) return null;
@@ -214,13 +231,22 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
     const country = resolveCountry(station.country);
     if (!country) return null;
 
-    if (country.samplePool.length) {
+    const pool = ensureSamplePool(country);
+    if (pool.length) {
       const seed = fnv1a(station.stationuuid || station.name || country.key);
-      const point = country.samplePool[seed % country.samplePool.length];
+      const point = pool[seed % pool.length];
       if (point) {
+        // Apply a small per-station jitter so colliding pool indices
+        // don't stack on the same pixel. Range ~0.12° (~13 km at the
+        // equator) — small enough to almost always stay inside the
+        // country, big enough to be visible at zoom levels people use
+        // for "Russia at a glance".
+        const jitterRng = mulberry32(seed ^ 0x9e3779b9);
+        const jitterLat = (jitterRng() - 0.5) * 0.24;
+        const jitterLon = (jitterRng() - 0.5) * 0.24;
         return {
-          lat: point[0],
-          lon: point[1],
+          lat: clampLat(point[0] + jitterLat),
+          lon: clampLon(point[1] + jitterLon),
           source: 'country-pool',
           countryKey: country.key
         };
@@ -269,7 +295,7 @@ export const resolveCountryCoords = (country?: string | null) => {
       continent: toContinent(record.centroid[0], record.centroid[1]) as ContinentId
     };
   }
-  if (record.samplePool[0]) {
+  if (record.samplePool && record.samplePool[0]) {
     const [lat, lon] = record.samplePool[0];
     return { lat, lon, continent: toContinent(lat, lon) };
   }
