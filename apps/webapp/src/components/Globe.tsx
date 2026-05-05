@@ -455,13 +455,20 @@ export const Globe = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reticle-snap: while the user pans/zooms, highlight whichever
-  // station's rendered dot is closest to the viewport centre, and
-  // when the camera settles for ~450 ms emit a settle event so the
-  // parent can auto-tune to that station — Radio Garden style.
+  // Reticle-snap: while the camera moves, highlight whichever
+  // station's rendered dot is closest to the viewport centre. When
+  // the user finishes a *drag pan* (not a zoom, not a programmatic
+  // flyTo) and stays still for ~900 ms, emit a settle so the parent
+  // can auto-tune. Zoom-only gestures never trigger settle — those
+  // are pure exploration and shouldn't hijack playback. Auto-tune
+  // also stays off below MapLibre zoom 3.5 (~continent view) where
+  // the reticle covers half a continent and "nearest" is meaningless.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+
+    const SETTLE_DELAY_MS = 900;
+    const AUTO_TUNE_MIN_ZOOM = 3.5;
 
     let lastHoverId: string | null = null;
     let userHasDragged = false;
@@ -471,9 +478,6 @@ export const Globe = ({
       const canvas = map.getCanvasContainer();
       const cx = canvas.clientWidth / 2;
       const cy = canvas.clientHeight / 2;
-      // Search radius in screen pixels — wide enough that the reticle
-      // always finds *something* unless the viewport is genuinely
-      // empty (middle of the Pacific etc.).
       const radius = 280;
       let features: MapGeoJSONFeature[] = [];
       try {
@@ -523,22 +527,28 @@ export const Globe = ({
       }
     };
 
-    const handleMoveStart = (event: maplibregl.MapLibreEvent) => {
-      // Only count direct user gestures (mouse / touch / wheel),
-      // not the programmatic easeTo / flyTo we fire when the parent
-      // updates focusPoint after a tap or library deeplink.
+    // dragstart fires for translation drags only; pinch-zoom and
+    // wheel-zoom fire zoomstart instead. So this flag only flips on
+    // when the user is actively rotating/panning the planet, which
+    // is the gesture that semantically means "I'm aiming at a new
+    // station."
+    const handleDragStart = (event: maplibregl.MapLibreEvent) => {
       if ((event as { originalEvent?: unknown }).originalEvent) {
         userHasDragged = true;
       }
       cancelSettle();
     };
 
-    const handleMoveEnd = () => {
+    const handleDragEnd = () => {
       cancelSettle();
-      // Only auto-tune after the user actually moved the camera with
-      // their own input. Programmatic easeTo calls from focusPoint
-      // changes shouldn't hijack playback.
       if (!userHasDragged) return;
+      // If the user is still mid-zoom we shouldn't stamp a settle
+      // — they're not done positioning yet.
+      if (map.isZooming()) return;
+      if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
+        userHasDragged = false;
+        return;
+      }
       const id = findNearestStation();
       if (!id) return;
       const target = id;
@@ -549,20 +559,45 @@ export const Globe = ({
         // the settle on a different nearby station.
         userHasDragged = false;
         settleTimeout = null;
-      }, 450);
+      }, SETTLE_DELAY_MS);
     };
 
-    map.on('movestart', handleMoveStart);
+    // Pinch / wheel zoom shouldn't trigger settle, but if a settle is
+    // already pending from a previous drag and the user starts
+    // zooming during the debounce, they've signalled they're not done
+    // yet — postpone the auto-tune until the zoom finishes by
+    // refreshing the timer at zoomend.
+    const handleZoomEnd = () => {
+      if (settleTimeout === null) return;
+      cancelSettle();
+      if (!userHasDragged) return;
+      if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
+        userHasDragged = false;
+        return;
+      }
+      const id = findNearestStation();
+      if (!id) return;
+      const target = id;
+      settleTimeout = window.setTimeout(() => {
+        onReticleSettleRef.current?.(target);
+        userHasDragged = false;
+        settleTimeout = null;
+      }, SETTLE_DELAY_MS);
+    };
+
+    map.on('dragstart', handleDragStart);
+    map.on('dragend', handleDragEnd);
+    map.on('zoomend', handleZoomEnd);
     map.on('move', handleMove);
-    map.on('moveend', handleMoveEnd);
     // Initial pass so the parent can highlight what the reticle sees
     // at mount time (without auto-playing).
     handleMove();
 
     return () => {
-      map.off('movestart', handleMoveStart);
+      map.off('dragstart', handleDragStart);
+      map.off('dragend', handleDragEnd);
+      map.off('zoomend', handleZoomEnd);
       map.off('move', handleMove);
-      map.off('moveend', handleMoveEnd);
       cancelSettle();
     };
   }, [ready]);
