@@ -96,13 +96,35 @@ export const GlobeScreen = () => {
 
   const globePoints = useMemo(() => {
     if (usePointsLayer) {
-      return points.map((point) => ({
-        id: `station:${point.id}`,
-        lat: point.lat,
-        lon: point.lon,
-        label: '',
-        subtitle: point.country || ''
-      }));
+      // The API ships ~55k stations now; only ~11k carry explicit
+      // geo_lat/geo_long. For the rest geoResolver drops the dot
+      // deterministically inside the country's borders (seeded by the
+      // station UUID), so Russia gets ~3.5k green dots instead of
+      // showing up as a single pin in Brooklyn.
+      const result: Array<{
+        id: string;
+        lat: number;
+        lon: number;
+        label: string;
+        subtitle: string;
+      }> = [];
+      points.forEach((point) => {
+        const resolved = resolveStationCoords({
+          stationuuid: point.id,
+          country: point.country,
+          geo_lat: point.lat,
+          geo_long: point.lon
+        });
+        if (!resolved) return;
+        result.push({
+          id: `station:${point.id}`,
+          lat: resolved.lat,
+          lon: resolved.lon,
+          label: '',
+          subtitle: point.country || ''
+        });
+      });
+      return result;
     }
     return overviewAreas.map((area) => ({
       id: area.id,

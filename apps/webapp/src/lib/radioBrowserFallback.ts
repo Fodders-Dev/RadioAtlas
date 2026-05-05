@@ -491,19 +491,27 @@ export const listRadioBrowserFallbackAreas = async (
 
 export const listRadioBrowserFallbackPoints = async () => {
   const dataset = await loadDataset();
-  const items: Array<{ id: string; lat: number; lon: number; country: string }> = [];
+  const items: Array<{ id: string; lat?: number; lon?: number; country: string }> = [];
+  let mappedStations = 0;
   dataset.stations.forEach((station) => {
-    if (station.geo_lat === null || station.geo_long === null) return;
-    items.push({
-      id: station.stationuuid,
-      lat: station.geo_lat,
-      lon: station.geo_long,
-      country: station.country || ''
-    });
+    const country = station.country || '';
+    const hasCoords = station.geo_lat !== null && station.geo_long !== null;
+    if (!hasCoords && !country) return;
+    if (hasCoords) {
+      mappedStations += 1;
+      items.push({
+        id: station.stationuuid,
+        lat: station.geo_lat as number,
+        lon: station.geo_long as number,
+        country
+      });
+    } else {
+      items.push({ id: station.stationuuid, country });
+    }
   });
   return {
     items,
-    mappedStations: items.length,
+    mappedStations,
     totalStations: dataset.stations.length
   };
 };

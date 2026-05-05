@@ -451,8 +451,11 @@ export type CatalogAreaStationsResponse = {
 
 export type CatalogStationPoint = {
   id: string;
-  lat: number;
-  lon: number;
+  // Set whenever Radio Browser has explicit geo_lat/geo_long (~11k of
+  // 55k stations). Entries without these still ship through so the
+  // client can drop them inside the country's borders via geoResolver.
+  lat?: number;
+  lon?: number;
   country: string;
 };
 

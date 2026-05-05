@@ -473,22 +473,41 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
 // Compact per-station points payload for the immersive globe surface.
 // Sends only what's needed to draw a dot and identify it; the full
 // station record is fetched on selection through /catalog/stations/:id.
+//
+// Roughly 11k of 55k Radio Browser stations have explicit geo_lat /
+// geo_long. The rest still belong to a known country, so we include
+// them with `country` only — the webapp's geoResolver drops them
+// inside the country's borders deterministically (seeded by the
+// station UUID) so the globe stops looking sparse where it shouldn't.
 const buildPointsResponse = (stations: CatalogStation[]) => {
-  const items: Array<{ id: string; lat: number; lon: number; country: string }> = [];
+  const items: Array<{
+    id: string;
+    lat?: number;
+    lon?: number;
+    country: string;
+  }> = [];
+  let mappedStations = 0;
   stations.forEach((station) => {
     const lat = asNumber(station.geo_lat);
     const lon = asNumber(station.geo_long);
-    if (lat === null || lon === null) return;
-    items.push({
-      id: station.stationuuid,
-      lat,
-      lon,
-      country: normalizeText(station.country) || ''
-    });
+    const country = normalizeText(station.country) || '';
+    const hasCoords =
+      lat !== null &&
+      lon !== null &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lon) <= 180 &&
+      !(Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001);
+    if (!hasCoords && !country) return;
+    if (hasCoords) {
+      mappedStations += 1;
+      items.push({ id: station.stationuuid, lat: lat as number, lon: lon as number, country });
+    } else {
+      items.push({ id: station.stationuuid, country });
+    }
   });
   return {
     items,
-    mappedStations: items.length,
+    mappedStations,
     totalStations: stations.length
   };
 };
