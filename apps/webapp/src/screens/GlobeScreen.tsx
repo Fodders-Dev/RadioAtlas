@@ -305,7 +305,7 @@ export const GlobeScreen = () => {
               hintText={
                 isCompactLayout ? t('globe.controlsHintMobile') : t('globe.controlsHintDesktop')
               }
-              immersive={isCompactLayout}
+              immersive
               statusText={t('globe.status', {
                 areas: areas.length,
                 mapped: mappedStations,
