@@ -14,6 +14,11 @@ export type CatalogStation = {
   bitrate: number;
   geo_lat: number | null;
   geo_long: number | null;
+  // Upstream Radio Browser stream-check signal. 1/0 if known,
+  // undefined if the artifact predates this column.
+  lastcheckok?: 0 | 1;
+  // Epoch ms — when Radio Browser last performed the check.
+  lastcheckok_at?: number | null;
   stationArtwork?: string | null;
   isClaimed?: boolean;
   isVerified?: boolean;
@@ -69,6 +74,8 @@ const toStationLite = (station: CatalogStation) => ({
   tags: station.tags || '',
   geo_lat: station.geo_lat ?? null,
   geo_long: station.geo_long ?? null,
+  lastcheckok: station.lastcheckok,
+  lastcheckok_at: station.lastcheckok_at ?? null,
   stationArtwork: station.stationArtwork || null,
   isClaimed: station.isClaimed,
   isVerified: station.isVerified,

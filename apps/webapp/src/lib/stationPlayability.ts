@@ -191,6 +191,52 @@ export const recordPlaybackOutcome = (
   };
 };
 
+// Window during which Radio Browser's own stream-check counts as
+// "fresh enough to act on." If the last check is older than this,
+// the station might be working again — only apply a mild
+// penalty rather than excluding it.
+const UPSTREAM_HEALTH_FRESH_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Score component derived from Radio Browser's own upstream check.
+ *
+ *   +6  station passed its last check, less than 24 h ago — strong
+ *       "this works for everyone else right now" signal.
+ *   +2  station passed its last check, but the check is stale.
+ *   -8  station failed its last check, less than 24 h ago — the
+ *       community's edge servers also can't connect.
+ *   -3  station failed its last check, but the check is stale —
+ *       might have recovered.
+ *    0  no `lastcheckok` field on this artifact (predates the
+ *       column).
+ */
+export const getUpstreamHealthScore = (
+  station: StationLite,
+  now = Date.now()
+): number => {
+  if (station.lastcheckok === undefined) return 0;
+  const checkedAt = station.lastcheckok_at ?? null;
+  const fresh = checkedAt !== null && now - checkedAt <= UPSTREAM_HEALTH_FRESH_MS;
+  if (station.lastcheckok === 1) return fresh ? 6 : 2;
+  return fresh ? -8 : -3;
+};
+
+/**
+ * Stations that Radio Browser declares broken AND have been
+ * checked in the last 24 h are excluded from background discovery
+ * (Home rails, idle Search). Explicit Search queries still show
+ * them — the user might know something the upstream doesn't.
+ */
+export const isStationHardHiddenByUpstream = (
+  station: StationLite,
+  now = Date.now()
+): boolean => {
+  if (station.lastcheckok !== 0) return false;
+  const checkedAt = station.lastcheckok_at ?? null;
+  if (checkedAt === null) return false;
+  return now - checkedAt <= UPSTREAM_HEALTH_FRESH_MS;
+};
+
 export const getStationPlayabilityScore = (
   profile: StationPlayabilityProfile | null | undefined,
   station: StationLite | string,
@@ -292,6 +338,9 @@ export const rankStationsForHome = (
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
   const ranked = filterStationsByPlayability(stationPool, profile, now, healthProfile)
     .filter((station) => !sessionExcludedIds.has(station.stationuuid))
+    // Drop stations Radio Browser itself just confirmed are broken
+    // — saves the user from clicking dead streams in discovery.
+    .filter((station) => !isStationHardHiddenByUpstream(station, now))
     .map((station, index) => ({
       station,
       index,
@@ -299,6 +348,7 @@ export const rankStationsForHome = (
         getSessionStationScore(station, sessionEvents, stationPool, now) +
         getStationPlayabilityScore(profile, station, now) +
         getStationHealthScore(healthProfile, station, now) * 2.4 +
+        getUpstreamHealthScore(station, now) +
         stationQualityScore(station)
     }))
     .sort((left, right) => right.score - left.score || left.index - right.index);
@@ -408,6 +458,11 @@ export const rankStationsForSearch = (
       const promotedBoost = intent >= 20 ? 0.1 : station.promoted ? 1 : 0;
       const sessionPenalty = sessionExcludedIds.has(station.stationuuid) ? -28 : 0;
       const behaviorBoost = behaviorScore(station, behaviorProfile) * (explicitQuery ? 0.28 : 1);
+      // Upstream-health weight is lower for explicit queries: if
+      // the user typed the exact name of a station Radio Browser
+      // thinks is broken, we still want to show it (they might
+      // know better, or want to add it to favorites for later).
+      const upstreamWeight = explicitQuery ? 0.6 : 1.4;
       const score =
         intent +
         sessionPenalty +
@@ -415,6 +470,7 @@ export const rankStationsForSearch = (
         behaviorBoost +
         getStationPlayabilityScore(playabilityProfile, station, now) * 3.6 +
         getStationHealthScore(healthProfile, station, now) * 2.8 +
+        getUpstreamHealthScore(station, now) * upstreamWeight +
         stationQualityScore(station) +
         promotedBoost;
 

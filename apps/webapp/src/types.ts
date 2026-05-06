@@ -14,6 +14,15 @@ export type Station = {
   bitrate: number;
   geo_lat: number | null;
   geo_long: number | null;
+  // Radio Browser uptime signal: 1 if the station passed its last
+  // upstream stream check, 0 if it failed. Carried through unchanged
+  // from Radio Browser so we can demote stations everyone else also
+  // sees as broken without waiting for our user to click them.
+  lastcheckok?: 0 | 1;
+  // Unix milliseconds. ISO string from Radio Browser is converted
+  // at the API edge (normalizeStation) so the webapp can do simple
+  // arithmetic without parsing dates again.
+  lastcheckok_at?: number | null;
   stationArtwork?: string | null;
   isClaimed?: boolean;
   isVerified?: boolean;
@@ -69,4 +78,6 @@ export type StationLite = Pick<
   | 'websiteUrl'
   | 'scheduleNote'
 > &
-  Partial<Pick<Station, 'url' | 'language' | 'codec' | 'bitrate'>>;
+  Partial<
+    Pick<Station, 'url' | 'language' | 'codec' | 'bitrate' | 'lastcheckok' | 'lastcheckok_at'>
+  >;

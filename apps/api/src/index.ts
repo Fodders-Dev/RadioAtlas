@@ -144,13 +144,38 @@ const cacheCatalog = (mode: 'fast' | 'full', data: Station[]) => {
   return data;
 };
 
-const normalizeStation = (raw: Station): Station => ({
-  ...raw,
-  name: raw.name?.trim() || 'Unknown Station',
-  url_resolved: raw.url_resolved || raw.url,
-  geo_lat: asNumber(raw.geo_lat),
-  geo_long: asNumber(raw.geo_long)
-});
+const normalizeStation = (raw: Station): Station => {
+  // Radio Browser ships lastcheckok as 0 or 1 plus an ISO date.
+  // Normalise to a numeric flag + epoch ms so consumers don't
+  // re-parse strings on every render. Falls back to undefined if
+  // the field is absent (artifact from before this column existed).
+  const rawLast = raw as Station & {
+    lastcheckok?: 0 | 1 | string;
+    lastchecktime_iso8601?: string | null;
+    lastlocalchecktime_iso8601?: string | null;
+  };
+  const lastcheckokRaw = rawLast.lastcheckok;
+  const lastcheckok =
+    lastcheckokRaw === 1 || lastcheckokRaw === '1'
+      ? 1
+      : lastcheckokRaw === 0 || lastcheckokRaw === '0'
+        ? 0
+        : undefined;
+  const lastIso =
+    rawLast.lastchecktime_iso8601 || rawLast.lastlocalchecktime_iso8601 || null;
+  const lastcheckokAt = lastIso ? Date.parse(lastIso) : null;
+  return {
+    ...raw,
+    name: raw.name?.trim() || 'Unknown Station',
+    url_resolved: raw.url_resolved || raw.url,
+    geo_lat: asNumber(raw.geo_lat),
+    geo_long: asNumber(raw.geo_long),
+    ...(lastcheckok !== undefined ? { lastcheckok } : {}),
+    ...(lastcheckokAt && Number.isFinite(lastcheckokAt)
+      ? { lastcheckok_at: lastcheckokAt }
+      : {})
+  };
+};
 
 const asNumber = (value: unknown): number | null => {
   if (value === null || value === undefined) return null;

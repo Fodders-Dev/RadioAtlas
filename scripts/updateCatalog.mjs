@@ -43,23 +43,40 @@ const asNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const pickStation = (raw) => ({
-  stationuuid: raw.stationuuid,
-  name: raw.name || 'Unknown Station',
-  url: raw.url || raw.url_resolved || '',
-  url_resolved: raw.url_resolved || raw.url || '',
-  homepage: raw.homepage || '',
-  favicon: raw.favicon || '',
-  tags: raw.tags || '',
-  country: raw.country || '',
-  countrycode: raw.countrycode || '',
-  state: raw.state || '',
-  language: raw.language || '',
-  codec: raw.codec || '',
-  bitrate: Number(raw.bitrate || 0),
-  geo_lat: asNumber(raw.geo_lat),
-  geo_long: asNumber(raw.geo_long)
-});
+const pickStation = (raw) => {
+  // Carry Radio Browser's own stream-health signal through into our
+  // artifact so the recommender can demote known-broken stations
+  // without our user having to click them first. Stripped to a
+  // numeric flag + ISO string to keep the artifact compact.
+  const lastcheckokRaw = raw.lastcheckok;
+  const lastcheckok =
+    lastcheckokRaw === 1 || lastcheckokRaw === '1'
+      ? 1
+      : lastcheckokRaw === 0 || lastcheckokRaw === '0'
+        ? 0
+        : undefined;
+  const lastIso =
+    raw.lastchecktime_iso8601 || raw.lastlocalchecktime_iso8601 || null;
+  return {
+    stationuuid: raw.stationuuid,
+    name: raw.name || 'Unknown Station',
+    url: raw.url || raw.url_resolved || '',
+    url_resolved: raw.url_resolved || raw.url || '',
+    homepage: raw.homepage || '',
+    favicon: raw.favicon || '',
+    tags: raw.tags || '',
+    country: raw.country || '',
+    countrycode: raw.countrycode || '',
+    state: raw.state || '',
+    language: raw.language || '',
+    codec: raw.codec || '',
+    bitrate: Number(raw.bitrate || 0),
+    geo_lat: asNumber(raw.geo_lat),
+    geo_long: asNumber(raw.geo_long),
+    ...(lastcheckok !== undefined ? { lastcheckok } : {}),
+    ...(lastIso ? { lastchecktime_iso8601: lastIso } : {})
+  };
+};
 
 const fetchFromEndpoint = async (endpoint, limit, pages) => {
   const collected = [];

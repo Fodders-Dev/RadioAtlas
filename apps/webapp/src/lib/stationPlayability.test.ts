@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PLAYABILITY_PROFILE,
+  getUpstreamHealthScore,
+  isStationHardHiddenByUpstream,
   rankStationsForHome,
   rankStationsForSearch
 } from './stationPlayability';
@@ -135,5 +137,134 @@ describe('rankStationsForSearch — diversification', () => {
 
     expect(consecutiveSameCountryAndTag(ranked)).toBeLessThanOrEqual(2);
     expect(ranked).toHaveLength(stations.length);
+  });
+});
+
+describe('getUpstreamHealthScore', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+
+  it('returns 0 when the station has no upstream signal', () => {
+    expect(
+      getUpstreamHealthScore(station('s', 'S', 'X', 't'), NOW)
+    ).toBe(0);
+  });
+
+  it('boosts a fresh upstream success', () => {
+    const s = station('s', 'S', 'X', 't', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    expect(getUpstreamHealthScore(s, NOW)).toBeGreaterThan(0);
+  });
+
+  it('penalises a fresh upstream failure', () => {
+    const s = station('s', 'S', 'X', 't', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 60_000
+    });
+    expect(getUpstreamHealthScore(s, NOW)).toBeLessThan(0);
+  });
+
+  it('softens the penalty when the failure check is older than 24 h', () => {
+    const fresh = getUpstreamHealthScore(
+      station('a', 'A', 'X', 't', {
+        lastcheckok: 0,
+        lastcheckok_at: NOW - 60_000
+      }),
+      NOW
+    );
+    const stale = getUpstreamHealthScore(
+      station('b', 'B', 'X', 't', {
+        lastcheckok: 0,
+        lastcheckok_at: NOW - 7 * 24 * 60 * 60 * 1000
+      }),
+      NOW
+    );
+    // Both negative, but the stale check is less harsh — the
+    // station might have recovered and we don't want to write it
+    // off forever.
+    expect(stale).toBeGreaterThan(fresh);
+    expect(stale).toBeLessThan(0);
+  });
+});
+
+describe('isStationHardHiddenByUpstream', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+
+  it('hides a station that just failed its upstream check', () => {
+    const s = station('s', 'S', 'X', 't', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 5 * 60_000
+    });
+    expect(isStationHardHiddenByUpstream(s, NOW)).toBe(true);
+  });
+
+  it('does not hide a station whose failure check is stale', () => {
+    const s = station('s', 'S', 'X', 't', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 7 * 24 * 60 * 60 * 1000
+    });
+    expect(isStationHardHiddenByUpstream(s, NOW)).toBe(false);
+  });
+
+  it('never hides a station that passed its upstream check', () => {
+    const s = station('s', 'S', 'X', 't', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW
+    });
+    expect(isStationHardHiddenByUpstream(s, NOW)).toBe(false);
+  });
+
+  it('does not hide stations without an upstream signal at all', () => {
+    expect(
+      isStationHardHiddenByUpstream(station('s', 'S', 'X', 't'), NOW)
+    ).toBe(false);
+  });
+});
+
+describe('rankStationsForHome — upstream health filter', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+
+  it('drops upstream-broken stations from background discovery', () => {
+    const broken = station('broken', 'Broken Stream', 'Russia', 'rock', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ok = station('ok', 'Working', 'Russia', 'rock', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ranked = rankStationsForHome([broken, ok], DEFAULT_PLAYABILITY_PROFILE, {
+      now: NOW,
+      limit: 10
+    });
+    expect(ranked.map((s) => s.stationuuid)).not.toContain('broken');
+    expect(ranked.map((s) => s.stationuuid)).toContain('ok');
+  });
+});
+
+describe('rankStationsForSearch — upstream health weight', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+
+  it('keeps upstream-broken stations in explicit-query results but lower', () => {
+    const broken = station('broken', 'Working Title', 'Russia', 'pop', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ok = station('ok', 'Working Title', 'Russia', 'pop', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ranked = rankStationsForSearch([broken, ok], {
+      query: 'working title',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+      now: NOW
+    });
+    // Both must survive — explicit query trumps health filter —
+    // but the broken one should appear AFTER the working one.
+    expect(ranked).toHaveLength(2);
+    expect(ranked[0].stationuuid).toBe('ok');
+    expect(ranked[1].stationuuid).toBe('broken');
   });
 });
