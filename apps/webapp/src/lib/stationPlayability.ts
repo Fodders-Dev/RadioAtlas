@@ -239,6 +239,50 @@ export const filterStationsByPlayability = (
       !isStationSuppressedByHealth(healthProfile, station, now)
   );
 
+// Diversification window: when picking the next station for the
+// final ranked list, look back at the previous DIVERSITY_WINDOW
+// items and avoid any candidate whose primary country / primary
+// tag matches one of them. Falls through to the highest-scoring
+// remaining station once the candidate pool is exhausted.
+//
+// Effect: a home rail of 24 stations no longer reads as "8 Russian
+// rock stations followed by 8 Russian pop stations" — it spreads
+// the user's taste across countries, languages and genres so the
+// rail looks like a curated mix instead of a sorted list.
+const DIVERSITY_WINDOW = 3;
+
+const stationDiversityKey = (station: StationLite): { country: string; tag: string } => {
+  const country = normalize(station.country);
+  const tag = firstTags(station, 1).map(normalize)[0] || '';
+  return { country, tag };
+};
+
+const diversifyRanking = <T extends { station: StationLite; score: number }>(
+  ranked: T[],
+  windowSize = DIVERSITY_WINDOW
+): T[] => {
+  if (ranked.length <= 2 || windowSize <= 0) return ranked;
+  const result: T[] = [];
+  const remaining = [...ranked];
+  while (remaining.length) {
+    const recent = result.slice(-windowSize).map((item) => stationDiversityKey(item.station));
+    const recentCountries = new Set(recent.map((entry) => entry.country).filter(Boolean));
+    const recentTags = new Set(recent.map((entry) => entry.tag).filter(Boolean));
+    let pickIndex = remaining.findIndex((candidate) => {
+      const key = stationDiversityKey(candidate.station);
+      const sharesCountry = key.country && recentCountries.has(key.country);
+      const sharesTag = key.tag && recentTags.has(key.tag);
+      // Acceptable if it differs on EITHER axis. Strict
+      // "different on both" produced too few candidates and
+      // the algorithm fell back to the head of the list constantly.
+      return !sharesCountry || !sharesTag;
+    });
+    if (pickIndex < 0) pickIndex = 0;
+    result.push(...remaining.splice(pickIndex, 1));
+  }
+  return result;
+};
+
 export const rankStationsForHome = (
   stations: StationLite[],
   profile: StationPlayabilityProfile | null | undefined,
@@ -246,7 +290,7 @@ export const rankStationsForHome = (
 ) => {
   const stationPool = uniqueStations(stations);
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
-  return filterStationsByPlayability(stationPool, profile, now, healthProfile)
+  const ranked = filterStationsByPlayability(stationPool, profile, now, healthProfile)
     .filter((station) => !sessionExcludedIds.has(station.stationuuid))
     .map((station, index) => ({
       station,
@@ -257,9 +301,8 @@ export const rankStationsForHome = (
         getStationHealthScore(healthProfile, station, now) * 2.4 +
         stationQualityScore(station)
     }))
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, limit)
-    .map((item) => item.station);
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  return diversifyRanking(ranked).slice(0, limit).map((item) => item.station);
 };
 
 const queryIntentScore = (station: StationLite, query: string) => {
@@ -359,7 +402,7 @@ export const rankStationsForSearch = (
   const stationPool = uniqueStations(stations);
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
   const explicitQuery = queryTokens(query).length > 1;
-  return filterStationsByPlayability(stationPool, playabilityProfile, now, healthProfile)
+  const ranked = filterStationsByPlayability(stationPool, playabilityProfile, now, healthProfile)
     .map((station, index) => {
       const intent = queryIntentScore(station, query);
       const promotedBoost = intent >= 20 ? 0.1 : station.promoted ? 1 : 0;
@@ -381,6 +424,12 @@ export const rankStationsForSearch = (
         score
       };
     })
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .map((item) => item.station);
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  // For an explicit query the user wants tight relevance — too much
+  // diversification reorders the actually-best matches. Apply a
+  // shorter window in that case. With no query (browse mode) use
+  // the full window so the list reads as a varied catalog.
+  return diversifyRanking(ranked, query.trim() ? 1 : DIVERSITY_WINDOW).map(
+    (item) => item.station
+  );
 };
