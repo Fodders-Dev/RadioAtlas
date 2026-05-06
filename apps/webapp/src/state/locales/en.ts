@@ -83,6 +83,13 @@ export const enDictionary = {
     "promoted": "Sponsored",
     "claimed": "Claimed"
   },
+  "reasons": {
+    "frequent": "You listen often",
+    "favoriteTag": "Favorite genre · {tag}",
+    "favoriteCountry": "Often play · {country}",
+    "promoted": "Sponsored",
+    "verified": "Verified"
+  },
   "explore": {
     "kicker": "RadioAtlas x Winamp",
     "title": "Airwaves without the clutter",

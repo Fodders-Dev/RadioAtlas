@@ -83,6 +83,13 @@ export const ruDictionary = {
     "promoted": "Промо",
     "claimed": "Заявлена"
   },
+  "reasons": {
+    "frequent": "Часто слушаешь",
+    "favoriteTag": "Любимый жанр · {tag}",
+    "favoriteCountry": "Часто слушаешь · {country}",
+    "promoted": "Промо",
+    "verified": "Проверено"
+  },
   "explore": {
     "kicker": "RadioAtlas x Winamp",
     "title": "Эфир без лишнего шума",

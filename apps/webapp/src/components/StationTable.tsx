@@ -7,6 +7,7 @@ import type { StationLite } from '../types';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
+import { getRecommendationReason } from '../lib/recommendationReason';
 import { useLocale } from '../state/LocaleContext';
 import { StationArtwork } from './StationArtwork';
 
@@ -52,7 +53,8 @@ const StationTableRow = ({
     isFavorite,
     hideStationFromRecommendations,
     unhideStationFromRecommendations,
-    isStationHiddenFromRecommendations
+    isStationHiddenFromRecommendations,
+    behaviorProfile
   } = useLibrary();
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -113,6 +115,16 @@ const StationTableRow = ({
       hideStationFromRecommendations(station);
     }
   };
+  // Why is this station here? "Часто слушаешь", "Любимый жанр · jazz",
+  // "Часто слушаешь · Russia", "Промо", "Проверено" — pick one to
+  // explain the row at a glance. null when there's no signal worth
+  // surfacing, and we just show the station's existing flag chips
+  // (verified / promoted / claimed) instead. Skipping if the row is
+  // currently active so the now-playing UI takes precedence.
+  const reason =
+    !active && !hidden
+      ? getRecommendationReason({ station, behaviorProfile, t })
+      : null;
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
   const locationLabel = stationLocation(station);
   const tagsLabel = stationTags(station);
@@ -183,6 +195,14 @@ const StationTableRow = ({
               <div className="station-title" title={station.name}>
                 <span className="marquee-text">{station.name}</span>
               </div>
+              {reason ? (
+                <span
+                  className={`station-reason-chip station-reason-chip-${reason.kind}`}
+                  title={reason.label}
+                >
+                  {reason.label}
+                </span>
+              ) : null}
               {station.isVerified || station.promoted || station.isClaimed ? (
                 <div className="chip-row station-inline-flags">
                   {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
@@ -273,6 +293,14 @@ const StationTableRow = ({
                 <div className="station-title" title={station.name}>
                   <span className="marquee-text">{station.name}</span>
                 </div>
+                {reason ? (
+                  <span
+                    className={`station-reason-chip station-reason-chip-${reason.kind}`}
+                    title={reason.label}
+                  >
+                    {reason.label}
+                  </span>
+                ) : null}
                 {station.isVerified || station.promoted || station.isClaimed ? (
                   <div className="chip-row station-inline-flags">
                     {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
