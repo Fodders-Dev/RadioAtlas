@@ -203,25 +203,33 @@ const StationTableRow = ({
                   {reason.label}
                 </span>
               ) : null}
-              {/* Skip the verified / promoted chip when the
-                  reason chip already says the same thing —
-                  otherwise the row carries two "Проверено" /
-                  "Промо" badges stacked on top of each other.
-                  Claimed has no equivalent reason kind, so it
-                  always renders. */}
-              {(station.isVerified && reason?.kind !== 'verified') ||
-              (station.promoted && reason?.kind !== 'promoted') ||
-              station.isClaimed ? (
+              {/* When the reason chip is showing, hide the
+                  verified / promoted catalog flags entirely.
+                  The reason ("Часто слушаешь · Russia") is
+                  always more informative than the catalog flag
+                  ("Проверено") — stacking both makes the row
+                  read as "two facts about this station" when
+                  the user just wants one quick line. Claimed
+                  has no reason equivalent, so it still renders
+                  to mark the row as user-managed.
+                  Without a reason chip, the original flag row
+                  is preserved as the secondary signal. */}
+              {!reason &&
+              (station.isVerified || station.promoted || station.isClaimed) ? (
                 <div className="chip-row station-inline-flags">
-                  {station.isVerified && reason?.kind !== 'verified' ? (
+                  {station.isVerified ? (
                     <span className="chip active">{t('stationTable.verified')}</span>
                   ) : null}
-                  {station.promoted && reason?.kind !== 'promoted' ? (
+                  {station.promoted ? (
                     <span className="chip">{t('stationTable.promoted')}</span>
                   ) : null}
                   {station.isClaimed && !station.isVerified ? (
                     <span className="chip">{t('stationTable.claimed')}</span>
                   ) : null}
+                </div>
+              ) : reason && station.isClaimed ? (
+                <div className="chip-row station-inline-flags">
+                  <span className="chip">{t('stationTable.claimed')}</span>
                 </div>
               ) : null}
               {showTrackLine ? (
