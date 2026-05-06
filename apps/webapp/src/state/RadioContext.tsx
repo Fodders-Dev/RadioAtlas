@@ -965,6 +965,39 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const lite = toLite(station);
     rememberStations([lite]);
     const sourceId = options?.sourceId || queueRef.current.sourceId || null;
+
+    // Quick-skip detection: if the user is bailing on a station within
+    // 10 s of it starting (typical "nope, not this one" reaction),
+    // record a skip signal for the OUTGOING station before we switch.
+    // Previously this only fired through the explicit Next button, so
+    // tapping a different station from the search list / library /
+    // globe never trained the recommender to demote the rejected one.
+    const outgoing = player.current;
+    const startedAt = currentStartedAtRef.current;
+    if (
+      outgoing &&
+      startedAt &&
+      outgoing.stationuuid !== lite.stationuuid &&
+      Date.now() - startedAt < 10_000
+    ) {
+      const outgoingMode = sessionModeFromSourceId(queueRef.current.sourceId);
+      recordTasteForStation(outgoing, 'skip-before-10s', outgoingMode, -10);
+      recordSessionEventForStation(outgoing, 'skip');
+      reportProductEvent(
+        'skip',
+        {
+          ...stationAnalyticsMeta(outgoing),
+          mode: outgoingMode,
+          sourceId: queueRef.current.sourceId || null,
+          listenedMs: Date.now() - startedAt,
+          trigger: 'switch'
+        },
+        {
+          dedupeKey: `skip:${outgoing.stationuuid}:${startedAt}`
+        }
+      );
+    }
+
     currentStartedStationIdRef.current = null;
     if (!lite.url_resolved) {
       recordPlaybackOutcomeForStation(lite, 'no-playable-candidate');
