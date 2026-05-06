@@ -323,11 +323,16 @@ const StationTableRow = ({
                     {reason.label}
                   </span>
                 ) : null}
-                {station.isVerified || station.promoted || station.isClaimed ? (
+                {!reason &&
+                (station.isVerified || station.promoted || station.isClaimed) ? (
                   <div className="chip-row station-inline-flags">
                     {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
                     {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
                     {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                  </div>
+                ) : reason && station.isClaimed ? (
+                  <div className="chip-row station-inline-flags">
+                    <span className="chip">{t('stationTable.claimed')}</span>
                   </div>
                 ) : null}
                 {showTrackLine ? (
