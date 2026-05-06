@@ -103,6 +103,19 @@ export default defineConfig({
           if (normalizedId.includes('node_modules/d3-geo') || normalizedId.includes('node_modules/topojson-client')) {
             return 'globe-vendor';
           }
+          // MapLibre GL is the largest single dependency (~1 MB
+          // raw, ~270 KB gzip) and almost never changes between
+          // RadioAtlas releases. Putting it in its own chunk lets
+          // the browser keep it cached across our deploys
+          // independent of the Globe-screen application code, so
+          // a globe-screen update doesn't force users to
+          // re-download the renderer.
+          if (
+            normalizedId.includes('node_modules/maplibre-gl') ||
+            normalizedId.includes('maplibre-gl/dist/maplibre-gl.css')
+          ) {
+            return 'maplibre-vendor';
+          }
           if (
             normalizedId.includes('/src/RuntimeProviders') ||
             normalizedId.includes('/src/App.tsx') ||
