@@ -1961,6 +1961,38 @@ input {
   flex: 0 0 auto;
 }
 
+/* Hide-from-recommendations toggle. Lives next to the favorite
+   button on every row. Default is a muted eye outline so it
+   doesn't compete with the heart; active state dims the row
+   ahead of itself so the user gets immediate "this won't be
+   suggested anymore" feedback. */
+.station-hide-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  color: rgba(180, 215, 235, 0.55);
+  transition: color 140ms ease, opacity 140ms ease;
+}
+
+.station-hide-btn:hover {
+  color: rgba(255, 220, 200, 0.95);
+}
+
+.station-hide-btn.active {
+  color: rgba(255, 170, 140, 0.95);
+}
+
+.station-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.station-row[data-recommendation-hidden='true'] {
+  opacity: 0.55;
+}
+
 .station-compact-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

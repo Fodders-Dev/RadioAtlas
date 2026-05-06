@@ -77,6 +77,8 @@ export const enDictionary = {
     "favoriteColumn": "Favorite",
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
+    "hideFromRecommendations": "Hide from recommendations",
+    "unhideFromRecommendations": "Show in recommendations again",
     "verified": "Verified",
     "promoted": "Sponsored",
     "claimed": "Claimed"

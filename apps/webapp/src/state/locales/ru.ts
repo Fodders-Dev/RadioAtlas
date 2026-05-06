@@ -77,6 +77,8 @@ export const ruDictionary = {
     "favoriteColumn": "Лайк",
     "favorite": "В лайки",
     "unfavorite": "Убрать лайк",
+    "hideFromRecommendations": "Скрыть из рекомендаций",
+    "unhideFromRecommendations": "Вернуть в рекомендации",
     "verified": "Проверено",
     "promoted": "Промо",
     "claimed": "Заявлена"

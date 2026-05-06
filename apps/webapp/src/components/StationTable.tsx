@@ -47,7 +47,13 @@ const StationTableRow = ({
   nowPlayingMode
 }: StationTableRowProps) => {
   const { playStation, player, nowPlaying, nowPlayingStatus } = usePlayback();
-  const { toggleFavorite, isFavorite } = useLibrary();
+  const {
+    toggleFavorite,
+    isFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
+  } = useLibrary();
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const lowPower = getDeviceProfile().lowPower;
@@ -99,6 +105,14 @@ const StationTableRow = ({
   }, [shouldObserve, station]);
 
   const liked = isFavorite(station.stationuuid);
+  const hidden = isStationHiddenFromRecommendations(station.stationuuid);
+  const toggleHidden = () => {
+    if (hidden) {
+      unhideStationFromRecommendations(station);
+    } else {
+      hideStationFromRecommendations(station);
+    }
+  };
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
   const locationLabel = stationLocation(station);
   const tagsLabel = stationTags(station);
@@ -154,6 +168,7 @@ const StationTableRow = ({
       ref={rowRef}
       className={`station-row ${active ? 'active' : ''}`}
       data-track-status={displayTrack ? 'ready' : displayStatus}
+      data-recommendation-hidden={hidden ? 'true' : undefined}
     >
       {compact ? (
         <div className="station-compact-shell">
@@ -215,6 +230,35 @@ const StationTableRow = ({
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
               </svg>
             </button>
+            <button
+              className={`icon-btn station-hide-btn ${hidden ? 'active' : ''}`}
+              onClick={toggleHidden}
+              type="button"
+              aria-label={
+                hidden
+                  ? t('stationTable.unhideFromRecommendations') ||
+                    'Показывать снова в рекомендациях'
+                  : t('stationTable.hideFromRecommendations') ||
+                    'Скрыть из рекомендаций'
+              }
+              title={
+                hidden
+                  ? t('stationTable.unhideFromRecommendations') ||
+                    'Показывать снова в рекомендациях'
+                  : t('stationTable.hideFromRecommendations') ||
+                    'Скрыть из рекомендаций'
+              }
+            >
+              {/* Eye-off icon when station is currently hidden,
+                  open eye when normal — tap to toggle. */}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {hidden ? (
+                  <path d="M2.1 3.5 3.5 2.1l18.4 18.4-1.4 1.4-2.5-2.5A12 12 0 0 1 12 20c-5.5 0-10.1-3.4-12-8 .8-2 2.2-3.7 4-5L2.1 3.5zM12 7c2.8 0 5 2.2 5 5 0 .6-.1 1.2-.3 1.7l-2.3-2.3c0-.1.1-.3.1-.4 0-1.4-1.1-2.5-2.5-2.5-.1 0-.3 0-.4.1L9.3 6.3C10.1 7.1 11 7 12 7zm0 10c-3.7 0-7-1.7-9-4.5C4 11 5.5 9.5 7.4 8.6l1.6 1.6c-.6.6-.9 1.4-.9 2.3 0 1.9 1.6 3.5 3.5 3.5.9 0 1.7-.3 2.3-.9l1.6 1.6C14.3 16.6 13.2 17 12 17z" />
+                ) : (
+                  <path d="M12 5C5.5 5 1 12 1 12s4.5 7 11 7 11-7 11-7-4.5-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
+                )}
+              </svg>
+            </button>
           </div>
         </div>
       ) : (
@@ -246,16 +290,45 @@ const StationTableRow = ({
           </div>
           <div className="station-location">{locationLabel}</div>
           <div className="station-tags">{tagsLabel}</div>
-          <button
-            className={`icon-btn ${liked ? 'active' : ''}`}
-            onClick={() => toggleFavorite(station)}
-            type="button"
-            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-            </svg>
-          </button>
+          <div className="station-row-actions">
+            <button
+              className={`icon-btn ${liked ? 'active' : ''}`}
+              onClick={() => toggleFavorite(station)}
+              type="button"
+              aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+            <button
+              className={`icon-btn station-hide-btn ${hidden ? 'active' : ''}`}
+              onClick={toggleHidden}
+              type="button"
+              aria-label={
+                hidden
+                  ? t('stationTable.unhideFromRecommendations') ||
+                    'Показывать снова в рекомендациях'
+                  : t('stationTable.hideFromRecommendations') ||
+                    'Скрыть из рекомендаций'
+              }
+              title={
+                hidden
+                  ? t('stationTable.unhideFromRecommendations') ||
+                    'Показывать снова в рекомендациях'
+                  : t('stationTable.hideFromRecommendations') ||
+                    'Скрыть из рекомендаций'
+              }
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {hidden ? (
+                  <path d="M2.1 3.5 3.5 2.1l18.4 18.4-1.4 1.4-2.5-2.5A12 12 0 0 1 12 20c-5.5 0-10.1-3.4-12-8 .8-2 2.2-3.7 4-5L2.1 3.5zM12 7c2.8 0 5 2.2 5 5 0 .6-.1 1.2-.3 1.7l-2.3-2.3c0-.1.1-.3.1-.4 0-1.4-1.1-2.5-2.5-2.5-.1 0-.3 0-.4.1L9.3 6.3C10.1 7.1 11 7 12 7zm0 10c-3.7 0-7-1.7-9-4.5C4 11 5.5 9.5 7.4 8.6l1.6 1.6c-.6.6-.9 1.4-.9 2.3 0 1.9 1.6 3.5 3.5 3.5.9 0 1.7-.3 2.3-.9l1.6 1.6C14.3 16.6 13.2 17 12 17z" />
+                ) : (
+                  <path d="M12 5C5.5 5 1 12 1 12s4.5 7 11 7 11-7 11-7-4.5-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
+                )}
+              </svg>
+            </button>
+          </div>
         </>
       )}
     </div>
