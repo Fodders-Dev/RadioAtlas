@@ -1028,6 +1028,26 @@ input {
   border-radius: 14px;
   padding: 11px 13px;
   gap: 12px;
+  /* Without min-width:0 + flex-wrap a long row gets squeezed —
+     the action button on the right was clipping the start of its
+     label ("крыть приложение" instead of "Открыть приложение")
+     because the title text on the left forced flex to shrink the
+     button below its intrinsic width. Letting the row wrap to
+     two lines on narrow grids keeps every label readable. */
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Description column shrinks first; the action chip stays
+   intrinsic width so its label never gets cropped. */
+.settings-card > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.settings-card > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .settings-card.stack {

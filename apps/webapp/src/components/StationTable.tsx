@@ -203,11 +203,25 @@ const StationTableRow = ({
                   {reason.label}
                 </span>
               ) : null}
-              {station.isVerified || station.promoted || station.isClaimed ? (
+              {/* Skip the verified / promoted chip when the
+                  reason chip already says the same thing —
+                  otherwise the row carries two "Проверено" /
+                  "Промо" badges stacked on top of each other.
+                  Claimed has no equivalent reason kind, so it
+                  always renders. */}
+              {(station.isVerified && reason?.kind !== 'verified') ||
+              (station.promoted && reason?.kind !== 'promoted') ||
+              station.isClaimed ? (
                 <div className="chip-row station-inline-flags">
-                  {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
-                  {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
-                  {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
+                  {station.isVerified && reason?.kind !== 'verified' ? (
+                    <span className="chip active">{t('stationTable.verified')}</span>
+                  ) : null}
+                  {station.promoted && reason?.kind !== 'promoted' ? (
+                    <span className="chip">{t('stationTable.promoted')}</span>
+                  ) : null}
+                  {station.isClaimed && !station.isVerified ? (
+                    <span className="chip">{t('stationTable.claimed')}</span>
+                  ) : null}
                 </div>
               ) : null}
               {showTrackLine ? (
