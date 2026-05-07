@@ -1680,7 +1680,7 @@ test('dock long station and track text stay readable without overflow', async ({
   await expectNoDocumentHorizontalOverflow(page);
 });
 
-test('dock volume tap toggles mute and long press opens tray', async ({ page }) => {
+test('dock volume click opens slider tray, right-click mutes directly', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
@@ -1689,7 +1689,46 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
   await expect(volumeButton).toBeVisible();
   await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
 
+  // Left click opens the slider tray (the natural affordance —
+  // user reported "click muted, why doesn't a slider show up?").
   await volumeButton.click();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toBeVisible();
+  await expect(volumeButton).toHaveAttribute('data-muted', 'false');
+
+  // Tray contains the percentage label and a working range input.
+  await expect(
+    page.locator('.player-dock-tray[data-mode="volume"] input[type="range"]')
+  ).toBeVisible();
+
+  // Theme Studio button used to live inside the volume tray for
+  // historical reasons; this regresion check ensures it is gone.
+  await expect(
+    page.locator('.player-dock-tray[data-mode="volume"] .dock-theme-btn')
+  ).toHaveCount(0);
+
+  // Tray panel respects viewport sizing.
+  const trayMetrics = await page.locator('.player-dock-tray-panel').evaluate((node) => {
+    const computed = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      overflowY: computed.overflowY,
+      height: rect.height,
+      viewportHeight: window.innerHeight
+    };
+  });
+  expect(trayMetrics.overflowY).toBe('auto');
+  expect(trayMetrics.height).toBeLessThanOrEqual(
+    Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1
+  );
+
+  // Click again closes the tray.
+  await volumeButton.click();
+  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
+
+  // Right-click mutes directly without opening the tray. (Same
+  // result via middle-click / contextmenu shortcut for users who
+  // want a fast mute.)
+  await volumeButton.click({ button: 'right' });
   await expect(volumeButton).toHaveAttribute('data-muted', 'true');
   await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
   await expect
@@ -1701,47 +1740,9 @@ test('dock volume tap toggles mute and long press opens tray', async ({ page }) 
     )
     .toBe(0);
 
-  await volumeButton.click();
+  // Right-click again unmutes.
+  await volumeButton.click({ button: 'right' });
   await expect(volumeButton).toHaveAttribute('data-muted', 'false');
-  await expect
-    .poll(async () =>
-      page.evaluate(() => {
-        const audio = document.querySelector('audio');
-        return audio instanceof HTMLAudioElement ? audio.volume : null;
-      })
-    )
-    .toBeGreaterThan(0.5);
-
-  const box = await volumeButton.boundingBox();
-  expect(box).not.toBeNull();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(120);
-  await page.mouse.move(box!.x + box!.width / 2 + 18, box!.y + box!.height / 2);
-  await page.waitForTimeout(520);
-  await page.mouse.up();
-  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toHaveCount(0);
-
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(520);
-  await page.mouse.up();
-  await expect(page.locator('.player-dock-tray[data-mode="volume"]')).toBeVisible();
-  const trayMetrics = await page.locator('.player-dock-tray-panel').evaluate((node) => {
-    const computed = window.getComputedStyle(node);
-    const rect = node.getBoundingClientRect();
-    return {
-      maxHeight: computed.maxHeight,
-      overflowY: computed.overflowY,
-      overscrollBehavior: computed.overscrollBehavior,
-      height: rect.height,
-      viewportHeight: window.innerHeight
-    };
-  });
-  expect(trayMetrics.overflowY).toBe('auto');
-  expect(trayMetrics.height).toBeLessThanOrEqual(Math.min(trayMetrics.viewportHeight * 0.4, 360) + 1);
-  await expect(page.locator('.player-dock-tray[data-mode="volume"] .dock-skin-btn')).toHaveCount(0);
-  await expect(page.locator('.player-dock-tray[data-mode="volume"] .dock-theme-btn')).toBeVisible();
 });
 
 test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {

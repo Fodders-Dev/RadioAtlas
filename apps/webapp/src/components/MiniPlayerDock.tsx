@@ -8,7 +8,6 @@ import { ThemeActionIcon } from './ThemeActionIcon';
 import './MiniPlayerDock.css';
 
 type DockTrayMode = 'queue' | 'volume' | null;
-const VOLUME_LONG_PRESS_CANCEL_PX = 6;
 
 export const MiniPlayerDock = () => {
   const { t } = useLocale();
@@ -33,14 +32,10 @@ export const MiniPlayerDock = () => {
     libraryTab,
     setLibraryTab,
     setDetailsOpen,
-    setSkinLabOpen,
     winamp
   } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
-  const volumePressTimerRef = useRef<number | null>(null);
-  const volumeLongPressTriggeredRef = useRef(false);
-  const volumePointerStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -120,15 +115,6 @@ export const MiniPlayerDock = () => {
     }
   }, [playerPresentation]);
 
-  useEffect(
-    () => () => {
-      if (volumePressTimerRef.current !== null) {
-        window.clearTimeout(volumePressTimerRef.current);
-      }
-    },
-    []
-  );
-
   const openLibraryTab = (tab: 'queue' | 'tracks' | 'history') => {
     setTrayMode(null);
     setLibraryTab(tab);
@@ -144,52 +130,23 @@ export const MiniPlayerDock = () => {
     player.setVolume(isMuted ? lastAudibleVolumeRef.current || 0.8 : 0);
   };
 
-  const clearVolumePressTimer = () => {
-    if (volumePressTimerRef.current === null) return;
-    window.clearTimeout(volumePressTimerRef.current);
-    volumePressTimerRef.current = null;
-  };
-
-  const handleVolumePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (trayMode === 'volume') return;
-    clearVolumePressTimer();
-    volumeLongPressTriggeredRef.current = false;
-    volumePointerStartRef.current = { x: event.clientX, y: event.clientY };
-    volumePressTimerRef.current = window.setTimeout(() => {
-      volumePressTimerRef.current = null;
-      volumeLongPressTriggeredRef.current = true;
-      setTrayMode('volume');
-    }, 450);
-  };
-
-  const handleVolumePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
-    const start = volumePointerStartRef.current;
-    if (!start || volumePressTimerRef.current === null) return;
-    if (
-      Math.abs(event.clientX - start.x) > VOLUME_LONG_PRESS_CANCEL_PX ||
-      Math.abs(event.clientY - start.y) > VOLUME_LONG_PRESS_CANCEL_PX
-    ) {
-      clearVolumePressTimer();
-    }
-  };
-
-  const handleVolumePointerEnd = () => {
-    clearVolumePressTimer();
-    volumePointerStartRef.current = null;
-  };
-
+  // Volume button UX: click = open the slider tray (the natural
+  // affordance — that's what the speaker icon should do).
+  // The mute icon lives inside the tray as a secondary action,
+  // which is also where the user looks once the tray is open.
+  // Right-click / middle-click on the volume button mutes
+  // directly without opening the tray, for users who really do
+  // want a one-click mute.
   const handleVolumeClick = () => {
-    clearVolumePressTimer();
-    if (volumeLongPressTriggeredRef.current) {
-      volumeLongPressTriggeredRef.current = false;
-      return;
+    setTrayMode(trayMode === 'volume' ? null : 'volume');
+  };
+  const handleVolumeAuxClick = (event: PointerEvent<HTMLButtonElement>) => {
+    // Only react to middle-click (button=1) and right-click
+    // (button=2). Left-click already goes through onClick above.
+    if (event.button === 1 || event.button === 2) {
+      event.preventDefault();
+      toggleMute();
     }
-    if (trayMode === 'volume') {
-      setTrayMode(null);
-      return;
-    }
-    toggleMute();
   };
 
   const openFullPlayer = () => {
@@ -300,18 +257,6 @@ export const MiniPlayerDock = () => {
                     onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
                   />
                 </label>
-                <div className="player-dock-tray-actions">
-                  <button
-                    className="chip dock-theme-btn"
-                    type="button"
-                    onClick={() => {
-                      setTrayMode(null);
-                      setSkinLabOpen(true);
-                    }}
-                  >
-                    {t('theme.openStudio')}
-                  </button>
-                </div>
               </>
             ) : (
               <div className="player-dock-queue-tray">
@@ -447,14 +392,18 @@ export const MiniPlayerDock = () => {
           className={`dock-icon-btn dock-volume-btn ${trayMode === 'volume' ? 'active' : ''}`}
           type="button"
           data-muted={isMuted ? 'true' : 'false'}
-          onPointerDown={handleVolumePointerDown}
-          onPointerMove={handleVolumePointerMove}
-          onPointerUp={handleVolumePointerEnd}
-          onPointerLeave={handleVolumePointerEnd}
-          onPointerCancel={handleVolumePointerEnd}
           onClick={handleVolumeClick}
-          onContextMenu={(event) => event.preventDefault()}
-          aria-label={isMuted ? t('dock.unmute') : t('dock.mute')}
+          onAuxClick={handleVolumeAuxClick}
+          // Suppress the system context menu so a right-click can
+          // mute without opening the browser's "Inspect Element"
+          // dialog. The actual mute is handled in handleVolumeAuxClick
+          // via the auxclick event.
+          onContextMenu={(event) => {
+            event.preventDefault();
+            toggleMute();
+          }}
+          aria-label={trayMode === 'volume' ? t('dock.volume') : t('dock.volume')}
+          title={t('dock.volume')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {isMuted ? (
