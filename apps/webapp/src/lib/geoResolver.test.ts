@@ -34,6 +34,39 @@ describe('resolveStationCoords', () => {
     expect(resolved!.lon).toBeCloseTo(moscowLon, 4);
   });
 
+  it('rejects geo_lat/geo_long that fall outside the station country bbox', () => {
+    // Radio Browser sometimes ships obviously wrong coords. A
+    // station tagged country=Russia with coords in Brazil should
+    // NOT render at the Brazilian point — fall through to the
+    // fallback chain.
+    const resolved = resolveStationCoords({
+      stationuuid: 'bogus-coords',
+      country: 'Russia',
+      // -15, -55 is somewhere in Brazil
+      geo_lat: -15,
+      geo_long: -55
+    });
+    expect(resolved).not.toBeNull();
+    expect(resolved!.source).not.toBe('station');
+    expect(resolved!.countryKey).toBe('russia');
+  });
+
+  it('accepts antimeridian-spanning country coords (Vladivostok in Russia)', () => {
+    // Vladivostok 43.1°N, 131.9°E — in Russia's eastern bbox after
+    // antimeridian wrap. The naïve range check would reject this;
+    // isLonInWrappedRange must allow it.
+    const resolved = resolveStationCoords({
+      stationuuid: 'vladivostok-station',
+      country: 'Russian Federation',
+      geo_lat: 43.1,
+      geo_long: 131.9
+    });
+    expect(resolved).not.toBeNull();
+    expect(resolved!.source).toBe('station');
+    expect(resolved!.lat).toBeCloseTo(43.1, 3);
+    expect(resolved!.lon).toBeCloseTo(131.9, 3);
+  });
+
   it('treats (0, 0) as missing coords and falls through to country fallback', () => {
     const resolved = resolveStationCoords({
       stationuuid: 's2',

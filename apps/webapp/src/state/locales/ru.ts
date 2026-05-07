@@ -84,9 +84,9 @@ export const ruDictionary = {
     "claimed": "Заявлена"
   },
   "reasons": {
-    "frequent": "Часто слушаешь",
+    "frequent": "Уже слушал",
     "favoriteTag": "Любимый жанр · {tag}",
-    "favoriteCountry": "Часто слушаешь · {country}",
+    "favoriteCountry": "Из {country}",
     "promoted": "Промо",
     "verified": "Проверено"
   },

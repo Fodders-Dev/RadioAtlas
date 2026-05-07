@@ -84,9 +84,9 @@ export const enDictionary = {
     "claimed": "Claimed"
   },
   "reasons": {
-    "frequent": "You listen often",
+    "frequent": "Played before",
     "favoriteTag": "Favorite genre · {tag}",
-    "favoriteCountry": "Often play · {country}",
+    "favoriteCountry": "From {country}",
     "promoted": "Sponsored",
     "verified": "Verified"
   },

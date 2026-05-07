@@ -80,7 +80,7 @@ export const getRecommendationReason = (
     if (stationPlays >= FREQUENT_PLAYS_THRESHOLD) {
       return {
         kind: 'frequent',
-        label: t('reasons.frequent') || 'Часто слушаешь'
+        label: t('reasons.frequent') || 'Уже слушал'
       };
     }
 
@@ -112,7 +112,7 @@ export const getRecommendationReason = (
           kind: 'favorite-country',
           label:
             t('reasons.favoriteCountry', { country: topCountry.label }) ||
-            `Часто слушаешь · ${topCountry.label}`,
+            `Из ${topCountry.label}`,
           detail: topCountry.label
         };
       }

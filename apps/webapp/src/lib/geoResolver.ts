@@ -43,6 +43,12 @@ type CountryGeoRecord = {
   // territories, so eager construction wastes seconds on startup.
   samplePool: CountryPoint[] | null;
   feature: unknown;
+  // Bounding box around all of this country's polygons. Cached so
+  // we can sanity-check that a station's claimed (geo_lat, geo_long)
+  // actually falls inside the country it's tagged with — Radio
+  // Browser sometimes ships obviously bogus coords (e.g. a Moscow
+  // station with geo_lat=65 lon=170, in Chukotka).
+  bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number } | null;
 };
 
 export type CountryGeoIndex = {
@@ -86,6 +92,22 @@ const wrapLon = (value: number) => {
   if (value > 180) return value - 360;
   if (value < -180) return value + 360;
   return value;
+};
+
+/**
+ * True when `lon` falls inside [minLon, maxLon] taking the
+ * antimeridian into account. d3-geoBounds returns bboxes where
+ * minLon > maxLon for territories that wrap (Russia, Fiji, the US
+ * with Aleutians). A naïve `>=` / `<=` comparison would reject
+ * valid coords on the wrapping side.
+ */
+const isLonInWrappedRange = (lon: number, minLon: number, maxLon: number): boolean => {
+  if (minLon <= maxLon) {
+    return lon >= minLon && lon <= maxLon;
+  }
+  // Wrapped: e.g. minLon=170 maxLon=-170 covers everything from
+  // 170°E eastward through the antimeridian to 170°W.
+  return lon >= minLon || lon <= maxLon;
 };
 
 const toFiniteNumber = (value: unknown): number | null => {
@@ -203,12 +225,35 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
       Number.isFinite(lat) && Number.isFinite(lon)
         ? ([clampLat(lat), clampLon(lon)] as CountryPoint)
         : null;
+    // Cache the bbox once so the per-station sanity check (below)
+    // is a pair of comparisons, not a re-trace of the polygons.
+    let bbox: CountryGeoRecord['bbox'] = null;
+    try {
+      const bounds = geoBounds(item);
+      if (bounds && bounds.length === 2) {
+        const [[minLon, minLat], [maxLon, maxLat]] = bounds as [
+          [number, number],
+          [number, number]
+        ];
+        if (
+          Number.isFinite(minLon) &&
+          Number.isFinite(maxLon) &&
+          Number.isFinite(minLat) &&
+          Number.isFinite(maxLat)
+        ) {
+          bbox = { minLat, maxLat, minLon, maxLon };
+        }
+      }
+    } catch {
+      bbox = null;
+    }
     countries.set(key, {
       key,
       name,
       centroid,
       samplePool: null,
-      feature: item
+      feature: item,
+      bbox
     });
   });
 
@@ -237,11 +282,31 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
       Math.abs(lon) <= 180 &&
       !(Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001);
 
+    const country = resolveCountry(station.country);
+
     if (hasStationCoords) {
-      return { lat: clampLat(lat), lon: clampLon(lon), source: 'station' };
+      // Sanity check: are these coords actually inside the country
+      // the station claims? Radio Browser ships obviously bogus
+      // geo_lat/geo_long fairly often (Moscow station with coords
+      // in Chukotka, Tokyo station with coords in the Pacific). If
+      // the country resolves AND has a bbox AND the coords are
+      // clearly outside it (with a 2° slack to forgive imprecise
+      // 110m polygons), reject the explicit coords and fall
+      // through to the state-anchor / country-pool path. The dot
+      // ends up where the user expects it instead of where Radio
+      // Browser fat-fingered the lat/lon.
+      const inCountry =
+        !country ||
+        !country.bbox ||
+        (lat >= country.bbox.minLat - 2 &&
+          lat <= country.bbox.maxLat + 2 &&
+          isLonInWrappedRange(lon, country.bbox.minLon - 2, country.bbox.maxLon + 2));
+      if (inCountry) {
+        return { lat: clampLat(lat), lon: clampLon(lon), source: 'station' };
+      }
+      // else: fall through to fallbacks
     }
 
-    const country = resolveCountry(station.country);
     if (!country) return null;
 
     // State-anchor enrichment: when Radio Browser doesn't ship
