@@ -11,6 +11,12 @@ export type NowPlayingTrust = {
 
 const TECHNICAL_PAYLOAD = /^\{.*"(status|message|result|errorCode|error)".*\}\s*\d*$/i;
 const URL_LIKE = /^https?:\/\/\S+$/i;
+// Bare-domain ICY metadata is common: stations send "radiovanya.ru"
+// or "www.radio.example/listen" as the StreamTitle when no real
+// track is playing. We treat that the same as a URL — it's the
+// station's address, not a track. Optional `www.`, optional path.
+const BARE_DOMAIN_LIKE =
+  /^(?:www\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?:\/\S*)?$/i;
 const HTML_LIKE = /^<[^>]+>$/;
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const FILLER_TITLES = new Set([
@@ -44,6 +50,24 @@ const TRACK_HISTORY_DEDUPE_WINDOW_MS = 1000 * 60 * 60 * 6;
 const normalizeComparable = (value?: string | null) =>
   value?.trim().replace(/\s+/g, ' ').toLowerCase() || '';
 
+/**
+ * Pull the hostname out of a free-form value that might be a URL,
+ * a bare domain, or already a hostname. Returns lowercased host
+ * with leading "www." stripped, or empty string if the value
+ * doesn't look like a host at all.
+ */
+const extractHostname = (value?: string | null): string => {
+  if (!value) return '';
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
 export const normalizeTrustedTrackTitle = (
   value?: string | null,
   station?: Pick<StationLite, 'name' | 'url_resolved' | 'url' | 'homepage'> | null
@@ -56,7 +80,12 @@ export const normalizeTrustedTrackTitle = (
     .trim();
   if (!cleaned || cleaned.length < 2 || cleaned.length > 180) return null;
   if (cleaned.includes('\uFFFD') || CONTROL_CHARS.test(cleaned)) return null;
-  if (TECHNICAL_PAYLOAD.test(cleaned) || URL_LIKE.test(cleaned) || HTML_LIKE.test(cleaned)) {
+  if (
+    TECHNICAL_PAYLOAD.test(cleaned) ||
+    URL_LIKE.test(cleaned) ||
+    BARE_DOMAIN_LIKE.test(cleaned) ||
+    HTML_LIKE.test(cleaned)
+  ) {
     return null;
   }
   if (/^(error|failed|exception|timeout|forbidden|unauthorized)\b/i.test(cleaned)) return null;
@@ -71,6 +100,20 @@ export const normalizeTrustedTrackTitle = (
     const stationHomepage = normalizeComparable(station.homepage);
     if (comparable === stationName || comparable === stationUrl || comparable === stationHomepage) {
       return null;
+    }
+    // Hostname-aware comparison: when the station's homepage is
+    // "https://radiovanya.ru/" and the ICY title is the bare
+    // domain "radiovanya.ru", the literal-string check above
+    // misses it. Compare normalised hostnames so any URL form of
+    // the station's address (with/without protocol, www, path,
+    // trailing slash) gets recognised as "not a track".
+    const valueHost = extractHostname(cleaned);
+    if (valueHost) {
+      const homepageHost = extractHostname(station.homepage);
+      const streamHost = extractHostname(station.url_resolved || station.url);
+      if (valueHost === homepageHost || valueHost === streamHost) {
+        return null;
+      }
     }
   }
 
