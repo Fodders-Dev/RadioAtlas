@@ -134,18 +134,34 @@ const FEATURED_GENRES: ReadonlyArray<string> = [
   '00s'
 ];
 
-// Vertical wheel deltas convert into horizontal scroll on the
-// chip rails so a desktop user with no trackpad can browse
-// continents / countries / genres without aiming at the scrollbar.
-const railWheelHandler = (event: import('react').WheelEvent<HTMLDivElement>) => {
-  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-  const node = event.currentTarget;
-  if (!node || node.scrollWidth <= node.clientWidth) return;
-  const maxScrollLeft = node.scrollWidth - node.clientWidth;
-  const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, node.scrollLeft + event.deltaY));
-  if (nextScrollLeft === node.scrollLeft) return;
-  event.preventDefault();
-  node.scrollLeft = nextScrollLeft;
+// Hook-attached wheel handler that converts vertical deltas into
+// horizontal scroll on a rail. Has to be attached via
+// addEventListener with `{ passive: false }` — React's synthetic
+// `onWheel` is passive by default, so `event.preventDefault()`
+// silently no-ops there and the page kept scrolling vertically
+// while the rail also scrolled horizontally. This direct listener
+// blocks the page scroll cleanly.
+const useRailWheel = () => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const handler = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      if (node.scrollWidth <= node.clientWidth) return;
+      const maxScrollLeft = node.scrollWidth - node.clientWidth;
+      const nextScrollLeft = Math.min(
+        maxScrollLeft,
+        Math.max(0, node.scrollLeft + event.deltaY)
+      );
+      if (nextScrollLeft === node.scrollLeft) return;
+      event.preventDefault();
+      node.scrollLeft = nextScrollLeft;
+    };
+    node.addEventListener('wheel', handler, { passive: false });
+    return () => node.removeEventListener('wheel', handler);
+  }, []);
+  return ref;
 };
 
 export const Discover = () => {
@@ -176,6 +192,11 @@ export const Discover = () => {
     t
   });
   const linksState = useExternalLinks({ mode, t });
+  // Three independent refs because each idle rail (continents,
+  // countries, genres) is its own scroll container.
+  const continentsRailRef = useRailWheel();
+  const countriesRailRef = useRailWheel();
+  const genresRailRef = useRailWheel();
 
   useEffect(() => {
     const draft = searchDraft.trim();
@@ -561,7 +582,7 @@ export const Discover = () => {
               <div className="search-section-head">
                 <span className="search-section-label">{t('search.scopeRegion')}</span>
               </div>
-              <div className="search-rail search-rail-continent" onWheel={railWheelHandler}>
+              <div className="search-rail search-rail-continent" ref={continentsRailRef}>
                 <button
                   className={`search-rail-chip ${
                     stationSearch.continentFilter === 'All' ? 'active' : ''
@@ -599,7 +620,7 @@ export const Discover = () => {
                   {t('search.countriesTitle')}
                 </span>
               </div>
-              <div className="search-rail" onWheel={railWheelHandler}>
+              <div className="search-rail" ref={countriesRailRef}>
                 {stationSearch.visibleCountryBuckets.slice(0, 12).map((bucket) => (
                   <button
                     key={bucket.key}
@@ -625,7 +646,7 @@ export const Discover = () => {
             <div className="search-section-head">
               <span className="search-section-label">{t('search.genresTitle')}</span>
             </div>
-            <div className="search-rail" onWheel={railWheelHandler}>
+            <div className="search-rail" ref={genresRailRef}>
               {FEATURED_GENRES.map((tag) => (
                 <button
                   key={tag}

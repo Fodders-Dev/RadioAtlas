@@ -101,9 +101,14 @@ const canAttemptDirectFetch = (url: string) => {
   }
 };
 
+// 6 s ICY timeout was holding back the whole snapshot pipeline:
+// the ICY probe is the slowest in-browser strategy, and most
+// streams either respond with metadata in well under 1 s or never
+// respond at all. 3.5 s catches the responsive ones and surrenders
+// quickly when a stream is silent so we move to the server proxy.
 const fetchIcy = async (
   url: string,
-  timeoutMs = 6000,
+  timeoutMs = 3500,
   signal?: AbortSignal
 ): Promise<string | null> => {
   if (!url || !url.startsWith('https://')) return null;
@@ -1069,7 +1074,7 @@ export const fetchNowPlayingSnapshot = async (
       continue;
     }
 
-    const icy = await fetchIcy(url, 6000, signal);
+    const icy = await fetchIcy(url, 3500, signal);
     if (icy) return buildSnapshot(icy, 'ready', 'icy-stream', null, pollMs);
 
     if (apiBase && apiAvailable && !signal?.aborted) {

@@ -103,18 +103,27 @@ export const GlobeScreen = () => {
   const usePointsLayer = points.length > 0;
 
   // Pre-compute (country, state) anchors from stations that DO carry
-  // explicit Radio Browser geo coords, then register globally so
-  // resolveStationCoords can use them as fallback positions for
-  // coord-less stations. Done in a layout effect so the anchors are
-  // live before globePoints recomputes.
-  useEffect(() => {
-    if (!points.length) {
-      setStateAnchors(null);
-      return;
-    }
-    setStateAnchors(buildStateAnchors(points));
-    return () => setStateAnchors(null);
-  }, [points]);
+  // explicit Radio Browser geo coords. Used by resolveStationCoords
+  // to pin coord-less stations into the right oblast / state.
+  //
+  // CRITICAL ordering: this useMemo MUST run and the module-level
+  // anchor map MUST be set BEFORE the globePoints useMemo below.
+  // Doing it in a useEffect (post-render) introduced a one-frame
+  // race where dots got rendered through the country-bbox sampler
+  // (anchors null), and then the picked-station easeTo computed
+  // its target through the now-populated anchor map — so the
+  // camera flew to a different location than the dot the user
+  // had aimed at. Running synchronously in render eliminates that.
+  const stateAnchorMap = useMemo(
+    () => (points.length ? buildStateAnchors(points) : null),
+    [points]
+  );
+  // setStateAnchors is a module-level mutation, NOT a React setter,
+  // so calling it during render is fine (it doesn't trigger any
+  // additional renders). Cleanup happens on unmount via the effect
+  // below so old anchors don't leak into other screens.
+  setStateAnchors(stateAnchorMap);
+  useEffect(() => () => setStateAnchors(null), []);
 
   const globePoints = useMemo(() => {
     if (usePointsLayer) {
@@ -169,7 +178,10 @@ export const GlobeScreen = () => {
       subtitle: area.subtitle,
       count: area.count
     }));
-  }, [overviewAreas, points, usePointsLayer]);
+    // stateAnchorMap is in the dep list so this recomputes whenever
+    // a fresh anchor map lands — guarantees the dots and the
+    // focusPoint use the SAME resolveStationCoords result.
+  }, [overviewAreas, points, usePointsLayer, stateAnchorMap]);
 
   // The first thing we tilt toward when the user enters the globe screen.
   // Prefer whatever they're playing; otherwise nudge to a recent / liked

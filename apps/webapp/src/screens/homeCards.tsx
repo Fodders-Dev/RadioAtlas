@@ -1,4 +1,4 @@
-import { useRef, type WheelEvent } from 'react';
+import { useEffect, useRef } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import type {
   HomeHeroModule,
@@ -421,16 +421,28 @@ export const HomeRail = ({
       behavior: 'smooth'
     });
   };
-  const handleRailWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  // React's onWheel is passive by default — preventDefault no-ops
+  // there. Attach via addEventListener with { passive: false } so
+  // the page stops scrolling vertically while the user converts a
+  // wheel into rail scroll.
+  useEffect(() => {
     const node = railRef.current;
-    if (!node || node.scrollWidth <= node.clientWidth) return;
-    const maxScrollLeft = node.scrollWidth - node.clientWidth;
-    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, node.scrollLeft + event.deltaY));
-    if (nextScrollLeft === node.scrollLeft) return;
-    event.preventDefault();
-    node.scrollLeft = nextScrollLeft;
-  };
+    if (!node) return;
+    const handler = (event: globalThis.WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      if (node.scrollWidth <= node.clientWidth) return;
+      const maxScrollLeft = node.scrollWidth - node.clientWidth;
+      const nextScrollLeft = Math.min(
+        maxScrollLeft,
+        Math.max(0, node.scrollLeft + event.deltaY)
+      );
+      if (nextScrollLeft === node.scrollLeft) return;
+      event.preventDefault();
+      node.scrollLeft = nextScrollLeft;
+    };
+    node.addEventListener('wheel', handler, { passive: false });
+    return () => node.removeEventListener('wheel', handler);
+  }, []);
   const showScrollControls = visibleStations.length > (dense ? 3 : 4);
   const scrollButtonIcon = (direction: -1 | 1) => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -482,7 +494,6 @@ export const HomeRail = ({
       <div
         className="home-horizontal-scroll home-rail-list"
         ref={railRef}
-        onWheel={handleRailWheel}
       >
         {visibleStations.map((station) => (
           <HomeStationTile
