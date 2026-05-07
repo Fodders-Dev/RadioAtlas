@@ -398,6 +398,152 @@ const fetchFrom101Ru = async (
   return null;
 };
 
+// radiovanya.ru's CDN doesn't expose /status-json.xsl and ICY
+// metadata is intermittent. Their site uses a JSON playlist API:
+//   GET /api/v1/streams/                  -> catalog of streams
+//        items[].id, items[].link (= stream URL)
+//   GET /api/v5/playlists/<stream_id>/    -> recent tracks
+//        items[0].track.name + .artist.name = currently playing
+// We cache the catalog for an hour and resolve each stream URL
+// to its numeric stream_id once.
+
+type RadioVanyaStream = {
+  id: number;
+  link: string;
+  slug?: string;
+};
+
+const RADIO_VANYA_HOSTS = new Set([
+  'icecast-radiovanya.cdnvideo.ru',
+  'radiovanya.ru',
+  'www.radiovanya.ru'
+]);
+
+const RADIO_VANYA_CATALOG_URL = 'https://radiovanya.ru/api/v1/streams/';
+const RADIO_VANYA_CATALOG_TTL_MS = 60 * 60 * 1000;
+
+let radioVanyaCatalogCache: { ts: number; streams: RadioVanyaStream[] } | null = null;
+
+export const isRadioVanyaUrl = (streamUrl: string): boolean => {
+  try {
+    const host = new URL(streamUrl).host.toLowerCase();
+    return RADIO_VANYA_HOSTS.has(host);
+  } catch {
+    return false;
+  }
+};
+
+const getRadioVanyaCatalog = async (
+  options: MediaRouteOptions
+): Promise<RadioVanyaStream[] | null> => {
+  if (
+    radioVanyaCatalogCache &&
+    Date.now() - radioVanyaCatalogCache.ts < RADIO_VANYA_CATALOG_TTL_MS
+  ) {
+    return radioVanyaCatalogCache.streams;
+  }
+
+  const data = await fetchMetadataPayload(RADIO_VANYA_CATALOG_URL, 'json', options);
+  if (!data || typeof data !== 'object') return null;
+
+  const items = (data as any)?.items;
+  if (!Array.isArray(items)) return null;
+
+  const streams: RadioVanyaStream[] = [];
+  for (const item of items) {
+    if (
+      item &&
+      typeof item === 'object' &&
+      typeof item.id === 'number' &&
+      typeof item.link === 'string'
+    ) {
+      streams.push({
+        id: item.id,
+        link: item.link,
+        slug: typeof item.slug === 'string' ? item.slug : undefined
+      });
+    }
+  }
+
+  if (!streams.length) return null;
+
+  radioVanyaCatalogCache = { ts: Date.now(), streams };
+  return streams;
+};
+
+export const resolveRadioVanyaStreamId = (
+  streamUrl: string,
+  catalog: RadioVanyaStream[]
+): number | null => {
+  let parsedTarget: URL;
+  try {
+    parsedTarget = new URL(streamUrl);
+  } catch {
+    return null;
+  }
+  const targetHost = parsedTarget.host.toLowerCase();
+  const targetPath = parsedTarget.pathname.replace(/\/+$/, '').toLowerCase();
+
+  for (const entry of catalog) {
+    try {
+      const parsedEntry = new URL(entry.link);
+      const entryHost = parsedEntry.host.toLowerCase();
+      const entryPath = parsedEntry.pathname.replace(/\/+$/, '').toLowerCase();
+      if (entryHost === targetHost && entryPath === targetPath) {
+        return entry.id;
+      }
+    } catch {
+      // ignore malformed catalog entries
+    }
+  }
+
+  // Fallback: trailing slug match. Catalog links look like
+  // ".../rv_90", incoming URLs may be the same with extra
+  // trailing path segments or query string.
+  for (const entry of catalog) {
+    if (!entry.slug) continue;
+    const segment = `/${entry.slug.toLowerCase()}`;
+    if (targetPath === segment || targetPath.endsWith(segment)) {
+      return entry.id;
+    }
+  }
+
+  return null;
+};
+
+const fetchFromRadioVanya = async (
+  streamUrl: string,
+  options: MediaRouteOptions,
+  log: (msg: string) => void
+): Promise<string | null> => {
+  const catalog = await getRadioVanyaCatalog(options);
+  if (!catalog) {
+    log('RadioVanya catalog unavailable');
+    return null;
+  }
+
+  const streamId = resolveRadioVanyaStreamId(streamUrl, catalog);
+  if (streamId === null) {
+    log(`RadioVanya: no catalog match for ${streamUrl}`);
+    return null;
+  }
+
+  const playlistUrl = `https://radiovanya.ru/api/v5/playlists/${streamId}/`;
+  log(`Trying RadioVanya playlist: ${playlistUrl}`);
+  const data = await fetchMetadataPayload(playlistUrl, 'json', options);
+  if (!data || typeof data !== 'object') return null;
+
+  const items = (data as any)?.items;
+  const first = Array.isArray(items) ? items[0] : null;
+  if (!first || typeof first !== 'object') return null;
+
+  const track = (first as any).track;
+  if (!track || typeof track !== 'object') return null;
+
+  const title = buildTrackTitle(track.artist?.name, track.name);
+  return title;
+};
+
 export const createMetadataHandler = (options: MediaRouteOptions) => {
   const guard = new ProtectedMediaRoute<{
     status: number;
@@ -455,6 +601,27 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
             body: { title, logs, source },
             cacheTtlMs: options.metadataCacheTtlMs
           };
+        }
+
+        if (isRadioVanyaUrl(url)) {
+          const log = (msg: string) => {
+            console.log(`[Metadata] ${msg}`);
+            logs.push(msg);
+          };
+          const radioVanyaTitle = await fetchFromRadioVanya(url, options, log);
+          if (radioVanyaTitle) {
+            logs.push(`Got from RadioVanya playlist API: ${radioVanyaTitle}`);
+            const body = { title: radioVanyaTitle, logs, source: 'radiovanya' };
+            metadataCache.set(url, {
+              ts: Date.now(),
+              result: { title: radioVanyaTitle, logs, source: 'radiovanya' }
+            });
+            return {
+              status: 200,
+              body,
+              cacheTtlMs: options.metadataCacheTtlMs
+            };
+          }
         }
 
         const oneOhOneChannelId = get101ChannelId(url);
