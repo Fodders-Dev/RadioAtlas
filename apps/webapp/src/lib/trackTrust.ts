@@ -28,21 +28,55 @@ const FILLER_TITLES = new Set([
   'unknown',
   'unknown title',
   'unknown artist',
+  'unknown song',
   'n/a',
   'none',
   'null',
   'undefined',
   'live',
   'live radio',
+  'live stream',
+  'live broadcast',
+  'on air',
+  'now playing',
+  'currently playing',
   'stream',
   'radio',
   'no title',
   'no artist',
+  'no track',
+  'no track info',
+  'no metadata',
   'metadata unavailable',
   'track metadata is not here yet',
   'трек ещё не пришёл',
   'трек еще не пришел',
-  'загрузка'
+  'нет трека',
+  'нет данных',
+  'загрузка',
+  'без названия',
+  // German — rautemusik.fm and other DE stations send this as
+  // their idle "no current track" placeholder.
+  'kein titel update',
+  'kein titel',
+  'kein song',
+  'keine angabe',
+  'unbekannt',
+  // Spanish / Portuguese
+  'sin titulo',
+  'sin título',
+  'sem titulo',
+  'sem título',
+  'desconocido',
+  'desconhecido',
+  // French
+  'aucun titre',
+  'titre inconnu',
+  // Italian
+  'titolo sconosciuto',
+  // Polish
+  'brak tytułu',
+  'brak tytulu'
 ]);
 const QUESTIONABLE_FAILURES = new Set(['mixed-content', 'api-unavailable', 'unsupported-transport']);
 const TRACK_HISTORY_DEDUPE_WINDOW_MS = 1000 * 60 * 60 * 6;

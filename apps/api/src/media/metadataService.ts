@@ -8,12 +8,38 @@ const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult
 const isTechnicalTrackPayload = (value: string) =>
   /^\{.*"(status|message|result|errorCode)".*\}\s*\d*$/i.test(value);
 
+// Multilingual idle/placeholder strings stations broadcast in
+// lieu of real track metadata. Mirrored from the client-side
+// FILLER_TITLES list so the API short-circuits BEFORE caching a
+// placeholder as if it were a real track — otherwise the
+// upstream metadata cache poisoned every subsequent visitor
+// for the full TTL with strings like "Kein Titel Update".
+const PLACEHOLDER_TRACK_TITLES = new Set([
+  '-', '--', '...', 'loading', 'loading...',
+  'unknown', 'unknown title', 'unknown artist', 'unknown song',
+  'n/a', 'none', 'null', 'undefined',
+  'live', 'live radio', 'live stream', 'live broadcast',
+  'on air', 'now playing', 'currently playing',
+  'stream', 'radio',
+  'no title', 'no artist', 'no track', 'no track info', 'no metadata',
+  'metadata unavailable',
+  'трек ещё не пришёл', 'трек еще не пришел',
+  'нет трека', 'нет данных', 'загрузка', 'без названия',
+  'kein titel update', 'kein titel', 'kein song', 'keine angabe', 'unbekannt',
+  'sin titulo', 'sin título', 'sem titulo', 'sem título',
+  'desconocido', 'desconhecido',
+  'aucun titre', 'titre inconnu',
+  'titolo sconosciuto',
+  'brak tytułu', 'brak tytulu'
+]);
+
 const normalizeTrackTitle = (value: unknown) => {
   if (typeof value !== 'string') return null;
   const cleaned = value.replace(/\0/g, '').replace(/\s+/g, ' ').trim();
   if (!cleaned) return null;
   if (cleaned.includes('\uFFFD') || /[\u0000-\u001F\u007F]/.test(cleaned)) return null;
   if (isTechnicalTrackPayload(cleaned)) return null;
+  if (PLACEHOLDER_TRACK_TITLES.has(cleaned.toLowerCase())) return null;
   return cleaned;
 };
 

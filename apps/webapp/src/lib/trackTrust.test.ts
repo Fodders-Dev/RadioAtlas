@@ -80,4 +80,19 @@ describe('normalizeTrustedTrackTitle', () => {
       normalizeTrustedTrackTitle('Радио Ваня', station({ name: 'Радио Ваня' }))
     ).toBeNull();
   });
+
+  it('rejects German rautemusik placeholder "Kein Titel Update"', () => {
+    expect(normalizeTrustedTrackTitle('Kein Titel Update', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('kein titel update', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('  KEIN TITEL UPDATE  ', station())).toBeNull();
+  });
+
+  it('rejects multilingual placeholder strings', () => {
+    expect(normalizeTrustedTrackTitle('Sin Título', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('Aucun titre', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('Без названия', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('On Air', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('Now Playing', station())).toBeNull();
+    expect(normalizeTrustedTrackTitle('Currently Playing', station())).toBeNull();
+  });
 });
