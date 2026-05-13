@@ -5,14 +5,17 @@ const BLOCKED_HOSTS = ['youtube.com', 'youtu.be', 'music.youtube.com', 'youtube-
 
 export const getHost = (value: string) => {
   try {
-    return new URL(value).host.toLowerCase();
+    return new URL(value).hostname.toLowerCase();
   } catch {
     return '';
   }
 };
 
 export const isBlocked = (value: string) =>
-  BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
+  BLOCKED_HOSTS.some((host) => {
+    const candidate = getHost(value);
+    return candidate === host || candidate.endsWith(`.${host}`);
+  });
 
 export const isPlaylistUrl = (value: string) => /\.(m3u8?|pls)(\?|#|$)/i.test(value);
 export const isDirectAudioUrl = (value: string) =>

@@ -33,7 +33,12 @@ export const registerBillingRoutes = (
     const recipientAccountId =
       typeof req.body?.recipientAccountId === 'string' ? req.body.recipientAccountId : null;
     try {
-      const purchase = await createBillingPurchase(account.id, productId as any, recipientAccountId);
+      const product = (await listBillingProducts()).find((candidate) => candidate.id === productId);
+      if (!product) {
+        res.status(400).json({ error: 'invalid billing product' });
+        return;
+      }
+      const purchase = await createBillingPurchase(account.id, product.id, recipientAccountId);
       if (!purchase) {
         res.status(400).json({ error: 'invalid billing product' });
         return;
