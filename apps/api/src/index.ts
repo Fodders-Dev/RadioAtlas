@@ -61,12 +61,6 @@ const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
-const BLOCKED_HOSTS = [
-  'youtube.com',
-  'youtu.be',
-  'music.youtube.com',
-  'youtube-nocookie.com'
-];
 
 const RADIO_BROWSER_URLS = API_URLS.length ? API_URLS : DEFAULT_API_URLS;
 
@@ -191,17 +185,6 @@ const asNumber = (value: unknown): number | null => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
-
-const getHost = (value: string) => {
-  try {
-    return new URL(value).host.toLowerCase();
-  } catch {
-    return '';
-  }
-};
-
-const isBlockedHost = (value: string) =>
-  BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
 
 const fetchWithTimeout = async (url: string, ms: number) => {
   const controller = new AbortController();
@@ -353,7 +336,6 @@ registerCatalogRoutes(app, {
 registerMediaRoutes(app, {
   userAgent: USER_AGENT,
   extractorUrl: EXTRACTOR_URL,
-  blockedHosts: BLOCKED_HOSTS,
   metadataCacheTtlMs: METADATA_CACHE_TTL_MS,
   metadataNegativeCacheTtlMs: METADATA_NEGATIVE_CACHE_TTL_MS,
   metadataProbeTimeoutMs: METADATA_PROBE_TIMEOUT_MS,

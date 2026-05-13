@@ -174,7 +174,8 @@ test.before(async () => {
       VK_CLIENT_ID: '',
       VK_CLIENT_SECRET: '',
       VK_REDIRECT_URI: '',
-      WEBAPP_URL: 'https://radioatlas.test'
+      WEBAPP_URL: 'https://radioatlas.test',
+      MEDIA_SSRF_ALLOW_HOSTS: '127.0.0.1,localhost'
     }
   });
 

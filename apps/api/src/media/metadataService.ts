@@ -1,6 +1,12 @@
 import type express from 'express';
 import type { MediaRouteOptions, MetadataLookupResult } from './types.js';
-import { fetchWithDeadline, readJsonWithLimit, readTextWithLimit, sendJsonError } from './shared.js';
+import {
+  fetchWithDeadline,
+  parseAndValidateHttpUrl,
+  readJsonWithLimit,
+  readTextWithLimit,
+  sendJsonError
+} from './shared.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
 
 const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult }>();
@@ -561,6 +567,12 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
     const url = req.query.url;
     if (!url || typeof url !== 'string') {
       sendJsonError(res, 400, 'url is required');
+      return;
+    }
+
+    const validated = await parseAndValidateHttpUrl(url);
+    if ('error' in validated) {
+      sendJsonError(res, validated.status, validated.error);
       return;
     }
 
