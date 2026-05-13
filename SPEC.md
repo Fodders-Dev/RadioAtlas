@@ -32,8 +32,8 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 - Status: buffering/playing/error.
 - Track info can be copied and saved locally.
 - Share uses bot deep link when configured.
-- Legacy Webamp/Skin Lab code is hidden behind the `?winamp=1` easter-egg/debug path.
-- Theme Studio for the native shell is planned separately; `.wsz` compatibility is not part of the main UX.
+- Theme Studio controls the native shell appearance locally.
+- A decorative Lite/Winamp easter egg is hidden behind `?winamp=1` and the R++ brand gesture; Skin Lab and `.wsz` compatibility are not runtime features.
 
 ## Streaming
 - HTML5 audio with auto-reconnect on error/stall.

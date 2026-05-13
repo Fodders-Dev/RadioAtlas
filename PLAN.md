@@ -116,4 +116,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: live Telegram mobile QA on low-power Android/iOS WebView for cold Home, Search, Globe, Library, and Full Player after the visual QA fixes; keep Theme Studio local-only until a separate review opens Stage 18.
+Next: finish audit/refactor validation by keeping typecheck, API/bot tests, webapp e2e, build, and npm audit green; then run live Telegram mobile QA on low-power Android/iOS WebView for cold Home, Search, Globe, Library, and Full Player. Keep Theme Studio local-only until a separate review opens Stage 18.

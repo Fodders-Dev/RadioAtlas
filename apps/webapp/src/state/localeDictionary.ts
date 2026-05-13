@@ -109,32 +109,8 @@ export const defaultDictionary: DictionaryTree = {
   },
   settings: {
     generalTitle: 'Настройки',
-    skinModeLabel: 'Режим скина Winamp',
-    skinModeDesc: 'Ищи, примеряй, загружай и применяй скины Winamp в одном месте.'
-  },
-  skin: {
-    kicker: 'Skin Lab',
-    title: 'Skin Lab',
-    openLab: 'Открыть Skin Lab',
-    current: 'Текущий скин',
-    resetClassic: 'Вернуть классику',
-    preview: 'Превью',
-    libraryTitle: 'Библиотека',
-    libraryCopy: 'Ищи в Webamp Skin Museum или выбери встроенный пресет.',
-    museum: 'Museum',
-    preset: 'Пресет',
-    uploadTitle: 'Загрузка',
-    uploadCopy: 'Предпросмотр .wsz или .zip только на эту сессию.',
-    uploadAction: 'Загрузить .wsz',
-    uploading: 'Читаем скин...',
-    uploadInvalid: 'Выбери .wsz или .zip файл.',
-    uploadFailed: 'Не удалось прочитать скин',
-    uploaded: 'Загружено',
-    placeholder: 'Поиск по skins.webamp.org',
-    searching: 'Ищем скины...',
-    searchFailed: 'Не удалось найти скины',
-    noResults: 'Совпадений не найдено.',
-    resultsLabel: 'Результаты поиска скинов'
+    skinModeLabel: 'Theme Studio',
+    skinModeDesc: 'Сохраняй и применяй локальные темы RadioAtlas.'
   },
   playlist: {
     title: 'Очередь'

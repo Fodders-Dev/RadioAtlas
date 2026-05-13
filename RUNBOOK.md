@@ -31,9 +31,8 @@ npm run dev:bot
 ## User data
 - Favorites + recently played are stored in browser localStorage per device.
 - Copied track history is stored in localStorage per device.
-- Legacy Winamp skin selection is stored in localStorage only for the `?winamp=1` easter-egg/debug path:
-  - preset skin persists across reloads
-  - uploaded `.wsz` is session-only and falls back to preset after reload
+- Theme Studio themes are stored locally in browser storage.
+- The `?winamp=1` easter-egg/debug path is decorative Lite/Winamp only; it does not support Skin Lab or `.wsz` imports.
 
 ## Cache
 - Catalog cached for 30 minutes in localStorage.
@@ -41,11 +40,10 @@ npm run dev:bot
 - Local fallback catalog lives at `apps/webapp/public/catalog-fast.json`.
 - Update fallback catalog with `npm run catalog:update`.
 
-## Legacy Winamp skins
+## Legacy Lite/Winamp easter egg
 - The main player uses the native RadioAtlas Full Player overlay.
-- Preset files are served from `apps/webapp/public/winamp-skins` only for the legacy `?winamp=1` path.
-- To add presets: copy `.wsz` to that folder and register it in `src/lib/winampSkins.ts`.
-- Uploaded skin import supports `.wsz` and `.zip` with Winamp skin assets.
+- The legacy Lite/Winamp path is decorative only and can be opened with `?winamp=1` or the R++ brand gesture.
+- Skin Lab and `.wsz`/`.zip` skin imports are removed from the runtime.
 
 ## Deploy (Telegram Mini App)
 1. Host `apps/webapp` on HTTPS (Vercel recommended).
