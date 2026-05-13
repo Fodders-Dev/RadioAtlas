@@ -10,6 +10,79 @@ const baseUrl = `http://127.0.0.1:${port}`;
 
 let apiProcess: ChildProcessWithoutNullStreams | null = null;
 
+type HealthPayload = {
+  ok: boolean;
+};
+
+type CatalogSummaryPayload = {
+  counts: {
+    stations: number;
+  };
+  catalogPool: unknown[];
+  freshSignals: unknown[];
+};
+
+type ItemsPayload = {
+  items: unknown[];
+};
+
+type SeedConflictPayload = {
+  token: string;
+  currentAccountId: string;
+  incomingCredential: string;
+};
+
+type MePayload = {
+  profile: {
+    id: string;
+    library: unknown;
+  };
+  auditTrail: Array<{ id: string }>;
+};
+
+type ProvidersPayload = {
+  telegram: { configured: boolean };
+  google: { configured: boolean };
+};
+
+type ProductsPayload = {
+  products: unknown[];
+};
+
+type ErrorPayload = {
+  error: string;
+};
+
+type OkPayload = {
+  ok: boolean;
+};
+
+type StationProfilePayload = {
+  profile: {
+    stationuuid: string;
+    ownerAccountId: string | null;
+    displayName: string;
+    description: string | null;
+    websiteUrl: string | null;
+    socialLinks: Array<{ label: string; url: string }>;
+  };
+};
+
+type ObservabilityPayload = {
+  counters: Record<string, number | undefined>;
+  gauges: Record<string, number | undefined>;
+  clientEvents: Array<{
+    meta?: {
+      scope?: string;
+    };
+  }>;
+  alerts: unknown[];
+  latency: unknown[];
+  persistence: {
+    storePath: string;
+  };
+};
+
 const waitForServer = async () => {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -24,9 +97,9 @@ const waitForServer = async () => {
   throw new Error('API server did not start in time');
 };
 
-const getJson = async (path: string, init?: RequestInit) => {
+const getJson = async <T,>(path: string, init?: RequestInit) => {
   const response = await fetch(`${baseUrl}${path}`, init);
-  const body = await response.json();
+  const body = (await response.json()) as T;
   return { response, body };
 };
 
@@ -71,24 +144,24 @@ test.after(async () => {
 });
 
 test('health and catalog contracts respond with shaped payloads', async () => {
-  const { body: health } = await getJson('/health');
+  const { body: health } = await getJson<HealthPayload>('/health');
   assert.equal(health.ok, true);
 
-  const { body: summary } = await getJson('/catalog/summary?seed=7');
+  const { body: summary } = await getJson<CatalogSummaryPayload>('/catalog/summary?seed=7');
   assert.equal(typeof summary.counts.stations, 'number');
   assert.ok(Array.isArray(summary.catalogPool));
   assert.ok(Array.isArray(summary.freshSignals));
 
-  const { body: search } = await getJson('/catalog/search?q=jazz&limit=3');
+  const { body: search } = await getJson<ItemsPayload>('/catalog/search?q=jazz&limit=3');
   assert.ok(Array.isArray(search.items));
   assert.ok(search.items.length <= 3);
 
-  const { body: areas } = await getJson('/catalog/areas?zoom=1.5');
+  const { body: areas } = await getJson<ItemsPayload>('/catalog/areas?zoom=1.5');
   assert.ok(Array.isArray(areas.items));
 });
 
 test('auth fixture issues a reusable session and me endpoint returns profile', async () => {
-  const { response: seedResponse, body: seed } = await getJson('/test/auth/seed-conflict', {
+  const { response: seedResponse, body: seed } = await getJson<SeedConflictPayload>('/test/auth/seed-conflict', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -100,7 +173,7 @@ test('auth fixture issues a reusable session and me endpoint returns profile', a
   assert.equal(typeof seed.currentAccountId, 'string');
   assert.equal(typeof seed.incomingCredential, 'string');
 
-  const { response: meResponse, body: me } = await getJson('/me', {
+  const { response: meResponse, body: me } = await getJson<MePayload>('/me', {
     headers: {
       Authorization: `Bearer ${seed.token}`
     }
@@ -111,7 +184,7 @@ test('auth fixture issues a reusable session and me endpoint returns profile', a
 });
 
 test('library sync no-ops when the payload is unchanged', async () => {
-  const { body: seed } = await getJson('/test/auth/seed-conflict', {
+  const { body: seed } = await getJson<SeedConflictPayload>('/test/auth/seed-conflict', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -123,12 +196,12 @@ test('library sync no-ops when the payload is unchanged', async () => {
     Authorization: `Bearer ${seed.token}`,
     'Content-Type': 'application/json'
   };
-  const { response: beforeResponse, body: before } = await getJson('/me', {
+  const { response: beforeResponse, body: before } = await getJson<MePayload>('/me', {
     headers: authHeaders
   });
   assert.equal(beforeResponse.status, 200);
 
-  const { response: syncResponse, body: synced } = await getJson('/me/library', {
+  const { response: syncResponse, body: synced } = await getJson<MePayload>('/me/library', {
     method: 'PUT',
     headers: authHeaders,
     body: JSON.stringify(before.profile.library)
@@ -142,17 +215,17 @@ test('library sync no-ops when the payload is unchanged', async () => {
 });
 
 test('billing, metadata, stream and extractor smokes return stable error contracts', async () => {
-  const { response: providersResponse, body: providers } = await getJson('/auth/providers');
+  const { response: providersResponse, body: providers } = await getJson<ProvidersPayload>('/auth/providers');
   assert.equal(providersResponse.status, 200);
   assert.equal(providers.telegram.configured, false);
   assert.equal(providers.google.configured, false);
 
-  const { response: productsResponse, body: products } = await getJson('/billing/telegram/products');
+  const { response: productsResponse, body: products } = await getJson<ProductsPayload>('/billing/telegram/products');
   assert.equal(productsResponse.status, 200);
   assert.ok(Array.isArray(products.products));
   assert.ok(products.products.length > 0);
 
-  const { response: webhookResponse, body: webhook } = await getJson('/billing/telegram/webhook', {
+  const { response: webhookResponse, body: webhook } = await getJson<ErrorPayload>('/billing/telegram/webhook', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -162,11 +235,11 @@ test('billing, metadata, stream and extractor smokes return stable error contrac
   assert.equal(webhookResponse.status, 400);
   assert.equal(webhook.error, 'purchaseId is required');
 
-  const { response: metadataResponse, body: metadata } = await getJson('/metadata');
+  const { response: metadataResponse, body: metadata } = await getJson<ErrorPayload>('/metadata');
   assert.equal(metadataResponse.status, 400);
   assert.equal(metadata.error, 'url is required');
 
-  const { response: streamResponse, body: stream } = await getJson('/stream');
+  const { response: streamResponse, body: stream } = await getJson<ErrorPayload>('/stream');
   assert.equal(streamResponse.status, 400);
   assert.equal(stream.error, 'url is required');
 
@@ -177,11 +250,124 @@ test('billing, metadata, stream and extractor smokes return stable error contrac
   assert.match(imageFallbackResponse.headers.get('content-type') || '', /image\/svg\+xml/);
   assert.equal(imageFallbackResponse.headers.get('x-radioatlas-fallback'), 'artwork-unavailable');
 
-  const { response: extractResponse, body: extract } = await getJson(
+  const { response: extractResponse, body: extract } = await getJson<ErrorPayload>(
     '/extract?url=https%3A%2F%2Fexample.com'
   );
   assert.equal(extractResponse.status, 503);
   assert.equal(extract.error, 'extractor is not configured');
+});
+
+test('station profile, promotion and billing write routes keep stable contracts', async () => {
+  const { body: seed } = await getJson<SeedConflictPayload>('/test/auth/seed-conflict', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ mergeStrategy: 'combine' })
+  });
+  const authHeaders = {
+    Authorization: `Bearer ${seed.token}`,
+    'Content-Type': 'application/json'
+  };
+  const stationuuid = `contract-station-${Date.now()}`;
+
+  const { response: missingClaimAuth, body: missingClaimAuthBody } = await getJson<ErrorPayload>(
+    `/stations/${stationuuid}/claim`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ displayName: 'Contract Radio' })
+    }
+  );
+  assert.equal(missingClaimAuth.status, 401);
+  assert.equal(missingClaimAuthBody.error, 'authorization required');
+
+  const { response: claimResponse, body: claimed } = await getJson<StationProfilePayload>(
+    `/stations/${stationuuid}/claim`,
+    {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        displayName: 'Contract Radio',
+        websiteUrl: 'https://radioatlas.test/stations/contract',
+        description: 'Contract profile'
+      })
+    }
+  );
+  assert.equal(claimResponse.status, 200);
+  assert.equal(claimed.profile.stationuuid, stationuuid);
+  assert.equal(claimed.profile.displayName, 'Contract Radio');
+
+  const { response: profileResponse, body: profile } = await getJson<StationProfilePayload>(
+    `/stations/${stationuuid}/profile`
+  );
+  assert.equal(profileResponse.status, 200);
+  assert.equal(profile.profile.ownerAccountId, claimed.profile.ownerAccountId);
+
+  const { response: updateResponse, body: updated } = await getJson<StationProfilePayload>(
+    `/stations/${stationuuid}/profile`,
+    {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        displayName: 'Contract Radio Updated',
+        socialLinks: [{ label: 'Site', url: 'https://radioatlas.test' }]
+      })
+    }
+  );
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updated.profile.displayName, 'Contract Radio Updated');
+  assert.equal(updated.profile.socialLinks[0]?.label, 'Site');
+
+  const { response: missingPromotion, body: missingPromotionBody } = await getJson<ErrorPayload>(
+    '/promotions/impression',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    }
+  );
+  assert.equal(missingPromotion.status, 400);
+  assert.equal(missingPromotionBody.error, 'stationuuid is required');
+
+  const { response: promotionResponse, body: promotion } = await getJson<OkPayload>(
+    '/promotions/click',
+    {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ stationuuid, sourceId: 'contract-test' })
+    }
+  );
+  assert.equal(promotionResponse.status, 200);
+  assert.equal(promotion.ok, true);
+
+  const { response: missingInvoiceAuth, body: missingInvoiceAuthBody } = await getJson<ErrorPayload>(
+    '/billing/telegram/create-invoice',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ productId: 'support-small' })
+    }
+  );
+  assert.equal(missingInvoiceAuth.status, 401);
+  assert.equal(missingInvoiceAuthBody.error, 'authorization required');
+
+  const { response: invalidInvoice, body: invalidInvoiceBody } = await getJson<ErrorPayload>(
+    '/billing/telegram/create-invoice',
+    {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ productId: 'missing-product' })
+    }
+  );
+  assert.equal(invalidInvoice.status, 400);
+  assert.equal(invalidInvoiceBody.error, 'invalid billing product');
 });
 
 test('observability exposes persisted JSON and prometheus views', async () => {
@@ -201,7 +387,7 @@ test('observability exposes persisted JSON and prometheus views', async () => {
   });
   assert.equal(clientEventResponse.status, 200);
 
-  const { body: observability } = await getJson('/observability');
+  const { body: observability } = await getJson<ObservabilityPayload>('/observability');
   assert.equal(typeof observability.counters['client_event:visual_regression_ping'], 'number');
   assert.equal(typeof observability.gauges['runtime:process_cpu_percent'], 'number');
   assert.ok(Array.isArray(observability.clientEvents));

@@ -40,7 +40,9 @@ const waitForStableMetrics = async (
   }
 
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.evaluate(() => document.fonts?.ready.then(() => undefined));
+  await page.waitForTimeout(120);
 };
 
 const openFullPlayerOverlay = async (page: Page) => {

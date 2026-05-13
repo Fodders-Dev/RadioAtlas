@@ -166,5 +166,5 @@ test('logged-in navigation and visibility recovery stay responsive', async ({ pa
 
   await page.getByRole('button', { name: 'Глобус' }).first().click();
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'globe');
-  await expect(page.locator('.screen-globe-v2')).toBeVisible();
+  await expect(page.locator('.screen-globe-v3')).toBeVisible();
 });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -15,9 +15,7 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const upstreamBaseUrl = `http://127.0.0.1:${upstreamPort}`;
 
 let apiProcess: ChildProcessWithoutNullStreams | null = null;
-let upstreamServer:
-  | ReturnType<typeof createServer<IncomingMessage, ServerResponse<IncomingMessage>>>
-  | null = null;
+let upstreamServer: Server | null = null;
 let upstreamCounters = {
   statusJson: 0,
   shoutcast: 0,
@@ -41,9 +39,29 @@ const waitForServer = async (baseUrl: string, path = '/health') => {
   throw new Error(`Server ${baseUrl}${path} did not start in time`);
 };
 
-const getJson = async (path: string, init?: RequestInit) => {
+type ObservabilityPayload = {
+  counters: Record<string, number | undefined>;
+};
+
+type CatalogSummaryPayload = {
+  counts: {
+    stations: number;
+  };
+};
+
+type ErrorPayload = {
+  error: string;
+  logs?: unknown[];
+};
+
+type ExtractPayload = {
+  type: string;
+  audioStreams: Array<{ url: string }>;
+};
+
+const getJson = async <T,>(path: string, init?: RequestInit) => {
   const response = await fetch(`${apiBaseUrl}${path}`, init);
-  const body = await response.json();
+  const body = (await response.json()) as T;
   return { response, body };
 };
 
@@ -189,16 +207,16 @@ test.after(async () => {
 });
 
 test('slow catalog source falls back to cached artifact and records observability', async () => {
-  const { body: before } = await getJson('/observability');
+  const { body: before } = await getJson<ObservabilityPayload>('/observability');
   const beforeFallbacks =
     Number(before.counters['catalog_fallback:artifact'] || 0) +
     Number(before.counters['catalog_fallback:snapshot'] || 0);
 
-  const { response, body } = await getJson('/catalog/summary?seed=19');
+  const { response, body } = await getJson<CatalogSummaryPayload>('/catalog/summary?seed=19');
   assert.equal(response.status, 200);
   assert.equal(typeof body.counts.stations, 'number');
 
-  const { body: after } = await getJson('/observability');
+  const { body: after } = await getJson<ObservabilityPayload>('/observability');
   const afterFallbacks =
     Number(after.counters['catalog_fallback:artifact'] || 0) +
     Number(after.counters['catalog_fallback:snapshot'] || 0);
@@ -207,7 +225,7 @@ test('slow catalog source falls back to cached artifact and records observabilit
 
 test('metadata timeout returns stable 404 contract', async () => {
   const target = encodeURIComponent(`${upstreamBaseUrl}/stream/slow`);
-  const { response, body } = await getJson(`/metadata?url=${target}`);
+  const { response, body } = await getJson<ErrorPayload>(`/metadata?url=${target}`);
   assert.equal(response.status, 404);
   assert.equal(body.error, 'No metadata found');
   assert.ok(Array.isArray(body.logs));
@@ -243,7 +261,7 @@ test('metadata route dedupes in-flight probes and reuses negative cache', async 
 
 test('stream proxy surfaces upstream failures as 502', async () => {
   const target = encodeURIComponent(`${upstreamBaseUrl}/upstream-error`);
-  const { response, body } = await getJson(`/stream?url=${target}`);
+  const { response, body } = await getJson<ErrorPayload>(`/stream?url=${target}`);
   assert.equal(response.status, 502);
   assert.equal(body.error, 'Upstream 500');
 });
@@ -271,8 +289,8 @@ test('metadata route enforces per-ip rate limit on uncached probes', async () =>
 
 test('configured extractor proxies extractor responses', async () => {
   const target = encodeURIComponent('https://example.com/watch?v=radio');
-  const { response, body } = await getJson(`/extract?url=${target}`);
+  const { response, body } = await getJson<ExtractPayload>(`/extract?url=${target}`);
   assert.equal(response.status, 200);
   assert.equal(body.type, 'stream');
-  assert.equal(body.audioStreams[0].url, 'https://cdn.example.com/live.mp3');
+  assert.equal(body.audioStreams.at(0)?.url, 'https://cdn.example.com/live.mp3');
 });

@@ -464,7 +464,6 @@ export const installMediaMocks = async (page: Page) => {
       this.dispatchEvent(new Event('pause'));
     };
     HTMLMediaElement.prototype.load = function () {};
-    // @ts-expect-error test shim
     window.ResizeObserver =
       window.ResizeObserver ||
       class {

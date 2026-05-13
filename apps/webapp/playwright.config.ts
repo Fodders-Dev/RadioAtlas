@@ -1,10 +1,10 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-const PORT = 5173;
+const PORT = Number(process.env.PLAYWRIGHT_WEBAPP_PORT || 5174);
 const API_PORT = 4311;
 const ACCOUNT_STORE_PATH = fileURLToPath(new URL('../api/data/playwright-account-store.sqlite', import.meta.url));
-const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1' || !process.env.CI;
+const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 export default defineConfig({
   testDir: './tests',

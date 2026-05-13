@@ -11,9 +11,11 @@
     "catalog:update": "node scripts/updateCatalog.mjs",
     "geo:check": "node scripts/checkGeoFallback.mjs",
     "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "typecheck:test": "npm run typecheck:test --workspaces",
     "test:webapp": "npm --workspace apps/webapp run test:e2e",
     "test:api": "npm --workspace apps/api run test",
     "test:bot": "npm --workspace apps/bot run test",
-    "test": "npm run test:api && npm run test:bot && npm run test:webapp"
+    "test": "npm run typecheck && npm run typecheck:test && npm run test:api && npm run test:bot && npm run test:webapp"
   }
 }
