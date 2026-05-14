@@ -52,6 +52,20 @@ if (NODE_ENV === 'production' && !ALLOWED_ORIGINS_RAW.trim()) {
   process.exit(1);
 }
 
+// T0.7: the /test/auth/seed-conflict, /test/auth/{issue,expire,inspect}
+// -session, and /test/billing/seed-purchase fixture routes can mint
+// authenticated sessions and flip billing state by accountId. A
+// misconfigured deploy that leaves ENABLE_TEST_AUTH_FIXTURES=1 in
+// production would let anyone seed an authenticated account. The
+// googleAuth / vkAuth fixture decoders also short-circuit on the same
+// env var. Treat the combination as fatal at boot.
+if (NODE_ENV === 'production' && ENABLE_TEST_AUTH_FIXTURES) {
+  console.error(
+    'ENABLE_TEST_AUTH_FIXTURES must not be set in production (NODE_ENV=production)'
+  );
+  process.exit(1);
+}
+
 const ALLOWED_ORIGINS = (() => {
   const parsed = ALLOWED_ORIGINS_RAW
     .split(',')
