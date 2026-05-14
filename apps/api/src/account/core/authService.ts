@@ -389,20 +389,42 @@ export const createLinkRequest = async (
   return request;
 };
 
+const mapLinkRequestRow = (row: Record<string, unknown>): LinkRequest => ({
+  code: String(row.code),
+  accountId: String(row.account_id),
+  mergeStrategy: (safeText(row.merge_strategy) as LibraryMergeStrategy) || 'combine',
+  createdAt: safeNumber(row.created_at) ?? Date.now(),
+  expiresAt: safeNumber(row.expires_at) ?? Date.now()
+});
+
+// Atomic one-time consume: the DELETE ... RETURNING runs as a single
+// SQLite statement so two concurrent provider callbacks racing on the
+// same linkCode can never both win - exactly one gets the row back, the
+// other gets undefined and the route turns that into 409.
 export const consumeLinkRequest = async (code: string) => {
   const db = await getDb();
   pruneExpiredLinkRequests(db);
-  const request = db.prepare('SELECT * FROM link_requests WHERE code = ? LIMIT 1').get(code);
-  if (!request) {
-    return null;
-  }
-  const result: LinkRequest = {
-    code: String(request.code),
-    accountId: String(request.account_id),
-    mergeStrategy: (safeText(request.merge_strategy) as LibraryMergeStrategy) || 'combine',
-    createdAt: safeNumber(request.created_at) ?? Date.now(),
-    expiresAt: safeNumber(request.expires_at) ?? Date.now()
-  };
-  db.prepare('DELETE FROM link_requests WHERE code = ?').run(code);
+  if (!code) return null;
+  const row = db
+    .prepare('DELETE FROM link_requests WHERE code = ? RETURNING *')
+    .get(code);
+  if (!row) return null;
+  const result = mapLinkRequestRow(row);
+  return result.expiresAt > Date.now() ? result : null;
+};
+
+// Read-only lookup for preview routes. Does NOT delete - the actual
+// link still has to run through consumeLinkRequest, which atomically
+// burns the row. The preview is allowed to lie if the row expired
+// between peek and consume; the consume call will then 409.
+export const peekLinkRequest = async (code: string) => {
+  const db = await getDb();
+  pruneExpiredLinkRequests(db);
+  if (!code) return null;
+  const row = db
+    .prepare('SELECT * FROM link_requests WHERE code = ? LIMIT 1')
+    .get(code);
+  if (!row) return null;
+  const result = mapLinkRequestRow(row);
   return result.expiresAt > Date.now() ? result : null;
 };

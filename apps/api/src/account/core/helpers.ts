@@ -28,7 +28,10 @@ import type {
   UserCollection
 } from './types.js';
 
-export const LINK_REQUEST_TTL_MS = 1000 * 60 * 10;
+// One-time provider-link authorization codes. Tightened from 10 min to
+// 5 min as part of T0.5 - the only legitimate flow mints a code in the
+// webapp and uses it on the very next provider callback.
+export const LINK_REQUEST_TTL_MS = 1000 * 60 * 5;
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, sliding
 export const AUDIT_LIMIT_DEFAULT = 12;
 export const PREMIUM_ENTITLEMENTS: SessionEntitlement[] = [

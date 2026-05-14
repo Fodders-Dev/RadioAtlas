@@ -214,9 +214,14 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
         client_id: googleClientId,
         callback: ({ credential }) => {
           void (async () => {
-            const preview = await previewGoogleCredentialLink(credential, undefined, mergeStrategy);
+            // T0.5: provider link to an existing account now requires an
+            // explicit linkCode minted by the account holder. Authenticated
+            // users have a profile here; guests do not - and they only need
+            // login / signup, not link.
+            const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
+            const preview = await previewGoogleCredentialLink(credential, linkCode, mergeStrategy);
             if (preview && !preview.requiresConfirmation) {
-              await signInWithGoogleCredential(credential, undefined, mergeStrategy);
+              await signInWithGoogleCredential(credential, linkCode, mergeStrategy);
             }
           })();
         }
@@ -233,7 +238,16 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     return () => {
       mounted = false;
     };
-  }, [canRenderGoogleButton, googleClientId, mergeStrategy, open, previewGoogleCredentialLink, profile?.linkedProviders, signInWithGoogleCredential]);
+  }, [
+    canRenderGoogleButton,
+    createLinkCode,
+    googleClientId,
+    mergeStrategy,
+    open,
+    previewGoogleCredentialLink,
+    profile,
+    signInWithGoogleCredential
+  ]);
 
   useEffect(() => {
     if (!open || !canRenderTelegramWidget || !telegramWidgetRef.current) return;
@@ -253,9 +267,10 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
         setLinkBusy(true);
         setTelegramHint(null);
         try {
-          const preview = await previewTelegramWidgetLink(authData, undefined, mergeStrategy);
+          const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
+          const preview = await previewTelegramWidgetLink(authData, linkCode, mergeStrategy);
           if (preview && !preview.requiresConfirmation) {
-            await signInWithTelegramWidget(authData, undefined, mergeStrategy);
+            await signInWithTelegramWidget(authData, linkCode, mergeStrategy);
           }
         } finally {
           if (mounted) {
@@ -288,10 +303,12 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     };
   }, [
     canRenderTelegramWidget,
+    createLinkCode,
     locale,
     mergeStrategy,
     open,
     previewTelegramWidgetLink,
+    profile,
     signInWithTelegramWidget,
     t,
     telegramBot
@@ -302,9 +319,16 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     setTelegramHint(null);
     try {
       if (isTelegramMiniApp) {
-        const preview = await previewTelegramLink(undefined, mergeStrategy);
+        // T0.5: linking inside the Mini App now requires an explicit
+        // linkCode minted by the account holder. Guests fall through with
+        // no linkCode (login / create-new), authenticated users mint one
+        // so the Telegram identity gets attached to their existing
+        // account instead of spinning up a fresh one.
+        const linkCode =
+          profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
+        const preview = await previewTelegramLink(linkCode, mergeStrategy);
         if (!preview || !preview.requiresConfirmation) {
-          await signInWithTelegram(undefined, mergeStrategy);
+          await signInWithTelegram(linkCode, mergeStrategy);
         }
         return;
       }
@@ -332,7 +356,8 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const handleVkLink = async () => {
     setLinkBusy(true);
     try {
-      await beginVkAuth(mergeStrategy);
+      const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
+      await beginVkAuth(linkCode, mergeStrategy);
     } finally {
       setLinkBusy(false);
     }

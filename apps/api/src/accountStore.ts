@@ -35,6 +35,7 @@ export {
   linkGoogleIdentity,
   linkTelegramIdentity,
   linkVkIdentity,
+  peekLinkRequest,
   previewGoogleLink,
   previewTelegramLink,
   previewVkLink,

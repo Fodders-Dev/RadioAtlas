@@ -83,7 +83,7 @@ type SessionContextValue = {
     linkCode?: string,
     mergeStrategy?: LibraryMergeStrategy
   ) => Promise<void>;
-  beginVkAuth: (mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
+  beginVkAuth: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
   unlinkProvider: (kind: ProviderKind) => Promise<void>;
   createLinkCode: (mergeStrategy?: LibraryMergeStrategy) => Promise<string | null>;
   previewTelegramLink: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<AccountMergePreview | null>;
@@ -980,7 +980,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const beginVkAuth = useCallback(
-    async (mergeStrategy: LibraryMergeStrategy = 'combine') => {
+    async (linkCode?: string, mergeStrategy: LibraryMergeStrategy = 'combine') => {
       if (!apiBase) {
         setStatus('unavailable');
         setError('Cloud API is unavailable');
@@ -994,6 +994,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         const token = getStoredToken();
         const url = new URL(`${apiBase}/auth/vk/start`);
         url.searchParams.set('mergeStrategy', mergeStrategy);
+        if (linkCode) {
+          url.searchParams.set('linkCode', linkCode);
+        }
         const response = await fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined
         });
