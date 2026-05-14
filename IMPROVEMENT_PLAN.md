@@ -68,6 +68,27 @@ target stays green.
 - **Done-when**: webhook without header → 401; with wrong header → 401; with
   correct header + valid Telegram payload → flips status. Bot e2e doc updated.
 
+### T0.2b Bot UX when billing webhook forward fails
+- **What**: today if `INTERNAL_WEBHOOK_TOKEN` is missing or the API returns
+  non-2xx, the bot returns silently. The user paid Telegram but sees no
+  acknowledgement. Reply with a clear apology message ("Оплата получена,
+  активация займёт до N минут. Если Premium не появился — свяжитесь с
+  поддержкой …") and emit a structured log line so operators can chase it.
+- **Files**: `apps/bot/src/index.ts`, bot test.
+- **Done-when**: bot test covers the forward-fail path replying to the user.
+
+### T0.2c Reconcile pending billing purchases with Telegram
+- **What**: Telegram delivers `successful_payment` once over long-poll;
+  if our forward fails the update is dropped forever and the purchase stays
+  `pending` while the user's money is gone. Add a periodic sweep (every
+  10 min) that lists pending purchases older than 5 min, calls the Telegram
+  payments API to verify the charge, and re-runs the webhook path.
+  Queue-based forwarding (bot writes a local SQLite retry queue, separate
+  worker drains with backoff) is the proper long-term design.
+- **Files**: `apps/api/src/billingReconciliation.ts` (new), wire into
+  `apps/api/src/index.ts` boot, contract test.
+- **Done-when**: simulated webhook-drop reconciles within one sweep cycle.
+
 ### T0.3 Session expiry + revocation
 - **What**: add `expires_at` (default 30d sliding) to the `sessions` table,
   prune on read, and add `DELETE /me/session` (revoke current) and

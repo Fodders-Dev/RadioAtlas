@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type express from 'express';
 import {
+  __forceSessionExpiryForTesting,
+  __inspectSessionForTesting,
   consumeLinkRequest,
   createSessionForAccount,
   getAccountAuditTrail,
@@ -601,6 +603,41 @@ export const registerAuthRoutes = (
         },
         auditTrail: await getAccountAuditTrail(currentAccount!.id)
       });
+    });
+
+    app.post('/test/auth/issue-session', async (req, res) => {
+      const accountId =
+        typeof req.body?.accountId === 'string' ? req.body.accountId : '';
+      if (!accountId) {
+        res.status(400).json({ error: 'accountId is required' });
+        return;
+      }
+      const token = await createSessionForAccount(accountId);
+      res.json({ token });
+    });
+
+    app.post('/test/auth/expire-session', async (req, res) => {
+      const token = typeof req.body?.token === 'string' ? req.body.token : '';
+      if (!token) {
+        res.status(400).json({ error: 'token is required' });
+        return;
+      }
+      const expired = await __forceSessionExpiryForTesting(token);
+      res.json({ expired });
+    });
+
+    app.post('/test/auth/inspect-session', async (req, res) => {
+      const token = typeof req.body?.token === 'string' ? req.body.token : '';
+      if (!token) {
+        res.status(400).json({ error: 'token is required' });
+        return;
+      }
+      const info = await __inspectSessionForTesting(token);
+      if (!info) {
+        res.json({ exists: false, expiresAt: null, accountId: null });
+        return;
+      }
+      res.json({ exists: true, expiresAt: info.expiresAt, accountId: info.accountId });
     });
   }
 };

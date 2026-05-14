@@ -1,4 +1,6 @@
 export {
+  __forceSessionExpiryForTesting,
+  __inspectSessionForTesting,
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
@@ -9,5 +11,7 @@ export {
   previewGoogleLink,
   previewTelegramLink,
   previewVkLink,
+  revokeOtherSessions,
+  revokeSession,
   unlinkProvider
 } from '../accountStoreCore.js';

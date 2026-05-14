@@ -5,6 +5,7 @@ import * as repository from './repository.js';
 
 const {
   LINK_REQUEST_TTL_MS,
+  SESSION_TTL_MS,
   SUPPORTER_ENTITLEMENTS,
   buildAccountSkeleton,
   buildMergePreview,
@@ -277,22 +278,89 @@ export const createSessionForAccount = async (accountId: string) => {
   const db = await getDb();
   const token = randomUUID();
   const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
   db.prepare(`
-    INSERT INTO sessions (token, account_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?)
-  `).run(token, accountId, now, now);
-  recordAuditEventSync(db, accountId, 'session_created', {});
+    INSERT INTO sessions (token, account_id, created_at, updated_at, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(token, accountId, now, now, expiresAt);
+  recordAuditEventSync(db, accountId, 'session_created', { expiresAt });
   return token;
 };
 
+// Looks the bearer token up by primary key, rejects expired sessions
+// (deleting them as a side-effect), and slides the 30-day window forward
+// on each successful hit. The DB does an exact B-tree match on the token,
+// and we never compare tokens in JS, so there is no JS-level timing leak
+// to worry about - the only signal is index depth, which is negligible
+// for cryptographically random 36-character UUIDs.
 export const getAccountByToken = async (token: string) => {
   const db = await getDb();
   const session = db.prepare('SELECT * FROM sessions WHERE token = ? LIMIT 1').get(token);
   if (!session) return null;
   const accountId = safeText(session.account_id);
   if (!accountId) return null;
-  db.prepare('UPDATE sessions SET updated_at = ? WHERE token = ?').run(Date.now(), token);
+  const expiresAt = safeNumber(session.expires_at) ?? 0;
+  const now = Date.now();
+  if (expiresAt > 0 && expiresAt <= now) {
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    return null;
+  }
+  const nextExpiresAt = now + SESSION_TTL_MS;
+  db.prepare(
+    'UPDATE sessions SET updated_at = ?, expires_at = ? WHERE token = ?'
+  ).run(now, nextExpiresAt, token);
   return getAccountByIdSync(db, accountId);
+};
+
+export const revokeSession = async (token: string) => {
+  const db = await getDb();
+  const session = db.prepare('SELECT account_id FROM sessions WHERE token = ? LIMIT 1').get(token);
+  const result = db.prepare('DELETE FROM sessions WHERE token = ?').run(token) as
+    | { changes?: number | bigint }
+    | undefined;
+  const revoked = Number(result?.changes ?? 0) > 0;
+  if (revoked && session) {
+    const accountId = safeText(session.account_id);
+    if (accountId) {
+      recordAuditEventSync(db, accountId, 'session_revoked', {});
+    }
+  }
+  return revoked;
+};
+
+export const revokeOtherSessions = async (accountId: string, currentToken: string) => {
+  const db = await getDb();
+  const result = db
+    .prepare('DELETE FROM sessions WHERE account_id = ? AND token != ?')
+    .run(accountId, currentToken) as { changes?: number | bigint } | undefined;
+  const revokedCount = Number(result?.changes ?? 0);
+  if (revokedCount > 0) {
+    recordAuditEventSync(db, accountId, 'sessions_revoked_other', { revokedCount });
+  }
+  return revokedCount;
+};
+
+// Test-only helpers exposed via the ENABLE_TEST_AUTH_FIXTURES gated routes
+// in authRoutes.ts. They MUST stay behind that flag so production deploys
+// cannot reach them.
+export const __forceSessionExpiryForTesting = async (token: string) => {
+  const db = await getDb();
+  const result = db
+    .prepare('UPDATE sessions SET expires_at = ? WHERE token = ?')
+    .run(1, token) as { changes?: number | bigint } | undefined;
+  return Number(result?.changes ?? 0) > 0;
+};
+
+export const __inspectSessionForTesting = async (token: string) => {
+  const db = await getDb();
+  const session = db
+    .prepare('SELECT account_id, expires_at FROM sessions WHERE token = ? LIMIT 1')
+    .get(token);
+  if (!session) return null;
+  return {
+    accountId: safeText(session.account_id),
+    expiresAt: safeNumber(session.expires_at) ?? 0
+  };
 };
 
 export const createLinkRequest = async (

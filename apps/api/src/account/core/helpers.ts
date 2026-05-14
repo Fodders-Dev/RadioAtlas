@@ -29,6 +29,7 @@ import type {
 } from './types.js';
 
 export const LINK_REQUEST_TTL_MS = 1000 * 60 * 10;
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, sliding
 export const AUDIT_LIMIT_DEFAULT = 12;
 export const PREMIUM_ENTITLEMENTS: SessionEntitlement[] = [
   'cloud-sync',
