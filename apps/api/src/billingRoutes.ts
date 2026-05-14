@@ -24,6 +24,7 @@ export const registerBillingRoutes = (
     telegramBotToken: string;
     internalWebhookToken: string;
     enableTestAuthFixtures: boolean;
+    nodeEnv: string;
   }
 ) => {
   app.get('/billing/telegram/products', async (_req, res) => {
@@ -71,7 +72,14 @@ export const registerBillingRoutes = (
     }
   });
 
-  if (options.enableTestAuthFixtures) {
+  if (options.enableTestAuthFixtures && options.nodeEnv === 'production') {
+    // Defence-in-depth, same shape as authRoutes: refuse to register
+    // /test/billing/seed-purchase if a caller bypasses the boot
+    // assertion and wires this with enableTestAuthFixtures=true under
+    // NODE_ENV=production. Log loudly, do not throw - the real
+    // /billing/telegram/* endpoints above must keep serving.
+    console.error('test fixtures attempted to wire in production - refusing');
+  } else if (options.enableTestAuthFixtures) {
     app.post('/test/billing/seed-purchase', async (req, res) => {
       const accountId = typeof req.body?.accountId === 'string' ? req.body.accountId : '';
       const productIdRaw =

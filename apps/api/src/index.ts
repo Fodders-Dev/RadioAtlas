@@ -376,13 +376,15 @@ registerAuthRoutes(app, {
   vkRedirectUri: VK_REDIRECT_URI,
   oauthTtlMs: OAUTH_TTL_MS,
   webappUrl: WEBAPP_URL,
-  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES
+  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES,
+  nodeEnv: NODE_ENV
 });
 registerAccountRoutes(app);
 registerBillingRoutes(app, {
   telegramBotToken: TELEGRAM_BOT_TOKEN,
   internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,
-  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES
+  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES,
+  nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
 registerCatalogRoutes(app, {

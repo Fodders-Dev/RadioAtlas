@@ -132,6 +132,7 @@ export const registerAuthRoutes = (
     oauthTtlMs: number;
     webappUrl: string;
     enableTestAuthFixtures: boolean;
+    nodeEnv: string;
   }
 ) => {
   const vkAuthStates = new Map<string, VkAuthState>();
@@ -579,7 +580,15 @@ export const registerAuthRoutes = (
     }
   });
 
-  if (options.enableTestAuthFixtures) {
+  if (options.enableTestAuthFixtures && options.nodeEnv === 'production') {
+    // Defence-in-depth: the boot assertion in index.ts already refuses
+    // to start with this combination, but if a caller wires
+    // registerAuthRoutes directly (e.g., a future test harness, an
+    // embedding host) we still refuse to register the fixture surfaces
+    // and log loudly. We do NOT throw - the rest of the app must keep
+    // serving traffic.
+    console.error('test fixtures attempted to wire in production - refusing');
+  } else if (options.enableTestAuthFixtures) {
     app.post('/test/auth/seed-conflict', async (req, res) => {
       const mergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
       const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

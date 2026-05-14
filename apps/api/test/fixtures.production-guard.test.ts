@@ -139,3 +139,68 @@ test('NODE_ENV=production with fixtures disabled boots normally', async () => {
     }
   }
 });
+
+test('production + fixtures disabled does not register /test/* fixture routes', async () => {
+  const storeDir = await mkdtemp(join(tmpdir(), 'radioatlas-fixture-guard-unreg-'));
+  const port = 37900 + Math.floor(Math.random() * 200);
+  let child: ChildProcessWithoutNullStreams | null = null;
+  let stderr = '';
+  try {
+    child = spawn(process.execPath, ['--import', 'tsx/esm', './src/index.ts'], {
+      cwd: apiRoot,
+      env: {
+        ...process.env,
+        PORT: String(port),
+        NODE_ENV: 'production',
+        ENABLE_TEST_AUTH_FIXTURES: '0',
+        ALLOWED_ORIGINS: 'https://radioatlas.duckdns.org',
+        EXTRACTOR_URL: '',
+        TELEGRAM_BOT_TOKEN: '',
+        BOT_TOKEN: '',
+        GOOGLE_CLIENT_ID: '',
+        VK_CLIENT_ID: '',
+        VK_CLIENT_SECRET: '',
+        VK_REDIRECT_URI: '',
+        WEBAPP_URL: 'https://radioatlas.test',
+        ACCOUNT_STORE_PATH: join(storeDir, 'account-store.sqlite'),
+        INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token'
+      }
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    const healthy = await waitForHealth(port);
+    assert.ok(
+      healthy,
+      `production boot for fixture-absence check must reach /health (stderr: ${stderr.slice(0, 400)})`
+    );
+
+    const seedConflict = await fetch(`http://127.0.0.1:${port}/test/auth/seed-conflict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mergeStrategy: 'combine' })
+    });
+    assert.equal(
+      seedConflict.status,
+      404,
+      '/test/auth/seed-conflict must be UNREGISTERED in prod with fixtures off, not just gated'
+    );
+
+    const seedPurchase = await fetch(`http://127.0.0.1:${port}/test/billing/seed-purchase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId: 'whatever', productId: 'premium-month' })
+    });
+    assert.equal(
+      seedPurchase.status,
+      404,
+      '/test/billing/seed-purchase must be UNREGISTERED in prod with fixtures off, not just gated'
+    );
+  } finally {
+    if (child && !child.killed) {
+      child.kill('SIGTERM');
+      await delay(300);
+      if (!child.killed) child.kill('SIGKILL');
+    }
+  }
+});
