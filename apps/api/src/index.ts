@@ -33,6 +33,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const VK_CLIENT_ID = process.env.VK_CLIENT_ID || '';
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || '';
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || '';
+const INTERNAL_WEBHOOK_TOKEN = process.env.INTERNAL_WEBHOOK_TOKEN || '';
 const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const OAUTH_TTL_MS = 1000 * 60 * 10;
@@ -326,7 +327,9 @@ registerAuthRoutes(app, {
 });
 registerAccountRoutes(app);
 registerBillingRoutes(app, {
-  telegramBotToken: TELEGRAM_BOT_TOKEN
+  telegramBotToken: TELEGRAM_BOT_TOKEN,
+  internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,
+  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES
 });
 registerStationProfileRoutes(app);
 registerCatalogRoutes(app, {

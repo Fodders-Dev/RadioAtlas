@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+import { timingSafeEqual } from 'node:crypto';
 import type express from 'express';
 import {
   confirmBillingPurchase,
@@ -8,10 +10,20 @@ import {
 } from './accountStore.js';
 import { createTelegramInvoiceLink, getBearerToken, toClientProfile } from './routeSupport.js';
 
+const isValidWebhookToken = (expected: string, provided: string | undefined): boolean => {
+  if (!expected || !provided) return false;
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from(provided, 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, providedBuf);
+};
+
 export const registerBillingRoutes = (
   app: express.Express,
   options: {
     telegramBotToken: string;
+    internalWebhookToken: string;
+    enableTestAuthFixtures: boolean;
   }
 ) => {
   app.get('/billing/telegram/products', async (_req, res) => {
@@ -59,7 +71,46 @@ export const registerBillingRoutes = (
     }
   });
 
+  if (options.enableTestAuthFixtures) {
+    app.post('/test/billing/seed-purchase', async (req, res) => {
+      const accountId = typeof req.body?.accountId === 'string' ? req.body.accountId : '';
+      const productIdRaw =
+        typeof req.body?.productId === 'string' ? req.body.productId : 'support-small';
+      const recipientAccountId =
+        typeof req.body?.recipientAccountId === 'string' ? req.body.recipientAccountId : null;
+      try {
+        const products = await listBillingProducts();
+        const product = products.find((candidate) => candidate.id === productIdRaw);
+        if (!product) {
+          res.status(400).json({ error: 'invalid billing product' });
+          return;
+        }
+        const purchase = await createBillingPurchase(accountId, product.id, recipientAccountId);
+        if (!purchase) {
+          res.status(400).json({ error: 'invalid billing product' });
+          return;
+        }
+        res.json({ purchaseId: purchase.id, product: purchase.product });
+      } catch (err) {
+        res
+          .status(400)
+          .json({ error: err instanceof Error ? err.message : 'seed failed' });
+      }
+    });
+  }
+
   app.post('/billing/telegram/webhook', async (req, res) => {
+    // The webhook is only ever called by our own bot forwarding a Telegram
+    // successful_payment update it pulled over its long-poll connection
+    // (which is itself authenticated by BOT_TOKEN). The shared secret in
+    // X-Internal-Token gates outsiders that try to flip a purchase to paid
+    // by guessing or scraping the purchaseId. Empty server-side token is
+    // treated as misconfigured and rejects every request.
+    const provided = req.header('x-internal-token');
+    if (!isValidWebhookToken(options.internalWebhookToken, provided ?? undefined)) {
+      res.status(401).json({ error: 'unauthorized webhook' });
+      return;
+    }
     const purchaseId = typeof req.body?.purchaseId === 'string' ? req.body.purchaseId : '';
     if (!purchaseId) {
       res.status(400).json({ error: 'purchaseId is required' });

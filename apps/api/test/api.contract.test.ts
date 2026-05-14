@@ -118,7 +118,8 @@ test.before(async () => {
       VK_CLIENT_SECRET: '',
       VK_REDIRECT_URI: '',
       WEBAPP_URL: 'https://radioatlas.test',
-      MEDIA_SSRF_ALLOW_HOSTS: '127.0.0.1,localhost'
+      MEDIA_SSRF_ALLOW_HOSTS: '127.0.0.1,localhost',
+      INTERNAL_WEBHOOK_TOKEN: 'contract-test-internal-token'
     }
   });
 
@@ -229,7 +230,8 @@ test('billing, metadata, stream and extractor smokes return stable error contrac
   const { response: webhookResponse, body: webhook } = await getJson<ErrorPayload>('/billing/telegram/webhook', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'X-Internal-Token': 'contract-test-internal-token'
     },
     body: JSON.stringify({})
   });

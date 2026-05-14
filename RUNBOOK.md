@@ -11,6 +11,10 @@ npm run dev:bot
 - `BOT_TOKEN`: Telegram bot token
 - `WEBAPP_URL`: public webapp URL
 - `WEBAPP_DEEPLINK`: optional deep link
+- `INTERNAL_WEBHOOK_TOKEN`: shared secret used as the `X-Internal-Token` header on the bot → API billing webhook forward. Must match the API's `INTERNAL_WEBHOOK_TOKEN` exactly. Generate with `openssl rand -hex 32`. If unset, the bot logs a warning at startup and skips billing webhook forwards instead of pretending the payment was confirmed.
+
+## API env
+- `INTERNAL_WEBHOOK_TOKEN`: shared secret required on `POST /billing/telegram/webhook`. Requests without `X-Internal-Token` or with a mismatched value get 401. If the env is empty the route rejects every call (fail-closed). Must match the bot's `INTERNAL_WEBHOOK_TOKEN` exactly.
 
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links
