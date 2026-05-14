@@ -453,6 +453,23 @@ export const seedRadioState = async (
 };
 
 export const installMediaMocks = async (page: Page) => {
+  // T1.1 added a synchronous <script src="https://telegram.org/js/
+  // telegram-web-app.js"> at the top of index.html so the SDK is
+  // available before React boots in production. In e2e we DON'T want
+  // the real CDN script to run: it would override the deliberate
+  // window.Telegram fixtures (undefined for non-Telegram tests, an
+  // explicit shim for mobile.spec.ts) and also block page load on
+  // network conditions that aren't part of what we're testing.
+  // Returning a 200 with an empty body keeps the script tag inert -
+  // window.Telegram stays exactly what the fixture set.
+  await page.route('https://telegram.org/js/telegram-web-app.js', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: ''
+    })
+  );
+
   await page.addInitScript(() => {
     HTMLMediaElement.prototype.play = function () {
       this.setAttribute('data-ra-state', 'playing');
@@ -728,7 +745,10 @@ export const playHomeStation = async (page: Page, name: string) => {
   }
 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
-  const discoverInput = page.locator('.search-command-card .search-bar input').first();
+  // Search v3 (commit 8d06cbf) renamed the wrapper from
+  // .search-command-card to .search-hero-card and gave the input the
+  // stable `#search-hero-input` id. Match desktop.spec.ts's selector.
+  const discoverInput = page.locator('#search-hero-input').first();
   await discoverInput.waitFor({ state: 'visible' });
   await discoverInput.fill(name);
   const row = page.locator('.station-row').filter({ hasText: name }).first();

@@ -70,7 +70,7 @@ import type {
   TasteSignalAction,
   TasteSessionMode
 } from '../lib/tasteProfile';
-import { makeDeepLink } from '../lib/telegram';
+import { getTelegramWebApp, makeDeepLink, openLinkOrFallback } from '../lib/telegram';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
@@ -768,7 +768,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp;
+    // ready() / expand() are documented to no-op on standalone web once
+    // the SDK is loaded, so it is safe to call them through the lenient
+    // getTelegramWebApp() helper without a strict client-only gate.
+    const tg = getTelegramWebApp();
     tg?.ready?.();
     tg?.expand?.();
     if (tg?.isActive) {
@@ -940,13 +943,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setStoredShellState((prev) => (prev.detailsOpen === value ? prev : { ...prev, detailsOpen: value }));
 
   const openExternal = (station: Station | StationLite) => {
-    const url = station.url_resolved;
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openLinkOrFallback(station.url_resolved);
   };
 
   const addRecent = (station: Station | StationLite) => {
@@ -1576,12 +1573,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       url += `?station=station_${player.current.stationuuid}`;
     }
 
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url, { try_instant_view: false });
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openLinkOrFallback(url, { try_instant_view: false });
   };
 
   const shareStation = async (station: Station | StationLite) => {
@@ -1611,7 +1603,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-    const tg = window.Telegram?.WebApp;
+    const tg = getTelegramWebApp();
 
     if (tg?.openLink) {
       tg.openLink(shareUrl);

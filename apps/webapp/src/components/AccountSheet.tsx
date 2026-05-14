@@ -7,6 +7,7 @@ import {
   type TelegramWidgetAuthData
 } from '../state/SessionContext';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
+import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
 import { SettingsSheet } from './SettingsSheet';
 
 declare global {
@@ -382,7 +383,13 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
       setBillingBusyId(null);
       return;
     }
-    const telegram = window.Telegram?.WebApp;
+    // Strict client-only gate: the official SDK exposes openInvoice on
+    // standalone web too (post-T1.1) but the call silently no-ops there
+    // and never invokes our callback - the user would be stuck. Only
+    // route through the SDK when we are genuinely inside the Telegram
+    // client; the existing browser fallback below still serves
+    // standalone users.
+    const telegram = isInsideTelegramClient() ? getTelegramWebApp() : null;
     if (telegram?.openInvoice) {
       setBillingHint(t('account.billingReturnHint'));
       telegram.openInvoice(invoice.invoiceLink, (status: 'paid' | 'cancelled' | 'failed' | 'pending') => {

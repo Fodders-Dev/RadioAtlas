@@ -20,6 +20,7 @@ import type {
 import { getApiBase } from '../lib/apiBase';
 import { reportClientEvent } from '../lib/observability';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
+import { getTelegramWebApp, openTelegramLinkOrFallback } from '../lib/telegram';
 import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
@@ -316,9 +317,6 @@ const readTelegramSearchParams = () => {
       hashParams.has('start_param')
   };
 };
-
-const getTelegramWebApp = () =>
-  typeof window !== 'undefined' ? window.Telegram?.WebApp || null : null;
 
 const readTelegramRuntimeState = (): TelegramRuntimeState => {
   const webApp = getTelegramWebApp();
@@ -1438,16 +1436,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
     const suffix = linkCode ? `link_${linkCode}` : 'radio';
     const target = `https://t.me/${botName.replace(/^@/, '')}?startapp=${suffix}`;
-    const telegram = window.Telegram?.WebApp;
-    if (telegram?.openTelegramLink) {
-      telegram.openTelegramLink(target);
-      return;
-    }
-    if (telegram?.openLink) {
-      telegram.openLink(target);
-      return;
-    }
-    window.open(target, '_blank', 'noopener,noreferrer');
+    openTelegramLinkOrFallback(target);
   }, [setError]);
 
   useEffect(() => {

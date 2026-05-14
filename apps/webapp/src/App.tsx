@@ -16,7 +16,7 @@ import {
   loadSettingsScreen,
   loadStationDetails
 } from './lib/screenLoaders';
-import { getStartParam, parseStationParam } from './lib/telegram';
+import { getStartParam, isInsideTelegramClient, parseStationParam } from './lib/telegram';
 import { useLocale } from './state/LocaleContext';
 import { useCatalog } from './state/CatalogContext';
 import { usePlayback, useShell } from './state/RadioContext';
@@ -134,7 +134,7 @@ const App = () => {
         lowPower: lowPowerShell,
         viewportWidth,
         viewportHeight,
-        telegram: Boolean(window.Telegram?.WebApp)
+        telegram: isInsideTelegramClient()
       },
       {
         dedupeKey: 'app_opened',
