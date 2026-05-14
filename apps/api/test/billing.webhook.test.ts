@@ -61,7 +61,8 @@ test.before(async () => {
       VK_REDIRECT_URI: '',
       WEBAPP_URL: 'https://radioatlas.test',
       ACCOUNT_STORE_PATH: join(storeDir, 'account-store.sqlite'),
-      INTERNAL_WEBHOOK_TOKEN: internalToken
+      INTERNAL_WEBHOOK_TOKEN: internalToken,
+      ALLOWED_ORIGINS: 'http://127.0.0.1,http://localhost'
     }
   });
 

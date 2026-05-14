@@ -119,7 +119,8 @@ test.before(async () => {
       VK_REDIRECT_URI: '',
       WEBAPP_URL: 'https://radioatlas.test',
       MEDIA_SSRF_ALLOW_HOSTS: '127.0.0.1,localhost',
-      INTERNAL_WEBHOOK_TOKEN: 'contract-test-internal-token'
+      INTERNAL_WEBHOOK_TOKEN: 'contract-test-internal-token',
+      ALLOWED_ORIGINS: 'http://127.0.0.1,http://localhost'
     }
   });
 
