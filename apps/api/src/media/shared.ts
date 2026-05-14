@@ -159,7 +159,15 @@ const readAllowedHosts = (): Set<string> => {
   );
 };
 
-const allowedHostSet = readAllowedHosts();
+let allowedHostSet = readAllowedHosts();
+
+export const __setSsrfAllowedHostsForTesting = (hosts: string[] | null) => {
+  if (hosts === null) {
+    allowedHostSet = readAllowedHosts();
+    return;
+  }
+  allowedHostSet = new Set(hosts.map((host) => host.trim().toLowerCase()).filter(Boolean));
+};
 
 const isAllowedHost = (host: string): boolean => allowedHostSet.has(host.toLowerCase());
 const isAllowedAddress = (address: string): boolean => allowedHostSet.has(address.toLowerCase());
@@ -241,19 +249,86 @@ const bindAbort = (controller: AbortController, signal?: AbortSignal) => {
   return () => signal.removeEventListener('abort', abort);
 };
 
+const MAX_REDIRECT_HOPS = 5;
+
+const isRedirectStatus = (status: number) => status >= 300 && status < 400;
+
+const drainResponseBody = async (response: Response) => {
+  if (!response.body) return;
+  try {
+    await response.body.cancel();
+  } catch {
+    // best effort - the body may already be settled
+  }
+};
+
+const guardedFetchWithRedirects = async (
+  initialUrl: string,
+  init: RequestInit,
+  signal: AbortSignal
+): Promise<Response> => {
+  let currentUrl = initialUrl;
+  let redirectCount = 0;
+  while (true) {
+    await guardOutboundFetchTarget(currentUrl);
+    const response = await fetch(currentUrl, {
+      ...init,
+      redirect: 'manual',
+      signal
+    });
+    if (!isRedirectStatus(response.status)) {
+      return response;
+    }
+    const location = response.headers.get('location');
+    if (!location) {
+      return response;
+    }
+    if (redirectCount >= MAX_REDIRECT_HOPS) {
+      await drainResponseBody(response);
+      throw new SsrfBlockedError('too many redirects', initialUrl);
+    }
+    let next: URL;
+    try {
+      next = new URL(location, currentUrl);
+    } catch {
+      await drainResponseBody(response);
+      throw new SsrfBlockedError(`invalid redirect Location: ${location}`, currentUrl);
+    }
+    if (next.protocol !== 'http:' && next.protocol !== 'https:') {
+      await drainResponseBody(response);
+      throw new SsrfBlockedError(`disallowed redirect protocol: ${next.protocol}`, currentUrl);
+    }
+    await drainResponseBody(response);
+    redirectCount += 1;
+    currentUrl = next.toString();
+  }
+};
+
+const runFetch = async (
+  url: string,
+  init: RequestInit,
+  signal: AbortSignal
+): Promise<Response> => {
+  // The default redirect mode in fetch is 'follow', and undici resolves the
+  // Location target itself - that bypasses our SSRF guard entirely. Only fall
+  // back to plain fetch when the caller explicitly opted in to a non-default
+  // redirect mode and is therefore taking responsibility for what happens.
+  if (init.redirect === undefined) {
+    return guardedFetchWithRedirects(url, init, signal);
+  }
+  await guardOutboundFetchTarget(url);
+  return fetch(url, { ...init, signal });
+};
+
 export const fetchWithTimeout = async (
   url: string,
   init: RequestInit,
   timeoutMs: number
 ) => {
-  await guardOutboundFetchTarget(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
+    return await runFetch(url, init, controller.signal);
   } finally {
     clearTimeout(timeout);
   }
@@ -265,15 +340,11 @@ export const fetchWithDeadline = async (
   timeoutMs: number,
   signal?: AbortSignal
 ) => {
-  await guardOutboundFetchTarget(url);
   const controller = new AbortController();
   const unbindAbort = bindAbort(controller, signal);
   const timeout = setTimeout(() => controller.abort(new Error('deadline exceeded')), timeoutMs);
   try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
+    const response = await runFetch(url, init, controller.signal);
     return {
       response,
       cleanup: () => {

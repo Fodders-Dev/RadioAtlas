@@ -37,6 +37,22 @@ target stays green.
   IP allowed, (5) DNS rebind blocked (resolve twice differs). Existing tests
   green.
 
+### T0.1b Pin DNS resolution to a single IP for the duration of a media fetch
+- **What**: today the SSRF guard does a "two resolves" check — once at the
+  handler boundary and once inside the fetch helpers, plus a guarded
+  manual-redirect chain. There is still a residual race window between our
+  second resolve and undici's own connect-time resolve. Resolve the hostname
+  once, validate the addresses, then pass an undici `Agent` with a custom
+  `connect.lookup` that always returns the validated IP. Set `servername`
+  correctly so TLS SNI keeps working and the upstream still sees the original
+  hostname in the `Host` header.
+- **Why**: defeats a sophisticated rebind that flips DNS in the microsecond
+  window between our final check and undici's TCP connect.
+- **Files**: `apps/api/src/media/shared.ts`, new test that swaps
+  `dns.lookup` between the guard and connect and asserts a private IP cannot
+  be smuggled through the helper.
+- **Done-when**: the new test passes; existing media tests stay green.
+
 ### T0.2 Authenticate Telegram billing webhook end-to-end
 - **What**: stop accepting unauthenticated `POST /billing/telegram/webhook`.
   Two-step: (a) verify a shared `X-Internal-Token` header against

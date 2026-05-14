@@ -97,8 +97,7 @@ const fetchMetadataPayload = async (
         headers: {
           'User-Agent': options.userAgent,
           Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
-        },
-        redirect: 'follow'
+        }
       },
       metadataProbeTimeoutMs(options)
     );
@@ -222,8 +221,7 @@ const fetchStreamMetadata = async (
         headers: {
           'Icy-MetaData': '1',
           'User-Agent': options.userAgent
-        },
-        redirect: 'follow'
+        }
       },
       metadataStreamTimeoutMs(options)
     );

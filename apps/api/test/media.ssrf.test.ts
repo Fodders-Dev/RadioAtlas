@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import type { LookupAddress } from 'node:dns';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 
 import {
+  __setSsrfAllowedHostsForTesting,
   __setSsrfDnsLookupForTesting,
   SsrfBlockedError,
   assertHostIsPublic,
+  fetchWithDeadline,
+  fetchWithTimeout,
   isPrivateIp,
   parseAndValidateHttpUrl
 } from '../src/media/shared.js';
@@ -118,5 +123,114 @@ test('assertHostIsPublic rejects when the resolver returns no records', async ()
     );
   } finally {
     __setSsrfDnsLookupForTesting(null);
+  }
+});
+
+const startControlServer = async (
+  handler: (path: string) => { status: number; headers?: Record<string, string>; body?: string }
+): Promise<{ url: string; port: number; server: Server; hits: string[] }> => {
+  const hits: string[] = [];
+  const server = createServer((req, res) => {
+    const path = req.url ?? '/';
+    hits.push(path);
+    const next = handler(path);
+    res.writeHead(next.status, next.headers ?? {});
+    res.end(next.body ?? '');
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+  const port = (server.address() as AddressInfo).port;
+  return { url: `http://127.0.0.1:${port}`, port, server, hits };
+};
+
+const closeServer = (server: Server) =>
+  new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+
+test('fetchWithDeadline blocks a 302 redirect that points at the AWS metadata IP', async () => {
+  __setSsrfAllowedHostsForTesting(['127.0.0.1']);
+  const control = await startControlServer(() => ({
+    status: 302,
+    headers: { Location: 'http://169.254.169.254/latest/meta-data/' },
+    body: 'do-not-read-this-payload'
+  }));
+  try {
+    await assert.rejects(
+      fetchWithDeadline(`${control.url}/start`, {}, 5000),
+      (error) =>
+        error instanceof SsrfBlockedError && error.address === '169.254.169.254'
+    );
+    assert.equal(control.hits.length, 1, 'control server should be hit exactly once');
+    assert.equal(control.hits[0], '/start');
+  } finally {
+    await closeServer(control.server);
+    __setSsrfAllowedHostsForTesting(null);
+  }
+});
+
+test('fetchWithTimeout blocks a redirect chain that lands on a private address', async () => {
+  __setSsrfAllowedHostsForTesting(['127.0.0.1']);
+  const control = await startControlServer((path) => {
+    if (path === '/start') {
+      return { status: 302, headers: { Location: '/hop' } };
+    }
+    return {
+      status: 302,
+      headers: { Location: 'http://10.0.0.5/internal' }
+    };
+  });
+  try {
+    await assert.rejects(
+      fetchWithTimeout(`${control.url}/start`, {}, 5000),
+      (error) => error instanceof SsrfBlockedError && error.address === '10.0.0.5'
+    );
+    assert.deepEqual(control.hits, ['/start', '/hop']);
+  } finally {
+    await closeServer(control.server);
+    __setSsrfAllowedHostsForTesting(null);
+  }
+});
+
+test('fetchWithDeadline rejects redirects that pile beyond the hop cap', async () => {
+  __setSsrfAllowedHostsForTesting(['127.0.0.1']);
+  const control = await startControlServer((path) => {
+    const next = `${path}-x`;
+    return { status: 302, headers: { Location: next } };
+  });
+  try {
+    await assert.rejects(
+      fetchWithDeadline(`${control.url}/r`, {}, 5000),
+      (error) =>
+        error instanceof SsrfBlockedError && /too many redirects/.test(error.reason)
+    );
+    assert.equal(control.hits.length, 6, 'should hit initial + 5 redirects');
+  } finally {
+    await closeServer(control.server);
+    __setSsrfAllowedHostsForTesting(null);
+  }
+});
+
+test('guarded fetch helpers still return the upstream response when no redirect is sent', async () => {
+  __setSsrfAllowedHostsForTesting(['127.0.0.1']);
+  const control = await startControlServer(() => ({
+    status: 200,
+    headers: { 'content-type': 'text/plain' },
+    body: 'ok'
+  }));
+  try {
+    const { response, cleanup } = await fetchWithDeadline(`${control.url}/payload`, {}, 5000);
+    try {
+      assert.equal(response.status, 200);
+      assert.equal(await response.text(), 'ok');
+    } finally {
+      cleanup();
+    }
+    assert.deepEqual(control.hits, ['/payload']);
+  } finally {
+    await closeServer(control.server);
+    __setSsrfAllowedHostsForTesting(null);
   }
 });
