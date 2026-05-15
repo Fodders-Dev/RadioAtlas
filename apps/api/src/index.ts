@@ -33,7 +33,54 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const VK_CLIENT_ID = process.env.VK_CLIENT_ID || '';
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || '';
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || '';
+const INTERNAL_WEBHOOK_TOKEN = process.env.INTERNAL_WEBHOOK_TOKEN || '';
 const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const ALLOWED_ORIGINS_RAW = process.env.ALLOWED_ORIGINS || '';
+// Localhost defaults exist solely for dev convenience; production never
+// falls back to them because the boot assertion below refuses to start
+// with an empty ALLOWED_ORIGINS when NODE_ENV=production.
+const DEV_DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174'
+];
+
+if (NODE_ENV === 'production' && !ALLOWED_ORIGINS_RAW.trim()) {
+  console.error('ALLOWED_ORIGINS is required in production');
+  process.exit(1);
+}
+
+// T0.7: the /test/auth/seed-conflict, /test/auth/{issue,expire,inspect}
+// -session, and /test/billing/seed-purchase fixture routes can mint
+// authenticated sessions and flip billing state by accountId. A
+// misconfigured deploy that leaves ENABLE_TEST_AUTH_FIXTURES=1 in
+// production would let anyone seed an authenticated account. The
+// googleAuth / vkAuth fixture decoders also short-circuit on the same
+// env var. Treat the combination as fatal at boot.
+if (NODE_ENV === 'production' && ENABLE_TEST_AUTH_FIXTURES) {
+  console.error(
+    'ENABLE_TEST_AUTH_FIXTURES must not be set in production (NODE_ENV=production)'
+  );
+  process.exit(1);
+}
+
+const ALLOWED_ORIGINS = (() => {
+  const parsed = ALLOWED_ORIGINS_RAW
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (parsed.length) return new Set(parsed);
+  return new Set(DEV_DEFAULT_ALLOWED_ORIGINS.map((value) => value.toLowerCase()));
+})();
+
+const isAllowedOrigin = (origin: string): boolean => {
+  if (!origin) return false;
+  const normalised = origin.toLowerCase();
+  if (normalised === 'null') return false; // sandboxed iframes, file://
+  return ALLOWED_ORIGINS.has(normalised);
+};
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const OAUTH_TTL_MS = 1000 * 60 * 10;
 const METADATA_CACHE_TTL_MS = 1000 * 15;
@@ -61,12 +108,6 @@ const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
-const BLOCKED_HOSTS = [
-  'youtube.com',
-  'youtu.be',
-  'music.youtube.com',
-  'youtube-nocookie.com'
-];
 
 const RADIO_BROWSER_URLS = API_URLS.length ? API_URLS : DEFAULT_API_URLS;
 
@@ -105,15 +146,22 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 
 const corsHeaders = (req: express.Request, res: express.Response) => {
-  const origin = typeof req.headers.origin === 'string' && req.headers.origin.trim()
-    ? req.headers.origin
-    : '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  if (origin !== '*') {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Vary', 'Origin');
+  const rawOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+  if (!rawOrigin) {
+    // No Origin header -> non-CORS request (curl, server-to-server, k8s
+    // liveness probes). Browsers will treat the response as same-origin.
+    return;
   }
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization');
+  // Always Vary on Origin once we've inspected it so an intermediate cache
+  // (Caddy, CDN, Express trust-proxy chains) does not serve a no-ACAO
+  // response back to a different, allow-listed origin.
+  res.setHeader('Vary', 'Origin');
+  if (!isAllowedOrigin(rawOrigin)) {
+    return;
+  }
+  res.setHeader('Access-Control-Allow-Origin', rawOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Authorization, X-Internal-Token');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader(
     'Access-Control-Expose-Headers',
@@ -191,17 +239,6 @@ const asNumber = (value: unknown): number | null => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
-
-const getHost = (value: string) => {
-  try {
-    return new URL(value).host.toLowerCase();
-  } catch {
-    return '';
-  }
-};
-
-const isBlockedHost = (value: string) =>
-  BLOCKED_HOSTS.some((host) => getHost(value).includes(host));
 
 const fetchWithTimeout = async (url: string, ms: number) => {
   const controller = new AbortController();
@@ -339,11 +376,15 @@ registerAuthRoutes(app, {
   vkRedirectUri: VK_REDIRECT_URI,
   oauthTtlMs: OAUTH_TTL_MS,
   webappUrl: WEBAPP_URL,
-  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES
+  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES,
+  nodeEnv: NODE_ENV
 });
 registerAccountRoutes(app);
 registerBillingRoutes(app, {
-  telegramBotToken: TELEGRAM_BOT_TOKEN
+  telegramBotToken: TELEGRAM_BOT_TOKEN,
+  internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,
+  enableTestAuthFixtures: ENABLE_TEST_AUTH_FIXTURES,
+  nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
 registerCatalogRoutes(app, {
@@ -353,7 +394,6 @@ registerCatalogRoutes(app, {
 registerMediaRoutes(app, {
   userAgent: USER_AGENT,
   extractorUrl: EXTRACTOR_URL,
-  blockedHosts: BLOCKED_HOSTS,
   metadataCacheTtlMs: METADATA_CACHE_TTL_MS,
   metadataNegativeCacheTtlMs: METADATA_NEGATIVE_CACHE_TTL_MS,
   metadataProbeTimeoutMs: METADATA_PROBE_TIMEOUT_MS,

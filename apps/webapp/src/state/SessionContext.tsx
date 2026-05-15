@@ -20,6 +20,7 @@ import type {
 import { getApiBase } from '../lib/apiBase';
 import { reportClientEvent } from '../lib/observability';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
+import { getTelegramWebApp, openTelegramLinkOrFallback } from '../lib/telegram';
 import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
@@ -83,7 +84,7 @@ type SessionContextValue = {
     linkCode?: string,
     mergeStrategy?: LibraryMergeStrategy
   ) => Promise<void>;
-  beginVkAuth: (mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
+  beginVkAuth: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<void>;
   unlinkProvider: (kind: ProviderKind) => Promise<void>;
   createLinkCode: (mergeStrategy?: LibraryMergeStrategy) => Promise<string | null>;
   previewTelegramLink: (linkCode?: string, mergeStrategy?: LibraryMergeStrategy) => Promise<AccountMergePreview | null>;
@@ -316,9 +317,6 @@ const readTelegramSearchParams = () => {
       hashParams.has('start_param')
   };
 };
-
-const getTelegramWebApp = () =>
-  typeof window !== 'undefined' ? window.Telegram?.WebApp || null : null;
 
 const readTelegramRuntimeState = (): TelegramRuntimeState => {
   const webApp = getTelegramWebApp();
@@ -980,7 +978,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const beginVkAuth = useCallback(
-    async (mergeStrategy: LibraryMergeStrategy = 'combine') => {
+    async (linkCode?: string, mergeStrategy: LibraryMergeStrategy = 'combine') => {
       if (!apiBase) {
         setStatus('unavailable');
         setError('Cloud API is unavailable');
@@ -994,6 +992,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         const token = getStoredToken();
         const url = new URL(`${apiBase}/auth/vk/start`);
         url.searchParams.set('mergeStrategy', mergeStrategy);
+        if (linkCode) {
+          url.searchParams.set('linkCode', linkCode);
+        }
         const response = await fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined
         });
@@ -1435,16 +1436,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     }
     const suffix = linkCode ? `link_${linkCode}` : 'radio';
     const target = `https://t.me/${botName.replace(/^@/, '')}?startapp=${suffix}`;
-    const telegram = window.Telegram?.WebApp;
-    if (telegram?.openTelegramLink) {
-      telegram.openTelegramLink(target);
-      return;
-    }
-    if (telegram?.openLink) {
-      telegram.openLink(target);
-      return;
-    }
-    window.open(target, '_blank', 'noopener,noreferrer');
+    openTelegramLinkOrFallback(target);
   }, [setError]);
 
   useEffect(() => {

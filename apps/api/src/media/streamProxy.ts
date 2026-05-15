@@ -6,7 +6,7 @@ import {
   fetchUrlCandidates,
   fetchWithDeadline,
   fetchWithTimeout,
-  parseHttpUrl,
+  parseAndValidateHttpUrl,
   readTextWithLimit,
   rewriteM3U8,
   sendJsonError
@@ -149,9 +149,9 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
   const guard = createStreamGuard(options);
 
   return async (req: express.Request, res: express.Response) => {
-    const parsed = parseHttpUrl(req.query.url);
+    const parsed = await parseAndValidateHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error ?? 'invalid url');
+      sendJsonError(res, parsed.status, parsed.error);
       return;
     }
 
@@ -303,9 +303,9 @@ export const createImageHandler = (options: MediaRouteOptions) => {
   const guard = createImageGuard(options);
 
   return async (req: express.Request, res: express.Response) => {
-    const parsed = parseHttpUrl(req.query.url);
+    const parsed = await parseAndValidateHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error ?? 'invalid url');
+      sendJsonError(res, parsed.status, parsed.error);
       return;
     }
 
@@ -449,9 +449,9 @@ export const createFetchHandler = (options: MediaRouteOptions) => {
   });
 
   return async (req: express.Request, res: express.Response) => {
-    const parsed = parseHttpUrl(req.query.url);
+    const parsed = await parseAndValidateHttpUrl(req.query.url);
     if ('error' in parsed) {
-      sendJsonError(res, 400, parsed.error ?? 'invalid url');
+      sendJsonError(res, parsed.status, parsed.error);
       return;
     }
 

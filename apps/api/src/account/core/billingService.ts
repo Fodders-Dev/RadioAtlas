@@ -91,17 +91,32 @@ export const confirmBillingPurchase = async (
     createdAt: safeNumber(row.created_at) ?? Date.now(),
     updatedAt: safeNumber(row.updated_at) ?? Date.now()
   };
+  const targetAccountId = purchase.recipientAccountId || purchase.accountId;
+
   if (purchase.status === 'paid') {
-    return getAccountByIdSync(db, purchase.recipientAccountId || purchase.accountId);
+    return getAccountByIdSync(db, targetAccountId);
   }
 
-  db.prepare(`
-    UPDATE billing_purchases
-    SET status = 'paid', telegram_charge_id = ?, updated_at = ?
-    WHERE id = ?
-  `).run(telegramChargeId || null, Date.now(), purchaseId);
+  // Atomic flip: only the caller whose UPDATE actually changed the row
+  // gets to grant entitlements / write the audit event. A second caller
+  // on the same purchaseId (Telegram retry, bot restart) sees changes=0
+  // and falls through to the idempotent return path. SQLite serialises
+  // UPDATEs even in WAL mode, so this also protects against multi-process
+  // deployments down the road.
+  const updateResult = db
+    .prepare(`
+      UPDATE billing_purchases
+      SET status = 'paid', telegram_charge_id = ?, updated_at = ?
+      WHERE id = ? AND status = 'pending'
+    `)
+    .run(telegramChargeId || null, Date.now(), purchaseId) as
+    | { changes?: number | bigint }
+    | undefined;
 
-  const targetAccountId = purchase.recipientAccountId || purchase.accountId;
+  if (Number(updateResult?.changes ?? 0) === 0) {
+    return getAccountByIdSync(db, targetAccountId);
+  }
+
   const targetAccount = getAccountByIdSync(db, targetAccountId);
   if (!targetAccount) return null;
 

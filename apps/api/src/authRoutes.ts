@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type express from 'express';
 import {
+  __forceSessionExpiryForTesting,
+  __inspectSessionForTesting,
   consumeLinkRequest,
   createSessionForAccount,
   getAccountAuditTrail,
@@ -8,6 +10,7 @@ import {
   linkGoogleIdentity,
   linkTelegramIdentity,
   linkVkIdentity,
+  peekLinkRequest,
   previewGoogleLink,
   previewTelegramLink,
   previewVkLink,
@@ -55,6 +58,69 @@ const pruneExpiredAuthState = (
   }
 };
 
+// Resolve the link target for a provider sign-in / preview call. Per T0.5
+// the ONLY way for a provider callback to attach an identity to a
+// pre-existing account is to present a one-time linkCode that the account
+// holder explicitly minted via /me/link-request. Authorization headers on
+// provider callbacks are no longer treated as link authority - they are
+// purely advisory, used at most to short-circuit issuing a new session if
+// the resulting account happens to be the same one the caller was already
+// signed in as.
+type LinkCodeOk = {
+  ok: true;
+  targetAccountId: string | null;
+  mergeStrategy: LibraryMergeStrategy;
+};
+type LinkCodeError = { ok: false; status: number; error: string };
+type LinkCodeResolution = LinkCodeOk | LinkCodeError;
+
+const resolveLinkCodeForSignIn = async (
+  rawLinkCode: string,
+  fallbackMergeStrategy: LibraryMergeStrategy
+): Promise<LinkCodeResolution> => {
+  if (!rawLinkCode) {
+    return { ok: true, targetAccountId: null, mergeStrategy: fallbackMergeStrategy };
+  }
+  const linkRequest = await consumeLinkRequest(rawLinkCode);
+  if (!linkRequest) {
+    return { ok: false, status: 409, error: 'link request expired or unknown' };
+  }
+  return {
+    ok: true,
+    targetAccountId: linkRequest.accountId,
+    mergeStrategy: linkRequest.mergeStrategy || fallbackMergeStrategy
+  };
+};
+
+const resolveLinkCodeForPreview = async (
+  rawLinkCode: string,
+  fallbackMergeStrategy: LibraryMergeStrategy
+): Promise<LinkCodeResolution> => {
+  if (!rawLinkCode) {
+    return { ok: true, targetAccountId: null, mergeStrategy: fallbackMergeStrategy };
+  }
+  const linkRequest = await peekLinkRequest(rawLinkCode);
+  if (!linkRequest) {
+    return { ok: false, status: 409, error: 'link request expired or unknown' };
+  }
+  return {
+    ok: true,
+    targetAccountId: linkRequest.accountId,
+    mergeStrategy: linkRequest.mergeStrategy || fallbackMergeStrategy
+  };
+};
+
+const issueSessionForAccount = async (
+  accountId: string,
+  currentToken: string,
+  currentAccount: { id: string } | null
+) => {
+  if (currentToken && currentAccount && currentAccount.id === accountId) {
+    return currentToken;
+  }
+  return createSessionForAccount(accountId);
+};
+
 export const registerAuthRoutes = (
   app: express.Express,
   options: {
@@ -66,6 +132,7 @@ export const registerAuthRoutes = (
     oauthTtlMs: number;
     webappUrl: string;
     enableTestAuthFixtures: boolean;
+    nodeEnv: string;
   }
 ) => {
   const vkAuthStates = new Map<string, VkAuthState>();
@@ -104,29 +171,37 @@ export const registerAuthRoutes = (
       const validated = validateTelegramInitData(initData, options.telegramBotToken);
       const currentToken = getBearerToken(req);
       const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest =
-        !currentAccount && linkCode
-          ? await consumeLinkRequest(linkCode)
-          : validated.startParam?.startsWith('link_')
-            ? await consumeLinkRequest(validated.startParam.slice('link_'.length))
-            : null;
+      const bodyLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const startParamLinkCode = validated.startParam?.startsWith('link_')
+        ? validated.startParam.slice('link_'.length).trim()
+        : '';
+      const rawLinkCode = bodyLinkCode || startParamLinkCode;
+      const resolution = await resolveLinkCodeForSignIn(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const account = await linkTelegramIdentity(
         validated.user,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
-      const token = currentToken || (account ? await createSessionForAccount(account.id) : '');
+      if (!account) {
+        res.status(500).json({ error: 'telegram identity link failed' });
+        return;
+      }
+      const token = await issueSessionForAccount(account.id, currentToken, currentAccount);
       await recordAccountEvent(
-        account!.id,
+        account.id,
         'sign_in',
-        { reusedSession: Boolean(currentToken) },
+        {
+          reusedSession: token === currentToken,
+          linkRequest: Boolean(resolution.targetAccountId)
+        },
         { kind: 'telegram', externalId: String(validated.user.id) }
       );
-      res.json(await buildSessionEnvelope(token, account!));
+      res.json(await buildSessionEnvelope(token, account));
     } catch (err) {
       res.status(401).json({ error: err instanceof Error ? err.message : 'telegram auth failed' });
     }
@@ -146,22 +221,21 @@ export const registerAuthRoutes = (
 
     try {
       const validated = validateTelegramInitData(initData, options.telegramBotToken);
-      const currentToken = getBearerToken(req);
-      const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest =
-        !currentAccount && linkCode
-          ? await consumeLinkRequest(linkCode)
-          : validated.startParam?.startsWith('link_')
-            ? await consumeLinkRequest(validated.startParam.slice('link_'.length))
-            : null;
+      const bodyLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const startParamLinkCode = validated.startParam?.startsWith('link_')
+        ? validated.startParam.slice('link_'.length).trim()
+        : '';
+      const rawLinkCode = bodyLinkCode || startParamLinkCode;
+      const resolution = await resolveLinkCodeForPreview(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const preview = await previewTelegramLink(
         validated.user,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
       res.json({ preview });
     } catch (err) {
@@ -188,24 +262,34 @@ export const registerAuthRoutes = (
       const validated = validateTelegramLoginWidgetData(authData, options.telegramBotToken);
       const currentToken = getBearerToken(req);
       const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+      const rawLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const resolution = await resolveLinkCodeForSignIn(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const account = await linkTelegramIdentity(
         validated.user,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
-      const token = currentToken || (account ? await createSessionForAccount(account.id) : '');
+      if (!account) {
+        res.status(500).json({ error: 'telegram widget identity link failed' });
+        return;
+      }
+      const token = await issueSessionForAccount(account.id, currentToken, currentAccount);
       await recordAccountEvent(
-        account!.id,
+        account.id,
         'sign_in',
-        { reusedSession: Boolean(currentToken), source: 'telegram-widget' },
+        {
+          reusedSession: token === currentToken,
+          source: 'telegram-widget',
+          linkRequest: Boolean(resolution.targetAccountId)
+        },
         { kind: 'telegram', externalId: String(validated.user.id) }
       );
-      res.json(await buildSessionEnvelope(token, account!));
+      res.json(await buildSessionEnvelope(token, account));
     } catch (err) {
       res
         .status(401)
@@ -228,17 +312,17 @@ export const registerAuthRoutes = (
 
     try {
       const validated = validateTelegramLoginWidgetData(authData, options.telegramBotToken);
-      const currentToken = getBearerToken(req);
-      const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+      const rawLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const resolution = await resolveLinkCodeForPreview(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const preview = await previewTelegramLink(
         validated.user,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
       res.json({ preview });
     } catch (err) {
@@ -264,24 +348,33 @@ export const registerAuthRoutes = (
       const identity = await verifyGoogleIdToken(credential, options.googleClientId);
       const currentToken = getBearerToken(req);
       const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+      const rawLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const resolution = await resolveLinkCodeForSignIn(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const account = await linkGoogleIdentity(
         identity,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
-      const token = currentToken || (account ? await createSessionForAccount(account.id) : '');
+      if (!account) {
+        res.status(500).json({ error: 'google identity link failed' });
+        return;
+      }
+      const token = await issueSessionForAccount(account.id, currentToken, currentAccount);
       await recordAccountEvent(
-        account!.id,
+        account.id,
         'sign_in',
-        { reusedSession: Boolean(currentToken) },
+        {
+          reusedSession: token === currentToken,
+          linkRequest: Boolean(resolution.targetAccountId)
+        },
         { kind: 'google', externalId: identity.sub }
       );
-      res.json(await buildSessionEnvelope(token, account!));
+      res.json(await buildSessionEnvelope(token, account));
     } catch (err) {
       res.status(401).json({ error: err instanceof Error ? err.message : 'google auth failed' });
     }
@@ -301,17 +394,17 @@ export const registerAuthRoutes = (
 
     try {
       const identity = await verifyGoogleIdToken(credential, options.googleClientId);
-      const currentToken = getBearerToken(req);
-      const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
-      const linkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
-      const linkRequest = !currentAccount && linkCode ? await consumeLinkRequest(linkCode) : null;
+      const rawLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
+      const resolution = await resolveLinkCodeForPreview(rawLinkCode, requestedMergeStrategy);
+      if (!resolution.ok) {
+        res.status(resolution.status).json({ error: resolution.error });
+        return;
+      }
       const preview = await previewGoogleLink(
         identity,
-        currentAccount?.id || linkRequest?.accountId || null,
-        currentAccount
-          ? requestedMergeStrategy
-          : (linkRequest?.mergeStrategy || requestedMergeStrategy)
+        resolution.targetAccountId,
+        resolution.mergeStrategy
       );
       res.json({ preview });
     } catch (err) {
@@ -328,14 +421,18 @@ export const registerAuthRoutes = (
     }
 
     pruneExpiredAuthState(vkAuthStates, vkAuthTickets);
-    const mergeStrategy = parseMergeStrategy(req.query.mergeStrategy);
-    const currentToken = getBearerToken(req);
-    const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+    const requestedMergeStrategy = parseMergeStrategy(req.query.mergeStrategy);
+    const rawLinkCode = typeof req.query.linkCode === 'string' ? req.query.linkCode.trim() : '';
+    const resolution = await resolveLinkCodeForSignIn(rawLinkCode, requestedMergeStrategy);
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
     const state = randomUUID();
     vkAuthStates.set(state, {
       state,
-      accountId: currentAccount?.id || null,
-      mergeStrategy,
+      accountId: resolution.targetAccountId,
+      mergeStrategy: resolution.mergeStrategy,
       createdAt: Date.now(),
       expiresAt: Date.now() + options.oauthTtlMs
     });
@@ -483,7 +580,15 @@ export const registerAuthRoutes = (
     }
   });
 
-  if (options.enableTestAuthFixtures) {
+  if (options.enableTestAuthFixtures && options.nodeEnv === 'production') {
+    // Defence-in-depth: the boot assertion in index.ts already refuses
+    // to start with this combination, but if a caller wires
+    // registerAuthRoutes directly (e.g., a future test harness, an
+    // embedding host) we still refuse to register the fixture surfaces
+    // and log loudly. We do NOT throw - the rest of the app must keep
+    // serving traffic.
+    console.error('test fixtures attempted to wire in production - refusing');
+  } else if (options.enableTestAuthFixtures) {
     app.post('/test/auth/seed-conflict', async (req, res) => {
       const mergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
       const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -601,6 +706,41 @@ export const registerAuthRoutes = (
         },
         auditTrail: await getAccountAuditTrail(currentAccount!.id)
       });
+    });
+
+    app.post('/test/auth/issue-session', async (req, res) => {
+      const accountId =
+        typeof req.body?.accountId === 'string' ? req.body.accountId : '';
+      if (!accountId) {
+        res.status(400).json({ error: 'accountId is required' });
+        return;
+      }
+      const token = await createSessionForAccount(accountId);
+      res.json({ token });
+    });
+
+    app.post('/test/auth/expire-session', async (req, res) => {
+      const token = typeof req.body?.token === 'string' ? req.body.token : '';
+      if (!token) {
+        res.status(400).json({ error: 'token is required' });
+        return;
+      }
+      const expired = await __forceSessionExpiryForTesting(token);
+      res.json({ expired });
+    });
+
+    app.post('/test/auth/inspect-session', async (req, res) => {
+      const token = typeof req.body?.token === 'string' ? req.body.token : '';
+      if (!token) {
+        res.status(400).json({ error: 'token is required' });
+        return;
+      }
+      const info = await __inspectSessionForTesting(token);
+      if (!info) {
+        res.json({ exists: false, expiresAt: null, accountId: null });
+        return;
+      }
+      res.json({ exists: true, expiresAt: info.expiresAt, accountId: info.accountId });
     });
   }
 };

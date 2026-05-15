@@ -4,6 +4,7 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, useShell } from '../state/RadioContext';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
+import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
 
 export const Settings = () => {
   const { clearFavorites, clearRecent } = useLibrary();
@@ -193,14 +194,18 @@ export const Settings = () => {
               <div>
                 <strong>API Base:</strong> {apiBase || 'Not set'}
               </div>
-              <div>
-                <strong>TG Platform:</strong>{' '}
-                {window.Telegram?.WebApp?.platform || 'Unknown'}
-              </div>
-              <div>
-                <strong>TG Version:</strong>{' '}
-                {window.Telegram?.WebApp?.version || 'Unknown'}
-              </div>
+              {isInsideTelegramClient() ? (
+                <>
+                  <div>
+                    <strong>TG Platform:</strong>{' '}
+                    {getTelegramWebApp()?.platform || 'unknown'}
+                  </div>
+                  <div>
+                    <strong>TG Version:</strong>{' '}
+                    {getTelegramWebApp()?.version || 'unknown'}
+                  </div>
+                </>
+              ) : null}
               <div>
                 <strong>Build:</strong> v{APP_VERSION}
               </div>

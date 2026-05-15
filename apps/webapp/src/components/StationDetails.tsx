@@ -13,6 +13,7 @@ import {
 } from '../lib/productAnalytics';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { openLinkOrFallback } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
@@ -137,22 +138,12 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
 
   const openHomepage = () => {
     if (!homepage) return;
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(homepage);
-      return;
-    }
-    window.open(homepage, '_blank', 'noopener,noreferrer');
+    openLinkOrFallback(homepage);
   };
 
   const openLink = (event: MouseEvent<HTMLAnchorElement>, url: string) => {
     event.preventDefault();
-    const tg = window.Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url);
-      return;
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openLinkOrFallback(url);
   };
 
   return (
