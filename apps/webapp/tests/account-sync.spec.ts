@@ -28,8 +28,8 @@ test('favorites sync to another logged-in device right after like', async ({ pag
   );
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();
-  await expect(page.locator('.search-hero-card')).toBeVisible();
-  await page.locator('#search-hero-input').first().fill(stationName);
+  await expect(page.locator('.search-command-card')).toBeVisible();
+  await page.locator('.search-bar input').first().fill(stationName);
   const stationRow = page.locator('.station-row').filter({ hasText: stationName }).first();
   await expect(stationRow).toBeVisible();
   await stationRow.getByRole('button', { name: 'В лайки' }).click();
@@ -83,8 +83,8 @@ test('logged-in playback bursts coalesce cloud library sync writes', async ({ pa
   await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();
-  await expect(page.locator('.search-hero-card')).toBeVisible();
-  await page.locator('#search-hero-input').first().fill('o');
+  await expect(page.locator('.search-command-card')).toBeVisible();
+  await page.locator('.search-bar input').first().fill('o');
 
   const playStation = async (name: string) => {
     const stationRow = page.locator('.station-row').filter({ hasText: name }).first();
@@ -132,9 +132,9 @@ test('logged-in navigation and visibility recovery stay responsive', async ({ pa
   await expect(page.locator('.screen-library-v2')).toBeVisible();
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();
-  await expect(page.locator('.search-hero-card')).toBeVisible();
+  await expect(page.locator('.search-command-card')).toBeVisible();
 
-  await page.locator('#search-hero-input').first().fill('Tokyo');
+  await page.locator('.search-bar input').first().fill('Tokyo');
   const stationRow = page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first();
   await expect(stationRow).toBeVisible();
   await stationRow.locator('.play-btn').click();

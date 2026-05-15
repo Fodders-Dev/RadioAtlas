@@ -1,12 +1,6 @@
 import type express from 'express';
 import type { MediaRouteOptions, MetadataLookupResult } from './types.js';
-import {
-  fetchWithDeadline,
-  parseAndValidateHttpUrl,
-  readJsonWithLimit,
-  readTextWithLimit,
-  sendJsonError
-} from './shared.js';
+import { fetchWithDeadline, readJsonWithLimit, readTextWithLimit, sendJsonError } from './shared.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
 
 const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult }>();
@@ -97,7 +91,8 @@ const fetchMetadataPayload = async (
         headers: {
           'User-Agent': options.userAgent,
           Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
-        }
+        },
+        redirect: 'follow'
       },
       metadataProbeTimeoutMs(options)
     );
@@ -221,7 +216,8 @@ const fetchStreamMetadata = async (
         headers: {
           'Icy-MetaData': '1',
           'User-Agent': options.userAgent
-        }
+        },
+        redirect: 'follow'
       },
       metadataStreamTimeoutMs(options)
     );
@@ -565,12 +561,6 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
     const url = req.query.url;
     if (!url || typeof url !== 'string') {
       sendJsonError(res, 400, 'url is required');
-      return;
-    }
-
-    const validated = await parseAndValidateHttpUrl(url);
-    if ('error' in validated) {
-      sendJsonError(res, validated.status, validated.error);
       return;
     }
 

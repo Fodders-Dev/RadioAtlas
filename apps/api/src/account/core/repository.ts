@@ -24,7 +24,6 @@ const {
   AUDIT_LIMIT_DEFAULT,
   BILLING_PRODUCTS,
   EMPTY_LIBRARY_COUNTS,
-  SESSION_TTL_MS,
   SUPPORTER_ENTITLEMENTS,
   buildAccountSkeleton,
   deriveAccountIdentity,
@@ -196,10 +195,8 @@ export const getDb = async () => {
       try {
         db.exec(`ALTER TABLE accounts ADD COLUMN billing_provider TEXT;`);
       } catch {}
-      ensureSessionExpiresAtColumn(db);
       await migrateLegacyJsonIfNeeded(db);
       pruneExpiredLinkRequests(db);
-      pruneExpiredSessions(db);
       return db;
     })();
   }
@@ -730,28 +727,4 @@ export const migrateLegacyJsonIfNeeded = async (db: DatabaseLike) => {
 
 export const pruneExpiredLinkRequests = (db: DatabaseLike) => {
   db.prepare('DELETE FROM link_requests WHERE expires_at <= ?').run(Date.now());
-};
-
-// T3.4 will fold this into the numbered migration list. Until then it is
-// intentionally NOT inside the silent try/catch ALTER chain above: a real
-// failure here aborts boot loudly. The column is added with DEFAULT 0 so
-// existing rows survive the ALTER, then back-filled to a fresh window so
-// the new sliding-renewal logic does not immediately invalidate live
-// sessions on the upgrade boot.
-export const ensureSessionExpiresAtColumn = (db: DatabaseLike) => {
-  const columns = db.prepare('PRAGMA table_info(sessions)').all() as Array<
-    Record<string, unknown>
-  >;
-  const hasColumn = columns.some((column) => safeText(column.name) === 'expires_at');
-  if (!hasColumn) {
-    db.exec(`ALTER TABLE sessions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0`);
-  }
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)`);
-  db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at = 0').run(
-    Date.now() + SESSION_TTL_MS
-  );
-};
-
-export const pruneExpiredSessions = (db: DatabaseLike) => {
-  db.prepare('DELETE FROM sessions WHERE expires_at > 0 AND expires_at <= ?').run(Date.now());
 };

@@ -7,7 +7,6 @@ import {
   type TelegramWidgetAuthData
 } from '../state/SessionContext';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
-import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
 import { SettingsSheet } from './SettingsSheet';
 
 declare global {
@@ -215,14 +214,9 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
         client_id: googleClientId,
         callback: ({ credential }) => {
           void (async () => {
-            // T0.5: provider link to an existing account now requires an
-            // explicit linkCode minted by the account holder. Authenticated
-            // users have a profile here; guests do not - and they only need
-            // login / signup, not link.
-            const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
-            const preview = await previewGoogleCredentialLink(credential, linkCode, mergeStrategy);
+            const preview = await previewGoogleCredentialLink(credential, undefined, mergeStrategy);
             if (preview && !preview.requiresConfirmation) {
-              await signInWithGoogleCredential(credential, linkCode, mergeStrategy);
+              await signInWithGoogleCredential(credential, undefined, mergeStrategy);
             }
           })();
         }
@@ -239,16 +233,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     return () => {
       mounted = false;
     };
-  }, [
-    canRenderGoogleButton,
-    createLinkCode,
-    googleClientId,
-    mergeStrategy,
-    open,
-    previewGoogleCredentialLink,
-    profile,
-    signInWithGoogleCredential
-  ]);
+  }, [canRenderGoogleButton, googleClientId, mergeStrategy, open, previewGoogleCredentialLink, profile?.linkedProviders, signInWithGoogleCredential]);
 
   useEffect(() => {
     if (!open || !canRenderTelegramWidget || !telegramWidgetRef.current) return;
@@ -268,10 +253,9 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
         setLinkBusy(true);
         setTelegramHint(null);
         try {
-          const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
-          const preview = await previewTelegramWidgetLink(authData, linkCode, mergeStrategy);
+          const preview = await previewTelegramWidgetLink(authData, undefined, mergeStrategy);
           if (preview && !preview.requiresConfirmation) {
-            await signInWithTelegramWidget(authData, linkCode, mergeStrategy);
+            await signInWithTelegramWidget(authData, undefined, mergeStrategy);
           }
         } finally {
           if (mounted) {
@@ -304,12 +288,10 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     };
   }, [
     canRenderTelegramWidget,
-    createLinkCode,
     locale,
     mergeStrategy,
     open,
     previewTelegramWidgetLink,
-    profile,
     signInWithTelegramWidget,
     t,
     telegramBot
@@ -320,16 +302,9 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     setTelegramHint(null);
     try {
       if (isTelegramMiniApp) {
-        // T0.5: linking inside the Mini App now requires an explicit
-        // linkCode minted by the account holder. Guests fall through with
-        // no linkCode (login / create-new), authenticated users mint one
-        // so the Telegram identity gets attached to their existing
-        // account instead of spinning up a fresh one.
-        const linkCode =
-          profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
-        const preview = await previewTelegramLink(linkCode, mergeStrategy);
+        const preview = await previewTelegramLink(undefined, mergeStrategy);
         if (!preview || !preview.requiresConfirmation) {
-          await signInWithTelegram(linkCode, mergeStrategy);
+          await signInWithTelegram(undefined, mergeStrategy);
         }
         return;
       }
@@ -357,8 +332,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const handleVkLink = async () => {
     setLinkBusy(true);
     try {
-      const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
-      await beginVkAuth(linkCode, mergeStrategy);
+      await beginVkAuth(mergeStrategy);
     } finally {
       setLinkBusy(false);
     }
@@ -383,13 +357,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
       setBillingBusyId(null);
       return;
     }
-    // Strict client-only gate: the official SDK exposes openInvoice on
-    // standalone web too (post-T1.1) but the call silently no-ops there
-    // and never invokes our callback - the user would be stuck. Only
-    // route through the SDK when we are genuinely inside the Telegram
-    // client; the existing browser fallback below still serves
-    // standalone users.
-    const telegram = isInsideTelegramClient() ? getTelegramWebApp() : null;
+    const telegram = window.Telegram?.WebApp;
     if (telegram?.openInvoice) {
       setBillingHint(t('account.billingReturnHint'));
       telegram.openInvoice(invoice.invoiceLink, (status: 'paid' | 'cancelled' | 'failed' | 'pending') => {

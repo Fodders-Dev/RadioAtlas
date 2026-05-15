@@ -1,12 +1,17 @@
 import type express from 'express';
 import type { MediaRouteOptions } from './types.js';
-import { parseAndValidateHttpUrl, sendJsonError } from './shared.js';
+import { isBlockedHost, sendJsonError } from './shared.js';
 
 export const createExtractorHandler = (options: MediaRouteOptions) =>
   async (req: express.Request, res: express.Response) => {
-    const validated = await parseAndValidateHttpUrl(req.query.url);
-    if ('error' in validated) {
-      sendJsonError(res, validated.status, validated.error);
+    const url = req.query.url;
+    if (!url || typeof url !== 'string') {
+      sendJsonError(res, 400, 'url is required');
+      return;
+    }
+
+    if (isBlockedHost(url, options.blockedHosts)) {
+      sendJsonError(res, 403, 'blocked host');
       return;
     }
 
@@ -17,12 +22,9 @@ export const createExtractorHandler = (options: MediaRouteOptions) =>
 
     try {
       const base = options.extractorUrl.replace(/\/+$/, '');
-      const upstream = await fetch(
-        `${base}/extract?url=${encodeURIComponent(validated.target.toString())}`,
-        {
-          headers: { 'User-Agent': options.userAgent }
-        }
-      );
+      const upstream = await fetch(`${base}/extract?url=${encodeURIComponent(url)}`, {
+        headers: { 'User-Agent': options.userAgent }
+      });
       const body = await upstream.text();
       const type = upstream.headers.get('content-type');
       if (type) res.setHeader('content-type', type);

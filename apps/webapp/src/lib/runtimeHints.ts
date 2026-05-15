@@ -1,5 +1,4 @@
 import { getDeviceProfile } from './deviceProfile';
-import { isInsideTelegramClient } from './telegram';
 
 const readUrlParamSource = (value: string) => {
   const normalized = value.trim().replace(/^#/, '');
@@ -42,15 +41,10 @@ const readTelegramSearchParams = () => {
 
 export const isTelegramMiniAppRuntime = () => {
   if (typeof window === 'undefined') return false;
-  // Post-T1.1 the SDK populates window.Telegram.WebApp on standalone web
-  // too, so a presence check alone returns true everywhere and breaks
-  // downstream decisions (shouldForceProxyStreaming, the Winamp Lite
-  // fullscreen rule). Use the strict client signal (initData) and keep
-  // the query-param OR-branch so deep links opened in a fresh tab still
-  // identify as Telegram-runtime when they carry tgWebApp* params.
+  const webApp = window.Telegram?.WebApp;
   const search = readTelegramSearchParams();
   return (
-    isInsideTelegramClient() ||
+    Boolean(webApp) ||
     Boolean(search.platform) ||
     Boolean(search.version) ||
     Boolean(search.initData) ||

@@ -14,16 +14,14 @@ export const registerCatalogRoutes = (
 ) => {
   const catalog = createCatalogService(dependencies);
 
-  // The bare GET /catalog route used to JSON.stringify the full ~32 MB
-  // catalog onto the response in one shot, blocking the event loop and
-  // serving as a free DoS amplifier. No webapp / bot / script path ever
-  // called it - the audit and code-review (T0.6) confirmed it was dead
-  // but dangerous. Removed deliberately. Use the paginated
-  // /catalog/summary, /catalog/search, /catalog/areas, /catalog/points,
-  // /catalog/areas/:id/stations and /catalog/stations/:id surfaces
-  // instead. The catalog.getCatalog method on the service object stays
-  // intact because every other route still composes its response on top
-  // of it internally.
+  app.get('/catalog', async (req, res) => {
+    try {
+      const mode = req.query.mode === 'fast' ? 'fast' : 'full';
+      res.json(await catalog.getCatalog(mode));
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : 'Failed' });
+    }
+  });
 
   app.get('/catalog/summary', async (req, res) => {
     try {

@@ -11,17 +11,6 @@
          the long immutable cache via vite's content hashing. -->
     <meta http-equiv="Cache-Control" content="no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
-    <!-- Telegram WebApp SDK. Loaded synchronously at the top of <head>
-         so `window.Telegram.WebApp` is populated BEFORE the Vite module
-         script below and therefore BEFORE any React useEffect runs.
-         `defer` would push execution past DOMContentLoaded and race the
-         mount-effect that calls tg.ready() / tg.expand(); `async` is
-         unordered. The script is ~5 KB gzipped and the CDN is on the
-         critical path inside Telegram anyway. If the load fails (CSP,
-         offline, telegram.org down) `window.Telegram` stays undefined
-         and every call site falls back gracefully through
-         getTelegramWebApp() in src/lib/telegram.ts. -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>RadioAtlas</title>
   </head>

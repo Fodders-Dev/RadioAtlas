@@ -14,13 +14,6 @@ if (!token) {
   throw new Error('BOT_TOKEN is missing');
 }
 
-const internalWebhookToken = process.env.INTERNAL_WEBHOOK_TOKEN || '';
-if (!internalWebhookToken) {
-  console.warn(
-    'INTERNAL_WEBHOOK_TOKEN is missing - billing webhook forwards will be skipped'
-  );
-}
-
 const { apiUrl, webAppUrl, withSharedApi, withMiniAppParam } = createBotUrlRuntime({
   apiUrl: process.env.API_URL,
   webAppUrl: process.env.WEBAPP_URL,
@@ -118,38 +111,22 @@ bot.on('pre_checkout_query', async (ctx) => {
 });
 
 bot.on('message:successful_payment', async (ctx) => {
-  // Telegram delivers successful_payment over the long-poll connection that
-  // is itself authenticated by BOT_TOKEN, so the source is trusted by the
-  // transport. The bot does NOT expose any HTTP endpoint that could be
-  // tricked into emitting a forward, and the API webhook gates the inbound
-  // call with the X-Internal-Token shared secret.
   const payment = ctx.message.successful_payment;
   const purchaseId = payment.invoice_payload?.trim();
   if (!purchaseId || !apiUrl) {
     return;
   }
-  if (!internalWebhookToken) {
-    console.error(
-      'Skipping billing webhook forward - INTERNAL_WEBHOOK_TOKEN is missing'
-    );
-    return;
-  }
   try {
-    const response = await fetch(`${apiUrl}/billing/telegram/webhook`, {
+    await fetch(`${apiUrl}/billing/telegram/webhook`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Token': internalWebhookToken
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         purchaseId,
         telegramChargeId: payment.telegram_payment_charge_id
       })
     });
-    if (!response.ok) {
-      console.error(`Billing webhook forward returned ${response.status}`);
-      return;
-    }
     if (webAppUrl) {
       await ctx.reply('Покупка подтверждена. Открой RadioAtlas, Premium уже должен примениться.', {
         reply_markup: miniAppKeyboard('Открыть RadioAtlas', 'premium-success')

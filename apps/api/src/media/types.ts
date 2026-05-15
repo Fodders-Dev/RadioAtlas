@@ -1,6 +1,7 @@
 export type MediaRouteOptions = {
   userAgent: string;
   extractorUrl: string;
+  blockedHosts: string[];
   metadataCacheTtlMs: number;
   metadataNegativeCacheTtlMs?: number;
   metadataProbeTimeoutMs?: number;

@@ -27,8 +27,6 @@ export type {
 } from './account/core/types.js';
 export { recordAccountEvent, getAccountAuditTrail } from './account/core/auditService.js';
 export {
-  __forceSessionExpiryForTesting,
-  __inspectSessionForTesting,
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
@@ -36,12 +34,9 @@ export {
   linkGoogleIdentity,
   linkTelegramIdentity,
   linkVkIdentity,
-  peekLinkRequest,
   previewGoogleLink,
   previewTelegramLink,
   previewVkLink,
-  revokeOtherSessions,
-  revokeSession,
   unlinkProvider
 } from './account/core/authService.js';
 export {

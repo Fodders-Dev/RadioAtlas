@@ -115,23 +115,6 @@ test('home shell visual baseline', async ({ page }) => {
   });
 });
 
-test('home renders without window.Telegram (standalone web fallback)', async ({ page }) => {
-  // T1.1 added a synchronous SDK script tag to index.html. installMediaMocks
-  // returns an empty body for that URL, so window.Telegram stays undefined -
-  // exactly the shape a browser hitting https://radioatlas.duckdns.org/
-  // outside the Telegram client would see. Lock in that Home still renders
-  // and that the SDK absence really did happen.
-  await openHome(page);
-  const tgPresence = await page.evaluate(() => ({
-    telegram: typeof window.Telegram,
-    webApp: typeof window.Telegram?.WebApp
-  }));
-  expect(tgPresence.telegram).toBe('undefined');
-  expect(tgPresence.webApp).toBe('undefined');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
-  await expect(page.locator('.player-dock').first()).toBeVisible();
-});
-
 test('home shell mobile visual baseline', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openHome(page);

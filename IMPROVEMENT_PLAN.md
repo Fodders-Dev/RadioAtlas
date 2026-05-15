@@ -18,7 +18,7 @@ target stays green.
 
 ## Tier 0 — Security & data-integrity (do this week)
 
-### ~~T0.1 SSRF deny-list across all media proxies~~ (DONE in 86368fb; followup 891da98 blocks redirect-based bypass)
+### T0.1 SSRF deny-list across all media proxies
 - **What**: in `apps/api/src/media/shared.ts`, extend `parseHttpUrl` to resolve
   the hostname and reject reserved/private CIDRs before fetching (RFC1918,
   loopback, link-local 169.254/16 incl. AWS metadata, ULA `fc00::/7`,
@@ -37,23 +37,7 @@ target stays green.
   IP allowed, (5) DNS rebind blocked (resolve twice differs). Existing tests
   green.
 
-### T0.1b Pin DNS resolution to a single IP for the duration of a media fetch
-- **What**: today the SSRF guard does a "two resolves" check — once at the
-  handler boundary and once inside the fetch helpers, plus a guarded
-  manual-redirect chain. There is still a residual race window between our
-  second resolve and undici's own connect-time resolve. Resolve the hostname
-  once, validate the addresses, then pass an undici `Agent` with a custom
-  `connect.lookup` that always returns the validated IP. Set `servername`
-  correctly so TLS SNI keeps working and the upstream still sees the original
-  hostname in the `Host` header.
-- **Why**: defeats a sophisticated rebind that flips DNS in the microsecond
-  window between our final check and undici's TCP connect.
-- **Files**: `apps/api/src/media/shared.ts`, new test that swaps
-  `dns.lookup` between the guard and connect and asserts a private IP cannot
-  be smuggled through the helper.
-- **Done-when**: the new test passes; existing media tests stay green.
-
-### ~~T0.2 Authenticate Telegram billing webhook end-to-end~~ (DONE in 4b1e5b7)
+### T0.2 Authenticate Telegram billing webhook end-to-end
 - **What**: stop accepting unauthenticated `POST /billing/telegram/webhook`.
   Two-step: (a) verify a shared `X-Internal-Token` header against
   `process.env.INTERNAL_WEBHOOK_TOKEN` injected at boot; (b) have the bot
@@ -68,28 +52,7 @@ target stays green.
 - **Done-when**: webhook without header → 401; with wrong header → 401; with
   correct header + valid Telegram payload → flips status. Bot e2e doc updated.
 
-### T0.2b Bot UX when billing webhook forward fails
-- **What**: today if `INTERNAL_WEBHOOK_TOKEN` is missing or the API returns
-  non-2xx, the bot returns silently. The user paid Telegram but sees no
-  acknowledgement. Reply with a clear apology message ("Оплата получена,
-  активация займёт до N минут. Если Premium не появился — свяжитесь с
-  поддержкой …") and emit a structured log line so operators can chase it.
-- **Files**: `apps/bot/src/index.ts`, bot test.
-- **Done-when**: bot test covers the forward-fail path replying to the user.
-
-### T0.2c Reconcile pending billing purchases with Telegram
-- **What**: Telegram delivers `successful_payment` once over long-poll;
-  if our forward fails the update is dropped forever and the purchase stays
-  `pending` while the user's money is gone. Add a periodic sweep (every
-  10 min) that lists pending purchases older than 5 min, calls the Telegram
-  payments API to verify the charge, and re-runs the webhook path.
-  Queue-based forwarding (bot writes a local SQLite retry queue, separate
-  worker drains with backoff) is the proper long-term design.
-- **Files**: `apps/api/src/billingReconciliation.ts` (new), wire into
-  `apps/api/src/index.ts` boot, contract test.
-- **Done-when**: simulated webhook-drop reconciles within one sweep cycle.
-
-### ~~T0.3 Session expiry + revocation~~ (DONE in 14685f8)
+### T0.3 Session expiry + revocation
 - **What**: add `expires_at` (default 30d sliding) to the `sessions` table,
   prune on read, and add `DELETE /me/session` (revoke current) and
   `DELETE /me/sessions` (revoke all). Migration via the new numbered
@@ -102,7 +65,7 @@ target stays green.
 - **Done-when**: contract test asserts an expired token returns 401; logout
   route invalidates immediately; sliding-renewal happens on `getAccountByToken`.
 
-### ~~T0.4 Lock down CORS~~ (DONE in 2c0d35c)
+### T0.4 Lock down CORS
 - **What**: replace `Origin`-reflecting CORS in `apps/api/src/index.ts:107-122`
   with an allow-list driven by env (`ALLOWED_ORIGINS`, comma-separated). Reject
   unknown origins; only set `Access-Control-Allow-Credentials: true` for
@@ -114,7 +77,7 @@ target stays green.
   documented as `https://radioatlas.duckdns.org`, `https://web.telegram.org`,
   `https://k.telegram.org`, `https://a.telegram.org`, `https://z.telegram.org`.
 
-### ~~T0.5 Tighten provider-link auth flow~~ (DONE in 679dfaa)
+### T0.5 Tighten provider-link auth flow
 - **What**: in `authRoutes.ts:91-133` (and Google/VK siblings), stop silently
   linking a new provider identity to whichever account is in the `Authorization`
   header. Require either `linkCode` (existing flow) or a fresh
@@ -126,7 +89,7 @@ target stays green.
 - **Done-when**: new identity always requires `linkCode` (one-time, ≤5min);
   contract test covers the bad path.
 
-### ~~T0.6 Delete or paginate `/catalog` (the 32 MB JSON route)~~ (DONE in 9565c57; route deleted, no caller anywhere in the repo)
+### T0.6 Delete or paginate `/catalog` (the 32 MB JSON route)
 - **What**: confirm no webapp path calls bare `/catalog` (grep `apiBase` calls).
   Remove the route from `apps/api/src/catalogRoutes.ts`, or replace with a
   paginated `?cursor=&limit=` endpoint that streams via
@@ -138,7 +101,7 @@ target stays green.
 - **Done-when**: `GET /catalog` either 404s or paginates ≤2 MB per page; load
   test 10 concurrent calls keep `/health` p95 under 100 ms.
 
-### ~~T0.7 Production guard against test-fixture routes~~ (DONE in a4fb9f9; defence-in-depth + docs landed in the followup commit on top)
+### T0.7 Production guard against test-fixture routes
 - **What**: gate `ENABLE_TEST_AUTH_FIXTURES` on `process.env.NODE_ENV !==
   'production'`. Boot-time assertion that throws if both flags are true.
 - **Why**: a misconfigured deploy currently lets anyone seed an authenticated
@@ -152,7 +115,7 @@ target stays green.
 
 ## Tier 1 — UX blockers on Telegram
 
-### ~~T1.1 Load the Telegram WebApp script and gate every integration on it~~ (DONE in f346339)
+### T1.1 Load the Telegram WebApp script and gate every integration on it
 - **What**: add `<script src="https://telegram.org/js/telegram-web-app.js"></script>`
   to `apps/webapp/index.html` (no `defer` — Telegram inject happens early).
   Audit all `window.Telegram?.WebApp` call sites for graceful fallback. Centralise
@@ -445,15 +408,6 @@ target stays green.
 - **What**: visual baselines under `apps/webapp/tests/visual.spec.ts-snapshots/`
   are dated 2025-05-01; refresh after T1.4–T1.8 land. Add a Telegram WebApp
   shim (`window.Telegram.WebApp` mock) to e2e so we can test T1.2/T1.3 paths.
-- **T1.1 carry-over**: three baselines (`home shell mobile`, `search screen`,
-  `full player overlay`) drifted by 3691 px each (~0.36% / ratio 0.01) after
-  T1.1 — likely font-rendering / Windows CI runner changes accumulated since
-  2026-04, unrelated to the Telegram SDK script load itself. The desktop
-  `home shell visual baseline` also occasionally trips in full-suite runs
-  (same drift family, same fix). Regenerate all four via
-  `npm --workspace apps/webapp run test:e2e -- --update-snapshots` after
-  T1.4–T1.8 land, per the original brief above. Until then, full-suite e2e
-  on master will surface those three+ as known-deferred.
 
 ---
 
@@ -479,7 +433,7 @@ These are intentionally below the line. Implement after Tier 0-3 plus T4.1 land.
 
 ## Execution order summary
 
-1. **Tier 0 (T0.1–T0.7) — COMPLETE**, see commits 86368fb … a4fb9f9. Backlog items T0.1b / T0.2b / T0.2c carry over to the next phase.
+1. **T0.1 → T0.7** (security gate; nothing else ships until done)
 2. **T1.1, T1.2** (Telegram script + closing/haptics) — biggest user-visible win
 3. **T1.4, T1.6, T1.7, T1.8** (a11y + dialogs + boundary)
 4. **T1.3, T1.5** (themeParams, Enter-to-search)
@@ -489,14 +443,6 @@ These are intentionally below the line. Implement after Tier 0-3 plus T4.1 land.
 8. **T3.1 → T3.10** (architecture; pick by current pain)
 9. **T4.1 → T4.7** (ops/infra)
 10. **T5.\*** (product) after a stability window.
-
-## Tier 0 shipment checklist
-
-Before the Tier 0 commits land on master:
-- [x] webapp e2e green in a clean checkout (`npm i` then `npm --workspace apps/webapp run test:e2e`), covering T0.5 webapp changes — done as the gate on T1.1 (f346339). 99/103 pass; 3 visual baselines explicitly deferred to T4.7, see its body.
-- [ ] rebase clean onto current `origin/master`
-- [ ] run full verification gate on the rebased tip
-- [ ] open PR with title "Tier 0 security + T1.1: SSRF guard, billing webhook auth, session expiry, locked CORS, provider-link auth, catalog DoS removal, test-fixture guard, Telegram WebApp SDK load"
 
 ## Verification gate at every commit
 
