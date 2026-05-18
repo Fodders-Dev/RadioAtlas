@@ -158,6 +158,8 @@ export type AccountAuditEventType =
   | 'provider_unlinked'
   | 'account_merged'
   | 'session_created'
+  | 'session_revoked'
+  | 'sessions_revoked_other'
   | 'sign_in'
   | 'library_synced'
   | 'link_request_created'

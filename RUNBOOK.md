@@ -11,6 +11,31 @@ npm run dev:bot
 - `BOT_TOKEN`: Telegram bot token
 - `WEBAPP_URL`: public webapp URL
 - `WEBAPP_DEEPLINK`: optional deep link
+- `INTERNAL_WEBHOOK_TOKEN`: shared secret used as the `X-Internal-Token` header on the bot → API billing webhook forward. Must match the API's `INTERNAL_WEBHOOK_TOKEN` exactly. Generate with `openssl rand -hex 32`. If unset, the bot logs a warning at startup and skips billing webhook forwards instead of pretending the payment was confirmed.
+
+## API env
+- `INTERNAL_WEBHOOK_TOKEN`: shared secret required on `POST /billing/telegram/webhook`. Requests without `X-Internal-Token` or with a mismatched value get 401. If the env is empty the route rejects every call (fail-closed). Must match the bot's `INTERNAL_WEBHOOK_TOKEN` exactly.
+- `ALLOWED_ORIGINS`: comma-separated allow-list of origins permitted to read the API cross-origin (exact match, case-insensitive on scheme+host). Required in production - the API process exits non-zero on boot if `NODE_ENV=production` and this is empty. In dev (any other `NODE_ENV`) it falls back to `http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174`. The production value at the time of writing is:
+  ```
+  ALLOWED_ORIGINS=https://radioatlas.duckdns.org,https://web.telegram.org,https://k.telegram.org,https://a.telegram.org,https://z.telegram.org
+  ```
+  Requests with no `Origin` header (curl, server-to-server, liveness probes) pass through with no CORS headers attached. Browsers receiving a response without `Access-Control-Allow-Origin` for a non-allow-listed origin will refuse the response automatically; the API does **not** 403 on a mismatched origin so that legitimate same-origin POSTs that happen to include an `Origin` header are not broken.
+- `NODE_ENV`: set to `production` on every production deploy. Drives the `ALLOWED_ORIGINS` requirement above (and future production-only guards).
+
+### Test fixtures
+`ENABLE_TEST_AUTH_FIXTURES=1` exists only for dev / CI / contract tests. It MUST NOT be set in production:
+- The API process **refuses to boot** when `NODE_ENV=production` and `ENABLE_TEST_AUTH_FIXTURES=1` (boot assertion in `apps/api/src/index.ts`, fail-closed with exit 1 + fatal stderr).
+- As defence-in-depth, `registerAuthRoutes` and `registerBillingRoutes` **also refuse to register the `/test/*` surfaces** if a caller bypasses the boot assertion and wires them with `nodeEnv: 'production'`. They log a fatal "test fixtures attempted to wire in production - refusing" line and skip the block; the rest of the API keeps serving traffic.
+- When `NODE_ENV=production` and `ENABLE_TEST_AUTH_FIXTURES` is unset (the correct prod posture) the `/test/*` routes are simply **not registered** - hitting any of them returns 404.
+
+Gated endpoints behind the flag (every one of these mints state on the live store and would let an unauthenticated caller forge sessions / flip billing if exposed):
+- `POST /test/auth/seed-conflict`     — seed a current+incoming account pair and return a session token.
+- `POST /test/auth/issue-session`     — mint a fresh session token for an arbitrary accountId.
+- `POST /test/auth/expire-session`    — force a session row's `expires_at` into the past.
+- `POST /test/auth/inspect-session`   — read `{ exists, expiresAt, accountId }` for a token.
+- `POST /test/billing/seed-purchase`  — create a pending billing purchase row for an accountId (bypasses the Telegram round-trip used by `/billing/telegram/create-invoice`).
+
+Additionally, `apps/api/src/googleAuth.ts` and `apps/api/src/vkAuth.ts` short-circuit their `fixture-google:` / `fixture-vk:` credential decoders on the same env var so the contract test credentials cannot be forged against a production deploy.
 
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links

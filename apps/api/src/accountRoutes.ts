@@ -3,6 +3,8 @@ import {
   createLinkRequest,
   getAccountAuditTrail,
   getAccountByToken,
+  revokeOtherSessions,
+  revokeSession,
   unlinkProvider,
   updateAccountAlerts,
   updateAccountCollections,
@@ -234,6 +236,40 @@ export const registerAccountRoutes = (app: express.Express) => {
     } catch (err) {
       res.status(400).json({ error: err instanceof Error ? err.message : 'provider unlink failed' });
     }
+  });
+
+  app.delete('/me/session', async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) {
+      res.status(401).json({ error: 'authorization required' });
+      return;
+    }
+
+    const account = await getAccountByToken(token);
+    if (!account) {
+      res.status(401).json({ error: 'session is invalid' });
+      return;
+    }
+
+    const revoked = await revokeSession(token);
+    res.json({ ok: true, revoked });
+  });
+
+  app.delete('/me/sessions', async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) {
+      res.status(401).json({ error: 'authorization required' });
+      return;
+    }
+
+    const account = await getAccountByToken(token);
+    if (!account) {
+      res.status(401).json({ error: 'session is invalid' });
+      return;
+    }
+
+    const revokedCount = await revokeOtherSessions(account.id, token);
+    res.json({ ok: true, revokedCount });
   });
 
   app.get('/me/audit', async (req, res) => {

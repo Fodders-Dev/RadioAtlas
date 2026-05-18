@@ -26,6 +26,8 @@ export type {
 } from './accountStoreCore.js';
 export { getAccountAuditTrail, recordAccountEvent } from './account/auditStore.js';
 export {
+  __forceSessionExpiryForTesting,
+  __inspectSessionForTesting,
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
@@ -33,9 +35,12 @@ export {
   linkGoogleIdentity,
   linkTelegramIdentity,
   linkVkIdentity,
+  peekLinkRequest,
   previewGoogleLink,
   previewTelegramLink,
   previewVkLink,
+  revokeOtherSessions,
+  revokeSession,
   unlinkProvider
 } from './account/authStore.js';
 export {
