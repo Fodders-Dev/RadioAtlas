@@ -67,6 +67,21 @@ export const openLinkOrFallback = (
   }
 };
 
+// T1.2: physical-feedback ping for genuine playback transport + like
+// clicks (play/pause, next/prev, favorite). Strict client-only gate -
+// HapticFeedback on standalone web silently no-ops in the SDK but is
+// conceptually a Telegram-runtime surface, and we want intent to be
+// explicit in case a future SDK version changes its mind. Default
+// 'light' per the T1.2 brief; expanded styles available for future
+// callers but not wired anywhere today.
+export type TelegramHapticStyle = 'light' | 'medium' | 'heavy' | 'rigid' | 'soft';
+
+export const triggerHaptic = (style: TelegramHapticStyle = 'light'): void => {
+  if (!isInsideTelegramClient()) return;
+  const tg = readWindowTelegram();
+  tg?.HapticFeedback?.impactOccurred?.(style);
+};
+
 // Telegram-specific share / login link. The chain mirrors the
 // SessionContext call site: openTelegramLink (deep link UX) wins
 // when available; otherwise openLink (generic); otherwise window.open.

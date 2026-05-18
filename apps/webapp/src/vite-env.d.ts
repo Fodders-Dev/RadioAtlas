@@ -10,6 +10,29 @@ declare global {
       WebApp?: {
         ready?: () => void;
         expand?: () => void;
+        // T1.2: disables the Telegram client's vertical-swipe-to-minimise
+        // gesture so it stops competing with our own dock-tray. Once
+        // disabled it persists for the WebApp lifetime; no re-enable
+        // needed. Bot API 7.7+; no-op on standalone web.
+        disableVerticalSwipes?: () => void;
+        // T1.2: closing-confirmation pair. Driven by an effect that
+        // watches the canonical audio-element `isPlaying` state, so
+        // stream stalls / errors / station-change all flip the toggle
+        // automatically without a UI button click being involved.
+        // Both methods no-op on standalone web.
+        enableClosingConfirmation?: () => void;
+        disableClosingConfirmation?: () => void;
+        // T1.2: Telegram-only physical feedback. Only impactOccurred is
+        // wired today (single style argument), the rest of the
+        // HapticFeedback surface is shape-faithful to the SDK so a
+        // future expansion does not need another type bump.
+        HapticFeedback?: {
+          impactOccurred?: (
+            style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'
+          ) => void;
+          notificationOccurred?: (type: 'error' | 'success' | 'warning') => void;
+          selectionChanged?: () => void;
+        };
         openLink?: (
           url: string,
           options?: { try_instant_view?: boolean }

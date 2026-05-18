@@ -452,6 +452,107 @@ export const seedRadioState = async (
   );
 };
 
+// T1.2: spyable Telegram WebApp shim for the inside-client e2e flow.
+// installMediaMocks below already intercepts the SDK URL with an empty
+// body so the real CDN script can't override what we inject here.
+// installTelegramShim sets window.Telegram BEFORE the page loads via
+// addInitScript and exposes a global collector that tests read with
+// page.evaluate() to verify which SDK methods fired (and with what
+// arguments). initData is a non-empty fixture string so
+// isInsideTelegramClient() reads true everywhere it gates strict
+// surfaces (closing confirmation, HapticFeedback, disableVerticalSwipes).
+export const installTelegramShim = async (
+  page: Page,
+  options: {
+    platform?: string;
+    version?: string;
+    initData?: string;
+  } = {}
+) => {
+  const platform = options.platform ?? 'ios';
+  const version = options.version ?? '8.0';
+  const initData = options.initData ?? 'auth_date=1746000000&hash=t12-fixture';
+
+  await page.addInitScript(
+    ({ resolvedPlatform, resolvedVersion, resolvedInitData }) => {
+      type SpyState = {
+        disableVerticalSwipes: number;
+        enableClosingConfirmation: number;
+        disableClosingConfirmation: number;
+        impactOccurred: string[];
+      };
+      const state: SpyState = {
+        disableVerticalSwipes: 0,
+        enableClosingConfirmation: 0,
+        disableClosingConfirmation: 0,
+        impactOccurred: []
+      };
+      Object.defineProperty(window, '__radioatlasTelegramSpyState__', {
+        configurable: true,
+        value: state
+      });
+      Object.defineProperty(window, 'Telegram', {
+        configurable: true,
+        value: {
+          WebApp: {
+            platform: resolvedPlatform,
+            version: resolvedVersion,
+            initData: resolvedInitData,
+            initDataUnsafe: {
+              auth_date: 1746000000,
+              hash: 't12-fixture',
+              user: { id: 1, first_name: 'Fixture' }
+            },
+            ready: () => {},
+            expand: () => {},
+            disableVerticalSwipes: () => {
+              state.disableVerticalSwipes += 1;
+            },
+            enableClosingConfirmation: () => {
+              state.enableClosingConfirmation += 1;
+            },
+            disableClosingConfirmation: () => {
+              state.disableClosingConfirmation += 1;
+            },
+            HapticFeedback: {
+              impactOccurred: (style: string) => {
+                state.impactOccurred.push(style);
+              }
+            }
+          }
+        }
+      });
+    },
+    {
+      resolvedPlatform: platform,
+      resolvedVersion: version,
+      resolvedInitData: initData
+    }
+  );
+};
+
+export type TelegramSpyState = {
+  disableVerticalSwipes: number;
+  enableClosingConfirmation: number;
+  disableClosingConfirmation: number;
+  impactOccurred: string[];
+};
+
+export const readTelegramSpyState = (page: Page): Promise<TelegramSpyState> =>
+  page.evaluate(() => {
+    const value = (
+      window as Window & { __radioatlasTelegramSpyState__?: TelegramSpyState }
+    ).__radioatlasTelegramSpyState__;
+    return (
+      value ?? {
+        disableVerticalSwipes: 0,
+        enableClosingConfirmation: 0,
+        disableClosingConfirmation: 0,
+        impactOccurred: []
+      }
+    );
+  });
+
 export const installMediaMocks = async (page: Page) => {
   // T1.1 added a synchronous <script src="https://telegram.org/js/
   // telegram-web-app.js"> at the top of index.html so the SDK is

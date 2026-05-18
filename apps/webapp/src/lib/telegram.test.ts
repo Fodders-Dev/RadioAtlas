@@ -5,6 +5,7 @@ import {
   isInsideTelegramClient,
   openLinkOrFallback,
   openTelegramLinkOrFallback,
+  triggerHaptic,
   type TelegramWebApp
 } from './telegram';
 
@@ -126,6 +127,44 @@ describe('openTelegramLinkOrFallback', () => {
     });
     openTelegramLinkOrFallback('https://t.me/foo');
     expect(captured).toBe('https://t.me/foo');
+  });
+});
+
+describe('triggerHaptic', () => {
+  it('is silent when window.Telegram is undefined', () => {
+    restoreTelegram();
+    expect(() => triggerHaptic()).not.toThrow();
+  });
+
+  it('does NOT fire impactOccurred when SDK loaded but initData is empty (standalone web)', () => {
+    let impactCalls = 0;
+    installTelegram({
+      platform: 'unknown',
+      initData: '',
+      HapticFeedback: {
+        impactOccurred: () => {
+          impactCalls += 1;
+        }
+      }
+    });
+    triggerHaptic('light');
+    expect(impactCalls).toBe(0);
+  });
+
+  it('calls HapticFeedback.impactOccurred with the requested style when inside Telegram', () => {
+    const styles: string[] = [];
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1746000000&hash=deadbeef',
+      HapticFeedback: {
+        impactOccurred: (style) => {
+          styles.push(style);
+        }
+      }
+    });
+    triggerHaptic();
+    triggerHaptic('medium');
+    expect(styles).toEqual(['light', 'medium']);
   });
 });
 
