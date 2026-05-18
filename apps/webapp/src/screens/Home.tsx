@@ -385,6 +385,60 @@ export const Home = () => {
     summary?.generatedAt || 0,
     homeState.sessionSeed
   );
+  // T1.2-followup (Bug A): every click → play sequence fires TWO
+  // session events (play-started + play-success) plus addRecent,
+  // recordBehaviorForStation, recordTasteForStation, etc. — eight-
+  // ish flips of live "ranking signal" state per single click. With
+  // those references inside the dep array below, the memo re-runs,
+  // buildSurfaceFeed re-runs, rankStationsForUser re-runs with a
+  // fresh Date.now(), every home rail re-orders under the user's
+  // finger right after they pressed play.
+  //
+  // The fix is the same ref-snapshot shape that `rankedCatalogRails`
+  // (below) and Search.tsx's `rankedSearchResults` already use:
+  // capture the live signals in a ref that updates AFTER render but
+  // never participates in dep comparison. The memo only re-runs on
+  // structural inputs (catalog, seed, snapshot, summary) and on
+  // user-explicit library state (favorites, collections, followed*).
+  // Bias still accumulates in the background — the user can hit
+  // "Обновить витрину" to fold it back in, and the refreshHomeSurface
+  // handler below reads the live values directly at click time.
+  //
+  // currentStation and queuePreview also live in the ref for the same
+  // reason: a click → play flips player.current to the just-clicked
+  // station AND mutates the queue (items append, currentIndex
+  // advance), so queuePreview re-derives. Both feed rankStationsForUser
+  // and createDiscoveryFeed via buildSurfaceFeed → if either stays in
+  // the dep array, the home re-bakes mid-play with a NEW currentStation
+  // bias, which re-ranks the catalog → fresh-now picks different
+  // stations → the rail visibly shuffles under the user's finger.
+  const homeRankInputsRef = useRef({
+    behaviorProfile,
+    playabilityProfile,
+    tasteProfile,
+    stationHealthProfile,
+    radioSessionEvents,
+    trackHistory,
+    recent,
+    playbackHistory,
+    currentStation: player.current,
+    queuePreview
+  });
+  useEffect(() => {
+    homeRankInputsRef.current = {
+      behaviorProfile,
+      playabilityProfile,
+      tasteProfile,
+      stationHealthProfile,
+      radioSessionEvents,
+      trackHistory,
+      recent,
+      playbackHistory,
+      currentStation: player.current,
+      queuePreview
+    };
+  });
+
   const surfaceFeedBase = useMemo(() => {
     const snapshotFresh =
       homeState.snapshot &&
@@ -399,48 +453,40 @@ export const Home = () => {
     if (!catalog.length) {
       return null;
     }
+    const live = homeRankInputsRef.current;
     return buildSurfaceFeed({
       catalog,
-      behaviorProfile,
+      behaviorProfile: live.behaviorProfile,
       favorites,
-      recent,
-      queuePreview,
-      currentStation: player.current,
+      recent: live.recent,
+      queuePreview: live.queuePreview,
+      currentStation: live.currentStation,
       followedStations,
       followedRegions,
       collections,
-      playbackHistory,
-      playabilityProfile,
-      tasteProfile,
-      stationHealthProfile,
-      radioSessionEvents,
-      trackHistory,
+      playbackHistory: live.playbackHistory,
+      playabilityProfile: live.playabilityProfile,
+      tasteProfile: live.tasteProfile,
+      stationHealthProfile: live.stationHealthProfile,
+      radioSessionEvents: live.radioSessionEvents,
+      trackHistory: live.trackHistory,
       seed: homeState.sessionSeed,
       metrics,
       builtAt: surfaceBuiltAt
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     catalog,
     collections,
-    behaviorProfile,
     favorites,
     followedStations,
     followedRegions,
     homeState.sessionSeed,
     homeState.snapshot,
     metrics,
-    playbackHistory,
-    playabilityProfile,
-    tasteProfile,
-    stationHealthProfile,
-    radioSessionEvents,
-    player.current,
-    queuePreview,
-    recent,
     summary,
     summaryLoading,
-    surfaceBuiltAt,
-    trackHistory
+    surfaceBuiltAt
   ]);
   const surfaceFeed = surfaceFeedBase;
   const currentStationId = player.current?.stationuuid || null;
@@ -462,88 +508,106 @@ export const Home = () => {
   }, [catalog, debouncedQuery, denseLayout]);
   const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
   const personalRadioQueue = useMemo(
-    () =>
-      buildPersonalRadioQueue({
+    () => {
+      const live = homeRankInputsRef.current;
+      return buildPersonalRadioQueue({
         catalog,
         favorites,
-        recent,
-        queuePreview,
-        playbackHistory,
-        trackHistory,
+        recent: live.recent,
+        queuePreview: live.queuePreview,
+        playbackHistory: live.playbackHistory,
+        trackHistory: live.trackHistory,
         collections,
         followedStations,
         followedRegions,
-        behaviorProfile,
-        playabilityProfile,
-        tasteProfile,
-        healthProfile: stationHealthProfile,
-        sessionEvents: radioSessionEvents,
+        behaviorProfile: live.behaviorProfile,
+        playabilityProfile: live.playabilityProfile,
+        tasteProfile: live.tasteProfile,
+        healthProfile: live.stationHealthProfile,
+        sessionEvents: live.radioSessionEvents,
         context: {
           mode: 'personal',
-          currentStation: player.current,
+          currentStation: live.currentStation,
           seed: homeState.sessionSeed,
           limit: PERSONAL_RADIO_QUEUE_LIMIT
         }
-      }),
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      behaviorProfile,
       catalog,
       collections,
       favorites,
       followedStations,
       followedRegions,
-      homeState.sessionSeed,
-      playbackHistory,
-      playabilityProfile,
-      tasteProfile,
-      stationHealthProfile,
-      radioSessionEvents,
-      player.current,
-      queuePreview,
-      recent,
-      trackHistory
+      homeState.sessionSeed
     ]
   );
-  // Snapshot the per-tick inputs so the home rails don't re-shuffle
-  // every time the user plays/likes a station. Re-ranking still
-  // happens when the catalog or hide-list (tasteProfile) changes,
-  // and the user can force a fresh ordering via the "Обновить
-  // витрину" button. Without this, every playback tick changed
-  // radioSessionEvents → re-ran rankStationsForHome with a fresh
-  // Date.now() → reordered the visible cards mid-scroll. Same root
-  // cause as the Search list jitter, same fix.
-  const homeRankInputsRef = useRef({
-    playabilityProfile,
-    stationHealthProfile,
-    radioSessionEvents
-  });
-  useEffect(() => {
-    homeRankInputsRef.current = {
-      playabilityProfile,
-      stationHealthProfile,
-      radioSessionEvents
-    };
-  });
+  // Note: rankedCatalogRails uses the same homeRankInputsRef snapshot
+  // above. The post-rank `isStationHiddenFromRecommendations` filter
+  // still reads `tasteProfile` from the ref so an explicit hide takes
+  // effect on the next refresh (Обновить витрину button), not mid-
+  // scroll.
   const rankedCatalogRails = useMemo(
-    () =>
-      rankStationsForHome(catalog, homeRankInputsRef.current.playabilityProfile, {
+    () => {
+      const live = homeRankInputsRef.current;
+      return rankStationsForHome(catalog, live.playabilityProfile, {
         limit: Math.min(catalog.length, 36),
-        healthProfile: homeRankInputsRef.current.stationHealthProfile,
-        sessionEvents: homeRankInputsRef.current.radioSessionEvents
-      }).filter((station) => !isStationHiddenFromRecommendations(tasteProfile, station)),
-    [catalog, tasteProfile, homeState.sessionSeed]
+        healthProfile: live.stationHealthProfile,
+        sessionEvents: live.radioSessionEvents
+      }).filter((station) => !isStationHiddenFromRecommendations(live.tasteProfile, station));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [catalog, homeState.sessionSeed]
   );
+  // T1.2-followup (Bug A, second mechanism): visibleRails' post-filter
+  // blocks stations already used by the resume strip and the personal
+  // radio "now-up" so we don't show the same tile twice on the home.
+  // The problem: resumeModule re-derives from `player.current`,
+  // `queuePreview`, `recent`, `playbackHistory` — ALL of which flip
+  // during a click → play burst. Before play the block list was
+  // [tokyo, osaka, kyoto, sapporo] (seeded queue), after play it was
+  // [hamburg, berlin] (just-played + remainder of the now-set queue).
+  // That swap caused fresh-now's visible slice to go from
+  // [hamburg, berlin] to [kyoto, osaka, sapporo, tokyo] — a full
+  // re-shuffle under the user's finger even though the underlying
+  // surface.rails array (frozen via the snapshotFresh path above)
+  // never changed.
+  //
+  // The fix: snapshot the block-set at session-seed boundary. We use
+  // a lazy-init pattern (render-time conditional) so the ref is
+  // available synchronously on the same render visibleRails runs.
+  // It re-snapshots when homeState.sessionSeed advances (i.e., when
+  // the user hits "Обновить витрину" or refreshHomeSurface fires).
+  // The actual resume strip UI still re-renders live; only the
+  // *blocking* set used by visibleRails is frozen — the visible
+  // overlap on a play (current station appearing in both resume and
+  // fresh-now) is acceptable per UX call, the rail re-shuffle is not.
+  const sessionBlockedStationsRef = useRef<{
+    seed: number | null;
+    stations: string[];
+  }>({ seed: null, stations: [] });
+  if (sessionBlockedStationsRef.current.seed !== homeState.sessionSeed) {
+    const blocked: string[] = [];
+    if (personalRadioQueue.stations[0]) {
+      blocked.push(personalRadioQueue.stations[0].stationuuid);
+    }
+    if (resumeModule?.stations.length) {
+      const sliceLength = denseLayout ? 1 : resumeModule.stations.length;
+      resumeModule.stations.slice(0, sliceLength).forEach((station) => {
+        blocked.push(station.stationuuid);
+      });
+    }
+    sessionBlockedStationsRef.current = {
+      seed: homeState.sessionSeed,
+      stations: blocked
+    };
+  }
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
-    const usedStationIds = new Set<string>();
-    personalRadioQueue.stations.slice(0, 1).forEach((station) => {
-      usedStationIds.add(station.stationuuid);
-    });
-    resumeModule?.stations
-      .slice(0, denseLayout ? 1 : resumeModule.stations.length)
-      .forEach((station) => {
-        usedStationIds.add(station.stationuuid);
-      });
+    const usedStationIds = new Set<string>(
+      sessionBlockedStationsRef.current.stations
+    );
     const rails: HomeRailModule[] = [];
     surfaceRails.forEach((rail) => {
       if (rails.length >= limit) return;
@@ -597,7 +661,10 @@ export const Home = () => {
     );
 
     return rails.slice(0, limit);
-  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, resumeModule, surfaceRails]);
+    // sessionBlockedStationsRef is read inside; it re-snapshots only on
+    // homeState.sessionSeed change which is implicit through surfaceRails.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
 
   useEffect(() => {
     const stationIds = mergeStations(
