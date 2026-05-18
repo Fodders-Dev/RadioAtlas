@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -252,7 +253,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <button
             className="full-player-icon-btn"
             type="button"
-            onClick={playPrevious}
+            onClick={() => {
+              triggerHaptic();
+              playPrevious();
+            }}
             disabled={!canResume}
             aria-label={t('common.previous')}
           >
@@ -261,7 +265,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <button
             className={`full-player-primary-btn ${player.isPlaying ? 'active' : ''}`}
             type="button"
-            onClick={handlePrimary}
+            onClick={() => {
+              triggerHaptic();
+              handlePrimary();
+            }}
             disabled={!canResume}
             aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
           >
@@ -272,7 +279,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <button
             className="full-player-icon-btn"
             type="button"
-            onClick={playNext}
+            onClick={() => {
+              triggerHaptic();
+              playNext();
+            }}
             disabled={!canResume}
             aria-label={t('common.next')}
           >
@@ -284,7 +294,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <button
             className={`full-player-action-chip ${liked ? 'active' : ''}`}
             type="button"
-            onClick={() => current && toggleFavorite(current)}
+            onClick={() => {
+              if (current) {
+                triggerHaptic();
+                toggleFavorite(current);
+              }
+            }}
             disabled={!current}
             aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
           >

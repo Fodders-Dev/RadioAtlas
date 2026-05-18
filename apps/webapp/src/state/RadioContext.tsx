@@ -70,7 +70,12 @@ import type {
   TasteSignalAction,
   TasteSessionMode
 } from '../lib/tasteProfile';
-import { getTelegramWebApp, makeDeepLink, openLinkOrFallback } from '../lib/telegram';
+import {
+  getTelegramWebApp,
+  isInsideTelegramClient,
+  makeDeepLink,
+  openLinkOrFallback
+} from '../lib/telegram';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
@@ -777,7 +782,38 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (tg?.isActive) {
       logDebug(`WebApp active state: ${tg.isActive}`);
     }
+    // T1.2: disableVerticalSwipes kills the system "swipe down to
+    // minimise" gesture that competes with our own dock-tray. Strict
+    // client gate so future SDK behaviour drift on standalone web
+    // cannot accidentally call it there - intent stays explicit.
+    // Mount-only; the SDK persists the disabled state for the WebApp
+    // lifetime, no re-enable needed.
+    if (isInsideTelegramClient() && tg?.disableVerticalSwipes) {
+      tg.disableVerticalSwipes();
+    }
   }, []);
+
+  // T1.2: drive the Telegram closing-confirmation toggle off the
+  // canonical audio-element `isPlaying` state. We intentionally do NOT
+  // call enable() in the play-button onClick / disable() in the
+  // pause-button onClick - the player flips isPlaying without explicit
+  // clicks on stream stalls, error recovery, queue end, station
+  // switches. The effect is the only place that owns the toggle. The
+  // cleanup disables on unmount so a navigation tear-down does not
+  // leave the close-confirm prompt armed.
+  useEffect(() => {
+    if (!isInsideTelegramClient()) return;
+    const tg = getTelegramWebApp();
+    if (!tg) return;
+    if (player.isPlaying) {
+      tg.enableClosingConfirmation?.();
+    } else {
+      tg.disableClosingConfirmation?.();
+    }
+    return () => {
+      tg.disableClosingConfirmation?.();
+    };
+  }, [player.isPlaying]);
 
   useEffect(() => {
     if (player.current && playerPresentation === 'peek') {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { stationLocation } from '../lib/stationUtils';
+import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -418,6 +419,7 @@ export const MiniPlayerDock = () => {
           type="button"
           onClick={() => {
             if (current) {
+              triggerHaptic();
               void player.toggle();
             }
           }}
@@ -435,7 +437,10 @@ export const MiniPlayerDock = () => {
         <button
           className="dock-icon-btn dock-next-btn"
           type="button"
-          onClick={playNext}
+          onClick={() => {
+            triggerHaptic();
+            playNext();
+          }}
           aria-label={t('common.next')}
         >
           <ThemeActionIcon name="next">
@@ -445,7 +450,12 @@ export const MiniPlayerDock = () => {
         <button
           className={`dock-icon-btn dock-like-btn ${liked ? 'active' : ''}`}
           type="button"
-          onClick={() => current && toggleFavorite(current)}
+          onClick={() => {
+            if (current) {
+              triggerHaptic();
+              toggleFavorite(current);
+            }
+          }}
           disabled={!current}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
         >
