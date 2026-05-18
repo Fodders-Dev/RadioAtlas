@@ -19,6 +19,33 @@ type StationTableProps = {
   nowPlayingMode?: 'active-only' | 'viewport';
 };
 
+// E2E-only escape hatch: scroll-jitter.spec.ts seeds
+// `window.__radioatlasRenderBatchOverride__` via Playwright's
+// addInitScript before navigation, so the infinite-scroll cascade
+// can be exercised against the existing 12-station test fixture
+// instead of having to enlarge the mock dataset to 60+ rows.
+// Production code never sets this global; the default branch below
+// is the only path that ships.
+declare global {
+  interface Window {
+    __radioatlasRenderBatchOverride__?: number;
+    // E2E spy: scroll-jitter.spec.ts seeds this counter and reads it
+    // after the user scrolls, to assert the arm-guard prevented an
+    // observer cascade fire. Never set in production.
+    __radioatlasLoadMoreCount__?: number;
+  }
+}
+const readRenderBatchOverride = () => {
+  if (typeof window === 'undefined') return null;
+  const override = window.__radioatlasRenderBatchOverride__;
+  return typeof override === 'number' && override > 0 ? override : null;
+};
+const incrementLoadMoreSpy = () => {
+  if (typeof window === 'undefined') return;
+  if (typeof window.__radioatlasLoadMoreCount__ !== 'number') return;
+  window.__radioatlasLoadMoreCount__ += 1;
+};
+
 const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
   track: null,
   status: 'idle',
@@ -400,7 +427,9 @@ export const StationTable = ({
   const { t } = useLocale();
   const lowPower = getDeviceProfile().lowPower;
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const renderBatch = compact ? (lowPower ? 12 : 18) : lowPower ? 16 : 24;
+  const renderBatch =
+    readRenderBatchOverride() ??
+    (compact ? (lowPower ? 12 : 18) : lowPower ? 16 : 24);
   const [visibleCount, setVisibleCount] = useState(() => Math.min(stations.length, renderBatch));
 
   useEffect(() => {
@@ -408,6 +437,7 @@ export const StationTable = ({
   }, [renderBatch, stations]);
 
   const loadMore = useCallback(() => {
+    incrementLoadMoreSpy();
     setVisibleCount((previous) => Math.min(stations.length, previous + renderBatch));
   }, [renderBatch, stations.length]);
 

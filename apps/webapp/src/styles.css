@@ -578,7 +578,14 @@ input {
   font-size: 11px;
   content-visibility: auto;
   contain: layout paint style;
-  contain-intrinsic-size: 92px;
+  /* `auto 92px`: 92px is the initial placeholder, but once a row has
+     been laid out the browser caches its real size and reuses that on
+     subsequent off-screen -> on-screen transitions. Without the `auto`
+     keyword every re-entry reverts to the 92px placeholder and then
+     reflows to the real size, which is exactly the per-row layout-
+     shift jitter the user reported on long lists post-T1.2. Supported
+     in Chromium/Edge/Safari (modern). */
+  contain-intrinsic-size: auto 92px;
 }
 
 .station-row > * {
