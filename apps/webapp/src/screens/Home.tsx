@@ -579,10 +579,18 @@ export const Home = () => {
   // available synchronously on the same render visibleRails runs.
   // It re-snapshots when homeState.sessionSeed advances (i.e., when
   // the user hits "Обновить витрину" or refreshHomeSurface fires).
+  // Mutating a ref during render is safe here because (a) the
+  // mutation is keyed by homeState.sessionSeed, so StrictMode's
+  // double-invocation is a no-op on the second pass; (b) speculative
+  // Concurrent rendering either hits the same `seed === current.seed`
+  // check and bails, or sets a new seed that the next commit will use
+  // idempotently.
   // The actual resume strip UI still re-renders live; only the
   // *blocking* set used by visibleRails is frozen — the visible
-  // overlap on a play (current station appearing in both resume and
-  // fresh-now) is acceptable per UX call, the rail re-shuffle is not.
+  // overlap on any in-session state change (play / favorite / hide /
+  // queue add — where the rail's "first" station can briefly appear
+  // in both blocks until the next "Обновить витрину" or surface
+  // refresh) is acceptable per UX call; the rail re-shuffle is not.
   const sessionBlockedStationsRef = useRef<{
     seed: number | null;
     stations: string[];
