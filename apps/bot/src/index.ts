@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
+import { forwardBillingWebhook } from './billingForward.js';
 import {
   buildGiftPayload,
   buildPremiumPayload,
@@ -16,10 +17,18 @@ if (!token) {
 
 const internalWebhookToken = process.env.INTERNAL_WEBHOOK_TOKEN || '';
 if (!internalWebhookToken) {
+  // T0.2b: forward will fail, but users now receive an apology reply
+  // (with the support handle + purchase ID) instead of silent
+  // disappointment. Set the env to restore the happy path.
   console.warn(
-    'INTERNAL_WEBHOOK_TOKEN is missing - billing webhook forwards will be skipped'
+    'INTERNAL_WEBHOOK_TOKEN is missing - billing webhook forwards will fail; users will receive apology copy until env is set'
   );
 }
+
+// T0.2b: support handle for the apology copy when the forward fails.
+// Default is the project owner's TG handle; override via SUPPORT_HANDLE
+// once a dedicated @radioatlas_support account exists.
+const supportHandle = process.env.SUPPORT_HANDLE?.trim() || '@ahjkuio';
 
 const { apiUrl, webAppUrl, withSharedApi, withMiniAppParam } = createBotUrlRuntime({
   apiUrl: process.env.API_URL,
@@ -118,46 +127,39 @@ bot.on('pre_checkout_query', async (ctx) => {
 });
 
 bot.on('message:successful_payment', async (ctx) => {
-  // Telegram delivers successful_payment over the long-poll connection that
-  // is itself authenticated by BOT_TOKEN, so the source is trusted by the
-  // transport. The bot does NOT expose any HTTP endpoint that could be
-  // tricked into emitting a forward, and the API webhook gates the inbound
-  // call with the X-Internal-Token shared secret.
+  // Telegram delivers successful_payment over the long-poll connection
+  // authenticated by BOT_TOKEN, so the source is trusted by transport.
+  // The forward logic is in billingForward.ts so we can unit-test the
+  // intent + structured log shape without booting grammy.
   const payment = ctx.message.successful_payment;
-  const purchaseId = payment.invoice_payload?.trim();
-  if (!purchaseId || !apiUrl) {
-    return;
-  }
-  if (!internalWebhookToken) {
-    console.error(
-      'Skipping billing webhook forward - INTERNAL_WEBHOOK_TOKEN is missing'
-    );
-    return;
-  }
-  try {
-    const response = await fetch(`${apiUrl}/billing/telegram/webhook`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Token': internalWebhookToken
-      },
-      body: JSON.stringify({
-        purchaseId,
-        telegramChargeId: payment.telegram_payment_charge_id
-      })
+  const result = await forwardBillingWebhook(
+    {
+      invoicePayload: payment.invoice_payload,
+      telegramChargeId: payment.telegram_payment_charge_id
+    },
+    {
+      fetch: globalThis.fetch.bind(globalThis),
+      apiUrl,
+      internalWebhookToken,
+      webAppUrl,
+      supportHandle,
+      // Single-line JSON to stderr; console.error appends the newline.
+      log: (line) => console.error(line)
+    }
+  );
+
+  if (result.kind === 'success') {
+    await ctx.reply(result.replyText, {
+      reply_markup: result.showKeyboard
+        ? miniAppKeyboard('Открыть RadioAtlas', 'premium-success')
+        : undefined
     });
-    if (!response.ok) {
-      console.error(`Billing webhook forward returned ${response.status}`);
-      return;
-    }
-    if (webAppUrl) {
-      await ctx.reply('Покупка подтверждена. Открой RadioAtlas, Premium уже должен примениться.', {
-        reply_markup: miniAppKeyboard('Открыть RadioAtlas', 'premium-success')
-      });
-    }
-  } catch (error) {
-    console.error('Payment webhook forward failed', error);
+    return;
   }
+
+  // Apology copy uses <code>…</code> for the purchase / charge ID so it
+  // renders as monospace tap-to-copy in the Telegram client.
+  await ctx.reply(result.replyText, { parse_mode: 'HTML' });
 });
 
 bot.catch((err) => {
