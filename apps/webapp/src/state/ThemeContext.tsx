@@ -9,6 +9,11 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import {
+  getTelegramThemeParams,
+  subscribeTelegramThemeChange,
+  type TelegramThemeParams
+} from '../lib/telegram';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
 import { themeRuntimeVars } from '../lib/theme/runtime';
 import {
@@ -19,6 +24,12 @@ import {
   saveStoredAsset,
   saveStoredTheme
 } from '../lib/theme/storage';
+import {
+  buildTelegramThemeVars,
+  telegramParamsHaveMappedKeys,
+  TELEGRAM_AUTO_THEME,
+  TELEGRAM_AUTO_THEME_ID
+} from '../lib/theme/telegramAuto';
 import type { RadioAtlasTheme, ThemeAsset, ThemeAssetInput, ThemeDraftInput } from '../lib/theme/types';
 import { useLocalStorage } from '../lib/useLocalStorage';
 
@@ -77,6 +88,21 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [ready, setReady] = useState(false);
   const assetUrlsRef = useRef(assetUrls);
 
+  // T1.3: Telegram themeParams as the lowest-priority theme layer.
+  // null means either "outside Telegram client" or "SDK has no
+  // themeParams field" — both fall through to whatever the user
+  // picked (default = 'classic'). On themeChanged we re-snapshot;
+  // the SDK mutates the same object in place between events so we
+  // MUST clone in getTelegramThemeParams() for setState to fire.
+  const [telegramThemeParams, setTelegramThemeParams] =
+    useState<TelegramThemeParams | null>(() => getTelegramThemeParams());
+  useEffect(() => {
+    const unsubscribe = subscribeTelegramThemeChange(() => {
+      setTelegramThemeParams(getTelegramThemeParams());
+    });
+    return unsubscribe;
+  }, []);
+
   useEffect(() => {
     assetUrlsRef.current = assetUrls;
   }, [assetUrls]);
@@ -130,19 +156,44 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const availableThemes = useMemo(() => {
     const customById = new Map(customThemes.map((theme) => [theme.id, theme]));
+    // The synthetic Telegram-auto theme is render-only (PB-3) — NOT
+    // included here so the Theme Studio picker never shows it as a
+    // selectable option. currentTheme resolves it separately below.
     return [
       ...DEFAULT_RADIOATLAS_THEMES,
       ...Array.from(customById.values()).sort((a, b) => b.updatedAt - a.updatedAt)
     ];
   }, [customThemes]);
 
-  const currentTheme = useMemo(
-    () =>
-      availableThemes.find((theme) => theme.id === currentThemeId) ||
+  // T1.3: the effective theme id used for rendering. Differs from
+  // `currentThemeId` only when ALL of the following hold:
+  //   - user has NOT picked an explicit theme (predicate:
+  //     `currentThemeId === DEFAULT_THEME_ID`, i.e. stored 'classic')
+  //   - we are inside the Telegram client (strict initData gate;
+  //     getTelegramThemeParams returns null on standalone web)
+  //   - at least one of our 4 mapped source keys is present in
+  //     themeParams (synthesis floor; see telegramAuto.ts)
+  //
+  // Known wrinkle: the predicate conflates two cases — genuine
+  // first-time users with the stored default vs. users who
+  // explicitly tapped Classic in Theme Studio (both store 'classic').
+  // Both fall through to Telegram themeParams. Distinguishing
+  // "explicit classic" is a Theme Studio change (T1.3b in backlog),
+  // not in scope here.
+  const effectiveThemeId = useMemo(() => {
+    if (currentThemeId !== DEFAULT_THEME_ID) return currentThemeId;
+    if (telegramParamsHaveMappedKeys(telegramThemeParams)) return TELEGRAM_AUTO_THEME_ID;
+    return DEFAULT_THEME_ID;
+  }, [currentThemeId, telegramThemeParams]);
+
+  const currentTheme = useMemo(() => {
+    if (effectiveThemeId === TELEGRAM_AUTO_THEME_ID) return TELEGRAM_AUTO_THEME;
+    return (
+      availableThemes.find((theme) => theme.id === effectiveThemeId) ||
       availableThemes.find((theme) => theme.id === DEFAULT_THEME_ID) ||
-      DEFAULT_RADIOATLAS_THEMES[0],
-    [availableThemes, currentThemeId]
-  );
+      DEFAULT_RADIOATLAS_THEMES[0]
+    );
+  }, [availableThemes, effectiveThemeId]);
   const currentThemeAssetIds = useMemo(() => collectThemeAssetIds(currentTheme), [currentTheme]);
 
   useEffect(() => {
@@ -151,15 +202,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const vars = themeRuntimeVars(currentTheme, (assetId) => assetUrls.get(assetId) || null);
+    // For telegram-auto we bypass themeRuntimeVars and pull the 5
+    // CSS-var values directly from the Telegram themeParams payload.
+    // Same shape, different source — write side stays identical so
+    // theme switches (telegram-auto → user-picked or vice versa)
+    // always rewrite all 5 vars and leave no zombies.
+    const vars =
+      effectiveThemeId === TELEGRAM_AUTO_THEME_ID && telegramThemeParams
+        ? buildTelegramThemeVars(telegramThemeParams)
+        : themeRuntimeVars(currentTheme, (assetId) => assetUrls.get(assetId) || null);
 
-    root.dataset.theme = currentTheme.id;
+    root.dataset.theme = effectiveThemeId;
     root.style.setProperty('--theme-accent', vars.accent);
     root.style.setProperty('--theme-accent-2', vars.accent2);
     root.style.setProperty('--theme-bg-image', vars.background);
     root.style.setProperty('--theme-font-family', vars.font);
     root.style.setProperty('--theme-icon-radius', vars.iconRadius);
-  }, [assetUrls, currentTheme]);
+  }, [assetUrls, currentTheme, effectiveThemeId, telegramThemeParams]);
 
   const applyTheme = useCallback(
     (themeId: string) => {
@@ -238,7 +297,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<ThemeContextValue>(
     () => ({
       currentTheme,
-      currentThemeId: currentTheme.id,
+      // T1.3: expose the STORED user pick (not currentTheme.id) so the
+      // Theme Studio picker keeps highlighting the user's choice even
+      // when rendering is overridden by the synthetic Telegram-auto
+      // theme. Previous behavior was `currentTheme.id` which would
+      // never have collided with the picker (every render id WAS a
+      // selectable theme); now telegram-auto is render-only and the
+      // picker must continue to reflect localStorage truth.
+      currentThemeId,
       availableThemes,
       customThemes,
       ready,
@@ -255,6 +321,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       applyTheme,
       availableThemes,
       currentTheme,
+      currentThemeId,
       customThemes,
       getAssetUrl,
       ensureThemeAssets,

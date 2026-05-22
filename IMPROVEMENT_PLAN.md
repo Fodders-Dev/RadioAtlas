@@ -179,14 +179,50 @@ target stays green.
 - **Done-when**: e2e test exists for closing-confirmation toggle; manual smoke
   in Telegram Android confirms haptic on play.
 
-### T1.3 Telegram themeParams as a layer over user theme
-- **What**: in `ThemeContext`, accept `WebApp.themeParams` (bg/text/accent/button
-  colors + their dark variants) and apply them as the lowest priority layer
-  under bundled/custom themes. Subscribe to `themeChanged` event.
-- **Why**: today a user with a custom Telegram theme always sees RadioAtlas
-  branded dark green — looks foreign.
-- **Files**: `apps/webapp/src/state/ThemeContext.tsx`, `apps/webapp/src/lib/theme/*`.
-- **Done-when**: changing Telegram theme live updates RadioAtlas colors.
+### T1.3 Telegram themeParams as a layer over user theme — DONE
+- **What** (shipped): synthetic `telegram-auto` theme synthesised at
+  render time when (a) user is on the stored default `currentThemeId
+  === 'classic'`, (b) inside the Telegram client (non-empty initData),
+  and (c) at least one of `bg_color` / `accent_text_color` /
+  `link_color` / `button_color` is present in `WebApp.themeParams`.
+- **Mapping** (3 keys, no inventing): `bg_color → --theme-bg-image`
+  (flat gradient), `accent_text_color → --theme-accent` (link_color
+  fallback), `button_color → --theme-accent-2`. Other 10 themeParams
+  keys skipped — RadioAtlas's 5-CSS-var token surface has no clean
+  equivalents and a token-surface expansion is out of scope.
+- **Files**: `apps/webapp/src/lib/telegram.ts` (+
+  `getTelegramThemeParams`, `subscribeTelegramThemeChange`),
+  `apps/webapp/src/lib/theme/telegramAuto.ts` (new),
+  `apps/webapp/src/state/ThemeContext.tsx` (render-time override),
+  `apps/webapp/src/vite-env.d.ts` (SDK type extension),
+  `apps/webapp/tests/helpers.ts` (themeChanged shim).
+- **Done-when**: 5 e2e cases in `telegram-integration.spec.ts` cover
+  (a) themeParams applied, (b) explicit pick wins, (c) standalone
+  no-leak, (d) themeChanged re-apply, (e) empty themeParams stays on
+  Classic. All green.
+
+### T1.3b Explicit Theme Studio entry for Telegram-auto with opt-out
+- **What**: surface `'telegram-auto'` as a real Theme Studio picker
+  entry (filtered to only appear inside Telegram client). Add an
+  explicit opt-in flag separate from `currentThemeId`, so users
+  inside Telegram who prefer RadioAtlas's branded look can pick
+  another theme and never get pulled back to Telegram-auto on
+  themeChanged. Also distinguishes "user explicitly picked Classic"
+  from "user is on default and falling through to Telegram colours" —
+  the conflated predicate documented in `ThemeContext.tsx`.
+- **Why**: today the predicate `currentThemeId === DEFAULT_THEME_ID`
+  conflates first-time users and users who explicitly tapped Classic.
+  Both fall through to Telegram themeParams. Inside Telegram, a user
+  who deliberately wants Classic has no way to express it.
+- **Files**: `apps/webapp/src/components/ThemeStudio.tsx` (picker
+  filter + extra entry), `apps/webapp/src/state/ThemeContext.tsx`
+  (separate persisted opt-in flag), `apps/webapp/src/lib/theme/
+  telegramAuto.ts` (no change unless the synthesis floor needs
+  per-key opt-ins).
+- **Skip if no user complaints surface**: T1.3 baseline behaviour is
+  defensible — explicit picks already override, and Telegram-auto
+  only fires for default-stored users (where the assumption "they
+  haven't customised" holds 99% of the time).
 
 ### T1.4 Dialog focus trap + Escape handler
 - **What**: introduce a `useDialog` hook (`apps/webapp/src/lib/useDialog.ts`)

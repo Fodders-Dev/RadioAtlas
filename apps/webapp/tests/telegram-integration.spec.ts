@@ -145,6 +145,163 @@ test('standalone-web: dock play button does NOT fire HapticFeedback (no SDK)', a
   expect(state.impactOccurred).toEqual([]);
 });
 
+// T1.3: Telegram themeParams as a render-time theme layer. The
+// strict gate is `isInsideTelegramClient()` (non-empty initData);
+// the synthesis floor is "at least one of bg_color / accent_text_color
+// / link_color / button_color is present". Tests verify both edges
+// plus the themeChanged re-apply flow.
+
+const readThemeTokens = (page: Page) =>
+  page.evaluate(() => {
+    const root = document.documentElement;
+    const style = root.style;
+    return {
+      datasetTheme: root.dataset.theme ?? '',
+      accent: style.getPropertyValue('--theme-accent').trim(),
+      accent2: style.getPropertyValue('--theme-accent-2').trim(),
+      background: style.getPropertyValue('--theme-bg-image').trim()
+    };
+  });
+
+test('T1.3 (a) inside-telegram with themeParams applies Telegram colours to render tokens', async ({
+  page
+}) => {
+  await installTelegramShim(page, {
+    themeParams: {
+      bg_color: '#123456',
+      accent_text_color: '#abcdef',
+      button_color: '#fedcba'
+    }
+  });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+    timeout: 15_000
+  });
+
+  const tokens = await readThemeTokens(page);
+  // dataset.theme = 'telegram-auto' when synthesis activates. This
+  // is the strongest single-line signal that the override path ran.
+  expect(tokens.datasetTheme).toBe('telegram-auto');
+  // Direct hex pass-through — buildTelegramThemeVars wraps bg_color
+  // as a flat linear-gradient so the --theme-bg-image var contract
+  // ("gradient or url()") stays valid.
+  expect(tokens.background).toContain('#123456');
+  expect(tokens.accent).toBe('#abcdef');
+  expect(tokens.accent2).toBe('#fedcba');
+});
+
+test('T1.3 (b) explicit Theme Studio pick wins over Telegram themeParams', async ({
+  page
+}) => {
+  // Pre-seed the user's pick BEFORE the page boots — `useLocalStorage`
+  // reads at mount and the predicate `currentThemeId !== DEFAULT_THEME_ID`
+  // gates the synthesis. Choosing 'neon' (another built-in) is enough
+  // to take the user out of the default-pick lane.
+  await page.addInitScript(() => {
+    window.localStorage.setItem('radio:theme-current:v1', JSON.stringify('neon'));
+  });
+  await installTelegramShim(page, {
+    themeParams: {
+      bg_color: '#123456',
+      accent_text_color: '#abcdef'
+    }
+  });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+    timeout: 15_000
+  });
+
+  const tokens = await readThemeTokens(page);
+  // User picked Neon — telegram-auto MUST NOT override.
+  expect(tokens.datasetTheme).toBe('neon');
+  // And the Telegram hex values MUST NOT leak into the render tokens.
+  expect(tokens.background).not.toContain('#123456');
+  expect(tokens.accent).not.toBe('#abcdef');
+});
+
+test('T1.3 (c) standalone-web (no SDK) never picks up Telegram colours', async ({
+  page
+}) => {
+  // No installTelegramShim — window.Telegram is undefined; the strict
+  // gate in getTelegramThemeParams returns null, synthesis stays off.
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+    timeout: 15_000
+  });
+
+  const tokens = await readThemeTokens(page);
+  expect(tokens.datasetTheme).toBe('classic');
+  // Defensive — even if a hex slipped through, the test fixture
+  // colours aren't anywhere in the bundled Classic theme.
+  expect(tokens.background).not.toContain('#123456');
+});
+
+test('T1.3 (d) themeChanged event re-applies tokens without remount', async ({
+  page
+}) => {
+  await installTelegramShim(page, {
+    themeParams: { bg_color: '#aaa111' }
+  });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+    timeout: 15_000
+  });
+
+  const before = await readThemeTokens(page);
+  expect(before.background).toContain('#aaa111');
+  expect(before.datasetTheme).toBe('telegram-auto');
+
+  // Mutate themeParams in place + dispatch listeners — mirrors the
+  // SDK's real contract. The hook captures via getTelegramThemeParams
+  // (which deep-clones on each call) so setState fires and the
+  // useLayoutEffect re-runs without a Provider remount.
+  await page.evaluate(() => {
+    const trigger = (
+      window as Window & {
+        __radioatlasTriggerThemeChange__?: (next: Record<string, string>) => void;
+      }
+    ).__radioatlasTriggerThemeChange__;
+    trigger?.({ bg_color: '#bbb222' });
+  });
+
+  // Poll because React batches the state update + layout effect.
+  await expect
+    .poll(async () => (await readThemeTokens(page)).background)
+    .toContain('#bbb222');
+  const after = await readThemeTokens(page);
+  expect(after.background).not.toContain('#aaa111');
+  expect(after.datasetTheme).toBe('telegram-auto');
+});
+
+test('T1.3 (e) inside-telegram with empty themeParams stays on Classic (floor)', async ({
+  page
+}) => {
+  // PB-4 floor: 0 mapped keys → no synthesis. Without this guard,
+  // an empty themeParams payload would still trigger telegram-auto
+  // and add a stale dataset.theme attribute despite producing a
+  // pixel-identical render to Classic.
+  await installTelegramShim(page, {
+    themeParams: {} // zero mapped keys
+  });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+    timeout: 15_000
+  });
+
+  const tokens = await readThemeTokens(page);
+  expect(tokens.datasetTheme).toBe('classic');
+});
+
 test('inside-telegram: queue row move/remove buttons do NOT fire HapticFeedback (C2 lock-in)', async ({
   page
 }) => {
