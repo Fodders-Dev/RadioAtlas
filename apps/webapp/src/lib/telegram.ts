@@ -148,3 +148,76 @@ export const makeDeepLink = (botUsername: string, stationId: string) => {
   const safeBot = botUsername.replace(/^@/, '');
   return `https://t.me/${safeBot}?startapp=station_${stationId}`;
 };
+
+// T1.3: per-user Telegram theme colors. The full 13-key surface is
+// declared on `window.Telegram.WebApp.themeParams` in vite-env.d.ts;
+// here we re-export a public alias and gate reads on
+// `isInsideTelegramClient()` so the standalone-web fallback path
+// (where the SDK loads but initData is empty) never picks up stale
+// or partially-faked values.
+//
+// The shape MIRRORS the SDK exactly — Telegram clients send only
+// the keys they have, never throw on missing ones. Callers must
+// treat every field as optional and decide the floor (e.g.
+// telegram-auto theme synthesis is suppressed when none of our 4
+// source keys are present; see lib/theme/telegramAuto.ts).
+export type TelegramThemeParams = {
+  bg_color?: string;
+  text_color?: string;
+  hint_color?: string;
+  link_color?: string;
+  button_color?: string;
+  button_text_color?: string;
+  secondary_bg_color?: string;
+  header_bg_color?: string;
+  accent_text_color?: string;
+  section_bg_color?: string;
+  section_header_text_color?: string;
+  subtitle_text_color?: string;
+  destructive_text_color?: string;
+};
+
+// Returns a fresh shallow clone of the SDK's themeParams object on
+// every call. Two reasons:
+//   1) Telegram MUTATES the same object in place between
+//      themeChanged events. Without a clone, React state holds a
+//      stale reference that === itself; setState's bail-out skips
+//      the re-render and tokens never refresh.
+//   2) The strict isInsideTelegramClient() gate (non-empty
+//      initData) keeps the standalone-web SDK from leaking colors
+//      into the canonical web build.
+//
+// Returns null in three cases that the caller can collapse to
+// "fall back to default theme":
+//   - SDK not loaded
+//   - inside-but-no-themeParams (older Bot API version)
+//   - themeParams shape is invalid (not a plain object)
+//
+// An EMPTY object `{}` is intentionally returned as-is (not null),
+// so callers can distinguish "we know there are no params" from
+// "we cannot tell". The synthesis floor in lib/theme/telegramAuto.ts
+// filters empty objects.
+export const getTelegramThemeParams = (): TelegramThemeParams | null => {
+  if (!isInsideTelegramClient()) return null;
+  const tg = readWindowTelegram();
+  const raw = tg?.themeParams;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return { ...raw } as TelegramThemeParams;
+};
+
+// Subscribes to the SDK's themeChanged event. Returns an unsubscribe
+// function — pair with useEffect cleanup so StrictMode's double-
+// invoke mount doesn't leak listeners. Safe on standalone-web: if
+// the SDK exposes neither onEvent nor offEvent, the subscribe is a
+// no-op and the returned cleanup is also a no-op.
+export const subscribeTelegramThemeChange = (
+  callback: () => void
+): (() => void) => {
+  const tg = readWindowTelegram();
+  if (!tg?.onEvent || !tg.offEvent) return () => {};
+  tg.onEvent('themeChanged', callback);
+  const offEvent = tg.offEvent;
+  return () => {
+    offEvent('themeChanged', callback);
+  };
+};

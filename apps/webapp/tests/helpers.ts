@@ -467,14 +467,25 @@ export const installTelegramShim = async (
     platform?: string;
     version?: string;
     initData?: string;
+    // T1.3: optional themeParams payload. Default is empty `{}` so
+    // existing T1.2 tests keep their behaviour (no synthetic
+    // telegram-auto theme activation). Tests that want Telegram
+    // colours applied pass `{ bg_color: '#xxx', ... }`.
+    themeParams?: Record<string, string>;
   } = {}
 ) => {
   const platform = options.platform ?? 'ios';
   const version = options.version ?? '8.0';
   const initData = options.initData ?? 'auth_date=1746000000&hash=t12-fixture';
+  const themeParams = options.themeParams ?? {};
 
   await page.addInitScript(
-    ({ resolvedPlatform, resolvedVersion, resolvedInitData }) => {
+    ({
+      resolvedPlatform,
+      resolvedVersion,
+      resolvedInitData,
+      resolvedThemeParams
+    }) => {
       type SpyState = {
         disableVerticalSwipes: number;
         enableClosingConfirmation: number;
@@ -491,6 +502,17 @@ export const installTelegramShim = async (
         configurable: true,
         value: state
       });
+
+      // T1.3: themeParams + themeChanged event surface. Telegram
+      // mutates `themeParams` in place between events; the shim
+      // mirrors that contract — the property keeps the same object
+      // reference, but its keys are overwritten when a test calls
+      // window.__radioatlasTriggerThemeChange__(next). Listeners
+      // are dispatched synchronously after the mutation so a
+      // page.evaluate() awaits the resulting state transition.
+      const themeParamsRef: Record<string, string> = { ...resolvedThemeParams };
+      const themeListeners = new Set<() => void>();
+
       Object.defineProperty(window, 'Telegram', {
         configurable: true,
         value: {
@@ -502,6 +524,13 @@ export const installTelegramShim = async (
               auth_date: 1746000000,
               hash: 't12-fixture',
               user: { id: 1, first_name: 'Fixture' }
+            },
+            themeParams: themeParamsRef,
+            onEvent: (event: string, callback: () => void) => {
+              if (event === 'themeChanged') themeListeners.add(callback);
+            },
+            offEvent: (event: string, callback: () => void) => {
+              if (event === 'themeChanged') themeListeners.delete(callback);
             },
             ready: () => {},
             expand: () => {},
@@ -522,11 +551,27 @@ export const installTelegramShim = async (
           }
         }
       });
+
+      // T1.3 test hook. Mutates themeParams in place (matching
+      // Telegram's real behaviour) then synchronously dispatches
+      // listeners. Tests use page.evaluate() to invoke this for
+      // the themeChanged re-apply case (e2e (d)).
+      Object.defineProperty(window, '__radioatlasTriggerThemeChange__', {
+        configurable: true,
+        value: (next: Record<string, string>) => {
+          Object.keys(themeParamsRef).forEach((key) => {
+            delete themeParamsRef[key];
+          });
+          Object.assign(themeParamsRef, next);
+          themeListeners.forEach((cb) => cb());
+        }
+      });
     },
     {
       resolvedPlatform: platform,
       resolvedVersion: version,
-      resolvedInitData: initData
+      resolvedInitData: initData,
+      resolvedThemeParams: themeParams
     }
   );
 };

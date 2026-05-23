@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   getStartParam,
+  getTelegramThemeParams,
   getTelegramWebApp,
   isInsideTelegramClient,
   openLinkOrFallback,
   openTelegramLinkOrFallback,
+  subscribeTelegramThemeChange,
   triggerHaptic,
   type TelegramWebApp
 } from './telegram';
@@ -165,6 +167,107 @@ describe('triggerHaptic', () => {
     triggerHaptic();
     triggerHaptic('medium');
     expect(styles).toEqual(['light', 'medium']);
+  });
+});
+
+describe('getTelegramThemeParams', () => {
+  it('returns null on standalone web (no SDK)', () => {
+    restoreTelegram();
+    expect(getTelegramThemeParams()).toBe(null);
+  });
+
+  it('returns null when SDK loaded but initData is empty (standalone web)', () => {
+    installTelegram({
+      platform: 'unknown',
+      initData: '',
+      themeParams: { bg_color: '#ffffff' }
+    });
+    // Strict gate: even with themeParams populated, an empty initData
+    // means we're on the canonical web build where the SDK was loaded
+    // by the synchronous CDN script but not by the Telegram client.
+    // Reading colours from there would leak them into standalone web.
+    expect(getTelegramThemeParams()).toBe(null);
+  });
+
+  it('returns the params object when inside Telegram client', () => {
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1746000000&hash=deadbeef',
+      themeParams: {
+        bg_color: '#1a1a1a',
+        accent_text_color: '#abcdef'
+      }
+    });
+    const params = getTelegramThemeParams();
+    expect(params).toEqual({
+      bg_color: '#1a1a1a',
+      accent_text_color: '#abcdef'
+    });
+  });
+
+  it('returns a fresh clone each call so React state diffing works', () => {
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1&hash=abc',
+      themeParams: { bg_color: '#111111' }
+    });
+    const first = getTelegramThemeParams();
+    const second = getTelegramThemeParams();
+    expect(first).toEqual(second);
+    // The SDK mutates the same themeParams object in place between
+    // themeChanged events. Without cloning, React's state setter
+    // would bail on Object.is and the tokens would never refresh.
+    expect(first).not.toBe(second);
+  });
+
+  it('returns null when themeParams is missing on the SDK (older Bot API)', () => {
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1&hash=abc'
+      // no themeParams field
+    });
+    expect(getTelegramThemeParams()).toBe(null);
+  });
+
+  it('returns the empty object as-is when SDK reports zero keys', () => {
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1&hash=abc',
+      themeParams: {}
+    });
+    // Empty `{}` is preserved (not collapsed to null). The synthesis
+    // floor in lib/theme/telegramAuto.ts filters empty objects;
+    // distinguishing "we know it's empty" vs. "we cannot tell" stays
+    // available to other callers.
+    expect(getTelegramThemeParams()).toEqual({});
+  });
+});
+
+describe('subscribeTelegramThemeChange', () => {
+  it('returns a no-op cleanup when SDK is not loaded', () => {
+    restoreTelegram();
+    const cleanup = subscribeTelegramThemeChange(() => {});
+    expect(() => cleanup()).not.toThrow();
+  });
+
+  it('registers and unregisters via onEvent / offEvent', () => {
+    const onCalls: Array<{ event: string; cb: () => void }> = [];
+    const offCalls: Array<{ event: string; cb: () => void }> = [];
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1&hash=abc',
+      onEvent: (event, cb) => {
+        onCalls.push({ event, cb });
+      },
+      offEvent: (event, cb) => {
+        offCalls.push({ event, cb });
+      }
+    });
+    const cb = () => {};
+    const cleanup = subscribeTelegramThemeChange(cb);
+    expect(onCalls).toEqual([{ event: 'themeChanged', cb }]);
+    cleanup();
+    expect(offCalls).toEqual([{ event: 'themeChanged', cb }]);
   });
 });
 
