@@ -179,7 +179,7 @@ target stays green.
 - **Done-when**: e2e test exists for closing-confirmation toggle; manual smoke
   in Telegram Android confirms haptic on play.
 
-### T1.3 Telegram themeParams as a layer over user theme — DONE
+### ~~T1.3 Telegram themeParams as a layer over user theme~~ (DONE in 40ab32e)
 - **What** (shipped): synthetic `telegram-auto` theme synthesised at
   render time when (a) user is on the stored default `currentThemeId
   === 'classic'`, (b) inside the Telegram client (non-empty initData),
