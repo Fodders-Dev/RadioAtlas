@@ -116,8 +116,6 @@ describe('StationTable (T2.11a memo + narrowed context)', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    // Render the whole list (no infinite-scroll sentinel / observer path).
-    window.__radioatlasRenderBatchOverride__ = 1_000_000;
     window.__radioatlasRowRenderCounts__ = {};
   });
 
@@ -127,13 +125,15 @@ describe('StationTable (T2.11a memo + narrowed context)', () => {
       root = null;
     }
     container.remove();
-    delete window.__radioatlasRenderBatchOverride__;
     delete window.__radioatlasRowRenderCounts__;
     vi.clearAllMocks();
   });
 
   it('re-renders only the active row on a now-playing tick, not the whole list', () => {
-    const stations = Array.from({ length: 200 }, (_, i) => makeStation(i));
+    // Below the virtualization threshold so the table renders flat and all
+    // rows mount — this isolates the memo contract from the windowing layer
+    // (windowing bounds are covered by station-list-virtualization.spec.ts).
+    const stations = Array.from({ length: 40 }, (_, i) => makeStation(i));
     ctx.playback.current = playbackFor(stations[0]); // row 0 is the active station
     ctx.library.current = makeLibrary([]);
 
@@ -145,7 +145,7 @@ describe('StationTable (T2.11a memo + narrowed context)', () => {
 
     // A now-playing tick: brand-new player object + track, SAME active
     // station, SAME library. Pre-T2.11a every row subscribed to
-    // usePlayback()/useLibrary(), so this re-rendered all 200 rows. Now
+    // usePlayback()/useLibrary(), so this re-rendered all 40 rows. Now
     // only row 0's activePlayback prop changes.
     ctx.playback.current = playbackFor(stations[0], {
       nowPlaying: 'Artist - Track',
@@ -165,7 +165,7 @@ describe('StationTable (T2.11a memo + narrowed context)', () => {
   });
 
   it('re-renders a row when its own favorite state flips, leaving siblings untouched', () => {
-    const stations = Array.from({ length: 50 }, (_, i) => makeStation(i));
+    const stations = Array.from({ length: 40 }, (_, i) => makeStation(i));
     ctx.playback.current = playbackFor(null); // nothing playing
     ctx.library.current = makeLibrary([]);
 
