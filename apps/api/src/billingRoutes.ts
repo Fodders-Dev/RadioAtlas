@@ -8,7 +8,14 @@ import {
   getAccountByToken,
   listBillingProducts
 } from './accountStore.js';
-import { createTelegramInvoiceLink, getBearerToken, toClientProfile } from './routeSupport.js';
+import { getDb } from './account/core/repository.js';
+import { runReconcileSweep } from './billingReconciliation.js';
+import {
+  createTelegramInvoiceLink,
+  fetchTelegramStarTransactions,
+  getBearerToken,
+  toClientProfile
+} from './routeSupport.js';
 
 const isValidWebhookToken = (expected: string, provided: string | undefined): boolean => {
   if (!expected || !provided) return false;
@@ -103,6 +110,93 @@ export const registerBillingRoutes = (
         res
           .status(400)
           .json({ error: err instanceof Error ? err.message : 'seed failed' });
+      }
+    });
+
+    // T0.2c test fixture: inspect a single billing_purchases row's
+    // reconcile state. Returns null if not found. Used by the contract
+    // tests to assert attempts++ / last_reconcile_at without needing
+    // a direct DB connection from the spawned-API test process.
+    app.get('/test/billing/inspect/:purchaseId', async (req, res) => {
+      const purchaseId =
+        typeof req.params?.purchaseId === 'string' ? req.params.purchaseId : '';
+      try {
+        const db = await getDb();
+        const row = db
+          .prepare(
+            `SELECT id, status, reconcile_attempts, last_reconcile_at, created_at
+             FROM billing_purchases WHERE id = ? LIMIT 1`
+          )
+          .get(purchaseId) as
+          | {
+              id: string;
+              status: string;
+              reconcile_attempts: number;
+              last_reconcile_at: number | null;
+              created_at: number;
+            }
+          | undefined;
+        if (!row) {
+          res.json({ row: null });
+          return;
+        }
+        res.json({
+          row: {
+            id: row.id,
+            status: row.status,
+            reconcileAttempts: row.reconcile_attempts,
+            lastReconcileAt: row.last_reconcile_at,
+            createdAt: row.created_at
+          }
+        });
+      } catch (err) {
+        res
+          .status(500)
+          .json({ error: err instanceof Error ? err.message : 'inspect failed' });
+      }
+    });
+
+    // T0.2c test fixture: run ONE reconcile sweep cycle synchronously
+    // so contract tests can assert exact behaviour without depending
+    // on the production setInterval cadence. Mirrors the gating /
+    // defence pattern of /test/billing/seed-purchase above.
+    //
+    // The test provides the canned Telegram response inline via
+    // `transactions` in the request body (cross-process boundary: no
+    // way to inject a JS function from the test). Empty / missing
+    // body → fall through to the real fetchTelegramStarTransactions
+    // (this branch is only useful for a manual operator probe; tests
+    // always pass `transactions`).
+    //
+    // Optional `now` (epoch ms) and `horizonMs` (ms) overrides let
+    // backoff-schedule tests fast-forward time without touching real
+    // setTimeout.
+    app.post('/test/billing/trigger-reconcile', async (req, res) => {
+      const cannedTransactions = Array.isArray(req.body?.transactions)
+        ? req.body.transactions
+        : null;
+      const nowOverride =
+        typeof req.body?.now === 'number' ? req.body.now : null;
+      const horizonOverride =
+        typeof req.body?.horizonMs === 'number' ? req.body.horizonMs : undefined;
+      try {
+        const db = await getDb();
+        const fetchStarTransactions = cannedTransactions
+          ? async () => ({ transactions: cannedTransactions })
+          : () => fetchTelegramStarTransactions(options.telegramBotToken);
+        const result = await runReconcileSweep({
+          db,
+          fetchStarTransactions,
+          confirmPurchase: confirmBillingPurchase,
+          log: (line) => console.error(line),
+          now: () => nowOverride ?? Date.now(),
+          horizonMs: horizonOverride
+        });
+        res.json(result);
+      } catch (err) {
+        res
+          .status(500)
+          .json({ error: err instanceof Error ? err.message : 'reconcile failed' });
       }
     });
   }

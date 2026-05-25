@@ -197,6 +197,7 @@ export const getDb = async () => {
         db.exec(`ALTER TABLE accounts ADD COLUMN billing_provider TEXT;`);
       } catch {}
       ensureSessionExpiresAtColumn(db);
+      ensureBillingReconcileColumns(db);
       await migrateLegacyJsonIfNeeded(db);
       pruneExpiredLinkRequests(db);
       pruneExpiredSessions(db);
@@ -754,4 +755,36 @@ export const ensureSessionExpiresAtColumn = (db: DatabaseLike) => {
 
 export const pruneExpiredSessions = (db: DatabaseLike) => {
   db.prepare('DELETE FROM sessions WHERE expires_at > 0 AND expires_at <= ?').run(Date.now());
+};
+
+// T0.2c reconcile-tracking columns on billing_purchases. Mirrors the
+// T0.3 ensureSessionExpiresAtColumn shape exactly:
+//   - PRAGMA table_info detect before ALTER (idempotent across boots)
+//   - ALTER kept OUTSIDE the silent `try { ALTER } catch {}` chain at
+//     repository.ts ~187 so a real ALTER failure surfaces in stderr
+//     instead of getting swallowed
+//   - inline TODO flagging the numbered-migration follow-up so this
+//     isn't another piece of debt to find later
+// `last_reconcile_at` is nullable (NULL = "never attempted"); the
+// sweep query treats NULL as "always eligible". `reconcile_attempts`
+// counts attempts (0..5); >= 5 → dead-letter, row stays pending.
+// T3.4 will fold both into the numbered migration list.
+export const ensureBillingReconcileColumns = (db: DatabaseLike) => {
+  const columns = db.prepare('PRAGMA table_info(billing_purchases)').all() as Array<
+    Record<string, unknown>
+  >;
+  const hasLastReconcileAt = columns.some(
+    (column) => safeText(column.name) === 'last_reconcile_at'
+  );
+  const hasReconcileAttempts = columns.some(
+    (column) => safeText(column.name) === 'reconcile_attempts'
+  );
+  if (!hasLastReconcileAt) {
+    db.exec(`ALTER TABLE billing_purchases ADD COLUMN last_reconcile_at INTEGER`);
+  }
+  if (!hasReconcileAttempts) {
+    db.exec(
+      `ALTER TABLE billing_purchases ADD COLUMN reconcile_attempts INTEGER NOT NULL DEFAULT 0`
+    );
+  }
 };
