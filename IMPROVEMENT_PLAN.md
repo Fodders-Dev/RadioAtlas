@@ -37,21 +37,45 @@ target stays green.
   IP allowed, (5) DNS rebind blocked (resolve twice differs). Existing tests
   green.
 
-### T0.1b Pin DNS resolution to a single IP for the duration of a media fetch
-- **What**: today the SSRF guard does a "two resolves" check — once at the
-  handler boundary and once inside the fetch helpers, plus a guarded
-  manual-redirect chain. There is still a residual race window between our
-  second resolve and undici's own connect-time resolve. Resolve the hostname
-  once, validate the addresses, then pass an undici `Agent` with a custom
-  `connect.lookup` that always returns the validated IP. Set `servername`
-  correctly so TLS SNI keeps working and the upstream still sees the original
-  hostname in the `Host` header.
-- **Why**: defeats a sophisticated rebind that flips DNS in the microsecond
-  window between our final check and undici's TCP connect.
-- **Files**: `apps/api/src/media/shared.ts`, new test that swaps
-  `dns.lookup` between the guard and connect and asserts a private IP cannot
-  be smuggled through the helper.
-- **Done-when**: the new test passes; existing media tests stay green.
+### ~~T0.1b Pin DNS resolution to a single validated IP per media fetch~~ (DONE)
+- **What** (shipped): per-request undici `Agent` with a custom
+  `connect.lookup` callback that ALWAYS resolves from the pre-
+  validated `LookupAddress[]` returned by `assertHostIsPublic`.
+  Closes the residual race window between our final resolve and
+  undici's TCP-connect-time resolve: the attacker has no microsecond-
+  window opportunity to flip DNS because undici never asks the OS
+  resolver again. TLS SNI stays correct (undici uses the URL
+  hostname for `servername` regardless of what `lookup` returns).
+- **Family handling**: family-aware picker:
+    family === 4 → first IPv4, else ENOTFOUND
+    family === 6 → first IPv6, else ENOTFOUND
+    family === 0 → prefer IPv4 (most public services dual-stack
+                   with v4 reachable from anywhere)
+  Both `all: true` (happy-eyeballs `lookupAndConnectMultiple` path)
+  and `all: false` callback shapes implemented — undici's choice
+  between them is a Node-version detail we don't depend on.
+- **Agent disposal**: per-request Agent owned by the helper, wrapped
+  through the response body lifecycle. `agent.close()` fires exactly
+  once when the body is fully read OR cancelled, via a new Response
+  with a wrapped ReadableStream (the global `Response.body` is read-
+  only, so we construct a fresh one). Connection pool reuse across
+  requests is intentionally NOT preserved — pinning correctness
+  trumps the marginal connection-reuse win for our single-shot
+  media proxy use-case.
+- **Dependencies**: adds `undici: ^6.21.0` to `apps/api/dependencies`.
+  Node 24 ships undici bundled internally (powers global fetch) but
+  exposes neither it as `node:undici` nor the `Agent` constructor —
+  the dep is the formalisation of an existing transitive reality.
+  `import { fetch, Agent } from 'undici'` replaces global `fetch`
+  in `shared.ts`; behaviour is identical (same undici under the
+  hood), only the `dispatcher` option is now properly typed.
+- **Files**: `apps/api/src/media/shared.ts`,
+  `apps/api/package.json`, `apps/api/test/media.ssrf.test.ts`
+  (3 new cases: P1 pinned-IP rebind via local server, P2 IPv6 family
+  picker, P3 agent disposal across multiple sequential fetches incl.
+  body-cancel path).
+- **Done-when** (met): 3 new tests pass, all 6 existing media SSRF
+  tests stay green (72/72 in apps/api), full verification gate green.
 
 ### ~~T0.2 Authenticate Telegram billing webhook end-to-end~~ (DONE in 4b1e5b7)
 - **What**: stop accepting unauthenticated `POST /billing/telegram/webhook`.

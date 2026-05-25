@@ -2,6 +2,13 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
 import { isIP } from 'node:net';
 import type express from 'express';
+// T0.1b: undici's exported fetch + Agent. We use undici directly
+// (rather than the global fetch) so the per-request `dispatcher`
+// option is typed and so we can construct an Agent with a custom
+// `connect.lookup` that pins the destination IP to the address WE
+// validated. The global fetch in Node 24 is the same undici under
+// the hood; behaviour is identical, only the types differ.
+import { Agent, fetch } from 'undici';
 
 export const toAbsoluteUrl = (value: string, base: string) => {
   try {
@@ -223,17 +230,166 @@ export const parseAndValidateHttpUrl = async (
   }
 };
 
-const guardOutboundFetchTarget = async (url: string) => {
+// Returns the validated addresses for the URL's hostname when the
+// guard ran; null when the URL is malformed or the protocol is non-
+// http (let fetch surface the underlying error). Callers use the
+// returned array to seed the per-request pinned-lookup Agent so
+// undici's TCP connect lands on an address WE validated, not whatever
+// the OS resolver returns at connect time.
+const guardOutboundFetchTarget = async (
+  url: string
+): Promise<LookupAddress[] | null> => {
   let target: URL;
   try {
     target = new URL(url);
   } catch {
-    return; // let fetch surface the invalid URL error itself
+    return null;
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') {
-    return;
+    return null;
   }
-  await assertHostIsPublic(target.hostname);
+  return assertHostIsPublic(target.hostname);
+};
+
+// ---- T0.1b: pinned-lookup Agent -----------------------------------------
+//
+// undici's `connect.lookup` mirrors Node's `dns.lookup` callback shape.
+// When undici needs to open a TCP connection it calls this with the
+// hostname, an options object containing `family` / `hints`, and a
+// node-style callback. By satisfying the callback from the pre-
+// validated `LookupAddress[]` we got from `assertHostIsPublic`, undici
+// NEVER asks the OS resolver again — closing the residual race window
+// between T0.1's final resolve and undici's TCP connect.
+//
+// Per the IPv4/IPv6 design parameters (locked, see T0.1b brief):
+//   options.family === 4 → first v4 address, else ENOTFOUND
+//   options.family === 6 → first v6 address, else ENOTFOUND
+//   options.family === 0 → prefer v4 (most public services dual-stack
+//                          with v4 reachable from anywhere)
+//
+// NEVER silently downgrade family. If the validate-time set has no
+// match for the requested family, return ENOTFOUND so the caller
+// sees a clean connection failure — not an attacker-flipped address
+// of a different family.
+//
+// TLS SNI: undici's TLS connect uses the URL hostname for `servername`
+// regardless of what `lookup` returns. We do NOT touch `servername`.
+// The pinned lookup only controls the destination IP; the original
+// hostname rides as the SNI and the HTTP Host header.
+
+// Match Node's LookupFunction overload exactly: when `all: true` the
+// success path returns LookupAddress[]; otherwise a single
+// (address, family) pair. We only emit the single-address shape (we
+// pick ONE address from the validated set per family), but the type
+// must accept both branches to satisfy undici's `LookupFunction`.
+type LookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | LookupAddress[],
+  family?: number
+) => void;
+
+// Mirror Node's dns.LookupOptions — `family` may arrive as a number,
+// or the string aliases 'IPv4' / 'IPv6' (Node 18+ overload). The
+// normalizer below collapses both into the integer form we compare
+// against LookupAddress.family.
+type LookupOptions = {
+  family?: number | 'IPv4' | 'IPv6';
+  hints?: number;
+  all?: boolean;
+};
+
+const normalizeFamilyHint = (family: LookupOptions['family']): number => {
+  if (family === 'IPv4') return 4;
+  if (family === 'IPv6') return 6;
+  if (typeof family === 'number') return family;
+  return 0;
+};
+
+const pickAddressByFamily = (
+  addresses: LookupAddress[],
+  requestedFamily: number
+): LookupAddress | null => {
+  if (requestedFamily === 4) {
+    return addresses.find((entry) => entry.family === 4) ?? null;
+  }
+  if (requestedFamily === 6) {
+    return addresses.find((entry) => entry.family === 6) ?? null;
+  }
+  // family === 0 (or undefined): prefer v4, fall back to v6.
+  return (
+    addresses.find((entry) => entry.family === 4) ??
+    addresses.find((entry) => entry.family === 6) ??
+    null
+  );
+};
+
+// Per-request Agent. Caller MUST `await agent.close()` in finally so
+// pooled sockets drain after the fetch settles. Connection-pool reuse
+// across requests is intentionally NOT preserved — pinning correctness
+// trumps the marginal connection-reuse win for our single-shot media
+// proxy use-case.
+// Filter the validated address set to a single family. Used for the
+// `all: true` happy-eyeballs callback path — undici's Node 18+ net.
+// connect uses `lookupAndConnectMultiple` which calls with `all: true`
+// to receive every available address per family and pick its own
+// connection winner. We still enforce family rules so the pin can't
+// be tricked by an attacker who managed to slip an extra family into
+// the validated set.
+const filterAddressesByFamily = (
+  addresses: LookupAddress[],
+  requestedFamily: number
+): LookupAddress[] => {
+  if (requestedFamily === 4) return addresses.filter((entry) => entry.family === 4);
+  if (requestedFamily === 6) return addresses.filter((entry) => entry.family === 6);
+  // family === 0: return everything; undici's happy-eyeballs picks.
+  return [...addresses];
+};
+
+const buildPinnedAgent = (addresses: LookupAddress[]): Agent => {
+  const lookup = (
+    _hostname: string,
+    options: LookupOptions,
+    callback: LookupCallback
+  ): void => {
+    const requestedFamily = normalizeFamilyHint(options.family);
+    // Node's `net.connect` (and through it undici) calls our lookup
+    // with `all: true` (happy-eyeballs path, returns Array<LookupAddress>)
+    // or `all: false` / undefined (returns a single address). Handle
+    // both because undici's choice between the two modes is a Node-
+    // version implementation detail we don't want to depend on.
+    if (options.all) {
+      const filtered = filterAddressesByFamily(addresses, requestedFamily);
+      if (!filtered.length) {
+        const error: NodeJS.ErrnoException = new Error(
+          `pinned lookup: no address of family ${requestedFamily} in validated set`
+        );
+        error.code = 'ENOTFOUND';
+        callback(error, []);
+        return;
+      }
+      callback(null, filtered);
+      return;
+    }
+    const picked = pickAddressByFamily(addresses, requestedFamily);
+    if (!picked) {
+      const error: NodeJS.ErrnoException = new Error(
+        `pinned lookup: no address of family ${requestedFamily} in validated set`
+      );
+      error.code = 'ENOTFOUND';
+      // The Node LookupFunction type requires a non-undefined address
+      // argument even on the error branch; an empty string is the
+      // convention (consumed only when err is non-null, which
+      // immediately rejects the connect).
+      callback(error, '');
+      return;
+    }
+    callback(null, picked.address, picked.family);
+  };
+  return new Agent({
+    connect: {
+      lookup
+    }
+  });
 };
 
 // ---- fetch helpers ------------------------------------------------------
@@ -262,6 +418,9 @@ const drainResponseBody = async (response: Response) => {
   }
 };
 
+// T0.1b: each hop owns a freshly-built pinned Agent. Closing the old
+// Agent before opening the next one keeps connection cleanup tight and
+// prevents leftover sockets from outliving the redirect chain.
 const guardedFetchWithRedirects = async (
   initialUrl: string,
   init: RequestInit,
@@ -269,39 +428,130 @@ const guardedFetchWithRedirects = async (
 ): Promise<Response> => {
   let currentUrl = initialUrl;
   let redirectCount = 0;
-  while (true) {
-    await guardOutboundFetchTarget(currentUrl);
-    const response = await fetch(currentUrl, {
-      ...init,
-      redirect: 'manual',
-      signal
-    });
-    if (!isRedirectStatus(response.status)) {
-      return response;
+  // The agent for the CURRENT hop. We dispose it (close()) before
+  // building the next hop's agent, except when we hand the final
+  // response back to the caller — that response's body is still tied
+  // to the agent's connection, so we attach a finaliser via the
+  // patchResponseAgentDisposal helper below.
+  let currentAgent: Agent | null = null;
+  try {
+    while (true) {
+      const addresses = await guardOutboundFetchTarget(currentUrl);
+      // addresses === null means a malformed URL / non-http protocol;
+      // let fetch surface the underlying error without dispatcher.
+      const agent = addresses ? buildPinnedAgent(addresses) : null;
+      // Tear down the prior hop's agent BEFORE the next fetch so we
+      // never hold two sockets open for the same request.
+      if (currentAgent) {
+        await currentAgent.close().catch(() => {});
+      }
+      currentAgent = agent;
+
+      const response = await fetch(currentUrl, {
+        ...init,
+        redirect: 'manual',
+        signal,
+        ...(agent ? { dispatcher: agent } : {})
+      });
+      if (!isRedirectStatus(response.status)) {
+        // Final response — wrap so agent.close() fires when the body
+        // settles. Transfer ownership; set currentAgent to null so
+        // the outer finally doesn't double-close.
+        const final = currentAgent
+          ? wrapResponseWithAgentDisposal(response, currentAgent)
+          : (response as unknown as Response);
+        currentAgent = null;
+        return final;
+      }
+      const location = response.headers.get('location');
+      if (!location) {
+        const final = currentAgent
+          ? wrapResponseWithAgentDisposal(response, currentAgent)
+          : (response as unknown as Response);
+        currentAgent = null;
+        return final;
+      }
+      if (redirectCount >= MAX_REDIRECT_HOPS) {
+        await drainResponseBody(response as unknown as Response);
+        throw new SsrfBlockedError('too many redirects', initialUrl);
+      }
+      let next: URL;
+      try {
+        next = new URL(location, currentUrl);
+      } catch {
+        await drainResponseBody(response as unknown as Response);
+        throw new SsrfBlockedError(`invalid redirect Location: ${location}`, currentUrl);
+      }
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') {
+        await drainResponseBody(response as unknown as Response);
+        throw new SsrfBlockedError(`disallowed redirect protocol: ${next.protocol}`, currentUrl);
+      }
+      await drainResponseBody(response as unknown as Response);
+      redirectCount += 1;
+      currentUrl = next.toString();
     }
-    const location = response.headers.get('location');
-    if (!location) {
-      return response;
+  } catch (error) {
+    if (currentAgent) {
+      await currentAgent.close().catch(() => {});
     }
-    if (redirectCount >= MAX_REDIRECT_HOPS) {
-      await drainResponseBody(response);
-      throw new SsrfBlockedError('too many redirects', initialUrl);
-    }
-    let next: URL;
-    try {
-      next = new URL(location, currentUrl);
-    } catch {
-      await drainResponseBody(response);
-      throw new SsrfBlockedError(`invalid redirect Location: ${location}`, currentUrl);
-    }
-    if (next.protocol !== 'http:' && next.protocol !== 'https:') {
-      await drainResponseBody(response);
-      throw new SsrfBlockedError(`disallowed redirect protocol: ${next.protocol}`, currentUrl);
-    }
-    await drainResponseBody(response);
-    redirectCount += 1;
-    currentUrl = next.toString();
+    throw error;
   }
+};
+
+// Attaches agent disposal to the response body lifecycle. Response
+// instances are immutable (the body property is read-only) so we
+// build a fresh Response whose body is a pull-stream that proxies
+// the original body and fires agent.close() exactly once when the
+// caller has read (or cancelled) it. close() fires whether the
+// caller awaits arrayBuffer/text/json (full read to completion) or
+// cancels partway through.
+const wrapResponseWithAgentDisposal = (
+  response: { body: ReadableStream | null; status: number; statusText: string; headers: Headers },
+  agent: Agent
+): Response => {
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    void agent.close().catch(() => {});
+  };
+  if (!response.body) {
+    // No body to wait on — drop the agent now. The headers-only
+    // response (e.g. HEAD, 204) can return as-is, just typed back to
+    // the global Response shape.
+    dispose();
+    return response as unknown as Response;
+  }
+  const upstream = response.body;
+  const wrappedBody = new ReadableStream({
+    async start(controller) {
+      const reader = upstream.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          controller.enqueue(value);
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      } finally {
+        reader.releaseLock();
+        dispose();
+      }
+    },
+    cancel() {
+      // Best-effort upstream cancel — if it throws (stream already
+      // closed), we still need to dispose the agent.
+      void upstream.cancel().catch(() => {});
+      dispose();
+    }
+  });
+  return new Response(wrappedBody, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
 };
 
 const runFetch = async (
@@ -316,8 +566,25 @@ const runFetch = async (
   if (init.redirect === undefined) {
     return guardedFetchWithRedirects(url, init, signal);
   }
-  await guardOutboundFetchTarget(url);
-  return fetch(url, { ...init, signal });
+  // Explicit-redirect path: still pin the destination for the single
+  // hop the caller is making. They own redirect handling beyond that.
+  const addresses = await guardOutboundFetchTarget(url);
+  const agent = addresses ? buildPinnedAgent(addresses) : null;
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal,
+      ...(agent ? { dispatcher: agent } : {})
+    });
+    return agent
+      ? wrapResponseWithAgentDisposal(response, agent)
+      : (response as unknown as Response);
+  } catch (error) {
+    if (agent) {
+      await agent.close().catch(() => {});
+    }
+    throw error;
+  }
 };
 
 export const fetchWithTimeout = async (
