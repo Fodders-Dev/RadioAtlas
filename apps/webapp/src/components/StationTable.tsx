@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NowPlayingSnapshot } from '../domain/contracts';
 import { observeStationNowPlaying } from '../lib/nowPlaying';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import type { StationLite } from '../types';
+import type { BehaviorProfile } from '../lib/homeProfile';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
@@ -33,6 +34,10 @@ declare global {
     // after the user scrolls, to assert the arm-guard prevented an
     // observer cascade fire. Never set in production.
     __radioatlasLoadMoreCount__?: number;
+    // T2.11a render spy: StationTable.test.tsx seeds this map and reads
+    // per-station render counts to assert a playback tick re-renders
+    // only the active row, not every mounted row. Never set in production.
+    __radioatlasRowRenderCounts__?: Record<string, number>;
   }
 }
 const readRenderBatchOverride = () => {
@@ -55,38 +60,52 @@ const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
   updatedAt: null
 };
 
+// Only the currently-playing row needs live playback data (track,
+// status, play/pause). Bundling it into one prop that is non-null
+// ONLY for the active row means a playback tick changes the prop of
+// exactly one row; every other memoized row sees a stable `null` and
+// skips re-render. (T2.11a)
+type ActivePlayback = Pick<
+  ReturnType<typeof usePlayback>,
+  'player' | 'nowPlaying' | 'nowPlayingStatus'
+>;
+
 type StationTableRowProps = {
   station: StationLite;
   index: number;
   compact?: boolean;
-  sourceId?: string;
-  buildQueue: boolean;
-  stations: StationLite[];
   nowPlayingMode: 'active-only' | 'viewport';
+  // Parent-computed slices (lifted out of usePlayback/useLibrary so the
+  // row no longer subscribes to either context directly — both change
+  // on every now-playing tick).
+  active: boolean;
+  liked: boolean;
+  hidden: boolean;
+  behaviorProfile: BehaviorProfile | null | undefined;
+  activePlayback: ActivePlayback | null;
+  // Stable callbacks (parent keeps them referentially stable via refs).
+  onPlay: (station: StationLite) => void;
+  onToggleFavorite: (station: StationLite) => void;
+  onToggleHidden: (station: StationLite, currentlyHidden: boolean) => void;
 };
 
-const StationTableRow = ({
+const StationTableRow = memo(({
   station,
   index,
   compact,
-  sourceId,
-  buildQueue,
-  stations,
-  nowPlayingMode
+  nowPlayingMode,
+  active,
+  liked,
+  hidden,
+  behaviorProfile,
+  activePlayback,
+  onPlay,
+  onToggleFavorite,
+  onToggleHidden
 }: StationTableRowProps) => {
-  const { playStation, player, nowPlaying, nowPlayingStatus } = usePlayback();
-  const {
-    toggleFavorite,
-    isFavorite,
-    hideStationFromRecommendations,
-    unhideStationFromRecommendations,
-    isStationHiddenFromRecommendations,
-    behaviorProfile
-  } = useLibrary();
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const lowPower = getDeviceProfile().lowPower;
-  const active = player.current?.stationuuid === station.stationuuid;
   const shouldWatchViewport = nowPlayingMode === 'viewport';
   const seedWindow = lowPower ? 1 : compact ? 2 : 3;
   const [isNearViewport, setIsNearViewport] = useState(() =>
@@ -94,6 +113,13 @@ const StationTableRow = ({
   );
   const [snapshot, setSnapshot] = useState<NowPlayingSnapshot>(IDLE_ROW_SNAPSHOT);
   const shouldObserve = active || (shouldWatchViewport && isNearViewport);
+
+  // Test-only render spy (see __radioatlasRowRenderCounts__). No-op in
+  // production — the global is only set by StationTable.test.tsx.
+  if (typeof window !== 'undefined' && window.__radioatlasRowRenderCounts__) {
+    const counts = window.__radioatlasRowRenderCounts__;
+    counts[station.stationuuid] = (counts[station.stationuuid] ?? 0) + 1;
+  }
 
   useEffect(() => {
     if (active) {
@@ -133,14 +159,8 @@ const StationTableRow = ({
     return observeStationNowPlaying(station, setSnapshot, { passive: true });
   }, [shouldObserve, station]);
 
-  const liked = isFavorite(station.stationuuid);
-  const hidden = isStationHiddenFromRecommendations(station.stationuuid);
   const toggleHidden = () => {
-    if (hidden) {
-      unhideStationFromRecommendations(station);
-    } else {
-      hideStationFromRecommendations(station);
-    }
+    onToggleHidden(station, hidden);
   };
   // Why is this station here? "Часто слушаешь", "Любимый жанр · jazz",
   // "Часто слушаешь · Russia", "Промо", "Проверено" — pick one to
@@ -152,7 +172,8 @@ const StationTableRow = ({
     !active && !hidden
       ? getRecommendationReason({ station, behaviorProfile, t })
       : null;
-  const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
+  const isActivePlaying = Boolean(active && activePlayback?.player.isPlaying);
+  const playLabel = isActivePlaying ? t('common.pause') : t('common.play');
   const locationLabel = stationLocation(station);
   const tagsLabel = stationTags(station);
   const compactTags = (station.tags || '')
@@ -163,30 +184,29 @@ const StationTableRow = ({
     .join(' · ');
 
   const toggleStation = () => {
-    if (active) {
-      void player.toggle();
+    if (active && activePlayback) {
+      void activePlayback.player.toggle();
       return;
     }
 
-    playStation(station, {
-      playlist: buildQueue ? stations : undefined,
-      sourceId
-    });
+    onPlay(station);
   };
 
-  const activeTrust = active
-    ? resolveNowPlayingTrust({
-        station,
-        track: nowPlaying,
-        metadataStatus: nowPlayingStatus,
-        playerStatus: player.status,
-        failure: player.failure
-      })
-    : null;
+  const activeTrust =
+    active && activePlayback
+      ? resolveNowPlayingTrust({
+          station,
+          track: activePlayback.nowPlaying,
+          metadataStatus: activePlayback.nowPlayingStatus,
+          playerStatus: activePlayback.player.status,
+          failure: activePlayback.player.failure
+        })
+      : null;
   const activeTrack = activeTrust?.track || null;
   const displayTrack = activeTrack || normalizeTrustedTrackTitle(snapshot.track, station);
+  const activeNowPlayingStatus = activePlayback?.nowPlayingStatus ?? 'idle';
   const displayStatus =
-    active && !activeTrack && nowPlayingStatus !== 'idle'
+    active && !activeTrack && activeNowPlayingStatus !== 'idle'
       ? displayTrack
         ? 'ready'
         : 'unavailable'
@@ -282,7 +302,7 @@ const StationTableRow = ({
               aria-label={playLabel}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                {active && player.isPlaying ? (
+                {isActivePlaying ? (
                   <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
                 ) : (
                   <path d="M8 5v14l11-7z" />
@@ -291,7 +311,7 @@ const StationTableRow = ({
             </button>
             <button
               className={`icon-btn station-fav-btn ${liked ? 'active' : ''}`}
-              onClick={() => toggleFavorite(station)}
+              onClick={() => onToggleFavorite(station)}
               type="button"
               aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
             >
@@ -375,7 +395,7 @@ const StationTableRow = ({
           <div className="station-row-actions">
             <button
               className={`icon-btn ${liked ? 'active' : ''}`}
-              onClick={() => toggleFavorite(station)}
+              onClick={() => onToggleFavorite(station)}
               type="button"
               aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
             >
@@ -415,7 +435,8 @@ const StationTableRow = ({
       )}
     </div>
   );
-};
+});
+StationTableRow.displayName = 'StationTableRow';
 
 export const StationTable = ({
   stations,
@@ -426,6 +447,73 @@ export const StationTable = ({
 }: StationTableProps) => {
   const { t } = useLocale();
   const lowPower = getDeviceProfile().lowPower;
+
+  // Subscribe to the playback + library contexts ONCE here, then hand
+  // each row only the primitive slices it needs. Previously every
+  // StationTableRow read usePlayback()+useLibrary() directly, so a
+  // single now-playing/currentTime tick — which re-renders RadioProvider
+  // and therefore both context values (libraryValue's useMemo deps
+  // include per-render predicate fns) — re-rendered every mounted row.
+  // With the row memoized and these reads lifted up, only this component
+  // plus the one active row (whose activePlayback prop changes) re-render
+  // per tick. (T2.11a)
+  const { player, nowPlaying, nowPlayingStatus, playStation } = usePlayback();
+  const {
+    favorites,
+    behaviorProfile,
+    toggleFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
+  } = useLibrary();
+
+  // The context action fns are recreated on every provider render;
+  // closing over them directly would change the callback identity each
+  // tick and defeat the row memo. Mirror the latest set in a ref and
+  // expose [] -dep callbacks that read through it.
+  const actionsRef = useRef({
+    playStation,
+    toggleFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations
+  });
+  actionsRef.current = {
+    playStation,
+    toggleFavorite,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations
+  };
+  const queueConfigRef = useRef({ stations, sourceId, buildQueue });
+  queueConfigRef.current = { stations, sourceId, buildQueue };
+
+  const handlePlay = useCallback((station: StationLite) => {
+    const { stations: queueStations, sourceId: queueSourceId, buildQueue: queueBuild } =
+      queueConfigRef.current;
+    actionsRef.current.playStation(station, {
+      playlist: queueBuild ? queueStations : undefined,
+      sourceId: queueSourceId
+    });
+  }, []);
+  const handleToggleFavorite = useCallback((station: StationLite) => {
+    actionsRef.current.toggleFavorite(station);
+  }, []);
+  const handleToggleHidden = useCallback((station: StationLite, currentlyHidden: boolean) => {
+    if (currentlyHidden) {
+      actionsRef.current.unhideStationFromRecommendations(station);
+    } else {
+      actionsRef.current.hideStationFromRecommendations(station);
+    }
+  }, []);
+
+  // O(1) favorite lookup per row instead of favorites.some() per row per
+  // tick. Keyed on the favorites array, which is stable across playback
+  // ticks (it only changes when the user toggles a favorite).
+  const favoriteIds = useMemo(
+    () => new Set(favorites.map((item) => item.stationuuid)),
+    [favorites]
+  );
+  const activeStationId = player.current?.stationuuid ?? null;
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const renderBatch =
     readRenderBatchOverride() ??
@@ -466,16 +554,22 @@ export const StationTable = ({
         </div>
       )}
       {renderedStations.map((station, index) => {
+        const active = station.stationuuid === activeStationId;
         return (
           <StationTableRow
             key={`${station.stationuuid}-${sourceId || 'stations'}-${index}`}
             station={station}
             index={index}
             compact={compact}
-            sourceId={sourceId}
-            buildQueue={buildQueue}
-            stations={stations}
             nowPlayingMode={nowPlayingMode}
+            active={active}
+            liked={favoriteIds.has(station.stationuuid)}
+            hidden={isStationHiddenFromRecommendations(station.stationuuid)}
+            behaviorProfile={behaviorProfile}
+            activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
+            onPlay={handlePlay}
+            onToggleFavorite={handleToggleFavorite}
+            onToggleHidden={handleToggleHidden}
           />
         );
       })}
