@@ -340,17 +340,39 @@ target stays green.
 
 ## Tier 2 — Performance & reliability
 
-### T2.1 Visualizer state out of React
-- **What**: stop calling `setVisualizer({...})` ~30×/s in `useAudioPlayer.ts:873`.
-  Expose a `subscribeVisualizer(cb)` API that pushes via `ref` callbacks. The
-  visualizer canvas reads the ref directly in its rAF; the rest of the app
-  never re-renders for visualizer data.
-- **Why**: today every consumer of `usePlayback` re-renders 30×/s.
+### T2.1 Visualizer state out of React (re-scoped after T_audit_1)
+- **Updated framing**: `PlaybackRuntime.tsx:18,105-156` ALREADY
+  throttles visualizer emission into the playback snapshot to
+  `VISUALIZER_EMIT_INTERVAL_MS = 240` ms — so the original framing
+  ("every consumer of usePlayback re-renders 30×/s") is no longer
+  accurate. App-wide consumers re-render ~4 Hz today, not 30 Hz.
+  The 30 Hz problem is now LOCAL to two paths:
+    1. `useAudioPlayer.ts:977` — `setVisualizer({...})` 30×/s
+       triggers PlaybackRuntime re-render + signature recompute
+       (`buildVisualizerSignature` does 2× `Array.from` per frame).
+    2. `useAudioPlayer.ts:873-882` — `useEffect([visualizer])` writes
+       `audio.dataset.raVisualizer*` (string-serialised spectrum)
+       on every change → 30 Hz DOM writes.
+  Plus `useAudioPlayer.ts:953,969` — `Array.from({length: BARS})` /
+  `Array.from({length: SAMPLES})` allocate new arrays every frame
+  → GC pressure on battery / micro-pauses on low-end devices.
+- **What**: stop calling `setVisualizer({...})` in
+  `useAudioPlayer.ts`. Expose a `subscribeVisualizer(cb)` API that
+  pushes via ref callbacks. The visualizer canvas reads the ref
+  directly in its rAF; PlaybackRuntime no longer rebuilds the
+  signature for visualizer ticks. Drop `audio.dataset.*` writes —
+  if any consumer reads them, switch that consumer to the
+  subscription API. Reuse typed-array buffers across frames
+  (allocate once on mount, fill in place).
+- **Why**: removes 30 Hz host re-render + 30 Hz DOM writes + GC
+  pressure. Net: smoother frame budget, less battery drain, faster
+  perceived UI even when audio is not the focus.
 - **Files**: `apps/webapp/src/lib/useAudioPlayer.ts`,
-  `apps/webapp/src/components/WinampMilkdropVisualizer.tsx` (or wherever it
-  consumes today).
-- **Done-when**: React DevTools profiler shows shell re-render rate <1/s
-  during playback.
+  `apps/webapp/src/state/PlaybackRuntime.tsx`,
+  `apps/webapp/src/components/WinampMilkdropVisualizer.tsx`.
+- **Done-when**: React DevTools profiler shows PlaybackRuntime
+  re-render rate ≤ 1 Hz during playback (was ~30 Hz pre-fix); no
+  `audio.dataset.raVisualizer*` writes remain.
 
 ### T2.2 Debounced localStorage flush for `nowPlaying` cache
 - **What**: in `apps/webapp/src/lib/nowPlaying.ts`, keep the cache in an
@@ -426,6 +448,86 @@ target stays green.
   the snapshot mtime. Webapp reads the header and shows a small "data may
   be stale" hint.
 - **Files**: API + `apps/webapp/src/state/CatalogContext.tsx`.
+
+### T2.11 Virtualize station lists (UI Sprint v1)
+- **What**: today `apps/webapp/src/components/StationTable.tsx` renders
+  every row in `stations.slice(0, visibleCount)` as a live DOM node;
+  `visibleCount` only grows (loadMore += batch), never trims. Each
+  rendered row attaches its own `IntersectionObserver` for visibility
+  + an `observeStationNowPlaying` listener whose release is delayed
+  5 minutes after unmount. A long Browse-by-country session
+  accumulates thousands of live DOM subtrees + observers, exhausts
+  the WebView heap, and crashes the browser.
+- **Fix**: windowing — render only the visible viewport slice +
+  overscan, attach observer/now-playing subscriptions only to rows
+  in the window. Library candidate: `react-window` (battle-tested,
+  ~1.5 KB gzip). Must preserve existing infinite-scroll load-more
+  via `useInfiniteScroll` from Bug B (T1.2-followup) — the sentinel
+  stays at the bottom of the underlying list, the windowed renderer
+  is what changes.
+- **Why**: from T_audit_1 — this is the most direct OOM cause in
+  the webapp. No runtime profiling needed; the unbounded growth is
+  evident statically.
+- **Files**: `apps/webapp/src/components/StationTable.tsx`,
+  `apps/webapp/package.json` (add `react-window`), e2e test in
+  `apps/webapp/tests/` that scrolls a 1000+ station list and asserts
+  the rendered row count stays bounded (windowed) regardless of
+  source-list length.
+- **Done-when**: e2e asserts max ~30 rendered rows even with 1000+
+  stations in the data set; existing filter/sort/load-more flows
+  still work; visual baselines stay green or get a documented
+  refresh.
+
+### T2.12 Globe WebGL lifecycle: keep-alive or module-scope reuse
+- **What**: `App.tsx:411` renders only the active tab via
+  `ActiveScreen = SECTION_COMPONENTS[activeSection]`; every
+  Home↔Globe cycle mounts/unmounts MapLibre. `map.remove()` does
+  release the WebGL context, but the browser limits live GL
+  contexts (~16) and may not GC the released one immediately on
+  low-end WebViews → context exhaustion → crash.
+- **Pre-flight**: this is a STATIC HYPOTHESIS. Before writing code,
+  reproduce in Chrome DevTools (Performance → Memory or
+  `chrome://gpu`) by toggling Home↔Globe 5–10 times and watching
+  GL context count + heap. If exhaustion confirmed, then fix.
+- **Fix options** (decide after profiling):
+  (a) Keep Globe mounted with `display: none` / `visibility: hidden`
+      when not active (preserves map state, costs idle GPU memory).
+  (b) Single module-scope `Map` instance reused across mounts
+      (more complex; needs careful event/handler rebind).
+- **Files**: `apps/webapp/src/App.tsx`, `apps/webapp/src/components/Globe.tsx`,
+  possibly `apps/webapp/src/screens/GlobeScreen.tsx`.
+- **Done-when**: 20 toggle cycles in DevTools profile, GL context
+  count stable, heap delta < 50 MB. Visible globe state preserved
+  across tab switches (UX bonus).
+
+### T2.13 Globe move-handler throttle
+- **What**: `apps/webapp/src/components/Globe.tsx:942,835-841` —
+  `handleMove` → `findNearestStation` → `map.queryRenderedFeatures`
+  on a 640×640 bbox fires at ~60 Hz during drag/rotate. Raster
+  feature query is expensive at that cadence.
+- **Fix**: throttle/rAF-coalesce so the query runs at most ~15-20 Hz,
+  or compute nearest from a pre-built spatial index instead of
+  querying the rendered layer. Pre-built KDTree on `points` is
+  cheap; the layer query is the expensive path.
+- **Files**: `apps/webapp/src/components/Globe.tsx`.
+- **Done-when**: rotate-drag p95 main-thread block < 8 ms (down
+  from current ~16+ ms during query bursts).
+
+### T2.14 Theme asset IndexedDB cap + LRU eviction
+- **What**: `apps/webapp/src/lib/theme/storage.ts:210-224`
+  (`saveStoredAsset`) writes user-uploaded theme backgrounds / GIFs
+  / stickers without any size or count cap. User who uploads many
+  large media bumps the IDB quota silently; subsequent writes fail
+  in obscure ways.
+- **Fix**: cap by (a) count (e.g. 50 assets) and (b) total bytes
+  (e.g. 100 MB). On `saveStoredAsset`, sort by `lastAccessedAt`,
+  evict oldest until under cap. Add `lastAccessedAt` field via the
+  T0.3 migration pattern.
+- **Files**: `apps/webapp/src/lib/theme/storage.ts`,
+  `apps/webapp/src/state/ThemeContext.tsx` (touch `lastAccessedAt`
+  on read), unit test.
+- **Done-when**: unit test seeds 60 assets, asserts only 50 remain
+  + total bytes under cap + oldest were evicted.
 
 ---
 
