@@ -77,17 +77,56 @@ target stays green.
 - **Files**: `apps/bot/src/index.ts`, bot test.
 - **Done-when**: bot test covers the forward-fail path replying to the user.
 
-### T0.2c Reconcile pending billing purchases with Telegram
-- **What**: Telegram delivers `successful_payment` once over long-poll;
-  if our forward fails the update is dropped forever and the purchase stays
-  `pending` while the user's money is gone. Add a periodic sweep (every
-  10 min) that lists pending purchases older than 5 min, calls the Telegram
-  payments API to verify the charge, and re-runs the webhook path.
-  Queue-based forwarding (bot writes a local SQLite retry queue, separate
-  worker drains with backoff) is the proper long-term design.
-- **Files**: `apps/api/src/billingReconciliation.ts` (new), wire into
-  `apps/api/src/index.ts` boot, contract test.
-- **Done-when**: simulated webhook-drop reconciles within one sweep cycle.
+### ~~T0.2c Reconcile pending billing purchases with Telegram~~ (DONE)
+- **What** (shipped): periodic in-process `setInterval` sweep in the
+  API process that lists pending `billing_purchases` rows, calls
+  Telegram's `getStarTransactions` once per tick (raw fetch, mirrors
+  the existing `createTelegramInvoiceLink` pattern — no grammy dep
+  in the API), matches by `invoice_payload`, and re-runs
+  `confirmBillingPurchase` in-process when a match lands. Backoff
+  schedule `[1m, 2m, 4m, 8m, 16m]` indexed by `reconcile_attempts`;
+  max 5 attempts then dead-letter (single stderr JSON log, row stays
+  pending — we never assert that a user did NOT pay). 24h horizon
+  filters ancient pending rows. Disable via
+  `BILLING_RECONCILE_ENABLED=0`.
+- **Schema**: `last_reconcile_at INTEGER` (nullable) +
+  `reconcile_attempts INTEGER NOT NULL DEFAULT 0` added via the T0.3
+  `ensureSessionExpiresAtColumn` pattern (PRAGMA detect + fail-loud
+  ALTER, not silent try/catch). T3.4 folds both into the numbered
+  migration list.
+- **Promise math** (VI-3 lock-in, locked in test 4 and docstring):
+  with 2-minute tick interval, a freshly-failed row receives EXACTLY
+  3 attempts in the first 10 minutes at t=2min, t=4min, t=8min. The
+  T0.2b apology copy says "до 10 минут" (not "ровно") — 3 attempts
+  in that window is the honest contract.
+- **Files**: `apps/api/src/billingReconciliation.ts` (new),
+  `apps/api/src/account/core/repository.ts`
+  (`ensureBillingReconcileColumns`), `apps/api/src/routeSupport.ts`
+  (`fetchTelegramStarTransactions`), `apps/api/src/index.ts` (boot
+  wire), `apps/api/src/billingRoutes.ts` (test fixture endpoints +
+  inspect), `apps/api/test/billing.reconcile.test.ts` (new, 8 cases),
+  `RUNBOOK.md`.
+- **Done-when** (met): 8 contract tests covering schema migration,
+  match-grants, no-match attempts++, backoff schedule exact lock-in,
+  dead-letter single-shot, idempotency across two ticks, 24h horizon,
+  and BILLING_RECONCILE_ENABLED=0 boot-log absence.
+
+### T0.2d Paginate getStarTransactions when billing volume > 100/24h
+- **What**: today we fetch only the 100 most recent transactions per
+  sweep tick (the `getStarTransactions` default/max limit). Realistic
+  for early-stage RadioAtlas. If billing volume exceeds 100 unique
+  payers per 24h, the oldest pending rows in the 24h horizon will
+  never be matched against the Telegram-side response and will
+  dead-letter via the apology fallback. Paginate via the `offset`
+  parameter until we hit either (a) a transaction older than our
+  horizon, or (b) all our pending rows are matched.
+- **Why**: T0.2c's design holds at single-digit-pending scale. The
+  threshold is a hard cliff, not a degraded curve.
+- **Files**: `apps/api/src/billingReconciliation.ts`,
+  `apps/api/src/routeSupport.ts` (pagination loop in
+  `fetchTelegramStarTransactions`), `apps/api/test/billing.reconcile.test.ts`.
+- **Done-when**: contract test seeds 150 pending purchases, asserts
+  all matched within one sweep cycle.
 
 ### ~~T0.3 Session expiry + revocation~~ (DONE in 14685f8)
 - **What**: add `expires_at` (default 30d sliding) to the `sessions` table,

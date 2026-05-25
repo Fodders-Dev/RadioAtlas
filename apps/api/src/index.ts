@@ -5,6 +5,7 @@ import { listCatalogProfileOverrides } from './accountStore.js';
 import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
+import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
@@ -34,6 +35,12 @@ const VK_CLIENT_ID = process.env.VK_CLIENT_ID || '';
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || '';
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || '';
 const INTERNAL_WEBHOOK_TOKEN = process.env.INTERNAL_WEBHOOK_TOKEN || '';
+// T0.2c: opt-out flag for the billing reconciliation sweep. Defaults
+// to ENABLED. Set BILLING_RECONCILE_ENABLED=0 in tests/CI so the
+// in-process setInterval doesn't fire spurious Telegram-API calls
+// (the contract test triggers individual sweep cycles via
+// /test/billing/trigger-reconcile instead).
+const BILLING_RECONCILE_ENABLED = process.env.BILLING_RECONCILE_ENABLED !== '0';
 const ENABLE_TEST_AUTH_FIXTURES = process.env.ENABLE_TEST_AUTH_FIXTURES === '1';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const ALLOWED_ORIGINS_RAW = process.env.ALLOWED_ORIGINS || '';
@@ -418,3 +425,19 @@ const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
   console.log(`RadioAtlas API on ${port}`);
 });
+
+// T0.2c: start the billing reconciliation sweep after the API is
+// listening. Single-instance assumption (RUNBOOK); see
+// billingReconciliation.ts header for the cluster-mode notes.
+// Disable via BILLING_RECONCILE_ENABLED=0 for tests/CI or for
+// emergency stop. Skips silently if no bot token is wired (the
+// reconciliation path requires `getStarTransactions` against the
+// Telegram Bot API).
+if (BILLING_RECONCILE_ENABLED && TELEGRAM_BOT_TOKEN) {
+  startBillingReconcileSweep({ botToken: TELEGRAM_BOT_TOKEN });
+  console.log('Billing reconciliation sweep started');
+} else if (BILLING_RECONCILE_ENABLED) {
+  console.warn(
+    'BILLING_RECONCILE_ENABLED but TELEGRAM_BOT_TOKEN/BOT_TOKEN is missing - sweep skipped'
+  );
+}
