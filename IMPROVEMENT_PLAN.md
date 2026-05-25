@@ -77,7 +77,7 @@ target stays green.
 - **Files**: `apps/bot/src/index.ts`, bot test.
 - **Done-when**: bot test covers the forward-fail path replying to the user.
 
-### ~~T0.2c Reconcile pending billing purchases with Telegram~~ (DONE)
+### ~~T0.2c Reconcile pending billing purchases with Telegram~~ (DONE in 129c950c)
 - **What** (shipped): periodic in-process `setInterval` sweep in the
   API process that lists pending `billing_purchases` rows, calls
   Telegram's `getStarTransactions` once per tick (raw fetch, mirrors
