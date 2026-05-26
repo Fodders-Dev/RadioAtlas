@@ -67,4 +67,24 @@ describe('createDiscoveryFeed server-signal rails (T2.21)', () => {
     expect(feed.topVoted).toBeNull();
     expect(feed.aroundTheWorld).toBeNull();
   });
+
+  it('wraps server mood shelves into modules keyed by rail id, skipping empty/unknown', () => {
+    const feed = createDiscoveryFeed({
+      ...baseInput,
+      moodRails: [
+        { id: 'mood-late-night', stations: [mk('ln1'), mk('ln2')] },
+        { id: 'mood-driving', stations: [mk('dr1')] },
+        { id: 'mood-empty', stations: [] }, // empty → dropped
+        { id: 'mood-unknown-xyz', stations: [mk('u1')] } // no locale config → dropped
+      ]
+    });
+
+    expect(feed.moodRails.map((m) => m.sourceId)).toEqual(['mood-late-night', 'mood-driving']);
+    expect(feed.moodRails.every((m) => m.kind === 'mood')).toBe(true);
+    expect(feed.moodRails[0]?.titleKey).toBe('home.moodLateNightTitle');
+  });
+
+  it('returns an empty moodRails array when none are provided', () => {
+    expect(createDiscoveryFeed(baseInput).moodRails).toEqual([]);
+  });
 });

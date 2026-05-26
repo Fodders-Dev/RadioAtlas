@@ -303,7 +303,8 @@ export type DiscoveryModuleKind =
   | 'sponsored'
   | 'trending'
   | 'top-voted'
-  | 'around-the-world';
+  | 'around-the-world'
+  | 'mood';
 
 export type DiscoveryStationModule = {
   kind: DiscoveryModuleKind;
@@ -339,6 +340,8 @@ export type DiscoveryFeed = {
   trending: DiscoveryStationModule | null;
   topVoted: DiscoveryStationModule | null;
   aroundTheWorld: DiscoveryStationModule | null;
+  // T2.22 mood rails (server-bucketed by listening context; 0–4 shelves).
+  moodRails: DiscoveryStationModule[];
   sponsoredModules: DiscoveryStationModule[];
   primaryDiscoveryModule: DiscoveryStationModule;
   rankedDiscoveryModules: DiscoveryStationModule[];
@@ -397,6 +400,13 @@ export type CatalogSpotlight = {
   stations: StationLite[];
 };
 
+// T2.22: a server-bucketed mood shelf. `id` (e.g. "mood-late-night") maps to
+// the rail's locale title/copy on the client.
+export type CatalogMoodRail = {
+  id: string;
+  stations: StationLite[];
+};
+
 export type CatalogSummary = {
   generatedAt: number;
   counts: {
@@ -417,6 +427,8 @@ export type CatalogSummary = {
   trending?: StationLite[];
   topVoted?: StationLite[];
   aroundTheWorld?: CatalogSpotlight | null;
+  // T2.22 mood shelves (server-bucketed by listening context).
+  moodRails?: CatalogMoodRail[];
 };
 
 export type CatalogCountryBucket = {

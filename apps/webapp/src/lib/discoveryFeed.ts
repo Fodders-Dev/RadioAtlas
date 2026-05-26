@@ -1,4 +1,5 @@
 import type {
+  CatalogMoodRail,
   CatalogSpotlight,
   DiscoveryFeed,
   DiscoveryMetrics,
@@ -43,6 +44,15 @@ const uniqueStations = (stations: Array<StationLite | null | undefined>) => {
 
 const withoutStationIds = (stations: StationLite[], blockedIds: Set<string>) =>
   stations.filter((station) => !blockedIds.has(station.stationuuid));
+
+// T2.22: maps a server mood-rail id to its locale title/copy + accent. The rail
+// id doubles as the rail's data-home-rail attribute and its de-dup source id.
+const MOOD_RAIL_CONFIG: Record<string, { titleKey: string; copyKey: string; accent: 'primary' | 'secondary' | 'accent' }> = {
+  'mood-late-night': { titleKey: 'home.moodLateNightTitle', copyKey: 'home.moodLateNightCopy', accent: 'secondary' },
+  'mood-workout': { titleKey: 'home.moodWorkoutTitle', copyKey: 'home.moodWorkoutCopy', accent: 'primary' },
+  'mood-focus': { titleKey: 'home.moodFocusTitle', copyKey: 'home.moodFocusCopy', accent: 'accent' },
+  'mood-driving': { titleKey: 'home.moodDrivingTitle', copyKey: 'home.moodDrivingCopy', accent: 'secondary' }
+};
 
 const buildStationModule = (
   kind: DiscoveryStationModule['kind'],
@@ -136,6 +146,7 @@ type DiscoveryFeedInput = {
   trending?: StationLite[];
   topVoted?: StationLite[];
   aroundTheWorld?: CatalogSpotlight | null;
+  moodRails?: CatalogMoodRail[];
 };
 
 export const createDiscoveryFeed = ({
@@ -151,7 +162,8 @@ export const createDiscoveryFeed = ({
   includeSponsored = true,
   trending = [],
   topVoted = [],
-  aroundTheWorld = null
+  aroundTheWorld = null,
+  moodRails = []
 }: DiscoveryFeedInput): DiscoveryFeed => {
   const promotedCatalog = catalog.filter((station) => station.promoted);
   const organicCatalog = catalog.filter((station) => !station.promoted);
@@ -383,6 +395,18 @@ export const createDiscoveryFeed = ({
       )
     : null;
 
+  // T2.22: wrap the server's pre-bucketed mood shelves. The rail id (sourceId)
+  // is the data-home-rail attribute + de-dup key; locale copy comes from config.
+  const moodRailModules = moodRails
+    .map((rail) => {
+      const config = MOOD_RAIL_CONFIG[rail.id];
+      if (!config || !rail.stations.length) return null;
+      return buildStationModule('mood', config.titleKey, config.copyKey, rail.id, rail.stations, {
+        accent: config.accent
+      });
+    })
+    .filter((module): module is DiscoveryStationModule => module !== null);
+
   const hasSessionContext = queuePreview.length > 0 || recent.length > 0;
   const rankedDiscoveryModules = [
     freshSignalsModule,
@@ -413,6 +437,7 @@ export const createDiscoveryFeed = ({
     trending: trendingModule,
     topVoted: topVotedModule,
     aroundTheWorld: aroundTheWorldModule,
+    moodRails: moodRailModules,
     sponsoredModules,
     primaryDiscoveryModule,
     rankedDiscoveryModules,
@@ -443,7 +468,10 @@ const scoreDiscoveryModule = (
     // into the hero — these weights only satisfy the exhaustive map.
     trending: 50,
     'top-voted': 48,
-    'around-the-world': 40
+    'around-the-world': 40,
+    // T2.22 moods are pushed in a fixed shelf order (homeSurface), never ranked
+    // into the hero — this weight only satisfies the exhaustive map.
+    mood: 42
   };
   return baseScoreByKind[module.kind] || 10;
 };

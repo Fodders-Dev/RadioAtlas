@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  CatalogMoodRail,
   CatalogSpotlight,
   DiscoveryFeed,
   DiscoveryStationModule
@@ -42,13 +43,14 @@ import {
 import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
-// Bumped to 4 for T2.21 (Trending / Top voted / Around the world shelves);
-// invalidates cached 3-rail snapshots so returning users get the new rails.
-const HOME_SURFACE_VERSION = 4;
-// T2.21: room for fresh-now + Trending + country + genre + Top voted + Around
-// the world (desktop), and a denser mobile cap that still shows the new rails.
-const DESKTOP_RAIL_LIMIT = 8;
-const DENSE_RAIL_LIMIT = 6;
+// Bumped to 5 for T2.22 (four mood shelves); invalidates cached snapshots so
+// returning users pick up the mood rails (4 for T2.21, 3 before that).
+const HOME_SURFACE_VERSION = 5;
+// T2.22: room for the full discovery set — fresh-now · Trending · country ·
+// genre · Top voted · Late night · Workout · Focus · Driving · Around the world
+// — on both layouts (dense shows all ten; desktop also fits companions/resume).
+const DESKTOP_RAIL_LIMIT = 12;
+const DENSE_RAIL_LIMIT = 10;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 const HOME_MIN_RAIL_STATIONS = 3;
 
@@ -192,6 +194,8 @@ const buildSurfaceFeed = (input: {
   trending?: StationLite[];
   topVoted?: StationLite[];
   aroundTheWorld?: CatalogSpotlight | null;
+  // T2.22: server-bucketed mood shelves threaded from the summary.
+  moodRails?: CatalogMoodRail[];
 }) => {
   const rankedCatalog = rankStationsForUser(input.catalog, input.tasteProfile, input.playabilityProfile, {
     mode: 'personal',
@@ -227,7 +231,8 @@ const buildSurfaceFeed = (input: {
     metrics: input.metrics,
     trending: input.trending,
     topVoted: input.topVoted,
-    aroundTheWorld: input.aroundTheWorld
+    aroundTheWorld: input.aroundTheWorld,
+    moodRails: input.moodRails
   });
   const recommendationDeck = mergeStations(
     recommendationFeed.tunedForYou,
@@ -481,7 +486,8 @@ export const Home = () => {
       builtAt: surfaceBuiltAt,
       trending: summary?.trending,
       topVoted: summary?.topVoted,
-      aroundTheWorld: summary?.aroundTheWorld
+      aroundTheWorld: summary?.aroundTheWorld,
+      moodRails: summary?.moodRails
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -765,7 +771,8 @@ export const Home = () => {
         metrics: effectiveSummary.counts,
         trending: effectiveSummary.trending,
         topVoted: effectiveSummary.topVoted,
-        aroundTheWorld: effectiveSummary.aroundTheWorld
+        aroundTheWorld: effectiveSummary.aroundTheWorld,
+        moodRails: effectiveSummary.moodRails
       });
 
       if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {
