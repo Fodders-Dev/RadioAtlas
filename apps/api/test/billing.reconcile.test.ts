@@ -339,7 +339,9 @@ test('(5) dead-letter on 5th attempt: log fires exactly once, subsequent ticks s
     .filter((line) => line.includes('billing_reconcile_dead_letter'))
     .filter((line) => line.includes(purchaseId));
   assert.equal(deadLetterLines.length, 1, 'dead-letter log line written exactly once');
-  const parsed = JSON.parse(deadLetterLines[0]) as Record<string, unknown>;
+  const deadLetterLine = deadLetterLines[0];
+  assert.ok(deadLetterLine, 'dead-letter log line present');
+  const parsed = JSON.parse(deadLetterLine) as Record<string, unknown>;
   assert.equal(parsed.event, 'billing_reconcile_dead_letter');
   assert.equal(parsed.purchaseId, purchaseId);
   assert.equal(parsed.attempts, 5);
