@@ -100,6 +100,41 @@ test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 });
 
+// T2.21: a diverse catalogue + a summary carrying the three server-signal
+// discovery pools, so the dense surface renders the production set of content
+// shelves (fresh-now + Trending + country + genre + Top voted + Around the
+// world) instead of leaving gaps that personalised "delta" rails fill.
+const seedDiscoveryRoutes = async (page: Page) => {
+  const COUNTRIES = 12;
+  const GENRES = 12;
+  const catalog = Array.from({ length: 120 }, (_, i) => ({
+    ...stations[i % stations.length],
+    stationuuid: `disc-${i}`,
+    name: `Station ${i + 1}`,
+    country: `Country ${i % COUNTRIES}`,
+    tags: `genre${i % GENRES},sub${i % 5}`
+  }));
+  const body = JSON.stringify(catalog);
+  const summaryBody = JSON.stringify({
+    generatedAt: Date.now(),
+    counts: { stations: catalog.length, countries: COUNTRIES, languages: 9, genres: GENRES },
+    catalogPool: catalog.slice(0, 18),
+    freshSignals: catalog.slice(0, 12),
+    searchLaunch: catalog.slice(12, 24),
+    sponsored: catalog.slice(0, 2),
+    countrySpotlight: { label: 'Country 0', stations: catalog.filter((s) => s.country === 'Country 0').slice(0, 8) },
+    genreSpotlight: { label: 'genre1', stations: catalog.filter((s) => s.tags.startsWith('genre1,')).slice(0, 8) },
+    trending: catalog.slice(30, 42),
+    topVoted: catalog.slice(42, 54),
+    aroundTheWorld: { label: 'Country 5', stations: catalog.filter((s) => s.country === 'Country 5').slice(0, 8) }
+  });
+  const json = (payload: string) => (route: import('@playwright/test').Route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: payload });
+  await page.route('**/catalog-fast.json', json(body));
+  await page.route('**/catalog-full.json', json(body));
+  await page.route('**/catalog/summary**', json(summaryBody));
+};
+
 const enableTelegramMobileSafeMode = async (page: Page) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'hardwareConcurrency', {
@@ -1002,6 +1037,7 @@ for (const width of [360, 390]) {
       playbackHistory: [stations[1]],
       queue: [stations[2]]
     });
+    await seedDiscoveryRoutes(page);
 
     await page.goto('/');
     await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
@@ -1015,8 +1051,14 @@ for (const width of [360, 390]) {
     await expect(page.locator('.home-hero-companions')).toHaveCount(0);
     await expect(page.locator('[data-home-personal-radio] .home-personal-play')).toHaveCount(1);
     await expect(page.locator('[data-home-resume="true"]')).toBeVisible();
-    await expect(page.locator('[data-home-rail]')).toHaveCount(3);
+    // T2.21: dense surface carries the discovery shelves (fresh-now first, then
+    // the three server-signal rails interleaved with the spotlights).
+    await expect(page.locator('[data-home-rail="trending"]')).toHaveCount(1);
+    await expect(page.locator('[data-home-rail="top-voted"]')).toHaveCount(1);
+    await expect(page.locator('[data-home-rail="around-the-world"]')).toHaveCount(1);
     await expect(page.locator('[data-home-rail] .home-section-title').first()).toContainText(/Для тебя|For you/);
+    // The personalised "what changed / because you liked" delta rails stay out
+    // of the dense surface — the content shelves fill the visible slots.
     await expect(page.locator('.screen-home-next')).not.toContainText(
       /Что изменилось|По твоим|Похожее на|часто слушаешь|Based on|liked/i
     );

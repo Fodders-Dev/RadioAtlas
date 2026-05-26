@@ -113,7 +113,11 @@ const collectSummaryStations = (summary: CatalogSummary) => [
   ...summary.searchLaunch,
   ...summary.sponsored,
   ...(summary.countrySpotlight?.stations || []),
-  ...(summary.genreSpotlight?.stations || [])
+  ...(summary.genreSpotlight?.stations || []),
+  // T2.21 discovery-rail stations so they resolve for playback/details/library.
+  ...(summary.trending || []),
+  ...(summary.topVoted || []),
+  ...(summary.aroundTheWorld?.stations || [])
 ];
 
 const normalizeSearchCacheInput = (input: SearchStationsInput) => ({

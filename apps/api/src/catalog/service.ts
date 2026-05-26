@@ -26,6 +26,14 @@ export type CatalogStation = {
   description?: string | null;
   websiteUrl?: string | null;
   scheduleNote?: string | null;
+  // Radio Browser community/popularity signals, carried through unchanged from
+  // the upstream artifact. votes = cumulative community votes; clicktrend =
+  // recent click momentum ("rising"); clickcount = total clicks. Used to build
+  // the Trending / Top-voted discovery rails (T2.21). Optional because older
+  // artifacts may predate these columns.
+  votes?: number;
+  clicktrend?: number;
+  clickcount?: number;
 };
 
 export type CatalogDependencies = {
@@ -199,7 +207,27 @@ const sortByTopSignal = (stations: CatalogStation[]) =>
     return left.name.localeCompare(right.name);
   });
 
-const buildCountrySpotlight = (stations: CatalogStation[], seed: number): CatalogSpotlight | null => {
+// Top-N by a numeric Radio Browser signal (votes / clicktrend), descending.
+// Stations missing the signal (or with a non-positive value) are excluded so a
+// rail built from this list hides gracefully when the artifact lacks the column.
+const topByNumericSignal = (
+  stations: CatalogStation[],
+  pick: (station: CatalogStation) => number | undefined,
+  limit: number
+) =>
+  stations
+    .map((station) => ({ station, score: pick(station) ?? 0 }))
+    .filter((entry) => Number.isFinite(entry.score) && entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
+    .map((entry) => toStationLite(entry.station));
+
+const buildCountrySpotlight = (
+  stations: CatalogStation[],
+  seed: number,
+  options: { exclude?: string } = {}
+): CatalogSpotlight | null => {
+  const excludeKey = options.exclude ? normalizeKey(options.exclude) : '';
   const buckets = new Map<string, CatalogStation[]>();
   stations.forEach((station) => {
     const country = normalizeText(station.country);
@@ -209,7 +237,7 @@ const buildCountrySpotlight = (stations: CatalogStation[], seed: number): Catalo
     buckets.set(country, current);
   });
   const ranked = Array.from(buckets.entries())
-    .filter(([, items]) => items.length >= 4)
+    .filter(([label, items]) => items.length >= 4 && normalizeKey(label) !== excludeKey)
     .sort((left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0]));
   if (!ranked.length) return null;
   const entry = ranked[seed % ranked.length];
@@ -248,11 +276,24 @@ const buildGenreSpotlight = (stations: CatalogStation[], seed: number): CatalogS
   };
 };
 
-const buildCatalogSummary = (stations: CatalogStation[], seed: number) => {
+// T2.21: per-day rotation key for "Around the world" — the country changes at
+// UTC midnight and stays fixed all day (deterministic, no server state).
+const dayNumber = (now = Date.now()) => Math.floor(now / 86_400_000);
+
+export const buildCatalogSummary = (stations: CatalogStation[], seed: number, now = Date.now()) => {
   const sorted = sortByTopSignal(stations);
   const promoted = sorted.filter((station) => station.promoted).slice(0, 6).map(toStationLite);
   const genreSpotlight = buildGenreSpotlight(sorted, seed + 17);
   const countrySpotlight = buildCountrySpotlight(sorted, seed + 29);
+  // T2.21 discovery rails — non-personalised, server-side popularity signals.
+  // Pools are larger than a rail renders (6) so they survive client-side
+  // de-duplication against the personalised fresh-now shelf and still fill.
+  const trending = topByNumericSignal(stations, (station) => station.clicktrend, 12);
+  const topVoted = topByNumericSignal(stations, (station) => station.votes, 12);
+  // Around the world rotates daily and avoids repeating the country-spotlight.
+  const aroundTheWorld = buildCountrySpotlight(sorted, dayNumber(now), {
+    exclude: countrySpotlight?.label
+  });
   const tagCount = new Set(
     sorted
       .flatMap((station) => (station.tags || '').split(',').map((tag) => tag.trim().toLowerCase()))
@@ -271,7 +312,10 @@ const buildCatalogSummary = (stations: CatalogStation[], seed: number) => {
     searchLaunch: seededSample(sorted, seed + 7, 8),
     sponsored: promoted,
     countrySpotlight,
-    genreSpotlight
+    genreSpotlight,
+    trending,
+    topVoted,
+    aroundTheWorld
   };
 };
 

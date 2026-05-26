@@ -300,7 +300,10 @@ export type DiscoveryModuleKind =
   | 'catalog-pulse'
   | 'revived-stations'
   | 'session-delta'
-  | 'sponsored';
+  | 'sponsored'
+  | 'trending'
+  | 'top-voted'
+  | 'around-the-world';
 
 export type DiscoveryStationModule = {
   kind: DiscoveryModuleKind;
@@ -332,6 +335,10 @@ export type DiscoveryFeed = {
   genreSpotlight: DiscoveryStationModule | null;
   revivedStations: DiscoveryStationModule | null;
   sessionDelta: DiscoveryStationModule | null;
+  // T2.21 server-signal rails (non-personalised discovery).
+  trending: DiscoveryStationModule | null;
+  topVoted: DiscoveryStationModule | null;
+  aroundTheWorld: DiscoveryStationModule | null;
   sponsoredModules: DiscoveryStationModule[];
   primaryDiscoveryModule: DiscoveryStationModule;
   rankedDiscoveryModules: DiscoveryStationModule[];
@@ -404,6 +411,12 @@ export type CatalogSummary = {
   sponsored: StationLite[];
   countrySpotlight: CatalogSpotlight | null;
   genreSpotlight: CatalogSpotlight | null;
+  // T2.21 discovery rails — server-side popularity signals (Radio Browser).
+  // Pre-ranked station lists; the country pool rotates daily. Optional so a
+  // cached/older summary without these fields degrades to hidden rails.
+  trending?: StationLite[];
+  topVoted?: StationLite[];
+  aroundTheWorld?: CatalogSpotlight | null;
 };
 
 export type CatalogCountryBucket = {
