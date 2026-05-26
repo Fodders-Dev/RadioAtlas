@@ -541,6 +541,28 @@ target stays green.
 - **Done-when**: unit test seeds 60 assets, asserts only 50 remain
   + total bytes under cap + oldest were evicted.
 
+### T_audit_2 Dormant hot-loop detection
+- **Why this is its own task**: T2.1 (visualizer state out of React)
+  surfaced that the entire 30 Hz pipeline was producing
+  spectrum/waveform data that NO consumer ever read — the cost was
+  real, the work was wasted. Other hot loops in the codebase may
+  share this pattern (rAF-driven state updates whose downstream
+  consumers were removed in earlier cleanup passes but the producer
+  stayed). Static greppable.
+- **What**: read-only audit pass. Grep for `requestAnimationFrame`,
+  `setInterval`, `setState` inside callback bodies that fire at
+  >1 Hz, and trace the consumers of each. Surface any path where
+  the consumer chain dead-ends (e.g. state pushed into a context
+  whose selector predicate trims it out, prop drilled into a
+  component that doesn't render it, dataset writes nobody reads).
+- **Output**: same format as T_audit_1 — Critical / Major /
+  Moderate / Minor with file:line + recommended kill/fix order.
+  Fix-tasks split out per finding once the audit lands.
+- **Files** (read-only): all of `apps/webapp/src/`.
+- **Done-when**: ranked list of dormant or wasteful hot loops, or
+  a clean report "no other dormancy found". Either outcome is
+  actionable.
+
 ---
 
 ## Tier 3 — Architecture & maintainability
