@@ -66,4 +66,22 @@ test.describe('dialog keyboard a11y', () => {
     // there via the dialog's restoreFocusTo override.
     await expect.poll(() => activeMatches(page, '.player-dock-artwork-trigger')).toBe(true);
   });
+
+  test('T1.8: visible focus indicator + <html lang> reflects locale', async ({ page }) => {
+    await page.goto('/');
+    // LocaleProvider syncs <html lang> to the default locale on boot.
+    expect(await page.evaluate(() => document.documentElement.lang)).toBe('ru');
+
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+    const input = page.locator('#search-hero-input');
+    await input.focus();
+    // The search input previously had outline:0; :focus-visible now restores
+    // a real indicator (text inputs match :focus-visible on focus).
+    const outline = await input.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { width: style.outlineWidth, lineStyle: style.outlineStyle };
+    });
+    expect(outline.lineStyle).not.toBe('none');
+    expect(parseFloat(outline.width)).toBeGreaterThan(0);
+  });
 });

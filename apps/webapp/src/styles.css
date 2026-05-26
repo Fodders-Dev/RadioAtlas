@@ -950,6 +950,13 @@ input {
   outline: none;
 }
 
+/* Visible keyboard focus (T1.8). outline:none above suppresses the ring
+   for mouse focus; :focus-visible restores it for keyboard users. */
+.search-bar input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .clear-btn {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
@@ -8376,7 +8383,8 @@ body {
 }
 
 .station-compact-toggle:focus-visible {
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .station-compact-toggle:focus-visible .station-artwork-card,
