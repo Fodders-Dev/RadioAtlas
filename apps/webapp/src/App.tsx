@@ -228,9 +228,12 @@ const App = () => {
   const sectionMeta = useMemo(
     () => ({
       home: {
+        // T2.20: Home density pass — the topbar kicker/subtitle were decorative
+        // copy that pushed the first tile down. Blank them (the "Главная" title
+        // and topbar height stay) so the feed starts higher.
         title: t('nav.home'),
-        subtitle: t(isCompactLayout ? 'home.topbarSubtitleCompact' : 'home.topbarSubtitle'),
-        context: t('home.topbarContext')
+        subtitle: '',
+        context: ''
       },
       search: {
         title: t('nav.search'),

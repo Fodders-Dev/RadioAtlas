@@ -13,8 +13,12 @@ test('desktop shell keeps navigation, queue, and expanded player flow intact', a
 
   await expect(page.locator('.app-navigation-desktop')).toBeVisible();
   await expect(page.locator('.app-topbar-title')).toHaveText('Главная');
-  await expect(page.locator('.home-search-launcher .home-section-title')).toHaveText('Найти станцию');
-  await expect(page.locator('.home-explore-card .home-section-title')).toHaveText('Что открыть дальше');
+  // T2.20 density pass: the search launcher is now a compact form (no section
+  // head), the topbar kicker is blanked, and the footer nav-promo card is gone.
+  await expect(page.locator('.home-search-launcher.is-compact #home-search-launcher')).toBeVisible();
+  await expect(page.locator('.home-explore-card')).toHaveCount(0);
+  await expect(page.locator('.home-hero-metrics')).toHaveCount(0);
+  expect(((await page.locator('.shell-kicker').first().textContent()) || '').trim()).toBe('');
 
   await playHomeStation(page, 'Tokyo FM');
 

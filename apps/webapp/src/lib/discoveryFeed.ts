@@ -204,8 +204,12 @@ export const createDiscoveryFeed = ({
     return null;
   };
 
-  const countrySpotlight = pickUniqueBucket(countryBuckets, showcaseSeed + 17, 4);
-  const genreSpotlight = pickUniqueBucket(tagBuckets, showcaseSeed + 41, 4);
+  // T2.20: give spotlight rails a full shelf's worth of stations (a small pool
+  // above the 6 a rail renders), so that after createHomeSurfaceFeed de-dupes
+  // them against fresh-now the country/genre rails still fill a complete shelf
+  // — Home then shows two full shelves above the fold instead of two half-rows.
+  const countrySpotlight = pickUniqueBucket(countryBuckets, showcaseSeed + 17, 8);
+  const genreSpotlight = pickUniqueBucket(tagBuckets, showcaseSeed + 41, 8);
   const resumeStations = uniqueStations([...queuePreview, ...recent, ...favorites]).slice(0, 4);
 
   const followedPool = uniqueStations(
