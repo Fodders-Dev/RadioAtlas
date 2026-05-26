@@ -1,6 +1,12 @@
 import type { DictionaryTree } from './types';
 
 export const enDictionary = {
+  "errorBoundary": {
+    "screenTitle": "Couldn't load this section",
+    "screenBody": "Something went wrong. Try again, or head back home.",
+    "retry": "Retry",
+    "home": "Home"
+  },
   "app": {
     "title": "RadioAtlas",
     "subtitle": "World music, live.",
