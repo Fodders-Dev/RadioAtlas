@@ -610,7 +610,7 @@ Design principles for the whole sprint:
   goes from 4 to ≥6; no rail looks visually broken on either
   viewport. Existing visual baselines refreshed where intentional.
 
-### T2.21 Discovery rails — server-side signals
+### ~~T2.21 Discovery rails — server-side signals~~ (DONE in c158592)
 - **What**: add three new rails powered by Radio Browser meta
   that the API doesn't expose to the webapp today:
   - 🔥 **Trending** — top stations by `clicktrend`
@@ -626,6 +626,18 @@ Design principles for the whole sprint:
 - **Done-when**: three new rails visible on Home with
   realistic content; cold load no slower than baseline (signal
   passthrough is meta-only, no extra fetch).
+- **Shipped**: CatalogStation now carries `votes`, `clicktrend`,
+  `clickcount`; `buildCatalogSummary` exports `trending`,
+  `topVoted`, `aroundTheWorld` (daily-rotated country spotlight
+  with `exclude`-of-primary-country). Webapp contracts extended,
+  `discoveryFeed` builds the three new modules, `homeSurface`
+  promotes them above the resume/genre fold, `HOME_SURFACE_VERSION`
+  bumped to 4 to evict stale snapshots, `CatalogContext.collect…`
+  registers the new pools for playback. Locales add 🔥/🌟/🌍
+  copy in ru+en. Tests: 3 new API unit tests + 2 new client unit
+  tests + 1 new desktop+mobile e2e file + dense-mobile test
+  updated to seed discovery routes. Mobile baseline refreshed
+  intentionally; desktop baseline unchanged.
 
 ### T2.22 Mood rails — client-side tag heuristic
 - **What**: four mood rails from tag-based filtering of the
