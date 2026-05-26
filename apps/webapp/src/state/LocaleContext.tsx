@@ -82,6 +82,14 @@ export const LocaleProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [safeLocale]);
 
+  // Keep the document language in sync so assistive tech pronounces
+  // content with the right phonemes (index.html ships the default). (T1.8)
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = safeLocale;
+    }
+  }, [safeLocale]);
+
   const value = useMemo(
     () => ({
       locale: safeLocale,

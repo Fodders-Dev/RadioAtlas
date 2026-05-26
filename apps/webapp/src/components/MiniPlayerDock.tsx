@@ -238,7 +238,8 @@ export const MiniPlayerDock = () => {
                     onClick={() =>
                       player.setVolume(player.volume > 0.01 ? 0 : lastAudibleVolumeRef.current || 0.8)
                     }
-                    aria-label={t('dock.volume')}
+                    aria-label={t('dock.mute')}
+                    aria-pressed={isMuted}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       {player.volume > 0.01 ? (
@@ -403,7 +404,8 @@ export const MiniPlayerDock = () => {
             event.preventDefault();
             toggleMute();
           }}
-          aria-label={trayMode === 'volume' ? t('dock.volume') : t('dock.volume')}
+          aria-label={t('dock.volume')}
+          aria-expanded={trayMode === 'volume'}
           title={t('dock.volume')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
