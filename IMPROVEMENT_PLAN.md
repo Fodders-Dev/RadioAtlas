@@ -639,7 +639,7 @@ Design principles for the whole sprint:
   updated to seed discovery routes. Mobile baseline refreshed
   intentionally; desktop baseline unchanged.
 
-### T2.22 Mood rails — client-side tag heuristic
+### ~~T2.22 Mood rails — tag-bucketed listening contexts~~ (DONE in d06b603)
 - **What**: four mood rails from tag-based filtering of the
   existing catalog (Radio Browser already provides tags like
   `chillout`, `electronic`, `classical`, `talk`):
@@ -651,6 +651,34 @@ Design principles for the whole sprint:
   `apps/webapp/src/state/locales/{ru,en}.ts` (rail copy), Home.tsx.
 - **Done-when**: each mood rail returns ≥6 stations from
   current catalog or hides cleanly; rail variety visible to user.
+- **Scope change (approved during audit)**: worker pushed back
+  on the "client-side heuristic" framing — the webapp never
+  fetches the full catalogue (`knownStations` is the summary's
+  ~60 stations), so client-side bucketing with a ≥6 floor would
+  hide most moods on first paint. Mood buckets are now computed
+  SERVER-SIDE in `buildCatalogSummary` (full 57k catalogue),
+  mirroring T2.21's trending/top-voted pattern. Client wraps the
+  pre-bucketed shelves through `discoveryFeed → homeSurface`.
+  Tag matching is word-aware (comma-split + exact match) so
+  `electrock` never lands in Driving via substring `rock`.
+  Cross-mood assignment is seed-shuffled, single-homed,
+  deterministic per seed.
+- **Caps bumped**: `DESKTOP_RAIL_LIMIT 8→12`, `DENSE_RAIL_LIMIT
+  6→10`, `HOME_SURFACE_MAX_RAILS 9→13` so all ten content
+  shelves render on both layouts. `HOME_SURFACE_VERSION` bumped
+  4→5 to invalidate stale snapshots. Worker caught and corrected
+  an off-by-one in the dense cap (DENSE=9 would have cut
+  around-the-world on mobile, breaking T2.21's mobile test).
+- **Shipped**: 4 mood rails wired through `domain/contracts.ts`,
+  `discoveryFeed.ts`, `homeSurface.ts`, `Home.tsx`,
+  `CatalogContext.tsx`, ru+en locales. Tests: 3 new API ranking
+  tests (word-aware, ≥6 floor, deterministic single-homing),
+  3 new client unit tests, new `homeSurface.test.ts` (2 cases),
+  e2e extended with mood-shelf assertions on desktop + dense
+  mobile. `seedDiscoveryRoutes` helpers in both `home-discovery`
+  and `mobile` specs now seed the full discovery+mood set —
+  reusable for T2.23. Gate green (api 78 / bot 12 / webapp unit
+  107 / webapp e2e 129 / build). No visual baselines drifted.
 
 ### T2.23 Variety pass — visual rhythm
 - **What**: break up the "five identical rails" monotony with
