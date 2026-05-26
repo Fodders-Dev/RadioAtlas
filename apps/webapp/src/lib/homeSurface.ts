@@ -50,6 +50,10 @@ type CreateHomeSurfaceFeedInput = {
   builtAt?: number;
 };
 
+// Max stations rendered per rail (the rail is a horizontal shelf, not the full
+// catalogue). Only these are reserved against later rails — see pushRailModule.
+const RAIL_STATION_LIMIT = 6;
+
 const hashValue = (value: string) => {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -133,9 +137,15 @@ const pushRailModule = (
     (station) => !blockedStationIds.has(station.stationuuid)
   );
   if (!stations.length) return;
-  target.push(toRailModule(id, module, stations.slice(0, 6)));
+  // T2.20: block only the stations we actually render, not the whole source
+  // pool. The fresh-now module carries ~the entire catalogue, so blocking all
+  // of it starved every later rail (country/genre/session spotlights resolved
+  // to zero) and collapsed Home to a single 6-tile shelf. Reserving just the
+  // displayed slice lets the remaining rails fill from the untouched catalogue.
+  const shown = stations.slice(0, RAIL_STATION_LIMIT);
+  target.push(toRailModule(id, module, shown));
   usedSourceIds.add(module.sourceId);
-  stations.forEach((station) => blockedStationIds.add(station.stationuuid));
+  shown.forEach((station) => blockedStationIds.add(station.stationuuid));
 };
 
 export const createHomeSurfaceFeed = ({

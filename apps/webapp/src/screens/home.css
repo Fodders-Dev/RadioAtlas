@@ -1,6 +1,7 @@
 .screen-home-next {
   display: grid;
-  gap: 16px;
+  /* T2.20: tighter inter-section rhythm so more shelves sit above the fold. */
+  gap: 12px;
   align-content: start;
   /* Reserve space for the persistent player dock so the last rail
      ("Для тебя", "Для вибранных") doesn't get clipped by the dock at any
@@ -445,10 +446,29 @@
   gap: 10px;
 }
 
+/* T2.20: the search launcher is now a compact form + chips (no preview
+   list / section head), so tighten its box to a single utility row. */
+.home-search-launcher.is-compact {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
 .home-resume-strip,
 .home-rail-card {
   content-visibility: auto;
-  contain-intrinsic-size: 260px;
+  contain-intrinsic-size: 230px;
+}
+
+/* T2.20: tighter rail box + title-only head (drop the descriptive subtitle on
+   the wide layout) so each shelf is short enough for a second one to clear the
+   fold. The rail title still names the shelf. */
+.home-rail-card {
+  padding: 10px;
+  gap: 8px;
+}
+
+.home-rail-card .home-section-copy {
+  display: none;
 }
 
 .home-section-head {
@@ -524,9 +544,14 @@
 
 .home-station-tile {
   display: grid;
-  gap: 8px;
-  min-width: min(240px, 78vw);
-  padding: 10px;
+  gap: 6px;
+  /* T2.20: denser rails — 240px tiles showed ~4–5 per row; 160px lifts
+     that to ~7 on the 1180px desktop shell (more catalogue above the fold)
+     while staying wide enough for the title + caption + meta lines. The
+     tighter padding/gap also shortens each shelf so a second rail clears the
+     fold. */
+  min-width: min(160px, 72vw);
+  padding: 8px;
   border: 1px solid rgba(166, 214, 255, 0.08);
   border-radius: 18px;
   background:
@@ -566,7 +591,9 @@
   font-size: 0.86rem;
   line-height: 1.34;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  /* T2.20: single-line caption keeps rail tiles short so a second shelf fits
+     above the fold (the country/genre line below still carries the locale). */
+  -webkit-line-clamp: 1;
 }
 
 .home-station-tile.is-dense .home-station-caption {
@@ -594,9 +621,9 @@
 
 .home-station-tile-rail .station-artwork-card,
 .home-station-tile-search .station-artwork-card {
-  width: 66px;
-  height: 66px;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
 }
 
 .home-station-tile.is-dense .station-artwork-card {
@@ -722,8 +749,19 @@
 
 @media (min-width: 860px) {
   .home-hero-body {
-    grid-template-columns: minmax(210px, 244px) minmax(0, 1fr);
+    /* T2.20: narrower poster column + centred copy keeps the (now
+       description-free) hero compact so the second rail clears the fold. */
+    grid-template-columns: minmax(150px, 184px) minmax(0, 1fr);
     align-items: center;
+  }
+
+  .home-hero-poster {
+    min-height: 120px;
+  }
+
+  .home-hero-poster .station-artwork-card {
+    width: min(30vw, 132px);
+    height: min(30vw, 132px);
   }
 
   .home-horizontal-scroll {

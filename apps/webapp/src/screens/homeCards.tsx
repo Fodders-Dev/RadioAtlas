@@ -148,11 +148,6 @@ export const HomePersonalRadioCard = ({
 type HomeHeroCardProps = {
   module: HomeHeroModule;
   dense?: boolean;
-  metrics: {
-    countries: number;
-    languages: number;
-    genres: number;
-  };
   isActive: boolean;
   activeTrack: string | null;
   liked: boolean;
@@ -166,7 +161,6 @@ type HomeHeroCardProps = {
 export const HomeHeroCard = ({
   module,
   dense = false,
-  metrics,
   isActive,
   activeTrack,
   liked,
@@ -241,7 +235,6 @@ export const HomeHeroCard = ({
             {station.name}
           </h2>
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
-          {!dense ? <p className="home-hero-description">{t(module.copyKey)}</p> : null}
 
           <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
             <strong>{isActive && activeTrack ? activeTrack : stationTags(station)}</strong>
@@ -289,23 +282,6 @@ export const HomeHeroCard = ({
           </div>
         </div>
       </div>
-
-      {!dense ? (
-        <div className="home-hero-metrics">
-          <div className="home-metric-pill">
-            <span>{t('home.catalogPulseCountries')}</span>
-            <strong>{metrics.countries}</strong>
-          </div>
-          <div className="home-metric-pill">
-            <span>{t('home.catalogPulseLanguages')}</span>
-            <strong>{metrics.languages}</strong>
-          </div>
-          <div className="home-metric-pill">
-            <span>{t('home.catalogPulseGenres')}</span>
-            <strong>{metrics.genres}</strong>
-          </div>
-        </div>
-      ) : null}
 
       {companionStations.length ? (
         <div className="home-hero-companions">

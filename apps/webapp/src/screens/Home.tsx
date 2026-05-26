@@ -19,7 +19,6 @@ import {
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { reportProductEvent } from '../lib/productAnalytics';
 import { useCompactLayout } from '../lib/useCompactLayout';
-import { useDebounce } from '../lib/useDebounce';
 import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -37,20 +36,15 @@ import {
   HomeHeroCard,
   HomePersonalRadioCard,
   HomeRail,
-  HomeResumeStrip,
-  HomeSearchPreview
+  HomeResumeStrip
 } from './homeCards';
-import {
-  DENSE_SEARCH_PREVIEW_LIMIT,
-  SEARCH_PREVIEW_LIMIT,
-  filterPreviewStations
-} from './homePreview';
 import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
 const HOME_SURFACE_VERSION = 3;
 const DENSE_RAIL_LIMIT = 3;
 const DENSE_QUICK_CHIP_LIMIT = 2;
+const HOME_MIN_RAIL_STATIONS = 3;
 
 const mergeStations = (...collections: StationLite[][]) => {
   const merged = new Map<string, StationLite>();
@@ -335,7 +329,6 @@ export const Home = () => {
   const sessionBucketPrimedRef = useRef(false);
   const dismissedSummaryErrorRef = useRef<string | null>(null);
   const homeImpressionSignatureRef = useRef('');
-  const debouncedQuery = useDebounce(query, 180);
 
   const catalog = useMemo(
     () => mergeStations(summary?.catalogPool || [], knownStations),
@@ -496,16 +489,6 @@ export const Home = () => {
     : [summary?.countrySpotlight?.label, summary?.genreSpotlight?.label]
         .filter((value): value is string => Boolean(value))
         .slice(0, denseLayout ? DENSE_QUICK_CHIP_LIMIT : 4);
-  const searchPreviewStations = useMemo(() => {
-    if (!debouncedQuery.trim()) {
-      return [];
-    }
-    return filterPreviewStations(
-      catalog,
-      debouncedQuery,
-      denseLayout ? DENSE_SEARCH_PREVIEW_LIMIT : SEARCH_PREVIEW_LIMIT
-    );
-  }, [catalog, debouncedQuery, denseLayout]);
   const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
   const personalRadioQueue = useMemo(
     () => {
@@ -621,6 +604,10 @@ export const Home = () => {
       if (rails.length >= limit) return;
       const stations = rail.stations.filter((station) => !usedStationIds.has(station.stationuuid));
       if (!stations.length) return;
+      // T2.20: hide thin secondary shelves — a 1–2 tile row reads as clutter,
+      // not a shelf — but always keep the primary rail so Home never renders
+      // railless (matters only for tiny catalogues; production rails carry 6).
+      if (rails.length > 0 && stations.length < HOME_MIN_RAIL_STATIONS) return;
       stations.forEach((station) => usedStationIds.add(station.stationuuid));
       rails.push({ ...rail, stations });
     });
@@ -834,7 +821,6 @@ export const Home = () => {
           {!denseLayout ? (
             <HomeHeroCard
               module={surfaceFeed?.hero || fallbackHero}
-              metrics={counts}
               dense={false}
               isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
               activeTrack={activeTrack}
@@ -865,17 +851,7 @@ export const Home = () => {
       ) : null}
 
       {!denseLayout ? (
-        <section className="home-search-launcher">
-          <div className="home-section-head">
-            <div>
-              <div className="home-section-title">{t('home.searchTitle')}</div>
-              <div className="home-section-copy">{t('home.quickSearchCopy')}</div>
-            </div>
-            <div className="home-section-badge">
-              {debouncedQuery.trim() ? searchPreviewStations.length : SEARCH_PREVIEW_LIMIT}
-            </div>
-          </div>
-
+        <section className="home-search-launcher is-compact">
           <form
             className="home-search-form"
             onSubmit={(event) => {
@@ -911,17 +887,6 @@ export const Home = () => {
               ))}
             </div>
           ) : null}
-
-          <HomeSearchPreview
-            dense={false}
-            query={debouncedQuery}
-            stations={searchPreviewStations}
-            currentStationId={currentStationId}
-            activeTrack={activeTrack}
-            isFavorite={isFavorite}
-            onPlay={handlePlayStation}
-            onToggleFavorite={toggleFavorite}
-          />
         </section>
       ) : null}
 
@@ -951,28 +916,6 @@ export const Home = () => {
         />
       ))}
 
-      {!denseLayout ? (
-        <section className="home-explore-card">
-          <div className="home-section-head">
-            <div>
-              <div className="home-section-title">{t('home.exploreFooterTitle')}</div>
-              <div className="home-section-copy">{t('home.exploreFooterCopy')}</div>
-            </div>
-            <div className="home-section-badge">
-              {isCompactLayout ? t('home.mapKicker') : t('home.discoveryKicker')}
-            </div>
-          </div>
-
-          <div className="home-explore-actions">
-            <button className="home-secondary-btn" type="button" onClick={() => setActiveSection('globe')}>
-              {t('home.openGlobe')}
-            </button>
-            <button className="home-primary-btn" type="button" onClick={() => setActiveSection('library')}>
-              {t('home.openLibrary')}
-            </button>
-          </div>
-        </section>
-      ) : null}
     </section>
   );
 };

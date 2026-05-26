@@ -1415,7 +1415,11 @@ test('home cold load shows hero skeleton while summary is pending', async ({ pag
   await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 });
 
-test('home typing uses local preview without catalog search requests', async ({ page }) => {
+test('home search launcher does not fire catalog search on type, and submits to Search', async ({ page }) => {
+  // T2.20 turned the Home search launcher into a compact form: typing no longer
+  // renders an inline preview list (that decoration was dropped), and crucially
+  // it still must not fire catalog-search network requests on keystroke. Submit
+  // hands off to the Search screen, so search-on-Home stays a real affordance.
   await page.setViewportSize({ width: 760, height: 900 });
   const searchRequests: string[] = [];
   page.on('request', (request) => {
@@ -1430,8 +1434,13 @@ test('home typing uses local preview without catalog search requests', async ({ 
   await page.locator('#home-search-launcher').fill('Tokyo');
   await page.waitForTimeout(450);
 
+  // No network on type, and no inline preview list anymore.
   expect(searchRequests).toEqual([]);
-  await expect(page.locator('[data-home-search-preview] [data-home-station]')).toHaveCount(1);
+  await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
+
+  // Submitting the form navigates to the Search screen with the query carried over.
+  await page.locator('#home-search-launcher').press('Enter');
+  await expect(page.locator('#search-hero-input')).toBeVisible();
 });
 
 test('search ranks playable tag matches above failed matches', async ({ page }) => {

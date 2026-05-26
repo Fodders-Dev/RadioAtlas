@@ -874,23 +874,27 @@ export const mockStations = async (
 
 export const playHomeStation = async (page: Page, name: string) => {
   await page.locator('[data-home-personal-radio], [data-home-rail]').first().waitFor({ state: 'visible' });
-  const searchInput = page.locator('#home-search-launcher').first();
-  if (await searchInput.isVisible().catch(() => false)) {
-    await searchInput.fill(name);
-    await page.waitForTimeout(450);
-    const row = page.locator('[data-home-search-preview] [data-home-station]').filter({ hasText: name }).first();
-    await row.waitFor({ state: 'visible' });
-    await row.locator('.home-action-btn-play').click();
-    return;
-  }
-
+  // T2.20 removed the Home search-launcher's inline preview list (the launcher
+  // is now a compact form that navigates to the Search screen on submit). Play
+  // straight from a Home rail tile if the station is on the surface, otherwise
+  // fall through to the Search screen below.
   const homeRow = page.locator('[data-home-station]').filter({ hasText: name }).first();
   if (await homeRow.isVisible().catch(() => false)) {
     await homeRow.locator('.home-action-btn-play').click();
     return;
   }
 
-  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+  // Open Search via whichever navigation the current layout renders — the
+  // mobile bottom bar or the desktop rail (T2.20 removed the Home preview path
+  // that desktop used to rely on here).
+  const mobileSearchNav = page
+    .locator('.app-navigation-mobile')
+    .getByRole('button', { name: /Поиск|Search/ });
+  if (await mobileSearchNav.isVisible().catch(() => false)) {
+    await mobileSearchNav.click();
+  } else {
+    await page.locator('.nav-rail-item').filter({ hasText: /Поиск|Search/ }).first().click();
+  }
   // Search v3 (commit 8d06cbf) renamed the wrapper from
   // .search-command-card to .search-hero-card and gave the input the
   // stable `#search-hero-input` id. Match desktop.spec.ts's selector.
@@ -899,5 +903,5 @@ export const playHomeStation = async (page: Page, name: string) => {
   await discoverInput.fill(name);
   const row = page.locator('.station-row').filter({ hasText: name }).first();
   await row.waitFor({ state: 'visible' });
-  await row.locator('button[aria-label="Воспроизвести"], button[aria-label="Play"], .station-compact-play').first().click();
+  await row.locator('.play-btn').first().click();
 };
