@@ -35,7 +35,7 @@ export type HomeResumeModule = {
 };
 
 export type HomeSurfaceFeed = {
-  version: 3;
+  version: 4;
   seed: number;
   builtAt: number;
   hero: HomeHeroModule;
@@ -53,6 +53,12 @@ type CreateHomeSurfaceFeedInput = {
 // Max stations rendered per rail (the rail is a horizontal shelf, not the full
 // catalogue). Only these are reserved against later rails — see pushRailModule.
 const RAIL_STATION_LIMIT = 6;
+
+// T2.21: Home now carries up to six content shelves (fresh-now, Trending,
+// country, genre, Top voted, Around the world) plus a few lower-priority
+// personalised extras. Keep them all in the feed; the screen decides how many
+// to render per layout (visibleRails).
+const HOME_SURFACE_MAX_RAILS = 9;
 
 const hashValue = (value: string) => {
   let hash = 0;
@@ -187,6 +193,10 @@ export const createHomeSurfaceFeed = ({
     );
   }
 
+  // T2.21 shelf order — personalised fresh-now first, then the new non-
+  // personalised discovery rails interleaved with the spotlights for variety:
+  // fresh-now · Trending · country · genre · Top voted · Around the world ·
+  // then the lower-priority personalised extras (resume/revived/sponsored).
   pushRailModule(
     rails,
     usedSourceIds,
@@ -198,10 +208,10 @@ export const createHomeSurfaceFeed = ({
   pushRailModule(
     rails,
     usedSourceIds,
-    'resume-context',
-    discoveryFeed.sessionDelta,
+    'trending',
+    discoveryFeed.trending,
     blockedStationIds,
-    seed + 43
+    seed + 37
   );
   pushRailModule(
     rails,
@@ -218,6 +228,30 @@ export const createHomeSurfaceFeed = ({
     discoveryFeed.genreSpotlight,
     blockedStationIds,
     seed + 71
+  );
+  pushRailModule(
+    rails,
+    usedSourceIds,
+    'top-voted',
+    discoveryFeed.topVoted,
+    blockedStationIds,
+    seed + 73
+  );
+  pushRailModule(
+    rails,
+    usedSourceIds,
+    'around-the-world',
+    discoveryFeed.aroundTheWorld,
+    blockedStationIds,
+    seed + 79
+  );
+  pushRailModule(
+    rails,
+    usedSourceIds,
+    'resume-context',
+    discoveryFeed.sessionDelta,
+    blockedStationIds,
+    seed + 43
   );
   pushRailModule(
     rails,
@@ -244,11 +278,11 @@ export const createHomeSurfaceFeed = ({
   ]).slice(0, 6);
 
   return {
-    version: 3,
+    version: 4,
     seed,
     builtAt,
     hero,
-    rails: rails.slice(0, 3),
+    rails: rails.slice(0, HOME_SURFACE_MAX_RAILS),
     quickSearchChips,
     metrics: discoveryFeed.metrics
   };

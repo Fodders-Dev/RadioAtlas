@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  CatalogSpotlight,
   DiscoveryFeed,
   DiscoveryStationModule
 } from '../domain/contracts';
@@ -41,8 +42,13 @@ import {
 import './home.css';
 
 const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
-const HOME_SURFACE_VERSION = 3;
-const DENSE_RAIL_LIMIT = 3;
+// Bumped to 4 for T2.21 (Trending / Top voted / Around the world shelves);
+// invalidates cached 3-rail snapshots so returning users get the new rails.
+const HOME_SURFACE_VERSION = 4;
+// T2.21: room for fresh-now + Trending + country + genre + Top voted + Around
+// the world (desktop), and a denser mobile cap that still shows the new rails.
+const DESKTOP_RAIL_LIMIT = 8;
+const DENSE_RAIL_LIMIT = 6;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 const HOME_MIN_RAIL_STATIONS = 3;
 
@@ -182,6 +188,10 @@ const buildSurfaceFeed = (input: {
   trackHistory: ReturnType<typeof useLibrary>['trackHistory'];
   currentStation: StationLite | null;
   seed: number;
+  // T2.21: pre-ranked server-signal pools threaded from the catalogue summary.
+  trending?: StationLite[];
+  topVoted?: StationLite[];
+  aroundTheWorld?: CatalogSpotlight | null;
 }) => {
   const rankedCatalog = rankStationsForUser(input.catalog, input.tasteProfile, input.playabilityProfile, {
     mode: 'personal',
@@ -214,7 +224,10 @@ const buildSurfaceFeed = (input: {
     collections: input.collections,
     showcaseSeed: input.seed,
     query: '',
-    metrics: input.metrics
+    metrics: input.metrics,
+    trending: input.trending,
+    topVoted: input.topVoted,
+    aroundTheWorld: input.aroundTheWorld
   });
   const recommendationDeck = mergeStations(
     recommendationFeed.tunedForYou,
@@ -465,7 +478,10 @@ export const Home = () => {
       trackHistory: live.trackHistory,
       seed: homeState.sessionSeed,
       metrics,
-      builtAt: surfaceBuiltAt
+      builtAt: surfaceBuiltAt,
+      trending: summary?.trending,
+      topVoted: summary?.topVoted,
+      aroundTheWorld: summary?.aroundTheWorld
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -595,7 +611,7 @@ export const Home = () => {
     };
   }
   const visibleRails = useMemo(() => {
-    const limit = denseLayout ? DENSE_RAIL_LIMIT : 3;
+    const limit = denseLayout ? DENSE_RAIL_LIMIT : DESKTOP_RAIL_LIMIT;
     const usedStationIds = new Set<string>(
       sessionBlockedStationsRef.current.stations
     );
@@ -746,7 +762,10 @@ export const Home = () => {
         radioSessionEvents,
         trackHistory,
         seed: nextSeed,
-        metrics: effectiveSummary.counts
+        metrics: effectiveSummary.counts,
+        trending: effectiveSummary.trending,
+        topVoted: effectiveSummary.topVoted,
+        aroundTheWorld: effectiveSummary.aroundTheWorld
       });
 
       if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {

@@ -1,4 +1,5 @@
 import type {
+  CatalogSpotlight,
   DiscoveryFeed,
   DiscoveryMetrics,
   DiscoveryStationModule,
@@ -129,6 +130,12 @@ type DiscoveryFeedInput = {
   query: string;
   metrics: DiscoveryMetrics;
   includeSponsored?: boolean;
+  // T2.21: pre-ranked server-signal pools (Radio Browser). These are NOT
+  // re-ranked client-side — the server saw the full catalogue; the client only
+  // wraps them into rail modules.
+  trending?: StationLite[];
+  topVoted?: StationLite[];
+  aroundTheWorld?: CatalogSpotlight | null;
 };
 
 export const createDiscoveryFeed = ({
@@ -141,7 +148,10 @@ export const createDiscoveryFeed = ({
   showcaseSeed,
   query,
   metrics,
-  includeSponsored = true
+  includeSponsored = true,
+  trending = [],
+  topVoted = [],
+  aroundTheWorld = null
 }: DiscoveryFeedInput): DiscoveryFeed => {
   const promotedCatalog = catalog.filter((station) => station.promoted);
   const organicCatalog = catalog.filter((station) => !station.promoted);
@@ -337,6 +347,42 @@ export const createDiscoveryFeed = ({
       )
     : null;
 
+  // T2.21 server-signal rails. Pre-ranked by the API from the full catalogue;
+  // the client only wraps them. They sit outside rankedDiscoveryModules so they
+  // never compete to become the personalised hero — they are pure discovery.
+  const trendingModule = trending.length
+    ? buildStationModule(
+        'trending',
+        'home.trendingTitle',
+        'home.trendingCopy',
+        'home-trending',
+        trending,
+        { accent: 'primary' }
+      )
+    : null;
+
+  const topVotedModule = topVoted.length
+    ? buildStationModule(
+        'top-voted',
+        'home.topVotedTitle',
+        'home.topVotedCopy',
+        'home-top-voted',
+        topVoted,
+        { accent: 'secondary' }
+      )
+    : null;
+
+  const aroundTheWorldModule = aroundTheWorld?.stations.length
+    ? buildStationModule(
+        'around-the-world',
+        'home.aroundTheWorldTitle',
+        'home.aroundTheWorldCopy',
+        'home-around-the-world',
+        aroundTheWorld.stations,
+        { accent: 'accent', label: aroundTheWorld.label }
+      )
+    : null;
+
   const hasSessionContext = queuePreview.length > 0 || recent.length > 0;
   const rankedDiscoveryModules = [
     freshSignalsModule,
@@ -364,6 +410,9 @@ export const createDiscoveryFeed = ({
     genreSpotlight: genreSpotlightModule,
     revivedStations,
     sessionDelta,
+    trending: trendingModule,
+    topVoted: topVotedModule,
+    aroundTheWorld: aroundTheWorldModule,
     sponsoredModules,
     primaryDiscoveryModule,
     rankedDiscoveryModules,
@@ -389,7 +438,12 @@ const scoreDiscoveryModule = (
     'catalog-pulse': 20,
     'revived-stations': hasFavorites ? 76 : 56,
     'session-delta': hasSessionContext ? 80 : 45,
-    sponsored: 24
+    sponsored: 24,
+    // T2.21 rails are pushed in a fixed shelf order (homeSurface), not ranked
+    // into the hero — these weights only satisfy the exhaustive map.
+    trending: 50,
+    'top-voted': 48,
+    'around-the-world': 40
   };
   return baseScoreByKind[module.kind] || 10;
 };
