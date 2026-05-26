@@ -181,7 +181,9 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   const overflowing = await page.locator('.screen-home-next *').evaluateAll((nodes) =>
     nodes
       .filter((node) => {
-        if (node.closest('.home-horizontal-scroll')) return false;
+        // Horizontal-scroll containers (rails + the T2.23 anchor chip-row)
+        // intentionally let their children extend past the viewport.
+        if (node.closest('.home-horizontal-scroll, .home-anchor-chip-row')) return false;
         const rect = node.getBoundingClientRect();
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })

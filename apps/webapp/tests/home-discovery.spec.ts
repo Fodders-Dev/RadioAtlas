@@ -124,7 +124,7 @@ test.describe('T2.21 discovery rails', () => {
     expect(railIds.indexOf('mood-workout')).toBeLessThan(railIds.indexOf('mood-focus'));
     expect(railIds.indexOf('mood-focus')).toBeLessThan(railIds.indexOf('mood-driving'));
 
-    // T2.20 density is not regressed: still ≥12 tiles above the fold.
+    // T2.20 density is not regressed by the T2.23 chip-row: still ≥12 above fold.
     expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(12);
   });
 
@@ -140,5 +140,76 @@ test.describe('T2.21 discovery rails', () => {
       '[data-home-rail="mood-late-night"], [data-home-rail="mood-workout"], [data-home-rail="mood-focus"], [data-home-rail="mood-driving"]'
     ).count();
     expect(moodCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// T2.23: variety pass — anchor chip-row, featured lead tile, logo-strip lane.
+test.describe('T2.23 variety pass', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMediaMocks(page);
+    await mockStations(page);
+    await seedSummary(page);
+  });
+
+  test('desktop: anchor chip-row jump-scrolls to a below-fold rail', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await openHome(page);
+
+    const chipRow = page.locator('.home-anchor-chip-row');
+    await expect(chipRow).toBeVisible();
+    // Chip-row sits above the first rail.
+    const chipTop = await chipRow.evaluate((el) => el.getBoundingClientRect().top);
+    const firstRailTop = await page
+      .locator('[data-home-rail]')
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().top);
+    expect(chipTop).toBeLessThan(firstRailTop);
+
+    // Clicking the Driving chip scrolls that (initially below-fold) rail into view.
+    await page.locator('.home-anchor-chip', { hasText: /За рулём|Driving/ }).click();
+    await expect
+      .poll(async () =>
+        page.locator('[data-home-rail="mood-driving"]').evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top >= 0 && r.top < window.innerHeight;
+        })
+      )
+      .toBe(true);
+  });
+
+  test('desktop: fresh-now leads with a featured tile wider than its siblings', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await openHome(page);
+
+    const tiles = page.locator('[data-home-rail="fresh-now"] [data-home-station]');
+    const first = tiles.first();
+    await expect(first).toHaveClass(/home-station-tile--featured/);
+    const featuredW = await first.evaluate((el) => el.getBoundingClientRect().width);
+    const standardW = await tiles.nth(1).evaluate((el) => el.getBoundingClientRect().width);
+    expect(featuredW).toBeGreaterThan(standardW);
+    // Only the lead tile is featured.
+    expect(await page.locator('[data-home-rail="fresh-now"] .home-station-tile--featured').count()).toBe(1);
+  });
+
+  test('desktop: top-voted renders as an artwork-only logo strip with accessible names', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await openHome(page);
+
+    const rail = page.locator('[data-home-rail="top-voted"]');
+    await expect(rail).toHaveAttribute('data-home-rail-variant', 'logo-strip');
+    // No visible station title text in the logo strip.
+    await expect(rail.locator('.home-station-title')).toHaveCount(0);
+    // Tiles still play and keep an accessible name (aria-label carries the station name).
+    const logoButton = rail.locator('.home-logo-play').first();
+    await expect(logoButton).toBeVisible();
+    const label = await logoButton.getAttribute('aria-label');
+    expect((label || '').length).toBeGreaterThan(0);
+  });
+
+  test('mobile: anchor chip-row is present and scrollable', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openHome(page);
+    await expect(page.locator('.home-anchor-chip-row')).toBeVisible();
+    expect(await page.locator('.home-anchor-chip').count()).toBeGreaterThanOrEqual(2);
   });
 });

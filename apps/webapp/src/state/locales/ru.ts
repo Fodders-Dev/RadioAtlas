@@ -221,6 +221,7 @@ export const ruDictionary = {
     "moodFocusCopy": "Фон, который не отвлекает от дел.",
     "moodDrivingTitle": "🚗 За рулём",
     "moodDrivingCopy": "Драйвовые станции в дорогу.",
+    "sectionsNav": "Разделы",
     "countrySpotlightPill": "Сегодня на карте",
     "genreSpotlightPill": "Настроение",
     "catalogPulseTitle": "Пульс каталога",

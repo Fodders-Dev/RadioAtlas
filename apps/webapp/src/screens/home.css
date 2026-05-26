@@ -447,10 +447,124 @@
 }
 
 /* T2.20: the search launcher is now a compact form + chips (no preview
-   list / section head), so tighten its box to a single utility row. */
+   list / section head), so tighten its box to a single utility row.
+   T2.23: trimmed padding/gap to reclaim ~16px of vertical budget so the new
+   anchor chip-row above the rails doesn't push the second shelf below the fold. */
 .home-search-launcher.is-compact {
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+/* T2.23: anchor chip-row — jump-scroll shortcuts to each discovery shelf. Sticky
+   under the topbar; thin so the rails stay above the fold; horizontally
+   scrollable with snap on narrow widths. */
+.home-anchor-chip-row {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
   gap: 8px;
-  padding: 10px 12px;
+  overflow-x: auto;
+  /* Negative top margin eats part of the grid gap above so the row's vertical
+     cost stays within the fold budget (keeps the 2nd rail above the fold). */
+  margin-top: -6px;
+  padding: 2px 0;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  background: linear-gradient(180deg, var(--app-bg, rgba(7, 12, 22, 0.96)) 70%, transparent);
+}
+
+.home-anchor-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.home-anchor-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(166, 214, 255, 0.16);
+  background: rgba(12, 20, 33, 0.66);
+  color: #dbeafe;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.home-anchor-chip:hover {
+  border-color: rgba(116, 204, 255, 0.34);
+}
+
+.home-anchor-chip:focus-visible {
+  outline: 2px solid rgba(114, 202, 255, 0.68);
+  outline-offset: 2px;
+}
+
+/* T2.23 featured tile — the lead tile of fresh-now renders ~1.5× wider for an
+   obvious entry point. Width-only so the rail's row height (and the fold) is
+   unchanged. */
+.home-station-tile--featured {
+  min-width: min(248px, 86vw);
+}
+
+/* T2.23 logo-strip lane — artwork-only chips (no text/metadata/actions) for
+   fast scanning of the "most-voted" rail. */
+.home-rail--logo-strip .home-horizontal-scroll {
+  align-items: center;
+}
+
+/* Keep the logo strip a horizontal strip even in the dense layout (the dense
+   override otherwise turns rails into a 2-col grid, which sparsely scatters the
+   small artwork chips). */
+.home-rail--logo-strip.is-dense .home-horizontal-scroll {
+  display: flex;
+  grid-template-columns: none;
+  overflow-x: auto;
+}
+
+.home-station-tile--logo {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.home-logo-play {
+  display: block;
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border: 1px solid rgba(166, 214, 255, 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(5, 10, 18, 0.46);
+  cursor: pointer;
+}
+
+.home-station-tile--logo.is-active .home-logo-play {
+  border-color: rgba(116, 204, 255, 0.5);
+}
+
+.home-logo-play .station-artwork-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .home-resume-strip,

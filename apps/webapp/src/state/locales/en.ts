@@ -221,6 +221,7 @@ export const enDictionary = {
     "moodFocusCopy": "Background that doesn't fight for attention.",
     "moodDrivingTitle": "🚗 Driving",
     "moodDrivingCopy": "Stations with momentum for the road.",
+    "sectionsNav": "Sections",
     "countrySpotlightPill": "Map pick",
     "genreSpotlightPill": "Mood",
     "catalogPulseTitle": "Catalog pulse",
