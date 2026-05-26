@@ -2365,7 +2365,12 @@ test('mobile full player opens library queue and station details', async ({ page
   await expect(page.locator('.details-overlay')).toBeVisible();
   await expect(page.locator('.details-overlay')).toContainText(/Пожаловаться|Report broken/);
   await expect(page.locator('.details-overlay')).toContainText(/Скрыть|Hide/);
-  await page.locator('.details-backdrop').click({ force: true });
+  // T1.4: details is a focus-trapped modal over the full player; Escape is
+  // the canonical dismiss (the modal now makes the inert full player
+  // pointer-transparent, so a forced backdrop-centre click would land on
+  // the tall details card rather than the backdrop).
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.details-overlay')).toHaveCount(0);
 
   await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
   await page.getByRole('button', { name: /Открыть очередь|Open queue/ }).click();

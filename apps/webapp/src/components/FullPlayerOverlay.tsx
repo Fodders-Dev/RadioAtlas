@@ -1,5 +1,6 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { stationLocation, stationTags } from '../lib/stationUtils';
+import { useDialog } from '../lib/useDialog';
 import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
@@ -79,6 +80,17 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     isStationHiddenFromRecommendations
   } = useLibrary();
   const { setActiveSection, setLibraryTab, winamp } = useShell();
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Mounted only while open (App.tsx gates on winamp.expanded), so isOpen
+  // is true for the hook's lifetime; close routes through setExpanded.
+  // The dock that opened this unmounts while the overlay is up, so restore
+  // focus to its re-mounted artwork trigger rather than the gone original.
+  useDialog(rootRef, {
+    isOpen: true,
+    onClose: () => winamp.setExpanded(false),
+    restoreFocusTo: () =>
+      document.querySelector<HTMLElement>('.player-dock-artwork-trigger')
+  });
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -204,6 +216,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
 
   return (
     <div
+      ref={rootRef}
       className="full-player-overlay fullscreen-ui"
       data-full-player-overlay
       role="dialog"
