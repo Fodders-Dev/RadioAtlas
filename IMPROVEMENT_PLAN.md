@@ -478,27 +478,39 @@ target stays green.
   still work; visual baselines stay green or get a documented
   refresh.
 
-### T2.12 Globe WebGL lifecycle: keep-alive or module-scope reuse
-- **What**: `App.tsx:411` renders only the active tab via
-  `ActiveScreen = SECTION_COMPONENTS[activeSection]`; every
-  Home↔Globe cycle mounts/unmounts MapLibre. `map.remove()` does
-  release the WebGL context, but the browser limits live GL
-  contexts (~16) and may not GC the released one immediately on
-  low-end WebViews → context exhaustion → crash.
-- **Pre-flight**: this is a STATIC HYPOTHESIS. Before writing code,
-  reproduce in Chrome DevTools (Performance → Memory or
-  `chrome://gpu`) by toggling Home↔Globe 5–10 times and watching
-  GL context count + heap. If exhaustion confirmed, then fix.
-- **Fix options** (decide after profiling):
-  (a) Keep Globe mounted with `display: none` / `visibility: hidden`
-      when not active (preserves map state, costs idle GPU memory).
-  (b) Single module-scope `Map` instance reused across mounts
-      (more complex; needs careful event/handler rebind).
-- **Files**: `apps/webapp/src/App.tsx`, `apps/webapp/src/components/Globe.tsx`,
-  possibly `apps/webapp/src/screens/GlobeScreen.tsx`.
-- **Done-when**: 20 toggle cycles in DevTools profile, GL context
-  count stable, heap delta < 50 MB. Visible globe state preserved
-  across tab switches (UX bonus).
+### ~~T2.12 Globe WebGL lifecycle: keep-alive or module-scope reuse~~ (DEFERRED — hypothesis refuted by runtime profile)
+- **What was hypothesized**: `App.tsx:411` renders only the active
+  tab via `ActiveScreen = SECTION_COMPONENTS[activeSection]`; every
+  Home↔Globe cycle mounts/unmounts MapLibre. Browsers limit live
+  GL contexts (~16) and might not GC released contexts
+  immediately on low-end WebViews → context exhaustion → crash.
+- **Runtime verification (T2.12 audit)**: Playwright+CDP headless
+  Chromium, viewport 390×844, against production
+  `radioatlas.duckdns.org`, instrumented `getContext('webgl')` +
+  `webglcontextlost`/`restored`/`creationerror` + heap via
+  `HeapProfiler.collectGarbage` every cycle. Toggled Home↔Globe
+  10 and then 30 cycles:
+    - 30 cycles → created=30, lost=30, restored=0, creationErrors=0
+    - heap delta=0 (flat ~10 MB across all 30 cycles)
+- **Why refuted**: contexts are released 1:1 with creation
+  (MapLibre's `map.remove()` proactively releases the GPU context
+  via `WEBGL_lose_context.loseContext()`). Net live contexts after
+  any tab roundtrip = 0, so the browser budget (~16) is never
+  approached. Real exhaustion would show `creationErrors > 0`,
+  unpaired losses, and growing heap — none of those triggered.
+  `webglcontextlost` events firing 1:1 with `map.remove()` is a
+  clean-teardown signal, not an exhaustion symptom.
+- **Caveat acknowledged**: profile ran on headless Chromium
+  (same engine as Android Telegram WebView, not iOS WebKit /
+  real low-end mobile GPU). But the argument is engine-
+  independent: 1:1 release prevents accumulation regardless of
+  the device-specific context budget.
+- **Decision**: marked deferred, NOT actionable on current
+  evidence. Reopen only if a specific real-device crash report
+  surfaces with diagnostic data implicating GL context churn.
+  Bonus UX (state preservation across tab switches) is not
+  enough on its own to justify the keep-alive / singleton
+  complexity — that's a feature request, not a perf task.
 
 ### T2.13 Globe move-handler throttle
 - **What**: `apps/webapp/src/components/Globe.tsx:942,835-841` —
