@@ -1,8 +1,17 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { NowPlayingSnapshot } from '../domain/contracts';
 import { observeStationNowPlaying } from '../lib/nowPlaying';
 import { getDeviceProfile } from '../lib/deviceProfile';
-import { useInfiniteScroll } from '../lib/useInfiniteScroll';
 import type { StationLite } from '../types';
 import type { BehaviorProfile } from '../lib/homeProfile';
 import { stationLocation, stationTags } from '../lib/stationUtils';
@@ -20,36 +29,25 @@ type StationTableProps = {
   nowPlayingMode?: 'active-only' | 'viewport';
 };
 
-// E2E-only escape hatch: scroll-jitter.spec.ts seeds
-// `window.__radioatlasRenderBatchOverride__` via Playwright's
-// addInitScript before navigation, so the infinite-scroll cascade
-// can be exercised against the existing 12-station test fixture
-// instead of having to enlarge the mock dataset to 60+ rows.
-// Production code never sets this global; the default branch below
-// is the only path that ships.
 declare global {
   interface Window {
-    __radioatlasRenderBatchOverride__?: number;
-    // E2E spy: scroll-jitter.spec.ts seeds this counter and reads it
-    // after the user scrolls, to assert the arm-guard prevented an
-    // observer cascade fire. Never set in production.
-    __radioatlasLoadMoreCount__?: number;
     // T2.11a render spy: StationTable.test.tsx seeds this map and reads
     // per-station render counts to assert a playback tick re-renders
     // only the active row, not every mounted row. Never set in production.
     __radioatlasRowRenderCounts__?: Record<string, number>;
   }
 }
-const readRenderBatchOverride = () => {
-  if (typeof window === 'undefined') return null;
-  const override = window.__radioatlasRenderBatchOverride__;
-  return typeof override === 'number' && override > 0 ? override : null;
-};
-const incrementLoadMoreSpy = () => {
-  if (typeof window === 'undefined') return;
-  if (typeof window.__radioatlasLoadMoreCount__ !== 'number') return;
-  window.__radioatlasLoadMoreCount__ += 1;
-};
+
+// Lists longer than this are window-virtualized (only the visible
+// window + overscan is mounted); shorter lists render as a plain flow.
+// Below the threshold the virtualizer's setup cost (ResizeObserver per
+// row, scroll-margin bookkeeping) isn't worth it, and embedded mini
+// lists (e.g. the 3-4 row collection previews) shouldn't be treated as
+// window-scrolled surfaces at all. (T2.11b)
+const WINDOW_VIRTUALIZE_THRESHOLD = 50;
+// Matches the `.station-row` contain-intrinsic-size placeholder; the
+// virtualizer corrects it per row via measureElement (ResizeObserver).
+const ROW_ESTIMATE_PX = 92;
 
 const IDLE_ROW_SNAPSHOT: NowPlayingSnapshot = {
   track: null,
@@ -226,6 +224,7 @@ const StationTableRow = memo(({
     <div
       ref={rowRef}
       className={`station-row ${active ? 'active' : ''}`}
+      data-station-row=""
       data-track-status={displayTrack ? 'ready' : displayStatus}
       data-recommendation-hidden={hidden ? 'true' : undefined}
     >
@@ -438,6 +437,82 @@ const StationTableRow = memo(({
 });
 StationTableRow.displayName = 'StationTableRow';
 
+// Window-virtualized list body. Only mounted for lists past the
+// threshold. Renders the visible window + overscan as absolutely
+// positioned rows inside a full-height spacer, so the document keeps
+// scrolling normally (the rest of the screen — topbar, filters, the
+// Search server-pagination sentinel below — stay in flow). (T2.11b)
+const VirtualizedStationRows = ({
+  stations,
+  gap,
+  renderRow
+}: {
+  stations: StationLite[];
+  gap: number;
+  renderRow: (station: StationLite, index: number) => ReactNode;
+}) => {
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // The list isn't at the top of the document, so the window virtualizer
+  // needs its offset from the document top. getBoundingClientRect().top +
+  // scrollY is robust to positioned ancestors (unlike offsetTop).
+  // Re-measure on mount, on resize, and when the data set changes (a
+  // filter / tab / query switch can change the height of everything
+  // stacked above the list).
+  useLayoutEffect(() => {
+    const measure = () => {
+      const node = listRef.current;
+      if (!node) return;
+      const next = node.getBoundingClientRect().top + window.scrollY;
+      setScrollMargin((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [stations]);
+
+  const virtualizer = useWindowVirtualizer<HTMLDivElement>({
+    count: stations.length,
+    estimateSize: () => ROW_ESTIMATE_PX,
+    overscan: 5,
+    gap,
+    scrollMargin,
+    getItemKey: (index) => {
+      const station = stations[index];
+      return station ? `${station.stationuuid}-${index}` : index;
+    }
+  });
+
+  return (
+    <div
+      ref={listRef}
+      style={{ position: 'relative', width: '100%', height: virtualizer.getTotalSize() }}
+    >
+      {virtualizer.getVirtualItems().map((virtualItem) => {
+        const station = stations[virtualItem.index];
+        if (!station) return null;
+        return (
+          <div
+            key={virtualItem.key}
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`
+            }}
+          >
+            {renderRow(station, virtualItem.index)}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const StationTable = ({
   stations,
   compact,
@@ -446,7 +521,6 @@ export const StationTable = ({
   nowPlayingMode = 'active-only'
 }: StationTableProps) => {
   const { t } = useLocale();
-  const lowPower = getDeviceProfile().lowPower;
 
   // Subscribe to the playback + library contexts ONCE here, then hand
   // each row only the primitive slices it needs. Previously every
@@ -514,29 +588,29 @@ export const StationTable = ({
   );
   const activeStationId = player.current?.stationuuid ?? null;
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const renderBatch =
-    readRenderBatchOverride() ??
-    (compact ? (lowPower ? 12 : 18) : lowPower ? 16 : 24);
-  const [visibleCount, setVisibleCount] = useState(() => Math.min(stations.length, renderBatch));
-
-  useEffect(() => {
-    setVisibleCount(Math.min(stations.length, renderBatch));
-  }, [renderBatch, stations]);
-
-  const loadMore = useCallback(() => {
-    incrementLoadMoreSpy();
-    setVisibleCount((previous) => Math.min(stations.length, previous + renderBatch));
-  }, [renderBatch, stations.length]);
-
-  useInfiniteScroll(sentinelRef, {
-    enabled: visibleCount < stations.length,
-    rootMargin: compact ? '420px' : '620px',
-    onLoadMore: loadMore
-  });
-
-  const renderedStations =
-    visibleCount >= stations.length ? stations : stations.slice(0, visibleCount);
+  // Recreated every render (it closes over the per-tick playback state),
+  // which is intended: the active row's activePlayback must refresh each
+  // tick. The memoized rows still skip when their own props are unchanged.
+  const renderRow = (station: StationLite, index: number) => {
+    const active = station.stationuuid === activeStationId;
+    return (
+      <StationTableRow
+        key={`${station.stationuuid}-${sourceId || 'stations'}-${index}`}
+        station={station}
+        index={index}
+        compact={compact}
+        nowPlayingMode={nowPlayingMode}
+        active={active}
+        liked={favoriteIds.has(station.stationuuid)}
+        hidden={isStationHiddenFromRecommendations(station.stationuuid)}
+        behaviorProfile={behaviorProfile}
+        activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
+        onPlay={handlePlay}
+        onToggleFavorite={handleToggleFavorite}
+        onToggleHidden={handleToggleHidden}
+      />
+    );
+  };
 
   if (!stations.length) {
     return <div className="empty-state">{t('stationTable.empty')}</div>;
@@ -553,27 +627,15 @@ export const StationTable = ({
           <div>{t('stationTable.favoriteColumn')}</div>
         </div>
       )}
-      {renderedStations.map((station, index) => {
-        const active = station.stationuuid === activeStationId;
-        return (
-          <StationTableRow
-            key={`${station.stationuuid}-${sourceId || 'stations'}-${index}`}
-            station={station}
-            index={index}
-            compact={compact}
-            nowPlayingMode={nowPlayingMode}
-            active={active}
-            liked={favoriteIds.has(station.stationuuid)}
-            hidden={isStationHiddenFromRecommendations(station.stationuuid)}
-            behaviorProfile={behaviorProfile}
-            activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
-            onPlay={handlePlay}
-            onToggleFavorite={handleToggleFavorite}
-            onToggleHidden={handleToggleHidden}
-          />
-        );
-      })}
-      {visibleCount < stations.length ? <div ref={sentinelRef} className="station-table-sentinel" /> : null}
+      {stations.length > WINDOW_VIRTUALIZE_THRESHOLD ? (
+        <VirtualizedStationRows
+          stations={stations}
+          gap={compact ? 8 : 7}
+          renderRow={renderRow}
+        />
+      ) : (
+        stations.map((station, index) => renderRow(station, index))
+      )}
     </div>
   );
 };
