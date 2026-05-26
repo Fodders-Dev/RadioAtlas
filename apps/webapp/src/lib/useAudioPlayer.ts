@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlaybackCandidate, PlaybackFailure, PlaybackFailurePhase } from '../domain/contracts';
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
@@ -26,9 +26,18 @@ export type PlayerEqState = {
 export type PlayerVisualizerState = {
   active: boolean;
   available: boolean;
-  spectrum: number[];
-  waveform: number[];
 };
+
+// Live spectrum/waveform frame pushed to subscribers via
+// subscribeVisualizer. The buffers are reused (filled in place) each
+// frame, so a subscriber must read synchronously and not retain the
+// arrays across ticks. (T2.1)
+export type VisualizerFrame = {
+  spectrum: Float32Array;
+  waveform: Float32Array;
+};
+
+export type VisualizerSubscriber = (frame: VisualizerFrame) => void;
 
 type PlayStationResult = {
   ok: boolean;
@@ -68,8 +77,6 @@ const sliderToDb = (value: number) => ((clampPercent(value) - EQ_CENTER) / EQ_CE
 const dbToGain = (value: number) => 10 ** (value / 20);
 const balanceToPan = (value: number) => clampBalance(value) / 100;
 const createDefaultEqBands = () => EQ_BANDS.map(() => EQ_CENTER);
-const createEmptySpectrum = () => Array.from({ length: VISUALIZER_BARS }, () => 0);
-const createEmptyWaveform = () => Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, () => 0);
 const shouldForceAudioGraph = () =>
   typeof window !== 'undefined' && Boolean((window as typeof window & { __RA_FORCE_AUDIO_GRAPH__?: boolean }).__RA_FORCE_AUDIO_GRAPH__);
 const isConstrainedApplePlayback = () => {
@@ -137,6 +144,14 @@ export const useAudioPlayer = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const visualizerFrameRef = useRef<number | null>(null);
   const audioGraphFailedRef = useRef(false);
+  // Visualizer is pushed to subscribers via a ref-based rAF loop instead
+  // of 30 Hz React state. The loop is demand-gated: it only runs while
+  // there's at least one subscriber AND playback is live. (T2.1)
+  const visualizerSubscribersRef = useRef<Set<VisualizerSubscriber>>(new Set());
+  const visualizerControllerRef = useRef<{ start: () => void; stop: () => void }>({
+    start: () => {},
+    stop: () => {}
+  });
   const playbackSessionRef = useRef(0);
   const candidateStartedAtRef = useRef(0);
   const candidateHasPlayedRef = useRef(false);
@@ -156,9 +171,7 @@ export const useAudioPlayer = ({
   const [eqBands, setEqBands] = useState<number[]>(createDefaultEqBands);
   const [visualizer, setVisualizer] = useState<PlayerVisualizerState>({
     active: false,
-    available: false,
-    spectrum: createEmptySpectrum(),
-    waveform: createEmptyWaveform()
+    available: false
   });
 
   const pushEvent = (message: string) => {
@@ -313,21 +326,17 @@ export const useAudioPlayer = ({
       stereoPannerRef.current = panner;
       eqFiltersRef.current = filters;
       analyserRef.current = analyser;
-      setVisualizer((prev) => ({
-        ...prev,
-        available: true
-      }));
+      // Graph can come up lazily mid-playback; reflect active immediately
+      // and (re)start the demand-gated pump.
+      setVisualizer({ active: isPlayingRef.current, available: true });
+      visualizerControllerRef.current.start();
       return context;
     } catch (error) {
       audioGraphFailedRef.current = true;
       analyserRef.current = null;
       stereoPannerRef.current = null;
-      setVisualizer({
-        active: false,
-        available: false,
-        spectrum: createEmptySpectrum(),
-        waveform: createEmptyWaveform()
-      });
+      setVisualizer({ active: false, available: false });
+      visualizerControllerRef.current.stop();
       pushEvent(`eq: graph failed (${error instanceof Error ? error.message : 'unknown'})`);
       return null;
     }
@@ -837,12 +846,7 @@ export const useAudioPlayer = ({
         void audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
       }
-      setVisualizer({
-        active: false,
-        available: false,
-        spectrum: createEmptySpectrum(),
-        waveform: createEmptyWaveform()
-      });
+      setVisualizer({ active: false, available: false });
       if (audio instanceof HTMLAudioElement) {
         audio.remove();
       }
@@ -871,17 +875,6 @@ export const useAudioPlayer = ({
   }, [eqBands, eqEnabled, eqPreamp]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.dataset.raVisualizerActive = visualizer.active ? 'true' : 'false';
-    audio.dataset.raVisualizerAvailable = visualizer.available ? 'true' : 'false';
-    audio.dataset.raVisualizerSpectrum = visualizer.spectrum
-      .slice(0, 8)
-      .map((value) => value.toFixed(2))
-      .join(',');
-  }, [visualizer]);
-
-  useEffect(() => {
     if (shouldUseLeanPlaybackMode()) {
       return;
     }
@@ -903,94 +896,111 @@ export const useAudioPlayer = ({
     applyBalanceToGraph();
   }, [balance]);
 
+  // Ref-based visualizer pump. Buffers are allocated once and filled in
+  // place each frame, then pushed to subscribers directly — no React
+  // state per frame, so PlaybackRuntime no longer re-renders ~30x/s. The
+  // loop is demand-gated: it runs only while a subscriber is attached and
+  // playback is live. With no subscriber (the current default — the
+  // milkdrop overlay is dormant) it never starts. (T2.1)
   useEffect(() => {
-    if (shouldUseLeanPlaybackMode()) {
-      setVisualizer({
-        active: false,
-        available: false,
-        spectrum: createEmptySpectrum(),
-        waveform: createEmptyWaveform()
-      });
-      return;
-    }
-    if (visualizerFrameRef.current !== null) {
-      window.cancelAnimationFrame(visualizerFrameRef.current);
-      visualizerFrameRef.current = null;
-    }
-
-    const analyser = analyserRef.current;
-    if (!analyser || !isPlaying) {
-      setVisualizer((prev) => ({
-        ...prev,
-        active: false,
-        available: Boolean(analyser),
-        spectrum: createEmptySpectrum(),
-        waveform: createEmptyWaveform()
-      }));
-      return;
-    }
-
-    setVisualizer((prev) => ({
-      ...prev,
-      active: true,
-      available: true
-    }));
-
-    const frequencyData = new Uint8Array(analyser.frequencyBinCount);
-    const waveformData = new Uint8Array(analyser.fftSize);
+    const spectrum = new Float32Array(VISUALIZER_BARS);
+    const waveform = new Float32Array(VISUALIZER_WAVEFORM_SAMPLES);
+    const frame: VisualizerFrame = { spectrum, waveform };
+    // Reused in place across frames; reallocated only if the analyser
+    // resolution changes (it doesn't — fftSize is fixed at graph build).
+    let frequencyBytes = new Uint8Array(0);
+    let waveformBytes = new Uint8Array(0);
     let lastFrameAt = 0;
 
-    const updateFrame = (now: number) => {
-      if (now - lastFrameAt < 32) {
-        visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
+    const draw = (now: number) => {
+      const analyser = analyserRef.current;
+      if (!analyser || !isPlayingRef.current || visualizerSubscribersRef.current.size === 0) {
+        visualizerFrameRef.current = null;
         return;
       }
-      lastFrameAt = now;
-
-      analyser.getByteFrequencyData(frequencyData);
-      analyser.getByteTimeDomainData(waveformData);
-
-      const nextSpectrum = Array.from({ length: VISUALIZER_BARS }, (_, index) => {
-        const start = Math.floor((index * frequencyData.length) / VISUALIZER_BARS);
-        const end = Math.max(
-          start + 1,
-          Math.floor(((index + 1) * frequencyData.length) / VISUALIZER_BARS)
-        );
-        let peak = 0;
-        for (let cursor = start; cursor < end; cursor += 1) {
-          peak = Math.max(peak, frequencyData[cursor] ?? 0);
+      if (now - lastFrameAt >= 32) {
+        lastFrameAt = now;
+        if (frequencyBytes.length !== analyser.frequencyBinCount) {
+          frequencyBytes = new Uint8Array(analyser.frequencyBinCount);
         }
-        const normalizedPeak = peak / 255;
-        const emphasized = Math.pow(normalizedPeak, 0.62);
-        const lowBandBoost = 1 + Math.max(0, 0.28 - index * 0.012);
-        return Number(Math.min(1, emphasized * lowBandBoost).toFixed(3));
-      });
+        if (waveformBytes.length !== analyser.fftSize) {
+          waveformBytes = new Uint8Array(analyser.fftSize);
+        }
+        analyser.getByteFrequencyData(frequencyBytes);
+        analyser.getByteTimeDomainData(waveformBytes);
 
-      const nextWaveform = Array.from({ length: VISUALIZER_WAVEFORM_SAMPLES }, (_, index) => {
-        const sourceIndex = Math.floor(
-          (index * waveformData.length) / VISUALIZER_WAVEFORM_SAMPLES
-        );
-        const centered = ((waveformData[sourceIndex] ?? 128) - 128) / 128;
-        return Number(centered.toFixed(3));
-      });
-
-      setVisualizer({
-        active: true,
-        available: true,
-        spectrum: nextSpectrum,
-        waveform: nextWaveform
-      });
-      visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
+        for (let index = 0; index < VISUALIZER_BARS; index += 1) {
+          const start = Math.floor((index * frequencyBytes.length) / VISUALIZER_BARS);
+          const end = Math.max(
+            start + 1,
+            Math.floor(((index + 1) * frequencyBytes.length) / VISUALIZER_BARS)
+          );
+          let peak = 0;
+          for (let cursor = start; cursor < end; cursor += 1) {
+            peak = Math.max(peak, frequencyBytes[cursor] ?? 0);
+          }
+          const normalizedPeak = peak / 255;
+          const emphasized = Math.pow(normalizedPeak, 0.62);
+          const lowBandBoost = 1 + Math.max(0, 0.28 - index * 0.012);
+          spectrum[index] = Math.min(1, emphasized * lowBandBoost);
+        }
+        for (let index = 0; index < VISUALIZER_WAVEFORM_SAMPLES; index += 1) {
+          const sourceIndex = Math.floor(
+            (index * waveformBytes.length) / VISUALIZER_WAVEFORM_SAMPLES
+          );
+          waveform[index] = ((waveformBytes[sourceIndex] ?? 128) - 128) / 128;
+        }
+        visualizerSubscribersRef.current.forEach((callback) => callback(frame));
+      }
+      visualizerFrameRef.current = window.requestAnimationFrame(draw);
     };
 
-    visualizerFrameRef.current = window.requestAnimationFrame(updateFrame);
-    return () => {
+    const start = () => {
+      if (visualizerFrameRef.current !== null) return;
+      if (
+        !analyserRef.current ||
+        !isPlayingRef.current ||
+        visualizerSubscribersRef.current.size === 0
+      ) {
+        return;
+      }
+      lastFrameAt = 0;
+      visualizerFrameRef.current = window.requestAnimationFrame(draw);
+    };
+    const stop = () => {
       if (visualizerFrameRef.current !== null) {
         window.cancelAnimationFrame(visualizerFrameRef.current);
         visualizerFrameRef.current = null;
       }
     };
+
+    visualizerControllerRef.current = { start, stop };
+    return () => stop();
+  }, []);
+
+  // active/available is low-frequency state (play/pause, graph ready), not
+  // per-frame. This effect also (re)starts or stops the pump.
+  useEffect(() => {
+    const available = Boolean(analyserRef.current);
+    const active = available && isPlaying;
+    setVisualizer({ active, available });
+    if (active) {
+      visualizerControllerRef.current.start();
+    } else {
+      visualizerControllerRef.current.stop();
+    }
   }, [isPlaying]);
+
+  const subscribeVisualizer = useCallback((callback: VisualizerSubscriber) => {
+    visualizerSubscribersRef.current.add(callback);
+    visualizerControllerRef.current.start();
+    return () => {
+      visualizerSubscribersRef.current.delete(callback);
+      if (visualizerSubscribersRef.current.size === 0) {
+        visualizerControllerRef.current.stop();
+      }
+    };
+  }, []);
 
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
     const audio = audioRef.current;
@@ -1209,6 +1219,7 @@ export const useAudioPlayer = ({
       bands: eqBands
     } as PlayerEqState,
     visualizer,
+    subscribeVisualizer,
     errorMessage,
     transport: {
       activeCandidate: activeCandidateRef.current,
