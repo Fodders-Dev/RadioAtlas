@@ -3,7 +3,6 @@ import type { useAudioPlayer } from '../../lib/useAudioPlayer';
 
 const DEFAULT_EQ_CENTER = 50;
 const DEFAULT_EQ_BAND_COUNT = 10;
-const DEFAULT_VISUALIZER_BARS = 24;
 
 export type PlaybackRuntimeSnapshot = {
   player: ReturnType<typeof useAudioPlayer>;
@@ -14,7 +13,6 @@ export type PlaybackRuntimeSnapshot = {
 
 const createDefaultEqBands = () =>
   Array.from({ length: DEFAULT_EQ_BAND_COUNT }, () => DEFAULT_EQ_CENTER);
-const createEmptyVisualizer = () => Array.from({ length: DEFAULT_VISUALIZER_BARS }, () => 0);
 
 export const createPlaybackPlayerPlaceholder = (): ReturnType<typeof useAudioPlayer> => ({
   current: null,
@@ -31,10 +29,9 @@ export const createPlaybackPlayerPlaceholder = (): ReturnType<typeof useAudioPla
   },
   visualizer: {
     active: false,
-    available: false,
-    spectrum: createEmptyVisualizer(),
-    waveform: createEmptyVisualizer()
+    available: false
   },
+  subscribeVisualizer: () => () => {},
   errorMessage: null,
   transport: {
     activeCandidate: null,
