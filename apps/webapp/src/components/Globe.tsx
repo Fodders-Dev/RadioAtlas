@@ -3,6 +3,7 @@ import maplibregl, { type MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { feature as topoFeature } from 'topojson-client';
 import worldData from '../assets/countries-110m.json';
+import { pickNearestPointToReticle } from './globe/selection';
 import './globe/globe.css';
 
 // Natural Earth 50m admin_1 boundaries — only the federations that
@@ -601,9 +602,14 @@ export const Globe = ({
   // refs keep them current without re-attaching on every render.
   const onReticleHoverRef = useRef(onReticleHover);
   const onReticleSettleRef = useRef(onReticleSettle);
+  // Reticle nearest-search reads the live point set without re-attaching
+  // the once-mounted move handler when `points` swaps (overview areas vs
+  // per-station sprinkle). (T2.13)
+  const pointsRef = useRef(points);
   useEffect(() => {
     onReticleHoverRef.current = onReticleHover;
     onReticleSettleRef.current = onReticleSettle;
+    pointsRef.current = points;
   });
 
   // Mount the map exactly once. Style and layers are loaded inside.
@@ -780,49 +786,25 @@ export const Globe = ({
     // user clearly aimed at empty space and we should not auto-tune.
     const RETICLE_LOCK_RADIUS_PX = 140;
 
+    // Nearest rendered station dot to the crosshair, capped at the lock
+    // radius. Backed by an in-memory two-pass search (see
+    // pickNearestPointToReticle) instead of a per-move
+    // map.queryRenderedFeatures() raster query, which cost ~16 ms each at
+    // ~60 Hz and was the globe-drag jank source flagged in T_audit_1. (T2.13)
     const findNearestStation = (): string | null => {
       const canvas = map.getCanvasContainer();
-      const cx = canvas.clientWidth / 2;
-      const cy = canvas.clientHeight / 2;
-      // Wide search bbox so we don't miss the nearest, but the
-      // cap below decides whether we're actually willing to commit.
-      const search = 320;
-      let features: MapGeoJSONFeature[] = [];
+      const center = map.getCenter();
       try {
-        features = map.queryRenderedFeatures(
-          [
-            [cx - search, cy - search],
-            [cx + search, cy + search]
-          ],
-          { layers: ['stations-dot'] }
-        ) as MapGeoJSONFeature[];
+        return pickNearestPointToReticle(
+          pointsRef.current,
+          { lat: center.lat, lon: center.lng },
+          { cx: canvas.clientWidth / 2, cy: canvas.clientHeight / 2 },
+          (lon, lat) => map.project([lon, lat]),
+          RETICLE_LOCK_RADIUS_PX
+        );
       } catch {
         return null;
       }
-      if (!features.length) return null;
-      let nearestId: string | null = null;
-      let nearestDist = Infinity;
-      for (const feature of features) {
-        const id = feature.properties?.id;
-        if (typeof id !== 'string') continue;
-        const geom = feature.geometry;
-        if (!geom || geom.type !== 'Point') continue;
-        const [lon, lat] = geom.coordinates as [number, number];
-        const pt = map.project([lon, lat]);
-        const dx = pt.x - cx;
-        const dy = pt.y - cy;
-        const d = dx * dx + dy * dy;
-        if (d < nearestDist) {
-          nearestDist = d;
-          nearestId = id;
-        }
-      }
-      // Reject far-away matches so the reticle never tunes to a
-      // station the user clearly wasn't aiming at.
-      if (nearestDist > RETICLE_LOCK_RADIUS_PX * RETICLE_LOCK_RADIUS_PX) {
-        return null;
-      }
-      return nearestId;
     };
 
     const cancelSettle = () => {
