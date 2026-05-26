@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { StationProfileSummary } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
+import { useDialog } from '../lib/useDialog';
 import {
   getStationHealthScore,
   resolveBestPlayableCandidate
@@ -26,6 +27,9 @@ type StationDetailsProps = {
 
 export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
   const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: open, onClose });
   const {
     knownStations,
     toggleFavorite,
@@ -147,7 +151,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
   };
 
   return (
-    <div className="details-overlay" role="dialog" aria-modal="true">
+    <div ref={rootRef} className="details-overlay" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button
         className="details-backdrop"
         onClick={onClose}
@@ -158,7 +162,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         <div className="details-header details-identity">
           <StationArtwork station={info} size="card" className="details-artwork" />
           <div className="details-heading">
-            <div className="details-title">{current.name}</div>
+            <div className="details-title" id={titleId}>{current.name}</div>
             <div className="details-sub">{location}</div>
           </div>
           <button className="chip" onClick={onClose} type="button">
