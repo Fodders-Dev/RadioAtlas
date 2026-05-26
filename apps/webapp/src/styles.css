@@ -1394,6 +1394,35 @@ input {
   text-align: center;
 }
 
+/* ErrorBoundary fallbacks (T1.7). Reuse .empty-state's panel look; stack
+   the title / body / actions with a little breathing room. */
+.error-boundary-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.error-boundary-fallback strong {
+  color: var(--text);
+}
+.error-boundary-actions {
+  margin-top: 2px;
+}
+
+/* Full-page fallback for a top-level provider crash. */
+.app-crash-fallback {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg, #06121d);
+  z-index: 9999;
+}
+.app-crash-fallback .empty-state {
+  max-width: 360px;
+}
+
 .toast {
   position: fixed;
   left: 50%;

@@ -119,3 +119,41 @@ export const reportClientEvent = (name: string, options: ClientEventOptions = {}
     keepalive: true
   }).catch(() => undefined);
 };
+
+type ReportErrorContext = Record<string, string | number | boolean | null | undefined>;
+
+// Structured sink for uncaught render errors (used by ErrorBoundary).
+// Always logs to the console (visible in dev / captured by log forwarders)
+// and forwards a deduped client-event beacon when an API base is set.
+// Never throws — error reporting must not itself break the fallback UI.
+export const reportError = (
+  error: unknown,
+  info?: { componentStack?: string | null } | null,
+  context: ReportErrorContext = {}
+) => {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  try {
+    // eslint-disable-next-line no-console
+    console.error('[client-error]', normalized, context);
+  } catch {
+    // ignore console failures
+  }
+  try {
+    const meta: ClientEventMeta = {
+      name: normalized.name,
+      stack: normalized.stack ? normalized.stack.slice(0, 2000) : null,
+      componentStack: info?.componentStack ? info.componentStack.slice(0, 2000) : null
+    };
+    for (const [key, value] of Object.entries(context)) {
+      if (value !== undefined) meta[key] = value;
+    }
+    reportClientEvent('client_error', {
+      detail: normalized.message.slice(0, 300),
+      meta,
+      dedupeKey: `client_error:${String(context.boundary ?? 'unknown')}:${normalized.message}`,
+      dedupeMs: 30_000
+    });
+  } catch {
+    // ignore reporting failures
+  }
+};

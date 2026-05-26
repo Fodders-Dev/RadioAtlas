@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AppScreenSkeleton } from './components/AppScreenSkeleton';
+import { ErrorBoundary, ErrorProbe, ScreenErrorFallback } from './components/ErrorBoundary';
+import { reportError } from './lib/observability';
 import { SettingsSheet } from './components/SettingsSheet';
 import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
@@ -407,9 +409,20 @@ const App = () => {
               lowPowerShell ? '' : sectionMotionTick % 2 === 0 ? 'page-enter-a' : 'page-enter-b'
             }`.trim()}
           >
-            <Suspense fallback={screenFallback}>
-              <ActiveScreen />
-            </Suspense>
+            <ErrorBoundary
+              key={activeSection}
+              onError={(error, info) =>
+                reportError(error, info, { boundary: 'screen', section: activeSection })
+              }
+              fallback={(retry) => (
+                <ScreenErrorFallback onRetry={retry} onHome={() => setActiveSection('home')} />
+              )}
+            >
+              <ErrorProbe />
+              <Suspense fallback={screenFallback}>
+                <ActiveScreen />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

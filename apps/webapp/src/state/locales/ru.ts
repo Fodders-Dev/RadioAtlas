@@ -1,6 +1,12 @@
 import type { DictionaryTree } from './types';
 
 export const ruDictionary = {
+  "errorBoundary": {
+    "screenTitle": "Не удалось загрузить раздел",
+    "screenBody": "Что-то пошло не так. Попробуй ещё раз или вернись на главную.",
+    "retry": "Повторить",
+    "home": "На главную"
+  },
   "app": {
     "title": "RadioAtlas",
     "subtitle": "Музыка мира в прямом эфире.",
