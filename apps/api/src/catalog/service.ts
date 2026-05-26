@@ -276,6 +276,59 @@ const buildGenreSpotlight = (stations: CatalogStation[], seed: number): CatalogS
   };
 };
 
+// T2.22: mood rails — non-personalised shelves grouped by listening context,
+// derived from Radio Browser tags. Tag matching is WORD-AWARE (exact match on a
+// comma-split tag), never substring: a station tagged "electrock" must not land
+// in Driving via "rock". Multi-word tags ("classic rock", "smooth jazz") are
+// explicit list entries and match the full tag string. Computed server-side
+// because the client only holds the summary's ~60 stations, far too few to
+// bucket the catalogue's thousands of mood-tagged stations.
+type MoodDefinition = { id: string; tags: string[] };
+export const MOOD_DEFINITIONS: MoodDefinition[] = [
+  { id: 'mood-late-night', tags: ['chillout', 'ambient', 'lounge', 'downtempo', 'smooth jazz'] },
+  { id: 'mood-workout', tags: ['edm', 'house', 'electronic', 'workout', 'high energy'] },
+  { id: 'mood-focus', tags: ['classical', 'jazz', 'instrumental', 'lo-fi', 'lofi', 'piano'] },
+  { id: 'mood-driving', tags: ['rock', 'classic rock', 'pop rock', 'classic hits', 'hits', 'top 40'] }
+];
+const MOOD_RAIL_POOL = 10;
+const MOOD_RAIL_MIN = 6;
+
+const stationTagSet = (station: CatalogStation) =>
+  new Set(
+    (station.tags || '')
+      .split(',')
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+const buildMoodRails = (stations: CatalogStation[], seed: number) => {
+  // Assignment iteration order is shuffled per seed, so a station matching
+  // several moods lands in a different one session-to-session (deterministic
+  // for a given seed). Display order below stays fixed.
+  const assignmentOrder = [...MOOD_DEFINITIONS]
+    .map((mood) => {
+      const offset = mood.id.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+      return { mood, score: mulberry32(seed + offset)() };
+    })
+    .sort((left, right) => left.score - right.score)
+    .map((entry) => entry.mood);
+
+  const buckets = new Map<string, CatalogStation[]>(MOOD_DEFINITIONS.map((mood) => [mood.id, []]));
+  for (const station of stations) {
+    const tagSet = stationTagSet(station);
+    if (!tagSet.size) continue;
+    const mood = assignmentOrder.find((candidate) => candidate.tags.some((tag) => tagSet.has(tag)));
+    if (mood) buckets.get(mood.id)?.push(station);
+  }
+
+  // Emit in fixed display order; hide a mood whose bucket can't fill a shelf.
+  return MOOD_DEFINITIONS.map((mood, index) => {
+    const bucket = buckets.get(mood.id) || [];
+    if (bucket.length < MOOD_RAIL_MIN) return null;
+    return { id: mood.id, stations: seededSample(bucket, seed + 401 + index, MOOD_RAIL_POOL) };
+  }).filter((rail): rail is { id: string; stations: ReturnType<typeof toStationLite>[] } => rail !== null);
+};
+
 // T2.21: per-day rotation key for "Around the world" — the country changes at
 // UTC midnight and stays fixed all day (deterministic, no server state).
 const dayNumber = (now = Date.now()) => Math.floor(now / 86_400_000);
@@ -294,6 +347,8 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
   const aroundTheWorld = buildCountrySpotlight(sorted, dayNumber(now), {
     exclude: countrySpotlight?.label
   });
+  // T2.22 mood rails — bucket the full catalogue by listening context.
+  const moodRails = buildMoodRails(stations, seed);
   const tagCount = new Set(
     sorted
       .flatMap((station) => (station.tags || '').split(',').map((tag) => tag.trim().toLowerCase()))
@@ -315,7 +370,8 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
     genreSpotlight,
     trending,
     topVoted,
-    aroundTheWorld
+    aroundTheWorld,
+    moodRails
   };
 };
 

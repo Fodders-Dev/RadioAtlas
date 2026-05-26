@@ -56,6 +56,57 @@ test('Trending / Top-voted hide gracefully when the signal is absent', () => {
   assert.equal(summary.topVoted.length, 0);
 });
 
+const allMoodStationIds = (summary: ReturnType<typeof buildCatalogSummary>) =>
+  summary.moodRails.flatMap((rail) => rail.stations.map((station) => station.stationuuid));
+
+const moodRail = (summary: ReturnType<typeof buildCatalogSummary>, id: string) =>
+  summary.moodRails.find((rail) => rail.id === id);
+
+test('Mood rails bucket by word-aware tags and reject substring matches', () => {
+  const stations = [
+    ...Array.from({ length: 8 }, (_, i) => mk(`rock-${i}`, { tags: 'rock', votes: 50 })),
+    ...Array.from({ length: 8 }, (_, i) => mk(`ambient-${i}`, { tags: 'ambient', votes: 50 })),
+    // "electrock" contains "rock" as a substring but is a distinct tag → no mood.
+    mk('electrock-trap', { tags: 'electrock', votes: 999 })
+  ];
+
+  const summary = buildCatalogSummary(stations, 1);
+
+  assert.ok(moodRail(summary, 'mood-driving'), 'rock stations form the Driving rail');
+  assert.ok(moodRail(summary, 'mood-late-night'), 'ambient stations form the Late night rail');
+  assert.ok(
+    !allMoodStationIds(summary).includes('electrock-trap'),
+    'a station tagged "electrock" never lands in a rail via substring "rock"'
+  );
+});
+
+test('Mood rails enforce the >=6 station floor', () => {
+  const five = Array.from({ length: 5 }, (_, i) => mk(`house-${i}`, { tags: 'house' }));
+  assert.equal(moodRail(buildCatalogSummary(five, 1), 'mood-workout'), undefined, 'hidden at 5');
+
+  const six = Array.from({ length: 6 }, (_, i) => mk(`house-${i}`, { tags: 'house' }));
+  assert.ok(moodRail(buildCatalogSummary(six, 1), 'mood-workout'), 'present at 6');
+});
+
+test('Cross-mood assignment is deterministic per seed and single-homed', () => {
+  // A station tagged for two moods (Driving via "rock", Late night via "ambient").
+  const stations = [
+    ...Array.from({ length: 8 }, (_, i) => mk(`rock-${i}`, { tags: 'rock' })),
+    ...Array.from({ length: 8 }, (_, i) => mk(`ambient-${i}`, { tags: 'ambient' })),
+    mk('dual', { tags: 'rock,ambient' })
+  ];
+
+  const a = buildCatalogSummary(stations, 7);
+  const b = buildCatalogSummary(stations, 7);
+
+  const homesOf = (summary: ReturnType<typeof buildCatalogSummary>) =>
+    summary.moodRails.filter((rail) => rail.stations.some((s) => s.stationuuid === 'dual')).map((r) => r.id);
+
+  // Same seed → identical assignment; the dual-tagged station lives in exactly one rail.
+  assert.deepEqual(homesOf(a), homesOf(b));
+  assert.equal(homesOf(a).length, 1, 'a multi-mood station is single-homed (cross-mood de-dup)');
+});
+
 test('Around-the-world rotates daily and never repeats the country-spotlight', () => {
   // Three eligible countries (≥4 stations each) so that after excluding the
   // country-spotlight pick, ≥2 remain for the daily rotation to choose between.

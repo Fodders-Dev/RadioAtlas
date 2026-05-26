@@ -35,7 +35,16 @@ const summaryBody = JSON.stringify({
   genreSpotlight: spotlight('genre1', bigCatalog.filter((s) => s.tags.startsWith('genre1,')).slice(0, 8)),
   trending: bigCatalog.slice(30, 42),
   topVoted: bigCatalog.slice(42, 54),
-  aroundTheWorld: spotlight('Country 5', bigCatalog.filter((s) => s.country === 'Country 5').slice(0, 8))
+  // Disjoint 12-slice (label set explicitly) so the mood shelves below, which
+  // would otherwise share Country-5 stations, don't shrink this rail under de-dup.
+  aroundTheWorld: spotlight('Country 5', bigCatalog.slice(100, 112)),
+  // Server-bucketed mood shelves, distinct catalogue slices so they survive de-dup.
+  moodRails: [
+    { id: 'mood-late-night', stations: bigCatalog.slice(60, 70) },
+    { id: 'mood-workout', stations: bigCatalog.slice(70, 80) },
+    { id: 'mood-focus', stations: bigCatalog.slice(80, 90) },
+    { id: 'mood-driving', stations: bigCatalog.slice(90, 100) }
+  ]
 });
 
 const seedSummary = async (page: Page) => {
@@ -96,23 +105,40 @@ test.describe('T2.21 discovery rails', () => {
       page.locator('[data-home-rail="around-the-world"] .home-section-badge')
     ).toContainText('Country 5');
 
-    // Trending sits right after fresh-now (the personalised shelf stays first).
+    // T2.22: all four mood shelves render, in fixed display order between
+    // Top voted and Around the world.
+    for (const mood of ['mood-late-night', 'mood-workout', 'mood-focus', 'mood-driving']) {
+      await expect(page.locator(`[data-home-rail="${mood}"]`)).toHaveCount(1);
+    }
+
+    // Order: fresh-now leads, Trending #2, moods sit between Top voted and Around the world.
     const railIds = await page.locator('[data-home-rail]').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-home-rail'))
     );
     expect(railIds[0]).toBe('fresh-now');
     expect(railIds.indexOf('trending')).toBe(1);
+    expect(railIds.indexOf('mood-late-night')).toBeGreaterThan(railIds.indexOf('top-voted'));
+    expect(railIds.indexOf('mood-driving')).toBeLessThan(railIds.indexOf('around-the-world'));
+    // Fixed mood display order.
+    expect(railIds.indexOf('mood-late-night')).toBeLessThan(railIds.indexOf('mood-workout'));
+    expect(railIds.indexOf('mood-workout')).toBeLessThan(railIds.indexOf('mood-focus'));
+    expect(railIds.indexOf('mood-focus')).toBeLessThan(railIds.indexOf('mood-driving'));
 
     // T2.20 density is not regressed: still ≥12 tiles above the fold.
     expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(12);
   });
 
-  test('mobile: the new discovery rails are present in the dense surface', async ({ page }) => {
+  test('mobile: discovery + mood rails present in the dense surface', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openHome(page);
 
     await expect(page.locator('[data-home-rail="trending"]')).toHaveCount(1);
     await expect(page.locator('[data-home-rail="top-voted"]')).toHaveCount(1);
     await expect(page.locator('[data-home-rail="around-the-world"]')).toHaveCount(1);
+    // At least two mood shelves reach the dense surface (DENSE_RAIL_LIMIT fits all).
+    const moodCount = await page.locator(
+      '[data-home-rail="mood-late-night"], [data-home-rail="mood-workout"], [data-home-rail="mood-focus"], [data-home-rail="mood-driving"]'
+    ).count();
+    expect(moodCount).toBeGreaterThanOrEqual(2);
   });
 });

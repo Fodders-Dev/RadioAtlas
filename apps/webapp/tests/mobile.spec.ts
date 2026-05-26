@@ -126,7 +126,15 @@ const seedDiscoveryRoutes = async (page: Page) => {
     genreSpotlight: { label: 'genre1', stations: catalog.filter((s) => s.tags.startsWith('genre1,')).slice(0, 8) },
     trending: catalog.slice(30, 42),
     topVoted: catalog.slice(42, 54),
-    aroundTheWorld: { label: 'Country 5', stations: catalog.filter((s) => s.country === 'Country 5').slice(0, 8) }
+    aroundTheWorld: { label: 'Country 5', stations: catalog.filter((s) => s.country === 'Country 5').slice(0, 8) },
+    // T2.22 mood shelves (distinct slices) so the dense surface shows the
+    // production content set and keeps the personalised delta rails out.
+    moodRails: [
+      { id: 'mood-late-night', stations: catalog.slice(60, 70) },
+      { id: 'mood-workout', stations: catalog.slice(70, 80) },
+      { id: 'mood-focus', stations: catalog.slice(80, 90) },
+      { id: 'mood-driving', stations: catalog.slice(90, 100) }
+    ]
   });
   const json = (payload: string) => (route: import('@playwright/test').Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: payload });

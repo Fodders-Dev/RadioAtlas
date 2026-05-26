@@ -35,7 +35,7 @@ export type HomeResumeModule = {
 };
 
 export type HomeSurfaceFeed = {
-  version: 4;
+  version: 5;
   seed: number;
   builtAt: number;
   hero: HomeHeroModule;
@@ -54,11 +54,11 @@ type CreateHomeSurfaceFeedInput = {
 // catalogue). Only these are reserved against later rails — see pushRailModule.
 const RAIL_STATION_LIMIT = 6;
 
-// T2.21: Home now carries up to six content shelves (fresh-now, Trending,
-// country, genre, Top voted, Around the world) plus a few lower-priority
+// T2.22: Home carries up to ten content shelves (fresh-now, Trending, country,
+// genre, Top voted, four mood rails, Around the world) plus lower-priority
 // personalised extras. Keep them all in the feed; the screen decides how many
 // to render per layout (visibleRails).
-const HOME_SURFACE_MAX_RAILS = 9;
+const HOME_SURFACE_MAX_RAILS = 13;
 
 const hashValue = (value: string) => {
   let hash = 0;
@@ -237,6 +237,11 @@ export const createHomeSurfaceFeed = ({
     blockedStationIds,
     seed + 73
   );
+  // T2.22: mood shelves (Late night · Workout · Focus · Driving) in fixed
+  // display order. Each module's sourceId ("mood-late-night" …) is its rail id.
+  discoveryFeed.moodRails.forEach((moodModule, index) => {
+    pushRailModule(rails, usedSourceIds, moodModule.sourceId, moodModule, blockedStationIds, seed + 211 + index);
+  });
   pushRailModule(
     rails,
     usedSourceIds,
@@ -278,7 +283,7 @@ export const createHomeSurfaceFeed = ({
   ]).slice(0, 6);
 
   return {
-    version: 4,
+    version: 5,
     seed,
     builtAt,
     hero,

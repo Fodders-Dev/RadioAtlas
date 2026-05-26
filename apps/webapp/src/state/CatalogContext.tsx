@@ -117,7 +117,9 @@ const collectSummaryStations = (summary: CatalogSummary) => [
   // T2.21 discovery-rail stations so they resolve for playback/details/library.
   ...(summary.trending || []),
   ...(summary.topVoted || []),
-  ...(summary.aroundTheWorld?.stations || [])
+  ...(summary.aroundTheWorld?.stations || []),
+  // T2.22 mood-rail stations.
+  ...(summary.moodRails || []).flatMap((rail) => rail.stations)
 ];
 
 const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
