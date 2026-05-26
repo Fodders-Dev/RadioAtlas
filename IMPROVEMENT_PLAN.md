@@ -565,6 +565,98 @@ target stays green.
 
 ---
 
+## UI Sprint v2 — Home as Discovery
+
+User report: "на главной хуйня какая-то и станций очень мало"
++ "хочется как главные страницы музыкальных сервисов с
+рекомендациями" + "максимально использовать пространство, без
+пустых мест". Live audit (Chrome MCP, prod desktop 1138×1081)
+confirms: above-the-fold = 1 hero station + 4 in resume rail =
+5 visible stations (Spotify shows 15-20 in same viewport).
+Total Home content = 5 rails × 3-4 tiles = ~17 stations.
+
+Design principles for the whole sprint:
+- **Density first**: every block on the page must earn its pixels.
+  Decorative subtitles, admin meta-rows, ad-promos for other tabs
+  → drop or shrink.
+- **Tile variety**: hero card + standard tile + compact logo strip,
+  not five rails of identical 200px tiles.
+- **Rail variety**: mix personal / discovery / genre / mood /
+  region / editorial — don't ship five rails of the same flavour.
+- **No empty cells**: if a rail returns < N stations, fallback /
+  merge / hide entirely (no awkward placeholder gaps).
+- **Above-fold = currency**: hero + 1-2 personal rails must fit
+  before the user scrolls.
+
+### T2.20 Home density pass (immediate visible win)
+- **What**: shrink decorative surfaces, kill ad-promos for other
+  tabs, reduce tile widths so 5-6 fit per rail instead of 3-4.
+  No new data sources, no new rails — just denser presentation
+  of what's already there.
+- **Drop**: hero header subtitle "ТВОЙ ЭФИРНЫЙ АТЛАС" + kicker;
+  catalog stats meta-row "СТРАН 238 / ЯЗЫКОВ 1246 / ЖАНРОВ 11262"
+  inside the featured card; "Найти станцию" search-promo card
+  entirely (search lives in nav + the search icon in the hero
+  header already); "Что открыть дальше" nav-promo at the bottom
+  (Глобус / Медиатека are in nav).
+- **Shrink**: hero featured card 350px → ~220px (drop the meta
+  row, tighten chip padding); standard tile width 200px → 140-160px
+  so 5-6 fit per row on a 880-1100px content column.
+- **Files**: `apps/webapp/src/screens/Home.tsx`,
+  `apps/webapp/src/screens/homeCards.tsx`, related CSS in
+  `apps/webapp/src/styles.css` / `screens/home.css`.
+- **Done-when**: above-fold count of visible station tiles goes
+  from 5 to ≥12 on a 1280×720 desktop viewport; mobile (390×844)
+  goes from 4 to ≥6; no rail looks visually broken on either
+  viewport. Existing visual baselines refreshed where intentional.
+
+### T2.21 Discovery rails — server-side signals
+- **What**: add three new rails powered by Radio Browser meta
+  that the API doesn't expose to the webapp today:
+  - 🔥 **Trending** — top stations by `clicktrend`
+  - 🌟 **Top voted** — top stations by `votes`
+  - 🌍 **Around the world** — random country spotlight, rotates
+    daily on a seed
+  Requires extending `/catalog/summary` (or a new endpoint) to
+  surface those signals per-station.
+- **Files**: `apps/api/src/catalog/service.ts` +
+  `apps/api/src/catalogRoutes.ts` (signal pass-through),
+  `apps/webapp/src/lib/homeSurface.ts` (new rail builders),
+  Home.tsx (render).
+- **Done-when**: three new rails visible on Home with
+  realistic content; cold load no slower than baseline (signal
+  passthrough is meta-only, no extra fetch).
+
+### T2.22 Mood rails — client-side tag heuristic
+- **What**: four mood rails from tag-based filtering of the
+  existing catalog (Radio Browser already provides tags like
+  `chillout`, `electronic`, `classical`, `talk`):
+  - 🌙 **Late night** (chillout, ambient, lounge)
+  - 💪 **Workout** (energetic, dance, edm)
+  - 📚 **Focus** (instrumental, classical, jazz)
+  - 🚗 **Driving** (rock, pop mix, popular fm)
+- **Files**: `apps/webapp/src/lib/homeSurface.ts` (mood builders),
+  `apps/webapp/src/state/locales/{ru,en}.ts` (rail copy), Home.tsx.
+- **Done-when**: each mood rail returns ≥6 stations from
+  current catalog or hides cleanly; rail variety visible to user.
+
+### T2.23 Variety pass — visual rhythm
+- **What**: break up the "five identical rails" monotony with
+  per-rail tile variants and chip filters above the feed.
+  - Chip-row above the feed: genre filter chips ("pop / rock /
+    jazz / electronic / classical / dance / hip hop / news") that
+    jump-scroll to or filter the relevant rail.
+  - Within at least one rail, a "featured" tile that's ~1.5×
+    the size of standard tiles (1-of-6 hero out of N).
+  - Compact logo-strip rail variant for a "most-popular" lane —
+    just artwork thumbnails, no text, for fast scanning.
+- **Files**: Home.tsx, homeCards.tsx, CSS (`home.css`).
+- **Done-when**: home visual rhythm distinct from a single grid
+  pattern; chip-row works as either filter or scroll-anchor
+  (worker call).
+
+---
+
 ## Tier 3 — Architecture & maintainability
 
 ### T3.1 Split `RadioContext.tsx`
