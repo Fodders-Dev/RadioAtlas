@@ -33,6 +33,10 @@ type HomeStationTileProps = {
   liked: boolean;
   onPlay: PlayHandler;
   onToggleFavorite: ToggleFavoriteHandler;
+  // T2.23 render variants. `featured` widens the lead tile (~1.5×); `logoOnly`
+  // renders an artwork-only chip (no text/actions) for the logo-strip lane.
+  featured?: boolean;
+  logoOnly?: boolean;
 };
 
 const captionForStation = (
@@ -55,13 +59,37 @@ const HomeStationTile = ({
   activeTrack,
   liked,
   onPlay,
-  onToggleFavorite
+  onToggleFavorite,
+  featured = false,
+  logoOnly = false
 }: HomeStationTileProps) => {
   const { t } = useLocale();
   const caption = captionForStation(station, isActive, activeTrack, t);
+
+  // T2.23 logo-strip variant: artwork-only chip that still plays on click and
+  // keeps an accessible name (no visible text/metadata/actions).
+  if (logoOnly) {
+    return (
+      <article
+        className={`home-station-tile home-station-tile--logo ${isActive ? 'is-active' : ''}`.trim()}
+        data-home-station={station.stationuuid}
+      >
+        <button
+          className="home-logo-play"
+          type="button"
+          onClick={() => onPlay(station, playlist, sourceId)}
+          aria-label={`${isActive ? t('common.pause') : t('common.play')}: ${station.name}`}
+        >
+          <StationArtwork station={station} size="card" className="home-station-artwork" />
+          <span className="visually-hidden">{station.name}</span>
+        </button>
+      </article>
+    );
+  }
+
   return (
     <article
-      className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''}`.trim()}
+      className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''} ${featured ? 'home-station-tile--featured' : ''}`.trim()}
       data-home-station={station.stationuuid}
     >
       <div className="home-station-main">
@@ -368,6 +396,7 @@ export const HomeResumeStrip = ({
 type HomeRailProps = {
   module: HomeRailModule;
   dense?: boolean;
+  variant?: 'default' | 'featured-lead' | 'logo-strip';
   currentStationId: string | null;
   activeTrack: string | null;
   isFavorite: (stationId: string) => boolean;
@@ -379,6 +408,7 @@ type HomeRailProps = {
 export const HomeRail = ({
   module,
   dense = false,
+  variant = 'default',
   currentStationId,
   activeTrack,
   isFavorite,
@@ -428,8 +458,10 @@ export const HomeRail = ({
 
   return (
     <section
-      className={`home-rail-card ${dense ? 'is-dense' : ''}`.trim()}
+      id={`home-rail-${module.id}`}
+      className={`home-rail-card ${dense ? 'is-dense' : ''} ${variant === 'logo-strip' ? 'home-rail--logo-strip' : ''}`.trim()}
       data-home-rail={module.id}
+      data-home-rail-variant={variant === 'default' ? undefined : variant}
     >
       <div className="home-section-head">
         <div>
@@ -471,7 +503,7 @@ export const HomeRail = ({
         className="home-horizontal-scroll home-rail-list"
         ref={railRef}
       >
-        {visibleStations.map((station) => (
+        {visibleStations.map((station, index) => (
           <HomeStationTile
             key={station.stationuuid}
             station={station}
@@ -482,6 +514,8 @@ export const HomeRail = ({
             isActive={currentStationId === station.stationuuid}
             activeTrack={currentStationId === station.stationuuid ? activeTrack : null}
             liked={isFavorite(station.stationuuid)}
+            featured={variant === 'featured-lead' && index === 0 && !dense}
+            logoOnly={variant === 'logo-strip'}
             onPlay={onPlay}
             onToggleFavorite={onToggleFavorite}
           />

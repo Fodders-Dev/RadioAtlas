@@ -54,6 +54,24 @@ const DENSE_RAIL_LIMIT = 10;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 const HOME_MIN_RAIL_STATIONS = 3;
 
+// T2.23 variety pass — render-mode variants, looked up by rail id (no data
+// shape change, no HOME_SURFACE_VERSION bump). fresh-now leads with a featured
+// first tile; the "most-voted" lane renders as an artwork-only logo strip.
+const railVariant = (railId: string): 'default' | 'featured-lead' | 'logo-strip' =>
+  railId === 'fresh-now' ? 'featured-lead' : railId === 'top-voted' ? 'logo-strip' : 'default';
+
+// Anchor chips jump-scroll to a rail. Only the fixed-title discovery shelves get
+// a chip — fresh-now is the lead, and country/genre carry dynamic labels.
+const ANCHOR_RAIL_IDS = new Set([
+  'trending',
+  'mood-late-night',
+  'mood-workout',
+  'mood-focus',
+  'mood-driving',
+  'top-voted',
+  'around-the-world'
+]);
+
 const mergeStations = (...collections: StationLite[][]) => {
   const merged = new Map<string, StationLite>();
   collections.forEach((items) => {
@@ -683,6 +701,18 @@ export const Home = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
 
+  // T2.23: jump-scroll chips, one per visible discovery shelf.
+  const anchorChips = useMemo(
+    () => visibleRails.filter((rail) => ANCHOR_RAIL_IDS.has(rail.id)),
+    [visibleRails]
+  );
+  const scrollToRail = (railId: string) => {
+    if (typeof document === 'undefined') return;
+    document
+      .querySelector(`[data-home-rail="${railId}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   useEffect(() => {
     const stationIds = mergeStations(
       personalRadioQueue.stations.slice(0, 12),
@@ -928,11 +958,28 @@ export const Home = () => {
         />
       ) : null}
 
+      {anchorChips.length ? (
+        <nav className="home-anchor-chip-row" aria-label={t('home.sectionsNav')}>
+          {anchorChips.map((module) => (
+            <button
+              key={module.id}
+              className="home-anchor-chip"
+              type="button"
+              aria-controls={`home-rail-${module.id}`}
+              onClick={() => scrollToRail(module.id)}
+            >
+              {t(module.titleKey)}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
       {visibleRails.map((module) => (
         <HomeRail
           key={module.id}
           dense={denseLayout}
           module={module}
+          variant={railVariant(module.id)}
           currentStationId={currentStationId}
           activeTrack={activeTrack}
           isFavorite={isFavorite}
