@@ -744,6 +744,118 @@ Player across low-power Android/iOS WebView.
 
 ---
 
+## Incident log
+
+### 2026-05-27 — Production API 502 after T2.23 merge
+- **Symptom**: every `/api/*` route returned 502 for ~50 min after
+  PR #24 (`8ea8dda`) merged. Webapp on prod fell through to
+  `radioBrowserFallback.ts`, so Sprint v2 rails (Trending /
+  Top voted / Around the world / 4 mood rails) and the anchor
+  chip-row were **invisible to users** even though the code was
+  shipped — fallback summary doesn't carry those fields.
+- **Detection**: Chrome MCP QA session (orchestrator) — first
+  thing the Home audit showed.
+- **Root cause**: deploy script (`deploy/server/deploy-release.sh`)
+  fragile around nginx reload. On the VPS the systemd unit was
+  inactive AND an orphan `nginx: master process` held ports
+  80/443:
+  1. First failure (`8ea8dda`): `systemctl reload nginx` failed
+     with "cannot reload" (inactive unit) → `nginx -s reload`
+     failed with `invalid PID number "" in /run/nginx.pid` →
+     `set -e` killed the script before `start_pm2_release`.
+     PM2 stayed dead.
+  2. Second failure (`3ddfc51`, after PR #25 v1 hotfix):
+     systemctl walk failed (unit still inactive); bare `nginx`
+     fallback hit `bind() to 0.0.0.0:80 failed (98: Address in
+     use)` — orphan process held the ports. Same kill chain.
+- **Resolution**: PR #25 (`3ddfc51`) added systemctl reload→
+  restart→start walk. PR #26 (`4201544`) inserted a SIGHUP path:
+  `pgrep` the running master and `kill -HUP` it (graceful reload
+  without re-binding ports) + restore `/run/nginx.pid` for future
+  tooling. Final `_nginx_reload` returns 0 even when all paths
+  exhausted, so the deploy MUST reach `start_pm2_release` — a
+  dead API matters more than a stale (but `nginx -t`-validated)
+  config.
+- **Lessons**:
+  - Auto-deploy success ≠ user-visible success. We need a
+    post-deploy smoke that hits `/api/health` from outside the
+    VPS, not just inside (the existing healthcheck runs inside).
+  - `set -e` makes any failure terminal. For non-essential steps
+    (config reload), explicit `|| true` / tolerated-failure
+    branches are safer.
+  - VPS state drift (orphan processes, dormant systemd units)
+    isn't visible to the deploy until it tries to act on it.
+    Worth a one-time SSH cleanup pass when the user is next at
+    a terminal: `systemctl status nginx`, `systemctl enable
+    --now nginx`, kill the orphan if needed.
+- **PRs**: #25 (`3ddfc51`), #26 (`4201544`).
+- **Total user-visible outage**: ~50 min (no traffic data, but
+  /api/* was 502 from 18:42 UTC merge to ~18:57 UTC v2 deploy).
+
+---
+
+## Tier_audit — post-Sprint-v2 QA findings
+
+### T_audit_3 — Home polish after live prod QA (F1+F2+F3)
+- **Why**: Chrome MCP QA on prod after Sprint v2 surfaced three
+  small but visible issues. None are P0; all are user-facing
+  enough to fix together in one PR.
+- **F1 (P1)**: locale placeholder bug — `home.countrySpotlightTitle`
+  is `"Фокус: {country}"` (ru) and the en equivalent uses
+  `{country}` too, but `HomeRail` renders `t(module.titleKey)`
+  without `vars` interpolation. The placeholder leaks as a
+  literal `{country}` / `{genre}` string in the section title.
+  The label chip (e.g. "AUSTRALIA", "POP") already shows the
+  value separately, so the cleanest fix is to drop the
+  placeholder from the locale keys: `"Фокус"` / `"Country
+  spotlight"` and `"Жанровый радар"` / `"Mood radar"`. Pre-
+  existing bug (not a Sprint v2 regression) but now glaring next
+  to the new emoji-titled rails.
+- **F2 (P2)**: above-fold density on desktop reads as **10** at
+  1280×900 viewport vs T2.20's ≥12 target. T2.20's worker tested
+  at 1280×720 specifically and got 12 with 8px of slack. At
+  taller viewports MORE should fit, not less — the measurement
+  gap suggests either the methodology differs (e.g. hero card
+  not counted because it lacks `data-home-station`) or the
+  anchor chip-row added ~40px that wasn't accounted for in the
+  taller-viewport case. Worker should reproduce the count at
+  both 720 and 900 heights, decide if the metric needs reframing
+  ("≥12 visible content items" including hero), and either
+  tighten the layout or update the spec.
+- **F3 (P3)**: featured-tile width: the `home-station-tile--
+  featured` class IS applied to the first `fresh-now` tile
+  (`featuredClass: true`), but `getBoundingClientRect().width`
+  reads 158 vs sibling 158 — not the ~1.5× wider that T2.23's
+  spec called for. Either the CSS rule is overridden by a more
+  specific rail-grid selector, or the breakpoint gating is set
+  for a viewport wider than 1280px. Worker should inspect the
+  computed width and adjust the CSS specificity / breakpoint so
+  the first tile actually widens on desktop.
+- **Files**: `apps/webapp/src/state/locales/{ru,en}.ts` (F1),
+  `apps/webapp/src/screens/Home.tsx` or `home.css` (F2 — likely
+  CSS), `apps/webapp/src/screens/home.css` (F3).
+- **Done-when**: visible literal `{country}`/`{genre}` gone from
+  Home titles; above-fold count ≥12 measurable at 1280×720 AND
+  1280×900 via the same probe; first `fresh-now` tile width
+  measurably > sibling width on desktop (no regression on dense
+  mobile). One commit, one PR.
+
+### T_audit_4 — Post-deploy external smoke test (deploy resilience)
+- **Why**: the 2026-05-27 incident was caught by manual QA, not
+  by the deploy pipeline. The existing `wait_for_api_health`
+  hits `http://127.0.0.1:3001/health` from the VPS itself —
+  bypassing nginx. We need an external probe that fails the
+  deploy job if `https://radioatlas.duckdns.org/api/health`
+  is not 200 from outside.
+- **Files**: `.github/workflows/deploy.yml` (add a post-deploy
+  job step that curls the public URL with a tight timeout).
+- **Done-when**: deploy job exits non-zero if public `/api/health`
+  is non-2xx within ~30s after deploy completes. Add a Slack/
+  log alert if available.
+- **Priority**: do after T_audit_3.
+
+---
+
 ## Tier 3 — Architecture & maintainability
 
 ### T3.1 Split `RadioContext.tsx`
