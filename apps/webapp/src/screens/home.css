@@ -505,8 +505,10 @@
 
 /* T2.23 featured tile — the lead tile of fresh-now renders ~1.5× wider for an
    obvious entry point. Width-only so the rail's row height (and the fold) is
-   unchanged. */
-.home-station-tile--featured {
+   unchanged. T_audit_3 (F3): double-class selector (0,2,0) so this min-width
+   wins over the base `.home-station-tile` rule regardless of source order — it
+   was previously declared earlier and silently overridden to 160px. */
+.home-station-tile.home-station-tile--featured {
   min-width: min(248px, 86vw);
 }
 
