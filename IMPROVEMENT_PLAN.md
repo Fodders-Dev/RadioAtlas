@@ -680,7 +680,7 @@ Design principles for the whole sprint:
   reusable for T2.23. Gate green (api 78 / bot 12 / webapp unit
   107 / webapp e2e 129 / build). No visual baselines drifted.
 
-### T2.23 Variety pass — visual rhythm
+### ~~T2.23 Variety pass — visual rhythm~~ (DONE in 8ea8dda)
 - **What**: break up the "five identical rails" monotony with
   per-rail tile variants and chip filters above the feed.
   - Chip-row above the feed: genre filter chips ("pop / rock /
@@ -694,6 +694,53 @@ Design principles for the whole sprint:
 - **Done-when**: home visual rhythm distinct from a single grid
   pattern; chip-row works as either filter or scroll-anchor
   (worker call).
+- **Shipped (three render-mode variants)**:
+  - Anchor chip-row (option A — anchor-scroll, not filter) under
+    the search bar, one chip per visible discovery shelf
+    (Trending / 4 mood / Top voted / Around the world). Chips
+    reuse emoji rail titles, auto-hide when a rail is missing.
+    `fresh-now` (lead) and the dynamic country/genre spotlights
+    intentionally have no chip.
+  - Featured tile in `fresh-now`: first tile is ~1.5× wider
+    (`.home-station-tile--featured`) — width-only so the row
+    height (and the fold) doesn't move. Desktop-only (gated
+    `!dense` — would have broken the 2-col grid on mobile).
+  - Logo-strip for Top voted: artwork-only ~84px tiles, no name
+    / meta / action chrome. Accessible name preserved via
+    `aria-label` + visually-hidden span.
+- **Density defense (the real risk)**: naïve chip-row cost
+  ~42px against ~39px of fold headroom and would have regressed
+  T2.20's ≥12 to 6. Worker measured (probe), then reclaimed
+  with a thin chip-row + `-6px` grid-gap-eating margin + tighter
+  search-launcher padding. Verified trending tiles at 952 < 960
+  → ≥12 holds with 8px of slack.
+- **A11y deviation flagged + reasoned**: `<nav>` + buttons,
+  NOT `role="tablist"` — anchor-scroll keeps all rails visible,
+  so tablist would mislead screen readers about which "tab" is
+  active.
+- **Constraints honored**: no `apps/api` change, no data shape
+  change, no `HOME_SURFACE_VERSION` bump, no visual baseline
+  drift (selectors backward-compatible). Gate green (api 78 /
+  bot 12 / webapp unit 107 / build). E2e: T2.23 + dense-mobile
+  pass; full-suite has known T4.7 flakes (set varies per run,
+  each passes in isolation).
+
+---
+
+## Sprint v2 closed (T2.20 → T2.23)
+
+Home shifted from 5 visible stations / 5 identical rails to a
+density+variety surface: 6 server-signal + mood shelves at the
+top, anchor chip-row navigation, featured-tile rhythm, and a
+logo-strip lane for Top voted. Above-fold density target ≥12
+desktop / ≥6 mobile holds across all four tasks.
+
+Sprint v2 ends with HOME_SURFACE_VERSION 5, 13-rail max, and a
+reusable `seedDiscoveryRoutes` helper carrying the full
+discovery+mood set (T2.21 added it, T2.22 extended it, T2.23
+relies on it). Per `PLAN.md` `Next:` the focus shifts to live
+Telegram mobile QA on Home / Search / Globe / Library / Full
+Player across low-power Android/iOS WebView.
 
 ---
 
