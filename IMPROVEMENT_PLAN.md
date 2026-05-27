@@ -892,6 +892,52 @@ Player across low-power Android/iOS WebView.
   log alert if available.
 - **Priority**: do after T_audit_3.
 
+### T_audit_6 — Open-tab chunk-hash invalidation on every deploy
+- **Why**: surfaced during T_audit_3 verification on prod —
+  navigating to the SPA with a cached `index-*.js` from the
+  previous deploy threw `TypeError: Failed to fetch dynamically
+  imported module: assets/Home-{oldHash}.js` and tripped the
+  ErrorBoundary ("Не удалось загрузить раздел"). The new deploy
+  rebuilt the Home chunk with a different content-hash and the
+  old chunk was deleted from `apps/webapp/dist/assets/`. Any
+  user with the app open at deploy time hits this on the next
+  lazy-route navigation.
+- **Repro**: open the app, observe the active `index-*.js`
+  scripts. Trigger a deploy that rebuilds `Home`. Navigate to
+  `Главная` → 404 on the old Home chunk → ErrorBoundary.
+- **Severity**: visible to every active user across every
+  deploy. Recovery is one hard-reload, but the failure mode is
+  silent UX corruption between the deploy and the user's next
+  full reload.
+- **Options** (worker call after audit):
+  1. **nginx fallback for missing chunks** — `try_files` style
+     rule: if `/assets/Home-{hash}.js` is 404, serve a tiny
+     bridge JS that calls `location.reload()`. Cheap, fragile if
+     a real bug also 404s a chunk.
+  2. **Service worker with `skipWaiting()` + `clients.claim()`** —
+     proper PWA-style update flow. Heavier infra but clean UX.
+  3. **Keep old chunks on disk for N deploys** — `prune_old_releases`
+     already keeps 4 releases. Rsync `assets/*` from the previous
+     release into the new one (additive) so old hashes still
+     resolve. Trades disk for survivability.
+  4. **vite-plugin-pwa or a small reload-on-chunk-error wrapper** —
+     React error boundary catches `Failed to fetch dynamically
+     imported module` errors specifically and triggers
+     `location.reload()` instead of showing the generic error
+     screen.
+  Recommend a mix of (3) — easy, additive — and (4) — graceful
+  recovery if (3) misses. (1) and (2) are heavier.
+- **Files**: `deploy/server/deploy-release.sh` for option 3
+  (rsync old assets), `apps/webapp/src/app/ErrorBoundary.tsx` (or
+  wherever the boundary lives) for option 4.
+- **Done-when**: a controlled repro (deploy A → open app → deploy
+  B → click Главная) succeeds without ErrorBoundary; old chunk
+  requests either resolve from preserved assets or trigger a
+  graceful reload.
+- **Priority**: P1 — affects every active user on every deploy.
+  Do alongside T_audit_4 (the external smoke is the OTHER half
+  of "deploys don't quietly break users").
+
 ### T_audit_5 — Catalog-summary first-fetch timeout flake
 - **Why**: `apps/api` test `health and catalog contracts respond
   with shaped payloads` is intermittent — `fetch('/catalog/summary')`
