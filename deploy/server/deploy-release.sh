@@ -37,11 +37,32 @@ sync_nginx_config() {
   install -D -m 644 "$source_conf" "$target_conf"
   ln -sfn "$target_conf" "$target_link"
   rm -f /etc/nginx/sites-enabled/default
+  # Hard gate: if the new config is invalid, abort before doing anything else.
   nginx -t
+
+  # Bring nginx back up tolerant of the unit being inactive or having a
+  # stale PID file (we hit this on 2026-05-27 — `systemctl reload nginx`
+  # failed with "nginx.service is not active, cannot reload" and
+  # `nginx -s reload` failed with `invalid PID number "" in
+  # /run/nginx.pid`; the deploy died here and PM2 never restarted,
+  # leaving /api/* on 502 for the next ~hour).
+  #
+  # Order: reload (cheapest) → restart (re-spawn workers) → start (bring
+  # the unit up if it was stopped) → bare `nginx` daemon (last resort
+  # when systemd isn't usable). The first one that succeeds wins.
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl reload nginx || nginx -s reload
+    if systemctl reload nginx 2>/dev/null; then
+      :
+    elif systemctl restart nginx 2>/dev/null; then
+      echo "nginx reload failed; restarted the unit" >&2
+    elif systemctl start nginx 2>/dev/null; then
+      echo "nginx reload/restart failed; started the inactive unit" >&2
+    else
+      echo "nginx could not be controlled via systemctl; falling back to bare daemon" >&2
+      nginx -s reload 2>/dev/null || nginx
+    fi
   else
-    nginx -s reload
+    nginx -s reload 2>/dev/null || nginx
   fi
 }
 
