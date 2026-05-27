@@ -796,7 +796,7 @@ Player across low-power Android/iOS WebView.
 
 ## Tier_audit — post-Sprint-v2 QA findings
 
-### T_audit_3 — Home polish after live prod QA (F1+F2+F3)
+### ~~T_audit_3 — Home polish after live prod QA (F1+F2+F3)~~ (DONE in 6fadb82)
 - **Why**: Chrome MCP QA on prod after Sprint v2 surfaced three
   small but visible issues. None are P0; all are user-facing
   enough to fix together in one PR.
@@ -839,6 +839,44 @@ Player across low-power Android/iOS WebView.
   1280×900 via the same probe; first `fresh-now` tile width
   measurably > sibling width on desktop (no regression on dense
   mobile). One commit, one PR.
+- **Shipped**:
+  - **F1**: dropped `{country}` / `{genre}` from
+    `home.countrySpotlightTitle` and `home.genreSpotlightTitle`
+    in both `ru.ts` and `en.ts`. Titles now `"Фокус"` / `"Country
+    spotlight"` and `"Жанровый радар"` / `"Mood radar"`; the
+    label chip carries the value. Unit test asserts the
+    dictionary values directly (jsdom-friendly — `t()` lookup in
+    tests returns the key, so DOM assertion was unreachable).
+  - **F2**: brief's done-when was impossible. Worker reproduced
+    via probe — at 1280×720 the hero + chip-row + search consume
+    ~684px, so 0 station-tiles fit above the 720 fold. ≥12 needs
+    ~960px height to fit two rail rows. Worker proposed a
+    reframe (approved): count above-fold CONTENT = hero card +
+    tiles, target ≥12 at 1440×1024, ≥7 at 1280×900. The 720
+    target was a methodology artifact (T2.20 didn't count the
+    hero, which IS a playable featured station). No layout
+    change.
+  - **F3**: cascade bug, not a breakpoint —
+    `.home-station-tile--featured` (min-width 248px, line 509)
+    was declared BEFORE the base `.home-station-tile` (min-width
+    160px, line 659), same specificity (0,1,0) → later rule won
+    → featured tile silently stayed 160px. The T2.23 e2e test
+    passed at 1440×960 only because flex distribution incidentally
+    widened the lead tile, not because the CSS rule won. Fix:
+    double-class selector `.home-station-tile.home-station-tile
+    --featured` (0,2,0) so 248 wins regardless of source order.
+    Verified width-only (no row-height regression); dense gate
+    unaffected.
+- **Audit-first save**: worker reproduced both F2 and F3 on dev
+  stack BEFORE coding, caught that F2's done-when was unreachable
+  and that F3 was source-order not breakpoint. Both findings
+  reshaped the fix — exactly what the push-back gate is for.
+- **Pre-existing api flake flagged**: `apps/api` test
+  `health and catalog contracts respond with shaped payloads`
+  times out at 308s on first `/catalog/summary` fetch (57k-station
+  catalog load race). Reproduces on master; PR #27 has zero
+  apps/api diff. Not caused by this work — tracked separately as
+  T_audit_5 below.
 
 ### T_audit_4 — Post-deploy external smoke test (deploy resilience)
 - **Why**: the 2026-05-27 incident was caught by manual QA, not
@@ -853,6 +891,33 @@ Player across low-power Android/iOS WebView.
   is non-2xx within ~30s after deploy completes. Add a Slack/
   log alert if available.
 - **Priority**: do after T_audit_3.
+
+### T_audit_5 — Catalog-summary first-fetch timeout flake
+- **Why**: `apps/api` test `health and catalog contracts respond
+  with shaped payloads` is intermittent — `fetch('/catalog/summary')`
+  times out at ~308s on first call when the test process is
+  loading the 57k-station catalog artifact under concurrent CPU
+  load. The same endpoint passes in `api.degradation` (different
+  ordering, different ramp). T_audit_3's PR #27 has zero
+  apps/api diff but the failure reproduces on master, so it's a
+  latent issue not caused by recent work.
+- **Hypothesis**: catalog artifact load is synchronous on first
+  request (lazy boot), and a test harness that spawns the server
+  cold + immediately hits `/catalog/summary` blocks until the
+  full 57k station JSON is parsed. Under contention (other
+  builds/tests running) this exceeds the 300s timeout.
+- **Files**: `apps/api/src/index.ts` (or wherever the catalog
+  artifact load happens — likely `catalogCache.ts`),
+  `apps/api/test/api.contract.test.ts` (the failing test —
+  consider a per-test warmup, or a wait-for-ready hook before
+  hitting summary).
+- **Done-when**: the contract test reliably passes from a cold
+  server boot in CI and on a cold local repo. Pick one: either
+  the server signals ready only after the catalog is parsed, or
+  the test waits on a `/health?ready=catalog` flag before
+  exercising `/catalog/summary`.
+- **Priority**: P3 — visible only as a CI flake, not a user
+  problem. Do alongside T_audit_4 if scope allows.
 
 ---
 
