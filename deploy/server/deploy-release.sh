@@ -40,29 +40,69 @@ sync_nginx_config() {
   # Hard gate: if the new config is invalid, abort before doing anything else.
   nginx -t
 
-  # Bring nginx back up tolerant of the unit being inactive or having a
-  # stale PID file (we hit this on 2026-05-27 — `systemctl reload nginx`
-  # failed with "nginx.service is not active, cannot reload" and
-  # `nginx -s reload` failed with `invalid PID number "" in
-  # /run/nginx.pid`; the deploy died here and PM2 never restarted,
-  # leaving /api/* on 502 for the next ~hour).
+  # Bring nginx back up tolerant of two failure modes we hit on 2026-05-27:
+  #   (1) `nginx.service` was inactive in systemd, so `systemctl reload` /
+  #       `nginx -s reload` both refused (stale/empty /run/nginx.pid).
+  #   (2) A bare `nginx` master process was actually running, holding
+  #       ports 80/443 — so spinning up a NEW daemon hits EADDRINUSE.
+  # Either way the script used to die here with set -e, and PM2 never
+  # restarted, leaving /api/* on 502 for the next hour.
   #
-  # Order: reload (cheapest) → restart (re-spawn workers) → start (bring
-  # the unit up if it was stopped) → bare `nginx` daemon (last resort
-  # when systemd isn't usable). The first one that succeeds wins.
-  if command -v systemctl >/dev/null 2>&1; then
-    if systemctl reload nginx 2>/dev/null; then
-      :
-    elif systemctl restart nginx 2>/dev/null; then
-      echo "nginx reload failed; restarted the unit" >&2
-    elif systemctl start nginx 2>/dev/null; then
-      echo "nginx reload/restart failed; started the inactive unit" >&2
-    else
-      echo "nginx could not be controlled via systemctl; falling back to bare daemon" >&2
-      nginx -s reload 2>/dev/null || nginx
+  # Order: systemctl reload/restart/start → direct SIGHUP to the running
+  # master PID we discover via pgrep (this reloads the existing process
+  # WITHOUT trying to bind ports we already hold) → bare daemon as a
+  # last resort. The first path that succeeds wins. None of the failure
+  # paths abort the deploy — see the caller, which tolerates a failed
+  # reload so PM2 still restarts (a dead API matters more).
+  _nginx_reload() {
+    if command -v systemctl >/dev/null 2>&1; then
+      if systemctl reload nginx 2>/dev/null; then
+        return 0
+      fi
+      if systemctl restart nginx 2>/dev/null; then
+        echo "nginx reload failed; restarted the unit" >&2
+        return 0
+      fi
+      if systemctl start nginx 2>/dev/null; then
+        echo "nginx reload/restart failed; started the inactive unit" >&2
+        return 0
+      fi
     fi
-  else
-    nginx -s reload 2>/dev/null || nginx
+
+    # systemd refused — look for an orphan master nginx process and
+    # SIGHUP it to reload config in-place. SIGHUP is what nginx itself
+    # uses for graceful reload.
+    local nginx_pid=""
+    if command -v pgrep >/dev/null 2>&1; then
+      nginx_pid="$(pgrep -f 'nginx: master process' | head -n1 || true)"
+      if [[ -z "$nginx_pid" ]]; then
+        nginx_pid="$(pgrep -x nginx | head -n1 || true)"
+      fi
+    fi
+    if [[ -n "$nginx_pid" ]]; then
+      # Restore /run/nginx.pid so future `nginx -s reload` / systemd
+      # tracking can find the master again.
+      if [[ -w /run ]] || [[ "$(id -u)" -eq 0 ]]; then
+        echo "$nginx_pid" > /run/nginx.pid 2>/dev/null || true
+      fi
+      if kill -HUP "$nginx_pid" 2>/dev/null; then
+        echo "nginx reloaded via SIGHUP to existing master pid=$nginx_pid" >&2
+        return 0
+      fi
+    fi
+
+    # Last resort: only safe when nothing is bound to 80/443 already.
+    if nginx -s reload 2>/dev/null; then
+      return 0
+    fi
+    nginx 2>/dev/null
+  }
+
+  if ! _nginx_reload; then
+    echo "WARNING: nginx reload exhausted all paths; the running config may be stale" >&2
+    echo "  (config IS already validated via 'nginx -t' above, so the next valid" >&2
+    echo "   reload will pick it up; deploy continues so PM2 still restarts)" >&2
+    return 0
   fi
 }
 
