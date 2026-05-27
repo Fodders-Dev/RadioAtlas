@@ -13,6 +13,8 @@ vi.mock('../lib/useCompactLayout', () => ({ useCompactLayout: () => false }));
 
 import { HomeHeroCard, HomeRail } from './homeCards';
 import { LocaleProvider } from '../state/LocaleContext';
+import { ruDictionary } from '../state/locales/ru';
+import { enDictionary } from '../state/locales/en';
 import type { HomeHeroModule, HomeRailModule } from '../lib/homeSurface';
 
 const makeStation = (i: number): StationLite =>
@@ -112,5 +114,19 @@ describe('Home cards density (T2.20)', () => {
     // The e2e density gate counts [data-home-station]; lock the contract that
     // every rail station emits exactly one such tile.
     expect(container.querySelectorAll('[data-home-station]')).toHaveLength(stations.length);
+  });
+
+  it('T_audit_3 F1: spotlight titles carry no {placeholder} (HomeRail renders t() without vars)', () => {
+    // HomeRail renders t(module.titleKey) with no interpolation vars, so any
+    // {country}/{genre} in these locale values would leak literally. The value
+    // is surfaced via the label chip instead, so the titles must be placeholder-
+    // free in BOTH locales.
+    for (const dict of [ruDictionary, enDictionary]) {
+      expect(dict.home.countrySpotlightTitle).not.toMatch(/[{}]/);
+      expect(dict.home.genreSpotlightTitle).not.toMatch(/[{}]/);
+    }
+    // The dropped-placeholder values are the bare section nouns.
+    expect(ruDictionary.home.countrySpotlightTitle).toBe('Фокус');
+    expect(ruDictionary.home.genreSpotlightTitle).toBe('Жанровый радар');
   });
 });
