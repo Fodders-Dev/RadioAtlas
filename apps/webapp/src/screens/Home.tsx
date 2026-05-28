@@ -10,6 +10,7 @@ import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import {
   createHomeResumeModule,
   createHomeSurfaceFeed,
+  summaryRailSignature,
   type HomeRailModule,
   type HomeSurfaceFeed
 } from '../lib/homeSurface';
@@ -207,6 +208,9 @@ const buildSurfaceFeed = (input: {
   aroundTheWorld?: CatalogSpotlight | null;
   // T2.22: server-bucketed mood shelves threaded from the summary.
   moodRails?: CatalogMoodRail[];
+  // T_audit_10: rail-composition fingerprint of the summary this surface is
+  // built from, stamped onto the snapshot for the revalidation gate.
+  summarySignature?: string;
 }) => {
   const rankedCatalog = rankStationsForUser(input.catalog, input.tasteProfile, input.playabilityProfile, {
     mode: 'personal',
@@ -264,7 +268,8 @@ const buildSurfaceFeed = (input: {
   return createHomeSurfaceFeed({
     discoveryFeed: personalizedDiscoveryFeed,
     seed: input.seed,
-    builtAt: input.builtAt
+    builtAt: input.builtAt,
+    summarySignature: input.summarySignature
   });
 };
 
@@ -461,11 +466,18 @@ export const Home = () => {
     };
   });
 
+  // T_audit_10: the rail-composition fingerprint of the CURRENT summary. The
+  // snapshot stores the signature it was built from; when a background
+  // revalidation swaps a stale 5-rail fallback-cache payload for the real
+  // 12-rail network payload, this changes and the snapshot is no longer fresh,
+  // so the surface rebuilds from the fuller summary instead of being frozen.
+  const summarySignature = summaryRailSignature(summary);
   const surfaceFeedBase = useMemo(() => {
     const snapshotFresh =
       homeState.snapshot &&
       homeState.snapshot.version === HOME_SURFACE_VERSION &&
-      homeState.snapshot.seed === homeState.sessionSeed;
+      homeState.snapshot.seed === homeState.sessionSeed &&
+      homeState.snapshot.summarySignature === summarySignature;
     if (snapshotFresh) {
       return homeState.snapshot;
     }
@@ -498,7 +510,8 @@ export const Home = () => {
       trending: summary?.trending,
       topVoted: summary?.topVoted,
       aroundTheWorld: summary?.aroundTheWorld,
-      moodRails: summary?.moodRails
+      moodRails: summary?.moodRails,
+      summarySignature
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -512,6 +525,7 @@ export const Home = () => {
     metrics,
     summary,
     summaryLoading,
+    summarySignature,
     surfaceBuiltAt
   ]);
   const surfaceFeed = surfaceFeedBase;
@@ -743,7 +757,13 @@ export const Home = () => {
     if (
       homeState.snapshot &&
       homeState.snapshot.seed === surfaceFeedBase.seed &&
-      homeState.snapshot.builtAt === surfaceFeedBase.builtAt
+      homeState.snapshot.builtAt === surfaceFeedBase.builtAt &&
+      // T_audit_10: also re-persist when the rebuilt surface came from a
+      // different summary composition (e.g. the cold-load fallback→network
+      // swap). Without this the memo would rebuild the fuller surface on every
+      // render but never cache it, since seed/builtAt can be unchanged when the
+      // fallback's generatedAt happens to outrank the network's.
+      homeState.snapshot.summarySignature === surfaceFeedBase.summarySignature
     ) {
       return;
     }
@@ -795,7 +815,8 @@ export const Home = () => {
         trending: effectiveSummary.trending,
         topVoted: effectiveSummary.topVoted,
         aroundTheWorld: effectiveSummary.aroundTheWorld,
-        moodRails: effectiveSummary.moodRails
+        moodRails: effectiveSummary.moodRails,
+        summarySignature: summaryRailSignature(effectiveSummary)
       });
 
       if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {

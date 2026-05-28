@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { createDiscoveryFeed } from './discoveryFeed';
-import { createHomeSurfaceFeed } from './homeSurface';
+import { createHomeSurfaceFeed, summaryRailSignature } from './homeSurface';
 import type { StationLite } from '../types';
-import type { CatalogMoodRail } from '../domain/contracts';
+import type { CatalogMoodRail, CatalogSummary } from '../domain/contracts';
 
 // T2.22: mood shelves are pushed into the home surface in fixed display order,
 // after Top voted and before Around the world, and respect the cross-rail
@@ -78,5 +78,68 @@ describe('createHomeSurfaceFeed mood rails (T2.22)', () => {
     expect(driving).toBeTruthy();
     // `shared` is reserved by the hero / fresh-now shelf, so it must not reappear.
     expect(driving?.stations.some((s) => s.stationuuid === 'shared')).toBe(false);
+  });
+});
+
+// T_audit_10: the snapshot-revalidation fingerprint. It must DIFFER when the
+// summary's rail composition changes (the 5-rail fallback cache → 12-rail
+// network swap that froze the surface), and STAY EQUAL when only the station
+// content changes (so a same-shape revalidation doesn't re-shuffle the rails
+// and regress the rank-freeze).
+describe('summaryRailSignature (T_audit_10)', () => {
+  const fullSummary = (stationId: string): CatalogSummary => ({
+    generatedAt: 1,
+    counts: { stations: 1, countries: 1, languages: 1, genres: 1 },
+    catalogPool: [mk(stationId)],
+    freshSignals: [mk(stationId)],
+    searchLaunch: [],
+    sponsored: [],
+    countrySpotlight: { label: 'Atlantis', stations: [mk(`${stationId}-cs`)] },
+    genreSpotlight: { label: 'pop', stations: [mk(`${stationId}-gs`)] },
+    trending: Array.from({ length: 12 }, (_, i) => mk(`${stationId}-tr-${i}`)),
+    topVoted: Array.from({ length: 12 }, (_, i) => mk(`${stationId}-tv-${i}`)),
+    aroundTheWorld: { label: 'Japan', stations: Array.from({ length: 8 }, (_, i) => mk(`${stationId}-atw-${i}`)) },
+    moodRails: [
+      { id: 'mood-focus', stations: Array.from({ length: 10 }, (_, i) => mk(`${stationId}-mf-${i}`)) },
+      { id: 'mood-driving', stations: Array.from({ length: 10 }, (_, i) => mk(`${stationId}-md-${i}`)) }
+    ]
+  });
+
+  // The radio-browser fallback summary shape: no trending/topVoted/aroundTheWorld/moodRails.
+  const fallbackSummary = (): CatalogSummary => ({
+    generatedAt: 2,
+    counts: { stations: 1, countries: 1, languages: 1, genres: 1 },
+    catalogPool: [mk('fb')],
+    freshSignals: [mk('fb')],
+    searchLaunch: [],
+    sponsored: [],
+    countrySpotlight: { label: 'Atlantis', stations: [mk('fb-cs')] },
+    genreSpotlight: { label: 'pop', stations: [mk('fb-gs')] }
+  });
+
+  it('differs between the 5-rail fallback shape and the full 12-rail shape', () => {
+    expect(summaryRailSignature(fallbackSummary())).not.toBe(
+      summaryRailSignature(fullSummary('a'))
+    );
+  });
+
+  it('is stable when only station content changes (same composition)', () => {
+    // Different station UUIDs everywhere, identical rail composition.
+    expect(summaryRailSignature(fullSummary('a'))).toBe(summaryRailSignature(fullSummary('b')));
+  });
+
+  it('changes when a mood rail appears or disappears', () => {
+    const base = fullSummary('a');
+    const withFewerMoods: CatalogSummary = {
+      ...base,
+      moodRails: (base.moodRails || []).slice(0, 1)
+    };
+    expect(summaryRailSignature(base)).not.toBe(summaryRailSignature(withFewerMoods));
+  });
+
+  it('treats a null/undefined summary as its own sentinel', () => {
+    expect(summaryRailSignature(null)).toBe('none');
+    expect(summaryRailSignature(undefined)).toBe('none');
+    expect(summaryRailSignature(null)).not.toBe(summaryRailSignature(fullSummary('a')));
   });
 });

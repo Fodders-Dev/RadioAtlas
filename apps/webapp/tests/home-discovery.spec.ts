@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { catalogCacheStorageKey, CATALOG_CACHE_VERSION } from '../src/lib/catalogCache';
 
 // T2.21: three server-signal discovery rails — Trending (clicktrend),
 // Top voted (votes), Around the world (daily-rotating country). The ranking is
@@ -254,5 +255,104 @@ test.describe('T2.23 variety pass', () => {
       .first()
       .evaluate((el) => el.getAttribute('data-home-rail'));
     expect(firstRailId).toBe('fresh-now');
+  });
+});
+
+// T_audit_10: the cold-load stale-cache freeze. A prior cold-load that hit the
+// 6 s network timeout writes a radio-browser FALLBACK summary to the cache — a
+// v2 entry whose shape is only 5 rails (no trending/topVoted/aroundTheWorld/
+// moodRails). On the next (healthy) cold-load the cache-hit path renders that
+// 5-rail payload and the home snapshot freezes on it; the background network
+// revalidation then lands the full 12-rail payload but the seed/version
+// snapshot gate ignores it, so the user is stuck at 5 rails until they hit
+// refresh. The fix: the snapshot also revalidates against the summary's rail
+// composition (summaryRailSignature), so the fuller payload rebuilds the
+// surface automatically. This is the red→green proof.
+const SPRINT_V2_RAILS = [
+  'trending',
+  'top-voted',
+  'around-the-world',
+  'mood-late-night',
+  'mood-workout',
+  'mood-focus',
+  'mood-driving'
+];
+
+// The reduced shape a fallback summary leaves in the cache: the base rails only.
+const staleFallbackSummary = JSON.stringify({
+  generatedAt: Date.now(),
+  counts: { stations: bigCatalog.length, countries: COUNTRIES, languages: 9, genres: GENRES },
+  catalogPool: bigCatalog.slice(0, 18),
+  freshSignals: bigCatalog.slice(0, 12),
+  searchLaunch: bigCatalog.slice(12, 24),
+  sponsored: bigCatalog.slice(0, 2),
+  countrySpotlight: spotlight('Country 0', bigCatalog.filter((s) => s.country === 'Country 0').slice(0, 8)),
+  genreSpotlight: spotlight('genre1', bigCatalog.filter((s) => s.tags.startsWith('genre1,')).slice(0, 8))
+  // No trending / topVoted / aroundTheWorld / moodRails — the fallback shape.
+});
+
+test.describe('T_audit_10 cold-load stale-cache surface', () => {
+  test.beforeEach(async ({ page }) => {
+    await installMediaMocks(page);
+    await mockStations(page);
+    // Seed a FRESH (unexpired), current-version cache entry holding the reduced
+    // 5-rail fallback payload — exactly what a timed-out cold-load leaves behind.
+    await page.addInitScript(
+      ({ storageKey, cacheVersion, cachedSummary }) => {
+        const now = Date.now();
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            'summary:v2': {
+              version: cacheVersion,
+              key: 'summary:v2',
+              payload: JSON.parse(cachedSummary),
+              createdAt: now,
+              expiresAt: now + 60 * 60 * 1000
+            }
+          })
+        );
+      },
+      {
+        storageKey: catalogCacheStorageKey,
+        cacheVersion: CATALOG_CACHE_VERSION,
+        cachedSummary: staleFallbackSummary
+      }
+    );
+    // The network serves the full 12-rail payload, slightly delayed so the
+    // cache-hit 5-rail paint lands first (the precise ordering that froze the
+    // snapshot in prod).
+    await page.route('**/catalog-fast.json', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bigCatalog) })
+    );
+    await page.route('**/catalog-full.json', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bigCatalog) })
+    );
+    await page.route('**/catalog/summary**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: summaryBody });
+    });
+  });
+
+  test('cold-load rebuilds to the full Sprint-v2 surface without a manual refresh', async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await seedRadioState(page);
+    await page.goto('/?api=/api');
+
+    // Home hydrates from the cached payload first (5 base rails).
+    await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+
+    // Without any refresh click, the background network revalidation must
+    // rebuild the surface to the full Sprint-v2 set. Pre-fix the snapshot froze
+    // on the 5-rail cache and these never appeared.
+    for (const railId of SPRINT_V2_RAILS) {
+      await expect(page.locator(`[data-home-rail="${railId}"]`)).toHaveCount(1, { timeout: 10_000 });
+    }
+
+    // And we got here without ever touching the relocated refresh control.
+    // (Sanity: the refresh button exists but was not clicked.)
+    await expect(page.locator('[data-action="refresh-feed"]')).toHaveCount(1);
   });
 });
