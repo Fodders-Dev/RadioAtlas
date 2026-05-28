@@ -985,6 +985,86 @@ Player across low-power Android/iOS WebView.
   featured tile 248px / sibling 160px (1.55×) — Sprint v2
   intact, chunk preservation didn't regress anything.
 
+### T_mobile_1 — Mobile Telegram WebView Home pass (live-feedback pack)
+- **Why**: live mobile screenshots from a real Telegram WebView
+  (390px-ish width, 2026-05-27 evening session) surfaced 5
+  related UX problems that desktop QA didn't catch. User-quoted
+  pains: «в кашу превращается», «по концу ленты скроллит
+  страницу», «нет места discovery», «рекомендации хреновые»,
+  «играй на клик по квадратику». Ship all four sub-fixes in ONE
+  PR per user instruction (`Всё три одним пакетом`).
+- **Sub-task A — overscroll containment (P1, ~10 lines)**: at
+  the end of a horizontal rail (.home-rail-scroll or whatever
+  the actual scrollable container is) wheel/touch events
+  bubble to the page → page scrolls vertically as the user
+  finishes scrolling the rail horizontally. CSS one-liner:
+  `overscroll-behavior-x: contain` on the rail-scroll
+  container.
+- **Sub-task B — click-tile-to-play (P1, ~30 lines)**: today
+  only the explicit play button triggers playback. User wants
+  the whole tile (artwork + name + metadata area) to start
+  the station on click, with the heart/favorite button still
+  having its own clickable region (via `stopPropagation`).
+  Touch on `[data-home-station]` should call the same
+  `onPlay(station)` as the play button.
+- **Sub-task C — mobile density 360-414px (P2, medium)**: at
+  Telegram WebView width (~390px) the current tiles are huge:
+  featured ≈50% viewport width, regular ≈180px (only 2-3 fit
+  per rail). Text gets truncated ("Lapfox Rad...", "HighFi
+  Dre..."). T2.20/T2.23 optimised 1280×720 desktop but didn't
+  cover this dense breakpoint. Pass needed:
+    - regular tile ~110-130px wide (3-4 fit per rail at 390px)
+    - featured tile gated off on dense (or significantly
+      smaller) — it currently dominates above the fold
+    - station name truncation/wrap improved (~20 chars or
+      2-line clamp instead of mid-word `...`)
+    - hero card height capped on dense so it doesn't eat half
+      the viewport
+- **Sub-task D — recommendations stuck (P2, audit-first
+  required)**: user reports «каждый раз одно и то же» across
+  sessions. Candidates to investigate BEFORE coding:
+    - `HOME_SESSION_BUCKET_MS = 2h` — sessionSeed rotates only
+      every 2 hours. Means re-opening within 2h shows same
+      ranked feed. Probably too long.
+    - `tasteProfile` update cadence — does play/like/skip
+      mutate the profile sufficiently? Or is it heavily
+      smoothed?
+    - `rankStationsForUser` weighting — does it always surface
+      the same top-N regardless of taste changes?
+    - Personal Radio queue persistence — 18 stations queued;
+      if not topped up from a fresh pool, user always hears
+      the same 18.
+  Worker should audit these four before proposing a fix. Likely
+  fix is some combination of: shorter session bucket (e.g.
+  30min), explicit taste boost on plays, periodic queue refresh
+  with discovery infusion.
+- **Files**: `apps/webapp/src/screens/home.css` (overscroll +
+  density), `apps/webapp/src/screens/homeCards.tsx` (click-
+  tile + density logic), `apps/webapp/src/screens/Home.tsx`
+  (hero gate on dense + recs glue), `apps/webapp/src/lib/
+  homeProfile.ts` (session bucket), `apps/webapp/src/lib/
+  tasteProfile.ts` (taste update cadence — if changed),
+  `apps/webapp/src/lib/personalRadio.ts` (queue refresh — if
+  changed).
+- **Done-when**:
+  - Overscroll-x contained — wheel/touch at the end of a rail
+    does NOT scroll the page (probe: synthetic wheel event at
+    rail edge, assert `scrollY` doesn't change).
+  - Click anywhere on `[data-home-station]` triggers
+    `onPlay`; clicking the heart still only toggles favorite
+    (e2e: assert click on artwork triggers play, click on
+    heart doesn't).
+  - At 390×844 viewport, regular tile width ≤130px AND ≥3
+    tiles fit per rail row above the fold; featured tile
+    visually does NOT dominate ≥40% of viewport width.
+  - Recommendations rotate meaningfully — after a tracked
+    play/like, the next Home re-render in a fresh session
+    bucket surfaces different top-3 in fresh-now (or whatever
+    metric the worker picks during audit).
+- **Push-back gate is MANDATORY** because sub-task D needs
+  diagnosis-first. Worker reproduces «recommendations stuck»
+  on dev stack before proposing changes.
+
 ### T_audit_5 — Catalog-summary first-fetch timeout flake
 - **Why**: `apps/api` test `health and catalog contracts respond
   with shaped payloads` is intermittent — `fetch('/catalog/summary')`
