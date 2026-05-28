@@ -1,4 +1,5 @@
 import type {
+  CatalogSummary,
   DiscoveryFeed,
   DiscoveryMetrics,
   DiscoveryStationModule
@@ -42,12 +43,42 @@ export type HomeSurfaceFeed = {
   rails: HomeRailModule[];
   quickSearchChips: string[];
   metrics: DiscoveryMetrics;
+  // T_audit_10: a fingerprint of the summary's RAIL COMPOSITION the surface was
+  // built from. The snapshot freshness gate (Home.tsx) compares this so a
+  // background revalidation that brings a fuller summary (e.g. a stale 5-rail
+  // fallback cache replaced by the real 12-rail network payload) rebuilds the
+  // surface instead of being frozen out by the seed/version gate. Composition —
+  // not station UUIDs — so a same-shape revalidation causes no re-rank churn
+  // (which would regress the T1.2 rank-freeze).
+  summarySignature: string;
 };
 
 type CreateHomeSurfaceFeedInput = {
   discoveryFeed: DiscoveryFeed;
   seed: number;
   builtAt?: number;
+  summarySignature?: string;
+};
+
+// T_audit_10: fingerprint the rail-bearing fields of a catalogue summary. Two
+// summaries with the same shape (counts + which mood rails + spotlight presence)
+// share a signature even if their station lists differ; a summary that gains or
+// loses a rail pool gets a different one. Used to decide whether a cached home
+// snapshot is still valid against the current summary.
+export const summaryRailSignature = (summary: CatalogSummary | null | undefined): string => {
+  if (!summary) return 'none';
+  const moodIds = (summary.moodRails || [])
+    .map((rail) => rail.id)
+    .sort()
+    .join('+');
+  return [
+    summary.countrySpotlight?.stations?.length ? 'cs' : '-',
+    summary.genreSpotlight?.stations?.length ? 'gs' : '-',
+    `tr${summary.trending?.length || 0}`,
+    `tv${summary.topVoted?.length || 0}`,
+    `atw${summary.aroundTheWorld?.stations?.length || 0}`,
+    `mood:${moodIds}`
+  ].join('|');
 };
 
 // Max stations rendered per rail (the rail is a horizontal shelf, not the full
@@ -157,7 +188,8 @@ const pushRailModule = (
 export const createHomeSurfaceFeed = ({
   discoveryFeed,
   seed,
-  builtAt = Date.now()
+  builtAt = Date.now(),
+  summarySignature = 'none'
 }: CreateHomeSurfaceFeedInput): HomeSurfaceFeed => {
   const heroModule = pickHeroModule(discoveryFeed);
   const heroPool = seededStations(heroModule.stations, seed);
@@ -290,7 +322,8 @@ export const createHomeSurfaceFeed = ({
     hero,
     rails: rails.slice(0, HOME_SURFACE_MAX_RAILS),
     quickSearchChips,
-    metrics: discoveryFeed.metrics
+    metrics: discoveryFeed.metrics,
+    summarySignature
   };
 };
 

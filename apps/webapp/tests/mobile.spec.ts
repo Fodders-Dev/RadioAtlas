@@ -73,7 +73,7 @@ import {
   saveStoredAsset,
   saveStoredTheme
 } from '../src/lib/theme/storage';
-import { catalogCacheStorageKey } from '../src/lib/catalogCache';
+import { catalogCacheStorageKey, CATALOG_CACHE_VERSION } from '../src/lib/catalogCache';
 
 const behaviorProfile = (overrides: Partial<BehaviorProfile> = {}): BehaviorProfile => ({
   version: 1,
@@ -2736,13 +2736,17 @@ test('cached summary renders home while catalog summary is offline', async ({ pa
   await enableTelegramMobileSafeMode(page);
   const payload = JSON.parse(summaryBody());
   await page.addInitScript(
-    ({ storageKey, cachedSummary }) => {
+    ({ storageKey, cachedSummary, cacheVersion }) => {
       const now = Date.now();
       window.localStorage.setItem(
         storageKey,
         JSON.stringify({
           'summary:v2': {
-            version: 1,
+            // T_audit_10: must match the live CATALOG_CACHE_VERSION, else
+            // readCatalogCache rejects the entry (it did after T_audit_8 bumped
+            // 1→2) and — with the network routed to hang below — the home never
+            // hydrates. The point of this test is the served-cache path.
+            version: cacheVersion,
             key: 'summary:v2',
             payload: cachedSummary,
             createdAt: now,
@@ -2751,7 +2755,7 @@ test('cached summary renders home while catalog summary is offline', async ({ pa
         })
       );
     },
-    { storageKey: catalogCacheStorageKey, cachedSummary: payload }
+    { storageKey: catalogCacheStorageKey, cachedSummary: payload, cacheVersion: CATALOG_CACHE_VERSION }
   );
   await page.unroute('**/catalog/summary**');
   await page.route('**/catalog/summary**', async () => {
