@@ -1065,6 +1065,39 @@ Player across low-power Android/iOS WebView.
   diagnosis-first. Worker reproduces «recommendations stuck»
   on dev stack before proposing changes.
 
+### ~~T_audit_8 — IDB catalog cache contract-mismatch invalidation~~ (DONE in 4da92df)
+- **Why**: Chrome MCP QA on 2026-05-27 after PR #29 deploy showed
+  Home rendering only 5 rails — fresh-now, country-spotlight,
+  genre-spotlight, resume-context, revived-stations — missing
+  every Sprint v2 rail (trending / top-voted / around-the-world /
+  4 mood rails). The server returned them all; the bundle threaded
+  them correctly; all tests passed. Root cause: IDB cache
+  `radioatlas-catalog-cache` had `/catalog/summary` entries
+  written BEFORE T2.21 (2026-05-26) when those fields didn't
+  exist. The `entry.version === 1` check accepted the stale
+  payload as fresh, so the network re-fetch never won until
+  TTL.
+- **Likely silent impact**: every active user who first opened
+  the app before the first Sprint v2 deploy saw only 5 rails
+  on every page-open until their cache TTL expired. Possibly
+  contributed to the user-reported «нет места discovery» mobile
+  feedback that prompted T_mobile_1 — those users may have been
+  seeing only the pre-Sprint-v2 surface on mobile.
+- **Shipped**: bumped the literal version constant
+  `CATALOG_CACHE_VERSION 1 → 2` (now exported from
+  `catalogCache.ts`). Used in the type, the read-guard, and the
+  write. Old v1 entries fail the read-check →
+  `readCatalogCache` returns `null` → fresh fetch wins. New
+  regression test in `catalogCache.test.ts` (3 cases) locks
+  the invariant.
+- **Verified on prod**: wiped local IDB cache, navigated fresh,
+  saw 11 rails restored. Hotfix `4da92df` then deployed with
+  passing external smoke (T_audit_4).
+- **Followup rule**: any `/catalog/summary` contract change
+  that adds fields MUST bump `CATALOG_CACHE_VERSION` in the
+  same PR. This rule belongs in `CODEX_RULES.md` (TODO if not
+  already covered there).
+
 ### T_audit_5 — Catalog-summary first-fetch timeout flake
 - **Why**: `apps/api` test `health and catalog contracts respond
   with shaped payloads` is intermittent — `fetch('/catalog/summary')`
