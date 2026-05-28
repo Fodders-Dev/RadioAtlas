@@ -1096,7 +1096,69 @@ Player across low-power Android/iOS WebView.
   baseline `home-shell-mobile-win32.png` regenerated for the
   64px-artwork change.
 
-### T_audit_9 — Eager taste-profile propagation (not bucket-gated)
+### ~~T_quality (2a/2b/cache) — recommendation diversity~~ (DONE in 71392d8, PR #33)
+- **What shipped**: server-side per-country soft caps to break the
+  single-country domination QA found on prod.
+  - **2a**: `topByNumericSignal` caps `trending`/`topVoted` to ≤2
+    per country (prod trending was almost all France).
+  - **2b**: `buildMoodRails` + `buildGenreSpotlight` cap ≤3 per
+    country («Концентрация» was 3/5 Greece). `buildCountrySpotlight`
+    left alone (single-country by design — worker's catch).
+  - **`diversifyByCountry`** helper: soft cap + greedy backfill —
+    the cap is a diversity *preference*, rail length is *guaranteed*.
+    A single-country bucket still fills to pool length (backfill from
+    overflow) and never gets hidden.
+  - **`CATALOG_CACHE_VERSION` 2→3**: content-only change, bumped so
+    diversified rails replace stale France-skewed v2 caches now
+    instead of ageing out over the 6h TTL.
+- **Verified on prod** (`71392d8`): trending = 7 countries max-2-each
+  (was ~all France); topVoted 9 countries; mood-focus 9 countries
+  (was Greece-heavy). genre "island" showed USA 4 — confirmed the
+  backfill safety net (5-station bucket: cap-3 USA + 1 Sweden, then
+  backfill the 4th USA rather than show a thin shelf — as designed).
+- **Cap-value honesty**: dev artifact lacks `clicktrend`/`votes`
+  (prod's extractor adds them) so trending distribution wasn't
+  measurable locally — cap 2 is safe via prod evidence + length-
+  guaranteeing backfill. Mood/genre buckets measured locally
+  (62–122 distinct countries) → cap 3 never starves.
+- **Gate**: webapp tc · tc:test · api tc · webapp unit 125 · api 83
+  (+5) · bot 12 · build · e2e 145/145.
+- **Note**: this was PR-B of the T_audit_10+T_quality combined
+  brief. 2c (eager taste) was split out to PR-C / T_audit_9 below
+  because it structurally requires extending the snapshot freshness
+  gate (the snapshot freeze sits above the surface memo and gates
+  taste exactly as it gated the stale summary in T_audit_10).
+
+### T_audit_9 — Eager taste-profile propagation (= PR-C, QUEUED for next session, approach A approved)
+- **STATUS**: cleared to implement. Approach **(a)** approved by
+  orchestrator; the "don't touch snapshot logic" constraint is
+  **lifted for this ticket only** (worker proved eager taste is
+  impossible without extending the snapshot gate — the freeze
+  gates taste the same way it gated the stale summary).
+- **Approved plan (PR-C)**:
+  - Rebase on master `71392d8` (post-PR-B).
+  - Add `tasteSignature` helper to `tasteProfile.ts` (rank-order of
+    top-N tag ids + hidden-station count — ids not raw weights, so
+    play-nudge magnitude churn never leaks in). Worker already
+    drafted this in PR-B then backed it out per the split; it lands
+    here with its consumer.
+  - Stamp `tasteSignature` onto the home snapshot; add
+    `snapshot.tasteSignature === current` to the `snapshotFresh`
+    gate AND the persistence-effect equality check — a parallel
+    AND-clause mirroring PR-A's `summarySignature` (additive, does
+    NOT modify `summaryRailSignature`).
+  - Surgical by design: same seed → only the taste-ranked rail
+    (fresh-now) re-ranks; the seed-ordered server pools
+    (trending/mood/etc) stay put. No whole-home reshuffle.
+  - Churn guard: `play-started` (+1.8) doesn't reorder top-N tags →
+    signature stable → no rebuild; `liked` (+12) / `skip` (−5.8) /
+    hide does.
+  - **Critical red→green test (both directions)**: like/skip → 
+    fresh-now re-ranks; single play → fresh-now stable. Prove both
+    (mirror PR-A's stash-the-fix red→green discipline).
+  - Commit `T_audit_9: eager taste propagation via snapshot tasteSignature gate`.
+  - **No** `CATALOG_CACHE_VERSION` bump (taste lives in localStorage
+    `tasteProfile`, not the catalog cache).
 - **Why** (surfaced by T_mobile_1 worker during D audit): in
   `Home.tsx` the `surfaceFeedBase` memo reads `tasteProfile`
   through `homeRankInputsRef.current.tasteProfile` rather than
