@@ -6,7 +6,14 @@
 // Sprint v2 deploy. Bumping the literal version invalidates every old entry
 // (read mismatch → null → fresh fetch). Future API contract changes that add
 // summary fields MUST bump this literal the same way.
-export const CATALOG_CACHE_VERSION = 2 as const;
+//
+// Bumped 2 → 3 on 2026-05-29 (T_quality): trending / topVoted / mood / genre
+// now apply a per-country cap server-side. This changes summary CONTENT, not
+// shape, so a cached v2 payload would keep serving the old France-skewed rails
+// until its 6 h TTL. Bumping forces the diversified content immediately rather
+// than ageing out. (Content-only bumps are the exception, not the rule — the
+// shape-change rule above still stands.)
+export const CATALOG_CACHE_VERSION = 3 as const;
 export type CatalogCacheEntry<T> = {
   version: typeof CATALOG_CACHE_VERSION;
   key: string;

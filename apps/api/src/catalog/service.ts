@@ -190,14 +190,64 @@ const mulberry32 = (seed: number) => {
   };
 };
 
-const seededSample = (stations: CatalogStation[], seed: number, limit: number) => {
+// Deterministic seeded ordering of a station list (no slice/projection) — the
+// shared core of seededSample, reused by the diversified mood rails so the cap
+// is applied to a stable per-seed order rather than the raw catalogue order.
+const seededOrder = (stations: CatalogStation[], seed: number) => {
   const random = mulberry32(seed);
   return [...stations]
     .map((station) => ({ station, score: random() }))
     .sort((left, right) => left.score - right.score)
-    .slice(0, limit)
-    .map(({ station }) => toStationLite(station));
+    .map(({ station }) => station);
 };
+
+const seededSample = (stations: CatalogStation[], seed: number, limit: number) =>
+  seededOrder(stations, seed)
+    .slice(0, limit)
+    .map((station) => toStationLite(station));
+
+// T_quality (2a/2b): per-country soft cap to break single-country domination —
+// prod trending was almost all France; mood buckets repeated one country (e.g.
+// «Концентрация» 3/5 Greece). Walk the already-ranked list and keep stations
+// while no country exceeds `perCountryCap`; stations over the cap are deferred
+// to an overflow list. If the capped picks fall short of `limit`, BACKFILL from
+// the overflow in rank order so the rail never drops below its length (a
+// tag-narrow, single-country bucket must not fall under MOOD_RAIL_MIN and get
+// hidden). Country comparison reuses normalizeKey; blank countries each count
+// under a shared "unknown" bucket so a flood of country-less stations is capped
+// too. Input order is the caller's ranking (signal / seeded); output preserves
+// it within the picked + backfilled sequence.
+const diversifyByCountry = (
+  ranked: CatalogStation[],
+  limit: number,
+  perCountryCap: number
+): CatalogStation[] => {
+  const counts = new Map<string, number>();
+  const picked: CatalogStation[] = [];
+  const overflow: CatalogStation[] = [];
+  for (const station of ranked) {
+    if (picked.length >= limit) break;
+    const key = normalizeKey(station.country) || '__unknown__';
+    const used = counts.get(key) || 0;
+    if (used < perCountryCap) {
+      counts.set(key, used + 1);
+      picked.push(station);
+    } else {
+      overflow.push(station);
+    }
+  }
+  for (const station of overflow) {
+    if (picked.length >= limit) break;
+    picked.push(station);
+  }
+  return picked;
+};
+
+// T_quality cap values: trending/topVoted favour maximum variety (2); the
+// tag-narrow mood/genre pools get a looser cap (3) so diversification doesn't
+// over-thin them before backfill.
+const TRENDING_COUNTRY_CAP = 2;
+const MOOD_GENRE_COUNTRY_CAP = 3;
 
 const sortByTopSignal = (stations: CatalogStation[]) =>
   [...stations].sort((left, right) => {
@@ -213,14 +263,18 @@ const sortByTopSignal = (stations: CatalogStation[]) =>
 const topByNumericSignal = (
   stations: CatalogStation[],
   pick: (station: CatalogStation) => number | undefined,
-  limit: number
-) =>
-  stations
+  limit: number,
+  perCountryCap: number
+) => {
+  const ranked = stations
     .map((station) => ({ station, score: pick(station) ?? 0 }))
     .filter((entry) => Number.isFinite(entry.score) && entry.score > 0)
     .sort((left, right) => right.score - left.score)
-    .slice(0, limit)
-    .map((entry) => toStationLite(entry.station));
+    .map((entry) => entry.station);
+  // Cap per country first (≤2), then backfill from the overflow so the rail
+  // still fills to `limit` even if only a few countries carry the signal.
+  return diversifyByCountry(ranked, limit, perCountryCap).map(toStationLite);
+};
 
 const buildCountrySpotlight = (
   stations: CatalogStation[],
@@ -272,7 +326,10 @@ const buildGenreSpotlight = (stations: CatalogStation[], seed: number): CatalogS
   const [label, items] = entry;
   return {
     label,
-    stations: sortByTopSignal(items).slice(0, 8).map(toStationLite)
+    // T_quality (2b): a genre can be dominated by one country (e.g. a tag
+    // that's mostly French stations). Cap ≤3 per country, then backfill so the
+    // shelf still fills to 8.
+    stations: diversifyByCountry(sortByTopSignal(items), 8, MOOD_GENRE_COUNTRY_CAP).map(toStationLite)
   };
 };
 
@@ -325,7 +382,15 @@ const buildMoodRails = (stations: CatalogStation[], seed: number) => {
   return MOOD_DEFINITIONS.map((mood, index) => {
     const bucket = buckets.get(mood.id) || [];
     if (bucket.length < MOOD_RAIL_MIN) return null;
-    return { id: mood.id, stations: seededSample(bucket, seed + 401 + index, MOOD_RAIL_POOL) };
+    // T_quality (2b): a mood bucket often skews to one country (prod
+    // «Концентрация» was 3/5 Greece). Cap ≤3 per country within the seeded
+    // order, then backfill from the overflow so the shelf keeps its length and
+    // never drops below MOOD_RAIL_MIN.
+    const ordered = seededOrder(bucket, seed + 401 + index);
+    const stations = diversifyByCountry(ordered, MOOD_RAIL_POOL, MOOD_GENRE_COUNTRY_CAP).map(
+      toStationLite
+    );
+    return { id: mood.id, stations };
   }).filter((rail): rail is { id: string; stations: ReturnType<typeof toStationLite>[] } => rail !== null);
 };
 
@@ -341,8 +406,8 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
   // T2.21 discovery rails — non-personalised, server-side popularity signals.
   // Pools are larger than a rail renders (6) so they survive client-side
   // de-duplication against the personalised fresh-now shelf and still fill.
-  const trending = topByNumericSignal(stations, (station) => station.clicktrend, 12);
-  const topVoted = topByNumericSignal(stations, (station) => station.votes, 12);
+  const trending = topByNumericSignal(stations, (station) => station.clicktrend, 12, TRENDING_COUNTRY_CAP);
+  const topVoted = topByNumericSignal(stations, (station) => station.votes, 12, TRENDING_COUNTRY_CAP);
   // Around the world rotates daily and avoids repeating the country-spotlight.
   const aroundTheWorld = buildCountrySpotlight(sorted, dayNumber(now), {
     exclude: countrySpotlight?.label

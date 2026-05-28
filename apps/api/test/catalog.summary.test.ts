@@ -107,6 +107,107 @@ test('Cross-mood assignment is deterministic per seed and single-homed', () => {
   assert.equal(homesOf(a).length, 1, 'a multi-mood station is single-homed (cross-mood de-dup)');
 });
 
+// T_quality (2a): per-country soft cap on trending / top-voted. The cap (2)
+// breaks single-country domination; a greedy backfill from the overflow keeps
+// the rail at full length when too few countries qualify.
+const countOf = (stations: { country: string }[]) => {
+  const byCountry = new Map<string, number>();
+  stations.forEach((station) => byCountry.set(station.country, (byCountry.get(station.country) || 0) + 1));
+  return byCountry;
+};
+
+test('T_quality 2a: Trending/Top-voted cap to <=2 per country when enough countries qualify', () => {
+  // 6 countries x 3 stations each, all with positive signal. The natural top-12
+  // would over-weight the highest-signal countries; the cap holds each to 2.
+  const countries = ['Aaa', 'Bbb', 'Ccc', 'Ddd', 'Eee', 'Fff'];
+  let signal = 100;
+  const stations: CatalogStation[] = [];
+  for (const country of countries) {
+    for (let i = 0; i < 3; i += 1) {
+      signal -= 1;
+      stations.push(mk(`${country}-${i}`, { country, clicktrend: signal, votes: signal }));
+    }
+  }
+
+  const summary = buildCatalogSummary(stations, 1);
+
+  for (const [country, n] of countOf(summary.trending)) {
+    assert.ok(n <= 2, `trending has ${n} stations from ${country} (>2)`);
+  }
+  for (const [country, n] of countOf(summary.topVoted)) {
+    assert.ok(n <= 2, `top-voted has ${n} stations from ${country} (>2)`);
+  }
+  // 6 countries x cap 2 = 12 → the shelf is full without needing backfill.
+  assert.equal(summary.trending.length, 12);
+  assert.equal(summary.topVoted.length, 12);
+});
+
+test('T_quality 2a: Trending backfills past the cap to preserve length when countries are few', () => {
+  // Only 2 countries but 20 positive-signal stations: cap 2 alone yields 4, so
+  // the greedy backfill must refill to the full 12 — the rail never shrinks.
+  let signal = 100;
+  const stations: CatalogStation[] = [];
+  for (let i = 0; i < 14; i += 1) {
+    signal -= 1;
+    stations.push(mk(`fr-${i}`, { country: 'France', clicktrend: signal, votes: signal }));
+  }
+  for (let i = 0; i < 6; i += 1) {
+    signal -= 1;
+    stations.push(mk(`de-${i}`, { country: 'Germany', clicktrend: signal, votes: signal }));
+  }
+
+  const summary = buildCatalogSummary(stations, 1);
+  assert.equal(summary.trending.length, 12, 'trending still fills to 12 via backfill');
+  assert.equal(summary.topVoted.length, 12, 'top-voted still fills to 12 via backfill');
+});
+
+// T_quality (2b): per-country soft cap (3) on mood rails + genre spotlight.
+test('T_quality 2b: mood rail caps to <=3 per country when diverse, fills the pool', () => {
+  // 16 "house" stations across 4 countries → mood-workout pool (10), <=3/country.
+  const countries = ['Aaa', 'Bbb', 'Ccc', 'Ddd'];
+  const stations: CatalogStation[] = [];
+  for (const country of countries) {
+    for (let i = 0; i < 4; i += 1) stations.push(mk(`${country}-${i}`, { tags: 'house', country }));
+  }
+
+  const summary = buildCatalogSummary(stations, 1);
+  const rail = moodRail(summary, 'mood-workout');
+  assert.ok(rail, 'workout rail present');
+  for (const [country, n] of countOf(rail!.stations)) {
+    assert.ok(n <= 3, `mood-workout has ${n} stations from ${country} (>3)`);
+  }
+  assert.equal(rail!.stations.length, 10, 'mood pool fills to MOOD_RAIL_POOL');
+});
+
+test('T_quality 2b: mood rail backfills past the cap to keep its length (single-country bucket)', () => {
+  // The «Концентрация» case: a bucket that's all one country must not shrink or
+  // hide — cap 3 picks 3, backfill restores the rest up to the pool size.
+  const stations = Array.from({ length: 12 }, (_, i) =>
+    mk(`gr-${i}`, { tags: 'house', country: 'Greece' })
+  );
+  const summary = buildCatalogSummary(stations, 1);
+  const rail = moodRail(summary, 'mood-workout');
+  assert.ok(rail, 'workout rail present despite a single-country bucket');
+  assert.equal(rail!.stations.length, 10, 'cap 3 + backfill still fills the pool to 10');
+});
+
+test('T_quality 2b: genre spotlight caps to <=3 per country, fills to 8', () => {
+  // 12 "synthwave" stations across 4 countries. synthwave is the only eligible
+  // genre (>=4) and is not a mood tag, so the spotlight resolves to it.
+  const countries = ['Aaa', 'Bbb', 'Ccc', 'Ddd'];
+  const stations: CatalogStation[] = [];
+  for (const country of countries) {
+    for (let i = 0; i < 3; i += 1) stations.push(mk(`${country}-${i}`, { tags: 'synthwave', country }));
+  }
+
+  const summary = buildCatalogSummary(stations, 3);
+  assert.equal(summary.genreSpotlight?.label, 'synthwave');
+  for (const [country, n] of countOf(summary.genreSpotlight!.stations)) {
+    assert.ok(n <= 3, `genre spotlight has ${n} stations from ${country} (>3)`);
+  }
+  assert.equal(summary.genreSpotlight!.stations.length, 8);
+});
+
 test('Around-the-world rotates daily and never repeats the country-spotlight', () => {
   // Three eligible countries (≥4 stations each) so that after excluding the
   // country-spotlight pick, ≥2 remain for the daily rotation to choose between.
