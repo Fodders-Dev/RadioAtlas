@@ -43,4 +43,35 @@ test.describe('screen error boundary', () => {
     // Home content renders after recovery.
     await expect(page.locator('[data-home-rail], #home-search-launcher').first()).toBeVisible();
   });
+
+  // T_audit_6: a stale-chunk error after a deploy reloads exactly once
+  // (loop-safe). Trigger the chunk-shaped error AFTER pre-setting the
+  // cooldown timestamp — the boundary must NOT reload again, must surface
+  // the fallback, and leave the recorded timestamp untouched.
+  test('T_audit_6: chunk-shaped error inside the cooldown shows the fallback without looping', async ({
+    page
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        __radioatlasForceScreenError__?: boolean;
+        __radioatlasForceErrorMessage__?: string;
+      };
+      w.__radioatlasForceScreenError__ = true;
+      w.__radioatlasForceErrorMessage__ =
+        'Failed to fetch dynamically imported module: assets/Home-abc123.js';
+      // Pretend a previous reload happened 2s ago — inside the 10s cooldown,
+      // so this error must NOT trigger another reload.
+      sessionStorage.setItem('radioatlas:chunkReloadAt', String(Date.now() - 2000));
+    });
+
+    await page.goto('/');
+
+    // Fallback is shown (no infinite reload).
+    await expect(page.locator('.error-boundary-fallback[role="alert"]')).toBeVisible();
+    // Cooldown timestamp is preserved — boundary did not bump it again.
+    const ts = await page.evaluate(() => sessionStorage.getItem('radioatlas:chunkReloadAt'));
+    const age = Date.now() - Number(ts || '0');
+    expect(age).toBeGreaterThan(500); // i.e. still the pre-set 2s-ago value, not "now"
+    expect(age).toBeLessThan(20_000);
+  });
 });

@@ -7,8 +7,9 @@ import { ErrorBoundary } from './ErrorBoundary';
   true;
 
 let shouldThrow = true;
+let throwMessage = 'boom';
 const Thrower = () => {
-  if (shouldThrow) throw new Error('boom');
+  if (shouldThrow) throw new Error(throwMessage);
   return createElement('div', { id: 'ok' }, 'recovered');
 };
 
@@ -26,11 +27,26 @@ describe('ErrorBoundary (T1.7)', () => {
       )
     );
 
+  // jsdom marks window.location.reload as non-configurable, so vi.spyOn fails
+  // with "Cannot redefine property: reload". Stash/replace the whole location
+  // object — restored in afterEach.
+  let originalLocation: Location;
+  let reloadSpy: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
     shouldThrow = true;
+    throwMessage = 'boom';
+    window.sessionStorage.clear();
+    originalLocation = window.location;
+    reloadSpy = vi.fn();
+    delete (window as { location?: Location }).location;
+    (window as { location: Location }).location = {
+      ...originalLocation,
+      reload: reloadSpy as unknown as Location['reload']
+    };
     // React logs caught errors to console.error in dev; silence the noise.
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -38,6 +54,7 @@ describe('ErrorBoundary (T1.7)', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    (window as { location: Location }).location = originalLocation;
     vi.restoreAllMocks();
   });
 
@@ -68,5 +85,42 @@ describe('ErrorBoundary (T1.7)', () => {
     renderBoundary(() => createElement('div', { id: 'fb' }, 'fb'));
     expect(document.getElementById('ok')?.textContent).toBe('recovered');
     expect(document.getElementById('fb')).toBeNull();
+  });
+
+  // T_audit_6: stale-chunk recovery (timestamp-guarded reload).
+  const CHUNK_ERR = "Failed to fetch dynamically imported module: assets/Home-abc123.js";
+  const RELOAD_KEY = 'radioatlas:chunkReloadAt';
+
+  it('T_audit_6: reloads once on a stale-chunk error and records the timestamp', () => {
+    throwMessage = CHUNK_ERR;
+    renderBoundary((retry) => createElement('div', { id: 'fb' }, 'fb'));
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+    const stored = Number(window.sessionStorage.getItem(RELOAD_KEY));
+    expect(stored).toBeGreaterThan(Date.now() - 5_000);
+  });
+
+  it('T_audit_6: a recent reload timestamp suppresses further reloads (loop safeguard)', () => {
+    throwMessage = CHUNK_ERR;
+    // Simulate: the previous reload set this 2s ago — still inside the cooldown.
+    window.sessionStorage.setItem(RELOAD_KEY, String(Date.now() - 2_000));
+    renderBoundary((retry) => createElement('div', { id: 'fb' }, 'fb'));
+    expect(reloadSpy).not.toHaveBeenCalled();
+    // The fallback UI takes over — the user sees the error, no infinite reload.
+    expect(document.getElementById('fb')?.textContent).toBe('fb');
+  });
+
+  it('T_audit_6: an old timestamp (outside the cooldown) allows recovery on a later deploy', () => {
+    throwMessage = CHUNK_ERR;
+    // Last reload happened 20s ago — outside the 10s cooldown window.
+    window.sessionStorage.setItem(RELOAD_KEY, String(Date.now() - 20_000));
+    renderBoundary((retry) => createElement('div', { id: 'fb' }, 'fb'));
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('T_audit_6: non-chunk errors do NOT trigger a reload', () => {
+    throwMessage = 'Cannot read properties of undefined (reading "x")';
+    renderBoundary((retry) => createElement('div', { id: 'fb' }, 'fb'));
+    expect(reloadSpy).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(RELOAD_KEY)).toBeNull();
   });
 });

@@ -14,6 +14,42 @@ type ErrorBoundaryState = {
   resetCount: number;
 };
 
+// T_audit_6: a lazy-route chunk that the new deploy deleted (Vite content-hash
+// renamed it on rebuild) throws a recognisable error on the next nav. Treat it
+// as a stale-cache miss and reload once — the new index references the new
+// hashes. Message strings come from Chrome/Firefox + Safari respectively.
+const CHUNK_ERROR_SIGNATURES = [
+  'Failed to fetch dynamically imported module',
+  'Importing a module script failed',
+  'error loading dynamically imported module'
+];
+const isChunkLoadError = (error: Error): boolean => {
+  const message = error.message || '';
+  return CHUNK_ERROR_SIGNATURES.some((signature) => message.includes(signature));
+};
+
+// Timestamp-guarded reload. If the LAST reload was <10s ago, assume it didn't
+// help (genuinely broken build, not a stale cache) and show the error UI
+// instead — that's the loop-safety guarantee. A later chunk error in the same
+// session (e.g., a SECOND deploy minutes later) lies outside the window and is
+// allowed to recover. Stored in sessionStorage so it survives the reload.
+const CHUNK_RELOAD_KEY = 'radioatlas:chunkReloadAt';
+const CHUNK_RELOAD_COOLDOWN_MS = 10_000;
+const tryReloadForChunkError = (error: Error): boolean => {
+  if (typeof window === 'undefined' || !isChunkLoadError(error)) return false;
+  try {
+    const last = Number(window.sessionStorage.getItem(CHUNK_RELOAD_KEY)) || 0;
+    if (Date.now() - last < CHUNK_RELOAD_COOLDOWN_MS) return false;
+    window.sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // sessionStorage blocked (private mode, quota): fall through to the UI
+    // rather than risk a loop without the safeguard.
+    return false;
+  }
+  window.location.reload();
+  return true;
+};
+
 // Class component because only class lifecycles (getDerivedStateFromError /
 // componentDidCatch) can catch render errors — there is no hook equivalent.
 // Kept dependency-free (no react-error-boundary): a single ~40-line class
@@ -27,6 +63,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     this.props.onError?.(error, info);
+    // T_audit_6: graceful recovery for stale-chunk errors after a deploy.
+    // Reload starts asynchronously — the fallback UI may flash briefly, then
+    // the new build picks up. tryReloadForChunkError is loop-safe (cooldown).
+    tryReloadForChunkError(error);
   }
 
   private retry = () => {
@@ -95,12 +135,15 @@ export const AppCrashFallback = () => (
 declare global {
   interface Window {
     __radioatlasForceScreenError__?: boolean;
+    __radioatlasForceErrorMessage__?: string;
   }
 }
 
 export const ErrorProbe = () => {
   if (typeof window !== 'undefined' && window.__radioatlasForceScreenError__) {
-    throw new Error('Forced screen error (test hook)');
+    // T_audit_6: a custom message lets e2e tests trigger the chunk-error
+    // recovery path (the same probe was already used for T1.7's boundary spec).
+    throw new Error(window.__radioatlasForceErrorMessage__ || 'Forced screen error (test hook)');
   }
   return null;
 };
