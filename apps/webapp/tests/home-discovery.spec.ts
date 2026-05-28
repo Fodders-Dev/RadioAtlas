@@ -212,4 +212,27 @@ test.describe('T2.23 variety pass', () => {
     await expect(page.locator('.home-anchor-chip-row')).toBeVisible();
     expect(await page.locator('.home-anchor-chip').count()).toBeGreaterThanOrEqual(2);
   });
+
+  // T_mobile_1 B: a click anywhere on the tile starts the station — not only
+  // the small play-icon button (live mobile feedback "играй на клик по квадратику").
+  test('T_mobile_1 B: clicking the tile root plays that station; heart does not', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await openHome(page);
+
+    const firstTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').first();
+    const stationName = await firstTile.locator('.home-station-title').textContent();
+    expect(stationName).toBeTruthy();
+
+    // Click the artwork area (outside the inner play/like buttons) → station plays.
+    await firstTile.locator('.home-station-artwork').click();
+    await expect(page.locator('.player-dock-bar')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
+
+    // Click the heart on a DIFFERENT tile → favourite toggles, dock title does NOT change.
+    const otherTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').nth(1);
+    const heart = otherTile.locator('.home-action-btn-like');
+    await heart.click();
+    // The currently-playing station in the dock is still the first one we clicked.
+    await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
+  });
 });

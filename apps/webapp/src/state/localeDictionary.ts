@@ -164,6 +164,12 @@ export const defaultDictionary: DictionaryTree = {
     favorite: 'В избранное',
     unfavorite: 'Убрать из избранного'
   },
+  // T_mobile_1 B: the home-station tile is role="button" with this aria-label
+  // — keep it in defaultDictionary so the accessible name resolves on the very
+  // first paint (before the async ru/en bundle finishes loading).
+  stationTile: {
+    playLabel: 'Слушать: {name}'
+  },
   radio: {
     deepLink: 'Из ссылки',
     queueDefault: 'Очередь',

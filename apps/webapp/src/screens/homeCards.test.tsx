@@ -116,6 +116,70 @@ describe('Home cards density (T2.20)', () => {
     expect(container.querySelectorAll('[data-home-station]')).toHaveLength(stations.length);
   });
 
+  it('T_mobile_1 B: a click anywhere on the tile triggers onPlay, the heart only toggles favourite', () => {
+    const stations = [1, 2, 3].map(makeStation);
+    const onPlay = vi.fn();
+    const onToggleFavorite = vi.fn();
+    mount(
+      createElement(HomeRail, {
+        module: railModule(stations),
+        currentStationId: null,
+        activeTrack: null,
+        isFavorite: () => false,
+        onPlay,
+        onToggleFavorite,
+        onExplore: vi.fn()
+      })
+    );
+
+    const tiles = container.querySelectorAll<HTMLElement>('[data-home-station]');
+    expect(tiles.length).toBe(3);
+
+    // Click the tile root (not the inner buttons) → onPlay once with this station.
+    act(() => tiles[0]!.click());
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onPlay.mock.calls[0]?.[0]?.stationuuid).toBe('uuid-1');
+    expect(onToggleFavorite).not.toHaveBeenCalled();
+
+    // Click the heart inside the next tile — favourite toggles, play does NOT fire
+    // (the like button stopPropagation prevents the tile-level onPlay from firing).
+    const heart = tiles[1]!.querySelector<HTMLButtonElement>('.home-action-btn-like');
+    expect(heart).not.toBeNull();
+    act(() => heart!.click());
+    expect(onToggleFavorite).toHaveBeenCalledTimes(1);
+    expect(onPlay).toHaveBeenCalledTimes(1); // still 1 — no double-fire from the heart
+
+    // Click the visible play icon inside the third tile — onPlay called once
+    // (not twice — stopPropagation prevents the article handler from re-firing).
+    const playBtn = tiles[2]!.querySelector<HTMLButtonElement>('.home-action-btn-play');
+    expect(playBtn).not.toBeNull();
+    act(() => playBtn!.click());
+    expect(onPlay).toHaveBeenCalledTimes(2);
+    expect(onPlay.mock.calls[1]?.[0]?.stationuuid).toBe('uuid-3');
+  });
+
+  it('T_mobile_1 B: tile root is keyboard-actionable (role=button, tabIndex=0, aria-label)', () => {
+    const stations = [1].map(makeStation);
+    mount(
+      createElement(HomeRail, {
+        module: railModule(stations),
+        currentStationId: null,
+        activeTrack: null,
+        isFavorite: () => false,
+        onPlay: vi.fn(),
+        onToggleFavorite: vi.fn(),
+        onExplore: vi.fn()
+      })
+    );
+    const tile = container.querySelector<HTMLElement>('[data-home-station]')!;
+    expect(tile.getAttribute('role')).toBe('button');
+    expect(tile.getAttribute('tabindex')).toBe('0');
+    // aria-label carries the station name (locale fallback to key in jsdom is OK,
+    // the important contract is "the name is in the accessible name").
+    const ariaLabel = tile.getAttribute('aria-label') || '';
+    expect(ariaLabel).toContain('Station 1');
+  });
+
   it('T_audit_3 F1: spotlight titles carry no {placeholder} (HomeRail renders t() without vars)', () => {
     // HomeRail renders t(module.titleKey) with no interpolation vars, so any
     // {country}/{genre} in these locale values would leak literally. The value

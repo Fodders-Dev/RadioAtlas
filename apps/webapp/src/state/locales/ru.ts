@@ -89,6 +89,9 @@ export const ruDictionary = {
     "promoted": "Промо",
     "claimed": "Заявлена"
   },
+  "stationTile": {
+    "playLabel": "Слушать: {name}"
+  },
   "reasons": {
     "frequent": "Уже слушал",
     "favoriteTag": "Любимый жанр · {tag}",

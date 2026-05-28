@@ -42,7 +42,13 @@ import {
 } from './homeCards';
 import './home.css';
 
-const HOME_SESSION_BUCKET_MS = 1000 * 60 * 60 * 2;
+// T_mobile_1 D: shortened from 2h to 30min. Re-opens within the bucket reuse
+// the cached snapshot (same seed → identical ordering of every rail), which the
+// live mobile feedback "каждый раз одно и то же" surfaced. 30min lets a user
+// who closes Telegram and returns later in the same hour see a fresh shuffle
+// while still avoiding a re-rank on every tab focus inside one session.
+// Exported for the bucket unit test alongside isSameSessionBucket below.
+export const HOME_SESSION_BUCKET_MS = 1000 * 60 * 30;
 // Bumped to 5 for T2.22 (four mood shelves); invalidates cached snapshots so
 // returning users pick up the mood rails (4 for T2.21, 3 before that).
 const HOME_SURFACE_VERSION = 5;
@@ -157,7 +163,7 @@ const buildFallbackCounts = (catalog: StationLite[]) => {
   };
 };
 
-const isSameSessionBucket = (left: number | null, right: number) => {
+export const isSameSessionBucket = (left: number | null, right: number) => {
   if (!left) return false;
   return Math.floor(left / HOME_SESSION_BUCKET_MS) === Math.floor(right / HOME_SESSION_BUCKET_MS);
 };
