@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import type {
   HomeHeroModule,
@@ -87,10 +87,29 @@ const HomeStationTile = ({
     );
   }
 
+  // T_mobile_1 B: the whole tile is the play target — live mobile feedback
+  // wanted a tap anywhere on the card to start the station, not just the play
+  // icon. Article gets role/aria/keyboard semantics; inner play+like buttons
+  // stopPropagation so a tap on the heart toggles favourite without also
+  // firing play, and the visible play icon stays as a tap-affordance hint
+  // without double-firing onPlay.
+  const playStation = () => onPlay(station, playlist, sourceId);
+  const onTileKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      playStation();
+    }
+  };
+
   return (
     <article
       className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''} ${featured ? 'home-station-tile--featured' : ''}`.trim()}
       data-home-station={station.stationuuid}
+      role="button"
+      tabIndex={0}
+      aria-label={t(isActive ? 'common.pause' : 'stationTile.playLabel', { name: station.name })}
+      onClick={playStation}
+      onKeyDown={onTileKeyDown}
     >
       <div className="home-station-main">
         <StationArtwork
@@ -114,7 +133,10 @@ const HomeStationTile = ({
         <button
           className="home-action-btn home-action-btn-play"
           type="button"
-          onClick={() => onPlay(station, playlist, sourceId)}
+          onClick={(event) => {
+            event.stopPropagation();
+            playStation();
+          }}
           aria-label={isActive ? t('common.pause') : t('common.play')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -128,7 +150,10 @@ const HomeStationTile = ({
         <button
           className={`home-action-btn home-action-btn-like ${liked ? 'is-liked' : ''}`.trim()}
           type="button"
-          onClick={() => onToggleFavorite(station)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFavorite(station);
+          }}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">

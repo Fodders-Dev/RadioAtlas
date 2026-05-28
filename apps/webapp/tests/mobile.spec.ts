@@ -2801,3 +2801,72 @@ test('mounting app does not rewrite persistent app library or player state', asy
   );
   expect(writes).toEqual([]);
 });
+
+// T_mobile_1 A+C: live Telegram WebView feedback pack.
+test.describe('T_mobile_1 mobile Home polish', () => {
+  test('A: rail + chip-row containers carry overscroll-behavior-x: contain', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedDiscoveryRoutes(page);
+    await page.goto('/');
+    await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+    // Both horizontal-scroll containers must contain their X overscroll so a
+    // wheel/touch reaching the end of the rail doesn't bubble up and scroll the
+    // page vertically (the live "по концу ленты скроллит страницу" pain).
+    const railOverscroll = await page
+      .locator('.home-horizontal-scroll')
+      .first()
+      .evaluate((el) => getComputedStyle(el).overscrollBehaviorX);
+    expect(railOverscroll).toBe('contain');
+
+    const chipRowOverscroll = await page
+      .locator('.home-anchor-chip-row')
+      .evaluate((el) => getComputedStyle(el).overscrollBehaviorX);
+    expect(chipRowOverscroll).toBe('contain');
+  });
+
+  test('C: dense rail tile is ~112px wide with a 64px artwork (room for 2-line title)', async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedDiscoveryRoutes(page);
+    await page.goto('/');
+    await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+    await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
+
+    const tile = page.locator('[data-home-rail] [data-home-station]').first();
+    const tileWidth = await tile.evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    // The dense rail-tile column is fixed at 112px (T_mobile_1 brief: "tile
+    // ~110-130px wide, 3-4 fit per rail at 390px"). Allow a tiny tolerance.
+    expect(tileWidth).toBeGreaterThanOrEqual(108);
+    expect(tileWidth).toBeLessThanOrEqual(130);
+
+    // Artwork shrank from 112 (full-bleed) to 64 so each tile loses ~50px of
+    // vertical height — twice that per rail (2-row grid) — and the 2nd rail
+    // climbs back into the fold. Title now reliably wraps to 2 lines instead
+    // of being squeezed under a 112×112 image.
+    const artworkWidth = await tile
+      .locator('.station-artwork-card')
+      .first()
+      .evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    expect(artworkWidth).toBeLessThanOrEqual(72);
+
+    // Three tile columns fit in the first row of the 2-row column-flow grid:
+    // gather every tile, group by the y coordinate of its top, take the first
+    // row, and assert it has at least 3 tiles.
+    const tilesPerFirstRow = await page
+      .locator('[data-home-rail] [data-home-station]')
+      .evaluateAll((nodes) => {
+        if (!nodes.length) return 0;
+        const rows = new Map<number, number>();
+        for (const node of nodes) {
+          // Bucket by 8px so sub-pixel offsets don't split a row in two.
+          const key = Math.round(node.getBoundingClientRect().top / 8) * 8;
+          rows.set(key, (rows.get(key) || 0) + 1);
+        }
+        const firstRowTop = Math.min(...rows.keys());
+        return rows.get(firstRowTop) || 0;
+      });
+    expect(tilesPerFirstRow).toBeGreaterThanOrEqual(3);
+  });
+});

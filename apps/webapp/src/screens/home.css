@@ -418,6 +418,11 @@
 .home-hero-companions,
 .home-horizontal-scroll {
   overflow-x: auto;
+  /* T_mobile_1 A: contain horizontal overscroll so reaching the end of a rail
+     doesn't bubble the wheel/touch up and scroll the page vertically (live
+     mobile feedback "по концу ленты скроллит страницу"). -x form preserves the
+     vertical scroll chain — the page can still scroll past a non-end rail. */
+  overscroll-behavior-x: contain;
   padding-bottom: 2px;
   scrollbar-width: none;
 }
@@ -465,6 +470,9 @@
   display: flex;
   gap: 8px;
   overflow-x: auto;
+  /* T_mobile_1 A: see .home-horizontal-scroll — same containment for the
+     anchor chip-row so swiping past its end doesn't drag the page. */
+  overscroll-behavior-x: contain;
   /* Negative top margin eats part of the grid gap above so the row's vertical
      cost stays within the fold budget (keeps the 2nd rail above the fold). */
   margin-top: -6px;
@@ -667,12 +675,20 @@
      tighter padding/gap also shortens each shelf so a second rail clears the
      fold. */
   min-width: min(160px, 72vw);
+  /* T_mobile_1 B: the article is now role="button" — make that affordance
+     visible (cursor + a focus ring for keyboard users). */
+  cursor: pointer;
   padding: 8px;
   border: 1px solid rgba(166, 214, 255, 0.08);
   border-radius: 18px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)),
     rgba(5, 10, 18, 0.46);
+}
+
+.home-station-tile:focus-visible {
+  outline: 2px solid rgba(114, 202, 255, 0.68);
+  outline-offset: 2px;
 }
 
 .home-station-tile.is-active {
@@ -684,7 +700,9 @@
 
 .home-station-tile.is-dense {
   min-width: 0;
-  padding: 9px;
+  /* T_mobile_1 C: tighter padding at narrow widths so 3 tiles per row don't
+     squeeze artwork + text. */
+  padding: 7px;
   border-radius: 14px;
 }
 
@@ -1329,8 +1347,12 @@
 }
 
 .home-rail-card.is-dense .home-station-tile .station-artwork-card {
-  width: 112px;
-  height: 112px;
+  /* T_mobile_1 C: 112px was sized for the old 2-col dense grid (~175px tiles);
+     the new 3-col grid lands tiles at ~119px so the artwork has to shrink to
+     leave room for the 2-line title beside it. 64×64 still reads as primary
+     content at phone widths and scales fine up to the 600px dense boundary. */
+  width: 64px;
+  height: 64px;
   border-radius: 14px;
 }
 

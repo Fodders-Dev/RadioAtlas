@@ -89,6 +89,9 @@ export const enDictionary = {
     "promoted": "Sponsored",
     "claimed": "Claimed"
   },
+  "stationTile": {
+    "playLabel": "Play: {name}"
+  },
   "reasons": {
     "frequent": "Played before",
     "favoriteTag": "Favorite genre · {tag}",
