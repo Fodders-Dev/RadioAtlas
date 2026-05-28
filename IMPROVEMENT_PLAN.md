@@ -985,7 +985,7 @@ Player across low-power Android/iOS WebView.
   featured tile 248px / sibling 160px (1.55×) — Sprint v2
   intact, chunk preservation didn't regress anything.
 
-### T_mobile_1 — Mobile Telegram WebView Home pass (live-feedback pack)
+### ~~T_mobile_1 — Mobile Telegram WebView Home pass (live-feedback pack)~~ (DONE in 904806e)
 - **Why**: live mobile screenshots from a real Telegram WebView
   (390px-ish width, 2026-05-27 evening session) surfaced 5
   related UX problems that desktop QA didn't catch. User-quoted
@@ -1064,6 +1064,66 @@ Player across low-power Android/iOS WebView.
 - **Push-back gate is MANDATORY** because sub-task D needs
   diagnosis-first. Worker reproduces «recommendations stuck»
   on dev stack before proposing changes.
+- **Shipped** (one commit, `3a4c720`):
+  - **A**: `overscroll-behavior-x: contain` on `.home-horizontal-
+    scroll` AND `.home-anchor-chip-row`. Wheel/touch past the end
+    of a rail no longer scrolls the page.
+  - **B**: tile root is `role="button"` with `tabIndex={0}`,
+    `aria-label="Слушать: {name}"`, and `onClick={onPlay}`. Inner
+    play + heart buttons get `stopPropagation` so they don't
+    double-fire. Visible play icon stays as a tap-affordance hint.
+    New `stationTile.playLabel` locale key also added to
+    `defaultDictionary` so the accessible name resolves on first
+    paint (before the locale bundle loads).
+  - **C**: artwork in dense rail-card 112×112 → 64×64. Worker
+    diagnosed the brief's "2-col dense grid" assumption as wrong
+    — line 853's rule is dead code, the real layout comes from
+    line 1328 (`grid-auto-flow: column; grid-auto-columns: 112px`).
+    Tiles were already 112px; the problem was the 112×112 artwork
+    overflowing inside, leaving no room for the title clamp.
+    64×64 drops ~50px per tile, ~100px per 2-row rail.
+  - **D**: `HOME_SESSION_BUCKET_MS` 2h → 30min, both
+    `HOME_SESSION_BUCKET_MS` and `isSameSessionBucket` exported
+    for `Home.bucket.test.ts` (4 cases — constant value, two
+    bucketed timestamps, two cross-bucket timestamps). Secondary
+    finding by worker flagged for a separate ticket below
+    (T_audit_9): `surfaceFeedBase` memo deps omit `tasteProfile`,
+    so taste signals only propagate at the next bucket flip
+    instead of eagerly.
+- **Gate green**: typecheck · typecheck:test · webapp unit 118
+  (+6) · api 78 · bot 12 · build · all T_mobile_1 e2e plus
+  home-polish + home-discovery + error-boundary. Mobile visual
+  baseline `home-shell-mobile-win32.png` regenerated for the
+  64px-artwork change.
+
+### T_audit_9 — Eager taste-profile propagation (not bucket-gated)
+- **Why** (surfaced by T_mobile_1 worker during D audit): in
+  `Home.tsx` the `surfaceFeedBase` memo reads `tasteProfile`
+  through `homeRankInputsRef.current.tasteProfile` rather than
+  declaring it as a memo dep. Result: a play/like/skip mutates
+  `tasteProfile`, but the rebuilt surface doesn't pick up the
+  new signal until the next `sessionSeed` flip (every 30min
+  after T_mobile_1). Within one bucket, recently-played tracks
+  don't re-rank.
+- **Options**:
+  - (A) Add `tasteProfile` to the memo deps. Cheapest. May cause
+    too-frequent re-rank churn if taste mutates per-play.
+  - (B) Watch a tasteProfile **signature** (e.g. hash of top-N
+    tag weights) and only invalidate the memo when the signature
+    changes meaningfully.
+  - (C) Force a `sessionSeed` bump on specific high-signal
+    taste events (like, skip) — leave plays alone.
+- **Files**: `apps/webapp/src/screens/Home.tsx`,
+  `apps/webapp/src/lib/tasteProfile.ts` (if (B) — for the hash),
+  `apps/webapp/src/lib/homeProfile.ts` (if (C) — for the seed
+  bump trigger).
+- **Done-when**: a unit test in `Home.bucket.test.ts` or a new
+  spec proves that a taste event within a session bucket causes
+  the next surface render to use the new profile — and that
+  the trigger doesn't fire on every single play (the per-play
+  churn risk).
+- **Priority**: P2 — addresses the deeper "recommendations
+  stuck" concern that the 30min bucket only partially fixes.
 
 ### ~~T_audit_8 — IDB catalog cache contract-mismatch invalidation~~ (DONE in 4da92df)
 - **Why**: Chrome MCP QA on 2026-05-27 after PR #29 deploy showed
