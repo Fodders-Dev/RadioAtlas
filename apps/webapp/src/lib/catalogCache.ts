@@ -1,5 +1,14 @@
+// Bumped 1 → 2 on 2026-05-27 after a live-prod regression: clients who first
+// visited the app before T2.21 / T2.22 had `/catalog/summary` cached in IDB
+// without the new `trending` / `topVoted` / `aroundTheWorld` / `moodRails`
+// fields. The cache TTL hadn't expired, so the stale shape kept being served
+// indefinitely — Home rendered only 5 rails instead of 11 even after every
+// Sprint v2 deploy. Bumping the literal version invalidates every old entry
+// (read mismatch → null → fresh fetch). Future API contract changes that add
+// summary fields MUST bump this literal the same way.
+export const CATALOG_CACHE_VERSION = 2 as const;
 export type CatalogCacheEntry<T> = {
-  version: 1;
+  version: typeof CATALOG_CACHE_VERSION;
   key: string;
   payload: T;
   createdAt: number;
@@ -122,7 +131,7 @@ export const readCatalogCache = async <T,>(
   );
   const localEntry = readLocalCache()[key] as CatalogCacheEntry<T> | undefined;
   const entry = indexedEntry || localEntry || null;
-  if (!entry || entry.version !== 1 || entry.key !== key) {
+  if (!entry || entry.version !== CATALOG_CACHE_VERSION || entry.key !== key) {
     return null;
   }
   if (isFreshEnough(entry, options)) {
@@ -139,7 +148,7 @@ export const writeCatalogCache = async <T,>(
 ): Promise<CatalogCacheEntry<T>> => {
   const now = Date.now();
   const entry: CatalogCacheEntry<T> = {
-    version: 1,
+    version: CATALOG_CACHE_VERSION,
     key,
     payload,
     createdAt: now,
