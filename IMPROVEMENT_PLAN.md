@@ -1125,6 +1125,105 @@ Player across low-power Android/iOS WebView.
 - **Priority**: P2 — addresses the deeper "recommendations
   stuck" concern that the 30min bucket only partially fixes.
 
+### ~~T_home_redesign_1 — kill HomeHeroCard + topbar alignment~~ (DONE in d307f4f)
+- **Why**: live-prod feedback from the owner — Hero card
+  «огромная плашка, всегда одна и та же, нафига ей столько
+  места» + topbar gear/profile visually staggered. Single PR
+  scope: drop the hero render + fix the topbar.
+- **Shipped (PR #31, `fd99ce6` → merged in `d307f4f`)**:
+  - **A**: HomeHeroCard render removed from `Home.tsx`. The
+    `HomeSurfaceFeed.hero` field stays (read by `isSameSurfaceDeck`
+    and `rotateSurfaceFeed` — non-JSX consumers worker caught
+    in audit). The `${heroModule.sourceId}-companions` rail
+    push dropped (`homeSurface.ts`); `companionStations` array
+    stays computed because `rotateSurfaceFeed` reads it.
+  - **A.5 (mid-impl push-back)**: worker found `.home-refresh-chip`
+    was the ONLY user-facing manual-refresh affordance, lived
+    inside HomeHeroCard. Removing it would have killed the
+    rank-freeze escape valve documented by
+    `home-rank-freeze.spec.ts`. Resolution (approved): relocated
+    as a `.home-personal-refresh` icon-button on the Personal
+    Radio card, mirroring the topbar gear/profile icon pattern.
+    Aria `home.refreshFeed`, `is-loading` spinner during async
+    handleRefresh. Dead `.home-refresh-chip` CSS removed (8
+    surgical edits) — old class still on the now-orphaned
+    `HomeHeroCard` export, harmless.
+  - **B**: three CSS-only topbar fixes:
+    1. `.app-topbar-actions { align-items: flex-start → center }`
+    2. `.app-topbar-actions > .nav-utility-btn { flex: 0 0 auto }`
+    3. Dropped `grid-template-columns: 16px auto` override on
+       `.mobile-settings-trigger` (was 16×16 icon vs profile's
+       20×20 — read as staggered even when boxes aligned).
+- **Worker push-backs caught two more bugs**:
+  - Initial topbar e2e at 1440×900 sampled the WIDE-DESKTOP
+    sidebar layout (>980px breakpoint), not the topbar. Worker
+    narrowed to 600w + 900w (431–980px horizontal-topbar band).
+  - 5 hard-coded `[data-home-hero]` "home is hydrated" sentinels
+    in `desktop.spec.ts` (my brief missed them). Worker replaced
+    them with `[data-home-personal-radio]`.
+- **Gate green**: typecheck · typecheck:test · webapp unit 121 ·
+  api 78 · bot 12 · build · e2e 143/144 (the 1 fail is
+  pre-existing on master — see T_audit_10 below). Baselines
+  regenerated: `home-shell-win32.png`, `home-shell-mobile-win32.png`
+  (companions rail was rendering on dense too), `home-shell-
+  populated-win32.png`.
+- **Verified on prod**: hero gone, fresh-now is first rail,
+  refresh icon-button visible + clicks rebuild surface (5 → 12
+  rails when residual cache is stale — see T_audit_10).
+
+### T_audit_10 — Residual cold-load cache mismatch (T_audit_8 didn't fully close it)
+- **Why**: surfaced during T_home_redesign_1 prod verification.
+  Even with `CATALOG_CACHE_VERSION = 2` (T_audit_8 hotfix),
+  cold-loads still show 5 rails (missing every Sprint v2 rail
+  AND the anchor chip-row). Clicking the relocated refresh
+  button immediately recovers all 12 rails — so the API and
+  bundle are correct, something in the cache read path is
+  serving a stale shape on first paint.
+- **What we know**:
+  - The bundle (`index-DAgAW2OI.js` post-T_home_redesign_1) is
+    fresh.
+  - `/api/catalog/summary` returns the full Sprint v2 payload
+    (`trending: 12`, `topVoted: 12`, `aroundTheWorld.stations:
+     8`, `moodRails: 4×10`).
+  - On cold-load, the page renders 5 rails — fresh-now,
+    country-spotlight, genre-spotlight, resume-context, revived-
+    stations. All Sprint v2 rails missing.
+  - Click `[data-action="refresh-feed"]` → rails become 12 in
+    <1s. Same network endpoint, same bundle, same session — only
+    the explicit `refreshSummary(forceNetwork: true)` call
+    differs.
+- **Likely candidates** (audit-first required):
+  - `CatalogContext.tsx` may be serving the IDB-cached payload
+    to React state BEFORE the network fetch completes, even
+    when the network fetch ultimately succeeds. The cached
+    shape leaks into the first render, surface settles with
+    that shape, and the network result doesn't re-trigger the
+    memo (or triggers it but the diff is missed).
+  - Possibly the `radioBrowserFallback.ts` path or the
+    `catalog-fast.json` artifact still has the old shape and is
+    read alongside the summary.
+  - Race between `homeSurface` build (uses summary at memo time)
+    and the summary state update.
+- **Files**: `apps/webapp/src/state/CatalogContext.tsx`,
+  `apps/webapp/src/lib/catalogCache.ts`, possibly
+  `apps/webapp/src/screens/Home.tsx` memo deps.
+- **Done-when**: a cold-load (cleared cache or fresh tab) at
+  prod renders 12 rails without needing the manual refresh
+  click. Add an e2e at `apps/webapp/tests/home-discovery.spec.ts`
+  asserting all 12 rail ids appear on first paint after a
+  catalog-summary mock that includes the Sprint v2 fields.
+- **Priority**: **P1** — every cold-load on prod currently hides
+  the Sprint v2 surface from users until they click refresh.
+  The user reported this exact symptom ("нет места discovery").
+  Relocated refresh-button is the workaround; this is the real
+  fix.
+- **Related pre-existing flake** (worker found during T_home_redesign_1):
+  `mobile.spec.ts:2611 cached summary renders home while
+  catalog summary is offline` fails on master too. Likely a
+  T_audit_8 side-effect — the test writes a v1 cache entry,
+  the new guard rejects it. Folding into this audit since
+  they're the same area.
+
 ### ~~T_audit_8 — IDB catalog cache contract-mismatch invalidation~~ (DONE in 4da92df)
 - **Why**: Chrome MCP QA on 2026-05-27 after PR #29 deploy showed
   Home rendering only 5 rails — fresh-now, country-spotlight,
