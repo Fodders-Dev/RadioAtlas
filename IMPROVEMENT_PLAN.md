@@ -878,7 +878,7 @@ Player across low-power Android/iOS WebView.
   apps/api diff. Not caused by this work — tracked separately as
   T_audit_5 below.
 
-### T_audit_4 — Post-deploy external smoke test (deploy resilience)
+### ~~T_audit_4 — Post-deploy external smoke test (deploy resilience)~~ (DONE in 14ed3c6)
 - **Why**: the 2026-05-27 incident was caught by manual QA, not
   by the deploy pipeline. The existing `wait_for_api_health`
   hits `http://127.0.0.1:3001/health` from the VPS itself —
@@ -891,8 +891,21 @@ Player across low-power Android/iOS WebView.
   is non-2xx within ~30s after deploy completes. Add a Slack/
   log alert if available.
 - **Priority**: do after T_audit_3.
+- **Shipped**: `.github/workflows/deploy-server.yml` adds a
+  `Post-deploy external smoke` step after the SSH deploy returns.
+  Curls `https://radioatlas.duckdns.org/api/health` from the GH
+  runner (external to the VPS) with `--max-time 10 --retry 3
+  --retry-delay 5`. **Hard-fails** on non-2xx OR a body missing
+  `{"ok":true}` — both surface the 2026-05-27 incident class
+  (nginx-down → public 502 even though `127.0.0.1:3001/health`
+  was fine). Worker pushed back on the brief's "soft v1"
+  suggestion and was right: `/api/health` is unaffected by
+  T_audit_5's catalog-summary flake (it doesn't load the
+  catalog), so blocking on it is safe. RUNBOOK.md updated with
+  the manual curl command. First real run: deploy `14ed3c6` —
+  smoke step ✅.
 
-### T_audit_6 — Open-tab chunk-hash invalidation on every deploy
+### ~~T_audit_6 — Open-tab chunk-hash invalidation on every deploy~~ (DONE in 14ed3c6)
 - **Why**: surfaced during T_audit_3 verification on prod —
   navigating to the SPA with a cached `index-*.js` from the
   previous deploy threw `TypeError: Failed to fetch dynamically
@@ -937,6 +950,40 @@ Player across low-power Android/iOS WebView.
 - **Priority**: P1 — affects every active user on every deploy.
   Do alongside T_audit_4 (the external smoke is the OTHER half
   of "deploys don't quietly break users").
+- **Shipped (option A + targeted ErrorBoundary)**:
+  - `deploy-release.sh` — new `preserve_previous_chunks()` runs
+    AFTER the webapp build, BEFORE the `ln -sfn` symlink swap.
+    `rsync -a --ignore-existing` copies the previous release's
+    `apps/webapp/dist/assets/*` into the new release additively.
+    Old chunk hashes stay resolvable for at least one more deploy
+    cycle; new builds win on name collisions.
+  - `apps/webapp/src/components/ErrorBoundary.tsx` — extended
+    T1.7's boundary with chunk-error detection (matches Chrome,
+    Firefox, Safari message strings) + a **timestamp-guarded
+    reload**: 10s cooldown via `sessionStorage`. Loop-safe — a
+    genuinely-broken build re-errors within ms of reload, inside
+    the cooldown window → reload skipped, fallback UI shows.
+    Multi-deploy recovery — errors minutes apart fall outside
+    the window and reload as intended.
+  - `deploy/server/test-preserve-chunks.sh` — focused shell test
+    that verifies `rsync -a --ignore-existing` keeps new builds
+    of the same chunk name (no overwrite) AND fills gaps from
+    the previous release. Skips on hosts without `rsync`.
+- **Audit-first save**: worker pushed back on the brief's draft
+  loop-safeguard ("flag + reset on App `componentDidMount`") —
+  caught that App mount would reset the flag, allowing the loop
+  to recur. Timestamp guard is strictly stronger: tight enough
+  to block a genuine loop, loose enough to recover later. The
+  reset-on-mount draft would have shipped a real bug.
+- **Tests**: 4 new unit tests on ErrorBoundary (chunk-detection,
+  cooldown guard, multi-deploy recovery, non-chunk errors
+  ignored) + 1 e2e for the chunk-loop-safety branch + 1 shell
+  test for the rsync flags. RUNBOOK.md documents both
+  preservation and the manual smoke command.
+- **First deploy** (`14ed3c6`): `Post-deploy external smoke` ✅,
+  Home renders without ErrorBoundary, all 11 rails present,
+  featured tile 248px / sibling 160px (1.55×) — Sprint v2
+  intact, chunk preservation didn't regress anything.
 
 ### T_audit_5 — Catalog-summary first-fetch timeout flake
 - **Why**: `apps/api` test `health and catalog contracts respond
