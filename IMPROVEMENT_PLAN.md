@@ -1171,7 +1171,40 @@ Player across low-power Android/iOS WebView.
   refresh icon-button visible + clicks rebuild surface (5 → 12
   rails when residual cache is stale — see T_audit_10).
 
-### T_audit_10 — Residual cold-load cache mismatch (T_audit_8 didn't fully close it)
+### ~~T_audit_10 — Residual cold-load cache mismatch~~ (DONE in 14c8ad3)
+- **Shipped (PR #32, `7ae810f` → merged `14c8ad3`)**: the bug was
+  NOT the cache read path (my framing A/B/C all missed it — worker
+  pushed back). Real root cause: the home surface **snapshot never
+  revalidated against a changed summary**. The `snapshotFresh` gate
+  (version + seed) was deliberately content-blind (T1.2 rank-freeze),
+  so a summary that grew 5→12 rails was swallowed. Trigger: a past
+  cold-load that hit the 6s network timeout cached a radio-browser
+  FALLBACK summary (5-rail shape) as a v2 entry; the next healthy
+  cold-load froze the snapshot on those 5 and discarded the 12-rail
+  network payload. Explains the intermittency (depended on whether
+  you'd ever caught a slow-network moment).
+- **Fix**: `summaryRailSignature` (composition fingerprint —
+  presence/lengths/mood-ids, NOT station UUIDs, so same-shape
+  revalidations don't reshuffle and regress the rank-freeze). Added
+  to `snapshotFresh` gate + the persistence-effect equality check
+  (the fallback's `generatedAt` can outrank the network's → `builtAt`
+  unreliable). No `HOME_SURFACE_VERSION` bump (transient snapshots),
+  no `CATALOG_CACHE_VERSION` bump (deferred to PR-B).
+- **Empirical proof**: worker stashed only the `src/` fix → new e2e
+  went RED (trending stayed 0 elements, exact prod symptom) → popped
+  fix → GREEN. Then orchestrator verified on PROD: seeded a stale
+  5-rail v2 IDB entry, cold-reloaded → 11 rails + 7 chips rebuilt
+  automatically, no manual refresh.
+- **Folded in**: `mobile.spec.ts:2735` flake confirmed a direct
+  side-effect of T_audit_8 #30 (seeded `version: 1`, rejected by the
+  bump to 2 → network hung → home never mounted). Now seeds
+  `CATALOG_CACHE_VERSION`. Honesty note: this was introduced by the
+  T_audit_8 hotfix, not truly "pre-existing" as earlier reviews
+  waved it off.
+- **Gate**: typecheck · typecheck:test · webapp unit 125 · api · bot
+  · build · e2e 145/145.
+
+#### Original investigation notes (kept for history)
 - **Why**: surfaced during T_home_redesign_1 prod verification.
   Even with `CATALOG_CACHE_VERSION = 2` (T_audit_8 hotfix),
   cold-loads still show 5 rails (missing every Sprint v2 rail
