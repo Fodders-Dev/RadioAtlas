@@ -2537,10 +2537,17 @@ button.app-brand-pill {
 
 .app-topbar-actions {
   display: flex;
-  align-items: flex-start;
+  /* T_home_redesign_1: center the action buttons vertically so unequal label
+     widths (settings vs profile) don't render as a staggered top-aligned pair.
+     Both action buttons also get `flex: 0 0 auto` below — no asymmetric shrink. */
+  align-items: center;
   gap: 10px;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.app-topbar-actions > .nav-utility-btn {
+  flex: 0 0 auto;
 }
 
 .app-topbar-metrics {
@@ -2641,7 +2648,10 @@ button.app-brand-pill {
 }
 
 .mobile-settings-trigger {
-  grid-template-columns: 16px auto;
+  /* T_home_redesign_1: dropped `grid-template-columns: 16px auto` — the
+     settings icon was 16×16 while the profile icon (inheriting base 20px col)
+     was 20×20, which read as misaligned even when the button boxes lined up.
+     Now both share the base `.nav-utility-btn` 20px icon column. */
   width: auto;
   background: rgba(255, 255, 255, 0.035);
 }

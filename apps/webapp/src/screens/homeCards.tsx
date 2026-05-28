@@ -20,6 +20,12 @@ type HomePersonalRadioCardProps = {
   isPlaying: boolean;
   disabled: boolean;
   onPlay: () => void;
+  // T_home_redesign_1: the explicit refresh affordance moved here from
+  // HomeHeroCard. It's the documented escape valve for the rank-freeze
+  // (see home-rank-freeze.spec.ts) — refresh folds session bias back into
+  // the surface when the user feels the rails are "always the same."
+  refreshing: boolean;
+  onRefresh: () => void;
 };
 
 type HomeStationTileProps = {
@@ -170,9 +176,12 @@ export const HomePersonalRadioCard = ({
   queueCount,
   isPlaying,
   disabled,
-  onPlay
+  onPlay,
+  refreshing,
+  onRefresh
 }: HomePersonalRadioCardProps) => {
   const { t } = useLocale();
+  const refreshLabel = t('home.refreshFeed');
   return (
     <section
       className={`home-personal-radio ${dense ? 'is-dense' : ''}`.trim()}
@@ -182,18 +191,37 @@ export const HomePersonalRadioCard = ({
         <span>{t('home.personalRadioTitle')}</span>
         <strong>{t('home.personalRadioCount', { count: queueCount })}</strong>
       </div>
-      <button
-        className="home-personal-play"
-        type="button"
-        onClick={onPlay}
-        disabled={disabled}
-        aria-label={isPlaying ? t('common.pause') : t('home.personalRadioAction')}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          {isPlaying ? <path d="M7 5h4v14H7zm6 0h4v14h-4z" /> : <path d="M8 5v14l11-7z" />}
-        </svg>
-        <span>{isPlaying ? t('common.pause') : t('home.personalRadioAction')}</span>
-      </button>
+      <div className="home-personal-actions">
+        <button
+          className="home-personal-play"
+          type="button"
+          onClick={onPlay}
+          disabled={disabled}
+          aria-label={isPlaying ? t('common.pause') : t('home.personalRadioAction')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            {isPlaying ? <path d="M7 5h4v14H7zm6 0h4v14h-4z" /> : <path d="M8 5v14l11-7z" />}
+          </svg>
+          <span>{isPlaying ? t('common.pause') : t('home.personalRadioAction')}</span>
+        </button>
+        {/* T_home_redesign_1: the rank-freeze escape valve — icon-only refresh
+            button that mirrors the topbar gear/profile icon-button pattern.
+            home-rank-freeze.spec.ts observes the `is-loading` state during the
+            async handleRefresh as proof the click reached refreshSummary. */}
+        <button
+          className={`home-personal-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
+          type="button"
+          onClick={onRefresh}
+          disabled={refreshing}
+          aria-label={refreshLabel}
+          title={refreshLabel}
+          data-action="refresh-feed"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
+          </svg>
+        </button>
+      </div>
     </section>
   );
 };

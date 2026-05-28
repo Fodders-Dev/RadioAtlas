@@ -7,9 +7,11 @@ test.beforeEach(async ({ page }) => {
   await seedRadioState(page);
 });
 
+// T_home_redesign_1: HomeHeroCard is gone; the desktop suite uses the Personal
+// Radio card (always-present top of feed) as the "home is hydrated" sentinel.
 test('desktop shell keeps navigation, queue, and expanded player flow intact', async ({ page }) => {
   await page.goto('/?api=http://127.0.0.1:4311');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await expect(page.locator('.app-navigation-desktop')).toBeVisible();
   await expect(page.locator('.app-topbar-title')).toHaveText('Главная');
@@ -43,7 +45,7 @@ test('desktop shell keeps navigation, queue, and expanded player flow intact', a
 test('desktop home rails expose mouse controls and wheel scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   const firstRail = page.locator('[data-home-rail]').first();
   const railScroll = firstRail.locator('.home-horizontal-scroll');
@@ -66,7 +68,7 @@ test('desktop home rails expose mouse controls and wheel scrolling', async ({ pa
 
 test('search shell exposes filter drawer and station results on desktop', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();
   // v3 hero card replaces the legacy search-command-card.
@@ -182,7 +184,7 @@ test('metadata state recovers from unavailable to live track without losing play
   );
 
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
   await playHomeStation(page, 'Tokyo FM');
   await expect
     .poll(async () =>
@@ -238,7 +240,7 @@ test('metadata state recovers from unavailable to live track without losing play
 
 test('home discovery modules stay non-duplicative across main station shelves', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('[data-home-hero]')).toBeVisible();
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
 
   const modules = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('[data-home-rail]')).map((module) =>

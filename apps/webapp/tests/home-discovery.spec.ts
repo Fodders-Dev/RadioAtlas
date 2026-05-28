@@ -235,4 +235,24 @@ test.describe('T2.23 variety pass', () => {
     // The currently-playing station in the dock is still the first one we clicked.
     await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
   });
+
+  // T_home_redesign_1: HomeHeroCard is gone; fresh-now is now the visual top
+  // of the content area. The companions rail that used to ride above it (one
+  // per `${heroModule.sourceId}-companions`) is also dropped.
+  test('T_home_redesign_1: HomeHeroCard is not rendered; fresh-now leads the rails', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1024 });
+    await openHome(page);
+
+    // No HomeHeroCard in the DOM, and no orphan companions rail.
+    await expect(page.locator('.home-hero-card')).toHaveCount(0);
+    await expect(page.locator('[data-home-hero]')).toHaveCount(0);
+    await expect(page.locator('[data-home-rail$="-companions"]')).toHaveCount(0);
+
+    // fresh-now is the very first rail in document order.
+    const firstRailId = await page
+      .locator('[data-home-rail]')
+      .first()
+      .evaluate((el) => el.getAttribute('data-home-rail'));
+    expect(firstRailId).toBe('fresh-now');
+  });
 });

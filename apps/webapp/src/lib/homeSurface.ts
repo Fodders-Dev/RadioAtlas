@@ -187,11 +187,12 @@ export const createHomeSurfaceFeed = ({
   const usedSourceIds = new Set<string>();
   const rails: HomeRailModule[] = [];
 
-  if (companionStations.length) {
-    rails.push(
-      toRailModule(`${heroModule.sourceId}-companions`, heroModule, companionStations)
-    );
-  }
+  // T_home_redesign_1: the "${hero}-companions" rail was the hero card's
+  // contextual sidekick — with HomeHeroCard removed it becomes orphan. We
+  // skip the push (those stations fall back into blockedStationIds and reach
+  // the user via fresh-now naturally) but keep `companionStations` computed
+  // above because rotateSurfaceFeed in Home.tsx still reads it to rotate the
+  // deck across sessions.
 
   // T2.21 shelf order — personalised fresh-now first, then the new non-
   // personalised discovery rails interleaved with the spotlights for variety:

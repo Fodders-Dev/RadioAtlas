@@ -10,7 +10,6 @@ import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import {
   createHomeResumeModule,
   createHomeSurfaceFeed,
-  type HomeHeroModule,
   type HomeRailModule,
   type HomeSurfaceFeed
 } from '../lib/homeSurface';
@@ -35,7 +34,6 @@ import {
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
-  HomeHeroCard,
   HomePersonalRadioCard,
   HomeRail,
   HomeResumeStrip
@@ -166,17 +164,6 @@ const buildFallbackCounts = (catalog: StationLite[]) => {
 export const isSameSessionBucket = (left: number | null, right: number) => {
   if (!left) return false;
   return Math.floor(left / HOME_SESSION_BUCKET_MS) === Math.floor(right / HOME_SESSION_BUCKET_MS);
-};
-
-const fallbackHero: HomeHeroModule = {
-  titleKey: 'home.personalTitle',
-  copyKey: 'home.freshSignalsCopy',
-  sourceId: 'home-fallback',
-  accent: 'primary',
-  label: null,
-  station: null,
-  companionStations: [],
-  querySuggestion: ''
 };
 
 const createFeedRail = (
@@ -879,21 +866,15 @@ export const Home = () => {
             isPlaying={personalRadioActive && player.isPlaying}
             disabled={!personalRadioQueue.stations.length}
             onPlay={handlePlayPersonalRadio}
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
           />
-          {!denseLayout ? (
-            <HomeHeroCard
-              module={surfaceFeed?.hero || fallbackHero}
-              dense={false}
-              isActive={currentStationId === surfaceFeed?.hero.station?.stationuuid}
-              activeTrack={activeTrack}
-              liked={surfaceFeed?.hero.station ? isFavorite(surfaceFeed.hero.station.stationuuid) : false}
-              refreshing={refreshing || (summaryLoading && !surfaceFeed)}
-              onPlay={handlePlayStation}
-              onToggleFavorite={toggleFavorite}
-              onExplore={openSearch}
-              onRefresh={handleRefresh}
-            />
-          ) : null}
+          {/* T_home_redesign_1: HomeHeroCard removed per the owner's redesign —
+              the personal-radio CTA above stays as the user's entry point and the
+              first content rail (fresh-now) becomes the visual top of the feed.
+              The surfaceFeed.hero field is kept on the type because
+              isSameSurfaceDeck + rotateSurfaceFeed still read .station and
+              .companionStations from it (rotating the deck across sessions). */}
         </>
       )}
 

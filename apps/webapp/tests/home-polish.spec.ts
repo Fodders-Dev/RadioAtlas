@@ -58,6 +58,9 @@ const openHome = async (page: Page) => {
 // F2 metric (reframed): above-fold CONTENT = the hero (a playable, featured
 // station the user sees) + every visible rail station tile. Height-aware — the
 // hero/chip-row/search consume ~684px, so two rail rows (→ ≥12) need ~960px.
+// T_home_redesign_1: HomeHeroCard is no longer rendered; heroCount stays 0
+// and the tile count rises (more vertical space → more tiles in the fold).
+// The ≥12 / ≥7 thresholds hold with margin — no threshold change needed.
 const aboveFoldContent = (page: Page) =>
   page.evaluate(() => {
     const vw = window.innerWidth;
@@ -99,16 +102,17 @@ test.describe('T_audit_3 Home polish', () => {
   test('F2: above-fold content is ≥12 on a wide desktop and ≥7 at the 1280×900 QA fold', async ({ page }) => {
     // ≥12 is a wide-desktop fold metric — two rail rows clear the fold at
     // 1440×960 (where T2.20/T2.23 validated it). The count is height- AND
-    // width-bound: the preserved hero + chip-row + search consume ~684px, so a
-    // second rail row only clears the fold when the content is wide enough to
-    // keep each rail short.
+    // width-bound: chip-row + search consume ~450px, so a second rail row only
+    // clears the fold when the content is wide enough to keep each rail short.
+    // T_home_redesign_1: hero gone, so the floor is now ~18 tiles in practice
+    // at 1440×1024 — the ≥12 threshold is well-padded.
     await page.setViewportSize({ width: 1440, height: 1024 });
     await openHome(page);
     expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(12);
 
-    // The 1280×900 QA viewport fits one rail row + the hero; the rest is one
-    // scroll away (the above-fold is dense, not empty — the prior ≥12 metric
-    // simply ignored the hero and assumed a taller/wider fold).
+    // The 1280×900 QA viewport fits ~12 tiles above the fold post-T_home_redesign_1
+    // (one rail row + most of a second). The ≥7 floor stays — it's still the
+    // "user sees discovery content immediately without scrolling" contract.
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForTimeout(150);
     expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(7);

@@ -20,7 +20,6 @@
 .home-surface-kicker,
 .home-surface-label,
 .home-section-badge,
-.home-refresh-chip,
 .home-inline-link,
 .home-search-chip,
 .home-companion-chip {
@@ -43,7 +42,6 @@
    "The United States Of America" turns into a shouty placeholder
    and Cyrillic strings get mangled letter-spacing. */
 .home-section-badge,
-.home-refresh-chip,
 .home-inline-link {
   text-transform: uppercase;
 }
@@ -53,12 +51,6 @@
   font-size: 0.78rem;
   letter-spacing: 0.01em;
   font-weight: 500;
-}
-
-.home-refresh-chip svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
 }
 
 .home-hero-card,
@@ -151,7 +143,6 @@
   flex-wrap: wrap;
 }
 
-.home-refresh-chip,
 .home-inline-link,
 .home-search-chip,
 .home-companion-chip,
@@ -170,7 +161,6 @@
     opacity 140ms ease;
 }
 
-.home-refresh-chip:hover,
 .home-inline-link:hover,
 .home-search-chip:hover,
 .home-companion-chip:hover,
@@ -180,10 +170,6 @@
 .home-action-btn:hover,
 .home-icon-btn:hover {
   transform: translateY(-1px);
-}
-
-.home-refresh-chip.is-loading {
-  opacity: 0.7;
 }
 
 .home-hero-body {
@@ -386,6 +372,59 @@
   width: 18px;
   height: 18px;
   fill: currentColor;
+}
+
+/* T_home_redesign_1: wrap the play CTA + the relocated refresh icon so they
+   share the right column of the Personal-Radio card. The play button keeps
+   its existing typography; the refresh sits to its right as a small icon-only
+   button mirroring the topbar gear/profile pattern. */
+.home-personal-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-personal-refresh {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(180, 223, 255, 0.18);
+  background: rgba(8, 14, 24, 0.42);
+  color: rgba(229, 241, 255, 0.84);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.home-personal-refresh:hover,
+.home-personal-refresh:focus-visible {
+  background: rgba(20, 36, 56, 0.62);
+  color: rgba(244, 250, 255, 0.96);
+  border-color: rgba(180, 223, 255, 0.28);
+}
+
+.home-personal-refresh:disabled,
+.home-personal-refresh.is-loading {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.home-personal-refresh.is-loading svg {
+  animation: home-personal-refresh-spin 0.9s linear infinite;
+}
+
+.home-personal-refresh svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+@keyframes home-personal-refresh-spin {
+  to { transform: rotate(360deg); }
 }
 
 .home-hero-metrics {
@@ -1032,7 +1071,6 @@
 
   .screen-home-next[data-density='dense'] .home-inline-link,
   .screen-home-next[data-density='dense'] .home-search-chip,
-  .screen-home-next[data-density='dense'] .home-refresh-chip,
   .screen-home-next[data-density='dense'] .home-section-badge {
     min-height: 28px;
     padding: 0 9px;
@@ -1059,7 +1097,6 @@
   display: none;
 }
 
-.app-shell-v2[data-low-power='true'] .home-refresh-chip,
 .app-shell-v2[data-low-power='true'] .home-inline-link,
 .app-shell-v2[data-low-power='true'] .home-search-chip,
 .app-shell-v2[data-low-power='true'] .home-companion-chip,
@@ -1095,6 +1132,15 @@
 .home-personal-radio.is-dense .home-personal-play {
   min-height: 40px;
   padding: 0 14px;
+}
+
+.home-personal-radio.is-dense .home-personal-refresh {
+  width: 40px;
+  height: 40px;
+}
+
+.home-personal-radio.is-dense .home-personal-actions {
+  gap: 6px;
 }
 
 .screen-home-next[data-density='dense'] .home-hero-card {
