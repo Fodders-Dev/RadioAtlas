@@ -183,7 +183,7 @@ test('home surface stays stable during like and play actions', async ({ page }) 
 test('home refresh rebuilds the discovery surface', async ({ page }) => {
   await openHome(page);
   const before = JSON.stringify(await readHomeSurfaceSignature(page));
-  await page.locator('.home-refresh-chip').click();
+  await page.locator('.home-personal-refresh').click();
   await expect
     .poll(async () => JSON.stringify(await readHomeSurfaceSignature(page)))
     .not.toBe(before);
