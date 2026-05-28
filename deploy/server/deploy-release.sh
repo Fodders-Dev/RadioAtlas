@@ -106,6 +106,36 @@ sync_nginx_config() {
   fi
 }
 
+# T_audit_6: copy the previous release's built webapp chunks into the NEW
+# release's assets dir BEFORE the symlink swap. Vite emits content-hashed chunk
+# filenames, so a deploy that rebuilds (say) Home.tsx replaces Home-{oldHash}.js
+# with Home-{newHash}.js and deletes the old file. Any tab that cached the old
+# index-*.js then 404s on the next lazy nav and trips the ErrorBoundary.
+# Additive rsync (--ignore-existing) keeps old hashes resolvable: same name?
+# the new build wins; missing? the old chunk fills the gap. The ErrorBoundary
+# reload is the safety net if a deeper deploy-chain still misses a hash.
+preserve_previous_chunks() {
+  local prev_target=""
+  prev_target="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+
+  if [[ -z "$prev_target" ]]; then
+    return 0  # first deploy
+  fi
+  if [[ "$prev_target" == "$RELEASE_DIR" ]]; then
+    return 0  # re-deploying the same sha; nothing to merge
+  fi
+
+  local prev_assets="$prev_target/apps/webapp/dist/assets"
+  local new_assets="$RELEASE_DIR/apps/webapp/dist/assets"
+
+  if [[ ! -d "$prev_assets" || ! -d "$new_assets" ]]; then
+    return 0
+  fi
+
+  rsync -a --ignore-existing "$prev_assets/" "$new_assets/"
+  echo "Preserved previous-release chunks from $prev_target/apps/webapp/dist/assets" >&2
+}
+
 assert_webapp_dist() {
   local web_root="$CURRENT_LINK/apps/webapp/dist"
   local index_file="$web_root/index.html"
@@ -202,6 +232,10 @@ npm ci
 npm --workspace apps/webapp run build
 npm --workspace apps/api run build
 npm --workspace apps/bot run build
+
+# T_audit_6: must run AFTER the webapp build (so the new assets dir exists) and
+# BEFORE the symlink swap (so $CURRENT_LINK still points at the previous release).
+preserve_previous_chunks
 
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 assert_webapp_dist
