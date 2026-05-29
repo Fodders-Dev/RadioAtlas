@@ -169,6 +169,37 @@ const normalizeTasteProfile = (profile: TasteProfileV2 | null | undefined): Tast
       }
     : DEFAULT_TASTE_PROFILE_V2;
 
+// T_audit_9: a coarse fingerprint of what the user's taste currently FAVOURS —
+// the rank-ordered ids of the top tags, plus the size of the hidden-station
+// set. Home's surface memo reads the live tasteProfile through a ref (so a play
+// burst doesn't re-shuffle rails mid-scroll), which also meant taste only
+// propagated at the next 30-min session-bucket flip. The home snapshot now also
+// carries this signature and the freshness gate compares it, so a meaningful
+// taste shift re-ranks the surface eagerly — but a single `play-started`
+// (+1.71 to its primary tag) nudges scores too little to reorder the top tags,
+// while a `liked` (+11.4) / `skip-before-10s` (−2.44…−12) / hide does. Ids, not
+// raw weights: magnitude churn from a play-nudge never leaks into the signature.
+export const TASTE_SIGNATURE_TOP_TAGS = 8;
+// Only tags the user has FAVOURED past this score feed the signature. This is
+// the churn guard: a single play-started (+1.71 to its tag) or the incidental
+// skip-before-10s on the outgoing station when you switch stations (−4.2) stay
+// below it, so browsing/playing never reorders the top set → snapshot stays
+// frozen (T1.2). An explicit liked (+11.4) or saved-to-collection (+7.6), or
+// sustained listening, crosses it → the surface re-ranks. The threshold sits
+// between a single listened-30s (≈5.1) and a save (≈7.6).
+export const TASTE_SIGNATURE_MIN_SCORE = 7;
+
+export const tasteSignature = (profile: TasteProfileV2 | null | undefined): string => {
+  const normalized = normalizeTasteProfile(profile);
+  const topTags = Object.entries(normalized.tagScores)
+    .filter(([, score]) => score >= TASTE_SIGNATURE_MIN_SCORE)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, TASTE_SIGNATURE_TOP_TAGS)
+    .map(([tag]) => tag)
+    .join('>');
+  return `${topTags}|h:${normalized.hiddenStationIds.length}`;
+};
+
 const mergeScoreMaps = (limit: number, ...sources: Array<Record<string, number> | null | undefined>) =>
   trimScores(
     sources.reduce<Record<string, number>>((scores, source) => {
