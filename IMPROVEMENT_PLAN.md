@@ -1544,6 +1544,80 @@ handshake win below is geography-independent.)
 
 ---
 
+## Growth Sprint — viral sharing & word-of-mouth (owner-requested 2026-05-29)
+
+Owner goal: *"хочу чтобы люди сами рекламировали приложение"* — make
+RadioAtlas spread through its users. The station-share button had also
+regressed off the cards. Full growth sprint approved.
+
+**Audit findings (orchestrator, 2026-05-29):** the deep-link infra is
+LIVE in prod — `VITE_TG_BOT=radioatlasbot` is set, `makeDeepLink` emits
+`t.me/radioatlasbot?startapp=station_<uuid>`, and a recipient lands on
+the station (`getStartParam` → `parseStationParam` → App.tsx opens it).
+Share buttons exist in FullPlayer / LitePlayer / StationDetails. What's
+broken: (1) no share affordance on station CARDS (Home rails / Search /
+Library) — it left during the T2.20/T_mobile_1 density passes; (2) the
+`shareStation` flow (RadioContext.tsx:1615) prefers a SILENT clipboard
+copy in Telegram WebView and only reaches the native share-to-chat as a
+last resort, via the wrong `openLink` (not `openTelegramLink`); (3) a
+bare `t.me/{bot}` deep link always unfurls as the bot's generic preview,
+never a per-station card — pretty cards require the bot (inline mode or
+a bot-sent photo card).
+
+Four phases, each its own PR, sequenced, audit-first + push-back each.
+
+### T_share_1 — Share UX foundation (webapp, PR — START HERE)
+- Restore a card-level share affordance WITHOUT re-cluttering the dense
+  tile that T2.20/T_mobile_1 fought for (placement is the key framing
+  question — Search/Library rows have room; the dense Home tile may want
+  share via long-press / overflow rather than a 3rd always-on icon).
+- Fix `shareStation` flow: in Telegram WebView, prefer
+  `tg.openTelegramLink('https://t.me/share/url?url=<deeplink>&text=…')`
+  FIRST (opens the native forward-to-chat picker — the viral path), then
+  `navigator.share` (non-TG mobile web), then clipboard as the true last
+  resort. Stop using `openLink` for t.me URLs.
+- Polish: consistent share icon, toast copy, `stopPropagation` so a card
+  share doesn't trigger the T_mobile_1 click-tile-to-play.
+- **Done-when**: share reachable from a card in ≤1 tap-path; in Telegram
+  it opens the chat picker (not silent copy); deep link still lands the
+  recipient on the station; no density regression; e2e + unit green.
+
+### T_share_2 — Inline mode (bot, PR — the biggest viral lever + pretty cards)
+- `@radioatlasbot <query>` in ANY chat → inline results of matching
+  stations (artwork thumbnail + name + genre), each sending a message
+  with a `▶ Listen` deep-link button. Lets users share stations without
+  opening the app, and produces the rich per-station card the bare t.me
+  link can't.
+- Uses the existing `/catalog/search` API. Needs the bot inline-query
+  handler + answerInlineQuery with cached results.
+- **Done-when**: inline query returns ≥N station cards; selecting one
+  posts a card whose button deep-links to that station; bot test covers
+  the inline handler.
+
+### T_share_3 — Share to Telegram Story (webapp, PR)
+- One-tap "share current station to your Story" via the `shareToStory`
+  WebApp API (TG 7.8+), with the station artwork + a deep-link widget
+  so viewers tap through to the station. Feature-detect + hide if the
+  API is absent.
+- **Done-when**: from the player, a Story share opens with artwork +
+  working deep-link; gracefully hidden where unsupported.
+
+### T_share_4 — Referral attribution + reward (webapp + api, PR — last)
+- Deep links carry `startapp=ref_<userId>` (the `link_`/`ref_` start-
+  param plumbing already exists in `authRoutes.ts`); attribute the new
+  user to the inviter; reward the inviter (e.g. unlock a bundled theme
+  or a short premium trial — ties into the existing billing/theme
+  system). Anti-abuse: no self-referral, one credit per new user.
+- **Done-when**: a referred open credits the inviter exactly once;
+  reward granted; abuse paths covered by tests.
+
+### Parked behind the growth sprint (resume after)
+- **T_perf_3** (split 131KB CSS) and **T_infra_1** (strip vestigial
+  nginx from the deploy) — queued worker tickets, deferred by owner in
+  favour of the growth sprint. Pick back up when the sprint lands.
+
+---
+
 ## Tier 3 — Architecture & maintainability
 
 ### T3.1 Split `RadioContext.tsx`
