@@ -74,7 +74,8 @@ import {
   getTelegramWebApp,
   isInsideTelegramClient,
   makeDeepLink,
-  openLinkOrFallback
+  openLinkOrFallback,
+  shareStationLink
 } from '../lib/telegram';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useLocale } from './LocaleContext';
@@ -1620,44 +1621,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const title = station.name;
     const text = `Listen live: ${station.name}`;
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        notify(t('toast.shareDialog'));
-        return;
-      } catch {
-        // ignore
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(`${title} ${url}`);
-      notify(t('toast.linkCopied'));
-      return;
-    } catch {
-      // ignore
-    }
-
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-    const tg = getTelegramWebApp();
-
-    if (tg?.openLink) {
-      tg.openLink(shareUrl);
-      notify(t('toast.shareOpened'));
-      return;
-    }
-
-    try {
-      const popup = window.open(shareUrl, '_blank', 'noopener,noreferrer');
-      if (popup) {
+    // T_share_1: the ordered flow lives in shareStationLink (Telegram native
+    // chat-picker first, then web share sheet, then clipboard). Deep link is
+    // unchanged — makeDeepLink → t.me/<bot>?startapp=station_<uuid>.
+    const outcome = await shareStationLink({ url, title, text });
+    switch (outcome) {
+      case 'telegram':
+      case 'opened':
         notify(t('toast.shareOpened'));
-        return;
-      }
-    } catch {
-      // ignore
+        break;
+      case 'web-share':
+        notify(t('toast.shareDialog'));
+        break;
+      case 'clipboard':
+        notify(t('toast.linkCopied'));
+        break;
+      default:
+        notify(t('toast.shareFailed'));
     }
-
-    notify(t('toast.shareFailed'));
   };
 
   const rememberTrackHistory = (

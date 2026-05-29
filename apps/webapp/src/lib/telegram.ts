@@ -100,6 +100,90 @@ export const openTelegramLinkOrFallback = (url: string): void => {
   }
 };
 
+// T_share_1: ordered station-share flow. The viral path is Telegram's native
+// forward-to-chat picker, so in a Telegram WebView we open `t.me/share/url` via
+// `openTelegramLink` FIRST (the old order tried navigator.share → silent
+// clipboard first, so in-client users never saw the chat picker — they just got
+// a quiet "link copied"). Outside Telegram we fall to the native web share
+// sheet, then clipboard as a true last resort, then a plain new-tab open.
+//
+// NOT routed through openTelegramLinkOrFallback: its openLink/window.open
+// fallback would pre-empt the navigator.share step, so we gate the Telegram
+// branch on `openTelegramLink` presence and keep window.open as the FINAL
+// fallback only. Effects are injectable so the ordering is unit-testable
+// (mirrors the openTelegramLinkOrFallback test seam).
+export type ShareStationPayload = { url: string; title: string; text: string };
+export type ShareStationOutcome = 'telegram' | 'web-share' | 'clipboard' | 'opened' | 'failed';
+
+type ShareStationDeps = {
+  tg?: TelegramWebApp | null;
+  share?: ((data: { title?: string; text?: string; url?: string }) => Promise<void>) | null;
+  clipboardWrite?: ((text: string) => Promise<void>) | null;
+  openExternal?: (url: string) => boolean;
+};
+
+export const buildTelegramShareUrl = (url: string, text: string) =>
+  `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+
+export const shareStationLink = async (
+  { url, title, text }: ShareStationPayload,
+  deps: ShareStationDeps = {}
+): Promise<ShareStationOutcome> => {
+  const shareUrl = buildTelegramShareUrl(url, text);
+  const tg = deps.tg !== undefined ? deps.tg : getTelegramWebApp();
+
+  // 1) Telegram WebView → native forward-to-chat picker (the viral path).
+  if (tg?.openTelegramLink) {
+    tg.openTelegramLink(shareUrl);
+    return 'telegram';
+  }
+
+  // 2) Non-Telegram mobile web with a native share sheet.
+  const share =
+    deps.share !== undefined
+      ? deps.share
+      : typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+        ? navigator.share.bind(navigator)
+        : null;
+  if (share) {
+    try {
+      await share({ title, text, url });
+      return 'web-share';
+    } catch {
+      // user dismissed or the sheet failed → fall through to clipboard
+    }
+  }
+
+  // 3) True last resort: copy the link.
+  const clipboardWrite =
+    deps.clipboardWrite !== undefined
+      ? deps.clipboardWrite
+      : typeof navigator !== 'undefined' && navigator.clipboard?.writeText
+        ? navigator.clipboard.writeText.bind(navigator.clipboard)
+        : null;
+  if (clipboardWrite) {
+    try {
+      await clipboardWrite(`${title} ${url}`);
+      return 'clipboard';
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4) Last-ditch: open the Telegram share page in a new tab.
+  const openExternal =
+    deps.openExternal ??
+    ((target: string) =>
+      typeof window !== 'undefined'
+        ? Boolean(window.open(target, '_blank', 'noopener,noreferrer'))
+        : false);
+  if (openExternal(shareUrl)) {
+    return 'opened';
+  }
+
+  return 'failed';
+};
+
 const readUrlParamSource = (value: string) => {
   const normalized = value.trim().replace(/^#/, '');
   if (!normalized) {

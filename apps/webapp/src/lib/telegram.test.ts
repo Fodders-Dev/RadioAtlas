@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildTelegramShareUrl,
   getStartParam,
   getTelegramThemeParams,
   getTelegramWebApp,
   isInsideTelegramClient,
   openLinkOrFallback,
   openTelegramLinkOrFallback,
+  shareStationLink,
   subscribeTelegramThemeChange,
   triggerHaptic,
   type TelegramWebApp
@@ -289,5 +291,104 @@ describe('getStartParam', () => {
     } finally {
       window.history.replaceState(null, '', originalHref);
     }
+  });
+});
+
+describe('shareStationLink (T_share_1 flow order)', () => {
+  const payload = { url: 'https://t.me/radioatlasbot?startapp=station_abc', title: 'Tokyo FM', text: 'Listen live: Tokyo FM' };
+
+  it('in a Telegram WebView opens the native chat picker FIRST and never touches clipboard/share', async () => {
+    const calls: { openTelegramLink: string[]; share: number; clipboard: number } = {
+      openTelegramLink: [],
+      share: 0,
+      clipboard: 0
+    };
+    const outcome = await shareStationLink(payload, {
+      tg: { openTelegramLink: (url: string) => calls.openTelegramLink.push(url) } as unknown as TelegramWebApp,
+      share: async () => {
+        calls.share += 1;
+      },
+      clipboardWrite: async () => {
+        calls.clipboard += 1;
+      }
+    });
+    expect(outcome).toBe('telegram');
+    expect(calls.openTelegramLink).toHaveLength(1);
+    expect(calls.openTelegramLink[0]).toBe(buildTelegramShareUrl(payload.url, payload.text));
+    expect(calls.openTelegramLink[0]).toContain('https://t.me/share/url?url=');
+    // The bug being fixed: in-client users must NOT get a silent clipboard copy
+    // (or a web share sheet) instead of the chat picker.
+    expect(calls.clipboard).toBe(0);
+    expect(calls.share).toBe(0);
+  });
+
+  it('outside Telegram uses the native web share sheet (not clipboard)', async () => {
+    let sharedUrl: string | undefined;
+    let clipboardCalls = 0;
+    const outcome = await shareStationLink(payload, {
+      tg: null,
+      share: async (data) => {
+        sharedUrl = data.url;
+      },
+      clipboardWrite: async () => {
+        clipboardCalls += 1;
+      }
+    });
+    expect(outcome).toBe('web-share');
+    expect(sharedUrl).toBe(payload.url);
+    expect(clipboardCalls).toBe(0);
+  });
+
+  it('falls back to clipboard when there is no Telegram and no web share sheet', async () => {
+    let copied = '';
+    const outcome = await shareStationLink(payload, {
+      tg: null,
+      share: null,
+      clipboardWrite: async (text) => {
+        copied = text;
+      }
+    });
+    expect(outcome).toBe('clipboard');
+    expect(copied).toBe(`${payload.title} ${payload.url}`);
+  });
+
+  it('falls through to clipboard when the web share sheet is dismissed/rejected', async () => {
+    let copied = '';
+    const outcome = await shareStationLink(payload, {
+      tg: null,
+      share: async () => {
+        throw new Error('AbortError');
+      },
+      clipboardWrite: async (text) => {
+        copied = text;
+      }
+    });
+    expect(outcome).toBe('clipboard');
+    expect(copied).toBe(`${payload.title} ${payload.url}`);
+  });
+
+  it('opens the share page in a new tab as the last resort', async () => {
+    let opened = '';
+    const outcome = await shareStationLink(payload, {
+      tg: null,
+      share: null,
+      clipboardWrite: null,
+      openExternal: (url) => {
+        opened = url;
+        return true;
+      }
+    });
+    expect(outcome).toBe('opened');
+    expect(opened).toBe(buildTelegramShareUrl(payload.url, payload.text));
+  });
+
+  it('reports failure when every channel is unavailable', async () => {
+    const outcome = await shareStationLink(payload, {
+      tg: null,
+      share: null,
+      clipboardWrite: null,
+      openExternal: () => false
+    });
+    expect(outcome).toBe('failed');
   });
 });

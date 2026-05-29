@@ -27,7 +27,7 @@ type SearchResultCardProps = {
 
 const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps) => {
   const { t } = useLocale();
-  const { playStation, player } = usePlayback();
+  const { playStation, player, shareStation } = usePlayback();
   const { toggleFavorite, isFavorite } = useLibrary();
   const active = player.current?.stationuuid === station.stationuuid;
   const liked = isFavorite(station.stationuuid);
@@ -89,6 +89,20 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+          </svg>
+        </button>
+        <button
+          className="icon-btn search-card-share"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            void shareStation(station);
+          }}
+          aria-label={t('common.share')}
+          title={t('common.share')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
           </svg>
         </button>
       </div>
