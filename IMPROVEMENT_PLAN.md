@@ -1566,6 +1566,20 @@ a bot-sent photo card).
 
 Four phases, each its own PR, sequenced, audit-first + push-back each.
 
+### ~~T_share_1 — Share UX foundation~~ (DONE in 8926b46, PR #37)
+- **Shipped**: extracted the ordered flow into a unit-testable
+  `shareStationLink` (telegram.ts) — TG `openTelegramLink(t.me/share/url)`
+  → `navigator.share` → clipboard → `window.open`. Old order silently
+  copied in-client and never showed the chat picker. `shareStation`
+  now a thin wrapper → existing toasts; deep link untouched. Share icon
+  restored on Search cards (`SearchResultCard`) AND Library/Search rows
+  (`StationTable`, both compact+non-compact); Home tile deferred
+  (density protected). All buttons `stopPropagation`. Worker correctly
+  did NOT route through `openTelegramLinkOrFallback` (its open fallback
+  would pre-empt the web-share step). Gate: webapp unit 136 · api 83 ·
+  bot 12 · build · visual 9/9 (search baseline regen) · e2e 147/147.
+
+#### (original T_share_1 brief)
 ### T_share_1 — Share UX foundation (webapp, PR — START HERE)
 - Restore a card-level share affordance WITHOUT re-cluttering the dense
   tile that T2.20/T_mobile_1 fought for (placement is the key framing
