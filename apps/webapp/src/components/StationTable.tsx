@@ -85,6 +85,7 @@ type StationTableRowProps = {
   onPlay: (station: StationLite) => void;
   onToggleFavorite: (station: StationLite) => void;
   onToggleHidden: (station: StationLite, currentlyHidden: boolean) => void;
+  onShare: (station: StationLite) => void;
 };
 
 const StationTableRow = memo(({
@@ -99,7 +100,8 @@ const StationTableRow = memo(({
   activePlayback,
   onPlay,
   onToggleFavorite,
-  onToggleHidden
+  onToggleHidden,
+  onShare
 }: StationTableRowProps) => {
   const { t } = useLocale();
   const rowRef = useRef<HTMLDivElement | null>(null);
@@ -319,6 +321,20 @@ const StationTableRow = memo(({
               </svg>
             </button>
             <button
+              className="icon-btn station-share-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShare(station);
+              }}
+              type="button"
+              aria-label={t('common.share')}
+              title={t('common.share')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
+              </svg>
+            </button>
+            <button
               className={`icon-btn station-hide-btn ${hidden ? 'active' : ''}`}
               onClick={toggleHidden}
               type="button"
@@ -400,6 +416,20 @@ const StationTableRow = memo(({
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+            <button
+              className="icon-btn station-share-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShare(station);
+              }}
+              type="button"
+              aria-label={t('common.share')}
+              title={t('common.share')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
               </svg>
             </button>
             <button
@@ -531,7 +561,7 @@ export const StationTable = ({
   // With the row memoized and these reads lifted up, only this component
   // plus the one active row (whose activePlayback prop changes) re-render
   // per tick. (T2.11a)
-  const { player, nowPlaying, nowPlayingStatus, playStation } = usePlayback();
+  const { player, nowPlaying, nowPlayingStatus, playStation, shareStation } = usePlayback();
   const {
     favorites,
     behaviorProfile,
@@ -549,13 +579,15 @@ export const StationTable = ({
     playStation,
     toggleFavorite,
     hideStationFromRecommendations,
-    unhideStationFromRecommendations
+    unhideStationFromRecommendations,
+    shareStation
   });
   actionsRef.current = {
     playStation,
     toggleFavorite,
     hideStationFromRecommendations,
-    unhideStationFromRecommendations
+    unhideStationFromRecommendations,
+    shareStation
   };
   const queueConfigRef = useRef({ stations, sourceId, buildQueue });
   queueConfigRef.current = { stations, sourceId, buildQueue };
@@ -577,6 +609,9 @@ export const StationTable = ({
     } else {
       actionsRef.current.hideStationFromRecommendations(station);
     }
+  }, []);
+  const handleShare = useCallback((station: StationLite) => {
+    void actionsRef.current.shareStation(station);
   }, []);
 
   // O(1) favorite lookup per row instead of favorites.some() per row per
@@ -608,6 +643,7 @@ export const StationTable = ({
         onPlay={handlePlay}
         onToggleFavorite={handleToggleFavorite}
         onToggleHidden={handleToggleHidden}
+        onShare={handleShare}
       />
     );
   };

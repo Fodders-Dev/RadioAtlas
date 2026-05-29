@@ -2874,3 +2874,44 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     expect(tilesPerFirstRow).toBeGreaterThanOrEqual(3);
   });
 });
+
+test('T_share_1: search card share is reachable in one tap, does not play, no overflow at 390px', async ({
+  page
+}) => {
+  // Stub the web share sheet so the click resolves cleanly in headless Chromium
+  // (no Telegram, no native sheet) instead of falling through to a popup tab.
+  await page.addInitScript(() => {
+    (window as unknown as { __shareCalls: number }).__shareCalls = 0;
+    (navigator as unknown as { share: (data: unknown) => Promise<void> }).share = async () => {
+      (window as unknown as { __shareCalls: number }).__shareCalls += 1;
+    };
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await seedRadioState(page, { activeSection: 'search', stationCache: stations });
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible({ timeout: 15_000 });
+  await page.locator('#search-hero-input').first().fill('jpop');
+
+  const card = page.locator('[data-search-station-card]').first();
+  await expect(card).toBeVisible();
+
+  // Restored card-level share, reachable in one tap.
+  const shareBtn = card.locator('.search-card-share');
+  await expect(shareBtn).toBeVisible();
+  await shareBtn.click();
+
+  // The share fired (web-share path) and — crucially — playback did NOT start:
+  // the stopPropagation guard keeps the share click off the play affordance.
+  await expect
+    .poll(async () => page.evaluate(() => (window as unknown as { __shareCalls: number }).__shareCalls))
+    .toBeGreaterThan(0);
+  await expect(page.locator('.player-dock-bar')).toHaveCount(0);
+
+  // Density: the extra icon must not introduce horizontal overflow at 390px.
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
