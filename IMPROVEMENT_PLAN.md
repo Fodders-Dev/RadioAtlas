@@ -1624,6 +1624,36 @@ Four phases, each its own PR, sequenced, audit-first + push-back each.
   posts a card whose button deep-links to that station; bot test covers
   the inline handler.
 
+### ~~T_share_fix — deep-linked http stream doesn't play~~ (DONE in a0bd1ec, PR #39 — pending real-Telegram confirm)
+- **The share payoff bug**: a shared station opened the Mini App but
+  never played. Root cause (decision layer, `playbackTransport.ts`
+  `buildCandidates`): the `/api/stream` proxy candidate was gated behind
+  the racy 2.2s `apiAvailable` check. For an `http://` stream on the
+  https Mini App the proxy is the ONLY viable transport (direct =
+  mixed-content), so when the cold deep-link mount outran `/health`,
+  `apiAvailable=false` dropped the sole candidate → `blockedMixedContent`
+  → `audio_no_playable_candidate` → dock stuck on "Выбери станцию".
+- **Prod trigger** (orchestrator recon): Telegram launches with an
+  ABSOLUTE api base (`?api=https://radioatlas.duckdns.org/api` from the
+  menu button / startapp), so `checkApiAvailability` does a real
+  `/health` fetch (not the optimistic relative-`/api` path) → the cold
+  deep-link play races it → false. Normal taps find the check warm → why
+  in-app play worked but deep-link didn't.
+- **Fix** (webapp-only): (1) `buildCandidates` — for http-on-https with
+  an apiBase set, the proxy is mandatory: `canUseProxy = … &&
+  (apiAvailable || httpProxyMandatory)`; `apiUnavailable` gains
+  `&& !canUseProxy` to stay accurate. (2) `useAudioPlayer` — skip the
+  2.2s availability await for the http-mandatory case (its result can't
+  change the outcome; removes the launch→2.2s→[or never] stall → shared
+  deep link plays instantly). Red→green unit (`unit.spec.ts`): http +
+  apiBase + apiAvailable=false → proxy built, not blocked; no-base http
+  still blocked. Gate: webapp unit 136 · api 83 · bot 23 · e2e 148/148.
+- **NOTE — not browser-verifiable**: local dev is http and Chrome
+  standalone doesn't select stations at all (autoplay/standalone quirk),
+  so the https mixed-content path is only confirmable in real Telegram.
+  Decision-layer fix is unit-proven; **awaiting Артём's phone test**
+  (deep-link Казак ФМ from inline → should play).
+
 ### T_share_3 — Share to Telegram Story (webapp, PR)
 - One-tap "share current station to your Story" via the `shareToStory`
   WebApp API (TG 7.8+), with the station artwork + a deep-link widget
