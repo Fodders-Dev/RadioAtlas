@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { AppScreenSkeleton } from './components/AppScreenSkeleton';
 import { ErrorBoundary, ErrorProbe, ScreenErrorFallback } from './components/ErrorBoundary';
-import { reportError } from './lib/observability';
+import { reportClientEvent, reportError } from './lib/observability';
 import { SettingsSheet } from './components/SettingsSheet';
 import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
-import { buildLabel } from './lib/buildInfo';
+import { APP_COMMIT, buildLabel } from './lib/buildInfo';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
 import { useCompactLayout } from './lib/useCompactLayout';
@@ -198,8 +198,17 @@ const App = () => {
   useEffect(() => {
     if (startHandledRef.current) return;
     const startParam = getStartParam();
+    // T_deeplink_telemetry: instrument every step of the deep-link play path so
+    // the real failure point is observable server-side (/observability) after a
+    // single real-device LAUNCH tap — we've misdiagnosed this 3×. Pure
+    // diagnostic, no behaviour change; trim once the cause is pinned. dedupeKey
+    // is per-step so each cold-start tap records cleanly.
     if (!startParam) {
       startHandledRef.current = true;
+      reportClientEvent('deeplink_no_param', {
+        dedupeKey: 'deeplink_no_param',
+        meta: { buildCommit: APP_COMMIT }
+      });
       return;
     }
 
@@ -207,19 +216,42 @@ const App = () => {
     startHandledRef.current = true;
     let cancelled = false;
 
+    reportClientEvent('deeplink_enter', {
+      dedupeKey: 'deeplink_enter',
+      meta: {
+        startParamRaw: getStartParam() || 'null',
+        parsedId: stationId || 'null',
+        // Confirms the device runs the NEW bundle (rules out a stale Telegram
+        // webview cache when an event is missing).
+        buildCommit: APP_COMMIT
+      }
+    });
+
     void (async () => {
       try {
         // T_deeplink_resilience: retry the by-id lookup through the transient
         // cold-boot 503 (the boot request burst stalls the API) so a shared
         // station actually resolves and plays instead of silently bailing.
         const station = await fetchStationById(stationId, { retryOn5xx: true });
-        if (cancelled || !station) return;
+        if (cancelled) return;
+        reportClientEvent('deeplink_resolve', {
+          dedupeKey: 'deeplink_resolve',
+          meta: { found: Boolean(station), stationId }
+        });
+        if (!station) return;
+        reportClientEvent('deeplink_play', {
+          dedupeKey: 'deeplink_play',
+          meta: { stationId, name: station.name }
+        });
         playStation(station, {
           sourceId: 'deep-link',
           sourceLabel: t('radio.deepLink')
         });
-      } catch {
-        // ignore deep-link lookup failures
+      } catch (err) {
+        reportClientEvent('deeplink_error', {
+          dedupeKey: 'deeplink_error',
+          meta: { message: String(err).slice(0, 200) }
+        });
       }
     })();
 
