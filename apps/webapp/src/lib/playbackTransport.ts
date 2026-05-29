@@ -131,7 +131,18 @@ export const buildCandidates = ({
   const isHttpLocal = typeof window !== 'undefined' && window.location.protocol === 'http:';
   const isHttpUrl = url.startsWith('http://') || url.startsWith('https://');
   const proxyRelevant = isHttpUrl || isHls(url) || !isDirectAudioUrl(url);
-  const canUseProxy = Boolean(normalizedBase) && proxyRelevant && apiAvailable;
+  // T_share_fix: an http:// stream on a secure (https) page can ONLY play via
+  // the same-origin /api/stream proxy — the direct URL is mixed-content blocked.
+  // The proxy is therefore mandatory here, not optional: gating it behind the
+  // racy 2.2s apiAvailable check dropped the sole viable candidate on a cold
+  // deep-link mount (audio_no_playable_candidate → dock stuck). apiAvailable
+  // stays a proxy-vs-direct *preference* for https streams; for http-on-https it
+  // must not be a gate. (Same-origin proxy: if the https app loaded, it's
+  // reachable — and trying it and failing beats "no candidate".)
+  const httpProxyMandatory =
+    url.startsWith('http://') && !isHttpLocal && Boolean(normalizedBase);
+  const canUseProxy =
+    Boolean(normalizedBase) && proxyRelevant && (apiAvailable || httpProxyMandatory);
   const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
   const shouldForceProxyCandidate = canUseProxy && shouldForceProxyStreaming();
   const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
@@ -182,7 +193,11 @@ export const buildCandidates = ({
   return {
     candidates,
     blockedMixedContent,
-    apiUnavailable: Boolean(normalizedBase) && !apiAvailable && proxyRelevant && !blockedMixedContent
+    // `&& !canUseProxy`: when the proxy was built anyway (the http-on-https
+    // mandatory case), the plan is NOT api-unavailable — we have a candidate.
+    // Preserves the https-stream "API down → apiUnavailable" signal.
+    apiUnavailable:
+      Boolean(normalizedBase) && !apiAvailable && proxyRelevant && !blockedMixedContent && !canUseProxy
   };
 };
 
