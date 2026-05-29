@@ -1129,12 +1129,53 @@ Player across low-power Android/iOS WebView.
   gate (the snapshot freeze sits above the surface memo and gates
   taste exactly as it gated the stale summary in T_audit_10).
 
-### T_audit_9 — Eager taste-profile propagation (= PR-C, QUEUED for next session, approach A approved)
-- **STATUS**: cleared to implement. Approach **(a)** approved by
-  orchestrator; the "don't touch snapshot logic" constraint is
-  **lifted for this ticket only** (worker proved eager taste is
-  impossible without extending the snapshot gate — the freeze
-  gates taste the same way it gated the stale summary).
+### ~~T_audit_9 — Eager taste-profile propagation~~ (DONE in 6521017, PR #34)
+- **STATUS**: SHIPPED + deployed. Closes the last item of the
+  T_audit_10 + T_quality brief and the user's «каждый раз одно и
+  то же / не то что я слушаю» complaint.
+- **What shipped**: a sibling `tasteSignature` clause on the home
+  snapshot freshness gate (mirrors PR-A's `summarySignature`). A
+  like/skip/hide re-ranks `fresh-now` immediately — same seed, so
+  only the taste-ranked rail moves; the seed-ordered server pools
+  (trending/mood/top-voted/around-the-world) stay put. `tasteProfile`
+  switched from the ref read to the direct (current-render) value
+  in the memo so the rebuild uses the taste that JUST changed; the
+  other `live.*` inputs stay on the ref (they are the play-churn
+  fields T1.2 intentionally freezes).
+- **Design correction during impl (worker push-back, approved)**:
+  the raw "rank-order of top-N tag ids" signature REGRESSED T1.2 —
+  playback reshuffled `fresh-now` (the existing freeze test caught
+  it red). Two gaps in the original churn-guard premise: (1) a
+  SPARSE profile (new user / test) has the first positive signal
+  CREATE the top-N → signature flips on any play; (2) switching
+  stations fires an outgoing `skip-before-10s` (−4.2) that also
+  moves scores. Fix: `TASTE_SIGNATURE_MIN_SCORE = 7` — only tags
+  favoured past 7 feed the signature, so play-started (+1.71),
+  outgoing-skip (−4.2), and a single listened-30s (+5.13) stay
+  below it (no churn), while saved-to-collection (+7.6) / liked
+  (+11.4) / sustained listening cross it (re-rank). Threshold sits
+  between a single listen and a save — data-backed.
+- **Known-acceptable residual edge** (ticketed-if-it-appears, not
+  hardened): an established user with two near-tied past-7 tags
+  could see an adjacent-swap re-rank on a single play nudge. Rare
+  (needs tags within ~1.5 + a nudge across), mild (adjacent swap,
+  not a reshuffle), and far weaker than the original bug. Not
+  gold-plated to avoid destabilising freshly-shipped snapshot code.
+- **Verification (red→green both directions)**: churn-guard — play
+  → signature stable → snapshot frozen (existing T1.2 freeze test,
+  green + annotated); eager — like → `fresh-now` re-ranks, RED with
+  the fix stashed, GREEN with it, stable 3× serial + parallel;
+  deterministic unit backbone in `tasteProfile.test.ts` drives the
+  real weights. Gate: webapp tc · tc:test · api tc · webapp unit
+  130 (+5) · api 83 · bot 12 · build · e2e 146/146.
+- **No version bumps** (taste in localStorage `tasteProfile`, not
+  catalogCache; snapshot transient). `summaryRailSignature`
+  untouched — pure sibling clause.
+- **Approach notes (as approved before impl)**: approach **(a)**;
+  the "don't touch snapshot logic" constraint was **lifted for
+  this ticket only** (eager taste is impossible without extending
+  the snapshot gate — the freeze gates taste the same way it gated
+  the stale summary in T_audit_10).
 - **Approved plan (PR-C)**:
   - Rebase on master `71392d8` (post-PR-B).
   - Add `tasteSignature` helper to `tasteProfile.ts` (rank-order of
