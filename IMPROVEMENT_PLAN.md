@@ -1596,6 +1596,22 @@ Four phases, each its own PR, sequenced, audit-first + push-back each.
   it opens the chat picker (not silent copy); deep link still lands the
   recipient on the station; no density regression; e2e + unit green.
 
+### ~~T_share_2 — Inline mode~~ (DONE in 9f2b451, PR #38 — pending BotFather /setinline)
+- **Shipped**: `bot.on('inline_query')` → `@radioatlasbot <query>` in
+  any chat returns station article results (favicon thumb + name +
+  genre/country) that send a self-contained message + a URL button
+  deep-linking into the Mini App. `buildInlineResults` (pure, in
+  `replyPayloads.ts`, grammy-free via `grammy/types` type-only import)
+  + `resolveInlineQuery` (new `inlineQuery.ts`, injected fetch, mirrors
+  `billingForward.ts`): empty query → `/catalog/summary` trending,
+  typed → `/catalog/search`, any failure → single "Открыть RadioAtlas"
+  fallback (never a crash / broken `t.me/undefined`). URL button not
+  webApp (inline-keyboard constraint). RU copy. Gate: bot typecheck ·
+  test:bot 23 (+11) · build. bot-only.
+- **⚠️ REQUIRES owner BotFather step to activate**: `/setinline` for
+  @radioatlasbot. Inert until done (merge safe; activates on enable).
+
+#### (original T_share_2 brief)
 ### T_share_2 — Inline mode (bot, PR — the biggest viral lever + pretty cards)
 - `@radioatlasbot <query>` in ANY chat → inline results of matching
   stations (artwork thumbnail + name + genre), each sending a message
