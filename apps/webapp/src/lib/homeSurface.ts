@@ -51,6 +51,13 @@ export type HomeSurfaceFeed = {
   // not station UUIDs — so a same-shape revalidation causes no re-rank churn
   // (which would regress the T1.2 rank-freeze).
   summarySignature: string;
+  // T_audit_9: a fingerprint of what the user's taste currently favours (top
+  // tag rank-order + hidden count). Sibling to summarySignature: the snapshot
+  // gate also compares this, so a like/skip/hide re-ranks the taste-driven
+  // fresh-now rail eagerly instead of waiting for the next session-bucket flip.
+  // A single play doesn't shift the top tags, so the snapshot stays frozen on
+  // play — the T1.2 rank-freeze invariant is preserved.
+  tasteSignature: string;
 };
 
 type CreateHomeSurfaceFeedInput = {
@@ -58,6 +65,7 @@ type CreateHomeSurfaceFeedInput = {
   seed: number;
   builtAt?: number;
   summarySignature?: string;
+  tasteSignature?: string;
 };
 
 // T_audit_10: fingerprint the rail-bearing fields of a catalogue summary. Two
@@ -189,7 +197,8 @@ export const createHomeSurfaceFeed = ({
   discoveryFeed,
   seed,
   builtAt = Date.now(),
-  summarySignature = 'none'
+  summarySignature = 'none',
+  tasteSignature = 'none'
 }: CreateHomeSurfaceFeedInput): HomeSurfaceFeed => {
   const heroModule = pickHeroModule(discoveryFeed);
   const heroPool = seededStations(heroModule.stations, seed);
@@ -323,7 +332,8 @@ export const createHomeSurfaceFeed = ({
     rails: rails.slice(0, HOME_SURFACE_MAX_RAILS),
     quickSearchChips,
     metrics: discoveryFeed.metrics,
-    summarySignature
+    summarySignature,
+    tasteSignature
   };
 };
 

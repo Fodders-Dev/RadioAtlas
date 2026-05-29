@@ -40,6 +40,12 @@ test('home rails do NOT re-shuffle after a click → play burst', async ({ page 
   // addRecent, recordBehaviorForStation, recordTasteForStation, etc.
   // — eight-ish flips of live state inside one click) instead of
   // re-ranking under the user's finger.
+  //
+  // T_audit_9 churn-guard: this is now ALSO the regression guard for eager
+  // taste. A `play-started` (+1.71 to one tag) is too small to reorder the
+  // top-N tags, so tasteSignature is stable → the snapshot stays frozen → no
+  // re-shuffle. The companion test below proves the OTHER direction: a `liked`
+  // (+11.4) does change the signature and re-ranks fresh-now.
   const before = await captureRailFingerprint(page);
   expect(before.length).toBeGreaterThan(0);
   expect(before[0]?.stations.length ?? 0).toBeGreaterThan(0);
@@ -72,6 +78,47 @@ test('home rails do NOT re-shuffle after a click → play burst', async ({ page 
   // anything.
   const survived = after.filter((rail) => beforeById.has(rail.id));
   expect(survived.length).toBeGreaterThan(0);
+});
+
+test('T_audit_9: a like re-ranks fresh-now within the session bucket (eager taste)', async ({
+  page
+}) => {
+  await openHome(page);
+
+  const freshNow = page.locator('[data-home-rail="fresh-now"]');
+  await expect(freshNow).toBeVisible({ timeout: 15_000 });
+  const freshNowIds = () =>
+    freshNow
+      .locator('[data-home-station]')
+      .evaluateAll((tiles) => tiles.map((tile) => tile.getAttribute('data-home-station') || ''));
+
+  const before = await freshNowIds();
+  expect(before.length, 'fresh-now renders at least two tiles').toBeGreaterThanOrEqual(2);
+
+  // Like every fresh-now tile EXCEPT the leader. These are in-rail stations
+  // (not blocked by the personal-radio queue), so a +12 `liked` — fired by the
+  // heart button via recordTasteForStation('liked'), pushing each station's own
+  // score and tag well past the signature threshold — must pull a non-leading
+  // station to the front, re-ranking the rail. Pre-fix the snapshot froze on
+  // the bucket seed and ignored the taste change, so fresh-now stayed
+  // byte-identical — that's the red side of the red→green.
+  const tiles = freshNow.locator('[data-home-station]');
+  const tileCount = await tiles.count();
+  let liked = 0;
+  for (let i = 1; i < tileCount; i += 1) {
+    const likeBtn = tiles.nth(i).locator('.home-action-btn-like');
+    if ((await likeBtn.count()) === 0) continue;
+    await likeBtn.click();
+    liked += 1;
+    await page.waitForTimeout(60);
+  }
+  expect(liked, 'liked at least one non-leading fresh-now tile').toBeGreaterThanOrEqual(1);
+
+  // Eager propagation: fresh-now must re-rank WITHOUT a manual refresh and
+  // WITHOUT a session-bucket flip — on the next render after the like.
+  await expect
+    .poll(async () => JSON.stringify(await freshNowIds()), { timeout: 5000 })
+    .not.toBe(JSON.stringify(before));
 });
 
 test('explicit "refresh feed" button still wires through to handleRefresh', async ({ page }) => {

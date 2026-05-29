@@ -31,7 +31,8 @@ import {
 } from '../lib/stationPlayability';
 import {
   isStationHiddenFromRecommendations,
-  rankStationsForUser
+  rankStationsForUser,
+  tasteSignature
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import {
@@ -211,6 +212,9 @@ const buildSurfaceFeed = (input: {
   // T_audit_10: rail-composition fingerprint of the summary this surface is
   // built from, stamped onto the snapshot for the revalidation gate.
   summarySignature?: string;
+  // T_audit_9: taste fingerprint stamped onto the snapshot so a like/skip/hide
+  // re-ranks the surface eagerly (sibling to summarySignature).
+  tasteSignature?: string;
 }) => {
   const rankedCatalog = rankStationsForUser(input.catalog, input.tasteProfile, input.playabilityProfile, {
     mode: 'personal',
@@ -269,7 +273,8 @@ const buildSurfaceFeed = (input: {
     discoveryFeed: personalizedDiscoveryFeed,
     seed: input.seed,
     builtAt: input.builtAt,
-    summarySignature: input.summarySignature
+    summarySignature: input.summarySignature,
+    tasteSignature: input.tasteSignature
   });
 };
 
@@ -472,12 +477,20 @@ export const Home = () => {
   // 12-rail network payload, this changes and the snapshot is no longer fresh,
   // so the surface rebuilds from the fuller summary instead of being frozen.
   const summarySignature = summaryRailSignature(summary);
+  // T_audit_9: taste fingerprint of the CURRENT profile. The snapshot stores the
+  // signature it was built from; a like/skip/hide changes it → snapshot is no
+  // longer fresh → the surface rebuilds with the new taste (same seed, so only
+  // the taste-ranked fresh-now rail re-orders; the seed-ordered server pools
+  // stay put). A single play doesn't shift the top tags, so the signature is
+  // stable and the snapshot stays frozen — preserving the T1.2 rank-freeze.
+  const tasteSig = tasteSignature(tasteProfile);
   const surfaceFeedBase = useMemo(() => {
     const snapshotFresh =
       homeState.snapshot &&
       homeState.snapshot.version === HOME_SURFACE_VERSION &&
       homeState.snapshot.seed === homeState.sessionSeed &&
-      homeState.snapshot.summarySignature === summarySignature;
+      homeState.snapshot.summarySignature === summarySignature &&
+      homeState.snapshot.tasteSignature === tasteSig;
     if (snapshotFresh) {
       return homeState.snapshot;
     }
@@ -500,7 +513,14 @@ export const Home = () => {
       collections,
       playbackHistory: live.playbackHistory,
       playabilityProfile: live.playabilityProfile,
-      tasteProfile: live.tasteProfile,
+      // T_audit_9: tasteProfile is read DIRECT (current render), not from the
+      // ref like the other live.* inputs. The ref updates in a post-render
+      // effect, so it lags a render — and the whole point here is to rebuild
+      // with the taste that JUST changed. The rest stay on the ref because they
+      // are the play-churn fields we intentionally freeze. The memo only
+      // re-runs when tasteSig (a dep) changes, so reading tasteProfile direct
+      // never re-ranks on a play (tasteSig is stable there).
+      tasteProfile,
       stationHealthProfile: live.stationHealthProfile,
       radioSessionEvents: live.radioSessionEvents,
       trackHistory: live.trackHistory,
@@ -511,7 +531,8 @@ export const Home = () => {
       topVoted: summary?.topVoted,
       aroundTheWorld: summary?.aroundTheWorld,
       moodRails: summary?.moodRails,
-      summarySignature
+      summarySignature,
+      tasteSignature: tasteSig
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -526,6 +547,7 @@ export const Home = () => {
     summary,
     summaryLoading,
     summarySignature,
+    tasteSig,
     surfaceBuiltAt
   ]);
   const surfaceFeed = surfaceFeedBase;
@@ -763,7 +785,12 @@ export const Home = () => {
       // swap). Without this the memo would rebuild the fuller surface on every
       // render but never cache it, since seed/builtAt can be unchanged when the
       // fallback's generatedAt happens to outrank the network's.
-      homeState.snapshot.summarySignature === surfaceFeedBase.summarySignature
+      homeState.snapshot.summarySignature === surfaceFeedBase.summarySignature &&
+      // T_audit_9: likewise re-persist when taste changed. A like/skip rebuilds
+      // fresh-now with the same seed and builtAt, so without this clause the new
+      // surface would render but never be cached, and the memo would rebuild it
+      // every render (the gate would keep seeing the stale snapshot's taste).
+      homeState.snapshot.tasteSignature === surfaceFeedBase.tasteSignature
     ) {
       return;
     }
@@ -816,7 +843,8 @@ export const Home = () => {
         topVoted: effectiveSummary.topVoted,
         aroundTheWorld: effectiveSummary.aroundTheWorld,
         moodRails: effectiveSummary.moodRails,
-        summarySignature: summaryRailSignature(effectiveSummary)
+        summarySignature: summaryRailSignature(effectiveSummary),
+        tasteSignature: tasteSignature(tasteProfile)
       });
 
       if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {
