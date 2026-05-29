@@ -97,8 +97,16 @@ const waitForServer = async () => {
   throw new Error('API server did not start in time');
 };
 
+// T_audit_5 seatbelt: a bounded timeout so any future hang (whatever the cause)
+// fails fast with a clear message instead of silently eating the test runner's
+// ~300s cap. The happy path is sub-second under CATALOG_ARTIFACT_ONLY, so this
+// never trips in normal operation; it only converts a hang into a diagnosable
+// failure. A caller-supplied signal still wins.
 const getJson = async <T,>(path: string, init?: RequestInit) => {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  const response = await fetch(`${baseUrl}${path}`, {
+    signal: AbortSignal.timeout(20000),
+    ...init
+  });
   const body = (await response.json()) as T;
   return { response, body };
 };
@@ -110,6 +118,11 @@ test.before(async () => {
       ...process.env,
       PORT: String(port),
       ENABLE_TEST_AUTH_FIXTURES: '1',
+      // T_audit_5: serve the bundled catalogue artifact directly — this is a
+      // payload-SHAPE contract test, so it must not depend on the live Radio
+      // Browser network (the cold first /catalog/summary was hanging on the
+      // 8s×MAX_PAGES live-fetch chain past the runner cap).
+      CATALOG_ARTIFACT_ONLY: '1',
       EXTRACTOR_URL: '',
       TELEGRAM_BOT_TOKEN: '',
       BOT_TOKEN: '',

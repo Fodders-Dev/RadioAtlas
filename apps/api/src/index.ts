@@ -109,6 +109,13 @@ const STREAM_CONCURRENCY = Number(process.env.STREAM_CONCURRENCY || 6);
 const IMAGE_CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY || 8);
 const FETCH_RESPONSE_LIMIT_BYTES = Number(process.env.FETCH_RESPONSE_LIMIT_BYTES || 262144);
 const CATALOG_FETCH_TIMEOUT_MS = Number(process.env.CATALOG_FETCH_TIMEOUT_MS || 8000);
+// T_audit_5: when set, getCatalog serves the bundled catalogue artifact directly
+// and skips the live Radio Browser fetch entirely. The contract test (which only
+// asserts payload SHAPE) sets this so it is hermetic — no dependency on Radio
+// Browser being reachable, no 8s×MAX_PAGES timeout chain on a cold first request
+// that was blowing past the test runner's cap. Prod never sets it, so the live
+// path below is untouched in production.
+const CATALOG_ARTIFACT_ONLY = process.env.CATALOG_ARTIFACT_ONLY === '1';
 const CATALOG_ARTIFACT_FAST_URL = new URL('../../../artifacts/catalog-fast.json', import.meta.url);
 const CATALOG_ARTIFACT_FULL_URL = new URL('../../../artifacts/catalog-full.json', import.meta.url);
 const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
@@ -302,6 +309,15 @@ const getCatalog = async (mode: 'fast' | 'full') => {
   const cache = mode === 'fast' ? fastCache : fullCache;
   if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
     return cache.data;
+  }
+
+  // T_audit_5: artifact-only mode — the bundled artifact IS the configured
+  // source here, not a fallback, so we skip the live fetch and do NOT record a
+  // catalog_fallback counter. Same normalization as the fallback path below
+  // (readCatalogArtifact → normalizeStation → cacheCatalog), so the summary the
+  // contract test validates is prod-shaped, not raw artifact.
+  if (CATALOG_ARTIFACT_ONLY) {
+    return cacheCatalog(mode, await readCatalogArtifact(mode));
   }
 
   const limit = mode === 'fast' ? FAST_LIMIT : PAGE_LIMIT;
