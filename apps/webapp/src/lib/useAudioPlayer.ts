@@ -1041,7 +1041,17 @@ export const useAudioPlayer = ({
     buildStationStreamTargets(station).forEach((url) => pushUnique(sourceUrls, url));
     const apiBase = normalizeBase(getApiBase());
     apiBaseRef.current = apiBase;
-    const shouldCheckApi = Boolean(apiBase) && needsApiAssist(station, sourceUrls);
+    // T_share_fix: an http:// stream on a secure page can only play via the
+    // proxy, which buildCandidates now always includes when apiBase is set. So
+    // the 2.2s availability check can't change the outcome for this case —
+    // skip the await so a shared deep-link plays instantly instead of stalling
+    // on a cold-mount race against /health (the prod symptom: launch → 2.2s →
+    // [or never]). https streams still run the check (proxy-vs-direct pref).
+    const isSecureContext = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const httpProxyMandatory =
+      Boolean(apiBase) && isSecureContext && sourceUrls.some((url) => url.startsWith('http://'));
+    const shouldCheckApi =
+      Boolean(apiBase) && !httpProxyMandatory && needsApiAssist(station, sourceUrls);
     const apiAvailable = shouldCheckApi
       ? await checkApiAvailability(apiBase, { timeoutMs: 2_200 })
       : false;

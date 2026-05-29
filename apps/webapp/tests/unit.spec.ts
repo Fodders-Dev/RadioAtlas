@@ -171,6 +171,49 @@ test('playback candidate planning handles direct, mixed-content, proxy-first, an
   expect(unavailableApi.apiUnavailable).toBe(true);
 });
 
+// T_share_fix: a shared http:// station opened via deep link never played —
+// the cold-mount play raced ahead of the 2.2s /health check, so apiAvailable
+// resolved false and the ONLY viable candidate (the proxy) was dropped, leaving
+// a doomed https-upgraded direct → blockedMixedContent → audio_no_playable_candidate.
+// On a secure page, when apiBase is set, the proxy must be built regardless of
+// the availability check (it's the sole transport for http-on-https).
+test('http-on-https builds the proxy even when the availability check has not resolved', () => {
+  installWindowStorage('https://radioatlas.duckdns.org/?api=https%3A%2F%2Fradioatlas.duckdns.org%2Fapi');
+
+  // The exact prod trigger: an absolute, same-page api base + apiAvailable=false
+  // (the cold deep-link mount outran /health).
+  const httpDeepLink = buildCandidates({
+    url: 'http://31.192.111.49/kazak.mp3',
+    apiBase: 'https://radioatlas.duckdns.org/api',
+    apiAvailable: false
+  });
+  expect(httpDeepLink.blockedMixedContent).toBe(false);
+  expect(httpDeepLink.candidates.map((candidate) => candidate.mode)).toEqual(['proxy']);
+  expect(httpDeepLink.candidates[0]?.url).toBe(
+    'https://radioatlas.duckdns.org/api/stream?url=http%3A%2F%2F31.192.111.49%2Fkazak.mp3'
+  );
+  // We built a candidate, so the plan is NOT api-unavailable.
+  expect(httpDeepLink.apiUnavailable).toBe(false);
+
+  // Same with a relative base.
+  const relative = buildCandidates({
+    url: 'http://31.192.111.49/kazak.mp3',
+    apiBase: '/api',
+    apiAvailable: false
+  });
+  expect(relative.blockedMixedContent).toBe(false);
+  expect(relative.candidates[0]?.url).toBe('/api/stream?url=http%3A%2F%2F31.192.111.49%2Fkazak.mp3');
+
+  // But with NO api base there is nothing to proxy through → still blocked
+  // (the fix doesn't fabricate a base).
+  const noBase = buildCandidates({
+    url: 'http://31.192.111.49/kazak.mp3',
+    apiBase: '',
+    apiAvailable: false
+  });
+  expect(noBase.blockedMixedContent).toBe(true);
+});
+
 test('catalog cache uses local fallback, expires stale entries, and clears by prefix', async () => {
   const storage = installWindowStorage();
   await clearCatalogCacheStorage();
