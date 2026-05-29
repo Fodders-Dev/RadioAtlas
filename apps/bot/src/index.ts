@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
 import { forwardBillingWebhook } from './billingForward.js';
+import { resolveInlineQuery } from './inlineQuery.js';
 import {
   buildGiftPayload,
   buildPremiumPayload,
@@ -120,6 +121,18 @@ bot.command('gift', async (ctx) => {
 bot.command('share', async (ctx) => {
   const payload = buildSharePayload(ctx.message?.text?.split(' ').slice(1).join(' '));
   await ctx.reply(payload.text);
+});
+
+// T_share_2: inline mode — `@radioatlasbot <query>` in any chat returns
+// stations as article results that send a self-contained message + a URL button
+// deep-linking into the Mini App. Inert until the owner runs BotFather /setinline.
+// All fetch/format logic is in resolveInlineQuery (unit-tested with a mock fetch).
+bot.on('inline_query', async (ctx) => {
+  const { results, cacheTime } = await resolveInlineQuery(
+    { query: ctx.inlineQuery.query, username: ctx.me?.username },
+    { fetch: globalThis.fetch.bind(globalThis), apiUrl }
+  );
+  await ctx.answerInlineQuery(results, { cache_time: cacheTime });
 });
 
 bot.on('pre_checkout_query', async (ctx) => {
