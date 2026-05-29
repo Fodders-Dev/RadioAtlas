@@ -1453,19 +1453,39 @@ the "speed 1/5" the owner felt. (Caveat: RTT measured from the orchestrator
 network; RU/EU Telegram users may be closer to the VPS — but the 3-RTT→1
 handshake win below is geography-independent.)
 
-### T_perf_1 — Enable HTTP/3 (QUIC) on Caddy (HIGH leverage, cheap, infra)
-- **Why**: HTTP/3 collapses the TCP+TLS+request handshake from ~3 RTTs to
-  1 (0 on resumption). At ~300ms RTT that's a ~600ms TTFB cut on every
-  cold load — the single biggest, cheapest win.
-- **What**: Caddy supports HTTP/3 natively; it advertises via `alt-svc`
-  when enabled + UDP/443 is open. Currently absent → either not enabled
-  in the Caddyfile/global options or UDP 443 is firewalled on the VPS.
-- **Files/infra**: VPS Caddy config (global `servers { protocols h1 h2 h3 }`
-  or confirm Caddy version default), VPS firewall (open UDP 443). Owner/
-  infra task — needs VPS access.
-- **Done-when**: `curl -sI --http3` (or browser DevTools) shows h3 +
-  `alt-svc: h3=...`; cold TTFB drops measurably.
-- **Priority**: P1 (perf). Cheapest high-impact lever.
+### ~~T_perf_1 — Enable HTTP/3 (QUIC) on Caddy~~ (INVESTIGATED ON VPS → DECLINED, 2026-05-29)
+- **What I expected**: a cheap one-line `protocols h1 h2 → h1 h2 h3`
+  global-options change for a ~600ms handshake win.
+- **What I found via SSH (root@212.69.84.167, Caddy v2.10.2)**:
+  1. h3 was OFF by **explicit config** (`servers { protocols h1 h2 }`),
+     not firewall (ufw inactive, UDP :443 already bound).
+  2. The win is **much smaller than estimated**: h3 is discovered via
+     `alt-svc` on the FIRST h2/TCP response, so the first (often only)
+     connection of a Telegram-Mini-App session is ALWAYS TCP+TLS — the
+     slow path the owner actually feels. h3 only helps repeat connections.
+  3. **Caddy cannot hot-enable h3 via `reload`** — `caddy reload` with
+     `h1 h2 h3` fails atomically with `starting HTTP/3 QUIC listener:
+     listen udp :443: bind: address already in use` (QUIC UDP sockets
+     don't support graceful handover). Enabling h3 therefore requires a
+     full `systemctl restart caddy` = a brief blip for ALL sites on this
+     **shared** VPS (rodnya-tree.ru, api.rodnya-tree.ru, nip.io), and
+     makes EVERY future `caddy reload` fail until another restart — an
+     ongoing operational footgun on a box hosting other projects.
+- **Decision**: not worth it. Reverted the Caddyfile to `h1 h2`
+  (backup at `/etc/caddy/Caddyfile.pre-h3`), confirmed clean reload
+  (exit 0) + both sites 200. VPS left exactly as found.
+- **The right place for h3 is the edge**: Cloudflare (T_perf_2) serves
+  h3 to clients for free with none of this origin-side pain. Fold h3
+  into the CDN decision.
+
+### T_perf_2 — CDN / edge in front of the VPS (THE lever, infra, needs owner)
+- **Why**: confirmed the ~900ms TTFB is geographic — TCP 312ms / TLS
+  618ms / TTFB 917ms is ~300ms RTT × the HTTP/1.1 3-RTT handshake to a
+  single Netherlands VPS (hostname `NL212295`, alias `nl-art`). The ONLY
+  thing that fixes 300ms RTT is terminating TLS at an edge POP ~20-50ms
+  from the user. A CDN also: serves the `immutable` assets from edge
+  cache globally, AND gives clients HTTP/3 at the edge (covers T_perf_1
+  for free).
 
 ### T_perf_2 — CDN / edge in front of the VPS (HIGHEST leverage, bigger, infra)
 - **Why**: a CDN (e.g. Cloudflare free) terminates TLS at an edge POP
@@ -1498,6 +1518,29 @@ handshake win below is geography-independent.)
   at whether part of the state layer can defer past first paint.
 - **Files**: `apps/webapp/src/state/*`, the radio-state chunk boundary.
 - **Priority**: P3 (perf) — measure before cutting; may not be worth it.
+
+### T_infra_1 — nginx is vestigial; the deploy wrestles a corpse (infra cleanup)
+- **Discovered during the 2026-05-29 VPS recon**: the real server is
+  **Caddy v2.10.2** (serves radioatlas's static dist directly + reverse-
+  proxies `/api` → 127.0.0.1:3001). **nginx 1.18 is `systemctl is-active`
+  = `failed`** and is NOT in any serving path. Yet `deploy/server/
+  deploy-release.sh` still `sync_nginx_config` + reload/restart/SIGHUP-s
+  nginx on every deploy — i.e. the entire T_audit_4 / T_audit_6 deploy-
+  resilience saga was hardening the reload of a server that isn't even
+  serving. (The deploy DID keep working because Caddy serves from the
+  `current` symlink independently of nginx.)
+- **What**: confirm nginx has no role (it doesn't, per the Caddyfile),
+  then strip `sync_nginx_config` + the nginx steps from the deploy
+  script and the `install-radioatlas-static-origin.sh` path. Removes a
+  whole class of deploy fragility we spent two PRs hardening.
+- **Caution**: verify nothing else on the shared box expects nginx
+  before removing; the deploy change itself is webapp-infra (deploy
+  script), gated by the post-deploy external smoke (T_audit_4).
+- **Files**: `deploy/server/deploy-release.sh`, `deploy/server/
+  install-radioatlas-static-origin.sh`, `RUNBOOK.md`, possibly retire
+  `deploy/radioatlas.nginx.conf`.
+- **Priority**: P2 — not user-facing, but removes real deploy-time risk
+  and confusion. Good worker ticket.
 
 ---
 
