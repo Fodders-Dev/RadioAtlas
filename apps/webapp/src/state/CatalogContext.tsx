@@ -22,6 +22,10 @@ import {
   readCatalogCache,
   writeCatalogCache
 } from '../lib/catalogCache';
+import {
+  requestStationByIdWithRetry,
+  STATION_BY_ID_RETRY_ATTEMPTS
+} from '../lib/stationByIdRetry';
 
 type SearchStationsInput = {
   q?: string;
@@ -48,7 +52,10 @@ type CatalogContextValue = {
     areaId: string,
     options?: { limit?: number; cursor?: string | null }
   ) => Promise<CatalogAreaStationsResponse>;
-  fetchStationById: (stationId: string) => Promise<StationLite | null>;
+  fetchStationById: (
+    stationId: string,
+    options?: { retryOn5xx?: boolean }
+  ) => Promise<StationLite | null>;
   rememberStations: (stations: Array<Station | StationLite>) => void;
   getStationById: (stationId: string) => StationLite | null;
   clearCatalogCache: () => void;
@@ -205,7 +212,10 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (!response.ok) {
-      throw new Error(
+      // T_deeplink_resilience: carry the HTTP status on the error so callers can
+      // distinguish a transient 5xx (retry) from a definitive 404 (don't). The
+      // status is otherwise only embedded in the message string.
+      const error = new Error(
         typeof payload === 'object' &&
           payload &&
           'error' in payload &&
@@ -214,7 +224,9 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
           : response.status === 404
             ? 'Catalog temporarily unavailable'
             : `Catalog request failed (${response.status})`
-      );
+      ) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     if (payload === null) {
@@ -466,7 +478,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const fetchStationById = useCallback(
-    async (stationId: string) => {
+    async (stationId: string, options?: { retryOn5xx?: boolean }) => {
       const cached = stationCacheRef.current.get(stationId);
       if (cached) {
         return cached;
@@ -482,10 +494,14 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
 
       let item: StationLite | null = null;
       try {
-        const response = await requestJson<{ item: StationLite | null }>(
-          `/catalog/stations/${encodeURIComponent(stationId)}`
+        // T_deeplink_resilience: opt-in retry (deep-link only) rides out the
+        // transient cold-boot 503 before falling back; default (1 attempt) keeps
+        // interactive lookups (globe tap) at current latency.
+        item = await requestStationByIdWithRetry(
+          (path) => requestJson<{ item: StationLite | null }>(path),
+          stationId,
+          { attempts: options?.retryOn5xx ? STATION_BY_ID_RETRY_ATTEMPTS : 1 }
         );
-        item = response.item || null;
         await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
       } catch {
         const stale = await readCatalogCache<StationLite | null>(cacheKey, { allowExpired: true });
