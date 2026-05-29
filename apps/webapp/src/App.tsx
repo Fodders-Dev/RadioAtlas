@@ -209,7 +209,10 @@ const App = () => {
 
     void (async () => {
       try {
-        const station = await fetchStationById(stationId);
+        // T_deeplink_resilience: retry the by-id lookup through the transient
+        // cold-boot 503 (the boot request burst stalls the API) so a shared
+        // station actually resolves and plays instead of silently bailing.
+        const station = await fetchStationById(stationId, { retryOn5xx: true });
         if (cancelled || !station) return;
         playStation(station, {
           sourceId: 'deep-link',
