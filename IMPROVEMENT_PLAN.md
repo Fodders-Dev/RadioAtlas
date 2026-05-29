@@ -1422,6 +1422,85 @@ Player across low-power Android/iOS WebView.
 
 ---
 
+## T_perf — Prod performance audit (2026-05-29, Chrome MCP + curl on live prod)
+
+Measured cold + warm loads of `https://radioatlas.duckdns.org` from the
+orchestrator's network. **Headline: the bundle is well-built; the speed
+cost is network latency to a single VPS over HTTP/1.1.**
+
+**What's already GOOD (verified — do NOT touch):**
+- Chunk isolation intact: cold Home loads ZERO heavy lazy chunks
+  (`heavyLazyOnColdHome: []` — no maplibre/hls/Globe/Search/Library/
+  FullPlayer/ThemeStudio). The Performance-Hardening-Sprint claim holds.
+- Compression on: react-vendor 37KB transfer / 130KB decoded (gzip/br).
+- Assets `Cache-Control: public, max-age=31536000, immutable` — the
+  ~120KB JS + 163KB CSS first-load cost is paid ONCE; repeat visits and
+  client-side route changes are free.
+- One 101ms render long task; CLS 0; no other long tasks observed.
+
+**The actual bottleneck — TTFB ≈ 900ms, almost all network RTT:**
+```
+DNS         4.7ms    ok
+TCP connect 312ms    ~300ms RTT to the VPS (geographic)
+TLS         618ms    +305ms (another RTT)
+TTFB        917ms    +300ms (request/response RTT)
+```
+curl ×5 consistently 0.9–1.04s; browser saw 0.3s warm / 1.7s cold-first.
+`HTTP/1.1`, no `alt-svc` → **HTTP/3 is OFF**. The HTML shell is `no-store`
+(correct — it must point at fresh asset hashes post-deploy, ref T_audit_6),
+so this ~3-RTT handshake is paid on every hard load / cold open. This is
+the "speed 1/5" the owner felt. (Caveat: RTT measured from the orchestrator
+network; RU/EU Telegram users may be closer to the VPS — but the 3-RTT→1
+handshake win below is geography-independent.)
+
+### T_perf_1 — Enable HTTP/3 (QUIC) on Caddy (HIGH leverage, cheap, infra)
+- **Why**: HTTP/3 collapses the TCP+TLS+request handshake from ~3 RTTs to
+  1 (0 on resumption). At ~300ms RTT that's a ~600ms TTFB cut on every
+  cold load — the single biggest, cheapest win.
+- **What**: Caddy supports HTTP/3 natively; it advertises via `alt-svc`
+  when enabled + UDP/443 is open. Currently absent → either not enabled
+  in the Caddyfile/global options or UDP 443 is firewalled on the VPS.
+- **Files/infra**: VPS Caddy config (global `servers { protocols h1 h2 h3 }`
+  or confirm Caddy version default), VPS firewall (open UDP 443). Owner/
+  infra task — needs VPS access.
+- **Done-when**: `curl -sI --http3` (or browser DevTools) shows h3 +
+  `alt-svc: h3=...`; cold TTFB drops measurably.
+- **Priority**: P1 (perf). Cheapest high-impact lever.
+
+### T_perf_2 — CDN / edge in front of the VPS (HIGHEST leverage, bigger, infra)
+- **Why**: a CDN (e.g. Cloudflare free) terminates TLS at an edge POP
+  ~20-50ms from the user instead of ~300ms to the origin, and serves the
+  `immutable` assets from edge cache globally. Would cut TTFB to <100ms
+  for most users AND offload asset bandwidth from the VPS.
+- **What**: front `radioatlas.duckdns.org` (or a custom domain) with
+  Cloudflare; origin stays the VPS. HTML stays `no-store` (Cloudflare
+  respects it / can be set to bypass), assets cached at edge by their
+  immutable headers. Verify Telegram WebView + the `/api` proxy path
+  still work through the CDN.
+- **Files/infra**: DNS + CDN setup (owner), maybe `ALLOWED_ORIGINS` /
+  nginx-vs-Caddy review. Bigger change; do after T_perf_1.
+- **Priority**: P2 (perf) — biggest absolute win but more moving parts.
+
+### T_perf_3 — Split / trim the 131KB monolithic stylesheet (app, medium)
+- **Why**: `styles-*.css` is 131KB decoded (~24KB gzip) and render-blocking
+  on first paint. Splitting per-route critical CSS (or trimming dead rules)
+  shortens the first-paint critical path. Secondary to TTFB but app-side
+  and worker-ownable.
+- **Files**: `apps/webapp/src/styles.css` (the monolith), Vite CSS
+  code-split config.
+- **Done-when**: cold Home first-paint CSS payload meaningfully smaller;
+  no visual regression (visual baselines green).
+- **Priority**: P3 (perf).
+
+### T_perf_4 — Investigate radio-state 103KB chunk + 101ms render task (app, low)
+- **Why**: `radio-state-*.js` is 103KB decoded on cold Home (2nd-largest
+  after react-vendor); one 101ms long task on initial render. Worth a look
+  at whether part of the state layer can defer past first paint.
+- **Files**: `apps/webapp/src/state/*`, the radio-state chunk boundary.
+- **Priority**: P3 (perf) — measure before cutting; may not be worth it.
+
+---
+
 ## Tier 3 — Architecture & maintainability
 
 ### T3.1 Split `RadioContext.tsx`
