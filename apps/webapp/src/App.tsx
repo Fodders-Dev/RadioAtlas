@@ -107,6 +107,13 @@ const App = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const startHandledRef = useRef(false);
+  // T_deeplink_lifecycle_fix: the deep-link effect runs once on mount (deps []),
+  // so it can't read fresh handler identities through its closure. Mirror them in
+  // a ref updated every render and read ref.current at point of use — fetch at
+  // call time, playStation + t at play time (so the label uses the loaded
+  // dictionary).
+  const deepLinkHandlersRef = useRef({ fetchStationById, playStation, t });
+  deepLinkHandlersRef.current = { fetchStationById, playStation, t };
   const activeSectionRef = useRef(activeSection);
   const brandGestureRef = useRef({ count: 0, startedAt: 0 });
   const sessionStartedAtRef = useRef(Date.now());
@@ -196,15 +203,26 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    // T_deeplink_lifecycle_fix: run ONCE on mount (deps []) and never cancel the
+    // in-flight play. Telemetry (PR #41) proved the bug: deeplink_enter fired but
+    // deeplink_resolve/play/error never did → the async play hit a cancelled
+    // guard. The old effect depended on [fetchStationById, playStation, t]; those
+    // handler identities change during boot (session-auth/summary/theme
+    // re-renders), so the effect re-ran, its cleanup set cancelled=true on the
+    // in-flight fetch, and the re-run bailed via startHandledRef without
+    // restarting → the play was permanently abandoned. With [] + handlers read
+    // from a ref, re-renders can't re-invoke or cancel it. We also keep NO
+    // cancelling cleanup: the play is a one-shot guarded by startHandledRef, and
+    // a StrictMode dev remount (or a genuine teardown) must not abandon it — a
+    // late playStation on an unmounting App root is a harmless no-op.
     if (startHandledRef.current) return;
+    startHandledRef.current = true;
+
     const startParam = getStartParam();
-    // T_deeplink_telemetry: instrument every step of the deep-link play path so
-    // the real failure point is observable server-side (/observability) after a
-    // single real-device LAUNCH tap — we've misdiagnosed this 3×. Pure
-    // diagnostic, no behaviour change; trim once the cause is pinned. dedupeKey
-    // is per-step so each cold-start tap records cleanly.
+    // T_deeplink_telemetry: instrument every step so the failure point stays
+    // observable server-side (/observability) on a real-device tap. Kept for now
+    // as the verification of this fix; trim to one success/fail beacon later.
     if (!startParam) {
-      startHandledRef.current = true;
       reportClientEvent('deeplink_no_param', {
         dedupeKey: 'deeplink_no_param',
         meta: { buildCommit: APP_COMMIT }
@@ -213,8 +231,6 @@ const App = () => {
     }
 
     const stationId = parseStationParam(startParam);
-    startHandledRef.current = true;
-    let cancelled = false;
 
     reportClientEvent('deeplink_enter', {
       dedupeKey: 'deeplink_enter',
@@ -228,12 +244,12 @@ const App = () => {
     });
 
     void (async () => {
+      const handlers = deepLinkHandlersRef.current;
       try {
         // T_deeplink_resilience: retry the by-id lookup through the transient
         // cold-boot 503 (the boot request burst stalls the API) so a shared
         // station actually resolves and plays instead of silently bailing.
-        const station = await fetchStationById(stationId, { retryOn5xx: true });
-        if (cancelled) return;
+        const station = await handlers.fetchStationById(stationId, { retryOn5xx: true });
         reportClientEvent('deeplink_resolve', {
           dedupeKey: 'deeplink_resolve',
           meta: { found: Boolean(station), stationId }
@@ -243,9 +259,11 @@ const App = () => {
           dedupeKey: 'deeplink_play',
           meta: { stationId, name: station.name }
         });
-        playStation(station, {
+        // Read playStation + t from the ref at PLAY time (latest identities; the
+        // dictionary is loaded by now, so the label is translated).
+        deepLinkHandlersRef.current.playStation(station, {
           sourceId: 'deep-link',
-          sourceLabel: t('radio.deepLink')
+          sourceLabel: deepLinkHandlersRef.current.t('radio.deepLink')
         });
       } catch (err) {
         reportClientEvent('deeplink_error', {
@@ -254,11 +272,8 @@ const App = () => {
         });
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchStationById, playStation, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sectionMeta = useMemo(
     () => ({
