@@ -410,7 +410,7 @@ registerBillingRoutes(app, {
   nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
-registerCatalogRoutes(app, {
+const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles
 });
@@ -441,6 +441,41 @@ const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
   console.log(`RadioAtlas API on ${port}`);
 });
+
+// T_api_bootwarm: prime the profiled 'full' catalog in the BACKGROUND right after
+// listen, before real user traffic. The first getProfiledCatalog('full') parses
+// the ~57k catalogue and runs the withStationProfiles map synchronously (a ~1s
+// event-loop block); doing it now — with no concurrent user load — means the
+// cold-boot /catalog/summary + /catalog/stations/<uuid> burst hits a warm cache
+// and returns 200 instead of Caddy 503-ing a blocked upstream. Both endpoints go
+// through getProfiledCatalog('full'), so warming the SERVICE path (not just the
+// raw getCatalog dependency) primes the raw cache, the profiled cache, AND the
+// profile map — the full block.
+//
+// NOT awaited before listen, and /health is a trivial route, so the deploy
+// healthcheck poll is unaffected (it rides through the one-time ~1s parse via
+// retries). Only 'full' is warmed: every route uses it; nothing routes to 'fast'
+// (the webapp loads catalog-fast.json as a static file), and warming it would
+// just double the boot transient with a second parse.
+//
+// Failure is non-fatal — the catalog lazy-loads on first request as before, with
+// the #40 deep-link retry covering the residual race.
+//
+// Residual (follow-up, not fixed here): CACHE_TTL_MS is 30 min, so the cache
+// re-expires and the next request after 30 min of inactivity re-triggers the
+// parse (a single-request ~1s transient; the #40 retry covers any concurrent
+// burst). A periodic re-warm isn't trivially clean — at the 29-min mark the
+// cache is still fresh so a re-call is a no-op cache hit, and forcing a refresh
+// before expiry would need a cache-bypass flag threaded through getCatalog /
+// getProfiledCatalog. Deferred.
+void (async () => {
+  try {
+    await catalogService.getCatalog('full');
+    console.log('Catalog warm complete');
+  } catch (error) {
+    console.warn('Catalog warm failed; will lazy-load on first request', error);
+  }
+})();
 
 // T0.2c: start the billing reconciliation sweep after the API is
 // listening. Single-instance assumption (RUNBOOK); see

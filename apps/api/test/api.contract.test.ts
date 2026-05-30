@@ -176,6 +176,25 @@ test('health and catalog contracts respond with shaped payloads', async () => {
   assert.ok(Array.isArray(areas.items));
 });
 
+test('T_api_bootwarm: a concurrent summary + station-by-id burst all return 200', async () => {
+  // The cold-boot failure shape: the webapp fires /catalog/summary and
+  // /catalog/stations/<uuid> concurrently; on a cold cache the first triggers
+  // the synchronous ~57k parse + profile map, blocking the loop, and Caddy 503s
+  // the other. The boot warm (index.ts, post-listen) primes the profiled 'full'
+  // cache before traffic so the burst hits a warm cache. No Caddy in-test so we
+  // can't observe the 503 directly, but this locks the burst path: both routes
+  // resolve 200 and the by-id returns a shaped item. (CATALOG_ARTIFACT_ONLY here
+  // makes the warm + lookups hermetic.)
+  const [summary, station] = await Promise.all([
+    getJson<CatalogSummaryPayload>('/catalog/summary?seed=11'),
+    getJson<{ item: unknown }>('/catalog/stations/test-station-uuid')
+  ]);
+  assert.equal(summary.response.status, 200);
+  assert.equal(typeof summary.body.counts.stations, 'number');
+  assert.equal(station.response.status, 200);
+  assert.ok('item' in station.body);
+});
+
 test('auth fixture issues a reusable session and me endpoint returns profile', async () => {
   const { response: seedResponse, body: seed } = await getJson<SeedConflictPayload>('/test/auth/seed-conflict', {
     method: 'POST',
