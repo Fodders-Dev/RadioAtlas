@@ -1654,6 +1654,44 @@ Four phases, each its own PR, sequenced, audit-first + push-back each.
   Decision-layer fix is unit-proven; **awaiting Артём's phone test**
   (deep-link Казак ФМ from inline → should play).
 
+### ~~Deep-link play saga — RESOLVED~~ (the share payoff now works, data-confirmed)
+The shared-station-doesn't-play bug took FOUR diagnoses; recording the
+arc so the lesson sticks:
+1. **Mixed-content** (T_share_fix, PR #39, `a0bd1ec`): the `/api/stream`
+   proxy was gated behind a racy `apiAvailable` check, so http-on-https
+   streams could be dropped. **Real latent fix, but not this bug** (the
+   test stations included an https one that also failed). Kept.
+2. **503 retry** (T_deeplink_resilience, PR #40, `4c0261f`): the
+   station-by-id lookup 503'd during the cold-boot request burst (API
+   event-loop blocked parsing the 57k catalog). Added exponential-backoff
+   retry (1s→2s→4s). **Real latent fix, but not this bug.** Kept.
+3. **Telemetry** (T_deeplink_telemetry, PR #41, `5bae779`): instrumented
+   the deep-link effect with `/observability` beacons. **This is what
+   cracked it** — `deeplink_enter` fired but `deeplink_resolve`/`play`
+   never did → the async play hit `if (cancelled) return`.
+4. **Lifecycle fix** (T_deeplink_lifecycle_fix, PR #42, `b6dcc11` — THE
+   ROOT CAUSE): the deep-link effect depended on `[fetchStationById,
+   playStation, t]`; boot re-renders (session-auth/summary/theme) re-ran
+   the effect, the cleanup set `cancelled=true` on the in-flight fetch,
+   and the re-run bailed via `startHandledRef` without restarting → the
+   play was permanently abandoned. Fix: mount-once effect (deps `[]`),
+   handlers via ref, NO cancelling cleanup (worker caught that StrictMode's
+   dev double-invoke would otherwise re-trigger it). New `deeplink.spec.ts`
+   reproduces it in CI (StrictMode dev triggers the same cancellation) —
+   red→green — so it can't silently regress.
+- **Confirmed working on prod** (`/observability`): `deeplink_enter →
+  deeplink_resolve {found:true} → deeplink_play` + the station plays.
+- **Lessons**: (a) instrument-and-observe beats guess-and-fix — 3 inferential
+  diagnoses missed; the telemetry's data nailed it in one tap. (b) Chrome
+  standalone is NOT a faithful repro for Telegram-WebView playback (autoplay
+  + standalone quirks) — wasted cycles there. (c) "no resolve AND no error"
+  after an `await` that always settles ⇒ a `cancelled`/lifecycle short-circuit,
+  not a network failure.
+- **Follow-ups** (flagged, not done): trim the verbose telemetry to a single
+  funnel beacon; the API catalog event-loop block (the 503 source, T_audit_5-
+  adjacent) — fixing it would remove the retry's up-to-7s worst case and make
+  deep-links instant.
+
 ### T_share_3 — Share to Telegram Story (webapp, PR)
 - One-tap "share current station to your Story" via the `shareToStory`
   WebApp API (TG 7.8+), with the station artwork + a deep-link widget
