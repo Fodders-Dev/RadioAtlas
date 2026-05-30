@@ -1,3 +1,5 @@
+import { createSummaryCache } from './summaryCache.js';
+
 export type CatalogStation = {
   stationuuid: string;
   name: string;
@@ -57,6 +59,10 @@ type CatalogSearchFilters = {
 };
 
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
+// T_api_summary_cache: quantize the per-load seed to an hourly bucket so loads
+// within the hour share one computed summary; cap the live buckets as a backstop.
+const SUMMARY_BUCKET_MS = 1000 * 60 * 60;
+const SUMMARY_CACHE_MAX_BUCKETS = 6;
 const GENERIC_STATE_KEYS = new Set([
   '',
   'unknown',
@@ -699,19 +705,30 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
   };
 };
 
-export const createCatalogService = (dependencies: CatalogDependencies) => ({
-  getCatalog: async (mode: 'fast' | 'full') => getProfiledCatalog(mode, dependencies),
-  getSummary: async (seed: number) => buildCatalogSummary(await getProfiledCatalog('full', dependencies), seed),
-  search: async (filters: CatalogSearchFilters) =>
-    buildSearchResponse(await getProfiledCatalog('full', dependencies), filters),
-  listAreas: async (zoomLevel: number) =>
-    buildAreaListResponse(await getProfiledCatalog('full', dependencies), zoomLevel),
-  listAreaStations: async (areaId: string, limit: number, cursor: number) =>
-    buildAreaStationsResponse(await getProfiledCatalog('full', dependencies), areaId, limit, cursor),
-  listPoints: async () => buildPointsResponse(await getProfiledCatalog('full', dependencies)),
-  getStationById: async (stationId: string) => {
-    const stations = await getProfiledCatalog('full', dependencies);
-    const item = stations.find((station) => station.stationuuid === stationId) || null;
-    return item ? toStationLite(item) : null;
-  }
-});
+export const createCatalogService = (dependencies: CatalogDependencies) => {
+  // T_api_summary_cache: cache + single-flight the summary. compute is the
+  // untouched buildCatalogSummary; `now` is left to default to compute-time
+  // inside it (day-granular rotation + generatedAt), only the seed is bucketed.
+  const summaryCache = createSummaryCache(
+    (catalog: CatalogStation[], bucketSeed: number) => buildCatalogSummary(catalog, bucketSeed),
+    { bucketMs: SUMMARY_BUCKET_MS, maxBuckets: SUMMARY_CACHE_MAX_BUCKETS }
+  );
+
+  return {
+    getCatalog: async (mode: 'fast' | 'full') => getProfiledCatalog(mode, dependencies),
+    getSummary: async (seed: number) =>
+      summaryCache.resolve(await getProfiledCatalog('full', dependencies), seed),
+    search: async (filters: CatalogSearchFilters) =>
+      buildSearchResponse(await getProfiledCatalog('full', dependencies), filters),
+    listAreas: async (zoomLevel: number) =>
+      buildAreaListResponse(await getProfiledCatalog('full', dependencies), zoomLevel),
+    listAreaStations: async (areaId: string, limit: number, cursor: number) =>
+      buildAreaStationsResponse(await getProfiledCatalog('full', dependencies), areaId, limit, cursor),
+    listPoints: async () => buildPointsResponse(await getProfiledCatalog('full', dependencies)),
+    getStationById: async (stationId: string) => {
+      const stations = await getProfiledCatalog('full', dependencies);
+      const item = stations.find((station) => station.stationuuid === stationId) || null;
+      return item ? toStationLite(item) : null;
+    }
+  };
+};
