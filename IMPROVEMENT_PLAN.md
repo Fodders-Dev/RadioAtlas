@@ -1692,6 +1692,52 @@ arc so the lesson sticks:
   adjacent) — fixing it would remove the retry's up-to-7s worst case and make
   deep-links instant.
 
+### ~~T_api_bootwarm~~ — DONE + VERIFIED (PR #43, `e379dcc`)
+Background catalog warm after `app.listen` (`getCatalog('full')` via the
+service so raw + profiled + profile-map all prime). **Verified on prod**:
+logs show `RadioAtlas API on 3001 → Catalog warm complete`; direct
+`/catalog/stations/<uuid>` (the deep-link by-id) = **16 ms** (was the
+~1 s cold-parse → 503 → retry). The deep-link payoff is now instant in
+isolation. `fast` warm dropped (unused by routes; would double the boot
+transient). 30-min TTL re-expiry documented as residual.
+
+### T_api_summary_cache — NEXT (the bigger fish #43's verification surfaced)
+Verifying #43 exposed that the deep-link by-id was only half the
+event-loop story. **`/catalog/summary` (the Home endpoint) burns
+~0.85 s of UNCACHED synchronous CPU per call and serializes.** Measured
+on prod (`radioatlas.duckdns.org`, post-#43, warm cache):
+- direct same-seed ×2: 1.06 s / 0.80 s (no cache — recomputes every call)
+- public concurrent ×4 (varied seed): **1.0 → 1.8 → 2.7 → 3.4 s** — textbook
+  serialization staircase (~0.85 s sync CPU each, 4th waits behind 3)
+- public sequential under real traffic: **16 s each** (deep queue of
+  synchronous summary computations on the single thread)
+- it drags down EVERYTHING concurrent — the now-16 ms by-id included.
+- **Root cause** (`service.ts:401 buildCatalogSummary`, called fresh at
+  `:704 getSummary` with NO server cache): multiple full **57k** seeded
+  sorts (`seededOrder`/`seededSample` per rail: freshSignals, searchLaunch,
+  mood rails, spotlights). Pure function of `(profiledCatalog, seed)` →
+  perfectly cacheable, but isn't.
+- **Why naive per-seed caching fails**: webapp sends `seed = Date.now()`
+  (`CatalogContext.tsx:268` default, called arg-less at `:321`) — a unique
+  ms per load → ~0 % cross-user hit rate. The per-load "freshness" is
+  largely illusory anyway: the client already caches the summary 6 h
+  (`SUMMARY_CACHE_TTL_MS`), so the server is only hit on first-visit /
+  6 h-expiry / new-device.
+- **Proposed fix** (worker to audit + confirm): server-side **quantize the
+  incoming seed to a coarse bucket** (e.g. hourly: `floor(seed/3.6e6)`) →
+  cache `buildCatalogSummary` per bucket with a TTL ~ catalog TTL, + a
+  **single-flight** guard so concurrent cache-misses collapse to ONE
+  computation (the other N await the same promise instead of each running
+  0.85 s). No webapp change needed (server quantizes the client's
+  `Date.now()`). Optionally extend the boot warm to pre-compute the current
+  bucket so the first cold visitor post-deploy also hits warm. Home still
+  rotates (hourly). Expected: 0.85–16 s → ~one 0.85 s/bucket, ~0 ms otherwise.
+- **Impact**: this is the real remaining 503 / slow-Home source — every cold
+  Home load, not just cold boot. Higher leverage than the cleanup trio.
+- Algorithmic speedup of `buildCatalogSummary` (partial-select instead of
+  full 57k sorts) is a possible later optimization; caching makes it ~once/
+  bucket so it's not urgent.
+
 ### T_share_3 — Share to Telegram Story (webapp, PR)
 - One-tap "share current station to your Story" via the `shareToStory`
   WebApp API (TG 7.8+), with the station artwork + a deep-link widget
