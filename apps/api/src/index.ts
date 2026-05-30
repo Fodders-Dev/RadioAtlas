@@ -471,6 +471,10 @@ app.listen(port, () => {
 void (async () => {
   try {
     await catalogService.getCatalog('full');
+    // T_api_summary_cache: also pre-compute the current hourly summary bucket so
+    // the first cold visitor post-deploy hits a warm summary, not just a warm
+    // catalog (the summary's ~0.85s build is the bigger block).
+    await catalogService.getSummary(Date.now());
     console.log('Catalog warm complete');
   } catch (error) {
     console.warn('Catalog warm failed; will lazy-load on first request', error);
