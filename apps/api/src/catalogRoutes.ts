@@ -93,4 +93,8 @@ export const registerCatalogRoutes = (
       res.status(502).json({ error: error instanceof Error ? error.message : 'Catalog station failed' });
     }
   });
+
+  // T_api_bootwarm: hand the service back so index.ts can prime the profiled
+  // 'full' catalog at boot (backward-compatible — existing callers ignore it).
+  return catalog;
 };
