@@ -1,13 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildTelegramShareUrl,
+  canShareToStory,
   getStartParam,
   getTelegramThemeParams,
   getTelegramWebApp,
   isInsideTelegramClient,
+  isVersionAtLeast,
+  makeDeepLink,
   openLinkOrFallback,
   openTelegramLinkOrFallback,
   shareStationLink,
+  shareStationToStory,
   subscribeTelegramThemeChange,
   triggerHaptic,
   type TelegramWebApp
@@ -390,5 +394,73 @@ describe('shareStationLink (T_share_1 flow order)', () => {
       openExternal: () => false
     });
     expect(outcome).toBe('failed');
+  });
+});
+
+describe('isVersionAtLeast (T_share_3)', () => {
+  it('compares Bot API versions NUMERICALLY (not lexically)', () => {
+    expect(isVersionAtLeast('7.8', '7.8')).toBe(true);
+    // numeric, not lexical: '7.10' < '7.8' as strings but 7.10 ≥ 7.8 as versions.
+    expect(isVersionAtLeast('7.10', '7.8')).toBe(true);
+    expect(isVersionAtLeast('8.0', '7.8')).toBe(true);
+    expect(isVersionAtLeast('7.7', '7.8')).toBe(false);
+    expect(isVersionAtLeast('6.9', '7.8')).toBe(false);
+    expect(isVersionAtLeast(undefined, '7.8')).toBe(false);
+  });
+});
+
+describe('canShareToStory (T_share_3 feature-detect)', () => {
+  it('is false on standalone web (no SDK)', () => {
+    restoreTelegram();
+    expect(canShareToStory()).toBe(false);
+  });
+
+  it('is false when shareToStory is missing (older client)', () => {
+    installTelegram({ version: '7.8', initData: 'auth_date=1&hash=a' });
+    expect(canShareToStory()).toBe(false);
+  });
+
+  it('is false when the version is below 7.8', () => {
+    installTelegram({ version: '7.7', initData: 'auth_date=1&hash=a', shareToStory: () => {} });
+    expect(canShareToStory()).toBe(false);
+  });
+
+  it('is false when not inside a Telegram client (empty initData)', () => {
+    installTelegram({ version: '7.8', initData: '', shareToStory: () => {} });
+    expect(canShareToStory()).toBe(false);
+  });
+
+  it('is true with shareToStory + version ≥ 7.8 + inside the client', () => {
+    installTelegram({ version: '7.8', initData: 'auth_date=1&hash=a', shareToStory: () => {} });
+    expect(canShareToStory()).toBe(true);
+  });
+});
+
+describe('shareStationToStory (T_share_3)', () => {
+  it('is a no-op (returns false) when unsupported', () => {
+    restoreTelegram();
+    expect(shareStationToStory({ stationuuid: 'x', name: 'X' })).toBe(false);
+  });
+
+  it('calls shareToStory with the card media URL and a deep-link widget_link', () => {
+    vi.stubEnv('VITE_TG_BOT', 'radioatlasbot');
+    const captured = vi.fn<
+      (url: string, params?: { widget_link?: { url: string; name?: string } }) => void
+    >();
+    installTelegram({
+      version: '7.8',
+      initData: 'auth_date=1&hash=a',
+      shareToStory: captured
+    });
+
+    const ok = shareStationToStory({ stationuuid: 'abc-123', name: 'Tokyo FM' });
+    expect(ok).toBe(true);
+    expect(captured).toHaveBeenCalledTimes(1);
+    const [url, params] = captured.mock.calls[0]!;
+    expect(url).toContain('/api/share/story/abc-123.png');
+    // widget_link must be the just-fixed startapp=station_<id> deep link.
+    expect(params?.widget_link?.url).toBe(makeDeepLink('radioatlasbot', 'abc-123'));
+    expect(params?.widget_link?.name).toBe('Tokyo FM');
+    vi.unstubAllEnvs();
   });
 });

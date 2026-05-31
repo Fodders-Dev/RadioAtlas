@@ -14,7 +14,7 @@ import {
 } from '../lib/productAnalytics';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { stationLocation, stationTags } from '../lib/stationUtils';
-import { openLinkOrFallback } from '../lib/telegram';
+import { canShareToStory, openLinkOrFallback, shareStationToStory } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
@@ -194,6 +194,11 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
           <button className="player-btn" onClick={() => shareStation(current)} type="button">
             {t('common.share')}
           </button>
+          {canShareToStory() && (
+            <button className="player-btn" onClick={() => shareStationToStory(current)} type="button">
+              {t('common.shareStory')}
+            </button>
+          )}
           <button
             className={`player-btn ${followed ? 'active' : ''}`}
             onClick={() => toggleFollowStation(current)}

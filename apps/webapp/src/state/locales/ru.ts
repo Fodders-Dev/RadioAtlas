@@ -45,6 +45,7 @@ export const ruDictionary = {
     "cancel": "Отмена",
     "copy": "Копировать",
     "share": "Поделиться",
+    "shareStory": "В Историю",
     "info": "Инфо",
     "song": "Трек",
     "site": "Сайт",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { canShareToStory, shareStationToStory } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import WinampOverlay from './winampShell/WinampOverlay';
@@ -147,6 +148,16 @@ export const LitePlayerOverlay = ({
       >
         {t('common.share')}
       </button>
+      {canShareToStory() && (
+        <button
+          className="chip"
+          onClick={() => current && shareStationToStory(current)}
+          type="button"
+          disabled={!current}
+        >
+          {t('common.shareStory')}
+        </button>
+      )}
       {appButton}
       <button className="chip" type="button" onClick={copyTrack} disabled={!canCopyTrackTitle}>
         {t('common.song')}
