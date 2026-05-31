@@ -1750,13 +1750,35 @@ on prod (`radioatlas.duckdns.org`, post-#43, warm cache):
     V8 + the burst coinciding. Transient deploy-window only (absorbed by the
     #40 retry + the warm); steady state is flat. Strictly better than pre-#43.
 
-### T_share_3 — Share to Telegram Story (webapp, PR)
+### T_share_3 — Share to Telegram Story (split: PR-A server, PR-B webapp)
 - One-tap "share current station to your Story" via the `shareToStory`
-  WebApp API (TG 7.8+), with the station artwork + a deep-link widget
-  so viewers tap through to the station. Feature-detect + hide if the
-  API is absent.
-- **Done-when**: from the player, a Story share opens with artwork +
-  working deep-link; gracefully hidden where unsupported.
+  WebApp API (TG 7.8+), with a server-rendered on-brand card + a deep-link
+  widget so viewers tap through to the station. Feature-detect + hide if
+  unsupported. Chose **(A) generated 1080×1920 card** (vs artwork-direct).
+- **PR-A (server) — DONE + VERIFIED (PR #45 `bcb4443` + fix #46 `0bb7a97`).**
+  `GET /share/story/:id.png` → satori + `@resvg/resvg-js` render, per-station
+  cache + single-flight + LRU(256) (mirrors #44), SSRF artwork fetch via the
+  existing `/image` pinned guard, one static fallback for unknown ids,
+  native render dep lazy-imported in try/catch (a bad binary degrades only
+  this endpoint, not boot), Cache-Control 3-day (not immutable).
+  - **Verified on prod by EYE** (not just bytes — that's how the first bug
+    slipped): valid id renders the real card (633 KB, differs from the 272 KB
+    fallback → resvg native binary works on the VPS), 2nd request byte-identical
+    @0.17 s (cache), unknown id → fallback.
+  - **Cyrillic-tofu bug caught + fixed (#46):** the 3 Noto subsets were all
+    named `Noto Sans` → satori picked latin only, no per-glyph fallback →
+    Cyrillic/Greek rendered as ▯. Fix: distinct family names + `fontFamily:
+    'Noto Sans, Noto Sans Cyrillic, Noto Sans Greek'`. Second tofu (▶/📻 icons
+    absent from language subsets; CSS border-triangle renders as a square in
+    satori) → inline SVG play path. Re-verified by eye: «Весёлый Dance - Радио
+    Ваня» + «танцевальная · The Russian Federation» render as letters, clean
+    play triangle. **Lesson: byte-valid PNG ≠ correct render — view it.**
+- **PR-B (webapp) — NEXT:** feature-detect (`isVersionAtLeast 7.8` +
+  `canShareToStory`), Story button in the player surfaces (FullPlayer/
+  LitePlayer/StationDetails) beside the existing share, `shareStationToStory`
+  (mediaUrl = location-derived `/api/share/story/<id>.png`, `widget_link.url`
+  = `makeDeepLink` `startapp=station_<id>`), `share_story` telemetry, ru+en
+  locale. Verification = Artém device test (composer opens with card + widget).
 
 ### T_share_4 — Referral attribution + reward (webapp + api, PR — last)
 - Deep links carry `startapp=ref_<userId>` (the `link_`/`ref_` start-
