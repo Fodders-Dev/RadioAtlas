@@ -19,4 +19,4 @@ rm -f "$SERVICE_PATH"
 systemctl daemon-reload
 
 echo "RadioAtlas no longer uses a local static-origin service."
-echo "Nginx should serve ${CURRENT_LINK}/apps/webapp/dist directly via deploy/radioatlas.nginx.conf."
+echo "Caddy (the production edge) serves ${CURRENT_LINK}/apps/webapp/dist and reverse-proxies /api -> 127.0.0.1:3001."

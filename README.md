@@ -40,7 +40,7 @@ npm run test:webapp
    npm install
    npm --workspace apps/webapp run build
    ```
-3. Serve `apps/webapp/dist` with Nginx or Caddy.
+3. Serve `apps/webapp/dist` with Caddy, which also reverse-proxies `/api` -> `127.0.0.1:3001`.
 4. Run bot with systemd or pm2 using `.env`:
    - `BOT_TOKEN`, `WEBAPP_URL=https://your-domain`, optional `WEBAPP_DEEPLINK`
 5. Set BotFather WebApp URL to `https://your-domain`.
