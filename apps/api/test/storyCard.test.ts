@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   fetchStationArtwork,
   isNameRenderable,
+  renderStoryCard,
   type StoryCardDeps
 } from '../src/share/storyCard.js';
 import {
@@ -48,4 +49,20 @@ test('fetchStationArtwork: a host resolving to a private IP is blocked by the SS
 test('fetchStationArtwork: a missing favicon → null (gradient fallback)', async () => {
   assert.equal(await fetchStationArtwork('', deps), null);
   assert.equal(await fetchStationArtwork(null, deps), null);
+});
+
+// Regression guard for the Cyrillic-tofu bug: a covered-Cyrillic name must NOT be
+// omitted, and the render must load the per-subset fonts and produce a non-trivial
+// PNG (the three subsets are registered under distinct family names so satori
+// per-glyph-falls-back instead of drawing tofu). Glyph correctness itself is
+// verified by eye on the rendered card — bytes alone let the tofu through once.
+test('renders a Cyrillic station card (fonts load, name not omitted, non-empty PNG)', async () => {
+  const name = 'Весёлый Dance - Радио Ваня';
+  assert.equal(isNameRenderable(name), true, 'Cyrillic name is covered (not omitted)');
+  const png = await renderStoryCard(
+    { stationuuid: 'cyr-1', name, favicon: '', country: 'The Russian Federation', tags: 'dance,pop' },
+    { ...deps, fetchArtwork: async () => null } // no network; gradient tile
+  );
+  assert.ok(png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
+  assert.ok(png.byteLength > 10_000, 'real rendered content, not an empty canvas');
 });
