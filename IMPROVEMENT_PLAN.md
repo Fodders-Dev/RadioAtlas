@@ -1501,11 +1501,27 @@ handshake win below is geography-independent.)
   nginx-vs-Caddy review. Bigger change; do after T_perf_1.
 - **Priority**: P2 (perf) — biggest absolute win but more moving parts.
 
-### T_perf_3 — Split / trim the 131KB monolithic stylesheet (app, medium)
-- **Why**: `styles-*.css` is 131KB decoded (~24KB gzip) and render-blocking
-  on first paint. Splitting per-route critical CSS (or trimming dead rules)
-  shortens the first-paint critical path. Secondary to TTFB but app-side
-  and worker-ownable.
+### ~~T_perf_3~~ — CLOSED (satisfied by existing architecture, verified 2026-05-31)
+- **Verdict: park / no work.** The premise below ("render-blocking on first
+  paint") is **stale** — measured the built chunks on master `7456454` and
+  confirmed in source: `styles.css` (134KB min) is imported in EXACTLY ONE
+  place, `App.tsx:55` `stylesPromise ??= import('./styles.css')`, loaded via
+  `scheduleDeferredTask(loadGlobalStyles)` in a mount effect → **deferred off
+  the critical path** (no eager `import './styles.css'` anywhere). Critical
+  render-blocking CSS is just `boot.css` (~7KB, eager in main.tsx) + runtime
+  shell ≈ **6.9KB total**. Per-screen CSS (home/discover/FullPlayer/Lite/
+  ThemeStudio/globe) already chunks on the React.lazy boundaries.
+- **FOUC/theme safe independently of the deferred sheet**: `boot.css` carries
+  `:root{color-scheme}` + boot tokens pre-paint; per-user theme vars are inline
+  on `<html>` via `root.style.setProperty` (ThemeContext) at top cascade
+  precedence. The 134KB sheet arriving late doesn't gate theming.
+- **Why not split further**: reward ≈ 0 (monolith already off critical path;
+  splitting moves no FCP/LCP, reduces no bytes) vs real risk (one cascade-
+  ordered sheet → N async sheets = nondeterministic load order → cascade bugs
+  + reintroduced FOUC → endangers the `visual.spec.ts` baselines, incl. the
+  full-player one now carrying the non-TG-hidden Story button at zero-diff).
+- *(original framing, now obsolete:)* `styles-*.css` is 131KB decoded (~24KB
+  gzip) and render-blocking on first paint.
 - **Files**: `apps/webapp/src/styles.css` (the monolith), Vite CSS
   code-split config.
 - **Done-when**: cold Home first-paint CSS payload meaningfully smaller;
