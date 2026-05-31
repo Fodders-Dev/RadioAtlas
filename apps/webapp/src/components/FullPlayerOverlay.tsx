@@ -1,7 +1,7 @@
 import { useMemo, useRef, type ReactNode } from 'react';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
-import { triggerHaptic } from '../lib/telegram';
+import { canShareToStory, shareStationToStory, triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -329,6 +329,18 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             <Icon>{actionIcon.share}</Icon>
             <span>{t('common.share')}</span>
           </button>
+          {canShareToStory() && (
+            <button
+              className="full-player-action-chip"
+              type="button"
+              onClick={() => current && shareStationToStory(current)}
+              disabled={!current}
+              aria-label={t('common.shareStory')}
+            >
+              <Icon>{actionIcon.share}</Icon>
+              <span>{t('common.shareStory')}</span>
+            </button>
+          )}
           <button
             className="full-player-action-chip"
             type="button"

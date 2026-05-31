@@ -31,6 +31,8 @@
 //                             the client; on standalone web it is
 //                             always an empty string.
 
+import { reportClientEvent } from './observability';
+
 export type TelegramWebApp = NonNullable<NonNullable<Window['Telegram']>['WebApp']>;
 
 export type TelegramOpenLinkOptions = { try_instant_view?: boolean };
@@ -231,6 +233,59 @@ export const parseStationParam = (param: string): string => {
 export const makeDeepLink = (botUsername: string, stationId: string) => {
   const safeBot = botUsername.replace(/^@/, '');
   return `https://t.me/${safeBot}?startapp=station_${stationId}`;
+};
+
+// T_share_3 (PR-B): numeric Bot-API version compare (e.g. '7.10' ≥ '7.8').
+export const isVersionAtLeast = (version: string | undefined, minimum: string): boolean => {
+  if (!version) return false;
+  const parts = (value: string) => value.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const actual = parts(version);
+  const required = parts(minimum);
+  for (let i = 0; i < Math.max(actual.length, required.length); i += 1) {
+    const a = actual[i] ?? 0;
+    const b = required[i] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return true;
+};
+
+// shareToStory needs Bot API 7.8+ and a real Telegram client. Feature-detect so
+// the UI hides the button on older clients / standalone web — never errors.
+export const canShareToStory = (): boolean => {
+  const tg = readWindowTelegram();
+  return Boolean(
+    tg &&
+      typeof tg.shareToStory === 'function' &&
+      isVersionAtLeast(tg.version, '7.8') &&
+      isInsideTelegramClient()
+  );
+};
+
+// Open the full-screen Story composer with the server-rendered card (the
+// verified /share/story/<id>.png endpoint) + a tappable widget link that deep-
+// links into the Mini App on the station (the just-fixed startapp=station_<id>
+// form). Returns false (no-op) when unsupported. mediaUrl is location-derived so
+// it follows the domain.
+export const shareStationToStory = (station: {
+  stationuuid: string;
+  name?: string | null;
+}): boolean => {
+  const tg = readWindowTelegram();
+  if (!canShareToStory() || !tg?.shareToStory || typeof window === 'undefined') return false;
+
+  const mediaUrl = new URL(
+    `/api/share/story/${station.stationuuid}.png`,
+    window.location.origin
+  ).toString();
+
+  const botName = import.meta.env.VITE_TG_BOT as string | undefined;
+  const widgetLink = botName
+    ? { widget_link: { url: makeDeepLink(botName, station.stationuuid), name: station.name || 'RadioAtlas' } }
+    : undefined;
+
+  tg.shareToStory(mediaUrl, widgetLink);
+  reportClientEvent('share_story', { meta: { stationId: station.stationuuid } });
+  return true;
 };
 
 // T1.3: per-user Telegram theme colors. The full 13-key surface is

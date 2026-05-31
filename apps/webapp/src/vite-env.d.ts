@@ -65,6 +65,12 @@ declare global {
           options?: { try_instant_view?: boolean }
         ) => void;
         openTelegramLink?: (url: string) => void;
+        // T_share_3 (PR-B): full-screen Story composer (Bot API 7.8+). mediaUrl
+        // must be a public https image; widget_link makes the Story tappable.
+        shareToStory?: (
+          mediaUrl: string,
+          params?: { text?: string; widget_link?: { url: string; name?: string } }
+        ) => void;
         openInvoice?: (
           url: string,
           callback?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void

@@ -45,6 +45,7 @@ export const enDictionary = {
     "cancel": "Cancel",
     "copy": "Copy",
     "share": "Share",
+    "shareStory": "Share to Story",
     "info": "Info",
     "song": "Song",
     "site": "Site",
