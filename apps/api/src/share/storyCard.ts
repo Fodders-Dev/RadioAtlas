@@ -90,22 +90,29 @@ const loadEngine = async (): Promise<Engine> => {
 };
 
 type FontSpec = { name: string; data: Buffer; weight: 400 | 700; style: 'normal' };
+// The three Noto subsets are registered under DISTINCT family names. satori does
+// per-glyph fallback across the comma-separated CARD_FONT_FAMILY list — but only
+// across DIFFERENT family names; registering all subsets as one "Noto Sans" made
+// satori pick a single subset (latin) and render Cyrillic/Greek as tofu. With
+// distinct names + the fallback list, a Cyrillic glyph missing from the latin
+// font is taken from "Noto Sans Cyrillic", etc.
+export const CARD_FONT_FAMILY = 'Noto Sans, Noto Sans Cyrillic, Noto Sans Greek';
 let fontsPromise: Promise<FontSpec[]> | null = null;
 const loadFonts = async (assetsDir: URL): Promise<FontSpec[]> => {
   fontsPromise ??= (async () => {
     const read = async (file: string) => readFile(new URL(`fonts/${file}`, assetsDir));
-    const specs: Array<[string, 400 | 700]> = [
-      ['noto-sans-latin-400.woff', 400],
-      ['noto-sans-latin-700.woff', 700],
-      ['noto-sans-cyrillic-400.woff', 400],
-      ['noto-sans-cyrillic-700.woff', 700],
-      ['noto-sans-greek-400.woff', 400],
-      ['noto-sans-greek-700.woff', 700]
+    const specs: Array<[string, 400 | 700, string]> = [
+      ['noto-sans-latin-400.woff', 400, 'Noto Sans'],
+      ['noto-sans-latin-700.woff', 700, 'Noto Sans'],
+      ['noto-sans-cyrillic-400.woff', 400, 'Noto Sans Cyrillic'],
+      ['noto-sans-cyrillic-700.woff', 700, 'Noto Sans Cyrillic'],
+      ['noto-sans-greek-400.woff', 400, 'Noto Sans Greek'],
+      ['noto-sans-greek-700.woff', 700, 'Noto Sans Greek']
     ];
     try {
       return await Promise.all(
-        specs.map(async ([file, weight]): Promise<FontSpec> => ({
-          name: 'Noto Sans',
+        specs.map(async ([file, weight, name]): Promise<FontSpec> => ({
+          name,
           data: await read(file),
           weight,
           style: 'normal'
@@ -162,6 +169,21 @@ const buildCardElement = (
   const country = (station?.country || '').trim();
   const subtitle = [genre, country].filter(Boolean).join(' · ');
 
+  // A play triangle as inline SVG — NOT a glyph and NOT a CSS-border triangle.
+  // The bundled Noto Sans subsets are LANGUAGE subsets (letters only) with no
+  // Geometric-Shapes (▶) / emoji, and satori renders the width:0 border-triangle
+  // trick as a square — so both produce tofu/boxes. satori does render inline
+  // SVG paths, which are font-independent and always correct.
+  const playTriangle = (size: number, color: string) => ({
+    type: 'svg',
+    props: {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      children: { type: 'path', props: { d: 'M8 5v14l11-7z', fill: color } }
+    }
+  });
+
   const artworkNode = artwork
     ? {
         type: 'img',
@@ -182,10 +204,9 @@ const buildCardElement = (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg,#7ad7f0,#9b6bff)',
-            fontSize: 200
+            background: 'linear-gradient(135deg,#7ad7f0,#9b6bff)'
           },
-          children: '📻'
+          children: playTriangle(120, 'rgba(9,14,24,0.82)')
         }
       };
 
@@ -227,9 +248,9 @@ const buildCardElement = (
         color: '#bdecff',
         display: 'flex',
         alignItems: 'center',
-        gap: 16
+        gap: 20
       },
-      children: '▶  Listen on RadioAtlas'
+      children: [playTriangle(26, '#bdecff'), { type: 'div', props: { children: 'Listen on RadioAtlas' } }]
     }
   });
 
@@ -247,7 +268,7 @@ const buildCardElement = (
         background:
           'radial-gradient(circle at 30% 20%, rgba(123,215,240,0.18), transparent 45%), linear-gradient(160deg,#16202c,#090a0f)',
         color: '#ffffff',
-        fontFamily: 'Noto Sans'
+        fontFamily: CARD_FONT_FAMILY
       },
       children
     }
