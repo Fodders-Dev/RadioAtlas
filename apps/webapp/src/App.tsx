@@ -5,7 +5,7 @@ import { reportClientEvent, reportError } from './lib/observability';
 import { SettingsSheet } from './components/SettingsSheet';
 import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
-import { APP_COMMIT, buildLabel } from './lib/buildInfo';
+import { buildLabel } from './lib/buildInfo';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
 import { useCompactLayout } from './lib/useCompactLayout';
@@ -205,7 +205,7 @@ const App = () => {
   useEffect(() => {
     // T_deeplink_lifecycle_fix: run ONCE on mount (deps []) and never cancel the
     // in-flight play. Telemetry (PR #41) proved the bug: deeplink_enter fired but
-    // deeplink_resolve/play/error never did → the async play hit a cancelled
+    // deeplink_play/error never did → the async play hit a cancelled
     // guard. The old effect depended on [fetchStationById, playStation, t]; those
     // handler identities change during boot (session-auth/summary/theme
     // re-renders), so the effect re-ran, its cleanup set cancelled=true on the
@@ -219,29 +219,22 @@ const App = () => {
     startHandledRef.current = true;
 
     const startParam = getStartParam();
-    // T_deeplink_telemetry: instrument every step so the failure point stays
-    // observable server-side (/observability) on a real-device tap. Kept for now
-    // as the verification of this fix; trim to one success/fail beacon later.
-    if (!startParam) {
-      reportClientEvent('deeplink_no_param', {
-        dedupeKey: 'deeplink_no_param',
-        meta: { buildCommit: APP_COMMIT }
+    // T_deeplink_telemetry (lean funnel): enter (a real deep-link open) -> play
+    // {stationId} on success; deeplink_error{reason} on a terminal fail so a
+    // broken Story-widget deep link stays visible. No start param = a normal app
+    // open (indistinguishable from a lost-param tap), so it emits nothing.
+    if (!startParam) return;
+
+    reportClientEvent('deeplink_enter', { dedupeKey: 'deeplink_enter' });
+
+    const stationId = parseStationParam(startParam);
+    if (!stationId) {
+      reportClientEvent('deeplink_error', {
+        dedupeKey: 'deeplink_error',
+        meta: { reason: 'parse_failed' }
       });
       return;
     }
-
-    const stationId = parseStationParam(startParam);
-
-    reportClientEvent('deeplink_enter', {
-      dedupeKey: 'deeplink_enter',
-      meta: {
-        startParamRaw: getStartParam() || 'null',
-        parsedId: stationId || 'null',
-        // Confirms the device runs the NEW bundle (rules out a stale Telegram
-        // webview cache when an event is missing).
-        buildCommit: APP_COMMIT
-      }
-    });
 
     void (async () => {
       const handlers = deepLinkHandlersRef.current;
@@ -250,14 +243,16 @@ const App = () => {
         // cold-boot 503 (the boot request burst stalls the API) so a shared
         // station actually resolves and plays instead of silently bailing.
         const station = await handlers.fetchStationById(stationId, { retryOn5xx: true });
-        reportClientEvent('deeplink_resolve', {
-          dedupeKey: 'deeplink_resolve',
-          meta: { found: Boolean(station), stationId }
-        });
-        if (!station) return;
+        if (!station) {
+          reportClientEvent('deeplink_error', {
+            dedupeKey: 'deeplink_error',
+            meta: { reason: 'not_found' }
+          });
+          return;
+        }
         reportClientEvent('deeplink_play', {
           dedupeKey: 'deeplink_play',
-          meta: { stationId, name: station.name }
+          meta: { stationId }
         });
         // Read playStation + t from the ref at PLAY time (latest identities; the
         // dictionary is loaded by now, so the label is translated).
@@ -265,10 +260,10 @@ const App = () => {
           sourceId: 'deep-link',
           sourceLabel: deepLinkHandlersRef.current.t('radio.deepLink')
         });
-      } catch (err) {
+      } catch {
         reportClientEvent('deeplink_error', {
           dedupeKey: 'deeplink_error',
-          meta: { message: String(err).slice(0, 200) }
+          meta: { reason: 'fetch_failed' }
         });
       }
     })();
