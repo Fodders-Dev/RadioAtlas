@@ -1701,7 +1701,7 @@ logs show `RadioAtlas API on 3001 → Catalog warm complete`; direct
 isolation. `fast` warm dropped (unused by routes; would double the boot
 transient). 30-min TTL re-expiry documented as residual.
 
-### T_api_summary_cache — NEXT (the bigger fish #43's verification surfaced)
+### ~~T_api_summary_cache~~ — DONE + VERIFIED (PR #44, `57fa103`)
 Verifying #43 exposed that the deep-link by-id was only half the
 event-loop story. **`/catalog/summary` (the Home endpoint) burns
 ~0.85 s of UNCACHED synchronous CPU per call and serializes.** Measured
@@ -1737,6 +1737,18 @@ on prod (`radioatlas.duckdns.org`, post-#43, warm cache):
 - Algorithmic speedup of `buildCatalogSummary` (partial-select instead of
   full 57k sorts) is a possible later optimization; caching makes it ~once/
   bucket so it's not urgent.
+- **VERIFIED on prod** (`radioatlas.duckdns.org`, post-#44 deploy):
+  - **concurrent ×5 to one cold bucket: all ~1.19 s** (was ×4 → 1.0/1.8/2.7/
+    3.4 s staircase). Single-flight collapsed 5 → one compute. **Staircase gone.**
+  - repeat (cached): **0.157 s**; current real bucket (seed=now, boot-warmed):
+    **0.070 s**.
+  - memory: API back to **233 MB**, box 2.3 GB free; `unstable_restarts:0`,
+    error log clean, no `max_memory_restart` configured → the transient 975 MB
+    boot+burst spike rebooted nothing.
+  - One artifact: a concurrent burst fired in the first ~15 s after the deploy
+    reload read 13–22 s — the warm (catalog ~1 s + summary ~0.85 s) + JIT-cold
+    V8 + the burst coinciding. Transient deploy-window only (absorbed by the
+    #40 retry + the warm); steady state is flat. Strictly better than pre-#43.
 
 ### T_share_3 — Share to Telegram Story (webapp, PR)
 - One-tap "share current station to your Story" via the `shareToStory`
