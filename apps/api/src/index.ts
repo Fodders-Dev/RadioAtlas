@@ -9,6 +9,7 @@ import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
+import { registerShareRoutes } from './shareRoutes.js';
 import { installObservability, recordCatalogFallback } from './observability.js';
 import { registerStationProfileRoutes } from './stationProfileRoutes.js';
 
@@ -118,6 +119,10 @@ const CATALOG_FETCH_TIMEOUT_MS = Number(process.env.CATALOG_FETCH_TIMEOUT_MS || 
 const CATALOG_ARTIFACT_ONLY = process.env.CATALOG_ARTIFACT_ONLY === '1';
 const CATALOG_ARTIFACT_FAST_URL = new URL('../../../artifacts/catalog-fast.json', import.meta.url);
 const CATALOG_ARTIFACT_FULL_URL = new URL('../../../artifacts/catalog-full.json', import.meta.url);
+// T_share_3: bundled assets (Story-card fonts + static fallback PNG). `../assets/`
+// resolves to apps/api/assets/ from BOTH src/index.ts (dev, tsx) and
+// dist/index.js (prod, tsup bundle) — src and dist are siblings under apps/api.
+const ASSETS_DIR = new URL('../assets/', import.meta.url);
 const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
   .split(',')
   .map((item) => item.trim())
@@ -413,6 +418,15 @@ registerStationProfileRoutes(app);
 const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles
+});
+// T_share_3 (PR-A): the Story-card endpoint. Resolves the station via the warm
+// catalog (getStationById is ~16ms post-#43); render/SSRF/cache live in the
+// share/* modules. The native render dep is lazy-loaded there so a bad binary
+// degrades only this endpoint, not boot.
+registerShareRoutes(app, {
+  getStationById: (id) => catalogService.getStationById(id),
+  assetsDir: ASSETS_DIR,
+  userAgent: USER_AGENT
 });
 registerMediaRoutes(app, {
   userAgent: USER_AGENT,
