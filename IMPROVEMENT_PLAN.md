@@ -1727,10 +1727,24 @@ arc so the lesson sticks:
   + standalone quirks) — wasted cycles there. (c) "no resolve AND no error"
   after an `await` that always settles ⇒ a `cancelled`/lifecycle short-circuit,
   not a network failure.
-- **Follow-ups** (flagged, not done): trim the verbose telemetry to a single
-  funnel beacon; the API catalog event-loop block (the 503 source, T_audit_5-
-  adjacent) — fixing it would remove the retry's up-to-7s worst case and make
-  deep-links instant.
+- **Follow-ups — BOTH DONE**: (1) the verbose telemetry was trimmed to a lean
+  `deeplink_enter`(param-present)→`deeplink_play`/`deeplink_error{reason}` funnel
+  (PR #50 `378eb94`) — and the trim turned the previously-silent `not_found` into
+  an explicit error beacon (better fail-visibility than the verbose version).
+  (2) the API catalog event-loop block — fixed by #43 boot-warm (by-id 16 ms) +
+  #44 summary-cache (staircase collapsed); deep-links are now instant.
+
+### Cleanup sprint — CLOSED (2026-05-31)
+All five items done; each either prod-verified or honestly closed by audit
+(not made-work):
+- **#1 Dependabot** (4 vulns) — audit found the lockfile already patched
+  (`npm audit`=0, all dev/build-only); 4 stale alerts dismissed via API. No code.
+- **#2 CSS-split** (T_perf_3) — already satisfied by existing architecture
+  (`styles.css` deferred via `requestIdleCallback`; critical CSS ~7 KB); parked.
+- **#4 nginx** (T_infra_1, PR #48) — removed from the deploy; 4-agent verification
+  workflow + prod-verified (502 deploy-vector gone, shared box undisturbed).
+- **#5 doc-drift** (PR #49) — repo docs aligned to Caddy-is-the-edge reality.
+- **#3 telemetry-trim** (PR #50) — lean deep-link funnel; sink confirmed permissive.
 
 ### ~~T_api_bootwarm~~ — DONE + VERIFIED (PR #43, `e379dcc`)
 Background catalog warm after `app.listen` (`getCatalog('full')` via the
