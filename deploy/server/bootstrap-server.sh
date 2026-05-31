@@ -24,12 +24,12 @@ Create env files before first deploy:
   /opt/RadioAtlas/shared/env/webapp.env
 ENVHELP
 
-cat <<'NGINXHELP'
-RadioAtlas production shell is expected to be served directly by nginx from:
-  /opt/RadioAtlas/current/apps/webapp/dist
+cat <<'CADDYHELP'
+RadioAtlas is served by Caddy (the production edge): it serves the static shell
+from /opt/RadioAtlas/current/apps/webapp/dist and reverse-proxies /api -> 127.0.0.1:3001.
 
-Use deploy/radioatlas.nginx.conf as the source of truth for the nginx server block.
-Each deploy is expected to refresh /etc/nginx/sites-available/radioatlas.conf and reload nginx.
-NGINXHELP
+The deploy does NOT touch nginx. deploy/radioatlas.nginx.conf is kept only as a
+reference for the /api proxy + gzip settings; nginx is not in the serving path.
+CADDYHELP
 
 echo "Bootstrap complete"

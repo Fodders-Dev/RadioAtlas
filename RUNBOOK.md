@@ -79,14 +79,14 @@ Additionally, `apps/api/src/googleAuth.ts` and `apps/api/src/vkAuth.ts` short-ci
 4. Set `VITE_TG_BOT` in `apps/webapp/.env` and redeploy.
 
 ## Deploy (VPS)
-1. Install Node 18+, Nginx, and Python 3.
+1. Install Node 18+, Caddy, and Python 3.
 2. Build webapp:
    ```bash
    npm install
    npm --workspace apps/webapp run build
    ```
-3. Serve `apps/webapp/dist` directly from nginx.
-   Use `deploy/radioatlas.nginx.conf` as the source of truth for the RadioAtlas server block.
+3. Serve `apps/webapp/dist` with Caddy (the production edge); Caddy also reverse-proxies `/api` -> `127.0.0.1:3001`.
+   `deploy/radioatlas.nginx.conf` is kept only as a reference for the `/api` proxy + gzip settings (nginx is not in the serving path).
 4. If the old `radioatlas-static` service exists from a previous setup, retire it:
    ```bash
    bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh
@@ -117,15 +117,13 @@ Deploy flow:
 - PM2 launches `apps/api/dist/index.js` and `apps/bot/dist/index.js` directly from the release workspace instead of routing through `npm --workspace`.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
 - Deploy now waits for `http://127.0.0.1:3001/health` before reporting success, and dumps `pm2` status/logs if the API fails to come back.
-- **T_audit_4 — external smoke**: after the SSH deploy returns, the workflow curls the **public** URL (`https://radioatlas.duckdns.org/api/health`) from the GH Actions runner with `--max-time 10 --retry 3 --retry-delay 5`. Non-2xx or a body missing `{ok:true}` **hard-fails** the job — this is the gate the 2026-05-27 incident bypassed (the in-script healthcheck hits `127.0.0.1:3001`, not nginx). To run the same probe manually:
+- **T_audit_4 — external smoke**: after the SSH deploy returns, the workflow curls the **public** URL (`https://radioatlas.duckdns.org/api/health`) from the GH Actions runner with `--max-time 10 --retry 3 --retry-delay 5`. Non-2xx or a body missing `{ok:true}` **hard-fails** the job — this is the gate the 2026-05-27 incident bypassed (the in-script healthcheck hits `127.0.0.1:3001`, not the public Caddy edge). To run the same probe manually:
   ```
   curl -sS -o /tmp/smoke.json -w 'HTTP %{http_code}\n' --max-time 10 --retry 3 --retry-delay 5 https://radioatlas.duckdns.org/api/health && cat /tmp/smoke.json
   ```
   Expect `HTTP 200` + `{"ok":true}`.
 - **T_audit_6 — chunk preservation**: `deploy-release.sh` rsyncs the previous release's `apps/webapp/dist/assets/*` into the new release additively (`rsync -a --ignore-existing`) before the symlink swap. Vite content-hashes chunks, so a deploy that rebuilds (say) `Home.tsx` would delete `Home-{oldHash}.js`; preserving it keeps every cached `index-*.js` resolvable for at least one more deploy. If a deeper chain still misses, the webapp's `ErrorBoundary` falls back to a single timestamp-guarded `location.reload()` (cooldown 10s — never loops on a genuinely broken build). Run `bash deploy/server/test-preserve-chunks.sh` to verify the rsync flags behave as expected (skips on hosts without `rsync`).
-- After the release switch, reload nginx so it serves the new `current/apps/webapp/dist`:
-  - `bash /opt/RadioAtlas/current/deploy/server/install-radioatlas-static-origin.sh`
-  - `nginx -t && systemctl reload nginx`
+- After the release switch, Caddy serves the new `current/apps/webapp/dist` automatically: it resolves the `current` symlink per request, so no edge reload is needed. The deploy no longer touches nginx (T_infra_1).
 
 ## Incident capture
 - Save current production logs and process state:
@@ -161,7 +159,7 @@ Deploy flow:
    npm --workspace apps/api run build
    pm2 start /opt/RadioAtlas/apps/api/dist/index.js --name radioatlas-api --cwd /opt/RadioAtlas/apps/api
    ```
-2. Nginx: proxy `/api` to `http://127.0.0.1:3001`.
+2. Caddy: reverse-proxy `/api` to `http://127.0.0.1:3001`.
 3. Webapp env:
    - `VITE_API_URL=https://your-domain/api`
 4. Runtime override:
