@@ -1549,9 +1549,14 @@ handshake win below is geography-independent.)
   200 (undisturbed), nginx still `disabled/failed` (shared unit untouched),
   deployed script has 0 `sync_nginx_config`, Caddy sole holder of 80/443.
   The 2026-05-27 502 deploy-vector is gone; shared box not disturbed.
-- **Follow-up (next)**: doc-drift sweep — RUNBOOK.md:88-122, README.md:43,
-  bootstrap NGINXHELP heredoc, install-radioatlas-static-origin echo,
-  apps/webapp/index.html:7, this file — all still claim nginx serves/reloads.
+- **Doc-drift sweep — DONE (PR #49 `merged`)**: corrected the now-false
+  nginx-serves/reloads claims to Caddy-is-the-edge reality across README.md,
+  RUNBOOK.md (incl. the `## API proxy` line + the external-smoke aside +
+  install-static-origin reload step), bootstrap `NGINXHELP`→`CADDYHELP`
+  heredoc, install-radioatlas-static-origin echo, apps/webapp/index.html
+  comment. Factual-only, zero behavior change; deployed green. Left untouched:
+  `apt-get install nginx` (shared box), `deploy/radioatlas.nginx.conf` (kept
+  as the /api-proxy reference). Repo docs now match the prod topology.
 - *(original finding below, now resolved:)*
 
 ### T_infra_1 (orig) — nginx is vestigial; the deploy wrestles a corpse (infra cleanup)
