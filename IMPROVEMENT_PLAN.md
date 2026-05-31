@@ -1773,7 +1773,7 @@ on prod (`radioatlas.duckdns.org`, post-#43, warm cache):
     satori) → inline SVG play path. Re-verified by eye: «Весёлый Dance - Радио
     Ваня» + «танцевальная · The Russian Federation» render as letters, clean
     play triangle. **Lesson: byte-valid PNG ≠ correct render — view it.**
-- **PR-B (webapp) — NEXT:** feature-detect (`isVersionAtLeast 7.8` +
+- **PR-B (webapp) — SHIPPED (PR #47 `61bf61a`), awaiting Artém device test.** feature-detect (`isVersionAtLeast 7.8` +
   `canShareToStory`), Story button in the player surfaces (FullPlayer/
   LitePlayer/StationDetails) beside the existing share, `shareStationToStory`
   (mediaUrl = location-derived `/api/share/story/<id>.png`, `widget_link.url`
