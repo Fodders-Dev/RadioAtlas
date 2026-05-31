@@ -20,92 +20,6 @@ fi
 
 mkdir -p "$SHARED_ENV_DIR"
 
-sync_nginx_config() {
-  local source_conf="$CURRENT_LINK/deploy/radioatlas.nginx.conf"
-  local target_conf="/etc/nginx/sites-available/radioatlas.conf"
-  local target_link="/etc/nginx/sites-enabled/radioatlas.conf"
-
-  if ! command -v nginx >/dev/null 2>&1; then
-    return
-  fi
-
-  if [[ ! -f "$source_conf" ]]; then
-    echo "Missing nginx config: $source_conf" >&2
-    exit 1
-  fi
-
-  install -D -m 644 "$source_conf" "$target_conf"
-  ln -sfn "$target_conf" "$target_link"
-  rm -f /etc/nginx/sites-enabled/default
-  # Hard gate: if the new config is invalid, abort before doing anything else.
-  nginx -t
-
-  # Bring nginx back up tolerant of two failure modes we hit on 2026-05-27:
-  #   (1) `nginx.service` was inactive in systemd, so `systemctl reload` /
-  #       `nginx -s reload` both refused (stale/empty /run/nginx.pid).
-  #   (2) A bare `nginx` master process was actually running, holding
-  #       ports 80/443 — so spinning up a NEW daemon hits EADDRINUSE.
-  # Either way the script used to die here with set -e, and PM2 never
-  # restarted, leaving /api/* on 502 for the next hour.
-  #
-  # Order: systemctl reload/restart/start → direct SIGHUP to the running
-  # master PID we discover via pgrep (this reloads the existing process
-  # WITHOUT trying to bind ports we already hold) → bare daemon as a
-  # last resort. The first path that succeeds wins. None of the failure
-  # paths abort the deploy — see the caller, which tolerates a failed
-  # reload so PM2 still restarts (a dead API matters more).
-  _nginx_reload() {
-    if command -v systemctl >/dev/null 2>&1; then
-      if systemctl reload nginx 2>/dev/null; then
-        return 0
-      fi
-      if systemctl restart nginx 2>/dev/null; then
-        echo "nginx reload failed; restarted the unit" >&2
-        return 0
-      fi
-      if systemctl start nginx 2>/dev/null; then
-        echo "nginx reload/restart failed; started the inactive unit" >&2
-        return 0
-      fi
-    fi
-
-    # systemd refused — look for an orphan master nginx process and
-    # SIGHUP it to reload config in-place. SIGHUP is what nginx itself
-    # uses for graceful reload.
-    local nginx_pid=""
-    if command -v pgrep >/dev/null 2>&1; then
-      nginx_pid="$(pgrep -f 'nginx: master process' | head -n1 || true)"
-      if [[ -z "$nginx_pid" ]]; then
-        nginx_pid="$(pgrep -x nginx | head -n1 || true)"
-      fi
-    fi
-    if [[ -n "$nginx_pid" ]]; then
-      # Restore /run/nginx.pid so future `nginx -s reload` / systemd
-      # tracking can find the master again.
-      if [[ -w /run ]] || [[ "$(id -u)" -eq 0 ]]; then
-        echo "$nginx_pid" > /run/nginx.pid 2>/dev/null || true
-      fi
-      if kill -HUP "$nginx_pid" 2>/dev/null; then
-        echo "nginx reloaded via SIGHUP to existing master pid=$nginx_pid" >&2
-        return 0
-      fi
-    fi
-
-    # Last resort: only safe when nothing is bound to 80/443 already.
-    if nginx -s reload 2>/dev/null; then
-      return 0
-    fi
-    nginx 2>/dev/null
-  }
-
-  if ! _nginx_reload; then
-    echo "WARNING: nginx reload exhausted all paths; the running config may be stale" >&2
-    echo "  (config IS already validated via 'nginx -t' above, so the next valid" >&2
-    echo "   reload will pick it up; deploy continues so PM2 still restarts)" >&2
-    return 0
-  fi
-}
-
 # T_audit_6: copy the previous release's built webapp chunks into the NEW
 # release's assets dir BEFORE the symlink swap. Vite emits content-hashed chunk
 # filenames, so a deploy that rebuilds (say) Home.tsx replaces Home-{oldHash}.js
@@ -239,7 +153,9 @@ preserve_previous_chunks
 
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 assert_webapp_dist
-sync_nginx_config
+# Caddy is the edge; the deploy does not touch the shared nginx unit.
+# (T_infra_1 removed the nginx-sync step: it was the 2026-05-27 incident
+#  vector — nginx EADDRINUSE on 80/443 since Caddy already owns those ports.)
 
 start_pm2_release
 if ! wait_for_api_health; then
