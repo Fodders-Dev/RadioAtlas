@@ -1535,7 +1535,26 @@ handshake win below is geography-independent.)
 - **Files**: `apps/webapp/src/state/*`, the radio-state chunk boundary.
 - **Priority**: P3 (perf) — measure before cutting; may not be worth it.
 
-### T_infra_1 — nginx is vestigial; the deploy wrestles a corpse (infra cleanup)
+### ~~T_infra_1~~ — DONE + VERIFIED (PR #48 `e368a8f`)
+- Removed `sync_nginx_config()` + its call from `deploy-release.sh` (−87/+3);
+  the deploy no longer touches the shared nginx unit. **4-agent verification
+  workflow** (live-VPS recon + codebase + adversarial + synthesis) returned
+  approve-with-caveats; all caveats honored (edited the main-repo copy located
+  by function name w/ `preserve_previous_chunks` as the right-copy marker; kept
+  `deploy/radioatlas.nginx.conf` as the only in-repo /api-proxy record; docs
+  deferred to a follow-up).
+- **Verified on prod** post-deploy: deploy green in 53 s (no nginx dance);
+  inline "Post-deploy external smoke" (public `/api/health` via Caddy) green;
+  read-only recheck — radioatlas `/api/health` 200, neighbor `rodnya-tree.ru`
+  200 (undisturbed), nginx still `disabled/failed` (shared unit untouched),
+  deployed script has 0 `sync_nginx_config`, Caddy sole holder of 80/443.
+  The 2026-05-27 502 deploy-vector is gone; shared box not disturbed.
+- **Follow-up (next)**: doc-drift sweep — RUNBOOK.md:88-122, README.md:43,
+  bootstrap NGINXHELP heredoc, install-radioatlas-static-origin echo,
+  apps/webapp/index.html:7, this file — all still claim nginx serves/reloads.
+- *(original finding below, now resolved:)*
+
+### T_infra_1 (orig) — nginx is vestigial; the deploy wrestles a corpse (infra cleanup)
 - **Discovered during the 2026-05-29 VPS recon**: the real server is
   **Caddy v2.10.2** (serves radioatlas's static dist directly + reverse-
   proxies `/api` → 127.0.0.1:3001). **nginx 1.18 is `systemctl is-active`
