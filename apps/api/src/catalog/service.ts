@@ -36,6 +36,18 @@ export type CatalogStation = {
   votes?: number;
   clicktrend?: number;
   clickcount?: number;
+  // T_perf_search: server-internal precomputed search index. Built ONCE per
+  // profiling refresh in getProfiledCatalog (lives on the cached profiled array,
+  // invalidated with the catalog) so buildSearchResponse scans ready fields
+  // instead of rebuilding ~60k strings per request. NEVER serialized to the wire
+  // — toStationLite is a whitelist projection that omits these. buildSearchResponse
+  // falls back to live compute per field if any are absent.
+  searchHaystack?: string;
+  searchCountry?: string;
+  searchLanguage?: string;
+  searchContinent?: string;
+  searchTagText?: string;
+  searchTags?: string[];
 };
 
 export type CatalogDependencies = {
@@ -446,16 +458,61 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
   };
 };
 
-const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchFilters) => {
+// T_perf_search: the exact per-field normalizations buildSearchResponse used to
+// do inline, now factored out so they can be (1) precomputed once per profiling
+// refresh and (2) used as the live-compute fallback. These are pure functions of
+// static station fields, so precomputed === live.
+const computeSearchHaystack = (station: CatalogStation) =>
+  [station.name, station.tags, station.country, station.state, station.language]
+    .join(' ')
+    .toLowerCase();
+const computeSearchTagText = (station: CatalogStation) => (station.tags || '').toLowerCase();
+const computeSearchTags = (station: CatalogStation) =>
+  (station.tags || '')
+    .split(',')
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean);
+
+// Per-field accessors: read the precomputed value when present, else compute
+// live. `??` (not `||`) so a legitimately empty string/array precompute is kept.
+const searchHaystackOf = (station: CatalogStation) =>
+  station.searchHaystack ?? computeSearchHaystack(station);
+const searchCountryOf = (station: CatalogStation) =>
+  station.searchCountry ?? normalizeText(station.country);
+const searchLanguageOf = (station: CatalogStation) =>
+  station.searchLanguage ?? normalizeText(station.language);
+const searchContinentOf = (station: CatalogStation) =>
+  station.searchContinent ?? resolveContinent(station);
+const searchTagTextOf = (station: CatalogStation) =>
+  station.searchTagText ?? computeSearchTagText(station);
+const searchTagsOf = (station: CatalogStation) =>
+  station.searchTags ?? computeSearchTags(station);
+
+// Attach the precomputed search index to every station. Runs ONCE per profiling
+// refresh inside getProfiledCatalog (cached in profiledFullCache, invalidated
+// with the catalog), and rides the #43 boot-warm path so the first search after
+// a deploy is already warm. Returns NEW objects (no mutation of the upstream raw
+// catalog) — a ~tens-of-MB delta on the cached profiled array, recomputed only
+// on the 5-min refresh.
+export const attachSearchIndex = (stations: CatalogStation[]): CatalogStation[] =>
+  stations.map((station) => ({
+    ...station,
+    searchHaystack: computeSearchHaystack(station),
+    searchCountry: normalizeText(station.country),
+    searchLanguage: normalizeText(station.language),
+    searchContinent: resolveContinent(station),
+    searchTagText: computeSearchTagText(station),
+    searchTags: computeSearchTags(station)
+  }));
+
+export const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchFilters) => {
   const filtered = stations.filter((station) => {
-    const haystack = [station.name, station.tags, station.country, station.state, station.language]
-      .join(' ')
-      .toLowerCase();
-    if (filters.q && !haystack.includes(filters.q)) return false;
-    if (filters.country && normalizeText(station.country) !== filters.country) return false;
-    if (filters.language && normalizeText(station.language) !== filters.language) return false;
-    if (filters.tag && !(station.tags || '').toLowerCase().includes(filters.tag)) return false;
-    if (filters.continent && resolveContinent(station) !== filters.continent) return false;
+    // q-haystack stays gated behind the && — a no-q browse never touches it.
+    if (filters.q && !searchHaystackOf(station).includes(filters.q)) return false;
+    if (filters.country && searchCountryOf(station) !== filters.country) return false;
+    if (filters.language && searchLanguageOf(station) !== filters.language) return false;
+    if (filters.tag && !searchTagTextOf(station).includes(filters.tag)) return false;
+    if (filters.continent && searchContinentOf(station) !== filters.continent) return false;
     return true;
   });
 
@@ -465,24 +522,20 @@ const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchF
   const continentCounts = new Map<string, number>();
 
   filtered.forEach((station) => {
-    const country = normalizeText(station.country);
-    const continent = resolveContinent(station);
+    const country = searchCountryOf(station);
+    const continent = searchContinentOf(station);
     if (country) {
       const current = countryCounts.get(country) || { count: 0, continent };
       current.count += 1;
       countryCounts.set(country, current);
     }
-    const language = normalizeText(station.language);
+    const language = searchLanguageOf(station);
     if (language) {
       languageCounts.set(language, (languageCounts.get(language) || 0) + 1);
     }
-    (station.tags || '')
-      .split(',')
-      .map((tag) => tag.trim().toLowerCase())
-      .filter(Boolean)
-      .forEach((tag) => {
-        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-      });
+    searchTagsOf(station).forEach((tag) => {
+      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    });
     continentCounts.set(continent, (continentCounts.get(continent) || 0) + 1);
   });
 
@@ -638,7 +691,12 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
   if (cache && Date.now() - cache.ts < PROFILE_CACHE_TTL_MS) {
     return cache.data;
   }
-  const data = await dependencies.withStationProfiles(await dependencies.getCatalog(mode));
+  // T_perf_search: precompute the search index here so it lives on the cached
+  // profiled array (one map per 5-min refresh, on the boot-warm path) and the
+  // per-request search just scans ready fields. NOT folded into withStationProfiles
+  // — that short-circuits on no overrides and skips unprofiled stations.
+  const profiled = await dependencies.withStationProfiles(await dependencies.getCatalog(mode));
+  const data = attachSearchIndex(profiled);
   const entry = { ts: Date.now(), data };
   if (mode === 'fast') {
     profiledFastCache = entry;
