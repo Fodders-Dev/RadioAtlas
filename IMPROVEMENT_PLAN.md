@@ -1834,14 +1834,32 @@ on prod (`radioatlas.duckdns.org`, post-#43, warm cache):
   = `makeDeepLink` `startapp=station_<id>`), `share_story` telemetry, ru+en
   locale. Verification = Artém device test (composer opens with card + widget).
 
-### T_share_4 — Referral attribution + reward (webapp + api, PR — last)
-- Deep links carry `startapp=ref_<userId>` (the `link_`/`ref_` start-
-  param plumbing already exists in `authRoutes.ts`); attribute the new
-  user to the inviter; reward the inviter (e.g. unlock a bundled theme
-  or a short premium trial — ties into the existing billing/theme
-  system). Anti-abuse: no self-referral, one credit per new user.
-- **Done-when**: a referred open credits the inviter exactly once;
-  reward granted; abuse paths covered by tests.
+### T_share_4 — Referral attribution + reward (split: PR-A api, PR-B webapp)
+Deep links carry `startapp=ref_<accountId>`; attribute the new user to the
+inviter; reward the inviter with an exclusive theme. Threshold **1**;
+dedicated `referral-theme` entitlement; anti-abuse = no self-refer +
+one-inviter-per-user + distinct-TG-id (proportional, small app).
+- **PR-A (api) — DONE + VERIFIED (PR #51 `21683ef`).** `invited_by_account_id`
+  column (additive migration, mirrors `ensureSessionExpiresAtColumn`) +
+  `referral-theme` entitlement + `ref_` attribution in `/auth/telegram`
+  (reuses the `link_` branch) with all guards + idempotent threshold grant +
+  `referralCount` in the session envelope + audit events. **Both fail-safe
+  sides locked**: the WRITE (attribution) is wrapped so a throw can't reach
+  the session response; the READ (`getReferralCount` in the shared
+  `buildSessionEnvelope`) is `.catch(() => 0)` so a referral-read can't 401
+  ANY auth path (telegram/google/resume). 8 tests (guards, idempotent grant,
+  fail-safe, additive migration). **Prod-verified**: column + index present,
+  all 5 existing accounts intact (null invited_by), clean boot, sign-in
+  unaffected. Backend dormant until PR-B (no ref-link source yet).
+- **PR-B (webapp) — NEXT:** AccountSheet "Invite friends — N joined" card
+  (`t.me/<bot>?startapp=ref_<profile.id>` via shareStationLink flow, shows
+  `profile.referralCount` + reward status) · one NEW exclusive theme (worker
+  ships a tasteful default, Artém refines) gated on `referral-theme` in
+  ThemeContext/ThemeStudio (lock badge; do NOT lock existing free themes) ·
+  **App.tsx `ref_` guard** — skip the station-play effect when the param
+  isn't `station_` (else a referral open fires a bogus
+  `fetchStationById('ref_…')` → `deeplink_error{not_found}`, polluting the
+  just-trimmed funnel).
 
 ### Parked behind the growth sprint (resume after)
 - **T_perf_3** (split 131KB CSS) and **T_infra_1** (strip vestigial
