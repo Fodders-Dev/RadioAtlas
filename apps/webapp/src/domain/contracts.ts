@@ -12,7 +12,8 @@ export type SessionEntitlement =
   | 'pinned-regions'
   | 'station-alerts'
   | 'cosmetic-pack'
-  | 'sponsor-free';
+  | 'sponsor-free'
+  | 'referral-theme';
 
 export type PlaybackFailureKind =
   | 'mixed-content'
@@ -247,6 +248,9 @@ export type SessionProfile = {
   billingProvider: BillingProvider;
   linkedProviders: ProviderKind[];
   providers: SessionProviderInfo[];
+  // T_share_4: how many users this account has referred (server-computed,
+  // surfaced in the invite card). Defaults to 0 for legacy envelopes.
+  referralCount: number;
 };
 
 export type AuditEvent = {

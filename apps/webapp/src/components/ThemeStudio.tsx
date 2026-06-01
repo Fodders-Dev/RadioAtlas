@@ -40,6 +40,7 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
     customThemes,
     ensureThemeAssets,
     getAssetUrl,
+    isThemeUnlocked,
     removeTheme
   } = useTheme();
   const [builderTarget, setBuilderTarget] = useState<BuilderTarget>({
@@ -122,37 +123,56 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
           <div className="theme-studio-grid" role="list" aria-label={t('theme.bundledTitle')}>
             {selectableThemes.map((theme) => {
               const active = theme.id === currentThemeId;
+              // T_share_4: a locked theme is visible but not selectable until the
+              // `referral-theme` entitlement is earned.
+              const locked = !isThemeUnlocked(theme);
               return (
                 <article
                   className="theme-studio-card"
                   data-theme-card={theme.id}
                   data-theme-active={active ? 'true' : 'false'}
+                  data-theme-locked={locked ? 'true' : 'false'}
+                  aria-disabled={locked ? 'true' : undefined}
                   key={theme.id}
-                  onClick={() => applyTheme(theme.id)}
+                  onClick={() => {
+                    if (locked) return;
+                    applyTheme(theme.id);
+                  }}
                   role="listitem"
                   style={themeStyle(theme, getAssetUrl)}
                 >
                   <div className="theme-studio-card-main">
-                    <span className="theme-studio-swatch" aria-hidden="true" />
+                    <span className="theme-studio-swatch" aria-hidden="true">
+                      {locked ? (
+                        <span className="theme-studio-lock" aria-hidden="true">
+                          🔒
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="theme-studio-card-copy">
                       <strong>{theme.name}</strong>
                       <small>
-                        {active
-                          ? t('common.active')
-                          : theme.parentId
-                            ? t('theme.remixOf', { name: theme.parentId })
-                            : t('theme.byAuthor', { author: theme.author || 'RadioAtlas' })}
+                        {locked
+                          ? t('theme.lockedHint')
+                          : active
+                            ? t('common.active')
+                            : theme.parentId
+                              ? t('theme.remixOf', { name: theme.parentId })
+                              : t('theme.byAuthor', { author: theme.author || 'RadioAtlas' })}
                       </small>
                     </span>
                   </div>
                   <div className="theme-studio-card-actions">
-                    <button
-                      className="chip"
-                      type="button"
-                      onClick={(event) => handleRemix(event, theme)}
-                    >
-                      {t('theme.remix')}
-                    </button>
+                    {/* Hide Remix on a locked theme so it can't be cloned to bypass the lock. */}
+                    {!locked ? (
+                      <button
+                        className="chip"
+                        type="button"
+                        onClick={(event) => handleRemix(event, theme)}
+                      >
+                        {t('theme.remix')}
+                      </button>
+                    ) : null}
                     {!theme.builtin ? (
                       <>
                         <button

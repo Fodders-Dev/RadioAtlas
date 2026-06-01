@@ -225,6 +225,12 @@ const App = () => {
     // open (indistinguishable from a lost-param tap), so it emits nothing.
     if (!startParam) return;
 
+    // T_share_4: ref_<inviterId> (referral) and link_<code> (account link) deep
+    // links are consumed SERVER-SIDE during auth — the client has no station to
+    // play. Skip the station-play effect (and the deeplink_* funnel) for them so
+    // a referral open never fires a bogus deeplink_error{not_found}.
+    if (startParam.startsWith('ref_') || startParam.startsWith('link_')) return;
+
     reportClientEvent('deeplink_enter', { dedupeKey: 'deeplink_enter' });
 
     const stationId = parseStationParam(startParam);

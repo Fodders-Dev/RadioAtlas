@@ -170,8 +170,41 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
         }
       ]
     }
+  },
+  // T_share_4: the referral reward — a NEW exclusive theme, gated behind the
+  // `referral-theme` entitlement (locked: true). The six free themes above are
+  // untouched. A deep velvet/indigo wash with a warm gold accent so it reads as
+  // a "premium" unlock distinct from every free theme. (Default colours — Артём
+  // can retune the palette later without touching the gating.)
+  {
+    version: 1,
+    id: 'velvet-hour',
+    name: 'Velvet Hour',
+    author: 'RadioAtlas',
+    createdAt: BUILT_AT,
+    updatedAt: BUILT_AT,
+    builtin: true,
+    locked: true,
+    layers: {
+      accent: {
+        hue: 38,
+        sat: 92
+      },
+      background: {
+        kind: 'gradient',
+        gradient:
+          'radial-gradient(circle at 16% 10%, rgba(255, 196, 92, 0.16), transparent 22%), radial-gradient(circle at 84% 6%, rgba(168, 92, 255, 0.22), transparent 24%), linear-gradient(165deg, #120a1f 0%, #1b1030 46%, #0c0717 100%)'
+      },
+      font: {
+        family: 'rounded'
+      }
+    }
   }
 ];
+
+// T_share_4: id of the referral-reward theme (the locked exclusive added to the
+// bundled list above). Exported so the gating layer doesn't hard-code the string.
+export const REFERRAL_THEME_ID = 'velvet-hour';
 
 export const getBundledThemeById = (themeId: string) =>
   DEFAULT_RADIOATLAS_THEMES.find((theme) => theme.id === themeId) || null;
