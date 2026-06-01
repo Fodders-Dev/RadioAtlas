@@ -31,6 +31,7 @@ export {
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
+  getAccountByProvider,
   getAccountByToken,
   linkGoogleIdentity,
   linkTelegramIdentity,
@@ -43,6 +44,13 @@ export {
   revokeSession,
   unlinkProvider
 } from './account/authStore.js';
+export {
+  attributeReferral,
+  getReferralCount,
+  parseReferralParam,
+  REFERRAL_REWARD_ENTITLEMENT,
+  REFERRAL_REWARD_THRESHOLD
+} from './account/referralStore.js';
 export {
   updateAccountAlerts,
   updateAccountCollections,

@@ -562,7 +562,8 @@ export const normalizeEntitlements = (
             'pinned-regions',
             'station-alerts',
             'cosmetic-pack',
-            'sponsor-free'
+            'sponsor-free',
+            'referral-theme'
           ].includes(entry)
         )
     )
@@ -623,6 +624,7 @@ export const buildAccountSkeleton = (fields: Partial<StoredAccount>): StoredAcco
   supporterTier: fields.supporterTier || 'none',
   entitlements: fields.entitlements || [],
   billingProvider: fields.billingProvider ?? null,
+  invitedByAccountId: fields.invitedByAccountId ?? null,
   providers: fields.providers || [],
   library: fields.library || sanitizeLibrary(null),
   createdAt: fields.createdAt || Date.now(),
@@ -663,6 +665,7 @@ export const mapAccount = (row: Record<string, unknown>, providers: AccountProvi
     }
   })(),
   billingProvider: (safeText(row.billing_provider) as BillingProvider) || null,
+  invitedByAccountId: safeText(row.invited_by_account_id) || null,
   providers,
   library: deserializeLibrary(row.library_json),
   createdAt: safeNumber(row.created_at) ?? Date.now(),

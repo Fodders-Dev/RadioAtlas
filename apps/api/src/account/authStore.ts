@@ -4,6 +4,7 @@ export {
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
+  getAccountByProvider,
   getAccountByToken,
   linkGoogleIdentity,
   linkTelegramIdentity,

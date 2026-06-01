@@ -1,5 +1,10 @@
 import type express from 'express';
-import { getAccountAuditTrail, type LibraryMergeStrategy, type StoredAccount } from './accountStore.js';
+import {
+  getAccountAuditTrail,
+  getReferralCount,
+  type LibraryMergeStrategy,
+  type StoredAccount
+} from './accountStore.js';
 
 export const getBearerToken = (req: express.Request) => {
   const header = req.headers.authorization;
@@ -32,7 +37,16 @@ export const toClientProfile = (account: StoredAccount) => ({
 
 export const buildSessionEnvelope = async (token: string, account: StoredAccount) => ({
   token,
-  profile: toClientProfile(account),
+  // T_share_4: referralCount surfaces "N joined" in the invite card (PR-B).
+  // fail-soft: this envelope is shared by EVERY auth path (telegram/google/
+  // resume), so the referral READ must never reject — a throw here would bubble
+  // into the route catch and 401 the sign-in. Degrade to 0 ("no invitees") so
+  // the referral feature can never break login. (.catch covers both a rejected
+  // getDb and a synchronous throw in countReferralsForAccountSync.)
+  profile: {
+    ...toClientProfile(account),
+    referralCount: await getReferralCount(account.id).catch(() => 0)
+  },
   auditTrail: await getAccountAuditTrail(account.id)
 });
 
