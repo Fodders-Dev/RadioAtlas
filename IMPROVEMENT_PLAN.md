@@ -1851,15 +1851,31 @@ one-inviter-per-user + distinct-TG-id (proportional, small app).
   fail-safe, additive migration). **Prod-verified**: column + index present,
   all 5 existing accounts intact (null invited_by), clean boot, sign-in
   unaffected. Backend dormant until PR-B (no ref-link source yet).
-- **PR-B (webapp) — NEXT:** AccountSheet "Invite friends — N joined" card
-  (`t.me/<bot>?startapp=ref_<profile.id>` via shareStationLink flow, shows
-  `profile.referralCount` + reward status) · one NEW exclusive theme (worker
-  ships a tasteful default, Artém refines) gated on `referral-theme` in
-  ThemeContext/ThemeStudio (lock badge; do NOT lock existing free themes) ·
-  **App.tsx `ref_` guard** — skip the station-play effect when the param
-  isn't `station_` (else a referral open fires a bogus
-  `fetchStationById('ref_…')` → `deeplink_error{not_found}`, polluting the
-  just-trimmed funnel).
+- **PR-B (webapp) — DONE + DEPLOYED (PR #52 `065eb0a`).** AccountSheet
+  "Invite friends — N joined" card (`makeReferralLink` → `ref_<profile.id>`
+  via shareStationLink flow, shows `profile.referralCount` + reward status,
+  gated on profile+VITE_TG_BOT) · NEW exclusive theme **Velvet Hour**
+  (`locked:true`, deep velvet + gold/purple — default palette, Artém refines)
+  gated on the `referral-theme` entitlement in ThemeContext (applyTheme +
+  currentTheme both refuse locked-without-entitlement) + ThemeStudio lock
+  badge · **App.tsx `ref_`/`link_` guard** (denylist, before `deeplink_enter`
+  — chosen over allowlisting `station_` so the bare `?station=` web fallback
+  isn't regressed). CI-enforced: the bundled-themes spec asserts velvet-hour
+  is the ONLY locked theme (free themes can't be accidentally locked later).
+  - **Verification = Artém device test** (invite card → share → friend opens →
+    referral → Velvet Hour unlocks) + eyeball/refine the theme palette live.
+    Velvet Hour is a client theme applied through the layer system behind the
+    entitlement, so a faithful look needs the app with it unlocked (unlike the
+    self-contained Story-card PNG) — Artém sees + tunes it on the device test.
+
+### Growth sprint — COMPLETE (2026-05-31)
+Share station (chat / inline / Stories, server-rendered card) → tap → **plays**
+(deep-link saga fixed + instant via #43/#44), **plus** invite friend →
+attributed → reward (exclusive theme). All four phases shipped + deployed:
+T_share_1 (share UX), T_share_2 (inline), T_share_3 (Stories, PR #45/#46/#47),
+T_share_4 (referral, PR #51/#52). Open: Artém's two device tests («В Историю»
+tap-through + the referral unlock) — both observable via the lean funnel /
+`referralCount`.
 
 ### Parked behind the growth sprint (resume after)
 - **T_perf_3** (split 131KB CSS) and **T_infra_1** (strip vestigial
