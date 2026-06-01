@@ -72,6 +72,10 @@ export type RadioAtlasTheme = {
   createdAt: number;
   updatedAt: number;
   builtin?: boolean;
+  // T_share_4: gated behind the `referral-theme` entitlement. Visible-but-locked
+  // until earned (ThemeContext refuses to apply it without the entitlement).
+  // Only NEW exclusive themes set this — the six free themes never do.
+  locked?: boolean;
   layers: RadioAtlasThemeLayers;
 };
 

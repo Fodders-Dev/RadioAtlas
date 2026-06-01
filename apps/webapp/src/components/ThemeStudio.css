@@ -126,6 +126,25 @@
     radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--theme-studio-accent) 72%, white 28%), transparent 28%),
     var(--theme-studio-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+}
+
+/* T_share_4: a locked (referral-reward) theme is visible but dimmed and not
+   selectable until the entitlement is earned. */
+.theme-studio-card[data-theme-locked='true'] {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.theme-studio-card[data-theme-locked='true'] .theme-studio-swatch {
+  filter: saturate(0.7) brightness(0.82);
+}
+
+.theme-studio-lock {
+  font-size: 20px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
 
 .theme-studio-card-copy {

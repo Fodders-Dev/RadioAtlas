@@ -235,6 +235,14 @@ export const makeDeepLink = (botUsername: string, stationId: string) => {
   return `https://t.me/${safeBot}?startapp=station_${stationId}`;
 };
 
+// T_share_4: referral deep link — `startapp=ref_<accountId>`. The server reads
+// this on the invitee's first sign-in (auth) to attribute them to the inviter;
+// the client never plays anything for it (see the App.tsx ref_ guard).
+export const makeReferralLink = (botUsername: string, accountId: string) => {
+  const safeBot = botUsername.replace(/^@/, '');
+  return `https://t.me/${safeBot}?startapp=ref_${accountId}`;
+};
+
 // T_share_3 (PR-B): numeric Bot-API version compare (e.g. '7.10' ≥ '7.8').
 export const isVersionAtLeast = (version: string | undefined, minimum: string): boolean => {
   if (!version) return false;

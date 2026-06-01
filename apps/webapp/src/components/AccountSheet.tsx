@@ -7,7 +7,12 @@ import {
   type TelegramWidgetAuthData
 } from '../state/SessionContext';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
-import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
+import {
+  getTelegramWebApp,
+  isInsideTelegramClient,
+  makeReferralLink,
+  shareStationLink
+} from '../lib/telegram';
 import { SettingsSheet } from './SettingsSheet';
 
 declare global {
@@ -164,6 +169,21 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const canRenderGoogleButton = googleAvailability.configured && hasGoogleClient;
   const canStartVkAuth = hasVkAuth && vkAvailability.configured;
   const telegramBot = String(import.meta.env.VITE_TG_BOT || '').trim().replace(/^@/, '');
+  // T_share_4: the invite card needs both a signed-in account (for ref_<id>) and
+  // a bot username (to build the t.me link) — same feature-detect as the Story
+  // button. Reward = the referral-theme entitlement on the profile.
+  const canInvite = Boolean(profile && telegramBot);
+  const hasReferralReward = Boolean(profile?.entitlements.includes('referral-theme'));
+  const handleInviteShare = () => {
+    if (!profile || !telegramBot) return;
+    // Reuse the one ordered share flow (Telegram chat picker → web share →
+    // clipboard → new tab); the deep link carries startapp=ref_<accountId>.
+    void shareStationLink({
+      url: makeReferralLink(telegramBot, profile.id),
+      title: t('account.invite.shareTitle'),
+      text: t('account.invite.shareText')
+    });
+  };
   const telegramWebLoginEnabled = String(import.meta.env.VITE_TELEGRAM_WEB_LOGIN || '') === '1';
   const canRenderTelegramWidget =
     !isTelegramMiniApp &&
@@ -539,6 +559,36 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
             )}
           </div>
         </div>
+
+        {canInvite ? (
+          <div className="glass-card account-invite-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('account.invite.title')}</div>
+                <div className="section-subtitle">{t('account.invite.subtitle')}</div>
+              </div>
+            </div>
+            <div className="account-stats">
+              <div className="globe-selection-pill active">
+                <span>{t('account.invite.joinedLabel')}</span>
+                <strong>{profile?.referralCount ?? 0}</strong>
+              </div>
+              <div className={`globe-selection-pill ${hasReferralReward ? 'active' : ''}`}>
+                <span>{t('account.invite.rewardLabel')}</span>
+                <strong>
+                  {hasReferralReward
+                    ? t('account.invite.rewardUnlocked')
+                    : t('account.invite.rewardLocked')}
+                </strong>
+              </div>
+            </div>
+            <div className="settings-actions">
+              <button className="chip" type="button" onClick={handleInviteShare}>
+                {t('account.invite.shareCta')}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {shouldShowMergeControls ? (
           <div className="glass-card account-provider-card">

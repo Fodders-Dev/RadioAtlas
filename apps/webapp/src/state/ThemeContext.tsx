@@ -32,6 +32,7 @@ import {
 } from '../lib/theme/telegramAuto';
 import type { RadioAtlasTheme, ThemeAsset, ThemeAssetInput, ThemeDraftInput } from '../lib/theme/types';
 import { useLocalStorage } from '../lib/useLocalStorage';
+import { useSession } from './SessionContext';
 
 type ThemeContextValue = {
   currentTheme: RadioAtlasTheme;
@@ -39,6 +40,9 @@ type ThemeContextValue = {
   availableThemes: RadioAtlasTheme[];
   customThemes: RadioAtlasTheme[];
   ready: boolean;
+  // T_share_4: false for a `locked` theme the current user hasn't earned the
+  // `referral-theme` entitlement for. True for every free theme always.
+  isThemeUnlocked: (theme: RadioAtlasTheme) => boolean;
   applyTheme: (themeId: string) => boolean;
   saveDraft: (theme: ThemeDraftInput) => Promise<RadioAtlasTheme>;
   saveDraftAndApply: (theme: ThemeDraftInput) => Promise<RadioAtlasTheme>;
@@ -87,6 +91,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [assetUrls, setAssetUrls] = useState<Map<string, string>>(() => new Map());
   const [ready, setReady] = useState(false);
   const assetUrlsRef = useRef(assetUrls);
+
+  // T_share_4: the referral reward is delivered as the `referral-theme`
+  // entitlement on the session profile; locked themes unlock when it's present.
+  const { profile } = useSession();
+  const hasReferralTheme = Boolean(profile?.entitlements.includes('referral-theme'));
+  const isThemeUnlocked = useCallback(
+    (theme: RadioAtlasTheme) => !theme.locked || hasReferralTheme,
+    [hasReferralTheme]
+  );
 
   // T1.3: Telegram themeParams as the lowest-priority theme layer.
   // null means either "outside Telegram client" or "SDK has no
@@ -188,12 +201,17 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const currentTheme = useMemo(() => {
     if (effectiveThemeId === TELEGRAM_AUTO_THEME_ID) return TELEGRAM_AUTO_THEME;
-    return (
-      availableThemes.find((theme) => theme.id === effectiveThemeId) ||
+    const fallback =
       availableThemes.find((theme) => theme.id === DEFAULT_THEME_ID) ||
-      DEFAULT_RADIOATLAS_THEMES[0]
-    );
-  }, [availableThemes, effectiveThemeId]);
+      DEFAULT_RADIOATLAS_THEMES[0];
+    const resolved =
+      availableThemes.find((theme) => theme.id === effectiveThemeId) || fallback;
+    // T_share_4: a locked theme must never RENDER without the entitlement (e.g.
+    // it was selected on a device that had it, then opened on one that doesn't,
+    // or the grant was revoked) — fall back to the default.
+    if (resolved.locked && !hasReferralTheme) return fallback;
+    return resolved;
+  }, [availableThemes, effectiveThemeId, hasReferralTheme]);
   const currentThemeAssetIds = useMemo(() => collectThemeAssetIds(currentTheme), [currentTheme]);
 
   useEffect(() => {
@@ -222,13 +240,19 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   const applyTheme = useCallback(
     (themeId: string) => {
-      if (!availableThemes.some((theme) => theme.id === themeId)) {
+      const target = availableThemes.find((theme) => theme.id === themeId);
+      if (!target) {
+        return false;
+      }
+      // T_share_4: refuse to apply a locked theme without the entitlement. The UI
+      // shows it as locked, but guard here too so no code path can select it.
+      if (target.locked && !hasReferralTheme) {
         return false;
       }
       setCurrentThemeId(themeId);
       return true;
     },
-    [availableThemes, setCurrentThemeId]
+    [availableThemes, hasReferralTheme, setCurrentThemeId]
   );
 
   const saveDraft = useCallback(async (theme: ThemeDraftInput) => {
@@ -308,6 +332,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       availableThemes,
       customThemes,
       ready,
+      isThemeUnlocked,
       applyTheme,
       saveDraft,
       saveDraftAndApply,
@@ -325,6 +350,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       customThemes,
       getAssetUrl,
       ensureThemeAssets,
+      isThemeUnlocked,
       ready,
       removeAsset,
       removeTheme,

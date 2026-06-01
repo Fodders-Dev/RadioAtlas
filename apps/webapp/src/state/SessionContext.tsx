@@ -154,7 +154,8 @@ const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
   entitlements: profile.entitlements,
   billingProvider: profile.billingProvider,
   linkedProviders: profile.linkedProviders,
-  providers: profile.providers
+  providers: profile.providers,
+  referralCount: profile.referralCount ?? 0
 });
 
 const providerInfosMatch = (left: SessionProviderInfo[], right: SessionProviderInfo[]) =>
@@ -186,6 +187,7 @@ const profilesMatch = (left: SessionProfile | null, right: SessionProfile | null
     left.premiumStatus === right.premiumStatus &&
     left.supporterTier === right.supporterTier &&
     left.billingProvider === right.billingProvider &&
+    left.referralCount === right.referralCount &&
     left.entitlements.length === right.entitlements.length &&
     left.entitlements.every((entitlement, index) => entitlement === right.entitlements[index]) &&
     left.linkedProviders.length === right.linkedProviders.length &&

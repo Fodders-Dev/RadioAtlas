@@ -745,10 +745,21 @@ test('theme defaults expose bundled shell themes', () => {
     'pastel',
     'aurora-field',
     'signal-grid',
-    'sunrise-dial'
+    'sunrise-dial',
+    'velvet-hour'
   ]);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.builtin)).toBe(true);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.layers.background?.kind === 'gradient')).toBe(true);
+  // T_share_4: ONLY the referral reward is locked — the six free themes stay
+  // freely selectable (no access regression).
+  expect(
+    DEFAULT_RADIOATLAS_THEMES.filter((theme) => theme.locked).map((theme) => theme.id)
+  ).toEqual(['velvet-hour']);
+  expect(
+    ['classic', 'neon', 'pastel', 'aurora-field', 'signal-grid', 'sunrise-dial'].every(
+      (id) => !DEFAULT_RADIOATLAS_THEMES.find((theme) => theme.id === id)?.locked
+    )
+  ).toBe(true);
 });
 
 test('generated bundled themes ship css background assets and reactions', () => {
