@@ -32,6 +32,7 @@ export {
   consumeLinkRequest,
   createLinkRequest,
   createSessionForAccount,
+  getAccountByProvider,
   getAccountByToken,
   linkGoogleIdentity,
   linkTelegramIdentity,
@@ -51,6 +52,13 @@ export {
   updateAccountFollows,
   updateAccountLibrary
 } from './account/core/libraryService.js';
+export {
+  attributeReferral,
+  getReferralCount,
+  parseReferralParam,
+  REFERRAL_REWARD_ENTITLEMENT,
+  REFERRAL_REWARD_THRESHOLD
+} from './account/core/referralService.js';
 export {
   confirmBillingPurchase,
   createBillingPurchase,

@@ -79,6 +79,7 @@ export const getDb = async () => {
           supporter_tier TEXT NOT NULL DEFAULT 'none',
           entitlements_json TEXT NOT NULL DEFAULT '[]',
           billing_provider TEXT,
+          invited_by_account_id TEXT,
           library_json TEXT NOT NULL,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
@@ -198,6 +199,7 @@ export const getDb = async () => {
       } catch {}
       ensureSessionExpiresAtColumn(db);
       ensureBillingReconcileColumns(db);
+      ensureInvitedByAccountIdColumn(db);
       await migrateLegacyJsonIfNeeded(db);
       pruneExpiredLinkRequests(db);
       pruneExpiredSessions(db);
@@ -787,4 +789,54 @@ export const ensureBillingReconcileColumns = (db: DatabaseLike) => {
       `ALTER TABLE billing_purchases ADD COLUMN reconcile_attempts INTEGER NOT NULL DEFAULT 0`
     );
   }
+};
+
+// T_share_4 referral attribution column on accounts. Mirrors the
+// ensureSessionExpiresAtColumn shape: PRAGMA table_info detect BEFORE ALTER
+// (idempotent across boots), ALTER kept OUTSIDE the silent try/catch chain so a
+// real failure surfaces. Strictly ADDITIVE + backward-compatible: the column is
+// nullable with no default, so every pre-existing account row reads back as
+// `invited_by_account_id = NULL` (i.e. "never referred") and is left untouched.
+export const ensureInvitedByAccountIdColumn = (db: DatabaseLike) => {
+  const columns = db.prepare('PRAGMA table_info(accounts)').all() as Array<
+    Record<string, unknown>
+  >;
+  const hasColumn = columns.some(
+    (column) => safeText(column.name) === 'invited_by_account_id'
+  );
+  if (!hasColumn) {
+    db.exec(`ALTER TABLE accounts ADD COLUMN invited_by_account_id TEXT`);
+  }
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_accounts_invited_by ON accounts(invited_by_account_id)`
+  );
+};
+
+// Write the inviter ONCE: the `IS NULL` guard makes this idempotent and
+// race-safe (a second attribution for the same invitee changes 0 rows). Returns
+// true only when this call actually set the attribution.
+export const setInvitedByIfAbsentSync = (
+  db: DatabaseLike,
+  inviteeAccountId: string,
+  inviterAccountId: string
+): boolean => {
+  const result = db
+    .prepare(
+      `UPDATE accounts SET invited_by_account_id = ?, updated_at = ?
+       WHERE id = ? AND invited_by_account_id IS NULL`
+    )
+    .run(inviterAccountId, Date.now(), inviteeAccountId) as
+    | { changes?: number | bigint }
+    | undefined;
+  return Number(result?.changes ?? 0) > 0;
+};
+
+export const countReferralsForAccountSync = (
+  db: DatabaseLike,
+  inviterAccountId: string
+): number => {
+  const row = db
+    .prepare('SELECT COUNT(*) AS count FROM accounts WHERE invited_by_account_id = ?')
+    .get(inviterAccountId);
+  return safeNumber(row?.count) ?? 0;
 };

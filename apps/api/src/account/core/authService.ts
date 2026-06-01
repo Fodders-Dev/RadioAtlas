@@ -312,6 +312,14 @@ export const getAccountByToken = async (token: string) => {
   return getAccountByIdSync(db, accountId);
 };
 
+// T_share_4: async provider-existence check. /auth/telegram calls this BEFORE
+// linking to decide whether the telegram identity is brand new (and therefore
+// eligible for one-time referral attribution).
+export const getAccountByProvider = async (kind: ProviderKind, externalId: string) => {
+  const db = await getDb();
+  return getAccountByProviderSync(db, kind, externalId);
+};
+
 export const revokeSession = async (token: string) => {
   const db = await getDb();
   const session = db.prepare('SELECT account_id FROM sessions WHERE token = ? LIMIT 1').get(token);

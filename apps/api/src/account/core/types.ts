@@ -115,7 +115,8 @@ export type SessionEntitlement =
   | 'pinned-regions'
   | 'station-alerts'
   | 'cosmetic-pack'
-  | 'sponsor-free';
+  | 'sponsor-free'
+  | 'referral-theme';
 
 export type BillingProductId =
   | 'support-small'
@@ -146,6 +147,10 @@ export type StoredAccount = {
   supporterTier: SupporterTier;
   entitlements: SessionEntitlement[];
   billingProvider: BillingProvider;
+  // T_share_4: the inviter's account id, written ONCE on the invitee's first
+  // session (null for everyone who arrived without a ref_ deep link). One
+  // inviter per user — never overwritten after it is first set.
+  invitedByAccountId: string | null;
   providers: AccountProvider[];
   library: SyncedLibrary;
   createdAt: number;
@@ -167,7 +172,9 @@ export type AccountAuditEventType =
   | 'billing_purchase_created'
   | 'billing_purchase_confirmed'
   | 'station_claimed'
-  | 'station_profile_updated';
+  | 'station_profile_updated'
+  | 'referral_attributed'
+  | 'referral_reward_granted';
 
 export type AccountAuditEvent = {
   id: string;

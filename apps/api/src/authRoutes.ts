@@ -3,9 +3,11 @@ import type express from 'express';
 import {
   __forceSessionExpiryForTesting,
   __inspectSessionForTesting,
+  attributeReferral,
   consumeLinkRequest,
   createSessionForAccount,
   getAccountAuditTrail,
+  getAccountByProvider,
   getAccountByToken,
   linkGoogleIdentity,
   linkTelegramIdentity,
@@ -171,6 +173,13 @@ export const registerAuthRoutes = (
       const validated = validateTelegramInitData(initData, options.telegramBotToken);
       const currentToken = getBearerToken(req);
       const currentAccount = currentToken ? await getAccountByToken(currentToken) : null;
+      // T_share_4: capture whether this Telegram identity is brand new BEFORE we
+      // link it, so referral attribution can fire only on a genuine first sign-in.
+      const existingTelegramAccount = await getAccountByProvider(
+        'telegram',
+        String(validated.user.id)
+      );
+      const wasNewInvitee = !existingTelegramAccount;
       const requestedMergeStrategy = parseMergeStrategy(req.body?.mergeStrategy);
       const bodyLinkCode = typeof req.body?.linkCode === 'string' ? req.body.linkCode.trim() : '';
       const startParamLinkCode = validated.startParam?.startsWith('link_')
@@ -201,6 +210,24 @@ export const registerAuthRoutes = (
         },
         { kind: 'telegram', externalId: String(validated.user.id) }
       );
+      // T_share_4: referral attribution is a fail-safe SIDE-EFFECT, never an auth
+      // gate. The whole ref-logic is wrapped here so a throw CANNOT reach the
+      // session response below — any failure is swallowed + logged and the user
+      // still signs in. Fires only for a brand-new invitee (wasNewInvitee), and
+      // attributeReferral itself re-guards self-refer / one-inviter / real-inviter.
+      if (wasNewInvitee) {
+        try {
+          await attributeReferral({
+            startParam: validated.startParam,
+            inviteeAccountId: account.id
+          });
+        } catch (referralError) {
+          console.error(
+            '[T_share_4] referral attribution failed (sign-in unaffected):',
+            referralError
+          );
+        }
+      }
       res.json(await buildSessionEnvelope(token, account));
     } catch (err) {
       res.status(401).json({ error: err instanceof Error ? err.message : 'telegram auth failed' });

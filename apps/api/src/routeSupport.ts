@@ -1,5 +1,10 @@
 import type express from 'express';
-import { getAccountAuditTrail, type LibraryMergeStrategy, type StoredAccount } from './accountStore.js';
+import {
+  getAccountAuditTrail,
+  getReferralCount,
+  type LibraryMergeStrategy,
+  type StoredAccount
+} from './accountStore.js';
 
 export const getBearerToken = (req: express.Request) => {
   const header = req.headers.authorization;
@@ -32,7 +37,8 @@ export const toClientProfile = (account: StoredAccount) => ({
 
 export const buildSessionEnvelope = async (token: string, account: StoredAccount) => ({
   token,
-  profile: toClientProfile(account),
+  // T_share_4: referralCount surfaces "N joined" in the invite card (PR-B).
+  profile: { ...toClientProfile(account), referralCount: await getReferralCount(account.id) },
   auditTrail: await getAccountAuditTrail(account.id)
 });
 
