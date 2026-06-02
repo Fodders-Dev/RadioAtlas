@@ -1768,12 +1768,23 @@ fattest to work, in order: search → mobile-UX → stability → playback-jank.
   re-flush driven from `applySessionPayload` (worker's robust pivot — a `[status]`
   effect silently misses authenticated→authenticated re-auth). First test on the
   1769-line SessionContext god-file.
-- **#4 playback re-render jank — NEXT (last, riskiest):** RadioContext puts
-  `playbackRuntime` in the context value → every metadata tick re-renders all
-  consumers. **Profile-FIRST** (confirm the jank is real + user-impactful before
-  touching the 2455-line zero-test god-file); if marginal, **PARK it** (god-file
-  refactor risk > marginal smoothness). Same verify-before-fix discipline that
-  caught the false-positives above.
+- **#4 playback re-render jank — PROFILED → PARKED (no code change).**
+  Structural finding: RadioContext is already 3 contexts (Playback/Library/
+  Shell); library/shell value deps EXCLUDE nowPlaying/player/queue → only
+  `usePlayback` consumers re-render per tick (not all). Profiled with React
+  `<Profiler>` at 4× poll rate (250 ms) on Home (heaviest screen) during
+  playback: per-tick commit avg **2.46 ms / max 4.3 ms, ZERO over the 16 ms
+  frame budget** (memoized children bail). At the real 30 s cadence that's one
+  ~2.5 ms re-render every 30 s — imperceptible. Refactoring the 2455-line
+  zero-test god-file to shave 2.5→1 ms (both imperceptible) is bad EV. Parked,
+  like CSS-split. The medium-confidence hypothesis measured out as marginal.
+
+### Post-sprint polish round — CLOSED (2026-06-02)
+4 fattest items from the 4-axis audit: **#1 search event-loop** (PR #53, prod
+4.7× on browse), **#2 mobile UX** (PR #54), **#3 stability data-loss** (PR #55)
+— all shipped + deployed; **#4 playback jank** profiled → parked. Plus the
+audit's 3 false-positives (auth-bootstrap, provider-boundary, metadata-poll)
+correctly NOT fixed. Net: every real issue fixed, zero phantom/risky fixes.
 - **Meta:** "verify before fix" has paid off all session — across the robustness
   + perf audits, 3 inferred issues were false-positives (auth-bootstrap, provider
   boundary, metadata-poll) and would have been wasted/risky fixes; the real wins
