@@ -1752,10 +1752,32 @@ fattest to work, in order: search → mobile-UX → stability → playback-jank.
   facets populated), concurrent ×5 mild ~45 ms/req spread (not the summary-style
   staircase) — residual is response serialization/network, not the scan.
   Flagged micro-opt if ever needed: cache no-q facet responses.
-- **#2 Mobile UX polish — NEXT** (touch targets <44px, artwork CLS, empty/
-  loading states) · **#3 stability** (provider error-boundary + races) ·
-  **#4 playback re-render jank** (RadioContext — profile-first, surgical, the
-  2455-line zero-test god-file → highest regression risk, do last).
+- **#2 Mobile UX polish — DONE + DEPLOYED (PR #54).** Tap targets ≥40px
+  (`.home-rail-scroll-btn` + a late-source-order dock `min-height:40px` floor
+  after finding the dock height is set by ~15 cascading rules — full
+  consolidation honestly descoped), artwork `aspect-ratio:1` CLS guard, Search
+  empty-state (echoes query + clear CTA), focus-visible rings. Only home-shell +
+  home-shell-mobile baselines moved (intentional, pixel-reviewed). Search
+  empty-state couldn't be live-screenshotted (e2e mock always returns results).
+- **#3 Stability — DONE + DEPLOYED (PR #55).** Audit: 2 of 3 were FALSE-POSITIVES
+  (provider error-boundary already wraps the tree via BootstrapApp → locked in
+  with a test; metadata-poll has a 3.5s timeout + guaranteed reschedule). The
+  REAL one: cloud-library token-expiry **data-loss** (queued favorite/collection
+  dropped on auth-fail, then re-auth overwrites local with stale cloud). Fixed:
+  all 3 drop paths stash into an account-tagged re-auth-survivable ref;
+  re-flush driven from `applySessionPayload` (worker's robust pivot — a `[status]`
+  effect silently misses authenticated→authenticated re-auth). First test on the
+  1769-line SessionContext god-file.
+- **#4 playback re-render jank — NEXT (last, riskiest):** RadioContext puts
+  `playbackRuntime` in the context value → every metadata tick re-renders all
+  consumers. **Profile-FIRST** (confirm the jank is real + user-impactful before
+  touching the 2455-line zero-test god-file); if marginal, **PARK it** (god-file
+  refactor risk > marginal smoothness). Same verify-before-fix discipline that
+  caught the false-positives above.
+- **Meta:** "verify before fix" has paid off all session — across the robustness
+  + perf audits, 3 inferred issues were false-positives (auth-bootstrap, provider
+  boundary, metadata-poll) and would have been wasted/risky fixes; the real wins
+  (search block, data-loss) were confirmed against code first.
 
 ### Cleanup sprint — CLOSED (2026-05-31)
 All five items done; each either prod-verified or honestly closed by audit
