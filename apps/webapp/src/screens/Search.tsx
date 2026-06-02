@@ -703,7 +703,11 @@ export const Discover = () => {
             ) : null}
             <div className="search-results-shell">
               {showSkeleton ? (
-                <div className="search-results-skeleton" aria-busy="true">
+                <div
+                  className="search-results-skeleton"
+                  aria-busy="true"
+                  aria-label={t('search.loadingResults')}
+                >
                   {Array.from({ length: 6 }).map((_, index) => (
                     <div key={index} className="search-results-skeleton-row" />
                   ))}
@@ -729,12 +733,30 @@ export const Discover = () => {
                   />
                 )
               ) : (
-                <div className="search-empty-state">
-                  <strong>{t('stationTable.empty')}</strong>
+                <div className="search-empty-state" role="status">
+                  <span className="search-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M10 4a6 6 0 014.47 10.01l4.26 4.26-1.41 1.41-4.26-4.26A6 6 0 1110 4zm0 2a4 4 0 100 8 4 4 0 000-8z" />
+                    </svg>
+                  </span>
+                  <strong>
+                    {trimmedQuery
+                      ? t('search.noResultsFor', { query: trimmedQuery })
+                      : t('stationTable.empty')}
+                  </strong>
                   <span>
                     {t('home.quickSearchNoResultsCopy') ||
                       'Попробуй другое название, страну или жанр.'}
                   </span>
+                  {trimmedQuery ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => stationSearch.setQuery('')}
+                    >
+                      {t('search.clearSearch')}
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>
