@@ -1779,7 +1779,38 @@ fattest to work, in order: search → mobile-UX → stability → playback-jank.
   zero-test god-file to shave 2.5→1 ms (both imperceptible) is bad EV. Parked,
   like CSS-split. The medium-confidence hypothesis measured out as marginal.
 
-## PRODUCT ROADMAP — engagement/retention (owner-chosen 2026-06-02)
+## THEMING OVERHAUL — "Winamp-level" customization (owner pivot 2026-06-02, ACTIVE)
+Owner: themes are shallow ("фигня от codex"), ThemeStudio "кривенько"; wants
+Winamp-level customization. Picked ALL three pillars + "you propose". **R1-R4
+retention roadmap below is PAUSED for this** (R1 PR-A not yet built; resume later).
+- **Structural diagnosis (from code):** the theme MODEL is capable (accent,
+  gradient/image bg, custom icons play/pause/next/prev/like, stickers w/ slot+
+  scale, gifs w/ trigger, emoji reactions, 6 slots) + ThemeBuilder already
+  uploads bg/icons/stickers/gifs. BUT: (1) the 6 presets use ~10% of it
+  (gradient+hue+font) → samey recolors = the "фигня"; (2) ThemeBuilder is a
+  ~15-field form dump, not a creative tool = "кривенько"; (3) thin primitives:
+  accent=hue+sat only (no lightness/secondary, NO gradient editor — custom themes
+  only reuse a preset gradient or upload an image), stickers support x/y but the
+  builder hardcodes x:0,y:0 (no positioning); (4) Pastel is a LIGHT theme on
+  dark-designed UI → likely contrast breakage; (5) a Winamp-style `winampShell`
+  Lite-player (623-line CSS) already exists — partial DNA.
+- **Phased roadmap (sequence: presets first = most visible + exercises the model
+  + lowest risk; editor second = build the primitives presets needed into the UI;
+  visualizer third = the soul layer):**
+  - **P0 (now):** render current ThemeStudio + all 7 themes (Playwright recon, no
+    code) → review BY EYE with owner → lock the new-preset aesthetic direction.
+  - **Foundation (as P1/P2 demand):** deepen primitives — full color control
+    (lightness/secondary/surface beyond hue+sat), a gradient composer, expose
+    sticker x/y positioning, light-theme-awareness.
+  - **P1 — Killer presets:** redesign the bundled set to genuinely use the model
+    (distinct, decor-rich, custom-feeling) + fix the light-theme breakage. Iterate
+    with screenshots reviewed each step. Kills "фигня".
+  - **P2 — Skinner editor:** ThemeBuilder form → creative tool (color+gradient
+    pickers, drag-to-position decor, central live preview, grouped sections).
+  - **P3 — Player/visualizer:** extend `winampShell` + the existing visualizer into
+    a theme-able, reactive player (spectrum, animation under sound). Winamp soul.
+
+## PRODUCT ROADMAP — engagement/retention (owner-chosen 2026-06-02; PAUSED for theming)
 The product is stable/fast/beautiful + has a viral loop, but it's "one-shot"
 (user listens once, nothing brings them back) and early (~5 accounts). Owner
 picked all 4 directions; sequenced by leverage × infra-readiness:
