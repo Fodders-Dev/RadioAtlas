@@ -1734,6 +1734,29 @@ arc so the lesson sticks:
   (2) the API catalog event-loop block — fixed by #43 boot-warm (by-id 16 ms) +
   #44 summary-cache (staircase collapsed); deep-links are now instant.
 
+### Post-sprint polish (owner: "доделать жирные недочёты") — fresh 4-axis audit
+4 parallel Explore audits (perf / robustness / UX / tech-debt) + cross-check.
+Cross-check DISPROVED one "CRITICAL" (auth-bootstrap "stuck authorizing" —
+`signInWithTelegram` already `setStatus('error')` on catch). Owner picked all 4
+fattest to work, in order: search → mobile-UX → stability → playback-jank.
+- **Perf #1 — search event-loop block — DONE + VERIFIED (PR #53 `37ae3ae`).**
+  `buildSearchResponse` rebuilt a ~60k haystack + facet normalizations per
+  request, uncached (same class as the summary block). Fix: `attachSearchIndex`
+  precomputes the normalized fields ONCE per profiling refresh in
+  `getProfiledCatalog` (cached in profiledFullCache, invalidated with the
+  catalog array, rides the #43 boot-warm); `buildSearchResponse` scans ready
+  fields with a `??` live-compute fallback. Server-internal only — `toStationLite`
+  whitelist omits them (no-leak test). Equivalence test (precomputed === live)
+  across browse/q/country/language/tag/continent/pagination. Bench: no-q browse
+  30.6→6.6 ms (4.7×). **Prod-verified**: results intact (q=jazz total 1619,
+  facets populated), concurrent ×5 mild ~45 ms/req spread (not the summary-style
+  staircase) — residual is response serialization/network, not the scan.
+  Flagged micro-opt if ever needed: cache no-q facet responses.
+- **#2 Mobile UX polish — NEXT** (touch targets <44px, artwork CLS, empty/
+  loading states) · **#3 stability** (provider error-boundary + races) ·
+  **#4 playback re-render jank** (RadioContext — profile-first, surgical, the
+  2455-line zero-test god-file → highest regression risk, do last).
+
 ### Cleanup sprint — CLOSED (2026-05-31)
 All five items done; each either prod-verified or honestly closed by audit
 (not made-work):
