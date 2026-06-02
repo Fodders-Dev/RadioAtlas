@@ -1779,6 +1779,30 @@ fattest to work, in order: search → mobile-UX → stability → playback-jank.
   zero-test god-file to shave 2.5→1 ms (both imperceptible) is bad EV. Parked,
   like CSS-split. The medium-confidence hypothesis measured out as marginal.
 
+## PRODUCT ROADMAP — engagement/retention (owner-chosen 2026-06-02)
+The product is stable/fast/beautiful + has a viral loop, but it's "one-shot"
+(user listens once, nothing brings them back) and early (~5 accounts). Owner
+picked all 4 directions; sequenced by leverage × infra-readiness:
+- **R1 — Retention via the bot (NEXT, biggest lever).** Recon finding: the bot
+  is purely REACTIVE (commands `start/support/premium/gift/share` + inline; NO
+  `sendMessage`/notify/cron) — the Telegram DM channel, the #1 retention
+  superpower of TG mini-apps, is unused. And `station-alerts` is half-built
+  (entitlement + `updateAccountAlerts` + storage exist, but NOTHING delivers
+  them — the bot is silent). Turn the bot into an OPT-IN re-engagement channel
+  (deliver station-alerts + taste-based nudges). 🔴 Sensitive: must be strictly
+  opt-in, value-tied (real signal, not "come back" spam), frequency-capped, easy
+  to disable, TG-ToS-compliant (spam → bot ban risk). Compounds with the referral
+  loop. Scoping audit-first → likely 2-3 PRs (opt-in prefs + chat-id linkage →
+  bot delivery mechanism → first nudge type).
+- **R2 — Stats / "Wrapped".** "Your week in radio" (hours/countries/genres) as a
+  shareable card — builds on the existing Story-card server-render infra,
+  compounds virality. Self-contained.
+- **R3 — "Alive" discovery.** Live "N listening now" / "trending in your country
+  today" / "similar stations" / radio-roulette. Needs a live-listen aggregation
+  signal (more infra). Deepens the discovery goal.
+- **R4 — Stream quality.** 57k catalog has dead streams: report-broken + auto-prune
+  + stream-health. Core-experience hygiene (fewer "doesn't play" frustrations).
+
 ### Post-sprint polish round — CLOSED (2026-06-02)
 4 fattest items from the 4-axis audit: **#1 search event-loop** (PR #53, prod
 4.7× on browse), **#2 mobile UX** (PR #54), **#3 stability data-loss** (PR #55)
