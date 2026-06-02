@@ -387,19 +387,45 @@
 
 .screen-search-v3 .search-empty-state {
   display: grid;
-  gap: 6px;
-  padding: 28px 12px;
+  justify-items: center;
+  gap: 8px;
+  padding: 36px 16px;
   text-align: center;
   color: rgba(220, 240, 252, 0.72);
+}
+
+/* T_mobile_ux: empty-state affordance — magnifier glyph in a soft disc above the
+   "nothing found for X" copy + a clear-search CTA. */
+.screen-search-v3 .search-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 2px;
+  border-radius: 999px;
+  background: rgba(120, 200, 255, 0.1);
+  border: 1px solid rgba(150, 210, 255, 0.16);
+}
+
+.screen-search-v3 .search-empty-icon svg {
+  width: 26px;
+  height: 26px;
+  fill: rgba(190, 225, 250, 0.82);
 }
 
 .screen-search-v3 .search-empty-state strong {
   font-size: 0.96rem;
   color: rgba(244, 252, 255, 0.96);
+  overflow-wrap: anywhere;
 }
 
 .screen-search-v3 .search-empty-state span {
   font-size: 0.82rem;
+  max-width: 30ch;
+}
+
+.screen-search-v3 .search-empty-state .chip {
+  margin-top: 6px;
 }
 
 .screen-search-v3 .search-links-mode-back {

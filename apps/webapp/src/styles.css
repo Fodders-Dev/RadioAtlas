@@ -628,6 +628,16 @@ input {
   min-width: 0;
 }
 
+/* T_mobile_ux: visible keyboard-focus ring on icon-only buttons (topbar / dock /
+   home rails) — they had no text label, so focus was previously invisible. Only
+   :focus-visible, so pointer taps stay clean. */
+.icon-btn:focus-visible,
+.dock-icon-btn:focus-visible,
+.home-rail-scroll-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #6ee7d8) 80%, white 20%);
+  outline-offset: 2px;
+}
+
 .station-artwork {
   --station-artwork-primary: rgba(127, 214, 255, 0.92);
   --station-artwork-secondary: rgba(132, 255, 223, 0.62);
@@ -635,6 +645,10 @@ input {
   --station-artwork-angle: 126deg;
   position: relative;
   flex: 0 0 auto;
+  /* T_mobile_ux: reserve a square box so the lazy <img> can't cause CLS. No-op
+     for the fixed-size variants (sm/md/card/dock set both width+height, which
+     wins over aspect-ratio); it only kicks in for any width-only container. */
+  aspect-ratio: 1;
   overflow: hidden;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -9139,5 +9153,20 @@ body {
     height: 100%;
     min-height: 100%;
     padding-bottom: 0;
+  }
+}
+
+/* T_mobile_ux: guaranteed 40px tap-target FLOOR on the mobile dock buttons. The
+   dock height is set by ~15 cascading breakpoint rules across this file; rather
+   than chase each, a single late min-height/min-width floor wins by source order
+   and lifts every variant to >=40px without touching the glyph size. The action
+   row is flex (player-dock-actions > * : flex 1 1 0), so 6x40 + gaps still fit
+   the dock at 360px (verified: no horizontal overflow, no clipping). */
+@media (max-width: 430px) {
+  .dock-icon-btn,
+  .dock-expand-btn,
+  .dock-mini-btn {
+    min-height: 40px;
+    min-width: 40px;
   }
 }
