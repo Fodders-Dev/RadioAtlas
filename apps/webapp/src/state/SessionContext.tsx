@@ -432,6 +432,19 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const queuedCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
   const inFlightCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
   const cloudLibrarySyncPromiseRef = useRef<Promise<void> | null>(null);
+  // T_stability: a library change orphaned by a mid-flight token expiry (or a
+  // token already gone at flush time). Kept ACROSS re-auth — applySessionPayload's
+  // resetCloudLibrarySyncQueue deliberately does NOT clear this — so the re-auth
+  // effect can re-flush it instead of silently losing the favorite/collection.
+  // Tagged with the account id so an account switch discards it rather than
+  // writing one user's change to another. Cleared only on a real signOut.
+  const pendingReauthLibraryRef = useRef<{
+    accountId: string;
+    library: Omit<CloudLibrary, 'updatedAt'>;
+  } | null>(null);
+  // Forward ref to flushCloudLibrarySync (defined far below) so applySessionPayload
+  // can re-flush the orphaned change at the re-auth point.
+  const flushCloudLibrarySyncRef = useRef<() => void>(() => {});
 
   profileRef.current = profile;
   libraryRef.current = library;
@@ -564,6 +577,23 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     setSyncState('synced');
     setError(null);
     setPendingLinkAction(null);
+    // T_stability: re-flush a library change orphaned by a prior token expiry,
+    // now that a fresh session is in place — the data-loss fix. Guards:
+    //   (a) fires exactly once per re-auth (this runs once per applySessionPayload)
+    //       — no loop;
+    //   (b) AFTER applySessionSnapshot's cloud-overwrite above, so the re-flush
+    //       isn't clobbered by the re-auth's setLibrary;
+    //   (c) applySessionPayload only runs on a SUCCESSFUL auth (never on a 401),
+    //       so a failed sync can't trigger it → no 401 spin-loop.
+    // The account-id tag discards the stash on an account switch.
+    const pendingReauth = pendingReauthLibraryRef.current;
+    if (pendingReauth) {
+      pendingReauthLibraryRef.current = null;
+      if (pendingReauth.accountId === mappedProfile.id) {
+        queuedCloudLibraryRef.current = pendingReauth.library;
+        flushCloudLibrarySyncRef.current();
+      }
+    }
     setAccountSheetOpen((previous) => (closeAccountSheet ? false : previous));
     reportSessionEvent('session_authenticated', {
       detail: mappedProfile.id,
@@ -1056,6 +1086,16 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
     const token = getStoredToken();
     if (!apiBase || !token || !profileRef.current) {
+      // T_stability: a missing TOKEN (session expired mid-session, apiBase +
+      // profile still present) must NOT drop the queued change — stash it,
+      // tagged by account, so the re-auth effect re-flushes it. A genuine
+      // sign-out clears the stash in signOut.
+      if (!token && apiBase && profileRef.current && queuedCloudLibraryRef.current) {
+        pendingReauthLibraryRef.current = {
+          accountId: profileRef.current.id,
+          library: queuedCloudLibraryRef.current
+        };
+      }
       resetCloudLibrarySyncQueue();
       return;
     }
@@ -1077,6 +1117,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const promise = (async () => {
+      let authFailed = false;
       try {
         const response = await fetch(`${apiBase}/me/library`, {
           method: 'PUT',
@@ -1087,6 +1128,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify(requestLibrary)
         });
         if (!response.ok) {
+          authFailed = response.status === 401 || response.status === 403;
           const failure = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(failure?.error || `library sync failed (${response.status})`);
         }
@@ -1115,6 +1157,15 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           }
         });
       } catch (err) {
+        // T_stability: an auth failure (likely an expired token mid-flight) must
+        // not lose the change — preserve it for the re-auth effect to re-flush.
+        // Do NOT retry here → no 401 spin-loop.
+        if (authFailed && profileRef.current) {
+          pendingReauthLibraryRef.current = {
+            accountId: profileRef.current.id,
+            library: queuedCloudLibraryRef.current ?? requestLibrary
+          };
+        }
         setSyncState('error');
         const message = err instanceof Error ? err.message : 'library sync failed';
         setError(message);
@@ -1147,7 +1198,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           });
           return;
         }
-        void flushCloudLibrarySync();
+        // T_stability: never auto-re-flush after an auth failure → no 401
+        // spin-loop. The re-auth effect drains pendingReauthLibraryRef once a
+        // fresh token is in place.
+        if (!authFailed) {
+          void flushCloudLibrarySync();
+        }
       }
     })();
 
@@ -1155,10 +1211,27 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     return promise;
   }, [apiBase, applySessionSnapshot, reportSessionEvent, resetCloudLibrarySyncQueue]);
 
+  // T_stability: keep a ref to flushCloudLibrarySync so applySessionPayload
+  // (defined earlier) can drive the re-auth re-flush without a forward reference.
+  flushCloudLibrarySyncRef.current = flushCloudLibrarySync;
+
   const replaceCloudLibrary = useCallback(
     async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
       const token = getStoredToken();
-      if (!apiBase || !token || !profileRef.current) return;
+      if (!apiBase || !token || !profileRef.current) {
+        // T_stability: the token is already gone (expired before we could sync) —
+        // preserve the change, tagged by account, so the re-auth effect re-flushes
+        // it instead of silently dropping it (it would otherwise be overwritten by
+        // the cloud library on the next re-auth). Same survivable stash the
+        // flush-entry and 401 paths use.
+        if (!token && apiBase && profileRef.current) {
+          pendingReauthLibraryRef.current = {
+            accountId: profileRef.current.id,
+            library: nextLibrary
+          };
+        }
+        return;
+      }
       if (
         cloudLibraryMatches(libraryRef.current, nextLibrary) ||
         cloudLibraryMatches(queuedCloudLibraryRef.current, nextLibrary) ||
@@ -1326,6 +1399,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = useCallback(() => {
     resetCloudLibrarySyncQueue();
+    // T_stability: a real sign-out discards any orphaned-for-re-auth change so it
+    // never flushes into a later (possibly different) session.
+    pendingReauthLibraryRef.current = null;
     setStoredToken('');
     setProfile(null);
     setLibrary(null);
