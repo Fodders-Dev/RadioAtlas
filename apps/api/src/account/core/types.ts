@@ -157,6 +157,25 @@ export type StoredAccount = {
   updatedAt: number;
 };
 
+// R1 bot retention (PR-A): one row per Telegram user that has either opted in
+// (via the authed webapp) and/or started the bot (DM-reachability).
+export type BotSubscription = {
+  telegramId: string;
+  accountId: string | null;
+  optedIn: boolean;
+  startedAt: number | null;
+  lastSentAt: number | null;
+  unreachable: boolean;
+};
+
+// A nudge recipient = opted-in AND reachable AND not recently sent. Only what
+// the sender needs (PR-B); never exposed publicly (chat_id is PII).
+export type NudgeRecipient = {
+  telegramId: string;
+  accountId: string | null;
+  lastSentAt: number | null;
+};
+
 export type AccountAuditEventType =
   | 'account_created'
   | 'provider_linked'

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
+import { recordReachability } from './botReachability.js';
 import { forwardBillingWebhook } from './billingForward.js';
 import { resolveInlineQuery } from './inlineQuery.js';
 import {
@@ -92,6 +93,14 @@ bot.command('start', async (ctx) => {
   await ctx.reply(payload.text, {
     reply_markup: keyboardFromPayload(payload)
   });
+
+  // R1 (PR-A): record DM-reachability AFTER the reply — fail-safe, fire-and-
+  // forget. recordReachability never throws/rejects, so onboarding is never
+  // blocked even if the API is down. No message is sent to the user here.
+  void recordReachability(
+    { fetch, apiUrl, internalWebhookToken, log: (line) => console.warn(line) },
+    ctx.from?.id
+  );
 });
 
 bot.command('support', async (ctx) => {

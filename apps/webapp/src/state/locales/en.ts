@@ -565,6 +565,7 @@ export const enDictionary = {
     "alertsDisabled": "Alerts off",
     "botOptIn": "Enable bot",
     "botOptedIn": "Bot enabled",
+    "botStartHint": "Open @bot → Start",
     "digestPlay": "Play",
     "alertMarkRead": "Mark read",
     "alertRead": "Read"

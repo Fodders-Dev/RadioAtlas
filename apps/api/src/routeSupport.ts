@@ -1,6 +1,7 @@
 import type express from 'express';
 import {
   getAccountAuditTrail,
+  getBotOptInForAccount,
   getReferralCount,
   type LibraryMergeStrategy,
   type StoredAccount
@@ -45,7 +46,11 @@ export const buildSessionEnvelope = async (token: string, account: StoredAccount
   // getDb and a synchronous throw in countReferralsForAccountSync.)
   profile: {
     ...toClientProfile(account),
-    referralCount: await getReferralCount(account.id).catch(() => 0)
+    referralCount: await getReferralCount(account.id).catch(() => 0),
+    // R1 (PR-A): server-authoritative bot opt-in so the webapp toggle reflects
+    // the source of truth. Same fail-soft contract as referralCount — never let
+    // this read break a sign-in.
+    botOptedIn: await getBotOptInForAccount(account.id).catch(() => false)
   },
   auditTrail: await getAccountAuditTrail(account.id)
 });

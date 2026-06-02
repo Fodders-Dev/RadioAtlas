@@ -251,6 +251,9 @@ export type SessionProfile = {
   // T_share_4: how many users this account has referred (server-computed,
   // surfaced in the invite card). Defaults to 0 for legacy envelopes.
   referralCount: number;
+  // R1 (PR-A): server-authoritative bot-nudge opt-in (default OFF). The settings
+  // toggle reflects this and writes back via PUT /me/bot-subscription.
+  botOptedIn: boolean;
 };
 
 export type AuditEvent = {

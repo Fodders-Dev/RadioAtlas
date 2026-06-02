@@ -3,6 +3,7 @@ import {
   createLinkRequest,
   getAccountAuditTrail,
   getAccountByToken,
+  setBotOptIn,
   revokeOtherSessions,
   revokeSession,
   unlinkProvider,
@@ -179,6 +180,26 @@ export const registerAccountRoutes = (app: express.Express) => {
       profile: toClientProfile(nextAccount),
       auditTrail: await getAccountAuditTrail(nextAccount.id)
     });
+  });
+
+  // R1 bot retention (PR-A): server-authoritative opt-in for the weekly nudge.
+  // Authed (the user toggling it in their own settings), default OFF. No message
+  // is sent here — this only records intent. Returns hasTelegram/reachable so the
+  // UI can prompt "open @bot → Start" when the user is opted-in but not reachable.
+  app.put('/me/bot-subscription', async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) {
+      res.status(401).json({ error: 'authorization required' });
+      return;
+    }
+    const account = await getAccountByToken(token);
+    if (!account) {
+      res.status(401).json({ error: 'session is invalid' });
+      return;
+    }
+    const optedIn = req.body?.optedIn === true;
+    const result = await setBotOptIn(account.id, optedIn);
+    res.json(result);
   });
 
   app.post('/me/link-request', async (req, res) => {

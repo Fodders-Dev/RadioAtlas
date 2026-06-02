@@ -47,8 +47,17 @@ export const Library = () => {
     status: sessionStatus,
     profile,
     library: cloudLibrary,
-    openAccountSheet
+    openAccountSheet,
+    setBotOptIn
   } = useSession();
+  // R1 (PR-A): after toggling opt-in we learn whether the user is reachable
+  // (has started the bot). If opted-in but not reachable, we point them to it.
+  const [botReachable, setBotReachable] = useState<boolean | null>(null);
+  const botUsername = String(import.meta.env.VITE_TG_BOT || '').trim().replace(/^@/, '');
+  const handleBotOptInToggle = async () => {
+    const result = await setBotOptIn(!(profile?.botOptedIn ?? false));
+    setBotReachable(result.optedIn ? result.reachable : null);
+  };
   const { locale, t } = useLocale();
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1024
@@ -1101,18 +1110,25 @@ export const Library = () => {
                     : t('library.alertsDisabled')}
                 </button>
                 <button
-                  className={`chip ${notificationPreference.telegramBotOptIn ? 'active' : ''}`}
+                  className={`chip ${profile?.botOptedIn ? 'active' : ''}`}
                   type="button"
-                  onClick={() =>
-                    updateNotificationPreference({
-                      telegramBotOptIn: !notificationPreference.telegramBotOptIn
-                    })
-                  }
+                  disabled={!profile}
+                  onClick={() => void handleBotOptInToggle()}
                 >
-                  {notificationPreference.telegramBotOptIn
-                    ? t('library.botOptedIn')
-                    : t('library.botOptIn')}
+                  {profile?.botOptedIn ? t('library.botOptedIn') : t('library.botOptIn')}
                 </button>
+                {/* R1 (PR-A): opted-in but the bot can't DM yet (never /start-ed) →
+                    point the user at the bot. No message is sent until PR-B. */}
+                {profile?.botOptedIn && botReachable === false && botUsername ? (
+                  <a
+                    className="chip"
+                    href={`https://t.me/${botUsername}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('library.botStartHint')}
+                  </a>
+                ) : null}
                 <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
                   <span>{t('library.alertsUnread')}</span>
                   <strong>{libraryFeed.unreadAlerts}</strong>
