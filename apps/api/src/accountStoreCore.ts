@@ -7,6 +7,8 @@ export type {
   BillingProductId,
   BillingPurchase,
   BillingProvider,
+  BotSubscription,
+  NudgeRecipient,
   DatabaseLike,
   FollowedRegion,
   FollowedStation,
@@ -59,6 +61,14 @@ export {
   REFERRAL_REWARD_ENTITLEMENT,
   REFERRAL_REWARD_THRESHOLD
 } from './account/core/referralService.js';
+export {
+  getBotOptInForAccount,
+  listNudgeRecipients,
+  NUDGE_COOLDOWN_MS,
+  recordBotReachability,
+  setBotOptIn,
+  type BotOptInResult
+} from './account/core/botSubscriptionService.js';
 export {
   confirmBillingPurchase,
   createBillingPurchase,

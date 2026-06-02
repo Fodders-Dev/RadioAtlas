@@ -7,12 +7,14 @@ export type {
   BillingProductId,
   BillingPurchase,
   BillingProvider,
+  BotSubscription,
   FollowedRegion,
   FollowedStation,
   LibraryCounts,
   LibraryMergeStrategy,
   ListenerAlert,
   MergePreviewParty,
+  NudgeRecipient,
   PremiumStatus,
   ProviderKind,
   SessionEntitlement,
@@ -25,6 +27,14 @@ export type {
   UserCollection
 } from './accountStoreCore.js';
 export { getAccountAuditTrail, recordAccountEvent } from './account/auditStore.js';
+export {
+  getBotOptInForAccount,
+  listNudgeRecipients,
+  NUDGE_COOLDOWN_MS,
+  recordBotReachability,
+  setBotOptIn,
+  type BotOptInResult
+} from './accountStoreCore.js';
 export {
   __forceSessionExpiryForTesting,
   __inspectSessionForTesting,

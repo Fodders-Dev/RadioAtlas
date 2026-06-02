@@ -5,6 +5,7 @@ import { listCatalogProfileOverrides } from './accountStore.js';
 import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
+import { registerBotRoutes } from './botRoutes.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
@@ -415,6 +416,7 @@ registerBillingRoutes(app, {
   nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
+registerBotRoutes(app, { internalWebhookToken: INTERNAL_WEBHOOK_TOKEN });
 const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles

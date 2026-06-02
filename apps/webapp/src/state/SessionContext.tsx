@@ -101,6 +101,11 @@ type SessionContextValue = {
   confirmPendingLink: () => Promise<void>;
   dismissPendingLink: () => void;
   signOut: () => void;
+  // R1 (PR-A): server-authoritative bot-nudge opt-in. Returns hasTelegram/reachable
+  // so the UI can prompt "open @bot → Start" when opted-in but not yet reachable.
+  setBotOptIn: (
+    optedIn: boolean
+  ) => Promise<{ optedIn: boolean; hasTelegram: boolean; reachable: boolean }>;
   replaceCloudLibrary: (library: Omit<CloudLibrary, 'updatedAt'>) => Promise<void>;
   updateCollections: (collections: UserCollection[]) => Promise<void>;
   updateFollows: (payload: {
@@ -155,7 +160,8 @@ const mapProfile = (profile: SessionPayload['profile']): SessionProfile => ({
   billingProvider: profile.billingProvider,
   linkedProviders: profile.linkedProviders,
   providers: profile.providers,
-  referralCount: profile.referralCount ?? 0
+  referralCount: profile.referralCount ?? 0,
+  botOptedIn: profile.botOptedIn ?? false
 });
 
 const providerInfosMatch = (left: SessionProviderInfo[], right: SessionProviderInfo[]) =>
@@ -188,6 +194,7 @@ const profilesMatch = (left: SessionProfile | null, right: SessionProfile | null
     left.supporterTier === right.supporterTier &&
     left.billingProvider === right.billingProvider &&
     left.referralCount === right.referralCount &&
+    left.botOptedIn === right.botOptedIn &&
     left.entitlements.length === right.entitlements.length &&
     left.entitlements.every((entitlement, index) => entitlement === right.entitlements[index]) &&
     left.linkedProviders.length === right.linkedProviders.length &&
@@ -1215,6 +1222,42 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   // (defined earlier) can drive the re-auth re-flush without a forward reference.
   flushCloudLibrarySyncRef.current = flushCloudLibrarySync;
 
+  const setBotOptIn = useCallback(
+    async (optedIn: boolean) => {
+      const offline = { optedIn: false, hasTelegram: false, reachable: false };
+      const token = getStoredToken();
+      if (!apiBase || !token) return offline;
+      try {
+        const response = await fetch(`${apiBase}/me/bot-subscription`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ optedIn })
+        });
+        if (!response.ok) {
+          throw new Error(`bot opt-in failed (${response.status})`);
+        }
+        const result = (await response.json()) as {
+          optedIn: boolean;
+          hasTelegram: boolean;
+          reachable: boolean;
+        };
+        // Reflect the server-authoritative state on the profile so the toggle
+        // mirrors the source of truth (no localStorage drift).
+        setProfile((previous) =>
+          previous ? { ...previous, botOptedIn: result.optedIn } : previous
+        );
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'bot opt-in failed');
+        return { ...offline, optedIn: profileRef.current?.botOptedIn ?? false };
+      }
+    },
+    [apiBase]
+  );
+
   const replaceCloudLibrary = useCallback(
     async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
       const token = getStoredToken();
@@ -1760,6 +1803,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       confirmPendingLink,
       dismissPendingLink,
       signOut,
+      setBotOptIn,
       replaceCloudLibrary,
       updateCollections,
       updateFollows,
@@ -1799,6 +1843,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       confirmPendingLink,
       dismissPendingLink,
       signOut,
+      setBotOptIn,
       replaceCloudLibrary,
       updateCollections,
       updateFollows,

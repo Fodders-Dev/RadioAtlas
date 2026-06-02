@@ -8,9 +8,11 @@ import type {
   AccountProvider,
   BillingProductId,
   BillingProvider,
+  BotSubscription,
   DatabaseLike,
   LegacyStore,
   LibraryMergeStrategy,
+  NudgeRecipient,
   PremiumStatus,
   ProviderKind,
   SessionEntitlement,
@@ -176,9 +178,26 @@ export const getDb = async () => {
           created_at INTEGER NOT NULL
         );
 
+        -- R1 bot retention (PR-A): opt-in + DM-reachability per Telegram user.
+        -- Purely additive (new table, existing accounts untouched). Keyed by
+        -- telegram_id (= the bot chat_id). account_id is filled when an account
+        -- exists for that telegram identity; opted_in defaults OFF; started_at is
+        -- set when the user /start-s the bot (the only state Telegram lets us DM).
+        CREATE TABLE IF NOT EXISTS bot_subscriptions (
+          telegram_id TEXT PRIMARY KEY,
+          account_id TEXT,
+          opted_in INTEGER NOT NULL DEFAULT 0,
+          started_at INTEGER,
+          last_sent_at INTEGER,
+          unreachable INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_billing_purchases_account_id ON billing_purchases(account_id);
         CREATE INDEX IF NOT EXISTS idx_station_profiles_owner ON station_profiles(owner_account_id);
         CREATE INDEX IF NOT EXISTS idx_promotion_events_station_created_at ON promotion_events(stationuuid, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_bot_subscriptions_account ON bot_subscriptions(account_id);
       `);
       try {
         db.exec(`ALTER TABLE link_requests ADD COLUMN merge_strategy TEXT NOT NULL DEFAULT 'combine';`);
@@ -839,4 +858,87 @@ export const countReferralsForAccountSync = (
     .prepare('SELECT COUNT(*) AS count FROM accounts WHERE invited_by_account_id = ?')
     .get(inviterAccountId);
   return safeNumber(row?.count) ?? 0;
+};
+
+// --- R1 bot retention (PR-A) ---
+
+const mapBotSubscription = (row: Record<string, unknown>): BotSubscription => ({
+  telegramId: String(row.telegram_id),
+  accountId: safeText(row.account_id) || null,
+  optedIn: Boolean(row.opted_in),
+  startedAt: safeNumber(row.started_at),
+  lastSentAt: safeNumber(row.last_sent_at),
+  unreachable: Boolean(row.unreachable)
+});
+
+// Record DM-reachability when a user /start-s the bot. started_at is set ONCE
+// (COALESCE keeps the first), unreachable is cleared (they just messaged us),
+// and account_id is back-filled if their telegram identity now maps to one.
+export const recordBotReachabilitySync = (
+  db: DatabaseLike,
+  telegramId: string,
+  accountId: string | null
+): void => {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO bot_subscriptions (telegram_id, account_id, started_at, unreachable, created_at, updated_at)
+     VALUES (?, ?, ?, 0, ?, ?)
+     ON CONFLICT(telegram_id) DO UPDATE SET
+       started_at = COALESCE(bot_subscriptions.started_at, excluded.started_at),
+       account_id = COALESCE(excluded.account_id, bot_subscriptions.account_id),
+       unreachable = 0,
+       updated_at = excluded.updated_at`
+  ).run(telegramId, accountId, now, now, now);
+};
+
+// Set the opt-in flag from the authed webapp (account-driven). Keyed by the
+// account's telegram id; default OFF is the table default for never-touched rows.
+export const setBotOptInSync = (
+  db: DatabaseLike,
+  telegramId: string,
+  accountId: string,
+  optedIn: boolean
+): void => {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO bot_subscriptions (telegram_id, account_id, opted_in, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(telegram_id) DO UPDATE SET
+       opted_in = excluded.opted_in,
+       account_id = excluded.account_id,
+       updated_at = excluded.updated_at`
+  ).run(telegramId, accountId, optedIn ? 1 : 0, now, now);
+};
+
+export const getBotSubscriptionByAccountSync = (
+  db: DatabaseLike,
+  accountId: string
+): BotSubscription | null => {
+  const row = db
+    .prepare('SELECT * FROM bot_subscriptions WHERE account_id = ? LIMIT 1')
+    .get(accountId);
+  return row ? mapBotSubscription(row) : null;
+};
+
+// The sender's recipient set (PR-B): opted-in AND reachable (started) AND not
+// dead AND outside the cooldown. Oldest-sent first.
+export const listNudgeRecipientsSync = (
+  db: DatabaseLike,
+  cooldownMs: number,
+  now: number
+): NudgeRecipient[] => {
+  const cutoff = now - cooldownMs;
+  return db
+    .prepare(
+      `SELECT telegram_id, account_id, last_sent_at FROM bot_subscriptions
+       WHERE opted_in = 1 AND started_at IS NOT NULL AND unreachable = 0
+         AND (last_sent_at IS NULL OR last_sent_at <= ?)
+       ORDER BY COALESCE(last_sent_at, 0) ASC`
+    )
+    .all(cutoff)
+    .map((row) => ({
+      telegramId: String(row.telegram_id),
+      accountId: safeText(row.account_id) || null,
+      lastSentAt: safeNumber(row.last_sent_at)
+    }));
 };

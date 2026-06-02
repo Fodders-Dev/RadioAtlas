@@ -565,6 +565,7 @@ export const ruDictionary = {
     "alertsDisabled": "Алерты выкл.",
     "botOptIn": "Включить бота",
     "botOptedIn": "Бот включён",
+    "botStartHint": "Открыть @bot → Start",
     "digestPlay": "Слушать",
     "alertMarkRead": "Прочитано",
     "alertRead": "Уже прочитано"
