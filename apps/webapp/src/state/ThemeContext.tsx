@@ -231,6 +231,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         : themeRuntimeVars(currentTheme, (assetId) => assetUrls.get(assetId) || null);
 
     root.dataset.theme = effectiveThemeId;
+    // P1: drive the chrome surface mode. Default 'dark' (telegram-auto + every
+    // existing bundled theme) is a no-op — the light surface block only applies
+    // under data-theme-mode='light'.
+    root.dataset.themeMode = currentTheme.mode === 'light' ? 'light' : 'dark';
     root.style.setProperty('--theme-accent', vars.accent);
     root.style.setProperty('--theme-accent-2', vars.accent2);
     root.style.setProperty('--theme-bg-image', vars.background);

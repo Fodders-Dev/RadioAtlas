@@ -76,6 +76,13 @@ export type RadioAtlasTheme = {
   // until earned (ThemeContext refuses to apply it without the entitlement).
   // Only NEW exclusive themes set this — the six free themes never do.
   locked?: boolean;
+  // P1 foundation: drives the chrome surface set (bg/panel/text/border/muted) so
+  // the theme reaches more than the hidden background + accent. Defaults to
+  // 'dark' — every existing theme is dark, and a missing/`'dark'` mode is a pure
+  // no-op (the chrome falls back to the unchanged dark token defaults).
+  // `'light'` swaps in a readable light surface set (dark ink) so light themes
+  // like Pastel stop breaking.
+  mode?: 'light' | 'dark';
   layers: RadioAtlasThemeLayers;
 };
 

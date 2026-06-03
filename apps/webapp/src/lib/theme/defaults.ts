@@ -58,6 +58,9 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
     createdAt: BUILT_AT,
     updatedAt: BUILT_AT,
     builtin: true,
+    // P1: the first light theme — the foundation swaps in a readable light
+    // surface set (dark ink) so the chrome stops fighting the pastel wash.
+    mode: 'light',
     layers: {
       accent: {
         hue: 32,

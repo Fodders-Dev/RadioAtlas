@@ -1,13 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg: #08111c;
-  --bg-2: #112437;
-  --panel: rgba(17, 25, 38, 0.56);
-  --panel-2: rgba(28, 43, 63, 0.56);
-  --border: rgba(236, 247, 255, 0.12);
-  --text: #f5fbff;
-  --muted: rgba(225, 238, 249, 0.64);
+  /* P1 foundation: the 7 base chrome tokens now derive from theme-injected
+     surface vars with the EXACT current dark values as fallbacks. A dark theme
+     sets none of --theme-bg/surface/text/... so these resolve byte-identically
+     to before — the rewire is a pure no-op for every existing (dark) theme.
+     A light theme (data-theme-mode='light', below) overrides --theme-* so the
+     chrome adapts. */
+  --bg: var(--theme-bg, #08111c);
+  --bg-2: var(--theme-bg-2, #112437);
+  --panel: var(--theme-surface, rgba(17, 25, 38, 0.56));
+  --panel-2: var(--theme-surface-2, rgba(28, 43, 63, 0.56));
+  --border: var(--theme-border, rgba(236, 247, 255, 0.12));
+  --text: var(--theme-text, #f5fbff);
+  --muted: var(--theme-muted, rgba(225, 238, 249, 0.64));
   --theme-accent: #94f0ea;
   --theme-accent-2: #93b7ff;
   --theme-bg-image:
@@ -60,6 +66,27 @@
     var(--player-safe-height) + var(--nav-height) + var(--nav-gap) +
       var(--player-bottom-offset) + env(safe-area-inset-bottom)
   );
+}
+
+/* P1 foundation: light-theme surface set. ThemeContext sets
+   data-theme-mode='light' for a theme with mode:'light'; these override the
+   theme-injected surface vars so the 7 base tokens above resolve to a readable
+   LIGHT chrome (light surfaces + dark ink). Dark themes never set this attribute,
+   so none of this applies and the chrome stays byte-identical. Surfaces keep
+   alpha so the per-station tiles and the pastel background still read through. */
+:root[data-theme-mode='light'] {
+  color-scheme: light;
+  --theme-bg: #f3ece4;
+  --theme-bg-2: #e7ddd2;
+  --theme-surface: rgba(255, 252, 248, 0.72);
+  --theme-surface-2: rgba(255, 250, 244, 0.82);
+  --theme-border: rgba(60, 45, 38, 0.16);
+  --theme-text: #241a17;
+  --theme-muted: rgba(58, 44, 38, 0.62);
+  /* Scrims/shadows are tuned for dark; soften them so they don't punch black
+     holes on a light shell. */
+  --shadow-soft: color-mix(in srgb, #3a2c26 12%, transparent);
+  --shadow-strong: color-mix(in srgb, #3a2c26 20%, transparent);
 }
 
 * {
@@ -742,8 +769,14 @@ input {
   width: 46px;
   height: 46px;
   border-radius: 16px;
+  /* P1: SUBTLE theme cohesion on the tile grid. The per-station gradient
+     interior is untouched (the colour diversity is a feature) — only the rim
+     picks up the theme accent: a faint accent-tinted border + a 1px inset accent
+     ring. Deliberately light; no wash over the tile face. */
+  border-color: color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.14));
   box-shadow:
     0 10px 24px rgba(10, 18, 34, 0.28),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
