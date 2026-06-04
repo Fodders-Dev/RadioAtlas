@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { themeRuntimeVars } from '../lib/theme/runtime';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   RadioAtlasTheme,
   ThemeFontLayer,
@@ -9,6 +8,7 @@ import type {
 } from '../lib/theme/types';
 import { useLocale } from '../state/LocaleContext';
 import { collectThemeAssetIds, useTheme } from '../state/ThemeContext';
+import { ThemePreviewSurface } from './ThemePreviewSurface';
 
 type ThemeBuilderProps = {
   bundledThemes: RadioAtlasTheme[];
@@ -71,19 +71,6 @@ const revokeDraftAsset = (asset: DraftAsset | null | undefined) => {
   }
 };
 
-const themeStyle = (
-  theme: RadioAtlasTheme,
-  resolveAssetUrl?: (assetId: string) => string | null
-) => {
-  const vars = themeRuntimeVars(theme, resolveAssetUrl);
-  return {
-    '--theme-studio-accent': vars.accent,
-    '--theme-studio-accent-2': vars.accent2,
-    '--theme-studio-bg': vars.background,
-    '--theme-studio-font': vars.font,
-    '--theme-studio-icon-radius': vars.iconRadius
-  } as CSSProperties;
-};
 
 const fileMatches = (file: File, matcher: RegExp, maxBytes: number) =>
   matcher.test(file.type || '') && file.size <= maxBytes;
@@ -277,6 +264,14 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     seedTheme,
     t
   ]);
+  // P2-2c: the live preview repaints from a debounced copy of the draft so
+  // dragging the hue/sat sliders doesn't repaint the preview on every tick —
+  // the slider input stays responsive and the preview catches up ~90ms later.
+  const [previewTheme, setPreviewTheme] = useState(draftTheme);
+  useEffect(() => {
+    const handle = window.setTimeout(() => setPreviewTheme(draftTheme), 90);
+    return () => window.clearTimeout(handle);
+  }, [draftTheme]);
   const draftResolveAssetUrl = (assetId: string) => {
     if (draftPrint?.id === assetId) return draftPrint.url;
     if (draftSticker?.id === assetId) return draftSticker.url;
@@ -356,6 +351,14 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
               : t('theme.builderCopy')}
           </div>
         </div>
+      </div>
+
+      <div
+        className="theme-studio-builder-preview-panel"
+        data-theme-builder-background={draftBackgroundMode}
+      >
+        <span className="theme-studio-builder-preview-label">{t('theme.previewLabel')}</span>
+        <ThemePreviewSurface theme={previewTheme} resolveAssetUrl={draftResolveAssetUrl} />
       </div>
 
       <h4 className="theme-studio-builder-legend">{t('theme.section.identity')}</h4>
@@ -704,25 +707,6 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
             ))}
           </select>
         </label>
-      </div>
-
-      <div
-        className="theme-studio-builder-preview"
-        data-theme-builder-background={draftBackgroundMode}
-        style={themeStyle(draftTheme, draftResolveAssetUrl)}
-      >
-        <div>
-          <span>{t('theme.previewLabel')}</span>
-          <strong>{draftTheme.name}</strong>
-        </div>
-        <span className="theme-studio-builder-icon" aria-hidden="true">
-          ▶
-        </span>
-        {draftTheme.layers.emojiReactions?.[0] ? (
-          <span className="theme-studio-builder-emoji" data-theme-preview-emoji>
-            {draftTheme.layers.emojiReactions[0].emoji}
-          </span>
-        ) : null}
       </div>
 
       <div className="settings-actions">
