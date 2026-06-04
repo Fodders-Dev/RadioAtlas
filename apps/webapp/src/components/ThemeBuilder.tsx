@@ -116,6 +116,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const [draftSticker, setDraftSticker] = useState<DraftAsset | null>(null);
   const [draftStickerSlot, setDraftStickerSlot] = useState<ThemeSlot>('dockLeft');
   const [draftStickerScale, setDraftStickerScale] = useState(1);
+  const [draftStickerX, setDraftStickerX] = useState(0);
+  const [draftStickerY, setDraftStickerY] = useState(0);
   const [draftGif, setDraftGif] = useState<DraftAsset | null>(null);
   const [draftGifSlot, setDraftGifSlot] = useState<ThemeSlot>('fullPlayerCorner');
   const [draftGifTrigger, setDraftGifTrigger] = useState<'idle' | 'play' | 'like'>('play');
@@ -151,6 +153,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     setDraftBackgroundThemeId(seedTheme?.builtin ? seedTheme.id : firstBundledThemeId);
     setDraftStickerSlot(seedTheme?.layers.stickers?.[0]?.slot ?? 'dockLeft');
     setDraftStickerScale(seedTheme?.layers.stickers?.[0]?.scale ?? 1);
+    setDraftStickerX(seedTheme?.layers.stickers?.[0]?.x ?? 0);
+    setDraftStickerY(seedTheme?.layers.stickers?.[0]?.y ?? 0);
     setDraftGifSlot(seedTheme?.layers.gifs?.[0]?.slot ?? 'fullPlayerCorner');
     setDraftGifTrigger(seedTheme?.layers.gifs?.[0]?.trigger ?? 'play');
     setBuilderState('idle');
@@ -257,8 +261,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
               {
                 assetId: draftSticker.id,
                 slot: draftStickerSlot,
-                x: 0,
-                y: 0,
+                x: draftStickerX,
+                y: draftStickerY,
                 scale: draftStickerScale
               }
             ]
@@ -309,6 +313,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     draftSticker,
     draftStickerScale,
     draftStickerSlot,
+    draftStickerX,
+    draftStickerY,
     mode,
     seedTheme,
     t
@@ -414,7 +420,16 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
         data-theme-builder-background={draftBackgroundMode}
       >
         <span className="theme-studio-builder-preview-label">{t('theme.previewLabel')}</span>
-        <ThemePreviewSurface theme={previewTheme} resolveAssetUrl={draftResolveAssetUrl} />
+        <ThemePreviewSurface
+          theme={previewTheme}
+          resolveAssetUrl={draftResolveAssetUrl}
+          stickerPosition={{ x: draftStickerX, y: draftStickerY }}
+          onStickerMove={(x, y) => {
+            setDraftStickerX(x);
+            setDraftStickerY(y);
+            setBuilderState('idle');
+          }}
+        />
       </div>
 
       <h4 className="theme-studio-builder-legend">{t('theme.section.identity')}</h4>

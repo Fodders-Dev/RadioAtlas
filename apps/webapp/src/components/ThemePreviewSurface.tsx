@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { themeRuntimeVars, themeSurfaceVars } from '../lib/theme/runtime';
 import type { RadioAtlasTheme } from '../lib/theme/types';
 
@@ -8,10 +8,17 @@ import type { RadioAtlasTheme } from '../lib/theme/types';
 // accent, surface tint, font, CTA and emoji react as they edit. It mirrors the
 // real token derivation: themeRuntimeVars + themeSurfaceVars (the P1b
 // accent-tinted dark chrome), and the light surface set for mode:'light'.
+//
+// P2-2e: if `onStickerMove` is supplied, the sticker decoration becomes
+// drag-positionable directly on the preview — pointer drag writes a clamped
+// px offset (x/y, centre-anchored) back to the draft, and `stickerPosition`
+// feeds the live (un-debounced) offset back in so the drag never lags.
 
 type ThemePreviewSurfaceProps = {
   theme: RadioAtlasTheme;
   resolveAssetUrl?: (assetId: string) => string | null;
+  stickerPosition?: { x: number; y: number };
+  onStickerMove?: (x: number, y: number) => void;
 };
 
 // A frozen spectrum for the mini dock visualizer — evokes the live player
@@ -28,11 +35,62 @@ const LIGHT = {
   ink: '#2a1a12'
 };
 
-export const ThemePreviewSurface = ({ theme, resolveAssetUrl }: ThemePreviewSurfaceProps) => {
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+export const ThemePreviewSurface = ({
+  theme,
+  resolveAssetUrl,
+  stickerPosition,
+  onStickerMove
+}: ThemePreviewSurfaceProps) => {
   const vars = themeRuntimeVars(theme, resolveAssetUrl);
   const surfaces = themeSurfaceVars(theme);
   const light = theme.mode === 'light';
   const emoji = theme.layers.emojiReactions?.[0]?.emoji;
+
+  const sticker = theme.layers.stickers?.[0];
+  const stickerUrl = sticker?.assetId ? resolveAssetUrl?.(sticker.assetId) ?? null : null;
+  const stickerScale = sticker?.scale ?? 1;
+  const stickerX = stickerPosition?.x ?? sticker?.x ?? 0;
+  const stickerY = stickerPosition?.y ?? sticker?.y ?? 0;
+  const draggable = Boolean(stickerUrl && onStickerMove);
+
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null
+  );
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!onStickerMove) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: stickerX,
+      baseY: stickerY
+    };
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const surface = surfaceRef.current;
+    if (!drag || !surface || !onStickerMove) return;
+    const rect = surface.getBoundingClientRect();
+    // Keep the sticker centre inside the preview (a margin so it never clips out).
+    const margin = 16;
+    const maxX = Math.max(0, rect.width / 2 - margin);
+    const maxY = Math.max(0, rect.height / 2 - margin);
+    const nextX = clamp(drag.baseX + (event.clientX - drag.startX), -maxX, maxX);
+    const nextY = clamp(drag.baseY + (event.clientY - drag.startY), -maxY, maxY);
+    onStickerMove(Math.round(nextX), Math.round(nextY));
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
 
   const style = {
     '--preview-bg': vars.background,
@@ -50,6 +108,7 @@ export const ThemePreviewSurface = ({ theme, resolveAssetUrl }: ThemePreviewSurf
 
   return (
     <div
+      ref={surfaceRef}
       className="theme-preview-surface"
       data-preview-mode={light ? 'light' : 'dark'}
       style={style}
@@ -85,6 +144,25 @@ export const ThemePreviewSurface = ({ theme, resolveAssetUrl }: ThemePreviewSurf
           </span>
         ) : null}
       </div>
+      {stickerUrl ? (
+        <div
+          className="theme-preview-sticker"
+          data-theme-preview-sticker
+          data-draggable={draggable ? 'true' : 'false'}
+          style={
+            {
+              '--sticker-x': `${stickerX}px`,
+              '--sticker-y': `${stickerY}px`,
+              '--sticker-scale': stickerScale,
+              backgroundImage: `url(${JSON.stringify(stickerUrl)})`
+            } as CSSProperties
+          }
+          onPointerDown={draggable ? handlePointerDown : undefined}
+          onPointerMove={draggable ? handlePointerMove : undefined}
+          onPointerUp={draggable ? endDrag : undefined}
+          onPointerCancel={draggable ? endDrag : undefined}
+        />
+      ) : null}
     </div>
   );
 };
