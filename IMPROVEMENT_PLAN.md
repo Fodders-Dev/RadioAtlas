@@ -1809,6 +1809,36 @@ retention roadmap below is PAUSED for this** (R1 PR-A not yet built; resume late
     pickers, drag-to-position decor, central live preview, grouped sections).
   - **P3 — Player/visualizer:** extend `winampShell` + the existing visualizer into
     a theme-able, reactive player (spectrum, animation under sound). Winamp soul.
+- **PROGRESS (updated 2026-06-04 — all items below MERGED + DEPLOYED + prod-verified):**
+  - **P1 foundation + crafted presets — DONE** (PR #58, supersedes #57). 7 cohesive,
+    distinct themes: clean-dark (cyan), neon (magenta, chromeTint 0.85), aurora (teal),
+    signal-grid (amber terminal — SVG recolored blue→amber + accent hue 214→40), sunset
+    (warm plum dusk, chromeTint 2.6), warm-light (`mode:'light'` cream/coral), velvet
+    (locked). New levers: `mode:'light'` + `:root[data-theme-mode='light']` surface
+    block; `chromeTint` (accent-tints dark chrome, absent/×1 = byte-identical no-op);
+    accent-driven home CTA mirroring the full-player transport. Kills "фигня".
+  - **T-desktop-light — DONE** (PR #59). Extended light-mode wiring to the desktop shell
+    (nav-rail/brand/chips/cards/search, `@media ≥960px`) — warm-light was half-light on
+    desktop-web (the P1 wiring was mobile-only). Prod desktop dark-islands probe = 0.
+  - **P2 — Skinner editor, started** (PR #60 = 2a+2b). 2a: lighter sheet (dropped the
+    redundant full-viewport blur, `content-visibility` cards, deferred IDB asset loads).
+    2b: flat 16-field form → 4 sections (Identity / Color / Typography+icons / Decor) +
+    author field + light/dark mode toggle. NEXT: 2c central live preview (keystone),
+    2d full color + multi-stop gradient editor (all-optional model migration), 2e
+    drag-to-position decor (expose sticker x/y), 2f multi-decor.
+  - **P3 — Player/visualizer, started** (PR #61 = 3a). Reconnected the dead-wired
+    visualizer pump (analyser + ~30 Hz pump existed but nobody subscribed) → a
+    theme-driven CSS-bar spectrum in the CANONICAL `FullPlayerOverlay` (the Winamp/Lite
+    overlay is `?winamp=1`-only), direct-DOM `--ra-level` (no per-frame React), idle
+    fallback for paused / iOS-lean / direct-cross-origin (no readable audio). NEXT: 3b
+    theme-coherent canvas (rainbow-hardcode → theme accent/mode at runtime), 3c reactive
+    full-player backdrop (the `fullPlayerBackdrop` slot already exists), 3d dock micro.
+  - **Process:** orchestrator pixel-reviews EVERY visual step (Playwright renders +
+    Chrome MCP live on prod). Two verification limits hit repeatedly: Chrome-MCP
+    `Page.captureScreenshot` times out on backdrop-filtered sheets/overlays → use DOM
+    probes (dark-islands / structure) + Playwright renders; and live audio won't start
+    via CDP clicks (autoplay user-activation) → the visualizer's live reactivity is
+    proven by the CI pump-probe + code, not in-browser.
 
 ## PRODUCT ROADMAP — engagement/retention (owner-chosen 2026-06-02; PAUSED for theming)
 The product is stable/fast/beautiful + has a viral loop, but it's "one-shot"
