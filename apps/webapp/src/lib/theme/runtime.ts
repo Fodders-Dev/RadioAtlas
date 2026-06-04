@@ -77,3 +77,29 @@ export const themeRuntimeVars = (
   font: themeFontToCss(theme.layers.font),
   iconRadius: themeIconRadiusToCss(theme.layers.icons)
 });
+
+// P1b: dark-theme chrome that picks up the theme's own accent — the lever that
+// makes each preset feel crafted (panels/border carry the accent hue) instead of
+// every dark theme sharing one neutral chrome. Returns null for light themes so
+// the :root[data-theme-mode='light'] surface block in styles.css applies instead
+// (inline styles would otherwise override it). Percentages are small — a calm
+// accent (clean-dark) stays near-neutral; a vivid one (neon) tints visibly.
+export const themeSurfaceVars = (theme: RadioAtlasTheme) => {
+  if (theme.mode === 'light') return null;
+  const accent = themeAccentToCss(theme.layers.accent);
+  // P1b: per-theme strength. A warm accent (Sunset/Signal Grid) washes toward
+  // neutral when mixed into the cool base panel at the baseline %, so those crank
+  // it up to read as warm; Neon dials it down a touch. Absent => ×1 (unchanged).
+  const k = clamp(theme.chromeTint ?? 1, 0, 6);
+  const tint = (base: string, pct: number) => {
+    const mix = clamp(pct * k, 0, 100);
+    return `color-mix(in srgb, ${base} ${100 - mix}%, ${accent} ${mix}%)`;
+  };
+  return {
+    bg: tint('#08111c', 5),
+    bg2: tint('#112437', 7),
+    surface: tint('rgba(17, 25, 38, 0.56)', 9),
+    surface2: tint('rgba(28, 43, 63, 0.56)', 11),
+    border: tint('rgba(236, 247, 255, 0.12)', 18)
+  };
+};

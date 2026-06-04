@@ -83,6 +83,14 @@ export type RadioAtlasTheme = {
   // `'light'` swaps in a readable light surface set (dark ink) so light themes
   // like Pastel stop breaking.
   mode?: 'light' | 'dark';
+  // P1b: scales how strongly the dark chrome (panels/border/bg) picks up the
+  // accent in `themeSurfaceVars`. 1 (default/absent) is the calibrated baseline;
+  // >1 makes a theme's surfaces carry its hue decisively (a warm accent washes
+  // out toward neutral when mixed at the base %, so warm themes like Sunset need
+  // a stronger pull to read), <1 calms a loud one. No-op for light themes (their
+  // chrome comes from the CSS light block, not the accent mix). Additive/optional
+  // — absent means ×1, so every existing theme is byte-identical.
+  chromeTint?: number;
   layers: RadioAtlasThemeLayers;
 };
 
