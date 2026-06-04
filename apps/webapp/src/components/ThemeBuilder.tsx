@@ -36,6 +36,20 @@ const MAX_BACKGROUND_BYTES = 2 * 1024 * 1024;
 const MAX_ICON_BYTES = 512 * 1024;
 const MAX_DECORATION_BYTES = 1024 * 1024;
 
+// P2-2d: a custom multi-stop gradient the user composes themselves (rather than
+// borrowing a bundled preset). Serialized down to the existing
+// background.gradient CSS string, so the renderer/storage are untouched.
+type GradientStop = { color: string; position: number };
+const DEFAULT_GRADIENT_STOPS: GradientStop[] = [
+  { color: '#10243a', position: 0 },
+  { color: '#1d3f63', position: 52 },
+  { color: '#080f1a', position: 100 }
+];
+const composeGradient = (angle: number, stops: GradientStop[]) =>
+  `linear-gradient(${Math.round(angle)}deg, ${stops
+    .map((stop) => `${stop.color} ${Math.round(stop.position)}%`)
+    .join(', ')})`;
+
 const createThemeId = (name: string) => {
   const slug = name
     .trim()
@@ -84,8 +98,17 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const [draftMode, setDraftMode] = useState<'light' | 'dark'>('dark');
   const [draftHue, setDraftHue] = useState(178);
   const [draftSat, setDraftSat] = useState(78);
-  const [draftBackgroundMode, setDraftBackgroundMode] = useState<'bundled' | 'print'>('bundled');
+  const [draftLightness, setDraftLightness] = useState(68);
+  const [draftAccent2Enabled, setDraftAccent2Enabled] = useState(false);
+  const [draftAccent2Hue, setDraftAccent2Hue] = useState(220);
+  const [draftAccent2Sat, setDraftAccent2Sat] = useState(70);
+  const [draftAccent2Lightness, setDraftAccent2Lightness] = useState(70);
+  const [draftBackgroundMode, setDraftBackgroundMode] = useState<'bundled' | 'print' | 'custom'>(
+    'bundled'
+  );
   const [draftBackgroundThemeId, setDraftBackgroundThemeId] = useState('classic');
+  const [draftGradientStops, setDraftGradientStops] = useState<GradientStop[]>(DEFAULT_GRADIENT_STOPS);
+  const [draftGradientAngle, setDraftGradientAngle] = useState(160);
   const [draftPrint, setDraftPrint] = useState<DraftAsset | null>(null);
   const [draftFont, setDraftFont] = useState<ThemeFontLayer['family']>('system');
   const [draftIconStyle, setDraftIconStyle] = useState<ThemeIconStyle>('round');
@@ -114,6 +137,12 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     setDraftMode(seedTheme?.mode ?? 'dark');
     setDraftHue(seedTheme?.layers.accent?.hue ?? 178);
     setDraftSat(seedTheme?.layers.accent?.sat ?? 78);
+    setDraftLightness(seedTheme?.layers.accent?.lightness ?? 68);
+    const seedAccent2 = seedTheme?.layers.accent2;
+    setDraftAccent2Enabled(Boolean(seedAccent2));
+    setDraftAccent2Hue(seedAccent2?.hue ?? 220);
+    setDraftAccent2Sat(seedAccent2?.sat ?? 70);
+    setDraftAccent2Lightness(seedAccent2?.lightness ?? 70);
     setDraftFont(seedTheme?.layers.font?.family ?? 'system');
     setDraftIconStyle(seedTheme?.layers.icons?.style ?? 'round');
     setDraftEmoji(seedTheme?.layers.emojiReactions?.[0]?.emoji ?? '✦');
@@ -175,7 +204,12 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   }, [draftIconStyle, draftIcons, seedTheme]);
   const draftTheme = useMemo<RadioAtlasTheme>(() => {
     const background =
-      draftBackgroundMode === 'print' && draftPrint
+      draftBackgroundMode === 'custom'
+        ? {
+            kind: 'gradient' as const,
+            gradient: composeGradient(draftGradientAngle, draftGradientStops)
+          }
+        : draftBackgroundMode === 'print' && draftPrint
         ? {
             kind: 'image' as const,
             assetId: draftPrint.id
@@ -203,8 +237,16 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       layers: {
         accent: {
           hue: draftHue,
-          sat: draftSat
+          sat: draftSat,
+          lightness: draftLightness
         },
+        accent2: draftAccent2Enabled
+          ? {
+              hue: draftAccent2Hue,
+              sat: draftAccent2Sat,
+              lightness: draftAccent2Lightness
+            }
+          : undefined,
         background,
         font: {
           family: draftFont
@@ -242,17 +284,24 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       }
     };
   }, [
+    draftAccent2Enabled,
+    draftAccent2Hue,
+    draftAccent2Lightness,
+    draftAccent2Sat,
     draftAuthor,
     draftBackground,
     draftBackgroundMode,
     draftEmoji,
     draftEmojiSlot,
     draftFont,
+    draftGradientAngle,
+    draftGradientStops,
+    draftHue,
+    draftLightness,
     draftMode,
     draftGif,
     draftGifSlot,
     draftGifTrigger,
-    draftHue,
     draftIconLayer,
     draftName,
     draftPrint,
@@ -279,6 +328,13 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     const iconAsset = Object.values(draftIcons).find((asset) => asset?.id === assetId);
     if (iconAsset) return iconAsset.url;
     return getAssetUrl(assetId);
+  };
+
+  const updateGradientStop = (index: number, patch: Partial<GradientStop>) => {
+    setDraftGradientStops((prev) =>
+      prev.map((stop, stopIndex) => (stopIndex === index ? { ...stop, ...patch } : stop))
+    );
+    setBuilderState('idle');
   };
 
   const handleAssetUpload = (
@@ -446,16 +502,94 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
           />
         </label>
         <label className="theme-studio-field">
+          <span>{t('theme.accentLightness')}</span>
+          <input
+            data-theme-builder-lightness
+            max={92}
+            min={28}
+            onChange={(event) => {
+              setDraftLightness(Number(event.target.value));
+              setBuilderState('idle');
+            }}
+            type="range"
+            value={draftLightness}
+          />
+        </label>
+        <div className="theme-studio-field theme-studio-span-2 theme-studio-accent2">
+          <label className="theme-studio-accent2-toggle">
+            <input
+              checked={draftAccent2Enabled}
+              data-theme-builder-accent2
+              onChange={(event) => {
+                setDraftAccent2Enabled(event.target.checked);
+                setBuilderState('idle');
+              }}
+              type="checkbox"
+            />
+            <span>{t('theme.accent2Label')}</span>
+          </label>
+          {draftAccent2Enabled ? (
+            <div className="theme-studio-accent2-grid">
+              <label className="theme-studio-field">
+                <span>{t('theme.accentHue')}</span>
+                <input
+                  data-theme-builder-accent2-hue
+                  max={359}
+                  min={0}
+                  onChange={(event) => {
+                    setDraftAccent2Hue(Number(event.target.value));
+                    setBuilderState('idle');
+                  }}
+                  type="range"
+                  value={draftAccent2Hue}
+                />
+              </label>
+              <label className="theme-studio-field">
+                <span>{t('theme.accentSat')}</span>
+                <input
+                  max={100}
+                  min={20}
+                  onChange={(event) => {
+                    setDraftAccent2Sat(Number(event.target.value));
+                    setBuilderState('idle');
+                  }}
+                  type="range"
+                  value={draftAccent2Sat}
+                />
+              </label>
+              <label className="theme-studio-field">
+                <span>{t('theme.accentLightness')}</span>
+                <input
+                  max={92}
+                  min={28}
+                  onChange={(event) => {
+                    setDraftAccent2Lightness(Number(event.target.value));
+                    setBuilderState('idle');
+                  }}
+                  type="range"
+                  value={draftAccent2Lightness}
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+        <label className="theme-studio-field">
           <span>{t('theme.backgroundLabel')}</span>
           <select
             className="settings-input"
+            data-theme-builder-background-source
             onChange={(event) => {
-              setDraftBackgroundMode('bundled');
-              setDraftBackgroundThemeId(event.target.value);
+              if (event.target.value === '__custom__') {
+                setDraftBackgroundMode('custom');
+              } else {
+                setDraftBackgroundMode('bundled');
+                setDraftBackgroundThemeId(event.target.value);
+              }
               setBuilderState('idle');
             }}
-            value={draftBackgroundThemeId}
+            value={draftBackgroundMode === 'custom' ? '__custom__' : draftBackgroundThemeId}
           >
+            <option value="__custom__">{t('theme.customGradient')}</option>
             {bundledThemes.map((theme) => (
               <option key={theme.id} value={theme.id}>
                 {theme.name}
@@ -491,6 +625,54 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
               : t('theme.printHint')}
           </small>
         </label>
+        {draftBackgroundMode === 'custom' ? (
+          <div
+            className="theme-studio-field theme-studio-span-2 theme-studio-gradient"
+            data-theme-gradient-composer
+          >
+            <span>{t('theme.gradientStops')}</span>
+            <div
+              className="theme-studio-gradient-preview"
+              style={{ background: composeGradient(draftGradientAngle, draftGradientStops) }}
+            />
+            {draftGradientStops.map((stop, index) => (
+              <div className="theme-studio-gradient-stop" key={index}>
+                <input
+                  aria-label={`${t('theme.gradientStopColor')} ${index + 1}`}
+                  data-theme-gradient-color={index}
+                  onChange={(event) => updateGradientStop(index, { color: event.target.value })}
+                  type="color"
+                  value={stop.color}
+                />
+                <input
+                  aria-label={`${t('theme.gradientStopPosition')} ${index + 1}`}
+                  max={100}
+                  min={0}
+                  onChange={(event) =>
+                    updateGradientStop(index, { position: Number(event.target.value) })
+                  }
+                  type="range"
+                  value={stop.position}
+                />
+                <small>{Math.round(stop.position)}%</small>
+              </div>
+            ))}
+            <label className="theme-studio-gradient-angle">
+              <span>{t('theme.gradientAngle')}</span>
+              <input
+                data-theme-gradient-angle
+                max={360}
+                min={0}
+                onChange={(event) => {
+                  setDraftGradientAngle(Number(event.target.value));
+                  setBuilderState('idle');
+                }}
+                type="range"
+                value={draftGradientAngle}
+              />
+            </label>
+          </div>
+        ) : null}
       </div>
 
       <h4 className="theme-studio-builder-legend">{t('theme.section.typography')}</h4>

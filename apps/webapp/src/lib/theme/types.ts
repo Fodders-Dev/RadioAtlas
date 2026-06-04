@@ -50,11 +50,20 @@ export type ThemeEmojiReactionLayer = {
   slot?: ThemeSlot;
 };
 
+// P2-2d: accent carries an optional `lightness` so the editor can author a full
+// HSL colour, not just hue+sat. Absent => the historical fixed 68% / 70% (so
+// every existing theme is byte-identical, no migration).
+export type ThemeAccentColor = {
+  hue: number;
+  sat: number;
+  lightness?: number;
+};
+
 export type RadioAtlasThemeLayers = {
-  accent?: {
-    hue: number;
-    sat: number;
-  };
+  accent?: ThemeAccentColor;
+  // P2-2d: an explicit secondary accent. Absent => derived from `accent`
+  // (hue+42, sat*0.74) exactly as before.
+  accent2?: ThemeAccentColor;
   background?: ThemeBackgroundLayer;
   icons?: ThemeIconLayer;
   font?: ThemeFontLayer;
