@@ -189,6 +189,90 @@
   background: var(--theme-surface, rgba(255, 252, 248, 0.72));
 }
 
+/* T-desktop-light: mirror the chrome-wiring to the desktop shell. The desktop
+   nav rail, its rail items, the home chips/links, and the non-dense resume
+   tiles hardcode the same dark glass as their mobile counterparts — light them
+   from the surface tokens too. (.home-companion-chip / .home-section-badge share
+   the chip rule, so they're included or they'd stay dark islands.) */
+:root[data-theme-mode='light'] .app-navigation-desktop {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2)),
+    var(--theme-surface-2, rgba(255, 250, 244, 0.82));
+  border-color: var(--theme-border);
+}
+
+:root[data-theme-mode='light'] .nav-rail-item {
+  background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+  border-color: var(--theme-border);
+  color: var(--text);
+}
+
+:root[data-theme-mode='light'] .nav-rail-item.active {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 26%, white),
+      color-mix(in srgb, var(--accent) 12%, white)
+    ),
+    var(--theme-surface-2, rgba(255, 250, 244, 0.82));
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--theme-border));
+}
+
+:root[data-theme-mode='light'] .home-inline-link,
+:root[data-theme-mode='light'] .home-search-chip,
+:root[data-theme-mode='light'] .home-companion-chip,
+:root[data-theme-mode='light'] .home-section-badge {
+  background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+  border-color: var(--theme-border);
+  color: var(--text);
+}
+
+:root[data-theme-mode='light'] .home-station-tile-resume {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.22)),
+    var(--theme-surface, rgba(255, 252, 248, 0.72));
+  border-color: var(--theme-border);
+}
+
+@media (min-width: 960px) {
+  /* Desktop-shell surfaces that render only (or differently) on the wide layout:
+     the nav-rail brand/utility chrome, the big home cards, and the search field.
+     Scoped to the desktop breakpoint so the (already-shipped) mobile light theme
+     is untouched — these cards are transparent/dense on mobile. */
+  :root[data-theme-mode='light'] .nav-brand {
+    background:
+      radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 40%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2)),
+      var(--theme-surface-2, rgba(255, 250, 244, 0.82));
+  }
+
+  :root[data-theme-mode='light'] .nav-utility-btn,
+  :root[data-theme-mode='light'] .chip,
+  :root[data-theme-mode='light'] .app-brand-pill {
+    background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+    border-color: var(--theme-border);
+    color: var(--text);
+  }
+
+  :root[data-theme-mode='light'] .home-hero-card,
+  :root[data-theme-mode='light'] .home-search-launcher,
+  :root[data-theme-mode='light'] .home-resume-strip,
+  :root[data-theme-mode='light'] .home-rail-card,
+  :root[data-theme-mode='light'] .home-explore-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.32)),
+      var(--theme-surface-2, rgba(255, 250, 244, 0.82));
+    border-color: var(--theme-border);
+    box-shadow: 0 14px 28px var(--shadow-soft);
+  }
+
+  :root[data-theme-mode='light'] .home-search-field input {
+    background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+    border-color: var(--theme-border);
+    color: var(--text);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
