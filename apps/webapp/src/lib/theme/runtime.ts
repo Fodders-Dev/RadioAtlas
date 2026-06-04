@@ -18,10 +18,21 @@ const normalizeHue = (hue: number) => {
 
 export const themeAccentToCss = (accent: RadioAtlasTheme['layers']['accent']) => {
   if (!accent) return THEME_DEFAULT_ACCENT;
-  return `hsl(${normalizeHue(accent.hue)} ${Math.round(clamp(accent.sat, 0, 100))}% 68%)`;
+  // P2-2d: honour an explicit lightness; absent keeps the historical 68%.
+  const lightness = Math.round(clamp(accent.lightness ?? 68, 0, 100));
+  return `hsl(${normalizeHue(accent.hue)} ${Math.round(clamp(accent.sat, 0, 100))}% ${lightness}%)`;
 };
 
-export const themeAccentPairToCss = (accent: RadioAtlasTheme['layers']['accent']) => {
+export const themeAccentPairToCss = (
+  accent: RadioAtlasTheme['layers']['accent'],
+  accent2?: RadioAtlasTheme['layers']['accent2']
+) => {
+  // P2-2d: an explicit secondary accent wins; otherwise derive from the primary
+  // (hue+42, sat*0.74, 70%) exactly as before.
+  if (accent2) {
+    const lightness = Math.round(clamp(accent2.lightness ?? 70, 0, 100));
+    return `hsl(${normalizeHue(accent2.hue)} ${Math.round(clamp(accent2.sat, 0, 100))}% ${lightness}%)`;
+  }
   if (!accent) return THEME_DEFAULT_ACCENT_2;
   const hue = normalizeHue(accent.hue + 42);
   const sat = Math.round(clamp(accent.sat * 0.74, 0, 100));
@@ -72,7 +83,7 @@ export const themeRuntimeVars = (
   resolveAssetUrl?: (assetId: string) => string | null
 ) => ({
   accent: themeAccentToCss(theme.layers.accent),
-  accent2: themeAccentPairToCss(theme.layers.accent),
+  accent2: themeAccentPairToCss(theme.layers.accent, theme.layers.accent2),
   background: themeBackgroundToCss(theme.layers.background, resolveAssetUrl),
   font: themeFontToCss(theme.layers.font),
   iconRadius: themeIconRadiusToCss(theme.layers.icons)

@@ -213,6 +213,92 @@
   gap: 10px;
 }
 
+/* P2-2d: full-width controls inside the builder grid — the optional secondary
+   accent and the custom multi-stop gradient composer. */
+.theme-studio-span-2 {
+  grid-column: 1 / -1;
+}
+
+.theme-studio-accent2,
+.theme-studio-gradient {
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-studio-accent2-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.theme-studio-accent2-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.theme-studio-accent2-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.theme-studio-gradient > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-studio-gradient-preview {
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.theme-studio-gradient-stop {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-studio-gradient-stop input[type='color'] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.theme-studio-gradient-stop input[type='range'],
+.theme-studio-gradient-angle input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.theme-studio-gradient-stop small {
+  min-width: 34px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.theme-studio-gradient-angle {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 /* P2-2b: light/dark base-mode segmented control. */
 .theme-studio-mode-toggle {
   display: inline-flex;
