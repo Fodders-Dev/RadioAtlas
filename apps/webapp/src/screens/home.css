@@ -358,8 +358,13 @@
   min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(128, 226, 245, 0.98), rgba(202, 255, 249, 0.94));
-  color: rgba(4, 13, 22, 0.98);
+  /* P1b: accent-driven, mirroring the full-player transport primary button
+     (FullPlayerOverlay.css) — was a hardcoded cyan gradient that ignored the
+     theme and read as a cool mismatch on warm presets. `color: var(--bg)` is
+     the theme's dark ink under dark themes; the light surface block overrides
+     the ink so it stays readable on a light shell. */
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 72%, white));
+  color: var(--bg);
   font-weight: 800;
 }
 

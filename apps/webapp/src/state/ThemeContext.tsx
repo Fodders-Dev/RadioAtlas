@@ -15,7 +15,7 @@ import {
   type TelegramThemeParams
 } from '../lib/telegram';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
-import { themeRuntimeVars } from '../lib/theme/runtime';
+import { themeRuntimeVars, themeSurfaceVars } from '../lib/theme/runtime';
 import {
   deleteStoredAsset,
   deleteStoredTheme,
@@ -231,11 +231,35 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         : themeRuntimeVars(currentTheme, (assetId) => assetUrls.get(assetId) || null);
 
     root.dataset.theme = effectiveThemeId;
+    // P1: drive the chrome surface mode. Default 'dark' (telegram-auto + every
+    // existing bundled theme) is a no-op — the light surface block only applies
+    // under data-theme-mode='light'.
+    root.dataset.themeMode = currentTheme.mode === 'light' ? 'light' : 'dark';
     root.style.setProperty('--theme-accent', vars.accent);
     root.style.setProperty('--theme-accent-2', vars.accent2);
     root.style.setProperty('--theme-bg-image', vars.background);
     root.style.setProperty('--theme-font-family', vars.font);
     root.style.setProperty('--theme-icon-radius', vars.iconRadius);
+
+    // P1b: accent-tinted chrome surfaces for dark themes. For light themes
+    // (surfaces === null) we REMOVE the inline vars so the light surface block in
+    // styles.css applies (inline styles would otherwise win over it).
+    const surfaces =
+      effectiveThemeId === TELEGRAM_AUTO_THEME_ID ? null : themeSurfaceVars(currentTheme);
+    const surfaceMap: Record<string, string | undefined> = {
+      '--theme-bg': surfaces?.bg,
+      '--theme-bg-2': surfaces?.bg2,
+      '--theme-surface': surfaces?.surface,
+      '--theme-surface-2': surfaces?.surface2,
+      '--theme-border': surfaces?.border
+    };
+    for (const [key, value] of Object.entries(surfaceMap)) {
+      if (value) {
+        root.style.setProperty(key, value);
+      } else {
+        root.style.removeProperty(key);
+      }
+    }
   }, [assetUrls, currentTheme, effectiveThemeId, telegramThemeParams]);
 
   const applyTheme = useCallback(

@@ -763,11 +763,14 @@ test('theme defaults expose bundled shell themes', () => {
 });
 
 test('generated bundled themes ship css background assets and reactions', () => {
+  // P1b: the Sunset (sunrise-dial) redesign dropped its dial SVG for a pure
+  // warm-plum gradient, so Aurora + Signal Grid are now the only asset-backed
+  // presets. Sunset keeps its emoji reaction (checked in the defaults test).
   const generatedThemes = DEFAULT_RADIOATLAS_THEMES.filter((theme) =>
-    ['aurora-field', 'signal-grid', 'sunrise-dial'].includes(theme.id)
+    ['aurora-field', 'signal-grid'].includes(theme.id)
   );
 
-  expect(generatedThemes).toHaveLength(3);
+  expect(generatedThemes).toHaveLength(2);
   for (const theme of generatedThemes) {
     expect(theme.layers.background?.kind).toBe('gradient');
     expect(themeBackgroundToCss(theme.layers.background)).toContain('/theme-backgrounds/');
@@ -778,9 +781,9 @@ test('generated bundled themes ship css background assets and reactions', () => 
 test('theme runtime maps theme layers to shell css variables', () => {
   const neon = DEFAULT_RADIOATLAS_THEMES.find((theme) => theme.id === 'neon');
   expect(neon).toBeTruthy();
-  expect(themeAccentToCss(neon?.layers.accent)).toBe('hsl(302 88% 68%)');
-  expect(themeAccentPairToCss(neon?.layers.accent)).toBe('hsl(344 65% 70%)');
-  expect(themeBackgroundToCss(neon?.layers.background)).toContain('#5526ff');
+  expect(themeAccentToCss(neon?.layers.accent)).toBe('hsl(304 96% 68%)');
+  expect(themeAccentPairToCss(neon?.layers.accent)).toBe('hsl(346 71% 70%)');
+  expect(themeBackgroundToCss(neon?.layers.background)).toContain('#150720');
   expect(themeBackgroundToCss({ kind: 'image', assetId: 'print-1' }, (assetId) => `blob:${assetId}`)).toBe(
     'url("blob:print-1")'
   );
@@ -912,9 +915,9 @@ test('theme runtime applies the selected shell theme to css variables', async ({
       font: rootStyle.getPropertyValue('--theme-font-family').trim()
     };
   });
-  expect(vars.accent).toBe('hsl(302 88% 68%)');
-  expect(vars.accent2).toBe('hsl(344 65% 70%)');
-  expect(vars.background).toContain('#5526ff');
+  expect(vars.accent).toBe('hsl(304 96% 68%)');
+  expect(vars.accent2).toBe('hsl(346 71% 70%)');
+  expect(vars.background).toContain('#150720');
   expect(vars.font).toContain('Manrope');
 });
 
@@ -2107,7 +2110,7 @@ test('mobile settings opens Theme Studio and applies bundled themes', async ({ p
   const accent = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--theme-accent').trim()
   );
-  expect(accent).toBe('hsl(302 88% 68%)');
+  expect(accent).toBe('hsl(304 96% 68%)');
 
   await page.locator('[data-theme-card="aurora-field"]').click();
   await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
