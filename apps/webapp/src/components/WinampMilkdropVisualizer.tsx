@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getDeviceProfile } from '../lib/deviceProfile';
+import { useTheme } from '../state/ThemeContext';
 
 type WinampMilkdropVisualizerProps = {
   active: boolean;
@@ -42,6 +43,21 @@ export const WinampMilkdropVisualizer = ({
       waveform
     };
   }, [active, available, spectrum, waveform]);
+
+  // P3-3b: palette follows the active theme. The accent hue/sat + light/dark
+  // mode are resolved ONCE per theme change into a ref (not per frame), and the
+  // render loop reads that ref so the rainbow base is replaced by an
+  // accent-family palette without parsing the theme 60x/s.
+  const { currentTheme } = useTheme();
+  const paletteRef = useRef({ hue: 184, sat: 64, light: false });
+  useEffect(() => {
+    const accent = currentTheme.layers.accent;
+    paletteRef.current = {
+      hue: accent ? (((Math.round(accent.hue) % 360) + 360) % 360) : 184,
+      sat: accent ? Math.round(Math.min(100, Math.max(0, accent.sat))) : 64,
+      light: currentTheme.mode === 'light'
+    };
+  }, [currentTheme]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -94,7 +110,7 @@ export const WinampMilkdropVisualizer = ({
           const yBase = ((row + 0.5) / rows) * height;
           const yOffset = Math.sin(time * 1.8 + row * 0.7 + column * 0.4) * (4 + energy * 6);
           const y = yBase + yOffset;
-          const dotHue = hue(baseHue + (side === 'left' ? -24 : 28) + row * 4 - depth * 34);
+          const dotHue = hue(baseHue + (side === 'left' ? -12 : 14) + row * 1.6 - depth * 16);
           context.beginPath();
           context.fillStyle = `hsla(${dotHue} ${88 - depth * 14}% ${46 + pulse * 12}% / ${alpha})`;
           context.arc(x, y, radius, 0, Math.PI * 2);
@@ -123,9 +139,18 @@ export const WinampMilkdropVisualizer = ({
 
       const energy = average(nextSpectrum);
       const waveformEnergy = average(nextWaveform.map((value) => Math.abs(value)));
-      const pulse = isActive ? 0.45 + energy * 0.95 : 0.12;
+      const pulse = isActive ? 0.45 + energy * 0.95 : 0.28;
       const time = timestamp * 0.001;
-      const hueShift = hue(220 + time * 24 + energy * 120);
+      // P3-3b: theme-driven palette (cached ref read, not parsed per frame).
+      const { hue: accentHue, sat: accentSat, light } = paletteRef.current;
+      // Drift gently around the accent instead of sweeping the whole wheel, and
+      // fold the original rainbow offsets into a narrow band around it — keeps
+      // the structure's variety while reading as the theme accent.
+      const drift = Math.sin(time * 0.3) * 12 + energy * 20;
+      const band = 50;
+      const tone = (offset: number) =>
+        hue(accentHue + drift + Math.sin((offset * Math.PI) / 180) * band);
+      const baseSat = Math.round(56 + accentSat * 0.36);
       const tunnelColumns = lowPower ? 7 : 12;
       const tunnelRows = lowPower ? 9 : 14;
       const beamCount = lowPower ? 10 : 18;
@@ -135,9 +160,15 @@ export const WinampMilkdropVisualizer = ({
       context.clearRect(0, 0, width, height);
 
       const bg = context.createLinearGradient(0, 0, 0, height);
-      bg.addColorStop(0, 'rgba(4, 7, 18, 0.98)');
-      bg.addColorStop(0.42, 'rgba(8, 10, 28, 0.94)');
-      bg.addColorStop(1, 'rgba(3, 5, 16, 1)');
+      if (light) {
+        bg.addColorStop(0, 'rgba(245, 241, 235, 0.96)');
+        bg.addColorStop(0.42, 'rgba(236, 231, 224, 0.94)');
+        bg.addColorStop(1, 'rgba(248, 244, 238, 1)');
+      } else {
+        bg.addColorStop(0, 'rgba(4, 7, 18, 0.98)');
+        bg.addColorStop(0.42, 'rgba(8, 10, 28, 0.94)');
+        bg.addColorStop(1, 'rgba(3, 5, 16, 1)');
+      }
       context.fillStyle = bg;
       context.fillRect(0, 0, width, height);
 
@@ -149,14 +180,14 @@ export const WinampMilkdropVisualizer = ({
         height * 0.56,
         width * 0.52
       );
-      aurora.addColorStop(0, `hsla(${hue(hueShift + 162)} 96% 62% / ${0.18 + pulse * 0.18})`);
-      aurora.addColorStop(0.42, `hsla(${hue(hueShift + 28)} 88% 52% / ${0.08 + pulse * 0.12})`);
+      aurora.addColorStop(0, `hsla(${tone(162)} ${baseSat}% 62% / ${0.18 + pulse * 0.18})`);
+      aurora.addColorStop(0.42, `hsla(${tone(28)} ${baseSat}% 52% / ${0.08 + pulse * 0.12})`);
       aurora.addColorStop(1, 'rgba(0, 0, 0, 0)');
       context.fillStyle = aurora;
       context.fillRect(0, 0, width, height);
 
-      drawTunnel('left', width, height, time, energy, pulse, hueShift + 96, tunnelColumns, tunnelRows);
-      drawTunnel('right', width, height, time, energy, pulse, hueShift - 74, tunnelColumns, tunnelRows);
+      drawTunnel('left', width, height, time, energy, pulse, tone(96), tunnelColumns, tunnelRows);
+      drawTunnel('right', width, height, time, energy, pulse, tone(-74), tunnelColumns, tunnelRows);
 
       context.save();
       context.translate(width / 2, height / 2);
@@ -188,20 +219,20 @@ export const WinampMilkdropVisualizer = ({
       context.closePath();
 
       const blobFill = context.createRadialGradient(0, 0, width * 0.03, 0, 0, blobRadiusX * 1.15);
-      blobFill.addColorStop(0, 'rgba(235, 248, 255, 0.98)');
-      blobFill.addColorStop(0.12, `hsla(${hue(hueShift + 188)} 95% 72% / 0.96)`);
-      blobFill.addColorStop(0.4, `hsla(${hue(hueShift + 124)} 88% 60% / 0.92)`);
-      blobFill.addColorStop(0.72, `hsla(${hue(hueShift + 276)} 82% 54% / 0.84)`);
-      blobFill.addColorStop(1, `hsla(${hue(hueShift + 24)} 92% 28% / 0.12)`);
+      blobFill.addColorStop(0, light ? 'rgba(255, 252, 246, 0.98)' : 'rgba(235, 248, 255, 0.98)');
+      blobFill.addColorStop(0.12, `hsla(${tone(188)} ${baseSat}% 72% / 0.96)`);
+      blobFill.addColorStop(0.4, `hsla(${tone(124)} ${baseSat}% 60% / 0.92)`);
+      blobFill.addColorStop(0.72, `hsla(${tone(276)} ${Math.max(40, baseSat - 8)}% 54% / 0.84)`);
+      blobFill.addColorStop(1, `hsla(${tone(24)} ${baseSat}% 28% / 0.12)`);
 
       context.shadowBlur = 24 + pulse * 22;
-      context.shadowColor = `hsla(${hue(hueShift + 176)} 100% 70% / 0.72)`;
+      context.shadowColor = `hsla(${tone(176)} 100% 70% / 0.72)`;
       context.fillStyle = blobFill;
       context.fill();
 
       context.shadowBlur = 0;
       context.lineWidth = 1.6;
-      context.strokeStyle = `hsla(${hue(hueShift + 150)} 100% 80% / 0.82)`;
+      context.strokeStyle = `hsla(${tone(150)} 100% 80% / 0.82)`;
       context.stroke();
 
       context.globalCompositeOperation = 'screen';
@@ -216,7 +247,7 @@ export const WinampMilkdropVisualizer = ({
         context.beginPath();
         context.moveTo(innerX, innerY);
         context.lineTo(outerX, outerY);
-        context.strokeStyle = `hsla(${hue(hueShift + index * 12)} 90% ${58 + freq * 18}% / ${0.16 + freq * 0.34})`;
+        context.strokeStyle = `hsla(${tone(index * 12)} 90% ${58 + freq * 18}% / ${0.16 + freq * 0.34})`;
         context.lineWidth = 1 + freq * 1.2;
         context.stroke();
       }
@@ -227,7 +258,7 @@ export const WinampMilkdropVisualizer = ({
         const sparkX = Math.cos(angle) * blobRadiusX * orbit;
         const sparkY = Math.sin(angle) * blobRadiusY * orbit;
         context.beginPath();
-        context.fillStyle = `hsla(${hue(hueShift + 220 + index * 9)} 96% 68% / ${0.16 + pulse * 0.18})`;
+        context.fillStyle = `hsla(${tone(220 + index * 9)} 96% 68% / ${0.16 + pulse * 0.18})`;
         context.arc(sparkX, sparkY, 0.9 + pulse * 0.8, 0, Math.PI * 2);
         context.fill();
       }
@@ -236,7 +267,7 @@ export const WinampMilkdropVisualizer = ({
       context.globalCompositeOperation = 'source-over';
       const vignette = context.createRadialGradient(width / 2, height / 2, height * 0.12, width / 2, height / 2, width * 0.66);
       vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      vignette.addColorStop(1, 'rgba(0, 0, 0, 0.42)');
+      vignette.addColorStop(1, light ? 'rgba(58, 46, 38, 0.14)' : 'rgba(0, 0, 0, 0.42)');
       context.fillStyle = vignette;
       context.fillRect(0, 0, width, height);
 
