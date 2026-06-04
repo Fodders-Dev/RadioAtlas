@@ -288,86 +288,169 @@
   color: var(--text);
 }
 
-.theme-studio-builder-preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--theme-studio-accent) 34%, var(--border));
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 14% 8%, color-mix(in srgb, var(--theme-studio-accent) 22%, transparent), transparent 28%),
-    var(--theme-studio-bg);
-  font-family: var(--theme-studio-font);
-  overflow: hidden;
+/* P2-2c: the live preview panel — sticky at the top of the builder so it stays
+   in view while the user scrolls down to the Color sliders. */
+.theme-studio-builder-preview-panel {
+  position: sticky;
+  top: -4px;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
 }
 
-.theme-studio-builder-preview::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--theme-studio-accent) 24%, transparent), transparent 48%),
-    rgba(5, 10, 18, 0.28);
-  pointer-events: none;
+.theme-studio-builder-preview-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.theme-studio-builder-preview[data-theme-builder-background='print'] {
-  min-height: 110px;
+/* The themed mini-surface (ThemePreviewSurface): a small slice of real chrome
+   (topbar + station card + dock) driven entirely by the draft theme's own vars,
+   so the background / accent / surface tint / font / CTA / emoji all react live. */
+.theme-preview-surface {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--preview-border);
+  border-radius: 14px;
+  background: var(--preview-bg);
   background-position: center;
   background-size: cover;
+  font-family: var(--preview-font);
+  color: var(--preview-text);
+  overflow: hidden;
 }
 
-.theme-studio-builder-preview div {
-  position: relative;
-  display: grid;
-  gap: 4px;
+.theme-preview-topbar,
+.theme-preview-dock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--preview-border);
+  border-radius: 11px;
+  background: var(--preview-surface-2);
+}
+
+.theme-preview-brand-dot {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--preview-accent), var(--preview-accent-2));
+}
+
+.theme-preview-topbar-title {
+  flex: 1;
   min-width: 0;
-}
-
-.theme-studio-builder-preview span:not(.theme-studio-builder-icon) {
-  color: rgba(245, 251, 255, 0.7);
+  overflow: hidden;
   font-size: 12px;
   font-weight: 800;
-}
-
-.theme-studio-builder-preview strong {
-  overflow: hidden;
-  color: #fff;
-  font-size: 20px;
-  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.theme-studio-builder-icon {
-  position: relative;
-  display: grid;
-  width: 48px;
-  height: 48px;
+.theme-preview-topbar-chip {
+  width: 26px;
+  height: 12px;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--theme-studio-icon-radius, var(--theme-icon-radius, 999px));
-  background: linear-gradient(135deg, var(--theme-studio-accent), var(--theme-studio-accent-2));
-  color: rgba(5, 10, 18, 0.92);
-  font-size: 18px;
-  font-weight: 900;
+  border: 1px solid var(--preview-border);
+  border-radius: 999px;
+  background: var(--preview-surface);
 }
 
-.theme-studio-builder-emoji {
-  position: absolute;
-  right: 72px;
-  top: 12px;
+.theme-preview-card {
   display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--preview-border);
+  border-radius: 13px;
+  background: var(--preview-surface);
+}
+
+.theme-preview-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--preview-accent), var(--preview-accent-2));
+  box-shadow: inset 0 0 0 1px var(--preview-border);
+}
+
+.theme-preview-card-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.theme-preview-card-copy strong {
+  width: 72%;
+  height: 9px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--theme-studio-accent) 20%, rgba(5, 10, 18, 0.58));
-  font-size: 20px;
+  background: var(--preview-text);
+  opacity: 0.85;
+}
+
+.theme-preview-card-copy small {
+  width: 46%;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--preview-muted);
+}
+
+.theme-preview-cta {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: var(--preview-icon-radius, 999px);
+  background: linear-gradient(
+    135deg,
+    var(--preview-accent),
+    color-mix(in srgb, var(--preview-accent-2) 72%, white)
+  );
+  color: var(--preview-ink);
+  font-size: 11px;
+}
+
+.theme-preview-dock-art {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--preview-accent-2), var(--preview-accent));
+}
+
+.theme-preview-eq {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+}
+
+.theme-preview-eq-bar {
+  flex: 1;
+  min-width: 2px;
+  height: calc(18% + var(--h, 0.5) * 82%);
+  border-radius: 999px 999px 1px 1px;
+  background: linear-gradient(180deg, var(--preview-accent), var(--preview-accent-2));
+}
+
+.theme-preview-emoji {
+  flex: 0 0 auto;
+  font-size: 16px;
 }
 
 .theme-studio-builder-status {
