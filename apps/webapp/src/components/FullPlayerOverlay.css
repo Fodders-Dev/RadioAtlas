@@ -18,13 +18,56 @@
   background-size: auto, auto, auto, cover, auto;
 }
 
+/* P3-3c: reactive accent backdrop. The accent/accent-2 glows swell with the
+   live audio energy (--ra-energy, written per-frame from JS); colour comes from
+   the theme. It sits behind the content (z-index 0; header/main are z-index 1)
+   and overscans slightly so the energy scale never reveals an edge. */
 .full-player-backdrop {
   position: absolute;
-  inset: 0;
+  inset: -8%;
+  z-index: 0;
   pointer-events: none;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 34%),
-    radial-gradient(circle at 50% 110%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%);
+    radial-gradient(circle at 28% 18%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 52%),
+    radial-gradient(circle at 76% 84%, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent 54%),
+    radial-gradient(circle at 50% 112%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 36%);
+  opacity: calc(0.45 + var(--ra-energy, 0) * 0.4);
+  transform: scale(calc(1 + var(--ra-energy, 0) * 0.06));
+  transition: opacity 90ms linear, transform 130ms ease-out;
+  will-change: opacity, transform;
+}
+
+/* No live data (paused, iOS lean, direct cross-origin) -> a slow ambient drift
+   rather than a static wash. */
+.full-player-backdrop[data-active='false'] {
+  animation: full-player-backdrop-drift 9s ease-in-out infinite;
+}
+
+@keyframes full-player-backdrop-drift {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.64;
+    transform: scale(1.05);
+  }
+}
+
+/* Light themes: keep the wash gentle so content stays legible. */
+:root[data-theme-mode='light'] .full-player-backdrop {
+  opacity: calc(0.28 + var(--ra-energy, 0) * 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .full-player-backdrop {
+    transition: none;
+  }
+  .full-player-backdrop[data-active='false'] {
+    animation: none;
+  }
 }
 
 .full-player-header,

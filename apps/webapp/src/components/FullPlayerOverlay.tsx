@@ -6,6 +6,7 @@ import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
+import { FullPlayerBackdrop } from './FullPlayerBackdrop';
 import { FullPlayerVisualizer } from './FullPlayerVisualizer';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
@@ -224,7 +225,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
       aria-modal="true"
       aria-label={current?.name || t('dock.ready')}
     >
-      <div className="full-player-backdrop" aria-hidden="true" />
+      <FullPlayerBackdrop active={player.visualizer.active} subscribe={player.subscribeVisualizer} />
       <header className="full-player-header">
         <div>
           <span className="full-player-kicker">{queueLabel}</span>
