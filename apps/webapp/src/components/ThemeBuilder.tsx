@@ -27,6 +27,18 @@ type DraftAsset = {
 
 type ThemeIconName = keyof Omit<ThemeIconLayer, 'style'>;
 
+// P2-2f: the model already supports stickers[]/gifs[]/emojiReactions[]; the
+// builder now authors multiple of each. A decor asset is either a freshly
+// uploaded blob (`draft`, needs saving + URL revoke) or an existing seeded asset
+// (just its id, resolved through getAssetUrl).
+type DecorAsset = { id: string; draft?: DraftAsset };
+type StickerDraft = { asset: DecorAsset; slot: ThemeSlot; scale: number; x: number; y: number };
+type GifDraft = { asset: DecorAsset; slot: ThemeSlot; trigger: 'idle' | 'play' | 'like' };
+type EmojiDraft = { emoji: string; slot: ThemeSlot; trigger: 'play' | 'like' };
+const MAX_DECOR = 4;
+const EMOJI_TRIGGER_OPTIONS: Array<'play' | 'like'> = ['play', 'like'];
+const DEFAULT_EMOJIS: EmojiDraft[] = [{ emoji: '✦', slot: 'dockRight', trigger: 'play' }];
+
 const FONT_OPTIONS: ThemeFontLayer['family'][] = ['system', 'rounded', 'serif', 'mono'];
 const ICON_STYLE_OPTIONS: ThemeIconStyle[] = ['round', 'soft', 'sharp'];
 const DECORATION_SLOT_OPTIONS: ThemeSlot[] = ['dockLeft', 'dockRight', 'fullPlayerCorner', 'fullPlayerBackdrop', 'homeHeroCorner', 'globeOverlay'];
@@ -113,16 +125,9 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const [draftFont, setDraftFont] = useState<ThemeFontLayer['family']>('system');
   const [draftIconStyle, setDraftIconStyle] = useState<ThemeIconStyle>('round');
   const [draftIcons, setDraftIcons] = useState<Partial<Record<ThemeIconName, DraftAsset>>>({});
-  const [draftSticker, setDraftSticker] = useState<DraftAsset | null>(null);
-  const [draftStickerSlot, setDraftStickerSlot] = useState<ThemeSlot>('dockLeft');
-  const [draftStickerScale, setDraftStickerScale] = useState(1);
-  const [draftStickerX, setDraftStickerX] = useState(0);
-  const [draftStickerY, setDraftStickerY] = useState(0);
-  const [draftGif, setDraftGif] = useState<DraftAsset | null>(null);
-  const [draftGifSlot, setDraftGifSlot] = useState<ThemeSlot>('fullPlayerCorner');
-  const [draftGifTrigger, setDraftGifTrigger] = useState<'idle' | 'play' | 'like'>('play');
-  const [draftEmoji, setDraftEmoji] = useState('✦');
-  const [draftEmojiSlot, setDraftEmojiSlot] = useState<ThemeSlot>('dockRight');
+  const [draftStickers, setDraftStickers] = useState<StickerDraft[]>([]);
+  const [draftGifs, setDraftGifs] = useState<GifDraft[]>([]);
+  const [draftEmojis, setDraftEmojis] = useState<EmojiDraft[]>(DEFAULT_EMOJIS);
   const [builderState, setBuilderState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
@@ -147,16 +152,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     setDraftAccent2Lightness(seedAccent2?.lightness ?? 70);
     setDraftFont(seedTheme?.layers.font?.family ?? 'system');
     setDraftIconStyle(seedTheme?.layers.icons?.style ?? 'round');
-    setDraftEmoji(seedTheme?.layers.emojiReactions?.[0]?.emoji ?? '✦');
-    setDraftEmojiSlot(seedTheme?.layers.emojiReactions?.[0]?.slot ?? 'dockRight');
     setDraftBackgroundMode(seedTheme?.layers.background?.kind === 'image' ? 'print' : 'bundled');
     setDraftBackgroundThemeId(seedTheme?.builtin ? seedTheme.id : firstBundledThemeId);
-    setDraftStickerSlot(seedTheme?.layers.stickers?.[0]?.slot ?? 'dockLeft');
-    setDraftStickerScale(seedTheme?.layers.stickers?.[0]?.scale ?? 1);
-    setDraftStickerX(seedTheme?.layers.stickers?.[0]?.x ?? 0);
-    setDraftStickerY(seedTheme?.layers.stickers?.[0]?.y ?? 0);
-    setDraftGifSlot(seedTheme?.layers.gifs?.[0]?.slot ?? 'fullPlayerCorner');
-    setDraftGifTrigger(seedTheme?.layers.gifs?.[0]?.trigger ?? 'play');
     setBuilderState('idle');
     setDraftPrint((prev) => {
       revokeDraftAsset(prev);
@@ -166,14 +163,35 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       Object.values(prev).forEach(revokeDraftAsset);
       return {};
     });
-    setDraftSticker((prev) => {
-      revokeDraftAsset(prev);
-      return null;
+    // Seed the decor arrays from the theme (existing assets keep their id;
+    // freshly-uploaded blobs are added later), revoking any in-flight uploads.
+    setDraftStickers((prev) => {
+      prev.forEach((item) => revokeDraftAsset(item.asset.draft));
+      return (seedTheme?.layers.stickers ?? []).map((sticker) => ({
+        asset: { id: sticker.assetId },
+        slot: sticker.slot,
+        scale: sticker.scale,
+        x: sticker.x,
+        y: sticker.y
+      }));
     });
-    setDraftGif((prev) => {
-      revokeDraftAsset(prev);
-      return null;
+    setDraftGifs((prev) => {
+      prev.forEach((item) => revokeDraftAsset(item.asset.draft));
+      return (seedTheme?.layers.gifs ?? []).map((gif) => ({
+        asset: { id: gif.assetId },
+        slot: gif.slot,
+        trigger: gif.trigger
+      }));
     });
+    setDraftEmojis(
+      seedTheme?.layers.emojiReactions?.length
+        ? seedTheme.layers.emojiReactions.map((reaction) => ({
+            emoji: reaction.emoji,
+            slot: reaction.slot ?? 'dockRight',
+            trigger: reaction.trigger
+          }))
+        : DEFAULT_EMOJIS
+    );
   }, [firstBundledThemeId, mode, seedTheme, t]);
 
   useEffect(() => {
@@ -184,10 +202,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     () => () => {
       revokeDraftAsset(draftPrint);
       Object.values(draftIcons).forEach(revokeDraftAsset);
-      revokeDraftAsset(draftSticker);
-      revokeDraftAsset(draftGif);
+      draftStickers.forEach((item) => revokeDraftAsset(item.asset.draft));
+      draftGifs.forEach((item) => revokeDraftAsset(item.asset.draft));
     },
-    [draftGif, draftIcons, draftPrint, draftSticker]
+    [draftGifs, draftIcons, draftPrint, draftStickers]
   );
 
   const draftBackground =
@@ -256,35 +274,29 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
           family: draftFont
         },
         icons: draftIconLayer,
-        stickers: draftSticker
-          ? [
-              {
-                assetId: draftSticker.id,
-                slot: draftStickerSlot,
-                x: draftStickerX,
-                y: draftStickerY,
-                scale: draftStickerScale
-              }
-            ]
-          : seedTheme?.layers.stickers,
-        gifs: draftGif
-          ? [
-              {
-                assetId: draftGif.id,
-                slot: draftGifSlot,
-                trigger: draftGifTrigger
-              }
-            ]
-          : seedTheme?.layers.gifs,
-        emojiReactions: draftEmoji.trim()
-          ? [
-              {
-                emoji: draftEmoji.trim().slice(0, 4),
-                trigger: 'play',
-                slot: draftEmojiSlot
-              }
-            ]
-          : []
+        stickers: draftStickers.length
+          ? draftStickers.map((sticker) => ({
+              assetId: sticker.asset.id,
+              slot: sticker.slot,
+              x: sticker.x,
+              y: sticker.y,
+              scale: sticker.scale
+            }))
+          : undefined,
+        gifs: draftGifs.length
+          ? draftGifs.map((gif) => ({
+              assetId: gif.asset.id,
+              slot: gif.slot,
+              trigger: gif.trigger
+            }))
+          : undefined,
+        emojiReactions: draftEmojis
+          .filter((reaction) => reaction.emoji.trim())
+          .map((reaction) => ({
+            emoji: reaction.emoji.trim().slice(0, 4),
+            trigger: reaction.trigger,
+            slot: reaction.slot
+          }))
       }
     };
   }, [
@@ -295,26 +307,19 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     draftAuthor,
     draftBackground,
     draftBackgroundMode,
-    draftEmoji,
-    draftEmojiSlot,
+    draftEmojis,
     draftFont,
+    draftGifs,
     draftGradientAngle,
     draftGradientStops,
     draftHue,
     draftLightness,
     draftMode,
-    draftGif,
-    draftGifSlot,
-    draftGifTrigger,
     draftIconLayer,
     draftName,
     draftPrint,
     draftSat,
-    draftSticker,
-    draftStickerScale,
-    draftStickerSlot,
-    draftStickerX,
-    draftStickerY,
+    draftStickers,
     mode,
     seedTheme,
     t
@@ -329,8 +334,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   }, [draftTheme]);
   const draftResolveAssetUrl = (assetId: string) => {
     if (draftPrint?.id === assetId) return draftPrint.url;
-    if (draftSticker?.id === assetId) return draftSticker.url;
-    if (draftGif?.id === assetId) return draftGif.url;
+    const stickerDraft = draftStickers.find((item) => item.asset.id === assetId)?.asset.draft;
+    if (stickerDraft) return stickerDraft.url;
+    const gifDraft = draftGifs.find((item) => item.asset.id === assetId)?.asset.draft;
+    if (gifDraft) return gifDraft.url;
     const iconAsset = Object.values(draftIcons).find((asset) => asset?.id === assetId);
     if (iconAsset) return iconAsset.url;
     return getAssetUrl(assetId);
@@ -342,6 +349,36 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     );
     setBuilderState('idle');
   };
+
+  // P2-2f: decor list helpers (add / update / remove), capped at MAX_DECOR each.
+  const updateSticker = (index: number, patch: Partial<StickerDraft>) => {
+    setDraftStickers((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+    setBuilderState('idle');
+  };
+  const removeSticker = (index: number) =>
+    setDraftStickers((prev) => {
+      revokeDraftAsset(prev[index]?.asset.draft);
+      return prev.filter((_, i) => i !== index);
+    });
+  const updateGif = (index: number, patch: Partial<GifDraft>) => {
+    setDraftGifs((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+    setBuilderState('idle');
+  };
+  const removeGif = (index: number) =>
+    setDraftGifs((prev) => {
+      revokeDraftAsset(prev[index]?.asset.draft);
+      return prev.filter((_, i) => i !== index);
+    });
+  const updateEmoji = (index: number, patch: Partial<EmojiDraft>) => {
+    setDraftEmojis((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+    setBuilderState('idle');
+  };
+  const addEmoji = () =>
+    setDraftEmojis((prev) =>
+      prev.length >= MAX_DECOR ? prev : [...prev, { emoji: '★', slot: 'dockRight', trigger: 'play' }]
+    );
+  const removeEmoji = (index: number) =>
+    setDraftEmojis((prev) => prev.filter((_, i) => i !== index));
 
   const handleAssetUpload = (
     file: File | null,
@@ -367,8 +404,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     try {
       const assetsToSave: DraftAsset[] = [
         draftPrint,
-        draftSticker,
-        draftGif,
+        ...draftStickers.map((item) => item.asset.draft),
+        ...draftGifs.map((item) => item.asset.draft),
         ...Object.values(draftIcons)
       ].filter(Boolean) as DraftAsset[];
 
@@ -423,12 +460,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
         <ThemePreviewSurface
           theme={previewTheme}
           resolveAssetUrl={draftResolveAssetUrl}
-          stickerPosition={{ x: draftStickerX, y: draftStickerY }}
-          onStickerMove={(x, y) => {
-            setDraftStickerX(x);
-            setDraftStickerY(y);
-            setBuilderState('idle');
-          }}
+          stickerPositions={draftStickers.map((sticker) => ({ x: sticker.x, y: sticker.y }))}
+          onStickerMove={(index, x, y) => updateSticker(index, { x, y })}
         />
       </div>
 
@@ -762,148 +795,239 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       </div>
 
       <h4 className="theme-studio-builder-legend">{t('theme.section.decor')}</h4>
-      <div className="theme-studio-asset-grid">
-        <label className="theme-studio-field theme-studio-print-field">
+
+      <div className="theme-studio-decor-group">
+        <div className="theme-studio-decor-head">
           <span>{t('theme.stickerLabel')}</span>
-          <input
-            className="settings-input"
-            data-theme-builder-sticker
-            accept="image/png,image/webp,image/svg+xml"
-            onChange={(event) =>
-              handleAssetUpload(event.target.files?.[0] || null, {
-                prefix: 'sticker',
-                matcher: /^image\/(png|webp|svg\+xml)$/,
-                maxBytes: MAX_DECORATION_BYTES,
-                apply: (asset) =>
-                  setDraftSticker((prev) => {
-                    revokeDraftAsset(prev);
-                    return asset;
-                  })
-              })
-            }
-            type="file"
-          />
-          <small>{draftSticker?.name || t('theme.stickerHint')}</small>
-        </label>
-        <label className="theme-studio-field">
-          <span>{t('theme.decorationSlotLabel')}</span>
-          <select
-            className="settings-input"
-            onChange={(event) => {
-              setDraftStickerSlot(event.target.value as ThemeSlot);
-              setBuilderState('idle');
-            }}
-            value={draftStickerSlot}
+          <label
+            className={`chip theme-studio-decor-add${draftStickers.length >= MAX_DECOR ? ' is-disabled' : ''}`}
           >
-            {DECORATION_SLOT_OPTIONS.map((slot) => (
-              <option key={slot} value={slot}>
-                {t(`theme.slot.${slot}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="theme-studio-field">
-          <span>{t('theme.scaleLabel')}</span>
-          <input
-            data-theme-builder-sticker-scale
-            max={1.5}
-            min={0.5}
-            onChange={(event) => {
-              setDraftStickerScale(Number(event.target.value));
-              setBuilderState('idle');
-            }}
-            step={0.05}
-            type="range"
-            value={draftStickerScale}
-          />
-        </label>
-        <label className="theme-studio-field theme-studio-print-field">
+            {t('theme.decorAdd')}
+            <input
+              accept="image/png,image/webp,image/svg+xml"
+              data-theme-builder-sticker
+              disabled={draftStickers.length >= MAX_DECOR}
+              hidden
+              onChange={(event) => {
+                handleAssetUpload(event.target.files?.[0] || null, {
+                  prefix: 'sticker',
+                  matcher: /^image\/(png|webp|svg\+xml)$/,
+                  maxBytes: MAX_DECORATION_BYTES,
+                  apply: (asset) =>
+                    setDraftStickers((prev) =>
+                      prev.length >= MAX_DECOR
+                        ? prev
+                        : [
+                            ...prev,
+                            { asset: { id: asset.id, draft: asset }, slot: 'dockLeft', scale: 1, x: 0, y: 0 }
+                          ]
+                    )
+                });
+                event.target.value = '';
+              }}
+              type="file"
+            />
+          </label>
+        </div>
+        {draftStickers.length === 0 ? (
+          <p className="theme-studio-decor-empty">{t('theme.stickerHint')}</p>
+        ) : (
+          draftStickers.map((sticker, index) => (
+            <div className="theme-studio-decor-item" key={sticker.asset.id}>
+              <span
+                className="theme-studio-decor-thumb"
+                style={{
+                  backgroundImage: `url(${JSON.stringify(draftResolveAssetUrl(sticker.asset.id) ?? '')})`
+                }}
+              />
+              <label className="theme-studio-field">
+                <span>{t('theme.decorationSlotLabel')}</span>
+                <select
+                  className="settings-input"
+                  onChange={(event) => updateSticker(index, { slot: event.target.value as ThemeSlot })}
+                  value={sticker.slot}
+                >
+                  {DECORATION_SLOT_OPTIONS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {t(`theme.slot.${slot}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="theme-studio-field">
+                <span>{t('theme.scaleLabel')}</span>
+                <input
+                  data-theme-builder-sticker-scale={index}
+                  max={1.5}
+                  min={0.5}
+                  onChange={(event) => updateSticker(index, { scale: Number(event.target.value) })}
+                  step={0.05}
+                  type="range"
+                  value={sticker.scale}
+                />
+              </label>
+              <button
+                aria-label={t('theme.decorRemove')}
+                className="theme-studio-decor-remove"
+                onClick={() => removeSticker(index)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="theme-studio-decor-group">
+        <div className="theme-studio-decor-head">
           <span>{t('theme.gifLabel')}</span>
-          <input
-            className="settings-input"
-            data-theme-builder-gif
-            accept="image/gif,image/webp"
-            onChange={(event) =>
-              handleAssetUpload(event.target.files?.[0] || null, {
-                prefix: 'gif',
-                matcher: /^image\/(gif|webp)$/,
-                maxBytes: MAX_DECORATION_BYTES,
-                apply: (asset) =>
-                  setDraftGif((prev) => {
-                    revokeDraftAsset(prev);
-                    return asset;
-                  })
-              })
-            }
-            type="file"
-          />
-          <small>{draftGif?.name || t('theme.gifHint')}</small>
-        </label>
-        <label className="theme-studio-field">
-          <span>{t('theme.gifTriggerLabel')}</span>
-          <select
-            className="settings-input"
-            onChange={(event) => {
-              setDraftGifTrigger(event.target.value as 'idle' | 'play' | 'like');
-              setBuilderState('idle');
-            }}
-            value={draftGifTrigger}
+          <label
+            className={`chip theme-studio-decor-add${draftGifs.length >= MAX_DECOR ? ' is-disabled' : ''}`}
           >
-            {GIF_TRIGGER_OPTIONS.map((trigger) => (
-              <option key={trigger} value={trigger}>
-                {t(`theme.trigger.${trigger}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="theme-studio-field">
-          <span>{t('theme.decorationSlotLabel')}</span>
-          <select
-            className="settings-input"
-            onChange={(event) => {
-              setDraftGifSlot(event.target.value as ThemeSlot);
-              setBuilderState('idle');
-            }}
-            value={draftGifSlot}
-          >
-            {DECORATION_SLOT_OPTIONS.map((slot) => (
-              <option key={slot} value={slot}>
-                {t(`theme.slot.${slot}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="theme-studio-field">
+            {t('theme.decorAdd')}
+            <input
+              accept="image/gif,image/webp"
+              data-theme-builder-gif
+              disabled={draftGifs.length >= MAX_DECOR}
+              hidden
+              onChange={(event) => {
+                handleAssetUpload(event.target.files?.[0] || null, {
+                  prefix: 'gif',
+                  matcher: /^image\/(gif|webp)$/,
+                  maxBytes: MAX_DECORATION_BYTES,
+                  apply: (asset) =>
+                    setDraftGifs((prev) =>
+                      prev.length >= MAX_DECOR
+                        ? prev
+                        : [
+                            ...prev,
+                            { asset: { id: asset.id, draft: asset }, slot: 'fullPlayerCorner', trigger: 'play' }
+                          ]
+                    )
+                });
+                event.target.value = '';
+              }}
+              type="file"
+            />
+          </label>
+        </div>
+        {draftGifs.length === 0 ? (
+          <p className="theme-studio-decor-empty">{t('theme.gifHint')}</p>
+        ) : (
+          draftGifs.map((gif, index) => (
+            <div className="theme-studio-decor-item" key={gif.asset.id}>
+              <span
+                className="theme-studio-decor-thumb"
+                style={{
+                  backgroundImage: `url(${JSON.stringify(draftResolveAssetUrl(gif.asset.id) ?? '')})`
+                }}
+              />
+              <label className="theme-studio-field">
+                <span>{t('theme.decorationSlotLabel')}</span>
+                <select
+                  className="settings-input"
+                  onChange={(event) => updateGif(index, { slot: event.target.value as ThemeSlot })}
+                  value={gif.slot}
+                >
+                  {DECORATION_SLOT_OPTIONS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {t(`theme.slot.${slot}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="theme-studio-field">
+                <span>{t('theme.gifTriggerLabel')}</span>
+                <select
+                  className="settings-input"
+                  onChange={(event) =>
+                    updateGif(index, { trigger: event.target.value as 'idle' | 'play' | 'like' })
+                  }
+                  value={gif.trigger}
+                >
+                  {GIF_TRIGGER_OPTIONS.map((trigger) => (
+                    <option key={trigger} value={trigger}>
+                      {t(`theme.trigger.${trigger}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                aria-label={t('theme.decorRemove')}
+                className="theme-studio-decor-remove"
+                onClick={() => removeGif(index)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="theme-studio-decor-group">
+        <div className="theme-studio-decor-head">
           <span>{t('theme.emojiLabel')}</span>
-          <input
-            className="settings-input"
-            data-theme-builder-emoji
-            maxLength={4}
-            onChange={(event) => {
-              setDraftEmoji(event.target.value);
-              setBuilderState('idle');
-            }}
-            type="text"
-            value={draftEmoji}
-          />
-        </label>
-        <label className="theme-studio-field">
-          <span>{t('theme.decorationSlotLabel')}</span>
-          <select
-            className="settings-input"
-            onChange={(event) => {
-              setDraftEmojiSlot(event.target.value as ThemeSlot);
-              setBuilderState('idle');
-            }}
-            value={draftEmojiSlot}
+          <button
+            className="chip theme-studio-decor-add"
+            disabled={draftEmojis.length >= MAX_DECOR}
+            onClick={addEmoji}
+            type="button"
           >
-            {DECORATION_SLOT_OPTIONS.map((slot) => (
-              <option key={slot} value={slot}>
-                {t(`theme.slot.${slot}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+            {t('theme.decorAdd')}
+          </button>
+        </div>
+        {draftEmojis.map((reaction, index) => (
+          <div className="theme-studio-decor-item" key={index}>
+            <input
+              className="settings-input theme-studio-decor-emoji-input"
+              maxLength={4}
+              onChange={(event) => updateEmoji(index, { emoji: event.target.value })}
+              type="text"
+              value={reaction.emoji}
+              {...(index === 0 ? { 'data-theme-builder-emoji': true } : {})}
+            />
+            <label className="theme-studio-field">
+              <span>{t('theme.decorationSlotLabel')}</span>
+              <select
+                className="settings-input"
+                onChange={(event) => updateEmoji(index, { slot: event.target.value as ThemeSlot })}
+                value={reaction.slot}
+              >
+                {DECORATION_SLOT_OPTIONS.map((slot) => (
+                  <option key={slot} value={slot}>
+                    {t(`theme.slot.${slot}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="theme-studio-field">
+              <span>{t('theme.gifTriggerLabel')}</span>
+              <select
+                className="settings-input"
+                onChange={(event) =>
+                  updateEmoji(index, { trigger: event.target.value as 'play' | 'like' })
+                }
+                value={reaction.trigger}
+              >
+                {EMOJI_TRIGGER_OPTIONS.map((trigger) => (
+                  <option key={trigger} value={trigger}>
+                    {t(`theme.trigger.${trigger}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              aria-label={t('theme.decorRemove')}
+              className="theme-studio-decor-remove"
+              onClick={() => removeEmoji(index)}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+        ))}
       </div>
 
       <div className="settings-actions">

@@ -299,6 +299,89 @@
   font-weight: 800;
 }
 
+/* P2-2f: multi-decor add/remove lists (stickers / gifs / emoji). */
+.theme-studio-decor-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-studio-decor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.theme-studio-decor-add {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  cursor: pointer;
+}
+
+.theme-studio-decor-add.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.theme-studio-decor-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.theme-studio-decor-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.theme-studio-decor-thumb {
+  width: 38px;
+  height: 38px;
+  align-self: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background-color: rgba(255, 255, 255, 0.05);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.theme-studio-decor-emoji-input {
+  align-self: center;
+  width: 52px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.theme-studio-decor-remove {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.theme-studio-decor-remove:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--danger, #ff6f59) 50%, var(--border));
+}
+
 /* P2-2b: light/dark base-mode segmented control. */
 .theme-studio-mode-toggle {
   display: inline-flex;
@@ -574,7 +657,9 @@
 }
 
 .theme-preview-emoji {
+  display: inline-flex;
   flex: 0 0 auto;
+  gap: 2px;
   font-size: 16px;
 }
 

@@ -771,6 +771,8 @@ export const ruDictionary = {
     "emojiLabel": "Эмодзи реакции",
     "stickerLabel": "Стикер",
     "stickerHint": "PNG/WebP/SVG до 1 МБ",
+    "decorAdd": "+ Добавить",
+    "decorRemove": "Убрать",
     "gifLabel": "GIF/WebP",
     "gifHint": "Анимация до 1 МБ",
     "gifTriggerLabel": "Когда показывать",

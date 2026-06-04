@@ -771,6 +771,8 @@ export const enDictionary = {
     "emojiLabel": "Reaction emoji",
     "stickerLabel": "Sticker",
     "stickerHint": "PNG/WebP/SVG up to 1 MB",
+    "decorAdd": "+ Add",
+    "decorRemove": "Remove",
     "gifLabel": "GIF/WebP",
     "gifHint": "Animation up to 1 MB",
     "gifTriggerLabel": "When to show",
