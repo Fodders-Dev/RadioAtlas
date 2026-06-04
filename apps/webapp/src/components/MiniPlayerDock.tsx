@@ -37,6 +37,35 @@ export const MiniPlayerDock = () => {
   } = useShell();
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
+  const artworkRef = useRef<HTMLButtonElement>(null);
+
+  // P3-3d: subtle dock micro-reactivity. The always-visible dock artwork picks
+  // up a faint accent glow that breathes with the audio energy, fed by the same
+  // pump as the full-player spectrum/backdrop. Energy is written to --ra-energy
+  // via DIRECT DOM — no React state per frame. We only subscribe while playback
+  // is live (visualizer.active), so the pump never spins up just for the dock;
+  // paused / no-data falls back to a calm CSS idle pulse.
+  const visualizerActive = player.visualizer.active;
+  const subscribeVisualizer = player.subscribeVisualizer;
+  useEffect(() => {
+    if (!visualizerActive) return undefined;
+    let smoothed = 0;
+    const unsubscribe = subscribeVisualizer((frame) => {
+      const node = artworkRef.current;
+      if (!node) return;
+      const { spectrum } = frame;
+      const count = Math.min(spectrum.length, 14);
+      let sum = 0;
+      for (let index = 0; index < count; index += 1) sum += spectrum[index] ?? 0;
+      const energy = count > 0 ? sum / count : 0;
+      smoothed += (energy - smoothed) * 0.25;
+      node.style.setProperty('--ra-energy', smoothed.toFixed(3));
+    });
+    return () => {
+      unsubscribe();
+      artworkRef.current?.style.removeProperty('--ra-energy');
+    };
+  }, [visualizerActive, subscribeVisualizer]);
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
@@ -207,7 +236,10 @@ export const MiniPlayerDock = () => {
     >
       <div className="player-dock-media">
         <button
+          ref={artworkRef}
           className="player-dock-artwork-trigger"
+          data-dock-reactive
+          data-active={visualizerActive ? 'true' : 'false'}
           type="button"
           onClick={openFullPlayer}
           disabled={!current}

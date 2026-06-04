@@ -169,3 +169,53 @@
     flex-grow: 1.24;
   }
 }
+
+/* P3-3d: subtle audio-reactive glow on the always-visible dock artwork. The
+   glow's blur + opacity ride --ra-energy (written per-frame from JS); colour is
+   the theme accent. Kept faint on purpose — the dock is persistent and must not
+   distract. With no live data it runs a slow idle pulse instead. */
+.player-dock-artwork-trigger[data-dock-reactive] {
+  position: relative;
+}
+
+.player-dock-artwork-trigger[data-dock-reactive]::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  pointer-events: none;
+  box-shadow: 0 0 calc(5px + var(--ra-energy, 0) * 18px)
+    color-mix(in srgb, var(--accent) 52%, transparent);
+  opacity: calc(0.28 + var(--ra-energy, 0) * 0.55);
+  transition: opacity 90ms linear, box-shadow 90ms linear;
+  will-change: opacity, box-shadow;
+}
+
+.player-dock-artwork-trigger[data-dock-reactive][data-active='false']::after {
+  animation: dock-artwork-idle 3.4s ease-in-out infinite;
+}
+
+.player-dock-artwork-trigger[data-dock-reactive]:disabled::after {
+  display: none;
+}
+
+@keyframes dock-artwork-idle {
+  0%,
+  100% {
+    opacity: 0.24;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  50% {
+    opacity: 0.46;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-dock-artwork-trigger[data-dock-reactive]::after {
+    transition: none;
+  }
+  .player-dock-artwork-trigger[data-dock-reactive][data-active='false']::after {
+    animation: none;
+  }
+}
