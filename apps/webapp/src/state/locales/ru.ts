@@ -732,6 +732,19 @@ export const ruDictionary = {
     "editing": "Правка — {name}",
     "customDefaultName": "Моя тема",
     "nameLabel": "Название",
+    "authorLabel": "Автор",
+    "authorPlaceholder": "Ваше имя (необязательно)",
+    "modeLabel": "Базовый режим",
+    "mode": {
+      "dark": "Тёмный",
+      "light": "Светлый"
+    },
+    "section": {
+      "identity": "Идентичность",
+      "color": "Цвет",
+      "typography": "Шрифт и иконки",
+      "decor": "Декор"
+    },
     "accentHue": "Цвет",
     "accentSat": "Насыщенность",
     "backgroundLabel": "Фон",

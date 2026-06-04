@@ -63,8 +63,26 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
     selectableThemes.find((theme) => theme.id === currentThemeId) || bundledThemes[0] || availableThemes[0];
 
   useEffect(() => {
-    if (!open) return;
-    void ensureThemeAssets(selectableAssetIds);
+    if (!open || selectableAssetIds.length === 0) return;
+    // P2-2a: defer the custom-theme asset reads (IndexedDB blobs +
+    // createObjectURL) off the sheet-open critical path so the first paint of
+    // the studio isn't blocked by a burst of loads. Builtins have no uploaded
+    // assets, so this only touches user customs.
+    const idle = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) void ensureThemeAssets(selectableAssetIds);
+    };
+    const useIdle = typeof idle.requestIdleCallback === 'function';
+    const handle = useIdle ? idle.requestIdleCallback!(run) : window.setTimeout(run, 120);
+    return () => {
+      cancelled = true;
+      if (useIdle) idle.cancelIdleCallback?.(handle);
+      else window.clearTimeout(handle);
+    };
   }, [ensureThemeAssets, open, selectableAssetIds]);
 
   const handleRemix = (event: MouseEvent, theme: RadioAtlasTheme) => {
