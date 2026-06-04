@@ -41,8 +41,9 @@
   border-radius: 16px;
   background: rgba(5, 10, 18, 0.44);
   box-shadow: 0 22px 48px rgba(3, 10, 20, 0.22);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  /* P2-2a: trimmed from 20px — this sits inside the already-blurred sheet card. */
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
 }
 
 .theme-studio-preview-card span,
@@ -102,6 +103,11 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
+  /* P2-2a: skip rendering cards scrolled out of the sheet — each card paints a
+     gradient swatch, so with many custom themes this avoids a big offscreen
+     paint cost. The intrinsic size keeps the scrollbar stable. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 78px;
 }
 
 .theme-studio-card-main {
@@ -182,10 +188,59 @@
   font-size: 11px;
 }
 
+/* P2-2b: section legends split the flat field list into grouped sections
+   (Identity / Color / Typography / Decor) so the builder reads as a tool. */
+.theme-studio-builder-legend {
+  margin: 18px 0 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--theme-studio-accent, var(--accent));
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.theme-studio-builder-legend:first-of-type {
+  margin-top: 2px;
+  padding-top: 0;
+  border-top: none;
+}
+
 .theme-studio-builder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
   gap: 10px;
+}
+
+/* P2-2b: light/dark base-mode segmented control. */
+.theme-studio-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.theme-studio-mode-option {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.theme-studio-mode-option.is-active {
+  background: color-mix(in srgb, var(--theme-studio-accent, var(--accent)) 30%, transparent);
+  color: var(--text);
 }
 
 .theme-studio-field {

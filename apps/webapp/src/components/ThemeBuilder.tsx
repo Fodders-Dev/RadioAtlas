@@ -93,6 +93,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const { ensureThemeAssets, getAssetUrl, saveAsset, saveDraftAndApply } = useTheme();
   const firstBundledThemeId = bundledThemes[0]?.id || 'classic';
   const [draftName, setDraftName] = useState(t('theme.customDefaultName'));
+  const [draftAuthor, setDraftAuthor] = useState('');
+  const [draftMode, setDraftMode] = useState<'light' | 'dark'>('dark');
   const [draftHue, setDraftHue] = useState(178);
   const [draftSat, setDraftSat] = useState(78);
   const [draftBackgroundMode, setDraftBackgroundMode] = useState<'bundled' | 'print'>('bundled');
@@ -119,6 +121,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
           : `${seedTheme.name} Remix`
         : t('theme.customDefaultName')
     );
+    // Prefill author only from a real custom theme — builtins carry the
+    // 'RadioAtlas' placeholder we don't want to surface as the user's name.
+    setDraftAuthor(seedTheme && !seedTheme.builtin ? seedTheme.author ?? '' : '');
+    setDraftMode(seedTheme?.mode ?? 'dark');
     setDraftHue(seedTheme?.layers.accent?.hue ?? 178);
     setDraftSat(seedTheme?.layers.accent?.sat ?? 78);
     setDraftFont(seedTheme?.layers.font?.family ?? 'system');
@@ -202,10 +208,11 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       version: 1,
       id: 'theme-draft-preview',
       name: draftName.trim() || t('theme.customDefaultName'),
-      author: 'RadioAtlas',
+      author: draftAuthor.trim() || 'RadioAtlas',
       parentId: mode === 'remix' ? seedTheme?.id : seedTheme?.parentId,
       createdAt: 0,
       updatedAt: 0,
+      mode: draftMode,
       layers: {
         accent: {
           hue: draftHue,
@@ -248,11 +255,13 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       }
     };
   }, [
+    draftAuthor,
     draftBackground,
     draftBackgroundMode,
     draftEmoji,
     draftEmojiSlot,
     draftFont,
+    draftMode,
     draftGif,
     draftGifSlot,
     draftGifTrigger,
@@ -319,9 +328,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       const savedTheme = await saveDraftAndApply({
         id: mode === 'edit' && seedTheme ? seedTheme.id : createThemeId(name),
         name,
-        author: 'RadioAtlas',
+        author: draftAuthor.trim() || 'RadioAtlas',
         parentId: mode === 'remix' ? seedTheme?.id : seedTheme?.parentId,
         builtin: false,
+        mode: draftMode,
         layers: draftTheme.layers
       });
       setBuilderState('saved');
@@ -348,6 +358,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
         </div>
       </div>
 
+      <h4 className="theme-studio-builder-legend">{t('theme.section.identity')}</h4>
       <div className="theme-studio-builder-grid">
         <label className="theme-studio-field">
           <span>{t('theme.nameLabel')}</span>
@@ -361,6 +372,48 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
             value={draftName}
           />
         </label>
+        <label className="theme-studio-field">
+          <span>{t('theme.authorLabel')}</span>
+          <input
+            className="settings-input"
+            data-theme-builder-author
+            onChange={(event) => {
+              setDraftAuthor(event.target.value);
+              setBuilderState('idle');
+            }}
+            placeholder={t('theme.authorPlaceholder')}
+            type="text"
+            value={draftAuthor}
+          />
+        </label>
+        <div className="theme-studio-field">
+          <span>{t('theme.modeLabel')}</span>
+          <div
+            className="theme-studio-mode-toggle"
+            role="group"
+            aria-label={t('theme.modeLabel')}
+          >
+            {(['dark', 'light'] as const).map((modeOption) => (
+              <button
+                aria-pressed={draftMode === modeOption}
+                className={`theme-studio-mode-option${draftMode === modeOption ? ' is-active' : ''}`}
+                data-theme-builder-mode={modeOption}
+                key={modeOption}
+                onClick={() => {
+                  setDraftMode(modeOption);
+                  setBuilderState('idle');
+                }}
+                type="button"
+              >
+                {t(`theme.mode.${modeOption}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <h4 className="theme-studio-builder-legend">{t('theme.section.color')}</h4>
+      <div className="theme-studio-builder-grid">
         <label className="theme-studio-field">
           <span>{t('theme.accentHue')}</span>
           <input
@@ -435,6 +488,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
               : t('theme.printHint')}
           </small>
         </label>
+      </div>
+
+      <h4 className="theme-studio-builder-legend">{t('theme.section.typography')}</h4>
+      <div className="theme-studio-builder-grid">
         <label className="theme-studio-field">
           <span>{t('theme.fontLabel')}</span>
           <select
@@ -504,6 +561,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
         ))}
       </div>
 
+      <h4 className="theme-studio-builder-legend">{t('theme.section.decor')}</h4>
       <div className="theme-studio-asset-grid">
         <label className="theme-studio-field theme-studio-print-field">
           <span>{t('theme.stickerLabel')}</span>

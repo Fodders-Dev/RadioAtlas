@@ -732,6 +732,19 @@ export const enDictionary = {
     "editing": "Editing {name}",
     "customDefaultName": "My theme",
     "nameLabel": "Name",
+    "authorLabel": "Author",
+    "authorPlaceholder": "Your name (optional)",
+    "modeLabel": "Base mode",
+    "mode": {
+      "dark": "Dark",
+      "light": "Light"
+    },
+    "section": {
+      "identity": "Identity",
+      "color": "Color",
+      "typography": "Typography & icons",
+      "decor": "Decor"
+    },
     "accentHue": "Color",
     "accentSat": "Saturation",
     "backgroundLabel": "Background",
