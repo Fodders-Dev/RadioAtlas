@@ -293,14 +293,21 @@ export const LitePlayerOverlay = ({
         onResetLayout={() => {}}
         playbackHistory={playbackHistory}
         queue={queue}
-        showVisualizer={false}
+        showVisualizer
         stationHidden={stationHidden}
+        subscribeVisualizer={player.subscribeVisualizer}
         t={t}
         trackHistory={trackHistory}
         trackLine={trackLine}
         visualizer={{
-          active: false,
-          available: false,
+          // P3-3b: the now theme-driven milkdrop is re-enabled and audio-reactive.
+          // active/available follow real playback; live spectrum/waveform arrive
+          // through subscribeVisualizer (the same pump as the canonical player —
+          // one analyser), so these seed arrays stay empty. When there's no live
+          // data (paused / iOS lean / silent) the canvas falls back to the
+          // time-animated themed blob.
+          active: player.visualizer.active,
+          available: player.visualizer.available,
           spectrum: [],
           waveform: []
         }}

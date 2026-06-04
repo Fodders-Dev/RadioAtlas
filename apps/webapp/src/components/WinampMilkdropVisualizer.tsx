@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getDeviceProfile } from '../lib/deviceProfile';
+import type { VisualizerFrame } from '../lib/useAudioPlayer';
 import { useTheme } from '../state/ThemeContext';
 
 type WinampMilkdropVisualizerProps = {
@@ -7,6 +8,10 @@ type WinampMilkdropVisualizerProps = {
   available: boolean;
   spectrum: number[];
   waveform: number[];
+  // P3-3b: when provided, the milkdrop pulls live spectrum/waveform straight from
+  // the shared audio pump into its render ref — no React state per frame, no
+  // second analyser.
+  subscribe?: (callback: (frame: VisualizerFrame) => void) => () => void;
 };
 
 type VisualizerState = {
@@ -25,7 +30,8 @@ export const WinampMilkdropVisualizer = ({
   active,
   available,
   spectrum,
-  waveform
+  waveform,
+  subscribe
 }: WinampMilkdropVisualizerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef<VisualizerState>({
@@ -36,13 +42,33 @@ export const WinampMilkdropVisualizer = ({
   });
 
   useEffect(() => {
-    stateRef.current = {
-      active,
-      available,
-      spectrum,
-      waveform
+    stateRef.current.active = active;
+    stateRef.current.available = available;
+    // With a live pump attached, spectrum/waveform are driven by it (below);
+    // otherwise fall back to the props.
+    if (!subscribe) {
+      stateRef.current.spectrum = spectrum;
+      stateRef.current.waveform = waveform;
+    }
+  }, [active, available, spectrum, waveform, subscribe]);
+
+  // P3-3b: live audio data from the shared pump. The frame is copied into the
+  // render ref directly in the subscription callback — no React state per frame,
+  // and the milkdrop's own RAF reads the ref. Only subscribed while active, so
+  // the pump never spins up just for an idle card; on cleanup we hand back to the
+  // (empty) props and the time-animated idle blob takes over.
+  useEffect(() => {
+    if (!subscribe || !active) return undefined;
+    const unsubscribe = subscribe((frame) => {
+      stateRef.current.spectrum = Array.from(frame.spectrum);
+      stateRef.current.waveform = Array.from(frame.waveform);
+    });
+    return () => {
+      unsubscribe();
+      stateRef.current.spectrum = spectrum;
+      stateRef.current.waveform = waveform;
     };
-  }, [active, available, spectrum, waveform]);
+  }, [subscribe, active, spectrum, waveform]);
 
   // P3-3b: palette follows the active theme. The accent hue/sat + light/dark
   // mode are resolved ONCE per theme change into a ref (not per frame), and the

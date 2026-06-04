@@ -1,6 +1,7 @@
 import { Suspense, lazy, type CSSProperties, type ReactNode } from 'react';
 import type { StationLite } from '../../types';
 import type { TrackHistoryItem } from '../../state/radio/types';
+import type { VisualizerFrame } from '../../lib/useAudioPlayer';
 import { StationArtwork } from '../StationArtwork';
 
 type ResponsiveExpandedMode = 'mobile' | 'desktop';
@@ -34,6 +35,7 @@ type WinampOverlayProps = {
   trackHistory: TrackHistoryItem[];
   visualizer: VisualizerState;
   showVisualizer?: boolean;
+  subscribeVisualizer?: (callback: (frame: VisualizerFrame) => void) => () => void;
   mainStyle?: CSSProperties;
   host: ReactNode;
   loading: ReactNode;
@@ -85,6 +87,7 @@ export default function WinampOverlay({
   queue,
   showVisualizer = true,
   stationHidden = false,
+  subscribeVisualizer,
   t,
   trackHistory,
   trackLine,
@@ -198,6 +201,7 @@ export default function WinampOverlay({
                     available={visualizer.available}
                     spectrum={visualizer.spectrum}
                     waveform={visualizer.waveform}
+                    subscribe={subscribeVisualizer}
                   />
                 </Suspense>
               </div>
