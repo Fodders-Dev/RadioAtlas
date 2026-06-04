@@ -6,6 +6,7 @@ import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
+import { FullPlayerVisualizer } from './FullPlayerVisualizer';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
 import './FullPlayerOverlay.css';
@@ -261,6 +262,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             </button>
           </div>
         </section>
+
+        <FullPlayerVisualizer
+          active={player.visualizer.active}
+          subscribe={player.subscribeVisualizer}
+        />
 
         <section className="full-player-controls" aria-label={t('dock.ready')}>
           <button

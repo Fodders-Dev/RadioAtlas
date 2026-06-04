@@ -546,3 +546,64 @@
     gap: 3px;
   }
 }
+
+/* P3-3a: theme-driven spectrum. Bar heights are driven per-frame from JS via
+   --ra-level (direct DOM, no React re-render); colours come from the
+   theme-derived --visualizer-* / --accent vars, so it picks up the active theme.
+   When there's no live analyser data the bars run a calm idle shimmer. */
+.full-player-visualizer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: min(340px, 100%);
+  height: 46px;
+  margin: 2px auto 6px;
+  padding: 0 6px;
+  pointer-events: none;
+}
+
+.full-player-visualizer-bar {
+  flex: 1 1 auto;
+  min-width: 2px;
+  height: calc(10% + (var(--ra-level, 0) * 90%));
+  border-radius: 999px 999px 2px 2px;
+  background: linear-gradient(
+    180deg,
+    var(--visualizer-start) 0%,
+    var(--visualizer-mid) 55%,
+    var(--visualizer-end) 100%
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 32%, transparent);
+  transition: height 70ms linear;
+}
+
+/* Idle / no-data: a slow staggered wave instead of dead-flat bars. The
+   per-bar --bar-index (set inline) offsets each bar so it reads as a travelling
+   ripple rather than a uniform pulse. */
+.full-player-visualizer[data-active='false'] .full-player-visualizer-bar {
+  height: 16%;
+  opacity: 0.55;
+  animation: full-player-visualizer-idle 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--bar-index, 0) * 0.08s);
+}
+
+@keyframes full-player-visualizer-idle {
+  0%,
+  100% {
+    height: 12%;
+  }
+  50% {
+    height: 34%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .full-player-visualizer-bar {
+    transition: none;
+  }
+  .full-player-visualizer[data-active='false'] .full-player-visualizer-bar {
+    animation: none;
+    height: 16%;
+  }
+}
