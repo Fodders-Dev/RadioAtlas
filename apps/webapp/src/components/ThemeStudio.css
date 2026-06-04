@@ -403,6 +403,7 @@
    (topbar + station card + dock) driven entirely by the draft theme's own vars,
    so the background / accent / surface tint / font / CTA / emoji all react live. */
 .theme-preview-surface {
+  position: relative;
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -414,6 +415,44 @@
   font-family: var(--preview-font);
   color: var(--preview-text);
   overflow: hidden;
+}
+
+/* P2-2e: the drag-positionable sticker. Centre-anchored; x/y are the px offset
+   the user drags (clamped in JS to stay inside the preview), and they write
+   straight back to the draft sticker's x/y. */
+.theme-preview-sticker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%)
+    translate(var(--sticker-x, 0px), var(--sticker-y, 0px))
+    scale(var(--sticker-scale, 1));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+  z-index: 6;
+}
+
+.theme-preview-sticker[data-draggable='true'] {
+  cursor: grab;
+  /* Don't let the drag scroll the sheet on touch. */
+  touch-action: none;
+}
+
+.theme-preview-sticker[data-draggable='true']:active {
+  cursor: grabbing;
+}
+
+.theme-preview-sticker[data-draggable='true']::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1px dashed color-mix(in srgb, var(--preview-accent) 60%, transparent);
+  border-radius: 10px;
+  opacity: 0.7;
 }
 
 .theme-preview-topbar,
