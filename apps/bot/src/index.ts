@@ -1,8 +1,25 @@
 import 'dotenv/config';
-import { Bot, InlineKeyboard } from 'grammy';
+import { spawn as nodeSpawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Bot, Context, InlineKeyboard, InputFile } from 'grammy';
+import ffmpegStaticPath from 'ffmpeg-static';
 import { recordReachability } from './botReachability.js';
 import { forwardBillingWebhook } from './billingForward.js';
 import { resolveInlineQuery } from './inlineQuery.js';
+import { buildStationStreamTargets } from './stationStreams.js';
+import {
+  clampDuration,
+  createRecordingLimiter,
+  DURATION_PRESETS_SEC,
+  formatMskTimestamp,
+  getStationById,
+  recordStream,
+  searchStations,
+  type RecordStation
+} from './recordStream.js';
 import {
   buildGiftPayload,
   buildPremiumPayload,
@@ -76,6 +93,198 @@ const syncMenuButton = async () => {
   });
   console.log(`Synced Telegram menu button to ${targetUrl}`);
 };
+
+// ---------------------------------------------------------------------------
+// Recording (PR1): /record <query> → pick station → pick duration → record the
+// stream forward N minutes and send the MP3. All fetch/spawn/ffmpeg logic is in
+// recordStream.ts (unit-tested with mock fetch + mock spawn). This file is the
+// grammy glue: keyboards, callbacks, progress message, and sending the file.
+// ---------------------------------------------------------------------------
+const recordFetch = globalThis.fetch.bind(globalThis);
+const ffmpegPath = (ffmpegStaticPath as unknown as string | null) ?? null;
+const recordingLimiter = createRecordingLimiter();
+const activeRecordings = new Map<string, { controller: AbortController }>();
+const DURATION_LABELS: Record<number, string> = { 300: '5 мин', 900: '15 мин', 1800: '30 мин' };
+
+const stationPickKeyboard = (stations: RecordStation[]) => {
+  const keyboard = new InlineKeyboard();
+  for (const station of stations) {
+    keyboard.text(station.name.slice(0, 48), `rec:${station.stationuuid}`).row();
+  }
+  return keyboard;
+};
+
+const durationKeyboard = (stationId: string) => {
+  const keyboard = new InlineKeyboard();
+  for (const seconds of DURATION_PRESETS_SEC) {
+    keyboard.text(DURATION_LABELS[seconds] ?? `${Math.round(seconds / 60)} мин`, `recd:${stationId}:${seconds}`);
+  }
+  return keyboard;
+};
+
+const recordErrorText = (reason: string) => {
+  switch (reason) {
+    case 'too-large':
+      return 'Запись получилась слишком большой для Telegram. Выбери длительность поменьше.';
+    case 'no-ffmpeg':
+    case 'no-candidates':
+      return 'Запись этой станции сейчас недоступна. Попробуй другую.';
+    default:
+      return 'Не получилось записать эфир — поток не отвечает. Попробуй другую станцию или позже.';
+  }
+};
+
+// Reusable by both the in-chat `rec:` callback and the PR2 Mini-App deep link:
+// resolve a station by id and show the duration keyboard.
+const presentStationForRecording = async (ctx: Context, stationId: string, canEdit: boolean) => {
+  const station = await getStationById(stationId, { fetch: recordFetch, apiUrl });
+  if (!station) {
+    await ctx.reply('Не нашёл станцию. Попробуй ещё раз через /record.');
+    return;
+  }
+  const text = `Станция «${station.name}». На сколько записать эфир?`;
+  const markup = durationKeyboard(station.stationuuid);
+  if (canEdit) {
+    const edited = await ctx
+      .editMessageText(text, { reply_markup: markup })
+      .then(() => true)
+      .catch(() => false);
+    if (edited) return;
+  }
+  await ctx.reply(text, { reply_markup: markup });
+};
+
+// Start the actual recording for a resolved station + chosen duration. Shared by
+// the in-chat flow and (PR2) the Mini-App flow.
+const runRecording = async (ctx: Context, station: RecordStation, durationSec: number) => {
+  const userId = ctx.from?.id;
+  const chatId = ctx.chat?.id;
+  if (!userId || !chatId) return;
+
+  if (!recordingLimiter.tryAcquire(userId)) {
+    await ctx.reply('Уже идёт запись. Дождись её окончания и попробуй снова.');
+    return;
+  }
+
+  const candidates = buildStationStreamTargets(station);
+  if (!candidates.length) {
+    recordingLimiter.release(userId);
+    await ctx.reply('У этой станции нет доступного потока для записи.');
+    return;
+  }
+
+  const jobId = randomUUID().slice(0, 8);
+  const controller = new AbortController();
+  activeRecordings.set(jobId, { controller });
+  const outputPath = join(tmpdir(), `radioatlas-rec-${randomUUID()}.mp3`);
+  const minutes = Math.round(durationSec / 60);
+  let progressMessageId: number | undefined;
+
+  try {
+    const progress = await ctx.reply(
+      `🔴 Пишу эфир «${station.name}» — ${minutes} мин. Пришлю файл, когда будет готов.`,
+      { reply_markup: new InlineKeyboard().text('⏹ Отменить', `reccancel:${jobId}`) }
+    );
+    progressMessageId = progress.message_id;
+
+    const result = await recordStream(
+      { streamCandidates: candidates, durationSec, stationName: station.name, outputPath },
+      {
+        ffmpegPath,
+        spawn: (command, args) => nodeSpawn(command, args, { stdio: 'ignore' }),
+        probeSize: async (path) => {
+          try {
+            return (await stat(path)).size;
+          } catch {
+            return 0;
+          }
+        },
+        signal: controller.signal,
+        log: (line) => console.warn(line)
+      }
+    );
+
+    if (result.ok) {
+      await ctx.replyWithAudio(new InputFile(outputPath), {
+        title: `${station.name} — ${formatMskTimestamp(new Date())} МСК`,
+        performer: station.name,
+        duration: durationSec
+      });
+    } else if (result.reason !== 'cancelled') {
+      await ctx.reply(recordErrorText(result.reason));
+    }
+  } catch (error) {
+    console.error('record: unexpected failure', error);
+    try {
+      await ctx.reply('Не получилось записать эфир. Попробуй ещё раз.');
+    } catch {
+      /* user closed the chat */
+    }
+  } finally {
+    activeRecordings.delete(jobId);
+    recordingLimiter.release(userId);
+    if (progressMessageId !== undefined) {
+      try {
+        await ctx.api.deleteMessage(chatId, progressMessageId);
+      } catch {
+        /* progress message already gone */
+      }
+    }
+    try {
+      await rm(outputPath, { force: true });
+    } catch {
+      /* temp already cleaned */
+    }
+  }
+};
+
+bot.command('record', async (ctx) => {
+  const query = ctx.match.toString().trim();
+  if (!query) {
+    await ctx.reply('Напиши, какую станцию записать: /record <название>. Например: /record lofi');
+    return;
+  }
+  const stations = await searchStations(query, { fetch: recordFetch, apiUrl });
+  if (!stations.length) {
+    await ctx.reply(`Не нашёл станцию по запросу «${query}». Попробуй другое название.`);
+    return;
+  }
+  await ctx.reply('Выбери станцию для записи эфира:', {
+    reply_markup: stationPickKeyboard(stations)
+  });
+});
+
+bot.on('callback_query:data', async (ctx) => {
+  const data = ctx.callbackQuery.data;
+
+  if (data.startsWith('rec:')) {
+    await ctx.answerCallbackQuery();
+    await presentStationForRecording(ctx, data.slice(4), true);
+    return;
+  }
+
+  if (data.startsWith('recd:')) {
+    await ctx.answerCallbackQuery();
+    const [, stationId, secondsRaw] = data.split(':');
+    const station = await getStationById(stationId, { fetch: recordFetch, apiUrl });
+    if (!station) {
+      await ctx.reply('Не нашёл станцию. Попробуй ещё раз через /record.');
+      return;
+    }
+    await ctx.editMessageReplyMarkup().catch(() => {});
+    await runRecording(ctx, station, clampDuration(Number(secondsRaw)));
+    return;
+  }
+
+  if (data.startsWith('reccancel:')) {
+    const job = activeRecordings.get(data.slice('reccancel:'.length));
+    job?.controller.abort();
+    await ctx.answerCallbackQuery({ text: job ? 'Отменяю запись…' : 'Запись уже завершена' });
+    return;
+  }
+
+  await ctx.answerCallbackQuery();
+});
 
 bot.command('start', async (ctx) => {
   const payload = buildStartPayload(
