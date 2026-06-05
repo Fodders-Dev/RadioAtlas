@@ -1779,6 +1779,19 @@ fattest to work, in order: search → mobile-UX → stability → playback-jank.
   zero-test god-file to shave 2.5→1 ms (both imperceptible) is bad EV. Parked,
   like CSS-split. The medium-confidence hypothesis measured out as marginal.
 
+## THEMING OVERHAUL — "Winamp-level" customization (2026-06-02 → SUPERSEDED 2026-06-05)
+
+> ⚠️ **PIVOT 2026-06-05.** The overhaul below shipped in full (PRs #58–#67, merged +
+> deployed) — but on Artem's REAL phone the result is **фигня UI/UE**: text blends into the
+> background on skin-change, elements overlap on phones, the app feels crooked + unpleasant
+> to use. Root cause of the miss: everything was pixel-reviewed via **Playwright 390px
+> renders + desktop Chrome, never his real device**. **New active direction → a mobile-first
+> UX/UE overhaul IN the current stack** (the 390px Telegram webview + real data + real touch
+> is THE target; NOT a native rewrite). PR #68 (multi-decor) is **FROZEN** (do not merge).
+> Known defects: text-contrast-on-skin-change (chromeTint over-tint + 2d unguarded HSL/
+> gradient colours, no contrast guarantee) + mobile overlap. Full context in memory file
+> `mobile-first-ux-pivot.md`. The record below is kept for history.
+
 ## THEMING OVERHAUL — "Winamp-level" customization (owner pivot 2026-06-02, ACTIVE)
 Owner: themes are shallow ("фигня от codex"), ThemeStudio "кривенько"; wants
 Winamp-level customization. Picked ALL three pillars + "you propose". **R1-R4
