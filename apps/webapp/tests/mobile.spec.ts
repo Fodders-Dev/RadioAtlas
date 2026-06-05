@@ -2625,7 +2625,10 @@ test('query flag keeps legacy lite winamp easter egg', async ({ page }) => {
   await expect(page.locator('.winamp-compact[data-winamp-mode="lite"]')).toBeVisible();
   await expect(page.locator('[data-winamp-lite-panel="true"]')).toBeVisible();
   await expect(page.locator('[data-full-player-overlay]')).toHaveCount(0);
-  await expect(page.locator('.winamp-overlay-visualizer-card')).toHaveCount(0);
+  // P3-3b: the theme-driven milkdrop visualizer card is re-enabled in the lite
+  // overlay (audio-reactive when a stream is readable; time-animated themed blob
+  // otherwise — e.g. this iOS lean-mode harness has no analyser).
+  await expect(page.locator('.winamp-overlay-visualizer-card')).toBeVisible();
 });
 
 test('R++ brand gesture unlocks legacy lite winamp easter egg', async ({ page }) => {
