@@ -6,6 +6,7 @@ import {
   createRecordingLimiter,
   formatMskTimestamp,
   getStationById,
+  parseStartPayload,
   recordStream,
   searchStations,
   type SpawnLike,
@@ -75,6 +76,20 @@ test('getStationById: missing item / non-2xx → null', async () => {
   assert.equal(await getStationById('id', { fetch: empty.fetch, apiUrl }), null);
   const fail = stubFetch(() => ({ ok: false, body: {} }));
   assert.equal(await getStationById('id', { fetch: fail.fetch, apiUrl }), null);
+});
+
+// ---- start payload parsing (PR2 deep link) ----
+
+test('parseStartPayload: rec_<id> → record branch with the station id', () => {
+  const parsed = parseStartPayload('rec_550e8400-e29b-41d4-a716-446655440000');
+  assert.deepEqual(parsed, { kind: 'record', stationId: '550e8400-e29b-41d4-a716-446655440000' });
+});
+
+test('parseStartPayload: normal / empty / junk → normal branch', () => {
+  assert.deepEqual(parseStartPayload(undefined), { kind: 'normal' });
+  assert.deepEqual(parseStartPayload(''), { kind: 'normal' });
+  assert.deepEqual(parseStartPayload('premium-success'), { kind: 'normal' });
+  assert.deepEqual(parseStartPayload('rec_'), { kind: 'normal' }); // prefix but no id
 });
 
 // ---- duration ----

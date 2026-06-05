@@ -1,7 +1,12 @@
 import { useMemo, useRef, type ReactNode } from 'react';
 import { stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
-import { canShareToStory, shareStationToStory, triggerHaptic } from '../lib/telegram';
+import {
+  canShareToStory,
+  openStationRecording,
+  shareStationToStory,
+  triggerHaptic
+} from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -46,7 +51,8 @@ const actionIcon = {
   down: <path d="m7 9.5 1.5-1.4L12 12l3.5-3.9L17 9.5 12 15 7 9.5Z" />,
   remove: (
     <path d="M7 6V4h10v2h4v2h-2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8H3V6h4Zm0 2v11h10V8H7Zm2 2h2v7H9v-7Zm4 0h2v7h-2v-7Z" />
-  )
+  ),
+  record: <circle cx="12" cy="12" r="6" />
 };
 
 const Icon = ({ children }: { children: ReactNode }) => (
@@ -346,6 +352,27 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             >
               <Icon>{actionIcon.share}</Icon>
               <span>{t('common.shareStory')}</span>
+            </button>
+          )}
+          {/* Recording PR2: minimal entry point — deep-links to the bot's
+              /record flow for the current station. Hidden if the bot isn't
+              configured. Placed here for now; the player UI is slated for a
+              mobile-first redesign that will rehome it. */}
+          {Boolean(import.meta.env.VITE_TG_BOT) && (
+            <button
+              className="full-player-action-chip"
+              type="button"
+              onClick={() => {
+                if (current) {
+                  triggerHaptic();
+                  openStationRecording(current.stationuuid);
+                }
+              }}
+              disabled={!current}
+              aria-label={t('winamp.record')}
+            >
+              <Icon>{actionIcon.record}</Icon>
+              <span>{t('winamp.record')}</span>
             </button>
           )}
           <button

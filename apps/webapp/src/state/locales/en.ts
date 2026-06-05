@@ -862,6 +862,7 @@ export const enDictionary = {
     "trackUnavailable": "Track title unavailable",
     "recentTracks": "Recent tracks",
     "stationDetails": "Details",
+    "record": "Record",
     "hideStation": "Hide",
     "showStation": "Show again",
     "artwork": "Artwork"

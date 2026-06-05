@@ -8,6 +8,7 @@ import {
   isInsideTelegramClient,
   isVersionAtLeast,
   makeDeepLink,
+  makeRecordDeepLink,
   openLinkOrFallback,
   openTelegramLinkOrFallback,
   shareStationLink,
@@ -462,5 +463,16 @@ describe('shareStationToStory (T_share_3)', () => {
     expect(params?.widget_link?.url).toBe(makeDeepLink('radioatlasbot', 'abc-123'));
     expect(params?.widget_link?.name).toBe('Tokyo FM');
     vi.unstubAllEnvs();
+  });
+});
+
+describe('makeRecordDeepLink', () => {
+  it('builds a ?start=rec_<id> link and strips a leading @ from the bot name', () => {
+    expect(makeRecordDeepLink('radioatlasbot', 'abc-123')).toBe(
+      'https://t.me/radioatlasbot?start=rec_abc-123'
+    );
+    expect(makeRecordDeepLink('@radioatlasbot', 'abc-123')).toBe(
+      'https://t.me/radioatlasbot?start=rec_abc-123'
+    );
   });
 });
