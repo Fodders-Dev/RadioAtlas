@@ -243,6 +243,23 @@ export const makeReferralLink = (botUsername: string, accountId: string) => {
   return `https://t.me/${safeBot}?startapp=ref_${accountId}`;
 };
 
+// Recording PR2: `?start=rec_<stationId>` enters the bot's /record flow (NOT the
+// Mini App — note `start=` not `startapp=`). The bot resolves the station and
+// offers the duration keyboard.
+export const makeRecordDeepLink = (botUsername: string, stationId: string) => {
+  const safeBot = botUsername.replace(/^@/, '');
+  return `https://t.me/${safeBot}?start=rec_${stationId}`;
+};
+
+// Open the bot's recording flow for a station. Returns false (no-op) if the bot
+// username isn't configured, so the caller can hide the button.
+export const openStationRecording = (stationId: string): boolean => {
+  const botName = (import.meta.env.VITE_TG_BOT as string | undefined)?.trim().replace(/^@/, '');
+  if (!botName || !stationId) return false;
+  openTelegramLinkOrFallback(makeRecordDeepLink(botName, stationId));
+  return true;
+};
+
 // T_share_3 (PR-B): numeric Bot-API version compare (e.g. '7.10' ≥ '7.8').
 export const isVersionAtLeast = (version: string | undefined, minimum: string): boolean => {
   if (!version) return false;

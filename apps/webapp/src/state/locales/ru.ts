@@ -862,6 +862,7 @@ export const ruDictionary = {
     "trackUnavailable": "Название трека недоступно",
     "recentTracks": "Недавние треки",
     "stationDetails": "Детали",
+    "record": "Записать эфир",
     "hideStation": "Скрыть",
     "showStation": "Вернуть",
     "artwork": "Обложка"

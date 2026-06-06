@@ -25,6 +25,21 @@ export type RecordStation = {
 
 export const SEARCH_LIMIT = 5;
 
+// PR2: the Mini-App "Записать эфир" button deep-links to t.me/<bot>?start=rec_<id>
+// so the bot's /start handler enters the recording flow with the station id.
+export const RECORD_START_PREFIX = 'rec_';
+
+export const parseStartPayload = (
+  raw: string | undefined
+): { kind: 'record'; stationId: string } | { kind: 'normal' } => {
+  const trimmed = (raw ?? '').trim();
+  if (trimmed.startsWith(RECORD_START_PREFIX)) {
+    const stationId = trimmed.slice(RECORD_START_PREFIX.length).trim();
+    if (stationId) return { kind: 'record', stationId };
+  }
+  return { kind: 'normal' };
+};
+
 export const searchStations = async (
   query: string,
   deps: StationDeps

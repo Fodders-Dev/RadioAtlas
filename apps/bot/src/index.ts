@@ -16,6 +16,7 @@ import {
   DURATION_PRESETS_SEC,
   formatMskTimestamp,
   getStationById,
+  parseStartPayload,
   recordStream,
   searchStations,
   type RecordStation
@@ -287,6 +288,15 @@ bot.on('callback_query:data', async (ctx) => {
 });
 
 bot.command('start', async (ctx) => {
+  // PR2: a `?start=rec_<stationId>` deep link from the Mini-App "Записать эфир"
+  // button enters the recording flow (resolve station → duration keyboard);
+  // every other start payload keeps the normal onboarding reply.
+  const startPayload = parseStartPayload(ctx.match.toString());
+  if (startPayload.kind === 'record') {
+    await presentStationForRecording(ctx, startPayload.stationId, false);
+    return;
+  }
+
   const payload = buildStartPayload(
     {
       webAppUrl,
