@@ -8,6 +8,7 @@ import {
   getStationById,
   parseStartPayload,
   recordStream,
+  resolveFfmpegPath,
   searchStations,
   type SpawnLike,
   type StationDeps
@@ -140,6 +141,35 @@ test('formatMskTimestamp: renders the time in Europe/Moscow (UTC+3)', () => {
   const stamp = formatMskTimestamp(new Date('2026-06-05T12:00:00Z'));
   assert.ok(stamp.includes('15:00'), stamp); // 12:00 UTC → 15:00 MSK
   assert.ok(stamp.includes('2026'), stamp);
+});
+
+// ---- ffmpeg binary resolution ----
+
+test('resolveFfmpegPath: FFMPEG_PATH env override wins over everything', () => {
+  const path = resolveFfmpegPath({
+    env: { FFMPEG_PATH: '/custom/ffmpeg' },
+    existsSync: () => true,
+    staticPath: '/static/ffmpeg'
+  });
+  assert.equal(path, '/custom/ffmpeg');
+});
+
+test('resolveFfmpegPath: a present system binary wins over the static fallback', () => {
+  const path = resolveFfmpegPath({
+    env: {},
+    existsSync: (candidate) => candidate === '/usr/bin/ffmpeg',
+    staticPath: '/static/ffmpeg'
+  });
+  assert.equal(path, '/usr/bin/ffmpeg');
+});
+
+test('resolveFfmpegPath: falls back to ffmpeg-static when no env and no system binary', () => {
+  const path = resolveFfmpegPath({
+    env: { FFMPEG_PATH: '   ' }, // blank override is ignored
+    existsSync: () => false,
+    staticPath: '/static/ffmpeg'
+  });
+  assert.equal(path, '/static/ffmpeg');
 });
 
 // ---- concurrency limiter ----

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { spawn as nodeSpawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ import {
   getStationById,
   parseStartPayload,
   recordStream,
+  resolveFfmpegPath,
   searchStations,
   type RecordStation
 } from './recordStream.js';
@@ -102,7 +104,13 @@ const syncMenuButton = async () => {
 // grammy glue: keyboards, callbacks, progress message, and sending the file.
 // ---------------------------------------------------------------------------
 const recordFetch = globalThis.fetch.bind(globalThis);
-const ffmpegPath = (ffmpegStaticPath as unknown as string | null) ?? null;
+const ffmpegPath = resolveFfmpegPath({
+  env: process.env,
+  existsSync,
+  staticPath: (ffmpegStaticPath as unknown as string | null) ?? null
+});
+// Confirm the chosen binary in the prod log (system ffmpeg vs bundled fallback).
+console.log(`record: using ffmpeg at ${ffmpegPath ?? '(none found)'}`);
 const recordingLimiter = createRecordingLimiter();
 const activeRecordings = new Map<string, { controller: AbortController }>();
 const DURATION_LABELS: Record<number, string> = { 300: '5 мин', 900: '15 мин', 1800: '30 мин' };

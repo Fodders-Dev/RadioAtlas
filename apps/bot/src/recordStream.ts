@@ -92,6 +92,30 @@ export const clampDuration = (seconds: number): number => {
 };
 
 // ---------------------------------------------------------------------------
+// ffmpeg binary resolution (pure)
+// ---------------------------------------------------------------------------
+// Prefer a SYSTEM ffmpeg. The bundled ffmpeg-static (johnvansickle, fully static)
+// SIGSEGVs on any network input on the prod VPS — a static-glibc DNS-resolve bug
+// (lavfi encode works, network input crashes, ldd = "not a dynamic executable").
+// The apt ffmpeg (dynamic, already on the VPS at /usr/bin/ffmpeg) records fine.
+// ffmpeg-static stays as the dev/CI fallback. Order: FFMPEG_PATH env > a known
+// system path that exists > ffmpeg-static.
+const SYSTEM_FFMPEG_PATHS = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg'];
+
+export const resolveFfmpegPath = (deps: {
+  env: Record<string, string | undefined>;
+  existsSync: (path: string) => boolean;
+  staticPath: string | null;
+}): string | null => {
+  const override = deps.env.FFMPEG_PATH?.trim();
+  if (override) return override;
+  for (const candidate of SYSTEM_FFMPEG_PATHS) {
+    if (deps.existsSync(candidate)) return candidate;
+  }
+  return deps.staticPath;
+};
+
+// ---------------------------------------------------------------------------
 // ffmpeg argument builder (pure)
 // ---------------------------------------------------------------------------
 // A plain desktop-browser UA — some streams reject non-browser clients.
