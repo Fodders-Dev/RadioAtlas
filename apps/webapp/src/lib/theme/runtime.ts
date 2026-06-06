@@ -1,3 +1,4 @@
+import { compositeRgb, hslToRgb, mixRgb, readableTextColors, type Rgb } from './contrast';
 import type { RadioAtlasTheme, ThemeBackgroundLayer, ThemeFontLayer, ThemeIconLayer } from './types';
 
 export const THEME_DEFAULT_ACCENT = '#94f0ea';
@@ -109,8 +110,53 @@ export const themeSurfaceVars = (theme: RadioAtlasTheme) => {
   return {
     bg: tint('#08111c', 5),
     bg2: tint('#112437', 7),
-    surface: tint('rgba(17, 25, 38, 0.56)', 9),
-    surface2: tint('rgba(28, 43, 63, 0.56)', 11),
+    // P1: text-bearing panels are now near-opaque (0.85, was 0.56) so a bright
+    // decorative gradient can't bleed through UNDER secondary text and sink its
+    // contrast. The background still shows in the gaps / around tiles / behind
+    // artwork, so the theme stays decorative. --theme-muted/-text are derived to
+    // clear WCAG AA against exactly this surface (see themeTextVars).
+    surface: tint('rgba(17, 25, 38, 0.85)', 9),
+    surface2: tint('rgba(28, 43, 63, 0.85)', 11),
     border: tint('rgba(236, 247, 255, 0.12)', 18)
   };
 };
+
+// P1: the dark surface base (matches themeSurfaceVars' surface base, opaque form).
+const DARK_SURFACE_BASE: Rgb = { r: 17, g: 25, b: 38 };
+// The light surface base (matches the :root[data-theme-mode='light'] block).
+const LIGHT_SURFACE_BASE: Rgb = { r: 255, g: 252, b: 248 };
+const WHITE: Rgb = { r: 255, g: 255, b: 255 };
+const BLACK: Rgb = { r: 0, g: 0, b: 0 };
+// How much of the decorative gradient can still bleed through the near-opaque
+// panel — we size the surface alpha so this is small, then size the text colours
+// for the worst case (brightest bleed on dark themes, darkest on light).
+const BLEED = 0.15;
+
+// P1: the WORST-CASE opaque surface the secondary text actually sits on — the
+// near-opaque panel colour plus the small gradient bleed that still shows
+// through (brightest bleed on dark themes, darkest on light, since that's the
+// lowest-contrast case). Mirrors themeSurfaceVars' surface derivation; exported
+// so tests can assert the derived colours clear AA against it.
+export const themeSurfaceColor = (theme: RadioAtlasTheme): Rgb => {
+  const accent = theme.layers.accent;
+  // Matches themeAccentToCss: explicit lightness, else the historical 68%; no
+  // accent falls back to THEME_DEFAULT_ACCENT (#94f0ea).
+  const accentRgb = accent
+    ? hslToRgb(accent.hue, accent.sat, accent.lightness ?? 68)
+    : { r: 148, g: 240, b: 234 };
+
+  if (theme.mode === 'light') {
+    return compositeRgb(BLACK, BLEED, LIGHT_SURFACE_BASE);
+  }
+
+  const k = clamp(theme.chromeTint ?? 1, 0, 6);
+  const surfaceTint = clamp(9 * k, 0, 100) / 100;
+  const surfaceColor = mixRgb(DARK_SURFACE_BASE, accentRgb, surfaceTint);
+  return compositeRgb(WHITE, BLEED, surfaceColor);
+};
+
+// P1: luminance-aware text colours, guaranteed to clear WCAG AA against the
+// theme's actual surface — for every preset and for custom themes, since it
+// derives from the same accent/mode/tint inputs (no trust in the author).
+export const themeTextVars = (theme: RadioAtlasTheme): { text: string; muted: string } =>
+  readableTextColors(themeSurfaceColor(theme));

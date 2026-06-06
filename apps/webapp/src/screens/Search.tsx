@@ -5,7 +5,7 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
-import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
@@ -57,7 +57,7 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
         className="search-station-card-main"
         type="button"
         onClick={toggleStation}
-        aria-label={`${playLabel}: ${station.name}`}
+        aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
       >
         <StationArtwork station={station} size="card" />
         <span className="search-card-play-overlay" aria-hidden="true">
@@ -65,8 +65,8 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
         </span>
       </button>
       <div className="search-station-card-copy">
-        <div className="search-card-title" title={station.name}>
-          {station.name}
+        <div className="search-card-title" title={normalizeStationName(station.name)}>
+          {normalizeStationName(station.name)}
         </div>
         <div className="search-card-meta" title={location}>
           {location}
@@ -573,7 +573,7 @@ export const Discover = () => {
                     >
                       <StationArtwork station={station} size="sm" />
                       <div className="search-quick-return-copy">
-                        <div className="search-quick-return-name">{station.name}</div>
+                        <div className="search-quick-return-name">{normalizeStationName(station.name)}</div>
                         <div className="search-quick-return-meta">
                           {station.country || t('common.unknown')}
                         </div>

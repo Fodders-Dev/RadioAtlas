@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { normalizeStationName } from '../lib/stationUtils';
 import { canShareToStory, shareStationToStory } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -183,7 +184,7 @@ export const LitePlayerOverlay = ({
       }
     >
       <span className="winamp-trackline-label">
-        {trackTitle || current?.name || t('winamp.trackUnavailable')}
+        {trackTitle || normalizeStationName(current?.name) || t('winamp.trackUnavailable')}
       </span>
     </button>
   );
@@ -212,7 +213,7 @@ export const LitePlayerOverlay = ({
           <div className="winamp-overlay-art-row">
             <StationArtwork station={current} size="card" className="winamp-now-artwork" />
             <div>
-              <div className="winamp-overlay-title">{current?.name || t('winamp.noStation')}</div>
+              <div className="winamp-overlay-title">{normalizeStationName(current?.name) || t('winamp.noStation')}</div>
               <div className="winamp-overlay-copy">
                 {player.status === 'buffering'
                   ? t('dock.buffering')

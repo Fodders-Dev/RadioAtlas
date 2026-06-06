@@ -5,7 +5,7 @@ import type {
   HomeRailModule,
   HomeResumeModule
 } from '../lib/homeSurface';
-import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
@@ -84,10 +84,10 @@ const HomeStationTile = ({
           className="home-logo-play"
           type="button"
           onClick={() => onPlay(station, playlist, sourceId)}
-          aria-label={`${isActive ? t('common.pause') : t('common.play')}: ${station.name}`}
+          aria-label={`${isActive ? t('common.pause') : t('common.play')}: ${normalizeStationName(station.name)}`}
         >
           <StationArtwork station={station} size="card" className="home-station-artwork" />
-          <span className="visually-hidden">{station.name}</span>
+          <span className="visually-hidden">{normalizeStationName(station.name)}</span>
         </button>
       </article>
     );
@@ -113,7 +113,9 @@ const HomeStationTile = ({
       data-home-station={station.stationuuid}
       role="button"
       tabIndex={0}
-      aria-label={t(isActive ? 'common.pause' : 'stationTile.playLabel', { name: station.name })}
+      aria-label={t(isActive ? 'common.pause' : 'stationTile.playLabel', {
+        name: normalizeStationName(station.name)
+      })}
       onClick={playStation}
       onKeyDown={onTileKeyDown}
     >
@@ -124,8 +126,8 @@ const HomeStationTile = ({
           className="home-station-artwork"
         />
         <div className="home-station-copy">
-          <div className="home-station-title" title={station.name}>
-            {station.name}
+          <div className="home-station-title" title={normalizeStationName(station.name)}>
+            {normalizeStationName(station.name)}
           </div>
           <div className="home-station-caption" title={caption}>
             {caption}
@@ -312,8 +314,8 @@ export const HomeHeroCard = ({
         </div>
 
         <div className="home-hero-copy">
-          <h2 className="home-hero-title" title={station.name}>
-            {station.name}
+          <h2 className="home-hero-title" title={normalizeStationName(station.name)}>
+            {normalizeStationName(station.name)}
           </h2>
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
 
@@ -373,7 +375,7 @@ export const HomeHeroCard = ({
               type="button"
               onClick={() => onPlay(companion, [station, ...companionStations], module.sourceId)}
             >
-              <span>{companion.name}</span>
+              <span>{normalizeStationName(companion.name)}</span>
               <strong>{stationLocation(companion)}</strong>
             </button>
           ))}

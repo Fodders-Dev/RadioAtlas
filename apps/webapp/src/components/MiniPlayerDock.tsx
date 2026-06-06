@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { stationLocation } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
@@ -119,7 +119,7 @@ export const MiniPlayerDock = () => {
               tone: 'accent'
             }
           : null;
-  const stationTitle = current?.name || t('dock.emptyTitle');
+  const stationTitle = normalizeStationName(current?.name) || t('dock.emptyTitle');
   const trackTitle = activeTrack
     ? activeTrack
     : current
@@ -326,7 +326,7 @@ export const MiniPlayerDock = () => {
                           type="button"
                           onClick={() => playQueuePreview(station.stationuuid, index)}
                         >
-                          <strong>{station.name}</strong>
+                          <strong>{normalizeStationName(station.name)}</strong>
                           <span>{stationLocation(station)}</span>
                         </button>
                       );

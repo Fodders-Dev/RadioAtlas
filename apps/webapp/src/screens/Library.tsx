@@ -4,7 +4,7 @@ import { RegionArtwork } from '../components/RegionArtwork';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import { stationsForRegions } from '../lib/regionRecommendations';
-import { stationLocation } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
@@ -467,7 +467,7 @@ export const Library = () => {
                 <div className="library-queue-now-card">
                   <div className="shell-kicker">{player.current ? t('dock.liveNow') : t('common.resume')}</div>
                   <div className="section-title">
-                    {queueLeadStation?.name || t('library.returnToAirEmptyTitle')}
+                    {normalizeStationName(queueLeadStation?.name) || t('library.returnToAirEmptyTitle')}
                   </div>
                   <div className="section-subtitle">
                     {nowPlaying?.trim() ||
@@ -509,7 +509,7 @@ export const Library = () => {
                         <div className="playlist-order">{index + 1}</div>
                         <div className="playlist-body library-queue-row-copy">
                           <div className="library-queue-row-head">
-                            <div className="playlist-name">{station.name}</div>
+                            <div className="playlist-name">{normalizeStationName(station.name)}</div>
                             {active ? (
                               <span className="library-status-pill active">{t('playlist.playing')}</span>
                             ) : nextUp ? (
@@ -545,7 +545,7 @@ export const Library = () => {
                           type="button"
                           onClick={() => playHistoryStation(station)}
                         >
-                          <div className="playlist-history-name">{station.name}</div>
+                          <div className="playlist-history-name">{normalizeStationName(station.name)}</div>
                           <div className="playlist-history-meta">{stationLocation(station)}</div>
                         </button>
                       ))}
@@ -802,7 +802,7 @@ export const Library = () => {
                     >
                       <div className="playlist-order">{index + 1}</div>
                       <div className="playlist-body">
-                        <div className="playlist-name">{station.name}</div>
+                        <div className="playlist-name">{normalizeStationName(station.name)}</div>
                         <div className="playlist-meta">{stationLocation(station)}</div>
                       </div>
                       <div className="playlist-actions">
@@ -822,7 +822,9 @@ export const Library = () => {
                         <button
                           className="chip"
                           type="button"
-                          aria-label={t('library.removeStationFromCollection', { station: station.name })}
+                          aria-label={t('library.removeStationFromCollection', {
+                            station: normalizeStationName(station.name)
+                          })}
                           onClick={() => removeStationFromCollection(selectedCollection.id, station.stationuuid)}
                         >
                           {t('common.remove')}
@@ -834,7 +836,9 @@ export const Library = () => {
                               type="button"
                               onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, -1)}
                               disabled={index === 0}
-                              aria-label={t('library.moveStationUp', { station: station.name })}
+                              aria-label={t('library.moveStationUp', {
+                                station: normalizeStationName(station.name)
+                              })}
                             >
                               {t('library.moveUp')}
                             </button>
@@ -843,7 +847,9 @@ export const Library = () => {
                               type="button"
                               onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, 1)}
                               disabled={index === selectedCollectionStations.length - 1}
-                              aria-label={t('library.moveStationDown', { station: station.name })}
+                              aria-label={t('library.moveStationDown', {
+                                station: normalizeStationName(station.name)
+                              })}
                             >
                               {t('library.moveDown')}
                             </button>

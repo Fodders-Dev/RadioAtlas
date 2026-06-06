@@ -14,7 +14,7 @@ import { observeStationNowPlaying } from '../lib/nowPlaying';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import type { StationLite } from '../types';
 import type { BehaviorProfile } from '../lib/homeProfile';
-import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { getRecommendationReason } from '../lib/recommendationReason';
@@ -240,8 +240,8 @@ const StationTableRow = memo(({
           >
             <StationArtwork station={station} size="card" />
             <div className="station-compact-copy">
-              <div className="station-title" title={station.name}>
-                <span className="marquee-text">{station.name}</span>
+              <div className="station-title" title={normalizeStationName(station.name)}>
+                <span className="marquee-text">{normalizeStationName(station.name)}</span>
               </div>
               {reason ? (
                 <span
@@ -374,8 +374,8 @@ const StationTableRow = memo(({
             <div className="station-name-head">
               <StationArtwork station={station} size="md" />
               <div className="station-name-stack">
-                <div className="station-title" title={station.name}>
-                  <span className="marquee-text">{station.name}</span>
+                <div className="station-title" title={normalizeStationName(station.name)}>
+                  <span className="marquee-text">{normalizeStationName(station.name)}</span>
                 </div>
                 {reason ? (
                   <span

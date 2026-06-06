@@ -3,6 +3,7 @@ import type { StationLite } from '../../types';
 import type { TrackHistoryItem } from '../../state/radio/types';
 import type { VisualizerFrame } from '../../lib/useAudioPlayer';
 import { StationArtwork } from '../StationArtwork';
+import { normalizeStationName } from '../../lib/stationUtils';
 
 type ResponsiveExpandedMode = 'mobile' | 'desktop';
 
@@ -65,7 +66,7 @@ const renderStationMeta = (
     type="button"
     onClick={() => onClick(station)}
   >
-    <strong>{station.name}</strong>
+    <strong>{normalizeStationName(station.name)}</strong>
     <span>{station.country || station.state || fallback}</span>
   </button>
 );
@@ -97,7 +98,9 @@ export default function WinampOverlay({
     .slice(Math.max(queue.currentIndex, 0), Math.max(queue.currentIndex, 0) + 4)
     .filter(Boolean);
   const overlayHistoryPreview = playbackHistory.slice().reverse().slice(0, 4);
-  const currentStationName = current?.name || queue.items[queue.currentIndex]?.name || t('winamp.noStation');
+  const currentStationName =
+    normalizeStationName(current?.name || queue.items[queue.currentIndex]?.name) ||
+    t('winamp.noStation');
   const queueLabel = queue.sourceLabel || t('radio.queueDefault');
   const unknownLabel = t('common.unknown');
   const recentTrackPreview = (current

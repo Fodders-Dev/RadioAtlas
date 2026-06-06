@@ -134,9 +134,10 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
     updatedAt: BUILT_AT,
     builtin: true,
     // textured-retro: a terminal. Mono type + the grid SVG over a warm-black CRT
-    // wash + amber phosphor accent + sharp corners. Strong chrome tint so the
-    // panels glow amber (not navy) and read unmistakably as a terminal.
-    chromeTint: 2.2,
+    // wash + amber phosphor accent + sharp corners. The amber identity comes from
+    // the SVG + background; the chrome tint is kept modest (P1) so panels stay
+    // dark enough for comfortable secondary-text contrast (was 2.2).
+    chromeTint: 1.4,
     layers: {
       accent: {
         hue: 40,
@@ -172,9 +173,9 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
     builtin: true,
     // sunset: a warm dusk — a low orange→magenta sun-bloom rising into a warm
     // plum night. DARK (distinct from warm-light), rounded + warm accent. The
-    // base is plum (not cool indigo) and the chrome tint is cranked hard so the
-    // dusk reads as warm even where station tiles cover the glow on Home.
-    chromeTint: 2.6,
+    // plum base + bloom carry the dusk; the chrome tint is kept modest (P1) so
+    // panels stay dark enough for comfortable secondary-text contrast (was 2.6).
+    chromeTint: 1.6,
     layers: {
       accent: {
         hue: 18,

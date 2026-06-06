@@ -1,5 +1,5 @@
 import { useMemo, useRef, type ReactNode } from 'react';
-import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import {
   canShareToStory,
@@ -181,9 +181,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           className="full-player-queue-main"
           type="button"
           onClick={() => queue.playAtIndex(absoluteIndex)}
-          aria-label={`${active ? t('queue.nowPlaying') : t('common.play')}: ${station.name}`}
+          aria-label={`${active ? t('queue.nowPlaying') : t('common.play')}: ${normalizeStationName(station.name)}`}
         >
-          <strong>{station.name}</strong>
+          <strong>{normalizeStationName(station.name)}</strong>
           <small>{stationLocation(station)}</small>
           {active ? <em>{t('queue.nowPlaying')}</em> : null}
         </button>
@@ -194,7 +194,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             onClick={() => queue.moveAtIndex(absoluteIndex, -1)}
             disabled={!canMoveUp}
             data-queue-action="move-up"
-            aria-label={`${t('queue.moveUp')}: ${station.name}`}
+            aria-label={`${t('queue.moveUp')}: ${normalizeStationName(station.name)}`}
           >
             <Icon>{actionIcon.up}</Icon>
           </button>
@@ -204,7 +204,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             onClick={() => queue.moveAtIndex(absoluteIndex, 1)}
             disabled={!canMoveDown}
             data-queue-action="move-down"
-            aria-label={`${t('queue.moveDown')}: ${station.name}`}
+            aria-label={`${t('queue.moveDown')}: ${normalizeStationName(station.name)}`}
           >
             <Icon>{actionIcon.down}</Icon>
           </button>
@@ -213,7 +213,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             type="button"
             onClick={() => queue.removeAtIndex(absoluteIndex)}
             data-queue-action="remove"
-            aria-label={`${t('queue.remove')}: ${station.name}`}
+            aria-label={`${t('queue.remove')}: ${normalizeStationName(station.name)}`}
           >
             <Icon>{actionIcon.remove}</Icon>
           </button>
@@ -229,13 +229,13 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
       data-full-player-overlay
       role="dialog"
       aria-modal="true"
-      aria-label={current?.name || t('dock.ready')}
+      aria-label={normalizeStationName(current?.name) || t('dock.ready')}
     >
       <FullPlayerBackdrop active={player.visualizer.active} subscribe={player.subscribeVisualizer} />
       <header className="full-player-header">
         <div>
           <span className="full-player-kicker">{queueLabel}</span>
-          <h2>{current?.name || t('dock.emptyTitle')}</h2>
+          <h2>{normalizeStationName(current?.name) || t('dock.emptyTitle')}</h2>
         </div>
         <button
           className="full-player-icon-btn"
@@ -254,7 +254,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           </div>
           <div className="full-player-copy">
             <p>{formatStationMeta(current, t('winamp.buildQueue'))}</p>
-            <h1>{current?.name || t('winamp.noStation')}</h1>
+            <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
             <button
               className="full-player-track"
               type="button"
