@@ -179,6 +179,7 @@ export const enDictionary = {
     "openSearch": "Open search",
     "openLibrary": "Open library",
     "refreshFeed": "Refresh feed",
+    "showAll": "Show all",
     "heroEmptyTitle": "Building the front page",
     "heroEmptyCopy": "Fresh stations for this session are loading now.",
     "heroExploreHint": "Open nearby threads through search",
