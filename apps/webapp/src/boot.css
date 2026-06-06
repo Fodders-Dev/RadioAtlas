@@ -201,9 +201,12 @@ a {
   }
 
   .app-topbar-actions .nav-utility-btn {
-    width: 34px;
-    min-width: 34px;
-    min-height: 34px;
+    /* PR-3: the dense topbar utility cluster uses the 40px mobile floor (was
+       34px) — kept under the 44px base to stay compact in the stacked grid,
+       which the spec allows for tight clusters. */
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
     padding: 0;
     gap: 0;
     border-radius: 999px;
