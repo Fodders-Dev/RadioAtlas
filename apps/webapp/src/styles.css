@@ -1,5 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
+/* ============================================================================
+   PR-4 — CONVENTIONS for new / touched CSS in this file
+   ----------------------------------------------------------------------------
+   1. MOBILE-FIRST. The base rule (no media query) is the ~360px Telegram-webview
+      layout. Scale UP with `@media (min-width: …)`, never DOWN with max-width.
+      (The legacy bulk of this file is desktop-down; do not add to that pattern.)
+   2. Use the DESIGN SCALES, not ad-hoc values: --space-xs..3xl (4px grid),
+      --text-xs..2xl, --radius-sm..full. They are defined in boot.css :root (the
+      always-first stylesheet, so the tokens exist before this deferred file and
+      the lazy screen/component CSS apply). Spacing→--space-*, font-size→--text-*,
+      border-radius→--radius-*.
+   3. Do not regress: PR-1 contrast (themeTextVars-driven --muted/--text + the
+      Warm Light block), PR-2 safe-area/viewport (--shell-safe-* / --tg-*).
+   ========================================================================== */
+
 :root {
   /* P1 foundation: the 7 base chrome tokens now derive from theme-injected
      surface vars with the EXACT current dark values as fallbacks. A dark theme
@@ -1103,7 +1118,7 @@ input {
   background: var(--accent-soft);
   color: var(--accent);
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -1112,7 +1127,7 @@ input {
      the unchanged svg/font; the extra becomes padding, so the icon doesn't
      bloat. <360px relaxes to a 40px floor (see the narrow-width media). */
   min-height: 44px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -2650,8 +2665,8 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   background:
     radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.22), transparent 34%),
     radial-gradient(circle at 100% 100%, rgba(125, 226, 213, 0.05), transparent 24%),

@@ -18,6 +18,33 @@
   );
   --shell-safe-left: var(--tg-safe-left, env(safe-area-inset-left, 0px));
   --shell-safe-right: var(--tg-safe-right, env(safe-area-inset-right, 0px));
+
+  /* PR-4: design scales — the single source of truth for spacing / type /
+     radius. Defined HERE (the always-first boot stylesheet) rather than in the
+     deferred styles.css so they're guaranteed available to styles.css AND to
+     lazy component/screen CSS the moment any of it applies. New or touched CSS
+     must consume these instead of ad-hoc values. Spacing is a 4px grid; the type
+     ramp is snapped to the existing common sizes; radius is a soft ramp. */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.45rem;
+  --text-2xl: 1.75rem;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
 }
 
 * {
@@ -70,11 +97,11 @@ a {
   /* PR-2: reserve the top under the notch/Telegram header and the bottom under
      the fixed dock + nav, both via the dynamic safe-area helpers. */
   padding:
-    calc(12px + var(--shell-safe-top))
-    calc(12px + var(--shell-safe-right))
+    calc(var(--space-md) + var(--shell-safe-top))
+    calc(var(--space-md) + var(--shell-safe-right))
     calc(88px + var(--shell-safe-bottom))
-    calc(12px + var(--shell-safe-left));
-  gap: 12px;
+    calc(var(--space-md) + var(--shell-safe-left));
+  gap: var(--space-md);
 }
 
 .glass-card {
@@ -85,11 +112,11 @@ a {
 }
 
 .app-topbar-v2 {
-  padding: 16px;
+  padding: var(--space-lg);
 }
 
 .app-topbar-title {
-  font-size: 1.45rem;
+  font-size: var(--text-xl);
   font-weight: 800;
 }
 
@@ -106,7 +133,7 @@ a {
 .app-topbar-copy,
 .app-topbar-title-stack {
   display: grid;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .app-stage-v2 {
@@ -138,8 +165,8 @@ a {
   bottom: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px 12px calc(10px + var(--shell-safe-bottom));
+  gap: var(--space-sm);
+  padding: 10px var(--space-md) calc(10px + var(--shell-safe-bottom));
   background: rgba(8, 12, 18, 0.92);
   border-top: 1px solid rgba(150, 188, 218, 0.12);
   backdrop-filter: blur(16px);
@@ -151,7 +178,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-sm);
   min-height: 44px;
   border: 0;
   border-radius: 16px;
@@ -163,8 +190,8 @@ a {
 .mobile-nav-item {
   flex-direction: column;
   min-height: 58px;
-  padding: 8px 6px;
-  font-size: 0.76rem;
+  padding: var(--space-sm) 6px;
+  font-size: var(--text-xs);
 }
 
 .library-tab-strip {
@@ -224,8 +251,8 @@ a {
 
 .player-dock {
   position: fixed;
-  left: 12px;
-  right: 12px;
+  left: var(--space-md);
+  right: var(--space-md);
   bottom: calc(72px + var(--shell-safe-bottom));
   z-index: 30;
 }
@@ -276,7 +303,7 @@ a {
 }
 
 .player-dock-title {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 700;
   line-height: 1.18;
   letter-spacing: 0;
@@ -292,7 +319,7 @@ a {
 }
 
 .player-dock-track-button-text {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 500;
   line-height: 1.22;
   letter-spacing: 0;

@@ -28,15 +28,17 @@ export const toLite = (station: Station | StationLite): StationLite => ({
   geo_long: station.geo_long ?? null
 });
 
-// P1: catalog names arrive with junk padding ("___80 EXITOS", doubled spaces).
-// Tidy on OUTPUT only — never mutate the stored data. Collapses runs of
-// whitespace / underscores and trims leading & trailing whitespace/underscores;
-// a single underscore inside a name is preserved (e.g. "LO_FI").
+// P1 (+PR-4): catalog names arrive with junk padding ("___80 EXITOS", doubled
+// spaces, a stray "CHRISTMAS CHOR_ by"). Tidy on OUTPUT only — never mutate the
+// stored data. Collapses underscore/whitespace runs, drops a single underscore
+// that hugs a space, and trims leading/trailing whitespace+underscores. An
+// underscore BETWEEN word characters is preserved (e.g. "LO_FI").
 export const normalizeStationName = (name?: string | null): string => {
   if (!name) return '';
   return name
-    .replace(/\s+/g, ' ')
     .replace(/_{2,}/g, '_')
+    .replace(/_(?=\s)|(?<=\s)_/g, '')
+    .replace(/\s+/g, ' ')
     .replace(/^[\s_]+|[\s_]+$/g, '');
 };
 
