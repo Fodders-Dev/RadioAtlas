@@ -15,7 +15,7 @@ import {
   type TelegramThemeParams
 } from '../lib/telegram';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
-import { themeRuntimeVars, themeSurfaceVars } from '../lib/theme/runtime';
+import { themeRuntimeVars, themeSurfaceVars, themeTextVars } from '../lib/theme/runtime';
 import {
   deleteStoredAsset,
   deleteStoredTheme,
@@ -259,6 +259,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       } else {
         root.style.removeProperty(key);
       }
+    }
+
+    // P1: luminance-aware secondary-text colours, guaranteed WCAG AA against the
+    // theme's actual surface. Only for dark custom/preset themes — light themes
+    // keep the fixed dark ink from the :root[data-theme-mode='light'] block (all
+    // light themes share one fixed light surface, so it's already AA), and
+    // telegram-auto inherits the client's own palette.
+    const textColors =
+      effectiveThemeId === TELEGRAM_AUTO_THEME_ID || currentTheme.mode === 'light'
+        ? null
+        : themeTextVars(currentTheme);
+    if (textColors) {
+      root.style.setProperty('--theme-text', textColors.text);
+      root.style.setProperty('--theme-muted', textColors.muted);
+    } else {
+      root.style.removeProperty('--theme-text');
+      root.style.removeProperty('--theme-muted');
     }
   }, [assetUrls, currentTheme, effectiveThemeId, telegramThemeParams]);
 

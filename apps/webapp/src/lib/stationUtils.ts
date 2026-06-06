@@ -28,6 +28,18 @@ export const toLite = (station: Station | StationLite): StationLite => ({
   geo_long: station.geo_long ?? null
 });
 
+// P1: catalog names arrive with junk padding ("___80 EXITOS", doubled spaces).
+// Tidy on OUTPUT only — never mutate the stored data. Collapses runs of
+// whitespace / underscores and trims leading & trailing whitespace/underscores;
+// a single underscore inside a name is preserved (e.g. "LO_FI").
+export const normalizeStationName = (name?: string | null): string => {
+  if (!name) return '';
+  return name
+    .replace(/\s+/g, ' ')
+    .replace(/_{2,}/g, '_')
+    .replace(/^[\s_]+|[\s_]+$/g, '');
+};
+
 export const stationLocation = (station: Station | StationLite) => {
   const parts = [formatLocationPart(station.state), formatLocationPart(station.country)].filter(Boolean);
   return parts.length ? parts.join(', ') : 'Unknown location';

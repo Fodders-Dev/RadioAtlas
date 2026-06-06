@@ -13,7 +13,7 @@ import {
   stationAnalyticsMeta
 } from '../lib/productAnalytics';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
-import { stationLocation, stationTags } from '../lib/stationUtils';
+import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { canShareToStory, openLinkOrFallback, shareStationToStory } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
@@ -162,7 +162,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         <div className="details-header details-identity">
           <StationArtwork station={info} size="card" className="details-artwork" />
           <div className="details-heading">
-            <div className="details-title" id={titleId}>{current.name}</div>
+            <div className="details-title" id={titleId}>{normalizeStationName(current.name)}</div>
             <div className="details-sub">{location}</div>
           </div>
           <button className="chip" onClick={onClose} type="button">
