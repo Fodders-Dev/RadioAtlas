@@ -105,11 +105,20 @@ export const buildFfmpegArgs = (params: {
 }): string[] => {
   const title = `${params.stationName} — ${formatMskTimestamp(params.now)} МСК`;
   return [
+    // Overwrite the output path: a previous failed candidate may have left a file
+    // there, and ffmpeg otherwise prompts on stdin (ignored → EOF → it aborts),
+    // which would break the candidate fail-over on the first one that wrote.
+    '-y',
     '-hide_banner',
     '-loglevel',
     'error',
     '-rw_timeout',
     String(RW_TIMEOUT_US),
+    // Candidate URLs come from the community catalog (Radio Browser) where the
+    // scheme isn't validated. Whitelist only network protocols (NO 'file') so a
+    // url=file:///…/.env can never make ffmpeg read & exfiltrate a local secret.
+    '-protocol_whitelist',
+    'http,https,tcp,tls,crypto',
     '-user_agent',
     BROWSER_UA,
     '-i',
@@ -246,15 +255,22 @@ export const recordStream = async (
 ): Promise<RecordStreamResult> => {
   const ffmpegPath = deps.ffmpegPath;
   if (!ffmpegPath) return { ok: false, reason: 'no-ffmpeg' };
-  if (!input.streamCandidates.length) return { ok: false, reason: 'no-candidates' };
 
   const spawn = deps.spawn;
   if (!spawn) return { ok: false, reason: 'no-ffmpeg' };
+
+  // Defense in depth alongside the -protocol_whitelist arg: only ever hand ffmpeg
+  // an http(s) URL, so a file:// / pipe: / concat: candidate from the catalog is
+  // dropped before it can spawn anything.
+  const candidates = input.streamCandidates.filter((url) => /^https?:\/\//i.test(url.trim()));
+  if (!candidates.length) return { ok: false, reason: 'no-candidates' };
+  if (deps.signal?.aborted) return { ok: false, reason: 'cancelled' };
+
   const probeSize = deps.probeSize ?? (async () => 0);
   const now = deps.now ?? (() => new Date());
   const killAfterMs = (input.durationSec + (deps.killGraceSec ?? 30)) * 1000;
 
-  for (const url of input.streamCandidates) {
+  for (const url of candidates) {
     if (deps.signal?.aborted) return { ok: false, reason: 'cancelled' };
     const args = buildFfmpegArgs({
       url,

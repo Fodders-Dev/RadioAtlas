@@ -111,6 +111,14 @@ test('buildFfmpegArgs: encodes duration, mp3 codec, metadata, and output path', 
   assert.ok(args.includes('-rw_timeout'));
   assert.ok(args.includes('-vn'));
   assert.equal(args[args.length - 1], '/tmp/out.mp3');
+  // overwrite flag is first (don't hang on a leftover file from a failed candidate)
+  assert.equal(args[0], '-y');
+  // protocol whitelist is a network-only allowlist with NO 'file' (no local-file read)
+  const whitelist = args[args.indexOf('-protocol_whitelist') + 1];
+  assert.equal(whitelist, 'http,https,tcp,tls,crypto');
+  assert.ok(!whitelist.split(',').includes('file'), whitelist);
+  // and it sits before the input
+  assert.ok(args.indexOf('-protocol_whitelist') < args.indexOf('-i'));
 });
 
 test('formatMskTimestamp: renders the time in Europe/Moscow (UTC+3)', () => {
@@ -175,37 +183,37 @@ const baseInput = {
 test('recordStream: first candidate succeeds → ok with that url', async () => {
   const { spawn } = fakeSpawn([{ code: 0 }]);
   const result = await recordStream(
-    { ...baseInput, streamCandidates: ['url-a', 'url-b'] },
+    { ...baseInput, streamCandidates: ['https://a/x', 'https://b/x'] },
     { ffmpegPath: '/bin/ffmpeg', spawn, probeSize: sizes([1_000_000]) }
   );
   assert.equal(result.ok, true);
-  if (result.ok) assert.equal(result.url, 'url-a');
+  if (result.ok) assert.equal(result.url, 'https://a/x');
 });
 
 test('recordStream: falls over to the next candidate on non-zero exit', async () => {
   const { spawn } = fakeSpawn([{ code: 1 }, { code: 0 }]);
   const result = await recordStream(
-    { ...baseInput, streamCandidates: ['bad', 'good'] },
+    { ...baseInput, streamCandidates: ['https://bad/x', 'https://good/x'] },
     { ffmpegPath: '/bin/ffmpeg', spawn, probeSize: sizes([0, 800_000]) }
   );
   assert.equal(result.ok, true);
-  if (result.ok) assert.equal(result.url, 'good');
+  if (result.ok) assert.equal(result.url, 'https://good/x');
 });
 
 test('recordStream: a near-empty file (exit 0) is rejected → next candidate', async () => {
   const { spawn } = fakeSpawn([{ code: 0 }, { code: 0 }]);
   const result = await recordStream(
-    { ...baseInput, streamCandidates: ['silent', 'good'] },
+    { ...baseInput, streamCandidates: ['https://silent/x', 'https://good/x'] },
     { ffmpegPath: '/bin/ffmpeg', spawn, probeSize: sizes([10, 500_000]) }
   );
   assert.equal(result.ok, true);
-  if (result.ok) assert.equal(result.url, 'good');
+  if (result.ok) assert.equal(result.url, 'https://good/x');
 });
 
 test('recordStream: all candidates fail → all-failed', async () => {
   const { spawn } = fakeSpawn([{ code: 1 }, { code: 1 }]);
   const result = await recordStream(
-    { ...baseInput, streamCandidates: ['a', 'b'] },
+    { ...baseInput, streamCandidates: ['https://a/x', 'https://b/x'] },
     { ffmpegPath: '/bin/ffmpeg', spawn, probeSize: sizes([0, 0]) }
   );
   assert.equal(result.ok, false);
@@ -215,17 +223,51 @@ test('recordStream: all candidates fail → all-failed', async () => {
 test('recordStream: over the 49 MB cap → too-large', async () => {
   const { spawn } = fakeSpawn([{ code: 0 }]);
   const result = await recordStream(
-    { ...baseInput, streamCandidates: ['huge'] },
+    { ...baseInput, streamCandidates: ['https://huge/x'] },
     { ffmpegPath: '/bin/ffmpeg', spawn, probeSize: sizes([60 * 1024 * 1024]) }
   );
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.reason, 'too-large');
 });
 
+test('recordStream: non-http(s) candidates are dropped (file:// never reaches ffmpeg)', async () => {
+  let spawned = 0;
+  const { spawn } = fakeSpawn([]);
+  const wrapped: SpawnLike = (command, args) => {
+    spawned += 1;
+    return spawn(command, args);
+  };
+  const result = await recordStream(
+    { ...baseInput, streamCandidates: ['file:///etc/passwd', 'pipe:0', 'ftp://x/y'] },
+    { ffmpegPath: '/bin/ffmpeg', spawn: wrapped, probeSize: sizes([0]) }
+  );
+  assert.equal(spawned, 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'no-candidates');
+});
+
+test('recordStream: an already-aborted signal → cancelled without spawning', async () => {
+  let spawned = 0;
+  const { spawn } = fakeSpawn([{ code: 0 }]);
+  const wrapped: SpawnLike = (command, args) => {
+    spawned += 1;
+    return spawn(command, args);
+  };
+  const controller = new AbortController();
+  controller.abort();
+  const result = await recordStream(
+    { ...baseInput, streamCandidates: ['https://a/x'] },
+    { ffmpegPath: '/bin/ffmpeg', spawn: wrapped, signal: controller.signal }
+  );
+  assert.equal(spawned, 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, 'cancelled');
+});
+
 test('recordStream: guards — no ffmpeg path and no candidates', async () => {
   const { spawn } = fakeSpawn([]);
   const noFfmpeg = await recordStream(
-    { ...baseInput, streamCandidates: ['a'] },
+    { ...baseInput, streamCandidates: ['https://a/x'] },
     { ffmpegPath: null, spawn }
   );
   assert.equal(noFfmpeg.ok, false);
