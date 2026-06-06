@@ -14,12 +14,19 @@ describe('normalizeStationName', () => {
 
   it('collapses runs of whitespace and underscores', () => {
     expect(normalizeStationName('Radio    Salü')).toBe('Radio Salü');
-    expect(normalizeStationName('Jazz __ Cool')).toBe('Jazz _ Cool');
-    expect(normalizeStationName('  __80__  EXITOS  ')).toBe('80_ EXITOS');
   });
 
-  it('preserves a single interior underscore', () => {
+  it('drops a single underscore that hugs a space', () => {
+    // PR-4: "CHRISTMAS CHOR_ by" -> "CHRISTMAS CHOR by"
+    expect(normalizeStationName('CHRISTMAS CHOR_ by')).toBe('CHRISTMAS CHOR by');
+    expect(normalizeStationName('by _CHRISTMAS')).toBe('by CHRISTMAS');
+    expect(normalizeStationName('Jazz __ Cool')).toBe('Jazz Cool');
+    expect(normalizeStationName('  __80__  EXITOS  ')).toBe('80 EXITOS');
+  });
+
+  it('preserves an underscore between word characters', () => {
     expect(normalizeStationName('LO_FI')).toBe('LO_FI');
+    expect(normalizeStationName('DEEP_HOUSE FM')).toBe('DEEP_HOUSE FM');
   });
 
   it('handles empty / nullish input', () => {

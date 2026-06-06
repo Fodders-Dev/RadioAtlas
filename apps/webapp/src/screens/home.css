@@ -1,7 +1,7 @@
 .screen-home-next {
   display: grid;
   /* T2.20: tighter inter-section rhythm so more shelves sit above the fold. */
-  gap: 12px;
+  gap: var(--space-md);
   align-content: start;
   /* Reserve space for the persistent player dock so the last rail
      ("Для тебя", "Для вибранных") doesn't get clipped by the dock at any
@@ -60,8 +60,8 @@
 .home-explore-card {
   position: relative;
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: var(--space-md);
+  padding: var(--space-lg);
   border: 1px solid rgba(166, 214, 255, 0.12);
   border-radius: 22px;
   background:
@@ -174,7 +174,7 @@
 
 .home-hero-body {
   display: grid;
-  gap: 12px;
+  gap: var(--space-md);
   align-items: start;
 }
 
@@ -182,7 +182,7 @@
   display: grid;
   place-items: center;
   min-height: 156px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   border: 1px solid rgba(180, 223, 255, 0.1);
   background:
     linear-gradient(145deg, rgba(104, 186, 255, 0.14), rgba(8, 14, 24, 0.06)),
@@ -201,7 +201,7 @@
 
 .home-hero-copy {
   display: grid;
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
@@ -257,7 +257,7 @@
 .home-hero-companions,
 .home-hero-metrics {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-hero-actions,
@@ -316,8 +316,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
+  gap: var(--space-md);
+  padding: var(--space-lg);
   border: 1px solid rgba(170, 220, 255, 0.12);
   border-radius: 22px;
   background:
@@ -354,7 +354,7 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-sm);
   min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
@@ -387,7 +387,7 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-personal-refresh {
@@ -440,7 +440,7 @@
 
 .home-metric-pill {
   display: grid;
-  gap: 4px;
+  gap: var(--space-xs);
   min-width: 0;
   padding: 8px 10px;
   border-radius: 16px;
@@ -478,7 +478,7 @@
 
 .home-companion-chip {
   display: grid;
-  gap: 4px;
+  gap: var(--space-xs);
   min-width: 148px;
   padding: 10px 12px;
   text-align: left;
@@ -512,7 +512,7 @@
   top: 0;
   z-index: 3;
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
   overflow-x: auto;
   /* T_mobile_1 A: see .home-horizontal-scroll — same containment for the
      anchor chip-row so swiping past its end doesn't drag the page. */
@@ -632,7 +632,7 @@
    fold. The rail title still names the shelf. */
 .home-rail-card {
   padding: 10px;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-rail-card .home-section-copy {
@@ -646,7 +646,7 @@
 
 .home-section-head > div:first-child {
   display: grid;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .home-section-title {
@@ -689,7 +689,7 @@
 
 .home-search-idle {
   display: grid;
-  gap: 4px;
+  gap: var(--space-xs);
   padding: 10px 12px;
   border: 1px dashed rgba(176, 221, 255, 0.14);
   border-radius: 16px;
@@ -707,7 +707,7 @@
 
 .home-search-preview-list {
   display: grid;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-station-tile {
@@ -898,7 +898,7 @@
 .home-rail-card.is-dense .home-horizontal-scroll {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
   overflow: visible;
 }
 
@@ -916,7 +916,7 @@
 .screen-home-next[data-density='dense'] .home-search-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .screen-home-next[data-density='dense'] .home-search-launcher,
@@ -943,7 +943,7 @@
   }
 
   .home-horizontal-scroll {
-    gap: 12px;
+    gap: var(--space-md);
   }
 }
 
@@ -958,7 +958,7 @@
   .home-resume-strip,
   .home-rail-card,
   .home-explore-card {
-    padding: 14px;
+    padding: var(--space-lg);
     border-radius: 22px;
   }
 
@@ -1117,7 +1117,7 @@
 /* Radio core compact mobile home */
 
 .screen-home-next[data-density='dense'] {
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .home-personal-radio.is-dense {
@@ -1239,13 +1239,13 @@
 }
 
 .home-hero-empty.is-dense {
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-hero-empty.is-dense .home-hero-actions {
   display: flex;
   grid-template-columns: none;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .home-hero-empty.is-dense .home-primary-btn,
@@ -1260,7 +1260,7 @@
 
 .screen-home-next[data-density='dense'] .home-resume-strip,
 .screen-home-next[data-density='dense'] .home-rail-card {
-  gap: 8px;
+  gap: var(--space-sm);
   padding: 0;
   border: 0;
   border-radius: 0;

@@ -80,7 +80,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-md);
   padding: calc(14px + env(safe-area-inset-top)) 14px 10px;
 }
 
@@ -95,7 +95,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 18px;
+  font-size: var(--text-lg);
   line-height: 1.12;
 }
 
@@ -115,7 +115,7 @@
 .full-player-main {
   display: grid;
   grid-template-rows: auto auto auto 1fr;
-  gap: 12px;
+  gap: var(--space-md);
   min-height: 0;
   padding: 0 14px calc(16px + env(safe-area-inset-bottom));
   overflow: auto;
@@ -217,7 +217,7 @@
   grid-template-columns: 58px minmax(92px, 128px) 58px;
   justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .full-player-icon-btn,
@@ -285,7 +285,7 @@
 .full-player-actions {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .full-player-action-chip {
@@ -316,16 +316,16 @@
 .full-player-content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr);
-  gap: 12px;
+  gap: var(--space-md);
   min-height: 0;
 }
 
 .full-player-panel {
   min-width: 0;
   min-height: 0;
-  padding: 12px;
+  padding: var(--space-md);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay) 84%, transparent), color-mix(in srgb, var(--surface-overlay-strong) 74%, transparent)),
     var(--theme-bg-image);
@@ -339,7 +339,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-sm);
   margin-bottom: 10px;
 }
 
@@ -359,7 +359,7 @@
 
 .full-player-queue-toolbar {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
   margin: -2px 0 10px;
 }
 
@@ -384,7 +384,7 @@
 .full-player-queue-list,
 .full-player-track-list {
   display: grid;
-  gap: 8px;
+  gap: var(--space-sm);
   max-height: min(34vh, 340px);
   overflow: auto;
   overscroll-behavior: contain;
@@ -544,7 +544,7 @@
 
   .full-player-queue-item {
     grid-template-columns: 34px minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: var(--space-sm);
   }
 
   .full-player-queue-actions {
@@ -568,7 +568,7 @@
 
   .full-player-controls {
     grid-template-columns: 52px minmax(84px, 112px) 52px;
-    gap: 8px;
+    gap: var(--space-sm);
   }
 
   .full-player-controls .full-player-icon-btn {
