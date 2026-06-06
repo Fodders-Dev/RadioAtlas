@@ -64,7 +64,7 @@
   --visualizer-end: color-mix(in srgb, var(--accent-2) 72%, var(--bg-2) 28%);
   --player-stack-offset: calc(
     var(--player-safe-height) + var(--nav-height) + var(--nav-gap) +
-      var(--player-bottom-offset) + env(safe-area-inset-bottom)
+      var(--player-bottom-offset) + var(--shell-safe-bottom)
   );
 }
 
@@ -301,9 +301,9 @@ body {
 
   .app-shell-v2[data-active-section='globe'] .app-topbar-v2 {
     position: fixed;
-    top: max(8px, env(safe-area-inset-top));
-    left: max(14px, env(safe-area-inset-left));
-    right: max(14px, env(safe-area-inset-right));
+    top: max(8px, var(--shell-safe-top));
+    left: max(14px, var(--shell-safe-left));
+    right: max(14px, var(--shell-safe-right));
     z-index: 42;
   }
 
@@ -1689,7 +1689,7 @@ input {
 
 @media (max-width: 720px) {
   .toast {
-    top: calc(env(safe-area-inset-top) + 76px);
+    top: calc(var(--shell-safe-top) + 76px);
     bottom: auto;
     width: min(calc(100vw - 20px), 360px);
     border-radius: 16px;
@@ -2421,7 +2421,7 @@ input {
 :root {
   --sidebar-width-v2: 244px;
   --mobile-nav-height-v2: 68px;
-  --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + env(safe-area-inset-bottom));
+  --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + var(--shell-safe-bottom));
   --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 96px);
   --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   --glass-bg: rgba(216, 231, 255, 0.048);
@@ -2437,10 +2437,16 @@ body {
 
 .app-shell-v2 {
   min-height: 100vh;
-  min-height: 100dvh;
+  /* PR-2: track the live Telegram viewport; reserve the notch/header at top and
+     the device safe-area at the sides (bottom is covered by --dock-offset-v2). */
+  min-height: var(--tg-viewport-stable-height, 100dvh);
   display: flex;
   position: relative;
-  padding: 14px 14px calc(var(--dock-offset-v2) + 16px);
+  padding:
+    calc(14px + var(--shell-safe-top))
+    calc(14px + var(--shell-safe-right))
+    calc(var(--dock-offset-v2) + 16px)
+    calc(14px + var(--shell-safe-left));
   gap: 14px;
   isolation: isolate;
 }
@@ -4297,7 +4303,7 @@ button.app-brand-pill {
 
 @media (max-width: 959px) {
   .app-shell-v2 {
-    padding: 10px 10px calc(var(--dock-offset-v2) + 10px);
+    padding: calc(10px + var(--shell-safe-top)) calc(10px + var(--shell-safe-right)) calc(var(--dock-offset-v2) + 10px) calc(10px + var(--shell-safe-left));
   }
 
   .home-side-stack .account-card {
@@ -4308,7 +4314,7 @@ button.app-brand-pill {
     position: fixed;
     left: 10px;
     right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    bottom: calc(10px + var(--shell-safe-bottom));
     z-index: 85;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5655,13 +5661,13 @@ body {
 @media (max-width: 430px) {
   :root {
     --mobile-nav-height-v2: 60px;
-    --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + env(safe-area-inset-bottom));
+    --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + var(--shell-safe-bottom));
     --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 132px);
     --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   }
 
   .app-shell-v2 {
-    padding: 8px 8px calc(var(--dock-offset-v2) + 8px);
+    padding: calc(8px + var(--shell-safe-top)) calc(8px + var(--shell-safe-right)) calc(var(--dock-offset-v2) + 8px) calc(8px + var(--shell-safe-left));
     gap: 10px;
   }
 
@@ -5694,7 +5700,7 @@ body {
   .app-navigation-mobile {
     left: 8px;
     right: 8px;
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + var(--shell-safe-bottom));
     height: var(--mobile-nav-height-v2);
     gap: 5px;
     padding: 5px;
@@ -9351,9 +9357,9 @@ body {
 
   .app-shell-v2[data-active-section='globe'] .app-topbar-v2 {
     position: fixed;
-    top: max(8px, env(safe-area-inset-top));
-    left: max(14px, env(safe-area-inset-left));
-    right: max(14px, env(safe-area-inset-right));
+    top: max(8px, var(--shell-safe-top));
+    left: max(14px, var(--shell-safe-left));
+    right: max(14px, var(--shell-safe-right));
     z-index: 42;
   }
 

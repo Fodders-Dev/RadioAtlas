@@ -60,6 +60,14 @@ declare global {
         // require another type bump.
         onEvent?: (event: string, callback: () => void) => void;
         offEvent?: (event: string, callback: () => void) => void;
+        // PR-2: dynamic viewport + safe-area. viewportHeight/-StableHeight are
+        // Bot API 6.0+; safeAreaInset/contentSafeAreaInset are 8.0+. All optional
+        // — older clients omit them and the CSS falls back to env()/100dvh.
+        viewportHeight?: number;
+        viewportStableHeight?: number;
+        isExpanded?: boolean;
+        safeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
+        contentSafeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
         openLink?: (
           url: string,
           options?: { try_instant_view?: boolean }

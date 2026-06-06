@@ -9,6 +9,7 @@ import { buildLabel } from './lib/buildInfo';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
 import { useCompactLayout } from './lib/useCompactLayout';
+import { useTelegramViewport } from './lib/useTelegramViewport';
 import {
   loadAccountSheet,
   loadGlobeScreen,
@@ -120,6 +121,10 @@ const App = () => {
   const sessionDurationReportedRef = useRef(false);
   const versionLabel = buildLabel();
   const isCompactLayout = useCompactLayout();
+  // PR-2: keep the CSS shell in sync with the live Telegram webview viewport +
+  // safe-area (and visualViewport outside Telegram) so nothing overlaps when the
+  // header/keyboard resize the usable height after mount.
+  useTelegramViewport();
   const lowPowerShell = useMemo(() => getDeviceProfile().lowPower, []);
   const legacyWinampQuery = useMemo(() => {
     if (typeof window === 'undefined') return false;
