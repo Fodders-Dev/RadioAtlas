@@ -1094,28 +1094,39 @@ for (const width of [360, 390]) {
         const rect = node.getBoundingClientRect();
         return rect.left >= -1 && rect.left < window.innerWidth - 24 && rect.top < window.innerHeight - 160;
       }).length;
-      const railListStyle = window.getComputedStyle(
-        document.querySelector('[data-home-rail] .home-horizontal-scroll') as Element
-      );
+      // PR-5: discovery rails (e.g. trending) are single-row horizontal PEEK
+      // lanes; the personalised lead rail (fresh-now) is a 2-column grid.
+      const peek = document.querySelector('[data-home-rail="trending"] .home-horizontal-scroll');
+      const peekStyle = peek ? window.getComputedStyle(peek) : null;
+      const forYou = document.querySelector('[data-home-rail="fresh-now"] .home-horizontal-scroll');
+      const forYouStyle = forYou ? window.getComputedStyle(forYou) : null;
 
       return {
         topbarHeight: topbar?.height || 0,
         personalRadioHeight: personalRadio?.height || 0,
         visibleRailTiles,
-        railDisplay: railListStyle.display,
-        railOverflowX: railListStyle.overflowX,
-        railRows: railListStyle.gridTemplateRows
+        peekDisplay: peekStyle?.display || '',
+        peekOverflowX: peekStyle?.overflowX || '',
+        peekRowCount: (peekStyle?.gridTemplateRows || '').trim().split(/\s+/).filter(Boolean).length,
+        forYouColCount: (forYouStyle?.gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length
       };
     });
     expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
-    expect(compactHomeMetrics.personalRadioHeight).toBeLessThanOrEqual(72);
-    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(5);
-    expect(compactHomeMetrics.railDisplay).toBe('grid');
-    expect(compactHomeMetrics.railRows).not.toBe('none');
-    expect(compactHomeMetrics.railOverflowX).toBe('auto');
+    // PR-5: the "Моя волна" hero is now a prominent stacked card, not the old
+    // ≤72px compact strip.
+    expect(compactHomeMetrics.personalRadioHeight).toBeGreaterThan(72);
+    // Big cards + calm rhythm → a few above the fold, not a dozen (the grid's
+    // first row alone clears the fold on the smallest 360px screens).
+    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(2);
+    // The discovery peek rail is a single-row horizontal scroller.
+    expect(compactHomeMetrics.peekDisplay).toBe('grid');
+    expect(compactHomeMetrics.peekOverflowX).toBe('auto');
+    expect(compactHomeMetrics.peekRowCount).toBe(1);
+    // The personalised "Для тебя" lead rail is a 2-column grid.
+    expect(compactHomeMetrics.forYouColCount).toBe(2);
     await expect(page.locator('.home-rail-scroll-controls').first()).toBeVisible();
-    const firstRail = page.locator('[data-home-rail]').first();
-    const railScroll = firstRail.locator('.home-horizontal-scroll');
+    const peekRail = page.locator('[data-home-rail="trending"]');
+    const railScroll = peekRail.locator('.home-horizontal-scroll');
     const beforeScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
     const afterWheelScrollLeft = await railScroll.evaluate((node) => {
       node.dispatchEvent(new WheelEvent('wheel', { deltaY: 360, bubbles: true, cancelable: true }));
@@ -1124,7 +1135,7 @@ for (const width of [360, 390]) {
     const canScrollRail = await railScroll.evaluate((node) => node.scrollWidth > node.clientWidth);
     if (canScrollRail) {
       expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
-      await firstRail.locator('.home-rail-scroll-btn').last().click();
+      await peekRail.locator('.home-rail-scroll-btn').last().click();
       const afterButtonScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
       expect(afterButtonScrollLeft).toBeGreaterThanOrEqual(afterWheelScrollLeft);
     }
@@ -2846,7 +2857,11 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     expect(chipRowOverscroll).toBe('contain');
   });
 
-  test('C: dense rail tile is ~112px wide with a 64px artwork (room for 2-line title)', async ({
+  // PR-5: discovery rails became single-row PEEK lanes of large-cover cards
+  // (~150px wide, ~2.3 in view, cover fills the card), and the personalised lead
+  // rail (fresh-now / "Для тебя") became a 2-column grid of large cards — the
+  // mobile-first redesign that replaced the old 112px / 64px-thumbnail 2-row grid.
+  test('C: discovery peek rail uses large-cover cards; «Для тебя» is a 2-col grid', async ({
     page
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -2855,40 +2870,43 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
 
-    const tile = page.locator('[data-home-rail] [data-home-station]').first();
-    const tileWidth = await tile.evaluate((el) => Math.round(el.getBoundingClientRect().width));
-    // The dense rail-tile column is fixed at 112px (T_mobile_1 brief: "tile
-    // ~110-130px wide, 3-4 fit per rail at 390px"). Allow a tiny tolerance.
-    expect(tileWidth).toBeGreaterThanOrEqual(108);
-    expect(tileWidth).toBeLessThanOrEqual(130);
+    // Inspect a peek rail (trending) — not the personalised lead (a grid).
+    const peekTile = page.locator('[data-home-rail="trending"] [data-home-station]').first();
+    const tileWidth = await peekTile.evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    expect(tileWidth).toBeGreaterThanOrEqual(140);
+    expect(tileWidth).toBeLessThanOrEqual(164);
 
-    // Artwork shrank from 112 (full-bleed) to 64 so each tile loses ~50px of
-    // vertical height — twice that per rail (2-row grid) — and the 2nd rail
-    // climbs back into the fold. Title now reliably wraps to 2 lines instead
-    // of being squeezed under a 112×112 image.
-    const artworkWidth = await tile
+    // The cover fills the card width (large artwork), not a 64px thumbnail.
+    const artworkWidth = await peekTile
       .locator('.station-artwork-card')
       .first()
       .evaluate((el) => Math.round(el.getBoundingClientRect().width));
-    expect(artworkWidth).toBeLessThanOrEqual(72);
+    expect(artworkWidth).toBeGreaterThanOrEqual(120);
 
-    // Three tile columns fit in the first row of the 2-row column-flow grid:
-    // gather every tile, group by the y coordinate of its top, take the first
-    // row, and assert it has at least 3 tiles.
-    const tilesPerFirstRow = await page
-      .locator('[data-home-rail] [data-home-station]')
+    // The peek rail is a single row (peek lane, not a 2-row grid): every tile
+    // shares one top coordinate.
+    const peekRowCount = await page
+      .locator('[data-home-rail="trending"] [data-home-station]')
+      .evaluateAll(
+        (nodes) =>
+          new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().top / 8) * 8)).size
+      );
+    expect(peekRowCount).toBe(1);
+
+    // The personalised "Для тебя" lead rail (fresh-now) is a 2-column grid: its
+    // first row holds exactly 2 cards.
+    const forYouFirstRow = await page
+      .locator('[data-home-rail="fresh-now"] [data-home-station]')
       .evaluateAll((nodes) => {
         if (!nodes.length) return 0;
         const rows = new Map<number, number>();
         for (const node of nodes) {
-          // Bucket by 8px so sub-pixel offsets don't split a row in two.
           const key = Math.round(node.getBoundingClientRect().top / 8) * 8;
           rows.set(key, (rows.get(key) || 0) + 1);
         }
-        const firstRowTop = Math.min(...rows.keys());
-        return rows.get(firstRowTop) || 0;
+        return rows.get(Math.min(...rows.keys())) || 0;
       });
-    expect(tilesPerFirstRow).toBeGreaterThanOrEqual(3);
+    expect(forYouFirstRow).toBe(2);
   });
 });
 

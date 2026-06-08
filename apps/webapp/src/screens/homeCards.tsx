@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import type {
   HomeHeroModule,
@@ -474,6 +474,15 @@ export const HomeRail = ({
   const { t } = useLocale();
   const railRef = useRef<HTMLDivElement | null>(null);
   const visibleStations = module.stations.slice(0, dense ? 6 : module.stations.length);
+  // PR-5: on mobile the personalised "Для тебя" rail (fresh-now) becomes a
+  // 2-column grid of large cards instead of a peek rail — shown 4-up with a
+  // "Показать все" expander (the personalised pool is capped at 6). Desktop is
+  // unchanged (keeps its featured-lead peek rail).
+  const [showAll, setShowAll] = useState(false);
+  const forYouGrid = dense && module.id === 'fresh-now';
+  const renderedStations =
+    forYouGrid && !showAll ? visibleStations.slice(0, 4) : visibleStations;
+  const canShowAll = forYouGrid && !showAll && visibleStations.length > 4;
   const scrollRail = (direction: -1 | 1) => {
     const node = railRef.current;
     if (!node) return;
@@ -504,7 +513,7 @@ export const HomeRail = ({
     node.addEventListener('wheel', handler, { passive: false });
     return () => node.removeEventListener('wheel', handler);
   }, []);
-  const showScrollControls = visibleStations.length > (dense ? 3 : 4);
+  const showScrollControls = !forYouGrid && visibleStations.length > (dense ? 3 : 4);
   const scrollButtonIcon = (direction: -1 | 1) => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d={direction < 0 ? 'M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1z' : 'M8.3 18.7 15 12 8.3 5.3l1.4-1.4 8.1 8.1-8.1 8.1z'} />
@@ -514,7 +523,7 @@ export const HomeRail = ({
   return (
     <section
       id={`home-rail-${module.id}`}
-      className={`home-rail-card ${dense ? 'is-dense' : ''} ${variant === 'logo-strip' ? 'home-rail--logo-strip' : ''}`.trim()}
+      className={`home-rail-card ${dense ? 'is-dense' : ''} ${variant === 'logo-strip' ? 'home-rail--logo-strip' : ''} ${forYouGrid ? 'home-rail-card--grid' : ''}`.trim()}
       data-home-rail={module.id}
       data-home-rail-variant={variant === 'default' ? undefined : variant}
     >
@@ -558,7 +567,7 @@ export const HomeRail = ({
         className="home-horizontal-scroll home-rail-list"
         ref={railRef}
       >
-        {visibleStations.map((station, index) => (
+        {renderedStations.map((station, index) => (
           <HomeStationTile
             key={station.stationuuid}
             station={station}
@@ -570,12 +579,25 @@ export const HomeRail = ({
             activeTrack={currentStationId === station.stationuuid ? activeTrack : null}
             liked={isFavorite(station.stationuuid)}
             featured={variant === 'featured-lead' && index === 0 && !dense}
-            logoOnly={variant === 'logo-strip'}
+            // PR-5: the artwork-only logo strip stays a desktop "fast-scan" lane;
+            // on mobile top-voted renders full cards so name + location are
+            // readable (owner's discovery-rail spec).
+            logoOnly={variant === 'logo-strip' && !dense}
             onPlay={onPlay}
             onToggleFavorite={onToggleFavorite}
           />
         ))}
       </div>
+
+      {canShowAll ? (
+        <button
+          className="home-rail-show-all"
+          type="button"
+          onClick={() => setShowAll(true)}
+        >
+          {t('home.showAll')}
+        </button>
+      ) : null}
     </section>
   );
 };

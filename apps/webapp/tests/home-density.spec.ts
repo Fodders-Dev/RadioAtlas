@@ -119,10 +119,15 @@ test.describe('T2.20 Home density', () => {
     expect((kickerText || '').trim()).toBe('');
   });
 
-  test('mobile: ≥6 station tiles above the fold', async ({ page }) => {
+  // PR-5: the mobile Home was rebuilt mobile-first — a large "Моя волна" hero, a
+  // 2-column "Для тебя" grid of large cards, and discovery PEEK rails (~2.3 big
+  // covers in view). That deliberately trades the old packed density (≥6 above
+  // fold) for a calmer rhythm with bigger, finger-friendly cards, so a handful of
+  // large tiles sit above the fold rather than a dozen small ones.
+  test('mobile: a few large station tiles sit above the fold (calm rhythm)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openHome(page);
 
-    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(6);
+    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(3);
   });
 });

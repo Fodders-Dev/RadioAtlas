@@ -179,6 +179,7 @@ export const ruDictionary = {
     "openSearch": "Открыть поиск",
     "openLibrary": "Открыть медиатеку",
     "refreshFeed": "Обновить витрину",
+    "showAll": "Показать все",
     "heroEmptyTitle": "Собираем витрину",
     "heroEmptyCopy": "Сейчас подтянем свежие станции для этой сессии.",
     "heroExploreHint": "Похожее можно открыть через поиск",
