@@ -276,6 +276,10 @@ const startSearchQueueAndOpenFullPlayer = async (page: Page, query = 'jpop') => 
     (node as HTMLButtonElement).click();
   });
   await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  // PR-6: on mobile the queue lives in a bottom sheet, closed by default —
+  // open it so the queue-item assertions (and the callers' queue interactions
+  // that follow) have the rows in the DOM.
+  await openFullPlayerQueueSheet(page);
   await expect
     .poll(async () => {
       const queue = await readStoredQueue(page);
@@ -287,6 +291,26 @@ const startSearchQueueAndOpenFullPlayer = async (page: Page, query = 'jpop') => 
         .catch(() => false);
     })
     .toBe(true);
+};
+
+// PR-6: open the mobile player's queue bottom-sheet. The queue chip sits on the
+// face when the record button isn't there (VITE_TG_BOT unset — the e2e case);
+// with the bot configured, record owns that slot and the queue lives in the
+// «Ещё» actions sheet instead — handle both so the suite doesn't depend on env.
+const openFullPlayerQueueSheet = async (page: Page) => {
+  const overlay = page.locator('[data-full-player-overlay]');
+  const faceQueueChip = overlay.getByRole('button', { name: /^(Очередь|Queue)$/ }).first();
+  if (await faceQueueChip.isVisible().catch(() => false)) {
+    await faceQueueChip.click();
+  } else {
+    await overlay.getByRole('button', { name: /^(Ещё|More)$/ }).first().click();
+    await page
+      .locator('.full-player-sheet')
+      .getByRole('button', { name: /Очередь|Queue/ })
+      .first()
+      .click();
+  }
+  await expect(page.locator('[data-full-player-queue]')).toBeVisible();
 };
 
 const readStoredQueue = async (page: Page) =>
@@ -2272,12 +2296,21 @@ test('mobile dock artwork opens full player', async ({ page }) => {
   await expect(page.locator('#webamp')).toHaveCount(0);
   await expect(overlay.locator('.full-player-artwork').first()).toBeVisible();
   await expect(overlay.locator('[data-full-player-track]')).toContainText(/Mock Song|Название трека пока недоступно|Track title unavailable/i);
-  await expect(overlay.locator('.full-player-track-list')).toContainText('Mock Song');
-  await expect(overlay.locator('[data-full-player-queue]')).toContainText(/Tokyo FM|Станций в очереди|stations in queue/i);
-  await expect(overlay).toContainText(/Детали|Details/);
+
+  // PR-6: queue + recent tracks live in the queue bottom-sheet now (a sibling
+  // of the overlay root, so page-scoped selectors).
+  await openFullPlayerQueueSheet(page);
+  await expect(page.locator('.full-player-track-list')).toContainText('Mock Song');
+  await expect(page.locator('[data-full-player-queue]')).toContainText(/Tokyo FM|Станций в очереди|stations in queue/i);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-full-player-queue]')).toHaveCount(0);
+
+  // PR-6: details/hide moved into the «Ещё» actions sheet.
+  await overlay.getByRole('button', { name: /^(Ещё|More)$/ }).first().click();
+  await expect(page.locator('.full-player-sheet')).toContainText(/Детали|Details/);
 
   await page
-    .locator('[data-full-player-overlay]')
+    .locator('.full-player-sheet')
     .getByRole('button', { name: /^Скрыть$|^Hide$/ })
     .first()
     .click();
@@ -2333,7 +2366,7 @@ test('mobile full player queue can play reorder remove and clear upcoming', asyn
       return queue.items[queue.currentIndex]?.stationuuid;
     })
     .toBe(secondUpcoming.stationuuid);
-  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(secondUpcoming.name);
+  await expect(page.locator('[data-full-player-overlay] h1')).toContainText(secondUpcoming.name);
 
   const afterPlayQueue = await readStoredQueue(page);
   const removeTarget = afterPlayQueue.items[afterPlayQueue.currentIndex + 1];
@@ -2376,7 +2409,7 @@ test('mobile full player queue can play reorder remove and clear upcoming', asyn
     .then(() => readStoredQueue(page));
   expect(afterClearQueue.items[afterClearQueue.currentIndex].stationuuid).toBe(secondUpcoming.stationuuid);
   expect(afterClearQueue.items.length).toBe(afterClearQueue.currentIndex + 1);
-  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(secondUpcoming.name);
+  await expect(page.locator('[data-full-player-overlay] h1')).toContainText(secondUpcoming.name);
 });
 
 test('mobile full player removing current starts next or stops when queue is empty', async ({ page }) => {
@@ -2398,7 +2431,7 @@ test('mobile full player removing current starts next or stops when queue is emp
       return queue.items[queue.currentIndex]?.stationuuid;
     })
     .toBe(next.stationuuid);
-  await expect(page.locator('[data-full-player-overlay] h2')).toContainText(next.name);
+  await expect(page.locator('[data-full-player-overlay] h1')).toContainText(next.name);
   await expect
     .poll(async () =>
       page
@@ -2444,8 +2477,17 @@ test('mobile full player opens library queue and station details', async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await startSearchQueueAndOpenFullPlayer(page);
 
+  // PR-6: the helper leaves the queue sheet open; details lives in the «Ещё»
+  // actions sheet — close the queue first, then route through the sheet.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-full-player-queue]')).toHaveCount(0);
   await page
     .locator('[data-full-player-overlay]')
+    .getByRole('button', { name: /^(Ещё|More)$/ })
+    .first()
+    .click();
+  await page
+    .locator('.full-player-sheet')
     .getByRole('button', { name: /Детали|Details/ })
     .click();
   await expect(page.locator('.details-overlay')).toBeVisible();
@@ -2459,7 +2501,12 @@ test('mobile full player opens library queue and station details', async ({ page
   await expect(page.locator('.details-overlay')).toHaveCount(0);
 
   await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
-  await page.getByRole('button', { name: /Открыть очередь|Open queue/ }).click();
+  // PR-6: "Open queue in library" is the queue-sheet toolbar action now.
+  await openFullPlayerQueueSheet(page);
+  await page
+    .locator('[data-full-player-queue]')
+    .getByRole('button', { name: /Открыть очередь|Open queue/ })
+    .click();
   await expect(page.locator('[data-full-player-overlay]')).toHaveCount(0);
   await expect(page.locator('.screen-library-v2')).toBeVisible();
   await expect(page.locator('.library-tab-chip.active')).toContainText(/Очередь|Queue/);

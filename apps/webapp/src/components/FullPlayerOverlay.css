@@ -495,46 +495,397 @@
   white-space: normal;
 }
 
+/* ============================================================================
+   PR-6 mobile stage (≤720px) — the full player is a FIXED, non-scrolling
+   now-playing screen (hero artwork → identity → visualizer → transport →
+   4 labelled action chips). Scroll lives only inside the bottom sheets (queue /
+   overflow actions). The desktop DOM (.full-player-now / .full-player-content-
+   grid) never renders at these widths — the component branches at the same
+   720px breakpoint — so every rule here targets the mobile structure only.
+   ========================================================================== */
 @media (max-width: 720px) {
-  .full-player-header {
-    padding-inline: 12px;
+  .full-player-header--stage {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: calc(var(--space-sm) + var(--shell-safe-top)) var(--space-md) var(--space-xs);
   }
 
-  .full-player-main {
-    gap: 10px;
-    padding-inline: 12px;
+  .full-player-header--stage .full-player-icon-btn {
+    width: 44px;
+    height: 44px;
   }
 
-  .full-player-now {
-    grid-template-columns: 118px minmax(0, 1fr);
-    min-height: 134px;
+  .full-player-header--stage .full-player-kicker {
+    max-width: 100%;
+    justify-self: center;
+    text-align: center;
   }
 
-  .full-player-copy h1 {
-    font-size: 25px;
+  .full-player-main--stage {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-md);
+    overflow: hidden;
+    padding: 0 var(--space-lg) calc(var(--space-lg) + var(--shell-safe-bottom));
   }
 
-  .full-player-actions {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+  .full-player-hero {
+    flex: 0 0 auto;
+    width: min(64vw, 240px);
+    aspect-ratio: 1;
+    margin: var(--space-sm) auto 0;
+  }
+
+  .full-player-hero .full-player-artwork.station-artwork-card {
+    width: 100%;
+    height: 100%;
+  }
+
+  .full-player-identity {
+    position: relative;
+    z-index: 0;
+    display: grid;
+    gap: var(--space-xs);
+    justify-items: center;
+    padding: var(--space-sm) var(--space-md);
+    text-align: center;
+  }
+
+  /* PR-1 contrast: the identity block sits directly over the reactive backdrop
+     glow, so a committed theme-aware scrim (dark wash on dark themes, light on
+     Warm Light via var(--bg)) keeps the name/tags at AA without flattening the
+     glow elsewhere on the stage. */
+  .full-player-identity::before {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--space-sm)) calc(-1 * var(--space-lg));
+    z-index: -1;
+    border-radius: var(--radius-xl);
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--bg) 66%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 38%, transparent) 62%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  .full-player-live-pill {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
+    max-width: 100%;
+    min-height: 24px;
+    padding: 2px var(--space-md);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--bg) 56%, transparent);
+    color: var(--text-strong);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
 
-  .full-player-action-chip {
-    min-height: 46px;
-    padding-inline: 6px;
+  .full-player-live-pill em {
+    overflow: hidden;
+    color: var(--muted);
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    text-transform: none;
   }
 
-  .full-player-action-chip span {
-    display: none;
+  .full-player-live-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
   }
 
-  .full-player-content-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .full-player-live-pill[data-tone='warning'] .full-player-live-dot {
+    background: #f6c177;
+    box-shadow: 0 0 8px rgba(246, 193, 119, 0.7);
   }
 
-  .full-player-queue-list,
-  .full-player-track-list {
-    max-height: 24vh;
+  .full-player-identity h1 {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: var(--text-strong);
+    font-size: clamp(20px, 6.2vw, 26px);
+    font-weight: 800;
+    line-height: 1.1;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .full-player-identity p {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    max-width: 100%;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .full-player-identity .full-player-track {
+    width: auto;
+    max-width: 100%;
+    min-height: 44px;
+    margin-top: var(--space-xs);
+  }
+
+  /* The visualizer's auto top margin is the breathing absorber: tall screens
+     open space between identity and the control cluster, short screens
+     compress to content height before anything clips. */
+  .full-player-main--stage .full-player-visualizer {
+    width: min(280px, 100%);
+    height: 34px;
+    margin: auto auto 0;
+  }
+
+  .full-player-main--stage .full-player-controls {
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+    justify-items: center;
+    width: 100%;
+    max-width: 320px;
+    margin-inline: auto;
+    gap: var(--space-lg);
+  }
+
+  .full-player-main--stage .full-player-controls .full-player-icon-btn {
+    width: 56px;
+    height: 56px;
+  }
+
+  .full-player-main--stage .full-player-primary-btn {
+    width: 72px;
+    height: 72px;
+    min-height: 72px;
+    border-radius: var(--radius-full);
+  }
+
+  .full-player-main--stage .full-player-primary-btn svg,
+  .full-player-main--stage .full-player-primary-btn .theme-action-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* PR-6: exactly four LABELLED chips (icon over an 11px caption) — the old
+     icon-only `span { display: none }` mobile rule is intentionally gone. */
+  .full-player-main--stage .full-player-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    max-width: 400px;
+    margin-inline: auto;
+    gap: var(--space-sm);
+  }
+
+  .full-player-main--stage .full-player-action-chip {
+    position: relative;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-height: 56px;
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  .full-player-main--stage .full-player-action-chip span {
+    max-width: 100%;
+  }
+
+  .full-player-action-badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    color: var(--text-strong);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  /* --------------------------------------------------------------------------
+     Bottom sheets — queue [S2] and overflow actions [S1]. SettingsSheet React
+     contract, bottom-anchored card; the only scrollable surfaces on mobile.
+     ------------------------------------------------------------------------ */
+  .full-player-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 130;
+  }
+
+  .full-player-sheet-scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(2, 6, 12, 0.56);
+    cursor: pointer;
+  }
+
+  .full-player-sheet-card {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 80dvh;
+    padding: var(--space-sm) var(--space-lg) calc(var(--space-lg) + var(--shell-safe-bottom));
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay-strong) 92%, transparent), color-mix(in srgb, var(--surface-overlay-strong) 84%, transparent)),
+      var(--theme-bg-image);
+    background-position: center;
+    background-size: auto, cover;
+    color: var(--text);
+    overflow: auto;
+    overscroll-behavior: contain;
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .full-player-sheet-handle {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto var(--space-sm);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text) 30%, transparent);
+  }
+
+  .full-player-sheet-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
+  .full-player-sheet-head > div {
+    min-width: 0;
+  }
+
+  .full-player-sheet-kicker {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .full-player-sheet-title {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .full-player-sheet-close {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+  }
+
+  .full-player-sheet-rows {
+    display: grid;
+    gap: var(--space-sm);
+  }
+
+  .full-player-action-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    min-height: 48px;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .full-player-action-row svg {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .full-player-action-row span {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .full-player-action-row em {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .full-player-action-row.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
+  .full-player-action-row:disabled {
+    cursor: default;
+    opacity: 0.48;
+  }
+
+  .full-player-sheet-panels {
+    display: grid;
+    gap: var(--space-md);
+  }
+
+  /* Inside the sheet the panel chrome is redundant — the card already carries
+     border/blur — and the queue list owns the legit scroll (spec: 60dvh). */
+  .full-player-sheet .full-player-panel {
+    padding: 0;
+    border: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .full-player-sheet .full-player-queue-list {
+    max-height: 60dvh;
+  }
+
+  .full-player-sheet .full-player-track-list {
+    max-height: none;
+    overflow: visible;
   }
 
   .full-player-queue-toolbar {
@@ -551,9 +902,11 @@
     gap: 4px;
   }
 
+  /* PR-3: queue row controls get the 40px dense floor (were 30px) — the sheet
+     has the room, and three of them + artwork still fit a 360px row. */
   .full-player-queue-btn {
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
   }
 
   .full-player-queue-item.active .full-player-queue-btn[data-queue-action^='move'] {
@@ -561,28 +914,29 @@
   }
 }
 
+/* Very short viewports (≤700px tall): shrink the hero before anything clips —
+   the stage is overflow:hidden by design, so height is budgeted, not scrolled. */
+@media (max-width: 720px) and (max-height: 700px) {
+  .full-player-hero {
+    width: min(52vw, 190px);
+  }
+}
+
 @media (max-width: 380px) {
-  .full-player-now {
-    grid-template-columns: 104px minmax(0, 1fr);
+  .full-player-main--stage .full-player-controls {
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    gap: var(--space-md);
   }
 
-  .full-player-controls {
-    grid-template-columns: 52px minmax(84px, 112px) 52px;
-    gap: var(--space-sm);
-  }
-
-  .full-player-controls .full-player-icon-btn {
+  .full-player-main--stage .full-player-controls .full-player-icon-btn {
     width: 52px;
     height: 52px;
   }
 
-  .full-player-primary-btn {
-    min-height: 60px;
-  }
-
-  .full-player-queue-btn {
-    width: 28px;
-    height: 28px;
+  .full-player-main--stage .full-player-primary-btn {
+    width: 64px;
+    height: 64px;
+    min-height: 64px;
   }
 
   .full-player-queue-actions {

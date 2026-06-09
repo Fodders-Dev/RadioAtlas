@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import {
@@ -24,6 +24,13 @@ type FullPlayerOverlayProps = {
 const actionIcon = {
   close: (
     <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6 6.4 5Z" />
+  ),
+  collapse: <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />,
+  more: (
+    <path d="M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+  ),
+  queue: (
+    <path d="M3 6h12v2H3V6Zm0 5h12v2H3v-2Zm0 5h8v2H3v-2Zm16-2.55V6h2v9.5a3.25 3.25 0 1 1-2-3.05ZM17.75 19a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z" />
   ),
   previous: <path d="M7 6h2v12H7V6Zm3 6 8 6V6l-8 6Z" />,
   play: <path d="M8 5v14l11-7L8 5Z" />,
@@ -64,6 +71,94 @@ const Icon = ({ children }: { children: ReactNode }) => (
 const formatStationMeta = (station: StationLite | null, fallback: string) =>
   station ? `${stationLocation(station)} · ${stationTags(station)}` : fallback;
 
+// PR-6: the player has two render branches. ≤720px gets the mobile-first stage
+// (fixed now-playing + bottom sheets); >720px keeps the previous desktop DOM
+// byte-identical (2-col .full-player-now + inline panels). The breakpoint
+// matches the CSS @media (max-width: 720px) block exactly so the JS branch and
+// the stylesheet can never disagree.
+const MOBILE_PLAYER_QUERY = '(max-width: 720px)';
+
+const useMobilePlayerLayout = () => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(MOBILE_PLAYER_QUERY).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia(MOBILE_PLAYER_QUERY);
+    const update = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+    setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener('change', update);
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
+
+  return isMobile;
+};
+
+type FullPlayerSheetProps = {
+  open: boolean;
+  onClose: () => void;
+  kicker: string;
+  title: string;
+  children: ReactNode;
+};
+
+// PR-6: bottom-anchored sheet for the mobile player (queue / overflow actions).
+// Reuses the SettingsSheet React contract (useDialog scrim + focus trap, mounted
+// only while open) with its own bottom-sheet CSS. Rendered as a SIBLING of the
+// overlay root, not a child: useDialog's focus trap listens on its own root and
+// inerts siblings, so nesting one dialog root inside another would double-handle
+// every Tab. As a sibling (the StationDetails pattern) the sheet inerts the
+// overlay underneath and restores focus to the control that opened it on close.
+const FullPlayerSheet = ({ open, onClose, kicker, title, children }: FullPlayerSheetProps) => {
+  const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: open, onClose });
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="full-player-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <button
+        className="full-player-sheet-scrim"
+        type="button"
+        onClick={onClose}
+        aria-label={t('common.close')}
+      />
+      <div className="full-player-sheet-card">
+        <span className="full-player-sheet-handle" aria-hidden="true" />
+        <div className="full-player-sheet-head">
+          <div>
+            <div className="full-player-sheet-kicker">{kicker}</div>
+            <div className="full-player-sheet-title" id={titleId}>
+              {title}
+            </div>
+          </div>
+          <button
+            className="full-player-icon-btn full-player-sheet-close"
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
+            <Icon>{actionIcon.collapse}</Icon>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const { t } = useLocale();
   const {
@@ -89,6 +184,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   } = useLibrary();
   const { setActiveSection, setLibraryTab, winamp } = useShell();
   const rootRef = useRef<HTMLDivElement>(null);
+  const isMobileLayout = useMobilePlayerLayout();
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
+  const [queueSheetOpen, setQueueSheetOpen] = useState(false);
   // Mounted only while open (App.tsx gates on winamp.expanded), so isOpen
   // is true for the hook's lifetime; close routes through setExpanded.
   // The dock that opened this unmounts while the overlay is up, so restore
@@ -136,6 +234,22 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     [current, trackHistory]
   );
 
+  // PR-6: live pill on the mobile identity block — same status derivation as the
+  // dock (buffering with recent transport failures reads as a reconnect).
+  const recordAvailable = Boolean(import.meta.env.VITE_TG_BOT);
+  const livePillState =
+    current && player.status === 'buffering'
+      ? {
+          tone: 'warning' as const,
+          label:
+            player.transport.recentFailures.length > 0
+              ? t('dock.reconnecting')
+              : t('dock.buffering')
+        }
+      : current && player.isPlaying
+        ? { tone: 'live' as const, label: t('app.liveBadge') }
+        : null;
+
   const handlePrimary = () => {
     if (current) {
       void player.toggle();
@@ -162,6 +276,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     setLibraryTab('queue');
     setActiveSection('library');
     winamp.setExpanded(false);
+  };
+
+  const openActionsSheet = () => setActionsSheetOpen(true);
+  const openQueueSheet = () => {
+    setActionsSheetOpen(false);
+    setQueueSheetOpen(true);
   };
 
   const renderQueueItem = (station: StationLite, index: number) => {
@@ -222,239 +342,439 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     );
   };
 
-  return (
-    <div
-      ref={rootRef}
-      className="full-player-overlay fullscreen-ui"
-      data-full-player-overlay
-      role="dialog"
-      aria-modal="true"
-      aria-label={normalizeStationName(current?.name) || t('dock.ready')}
+  // Shared verbatim pieces — used by both layout branches so the desktop DOM
+  // stays byte-identical while mobile recomposes around them.
+  const renderTrackButton = () => (
+    <button
+      className="full-player-track"
+      type="button"
+      disabled={!canCopyTrack}
+      onClick={() => {
+        if (canCopyTrack) void copyTrack();
+      }}
+      data-full-player-track
     >
-      <FullPlayerBackdrop active={player.visualizer.active} subscribe={player.subscribeVisualizer} />
-      <header className="full-player-header">
-        <div>
-          <span className="full-player-kicker">{queueLabel}</span>
-          <h2>{normalizeStationName(current?.name) || t('dock.emptyTitle')}</h2>
-        </div>
+      <span>{displayTrack}</span>
+      {canCopyTrack ? <Icon>{actionIcon.copy}</Icon> : null}
+    </button>
+  );
+
+  const renderTransport = () => (
+    <section className="full-player-controls" aria-label={t('dock.ready')}>
+      <button
+        className="full-player-icon-btn"
+        type="button"
+        onClick={() => {
+          triggerHaptic();
+          playPrevious();
+        }}
+        disabled={!canResume}
+        aria-label={t('common.previous')}
+      >
+        <ThemeActionIcon name="prev">{actionIcon.previous}</ThemeActionIcon>
+      </button>
+      <button
+        className={`full-player-primary-btn ${player.isPlaying ? 'active' : ''}`}
+        type="button"
+        onClick={() => {
+          triggerHaptic();
+          handlePrimary();
+        }}
+        disabled={!canResume}
+        aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
+      >
+        <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
+          {player.isPlaying ? actionIcon.pause : actionIcon.play}
+        </ThemeActionIcon>
+      </button>
+      <button
+        className="full-player-icon-btn"
+        type="button"
+        onClick={() => {
+          triggerHaptic();
+          playNext();
+        }}
+        disabled={!canResume}
+        aria-label={t('common.next')}
+      >
+        <ThemeActionIcon name="next">{actionIcon.next}</ThemeActionIcon>
+      </button>
+    </section>
+  );
+
+  const renderLikeChip = () => (
+    <button
+      className={`full-player-action-chip ${liked ? 'active' : ''}`}
+      type="button"
+      onClick={() => {
+        if (current) {
+          triggerHaptic();
+          toggleFavorite(current);
+        }
+      }}
+      disabled={!current}
+      aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+    >
+      <ThemeActionIcon name="like">{actionIcon.like}</ThemeActionIcon>
+      <span>{liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}</span>
+    </button>
+  );
+
+  const renderShareChip = () => (
+    <button
+      className="full-player-action-chip"
+      type="button"
+      onClick={() => current && shareStation(current)}
+      disabled={!current}
+      aria-label={t('common.share')}
+    >
+      <Icon>{actionIcon.share}</Icon>
+      <span>{t('common.share')}</span>
+    </button>
+  );
+
+  // Recording PR2 (+PR-6 rehome): deep-links to the bot's /record flow for the
+  // current station. The gate is unchanged — the record UI exists only when the
+  // bot is configured; on mobile it owns the third face slot, otherwise that
+  // slot shows the queue chip instead.
+  const renderRecordChip = () => (
+    <button
+      className="full-player-action-chip"
+      type="button"
+      onClick={() => {
+        if (current) {
+          triggerHaptic();
+          openStationRecording(current.stationuuid);
+        }
+      }}
+      disabled={!current}
+      aria-label={t('winamp.record')}
+    >
+      <Icon>{actionIcon.record}</Icon>
+      <span>{t('winamp.record')}</span>
+    </button>
+  );
+
+  const renderQueuePanel = () => (
+    <div className="full-player-panel" data-full-player-queue>
+      <div className="full-player-panel-head">
+        <h3>{t('winamp.upNext')}</h3>
+        <span>{t('winamp.queueCount', { count: queue.items.length })}</span>
+      </div>
+      <div className="full-player-queue-toolbar">
         <button
-          className="full-player-icon-btn"
+          className="full-player-small-chip"
           type="button"
-          onClick={() => winamp.setExpanded(false)}
-          aria-label={t('details.close')}
+          onClick={queue.clearUpcoming}
+          disabled={activeQueueIndex < 0 || activeQueueIndex >= queue.items.length - 1}
         >
-          <Icon>{actionIcon.close}</Icon>
+          {t('queue.clearUpcoming')}
         </button>
-      </header>
-
-      <main className="full-player-main">
-        <section className="full-player-now" aria-label={t('winamp.currentStation')}>
-          <div className="full-player-artwork-wrap">
-            <StationArtwork station={current} size="card" className="full-player-artwork" />
-          </div>
-          <div className="full-player-copy">
-            <p>{formatStationMeta(current, t('winamp.buildQueue'))}</p>
-            <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
-            <button
-              className="full-player-track"
-              type="button"
-              disabled={!canCopyTrack}
-              onClick={() => {
-                if (canCopyTrack) void copyTrack();
-              }}
-              data-full-player-track
-            >
-              <span>{displayTrack}</span>
-              {canCopyTrack ? <Icon>{actionIcon.copy}</Icon> : null}
-            </button>
-          </div>
-        </section>
-
-        <FullPlayerVisualizer
-          active={player.visualizer.active}
-          subscribe={player.subscribeVisualizer}
-        />
-
-        <section className="full-player-controls" aria-label={t('dock.ready')}>
-          <button
-            className="full-player-icon-btn"
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              playPrevious();
-            }}
-            disabled={!canResume}
-            aria-label={t('common.previous')}
-          >
-            <ThemeActionIcon name="prev">{actionIcon.previous}</ThemeActionIcon>
-          </button>
-          <button
-            className={`full-player-primary-btn ${player.isPlaying ? 'active' : ''}`}
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              handlePrimary();
-            }}
-            disabled={!canResume}
-            aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
-          >
-            <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
-              {player.isPlaying ? actionIcon.pause : actionIcon.play}
-            </ThemeActionIcon>
-          </button>
-          <button
-            className="full-player-icon-btn"
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              playNext();
-            }}
-            disabled={!canResume}
-            aria-label={t('common.next')}
-          >
-            <ThemeActionIcon name="next">{actionIcon.next}</ThemeActionIcon>
-          </button>
-        </section>
-
-        <section className="full-player-actions" aria-label={t('common.actions')}>
-          <button
-            className={`full-player-action-chip ${liked ? 'active' : ''}`}
-            type="button"
-            onClick={() => {
-              if (current) {
-                triggerHaptic();
-                toggleFavorite(current);
-              }
-            }}
-            disabled={!current}
-            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-          >
-            <ThemeActionIcon name="like">{actionIcon.like}</ThemeActionIcon>
-            <span>{liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}</span>
-          </button>
-          <button
-            className="full-player-action-chip"
-            type="button"
-            onClick={() => current && shareStation(current)}
-            disabled={!current}
-            aria-label={t('common.share')}
-          >
-            <Icon>{actionIcon.share}</Icon>
-            <span>{t('common.share')}</span>
-          </button>
-          {canShareToStory() && (
-            <button
-              className="full-player-action-chip"
-              type="button"
-              onClick={() => current && shareStationToStory(current)}
-              disabled={!current}
-              aria-label={t('common.shareStory')}
-            >
-              <Icon>{actionIcon.share}</Icon>
-              <span>{t('common.shareStory')}</span>
-            </button>
-          )}
-          {/* Recording PR2: minimal entry point — deep-links to the bot's
-              /record flow for the current station. Hidden if the bot isn't
-              configured. Placed here for now; the player UI is slated for a
-              mobile-first redesign that will rehome it. */}
-          {Boolean(import.meta.env.VITE_TG_BOT) && (
-            <button
-              className="full-player-action-chip"
-              type="button"
-              onClick={() => {
-                if (current) {
-                  triggerHaptic();
-                  openStationRecording(current.stationuuid);
-                }
-              }}
-              disabled={!current}
-              aria-label={t('winamp.record')}
-            >
-              <Icon>{actionIcon.record}</Icon>
-              <span>{t('winamp.record')}</span>
-            </button>
-          )}
-          <button
-            className="full-player-action-chip"
-            type="button"
-            onClick={() => current && openExternal(current)}
-            disabled={!current?.url_resolved}
-            aria-label={t('common.openBrowser')}
-          >
-            <Icon>{actionIcon.external}</Icon>
-            <span>{t('common.openBrowser')}</span>
-          </button>
-          <button
-            className="full-player-action-chip"
-            type="button"
-            onClick={handleDetails}
-            disabled={!current || !onDetails}
-            aria-label={t('winamp.stationDetails')}
-          >
-            <Icon>{actionIcon.details}</Icon>
-            <span>{t('winamp.stationDetails')}</span>
-          </button>
-          <button
-            className={`full-player-action-chip ${stationHidden ? 'active' : ''}`}
-            type="button"
-            onClick={handleHideStation}
-            disabled={!current}
-            aria-label={stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}
-          >
-            <Icon>{actionIcon.hide}</Icon>
-            <span>{stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}</span>
-          </button>
-        </section>
-
-        <section className="full-player-content-grid">
-          <div className="full-player-panel" data-full-player-queue>
-            <div className="full-player-panel-head">
-              <h3>{t('winamp.upNext')}</h3>
-              <span>{t('winamp.queueCount', { count: queue.items.length })}</span>
-            </div>
-            <div className="full-player-queue-toolbar">
-              <button
-                className="full-player-small-chip"
-                type="button"
-                onClick={queue.clearUpcoming}
-                disabled={activeQueueIndex < 0 || activeQueueIndex >= queue.items.length - 1}
-              >
-                {t('queue.clearUpcoming')}
-              </button>
-              <button className="full-player-small-chip" type="button" onClick={openLibraryQueue}>
-                {t('queue.openLibrary')}
-              </button>
-            </div>
-            <div className="full-player-queue-list">
-              {queuePreview.length ? (
-                queuePreview.map(renderQueueItem)
-              ) : (
-                <div className="full-player-empty">{t('winamp.buildQueue')}</div>
-              )}
-            </div>
-          </div>
-
-          <div className="full-player-panel">
-            <div className="full-player-panel-head">
-              <h3>{t('winamp.recentTracks')}</h3>
-              <span>{current ? current.country || t('common.unknown') : t('common.unknown')}</span>
-            </div>
-            <div className="full-player-track-list">
-              {recentTracks.length ? (
-                recentTracks.map((item) => (
-                  <div className="full-player-track-row" key={item.id}>
-                    <strong>{item.track}</strong>
-                    <span>{item.stationName}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="full-player-empty">{t('details.recentTracksEmpty')}</div>
-              )}
-            </div>
-          </div>
-        </section>
-      </main>
+        <button className="full-player-small-chip" type="button" onClick={openLibraryQueue}>
+          {t('queue.openLibrary')}
+        </button>
+      </div>
+      <div className="full-player-queue-list">
+        {queuePreview.length ? (
+          queuePreview.map(renderQueueItem)
+        ) : (
+          <div className="full-player-empty">{t('winamp.buildQueue')}</div>
+        )}
+      </div>
     </div>
+  );
+
+  const renderRecentPanel = () => (
+    <div className="full-player-panel">
+      <div className="full-player-panel-head">
+        <h3>{t('winamp.recentTracks')}</h3>
+        <span>{current ? current.country || t('common.unknown') : t('common.unknown')}</span>
+      </div>
+      <div className="full-player-track-list">
+        {recentTracks.length ? (
+          recentTracks.map((item) => (
+            <div className="full-player-track-row" key={item.id}>
+              <strong>{item.track}</strong>
+              <span>{item.stationName}</span>
+            </div>
+          ))
+        ) : (
+          <div className="full-player-empty">{t('details.recentTracksEmpty')}</div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div
+        ref={rootRef}
+        className="full-player-overlay fullscreen-ui"
+        data-full-player-overlay
+        role="dialog"
+        aria-modal="true"
+        aria-label={normalizeStationName(current?.name) || t('dock.ready')}
+      >
+        <FullPlayerBackdrop active={player.visualizer.active} subscribe={player.subscribeVisualizer} />
+        {isMobileLayout ? (
+          <>
+            <header className="full-player-header full-player-header--stage">
+              <button
+                className="full-player-icon-btn"
+                type="button"
+                onClick={() => winamp.setExpanded(false)}
+                aria-label={t('details.close')}
+              >
+                <Icon>{actionIcon.collapse}</Icon>
+              </button>
+              <span className="full-player-kicker">{queueLabel}</span>
+              <button
+                className="full-player-icon-btn"
+                type="button"
+                onClick={openActionsSheet}
+                aria-label={t('dock.more')}
+              >
+                <Icon>{actionIcon.more}</Icon>
+              </button>
+            </header>
+
+            <main className="full-player-main full-player-main--stage">
+              <div className="full-player-hero">
+                <StationArtwork station={current} size="card" className="full-player-artwork" />
+              </div>
+
+              <section className="full-player-identity" aria-label={t('winamp.currentStation')}>
+                {livePillState ? (
+                  <span className="full-player-live-pill" data-tone={livePillState.tone}>
+                    <span className="full-player-live-dot" aria-hidden="true" />
+                    {livePillState.label}
+                    {current ? <em>· {stationLocation(current)}</em> : null}
+                  </span>
+                ) : null}
+                <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
+                <p>{current ? stationTags(current) : t('winamp.buildQueue')}</p>
+                {renderTrackButton()}
+              </section>
+
+              <FullPlayerVisualizer
+                active={player.visualizer.active}
+                subscribe={player.subscribeVisualizer}
+              />
+
+              {renderTransport()}
+
+              <section className="full-player-actions" aria-label={t('common.actions')}>
+                {renderLikeChip()}
+                {renderShareChip()}
+                {recordAvailable ? (
+                  renderRecordChip()
+                ) : (
+                  <button
+                    className="full-player-action-chip"
+                    type="button"
+                    onClick={openQueueSheet}
+                    aria-label={t('playlist.title')}
+                  >
+                    <Icon>{actionIcon.queue}</Icon>
+                    <span>{t('playlist.title')}</span>
+                    {queue.items.length ? (
+                      <em className="full-player-action-badge">{queue.items.length}</em>
+                    ) : null}
+                  </button>
+                )}
+                <button
+                  className="full-player-action-chip"
+                  type="button"
+                  onClick={openActionsSheet}
+                  aria-label={t('dock.more')}
+                >
+                  <Icon>{actionIcon.more}</Icon>
+                  <span>{t('dock.more')}</span>
+                </button>
+              </section>
+            </main>
+          </>
+        ) : (
+          <>
+            <header className="full-player-header">
+              <div>
+                <span className="full-player-kicker">{queueLabel}</span>
+                <h2>{normalizeStationName(current?.name) || t('dock.emptyTitle')}</h2>
+              </div>
+              <button
+                className="full-player-icon-btn"
+                type="button"
+                onClick={() => winamp.setExpanded(false)}
+                aria-label={t('details.close')}
+              >
+                <Icon>{actionIcon.close}</Icon>
+              </button>
+            </header>
+
+            <main className="full-player-main">
+              <section className="full-player-now" aria-label={t('winamp.currentStation')}>
+                <div className="full-player-artwork-wrap">
+                  <StationArtwork station={current} size="card" className="full-player-artwork" />
+                </div>
+                <div className="full-player-copy">
+                  <p>{formatStationMeta(current, t('winamp.buildQueue'))}</p>
+                  <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
+                  {renderTrackButton()}
+                </div>
+              </section>
+
+              <FullPlayerVisualizer
+                active={player.visualizer.active}
+                subscribe={player.subscribeVisualizer}
+              />
+
+              {renderTransport()}
+
+              <section className="full-player-actions" aria-label={t('common.actions')}>
+                {renderLikeChip()}
+                {renderShareChip()}
+                {canShareToStory() && (
+                  <button
+                    className="full-player-action-chip"
+                    type="button"
+                    onClick={() => current && shareStationToStory(current)}
+                    disabled={!current}
+                    aria-label={t('common.shareStory')}
+                  >
+                    <Icon>{actionIcon.share}</Icon>
+                    <span>{t('common.shareStory')}</span>
+                  </button>
+                )}
+                {recordAvailable && renderRecordChip()}
+                <button
+                  className="full-player-action-chip"
+                  type="button"
+                  onClick={() => current && openExternal(current)}
+                  disabled={!current?.url_resolved}
+                  aria-label={t('common.openBrowser')}
+                >
+                  <Icon>{actionIcon.external}</Icon>
+                  <span>{t('common.openBrowser')}</span>
+                </button>
+                <button
+                  className="full-player-action-chip"
+                  type="button"
+                  onClick={handleDetails}
+                  disabled={!current || !onDetails}
+                  aria-label={t('winamp.stationDetails')}
+                >
+                  <Icon>{actionIcon.details}</Icon>
+                  <span>{t('winamp.stationDetails')}</span>
+                </button>
+                <button
+                  className={`full-player-action-chip ${stationHidden ? 'active' : ''}`}
+                  type="button"
+                  onClick={handleHideStation}
+                  disabled={!current}
+                  aria-label={stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}
+                >
+                  <Icon>{actionIcon.hide}</Icon>
+                  <span>{stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}</span>
+                </button>
+              </section>
+
+              <section className="full-player-content-grid">
+                {renderQueuePanel()}
+                {renderRecentPanel()}
+              </section>
+            </main>
+          </>
+        )}
+      </div>
+
+      {isMobileLayout ? (
+        <FullPlayerSheet
+          open={actionsSheetOpen}
+          onClose={() => setActionsSheetOpen(false)}
+          kicker={queueLabel}
+          title={t('common.actions')}
+        >
+          <div className="full-player-sheet-rows">
+            <button
+              className="full-player-action-row"
+              type="button"
+              onClick={openQueueSheet}
+            >
+              <Icon>{actionIcon.queue}</Icon>
+              <span>{t('playlist.title')}</span>
+              <em>{t('winamp.queueCount', { count: queue.items.length })}</em>
+            </button>
+            {canShareToStory() && (
+              <button
+                className="full-player-action-row"
+                type="button"
+                onClick={() => {
+                  if (current) shareStationToStory(current);
+                  setActionsSheetOpen(false);
+                }}
+                disabled={!current}
+              >
+                <Icon>{actionIcon.share}</Icon>
+                <span>{t('common.shareStory')}</span>
+              </button>
+            )}
+            <button
+              className="full-player-action-row"
+              type="button"
+              onClick={() => {
+                if (current) openExternal(current);
+                setActionsSheetOpen(false);
+              }}
+              disabled={!current?.url_resolved}
+            >
+              <Icon>{actionIcon.external}</Icon>
+              <span>{t('common.openBrowser')}</span>
+            </button>
+            <button
+              className="full-player-action-row"
+              type="button"
+              onClick={() => {
+                setActionsSheetOpen(false);
+                handleDetails();
+              }}
+              disabled={!current || !onDetails}
+            >
+              <Icon>{actionIcon.details}</Icon>
+              <span>{t('winamp.stationDetails')}</span>
+            </button>
+            <button
+              className={`full-player-action-row ${stationHidden ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                handleHideStation();
+                setActionsSheetOpen(false);
+              }}
+              disabled={!current}
+            >
+              <Icon>{actionIcon.hide}</Icon>
+              <span>{stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}</span>
+            </button>
+            <button className="full-player-action-row" type="button" onClick={openQueueSheet}>
+              <Icon>{actionIcon.copy}</Icon>
+              <span>{t('winamp.recentTracks')}</span>
+            </button>
+          </div>
+        </FullPlayerSheet>
+      ) : null}
+
+      {isMobileLayout ? (
+        <FullPlayerSheet
+          open={queueSheetOpen}
+          onClose={() => setQueueSheetOpen(false)}
+          kicker={queueLabel}
+          title={t('playlist.title')}
+        >
+          <div className="full-player-sheet-panels">
+            {renderQueuePanel()}
+            {renderRecentPanel()}
+          </div>
+        </FullPlayerSheet>
+      ) : null}
+    </>
   );
 };
