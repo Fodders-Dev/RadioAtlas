@@ -236,3 +236,48 @@ test('full player overlay visual baseline', async ({ page }) => {
   });
   expect(overlayShot).toMatchSnapshot('full-player-overlay.png');
 });
+
+// PR-6: the ≤720px player is a separate mobile-first stage (hero artwork,
+// identity block, fixed transport, 4 labelled chips) — pin it at the canonical
+// 360x780 Telegram-webview size so player regressions can't slip past unseen.
+test('full player overlay mobile visual baseline', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'search',
+    trackHistory: [
+      {
+        id: 'track-visual-tokyo',
+        stationId: 'uuid-tokyo',
+        stationName: 'Tokyo FM',
+        track: 'Mock Song',
+        timestamp: Date.UTC(2026, 3, 20, 10, 0, 0)
+      }
+    ]
+  });
+  await page.goto('/?api=/api');
+  await page.locator('#search-hero-input').first().fill('Tokyo');
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await page.locator('.player-dock-artwork-trigger').evaluate((node) => {
+    (node as HTMLButtonElement).click();
+  });
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  await page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    active?.blur?.();
+  });
+  await expect(page.locator('[data-full-player-overlay] h1')).toContainText(/Tokyo FM/);
+  await waitForStableMetrics(page, '[data-full-player-overlay]');
+  const mobileShot = await page.locator('[data-full-player-overlay]').screenshot({
+    animations: 'disabled'
+  });
+  expect(mobileShot).toMatchSnapshot('full-player-overlay-mobile.png');
+
+  // The queue bottom-sheet is the other new PR-6 surface (a sibling of the
+  // overlay root, so this is a full-page shot) — pin it too.
+  await page.getByRole('button', { name: /^(Очередь|Queue)$/ }).first().click();
+  await expect(page.locator('[data-full-player-queue]')).toBeVisible();
+  const sheetShot = await page.screenshot({ animations: 'disabled' });
+  expect(sheetShot).toMatchSnapshot('full-player-queue-sheet-mobile.png');
+});
