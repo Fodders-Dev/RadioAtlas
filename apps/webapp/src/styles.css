@@ -9430,3 +9430,113 @@ body {
     min-height: 40px;
   }
 }
+
+/* ============================================================================
+   Shared bottom sheet (mobile ≤720px) — the PR-6 player-sheet recipe promoted
+   to a common class for Globe and the upcoming screen rebuilds. The player
+   keeps its own .full-player-sheet-* copy for now (deliberately not refactored
+   in the Globe PR). Contract: render as a SIBLING of the screen's root surface
+   (nested useDialog roots double-handle Tab — PR-6 lesson), gate with your own
+   useDialog, mount only while open.
+   ========================================================================== */
+@media (max-width: 720px) {
+  .bottom-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 130;
+  }
+
+  .bottom-sheet-scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(2, 6, 12, 0.56);
+    cursor: pointer;
+  }
+
+  .bottom-sheet-card {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 80dvh;
+    padding: var(--space-sm) var(--space-lg) calc(var(--space-lg) + var(--shell-safe-bottom));
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-overlay-strong) 92%, transparent), color-mix(in srgb, var(--surface-overlay-strong) 84%, transparent)),
+      var(--theme-bg-image);
+    background-position: center;
+    background-size: auto, cover;
+    color: var(--text);
+    overflow: auto;
+    overscroll-behavior: contain;
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .bottom-sheet-handle {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto var(--space-sm);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text) 30%, transparent);
+  }
+
+  .bottom-sheet-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+
+  .bottom-sheet-head > div {
+    min-width: 0;
+  }
+
+  .bottom-sheet-kicker {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .bottom-sheet-title {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bottom-sheet-close {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    border-radius: var(--theme-icon-radius, 16px);
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .bottom-sheet-close svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+}
