@@ -1357,6 +1357,39 @@ for (const width of [360, 390]) {
   });
 }
 
+// Globe mobile rebuild: the cramped corner now-playing card became a
+// full-width thin now-bar; tapping it opens the station-details bottom sheet
+// (the first consumer of the shared .bottom-sheet-card). Opening the sheet
+// must NOT re-trigger playStation — the station is already playing.
+test('mobile globe now-bar opens the station details sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await playHomeStation(page, 'Tokyo FM');
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('.globe canvas')).toBeVisible();
+
+  const nowBar = page.locator('[data-globe-now-bar]');
+  await expect(nowBar).toBeVisible();
+  await expect(nowBar).toContainText('Tokyo FM');
+  await expectNoGlobeHorizontalOverflow(page);
+
+  await nowBar.click();
+  const sheet = page.locator('[data-globe-sheet]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Tokyo FM');
+  // The toggle reads the live playback state (Pause while playing) — proof the
+  // sheet opened without restarting the stream.
+  await expect(sheet.getByRole('button', { name: /Пауза|Pause/ })).toBeVisible();
+  // The sheet (full-width, safe-area-inset bound) must not overflow either.
+  await expectNoGlobeHorizontalOverflow(page);
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(nowBar).toBeVisible();
+});
+
 test('mobile globe pressing zoom + brings up satellite mode', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');

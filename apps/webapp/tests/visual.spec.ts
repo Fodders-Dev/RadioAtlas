@@ -281,3 +281,40 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
   const sheetShot = await page.screenshot({ animations: 'disabled' });
   expect(sheetShot).toMatchSnapshot('full-player-queue-sheet-mobile.png');
 });
+
+// Globe mobile rebuild: pin the new chrome (full-width now-bar, right-centred
+// zoom stack, details sheet) at the canonical 360x780. The full-bleed MapLibre
+// canvas is HIDDEN for the shot (its tiles/projection are not deterministic
+// across runs, and masking it would cover the whole frame) — what remains is
+// the fixed ::before gradient plus exactly the overlay chrome this PR owns.
+test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { activeSection: 'search' });
+  await page.goto('/?api=/api');
+  await page.locator('#search-hero-input').first().fill('Tokyo');
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('.globe canvas')).toBeVisible();
+  const nowBar = page.locator('[data-globe-now-bar]');
+  await expect(nowBar).toBeVisible();
+  await page.addStyleTag({
+    content: '.screen-globe-v3 .globe canvas { visibility: hidden !important; }'
+  });
+  await page.waitForTimeout(450);
+
+  const stageShot = await page.screenshot({ animations: 'disabled' });
+  expect(stageShot).toMatchSnapshot('globe-mobile-now-bar.png');
+
+  await nowBar.click();
+  await expect(page.locator('[data-globe-sheet]')).toBeVisible();
+  const sheetShot = await page.screenshot({
+    animations: 'disabled',
+    // The readout carries the live ≈local-time — mask it or the baseline
+    // changes every minute.
+    mask: [page.locator('.globe-sheet-readout')]
+  });
+  expect(sheetShot).toMatchSnapshot('globe-mobile-sheet.png');
+});

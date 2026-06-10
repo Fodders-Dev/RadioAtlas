@@ -1,11 +1,15 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   buildStateAnchors,
   resolveCountryCoords,
   resolveStationCoords,
   setStateAnchors
 } from '../lib/geoResolver';
+import { normalizeStationName } from '../lib/stationUtils';
 import { useDebounce } from '../lib/useDebounce';
+import { useDialog } from '../lib/useDialog';
+import { useMobileLayout } from '../lib/useMobileLayout';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
@@ -22,12 +26,189 @@ const Globe = lazy(() => import('../components/Globe').then((mod) => ({ default:
 // fallback only shows on the cold "see the whole planet" view.
 const SATELLITE_THRESHOLD = 1.4;
 
+// Roughly approximate local time at a longitude. lon / 15° ≈ UTC
+// offset hours. Inaccurate for political timezones in countries
+// that span many longitudes (Russia, US, China) but good enough
+// for "what time of day is it there?" — the user can look at the
+// map and read "≈ 03:42" rather than guessing whether they're
+// probably waking the locals up.
+const formatLocalTime = (lon: number, now: Date): string => {
+  const offsetMinutes = (lon / 15) * 60;
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
+  const target = new Date(utcMs + offsetMinutes * 60_000);
+  const hh = String(target.getHours()).padStart(2, '0');
+  const mm = String(target.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+const sheetIcon = {
+  play: <path d="M8 5v14l11-7L8 5Z" />,
+  pause: <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" />,
+  clear: (
+    <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6 6.4 5Z" />
+  ),
+  share: (
+    <path d="M18 16.1c-.76 0-1.44.3-1.96.77L8.9 12.7c.06-.23.1-.46.1-.7s-.04-.47-.1-.7l7.06-4.12A2.99 2.99 0 1 0 15 5c0 .24.04.47.1.7L8.04 9.82A3 3 0 1 0 8.04 14.2l7.13 4.18c-.05.2-.08.41-.08.62A2.91 2.91 0 1 0 18 16.1Z" />
+  ),
+  collapse: <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />,
+  expand: <path d="M16.6 15.4 12 10.8l-4.6 4.6L6 14l6-6 6 6-1.4 1.4Z" />
+};
+
+type GlobeStationSheetProps = {
+  station: StationLite;
+  picked: boolean;
+  isPlaying: boolean;
+  onToggle: () => void;
+  onClear: () => void;
+  // null when the Telegram bot isn't configured — the share entry simply
+  // doesn't exist (first VITE_TG_BOT gate on this screen).
+  onShare: (() => void) | null;
+  onClose: () => void;
+};
+
+// Globe station-details bottom sheet — the first consumer of the shared
+// .bottom-sheet-card recipe (promoted from PR-6's player sheet). Mounted only
+// while open, with its own useDialog (nesting one dialog root inside another
+// double-handles Tab — PR-6 lesson). PORTALED to document.body: the screen
+// tree sits inside .app-shell-v2 { isolation: isolate } with the animated
+// .app-screen-frame, whose stacking context would pin even z-130 BELOW the
+// fixed dock/nav. From body the sheet stacks above everything and useDialog
+// inerts #root as a whole — true modal semantics.
+const GlobeStationSheet = ({
+  station,
+  picked,
+  isPlaying,
+  onToggle,
+  onClear,
+  onShare,
+  onClose
+}: GlobeStationSheetProps) => {
+  const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: true, onClose });
+
+  const coords = resolveStationCoords(station);
+  const localTime = coords ? formatLocalTime(coords.lon, new Date()) : null;
+  const placeLine =
+    [
+      station.language?.split(',')[0]?.trim(),
+      station.state,
+      station.country
+    ]
+      .filter(Boolean)
+      .join(' · ') || t('globe.unknownLocation');
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      className="bottom-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      data-globe-sheet
+    >
+      <button
+        className="bottom-sheet-scrim"
+        type="button"
+        onClick={onClose}
+        aria-label={t('common.close')}
+      />
+      <div className="bottom-sheet-card">
+        <span className="bottom-sheet-handle" aria-hidden="true" />
+        <div className="bottom-sheet-head">
+          <div>
+            <div className="bottom-sheet-kicker">{t('nav.globe')}</div>
+            <div className="bottom-sheet-title" id={titleId}>
+              {normalizeStationName(station.name)}
+            </div>
+          </div>
+          <button
+            className="bottom-sheet-close"
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              {sheetIcon.collapse}
+            </svg>
+          </button>
+        </div>
+
+        <div className="globe-sheet-body">
+          <div className="globe-sheet-station">
+            <StationArtwork station={station} size="card" className="globe-sheet-art" />
+            <div className="globe-sheet-copy">
+              <div className="globe-sheet-name">{normalizeStationName(station.name)}</div>
+              <div className="globe-sheet-place">{placeLine}</div>
+            </div>
+          </div>
+
+          <div className="globe-sheet-actions">
+            <button
+              className="globe-sheet-action"
+              type="button"
+              onClick={onToggle}
+              aria-label={isPlaying ? t('common.pause') : t('common.play')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {isPlaying ? sheetIcon.pause : sheetIcon.play}
+              </svg>
+              <span>{isPlaying ? t('common.pause') : t('common.play')}</span>
+            </button>
+            <button
+              className="globe-sheet-action"
+              type="button"
+              onClick={onClear}
+              disabled={!picked}
+              aria-label={t('globe.clearSelection')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {sheetIcon.clear}
+              </svg>
+              <span>{t('globe.clearSelection')}</span>
+            </button>
+            {onShare ? (
+              <button
+                className="globe-sheet-action"
+                type="button"
+                onClick={onShare}
+                aria-label={t('common.share')}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {sheetIcon.share}
+                </svg>
+                <span>{t('common.share')}</span>
+              </button>
+            ) : null}
+          </div>
+
+          {coords ? (
+            <div className="globe-sheet-readout" title="Approximate local time">
+              {localTime ? `≈ ${localTime}` : null}
+              {localTime ? ' · ' : null}
+              {`${coords.lat.toFixed(1)}°, ${coords.lon.toFixed(1)}°`}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 export const GlobeScreen = () => {
   const { t } = useLocale();
   const { fetchAreas, fetchPoints, fetchStationById } = useCatalog();
   const { favorites, recent, followedRegions } = useLibrary();
-  const { player, playStation } = usePlayback();
+  const { player, playStation, shareStation } = usePlayback();
   const { globeFocusRegionId, setGlobeFocusRegionId } = useShell();
+  const isMobileLayout = useMobileLayout();
+  // The compact now-bar's details sheet (mobile only). Opening it must NOT
+  // re-trigger playStation — the bar's station is already resolved/playing.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [points, setPoints] = useState<CatalogStationPoint[]>([]);
   const [overviewAreas, setOverviewAreas] = useState<CatalogArea[]>([]);
@@ -252,21 +433,6 @@ export const GlobeScreen = () => {
     return map;
   }, [points]);
 
-  // Roughly approximate local time at a longitude. lon / 15° ≈ UTC
-  // offset hours. Inaccurate for political timezones in countries
-  // that span many longitudes (Russia, US, China) but good enough
-  // for "what time of day is it there?" — the user can look at the
-  // map and read "≈ 03:42" rather than guessing whether they're
-  // probably waking the locals up.
-  const formatLocalTime = (lon: number, now: Date): string => {
-    const offsetMinutes = (lon / 15) * 60;
-    const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-    const target = new Date(utcMs + offsetMinutes * 60_000);
-    const hh = String(target.getHours()).padStart(2, '0');
-    const mm = String(target.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
-
   // What the reticle is currently sitting over. Drives the floating
   // "where am I" card so the user sees country / region / station
   // *before* committing — solves the "I'm zoomed in and have no idea
@@ -319,27 +485,48 @@ export const GlobeScreen = () => {
           />
         </Suspense>
         {reticleContext ? (
-          <div className="globe-context-card" data-globe-context>
-            {reticleContext.country ? (
-              <div className="globe-context-country">{reticleContext.country}</div>
-            ) : null}
-            {reticleContext.state ? (
-              <div className="globe-context-state">{reticleContext.state}</div>
-            ) : null}
-            {reticleContext.name ? (
-              <div className="globe-context-name" title={reticleContext.name}>
-                {reticleContext.name}
+          isMobileLayout ? (
+            // Compact aim-readout pill: COUNTRY · region on the first line,
+            // station · ≈time on the second (two lines max). pointer-events
+            // none — it's a live readout over the canvas, not a control.
+            <div className="globe-aim-pill" data-globe-context>
+              <div className="globe-aim-primary">
+                {[reticleContext.country, reticleContext.state].filter(Boolean).join(' · ')}
               </div>
-            ) : null}
-            {reticleContext.localTime ? (
-              <div
-                className="globe-context-time"
-                title="Approximate local time"
-              >
-                ≈ {reticleContext.localTime}
-              </div>
-            ) : null}
-          </div>
+              {reticleContext.name || reticleContext.localTime ? (
+                <div className="globe-aim-secondary">
+                  {[
+                    reticleContext.name ? normalizeStationName(reticleContext.name) : '',
+                    reticleContext.localTime ? `≈ ${reticleContext.localTime}` : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="globe-context-card" data-globe-context>
+              {reticleContext.country ? (
+                <div className="globe-context-country">{reticleContext.country}</div>
+              ) : null}
+              {reticleContext.state ? (
+                <div className="globe-context-state">{reticleContext.state}</div>
+              ) : null}
+              {reticleContext.name ? (
+                <div className="globe-context-name" title={reticleContext.name}>
+                  {reticleContext.name}
+                </div>
+              ) : null}
+              {reticleContext.localTime ? (
+                <div
+                  className="globe-context-time"
+                  title="Approximate local time"
+                >
+                  ≈ {reticleContext.localTime}
+                </div>
+              ) : null}
+            </div>
+          )
         ) : null}
         <div className="globe-zoom-stack" aria-label={t('globe.zoom')}>
           <button
@@ -360,34 +547,83 @@ export const GlobeScreen = () => {
           </button>
         </div>
         {visibleStation ? (
-          <div className="globe-now-playing" data-globe-now>
-            <StationArtwork station={visibleStation} size="sm" className="globe-now-art" />
-            <div className="globe-now-copy">
-              <div className="globe-now-name" title={visibleStation.name}>
-                {visibleStation.name}
-              </div>
-              <div className="globe-now-meta">
-                {[
-                  visibleStation.language?.split(',')[0]?.trim(),
-                  visibleStation.country || visibleStation.state
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || t('globe.unknownLocation')}
-              </div>
-            </div>
+          isMobileLayout ? (
+            // Full-width thin now-bar — replaces the cramped corner card. The
+            // zoom stack moved to the right edge's vertical centre, so the bar
+            // owns the whole bottom width. Tap opens the details sheet.
             <button
-              className="globe-now-close"
+              className="globe-now-bar"
               type="button"
-              onClick={() => setPickedStation(null)}
-              aria-label={t('globe.clearSelection')}
-              hidden={!pickedStation}
+              data-globe-now-bar
+              onClick={() => setSheetOpen(true)}
+              aria-label={`${t('winamp.stationDetails')}: ${normalizeStationName(visibleStation.name)}`}
             >
-              ✕
+              <StationArtwork station={visibleStation} size="sm" className="globe-now-art" />
+              <span className="globe-now-copy">
+                <span className="globe-now-name">
+                  {normalizeStationName(visibleStation.name)}
+                </span>
+                <span className="globe-now-meta">
+                  {[
+                    visibleStation.language?.split(',')[0]?.trim(),
+                    visibleStation.country || visibleStation.state
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || t('globe.unknownLocation')}
+                </span>
+              </span>
+              <span className="globe-now-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24">{sheetIcon.expand}</svg>
+              </span>
             </button>
-          </div>
+          ) : (
+            <div className="globe-now-playing" data-globe-now>
+              <StationArtwork station={visibleStation} size="sm" className="globe-now-art" />
+              <div className="globe-now-copy">
+                <div className="globe-now-name" title={visibleStation.name}>
+                  {visibleStation.name}
+                </div>
+                <div className="globe-now-meta">
+                  {[
+                    visibleStation.language?.split(',')[0]?.trim(),
+                    visibleStation.country || visibleStation.state
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || t('globe.unknownLocation')}
+                </div>
+              </div>
+              <button
+                className="globe-now-close"
+                type="button"
+                onClick={() => setPickedStation(null)}
+                aria-label={t('globe.clearSelection')}
+                hidden={!pickedStation}
+              >
+                ✕
+              </button>
+            </div>
+          )
         ) : null}
         {pickError ? <div className="globe-error">{pickError}</div> : null}
       </div>
+      {isMobileLayout && sheetOpen && visibleStation ? (
+        <GlobeStationSheet
+          station={visibleStation}
+          picked={Boolean(pickedStation)}
+          isPlaying={Boolean(player.isPlaying)}
+          onToggle={() => void player.toggle()}
+          onClear={() => {
+            setPickedStation(null);
+            setSheetOpen(false);
+          }}
+          onShare={
+            Boolean(import.meta.env.VITE_TG_BOT) && visibleStation
+              ? () => shareStation(visibleStation)
+              : null
+          }
+          onClose={() => setSheetOpen(false)}
+        />
+      ) : null}
     </section>
   );
 };
