@@ -1,6 +1,8 @@
-import { useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useMemo, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { derivePreviewTextColors } from '../lib/theme/previewContrast';
 import { themeRuntimeVars, themeSurfaceVars } from '../lib/theme/runtime';
 import type { RadioAtlasTheme } from '../lib/theme/types';
+import { useLocale } from '../state/LocaleContext';
 
 // P2-2c: a real themed mini-surface for the builder's live preview — a small
 // slice of the app chrome (topbar + station card + player dock) rendered with
@@ -43,10 +45,22 @@ export const ThemePreviewSurface = ({
   stickerPosition,
   onStickerMove
 }: ThemePreviewSurfaceProps) => {
+  const { t } = useLocale();
   const vars = themeRuntimeVars(theme, resolveAssetUrl);
   const surfaces = themeSurfaceVars(theme);
   const light = theme.mode === 'light';
   const emoji = theme.layers.emojiReactions?.[0]?.emoji;
+
+  // PR-4a: derive --preview-text/--preview-muted from the draft's RESOLVED
+  // background instead of hardcoding near-white for every dark draft — a pale
+  // custom gradient used to get white-on-pale (the "text blends on skin
+  // change" root cause). Light mode keeps the LIGHT constants; image/asset
+  // backgrounds (null derivation) keep the historical dark-theme fallback.
+  const derivedText = useMemo(
+    () => (light ? null : derivePreviewTextColors(vars.background)),
+    [light, vars.background]
+  );
+  const lowContrast = Boolean(!light && derivedText?.lowContrast);
 
   const sticker = theme.layers.stickers?.[0];
   const stickerUrl = sticker?.assetId ? resolveAssetUrl?.(sticker.assetId) ?? null : null;
@@ -100,8 +114,8 @@ export const ThemePreviewSurface = ({
     '--preview-surface': light ? LIGHT.surface : surfaces?.surface ?? 'rgba(17, 25, 38, 0.56)',
     '--preview-surface-2': light ? LIGHT.surface2 : surfaces?.surface2 ?? 'rgba(28, 43, 63, 0.56)',
     '--preview-border': light ? LIGHT.border : surfaces?.border ?? 'rgba(236, 247, 255, 0.12)',
-    '--preview-text': light ? LIGHT.text : '#f5fbff',
-    '--preview-muted': light ? LIGHT.muted : 'rgba(225, 238, 249, 0.64)',
+    '--preview-text': light ? LIGHT.text : derivedText?.text ?? '#f5fbff',
+    '--preview-muted': light ? LIGHT.muted : derivedText?.muted ?? 'rgba(225, 238, 249, 0.64)',
     '--preview-ink': light ? LIGHT.ink : '#08121d',
     '--preview-icon-radius': vars.iconRadius
   } as CSSProperties;
@@ -114,6 +128,13 @@ export const ThemePreviewSurface = ({
       style={style}
       aria-hidden="true"
     >
+      {lowContrast ? (
+        // PR-4a (owner's "auto-fix + warn" pick): even the best AA blend can't
+        // reach 4.5:1 across this background — inform, never block saving.
+        <div className="theme-preview-contrast-badge" data-theme-preview-low-contrast>
+          {t('theme.lowContrastWarning')}
+        </div>
+      ) : null}
       <div className="theme-preview-topbar">
         <span className="theme-preview-brand-dot" />
         <span className="theme-preview-topbar-title">{theme.name}</span>
