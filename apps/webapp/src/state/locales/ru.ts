@@ -732,6 +732,7 @@ export const ruDictionary = {
     "remixOf": "Ремикс — {name}",
     "editing": "Правка — {name}",
     "customDefaultName": "Моя тема",
+    "lowContrastWarning": "Низкий контраст — текст может быть нечитаем",
     "nameLabel": "Название",
     "authorLabel": "Автор",
     "authorPlaceholder": "Ваше имя (необязательно)",

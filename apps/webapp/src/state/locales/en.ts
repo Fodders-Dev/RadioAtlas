@@ -732,6 +732,7 @@ export const enDictionary = {
     "remixOf": "Remix of {name}",
     "editing": "Editing {name}",
     "customDefaultName": "My theme",
+    "lowContrastWarning": "Low contrast — text may be unreadable",
     "nameLabel": "Name",
     "authorLabel": "Author",
     "authorPlaceholder": "Your name (optional)",
