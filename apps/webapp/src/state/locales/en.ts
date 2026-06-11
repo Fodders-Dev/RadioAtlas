@@ -480,7 +480,8 @@ export const enDictionary = {
     "playAllResults": "Play results",
     "queueFromQuery": "Search: {query}",
     "countriesTitle": "Countries",
-    "genresTitle": "Genres"
+    "genresTitle": "Genres",
+    "languagesTitle": "Language"
   },
   "library": {
     "kicker": "Personal space",

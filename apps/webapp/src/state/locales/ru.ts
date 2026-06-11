@@ -480,7 +480,8 @@ export const ruDictionary = {
     "playAllResults": "Играть выдачу",
     "queueFromQuery": "Поиск: {query}",
     "countriesTitle": "Страны",
-    "genresTitle": "Жанры"
+    "genresTitle": "Жанры",
+    "languagesTitle": "Язык"
   },
   "library": {
     "kicker": "Личное пространство",

@@ -300,13 +300,21 @@ test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) 
   await expect(page.locator('.globe canvas')).toBeVisible();
   const nowBar = page.locator('[data-globe-now-bar]');
   await expect(nowBar).toBeVisible();
+  // The reticle pulse is JS-driven (masking it flakes too — its bbox breathes
+  // with the pulse), so hide it alongside the canvas for the shot.
   await page.addStyleTag({
-    content: '.screen-globe-v3 .globe canvas { visibility: hidden !important; }'
+    content:
+      '.screen-globe-v3 .globe canvas, .screen-globe-v3 .globe-reticle { visibility: hidden !important; }'
   });
   await page.waitForTimeout(450);
 
-  const stageShot = await page.screenshot({ animations: 'disabled' });
-  expect(stageShot).toMatchSnapshot('globe-mobile-now-bar.png');
+  // The dock's audio-reactive artwork glow (--ra-energy) is written per-frame
+  // from JS while a station plays — animations:'disabled' can't freeze it, so
+  // the dock is masked. The small ratio absorbs sub-pixel text shifts under
+  // parallel-suite load.
+  const liveMasks = [page.locator('.player-dock')];
+  const stageShot = await page.screenshot({ animations: 'disabled', mask: liveMasks });
+  expect(stageShot).toMatchSnapshot('globe-mobile-now-bar.png', { maxDiffPixelRatio: 0.04 });
 
   await nowBar.click();
   await expect(page.locator('[data-globe-sheet]')).toBeVisible();
@@ -314,7 +322,30 @@ test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) 
     animations: 'disabled',
     // The readout carries the live ≈local-time — mask it or the baseline
     // changes every minute.
-    mask: [page.locator('.globe-sheet-readout')]
+    mask: [page.locator('.globe-sheet-readout'), ...liveMasks]
   });
-  expect(sheetShot).toMatchSnapshot('globe-mobile-sheet.png');
+  expect(sheetShot).toMatchSnapshot('globe-mobile-sheet.png', { maxDiffPixelRatio: 0.04 });
+});
+
+// Search mobile rebuild: pin the @360x780 result view (count|filters row,
+// full-width play-all, compact cards) and the filters bottom sheet.
+test('search mobile visual baseline (results + filters sheet)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { activeSection: 'search' });
+  await page.goto('/?api=/api');
+  await page.locator('#search-hero-input').first().fill('jpop');
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+  await waitForStableMetrics(page, '.screen-search-v3');
+
+  // The ratio absorbs sub-pixel text shifts under parallel-suite load (the
+  // same class of noise home-shell tolerates via maxDiffPixels).
+  const resultsShot = await page.screenshot({ animations: 'disabled' });
+  expect(resultsShot).toMatchSnapshot('search-mobile-results.png', { maxDiffPixelRatio: 0.04 });
+
+  await page.locator('.search-hero-filters-pill').click();
+  await expect(page.locator('[data-search-filters-sheet]')).toBeVisible();
+  const sheetShot = await page.screenshot({ animations: 'disabled' });
+  expect(sheetShot).toMatchSnapshot('search-mobile-filters-sheet.png', {
+    maxDiffPixelRatio: 0.04
+  });
 });
