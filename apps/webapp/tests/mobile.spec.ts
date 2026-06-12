@@ -2318,7 +2318,6 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.locator('[data-theme-builder-emoji]').fill('⚡');
   await page.locator('.theme-studio-field').filter({ hasText: /Font|Шрифт/ }).locator('select').selectOption('mono');
   await page.locator('.theme-studio-field').filter({ hasText: /Icons|Иконки/ }).locator('select').selectOption('sharp');
   await page.locator('[data-theme-builder-print]').setInputFiles({
@@ -2330,6 +2329,10 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
   });
   await expect(page.locator('[data-theme-print-name]')).toContainText('radioatlas-print.svg');
   await expect(page.locator('[data-theme-builder-background="print"]')).toBeVisible();
+  // PR-4b: on mobile the icon uploads live in the «Иконки» sub-sheet; the real
+  // file inputs stay in the DOM (visually hidden), so setInputFiles still works.
+  await page.getByRole('button', { name: /Custom player icons|Свои иконки плеера/ }).click();
+  await expect(page.locator('[data-theme-builder-subsheet="icons"]')).toBeVisible();
   await page.locator('[data-theme-builder-icon="pause"]').setInputFiles({
     name: 'pause-icon.svg',
     mimeType: 'image/svg+xml',
@@ -2337,6 +2340,11 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="2" fill="#ffffff"/><rect x="14" y="4" width="5" height="16" rx="2" fill="#ffffff"/></svg>'
     )
   });
+  await page.locator('[data-theme-builder-subsheet="icons"] .bottom-sheet-close').click();
+  await expect(page.locator('[data-theme-builder-subsheet="icons"]')).toHaveCount(0);
+  // Sticker + emoji live in the «Декор» sub-sheet.
+  await page.getByRole('button', { name: /Sticker, GIF & emoji|Стикер, GIF и эмодзи/ }).click();
+  await expect(page.locator('[data-theme-builder-subsheet="decor"]')).toBeVisible();
   await page.locator('[data-theme-builder-sticker]').setInputFiles({
     name: 'corner-sticker.svg',
     mimeType: 'image/svg+xml',
@@ -2344,6 +2352,9 @@ test('mobile Theme Studio builder saves and applies a local theme', async ({ pag
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M32 4 39 24 60 24 43 37 49 58 32 46 15 58 21 37 4 24 25 24Z" fill="#65e4ff"/></svg>'
     )
   });
+  await page.locator('[data-theme-builder-emoji]').fill('⚡');
+  await page.locator('[data-theme-builder-subsheet="decor"] .bottom-sheet-close').click();
+  await expect(page.locator('[data-theme-builder-subsheet="decor"]')).toHaveCount(0);
   await page.getByRole('button', { name: /Save and apply|Сохранить и применить/ }).click();
 
   await expect.poll(async () => page.evaluate(() => document.documentElement.dataset.theme || '')).toContain(

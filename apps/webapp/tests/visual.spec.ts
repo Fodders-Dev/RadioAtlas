@@ -393,3 +393,30 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
     maxDiffPixelRatio: 0.04
   });
 });
+
+// PR-4b: pin the @360x780 theme-editor bottom form (sticky preview + section
+// nav + one-column fields + sticky save) and the gradient composer sub-sheet.
+test('theme editor mobile visual baseline (form + gradient sheet)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await page.locator('.mobile-settings-trigger').click();
+  await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
+  await expect(page.locator('[data-theme-studio]')).toBeVisible();
+  // Scroll the builder form into view inside the bottom card (the bundled
+  // theme grid sits above it).
+  await page.locator('[data-theme-builder]').scrollIntoViewIfNeeded();
+  await waitForStableMetrics(page, '.settings-sheet-card--bottom');
+  const formShot = await page.screenshot({ animations: 'disabled' });
+  expect(formShot).toMatchSnapshot('theme-editor-mobile-form.png', { maxDiffPixelRatio: 0.04 });
+
+  await page.locator('[data-theme-builder-background-source]').selectOption('__custom__');
+  await page.locator('.theme-builder-gradient-trigger').click();
+  await expect(page.locator('[data-theme-builder-subsheet="gradient"]')).toBeVisible();
+  const sheetShot = await page.screenshot({ animations: 'disabled' });
+  expect(sheetShot).toMatchSnapshot('theme-editor-mobile-gradient-sheet.png', {
+    maxDiffPixelRatio: 0.04
+  });
+});

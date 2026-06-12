@@ -8,11 +8,22 @@ type SettingsSheetProps = {
   children: ReactNode;
   kicker?: string;
   title?: string;
+  // PR-4b: opt-in card modifier (e.g. `settings-sheet-card--bottom` for the
+  // mobile Theme Studio form). The base card is shared with AccountSheet, so
+  // restyles must ride a modifier instead of the shared class.
+  cardClassName?: string;
 };
 
 // Shared dialog shell — also the root for AccountSheet and ThemeStudio,
 // so wiring useDialog here covers all three. (T1.4)
-export const SettingsSheet = ({ open, onClose, children, kicker, title }: SettingsSheetProps) => {
+export const SettingsSheet = ({
+  open,
+  onClose,
+  children,
+  kicker,
+  title,
+  cardClassName
+}: SettingsSheetProps) => {
   const { t } = useLocale();
   const rootRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -36,7 +47,7 @@ export const SettingsSheet = ({ open, onClose, children, kicker, title }: Settin
         onClick={onClose}
         aria-label={t('common.close')}
       />
-      <div className="settings-sheet-card">
+      <div className={cardClassName ? `settings-sheet-card ${cardClassName}` : 'settings-sheet-card'}>
         <div className="settings-sheet-head">
           <div>
             <div className="settings-sheet-kicker">{kicker || t('nav.settings')}</div>

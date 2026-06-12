@@ -92,8 +92,9 @@ export const ThemePreviewSurface = ({
     const surface = surfaceRef.current;
     if (!drag || !surface || !onStickerMove) return;
     const rect = surface.getBoundingClientRect();
-    // Keep the sticker centre inside the preview (a margin so it never clips out).
-    const margin = 16;
+    // Keep the sticker centre inside the preview (a margin so it never clips
+    // out — 20px so a finger-dragged sticker clears the sheet's rounded edge).
+    const margin = 20;
     const maxX = Math.max(0, rect.width / 2 - margin);
     const maxY = Math.max(0, rect.height / 2 - margin);
     const nextX = clamp(drag.baseX + (event.clientX - drag.startX), -maxX, maxX);
