@@ -359,6 +359,67 @@ export const registerAuthRoutes = (
     }
   });
 
+  // Hotfix: the Login Widget's data-onauth mode needs THIRD-PARTY cookies for
+  // oauth.telegram.org (embed iframe + credentialed XHR) — WebKit ITP (every
+  // iOS browser) and Huawei Browser block them, so the callback silently never
+  // fires. data-auth-url instead performs a TOP-LEVEL redirect here with the
+  // signed payload in the query — first-party, ITP-proof, and the exact same
+  // hash scheme, so the existing validateTelegramLoginWidgetData applies
+  // unchanged. Mirror of the VK callback: success/error always REDIRECT back
+  // to the webapp (this is browser navigation, not an XHR).
+  app.get('/auth/telegram/callback', async (req, res) => {
+    if (!options.telegramBotToken) {
+      redirectToWebapp(req, res, options.webappUrl, {
+        auth_provider: 'telegram',
+        auth_result: 'error',
+        message: 'telegram auth is not configured'
+      });
+      return;
+    }
+
+    const authData: Record<string, string> = {};
+    for (const key of ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date', 'hash']) {
+      const value = req.query[key];
+      if (typeof value === 'string' && value.trim()) {
+        authData[key] = value;
+      }
+    }
+
+    try {
+      const validated = validateTelegramLoginWidgetData(authData, options.telegramBotToken);
+      // Guest sign-in/sign-up only: the redirect flow serves the broken
+      // browser-login case. Authenticated LINKING stays on the widget-POST
+      // path (linkCode + merge preview don't survive a top-level redirect).
+      const account = await linkTelegramIdentity(validated.user, null, parseMergeStrategy(undefined));
+      if (!account) {
+        redirectToWebapp(req, res, options.webappUrl, {
+          auth_provider: 'telegram',
+          auth_result: 'error',
+          message: 'telegram auth failed'
+        });
+        return;
+      }
+      const token = await createSessionForAccount(account.id);
+      await recordAccountEvent(
+        account.id,
+        'sign_in',
+        { reusedSession: false, source: 'telegram-redirect' },
+        { kind: 'telegram', externalId: String(validated.user.id) }
+      );
+      redirectToWebapp(req, res, options.webappUrl, {
+        auth_provider: 'telegram',
+        auth_result: 'success',
+        token
+      });
+    } catch (err) {
+      redirectToWebapp(req, res, options.webappUrl, {
+        auth_provider: 'telegram',
+        auth_result: 'error',
+        message: err instanceof Error ? err.message : 'telegram auth failed'
+      });
+    }
+  });
+
   app.post('/auth/google', async (req, res) => {
     if (!options.googleClientId) {
       res.status(503).json({ error: 'google auth is not configured' });

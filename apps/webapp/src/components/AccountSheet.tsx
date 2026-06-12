@@ -278,28 +278,42 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     setTelegramWidgetFailed(false);
     container.innerHTML = '';
 
-    window[TELEGRAM_WIDGET_CALLBACK] = (value: unknown) => {
-      const authData = normalizeTelegramWidgetAuthData(value);
-      if (!authData) {
-        setTelegramHint(t('account.telegramGuestHint'));
-        return;
-      }
-      void (async () => {
-        setLinkBusy(true);
-        setTelegramHint(null);
-        try {
-          const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
-          const preview = await previewTelegramWidgetLink(authData, linkCode, mergeStrategy);
-          if (preview && !preview.requiresConfirmation) {
-            await signInWithTelegramWidget(authData, linkCode, mergeStrategy);
-          }
-        } finally {
-          if (mounted) {
-            setLinkBusy(false);
-          }
+    // Hotfix: data-onauth needs THIRD-PARTY cookies for oauth.telegram.org —
+    // WebKit ITP (every iOS browser) and Huawei Browser block them, so the
+    // callback silently never fires. GUESTS (the broken sign-in case) use
+    // data-auth-url instead: a first-party TOP-LEVEL redirect to our API
+    // callback, which validates the same signed payload and bounces back with
+    // ?auth_provider=telegram&auth_result=success&token=… (handled by the
+    // SessionContext return-handler). AUTHENTICATED users keep the onauth
+    // path: linking needs linkCode + merge preview, which don't survive a
+    // top-level redirect — and the always-visible bot deep-link chip below
+    // covers them on ITP browsers.
+    const useRedirectFlow = !profile;
+
+    if (!useRedirectFlow) {
+      window[TELEGRAM_WIDGET_CALLBACK] = (value: unknown) => {
+        const authData = normalizeTelegramWidgetAuthData(value);
+        if (!authData) {
+          setTelegramHint(t('account.telegramGuestHint'));
+          return;
         }
-      })();
-    };
+        void (async () => {
+          setLinkBusy(true);
+          setTelegramHint(null);
+          try {
+            const linkCode = profile ? (await createLinkCode(mergeStrategy)) ?? undefined : undefined;
+            const preview = await previewTelegramWidgetLink(authData, linkCode, mergeStrategy);
+            if (preview && !preview.requiresConfirmation) {
+              await signInWithTelegramWidget(authData, linkCode, mergeStrategy);
+            }
+          } finally {
+            if (mounted) {
+              setLinkBusy(false);
+            }
+          }
+        })();
+      };
+    }
 
     const script = document.createElement('script');
     script.async = true;
@@ -310,7 +324,12 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     script.setAttribute('data-request-access', 'write');
     script.setAttribute('data-userpic', 'false');
     script.setAttribute('data-lang', locale.startsWith('ru') ? 'ru' : 'en');
-    script.setAttribute('data-onauth', `${TELEGRAM_WIDGET_CALLBACK}(user)`);
+    if (useRedirectFlow) {
+      // Same-origin API path — never hardcode the domain.
+      script.setAttribute('data-auth-url', `${window.location.origin}/api/auth/telegram/callback`);
+    } else {
+      script.setAttribute('data-onauth', `${TELEGRAM_WIDGET_CALLBACK}(user)`);
+    }
     script.onerror = () => {
       if (!mounted) return;
       setTelegramWidgetFailed(true);
@@ -511,23 +530,26 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
           <div className="settings-actions account-sheet-hero-actions">
             {!profile ? (
               <>
+                {/* Hotfix part 3: the bot deep-link chip renders ALONGSIDE the
+                    widget, not instead of it. telegramWidgetFailed only fires
+                    on script.onerror — the ITP "authorised and nothing
+                    happened" case was an invisible dead end. */}
                 {canRenderTelegramWidget && !telegramWidgetFailed ? (
                   <div
                     className="account-google-slot account-google-slot-inline account-telegram-slot"
                     ref={telegramWidgetRef}
                   />
-                ) : (
-                  <button
-                    className="chip active"
-                    type="button"
-                    onClick={() => {
-                      void handleTelegramLink();
-                    }}
-                    disabled={linkBusy}
-                  >
-                    {t('account.telegramAction')}
-                  </button>
-                )}
+                ) : null}
+                <button
+                  className="chip active"
+                  type="button"
+                  onClick={() => {
+                    void handleTelegramLink();
+                  }}
+                  disabled={linkBusy}
+                >
+                  {t('account.telegramAction')}
+                </button>
                 {canRenderGoogleButton ? (
                   <div className="account-google-slot account-google-slot-inline" ref={googleButtonRef} />
                 ) : (
@@ -716,7 +738,10 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
                   {telegramProvider ? (
                     <div className="account-pill authenticated">{t('account.connected')}</div>
                   ) : null}
-                  {!telegramProvider && (!canRenderTelegramWidget || telegramWidgetFailed) ? (
+                  {/* Hotfix part 3: always offer the bot deep-link next to the
+                      widget — onerror never fires in the ITP silent-failure
+                      case, so the chip can't be gated on telegramWidgetFailed. */}
+                  {!telegramProvider ? (
                     <button
                       className="chip"
                       type="button"

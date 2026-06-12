@@ -18,6 +18,7 @@ import type {
   ListenerAlert
 } from '../domain/contracts';
 import { getApiBase } from '../lib/apiBase';
+import { parseAuthReturn, stripAuthReturnParams } from '../lib/authReturn';
 import { reportClientEvent } from '../lib/observability';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
 import { getTelegramWebApp, openTelegramLinkOrFallback } from '../lib/telegram';
@@ -1610,22 +1611,22 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     if (!apiBase || typeof window === 'undefined') {
       return;
     }
-    const url = new URL(window.location.href);
-    const authProvider = url.searchParams.get('auth_provider');
-    const authResult = url.searchParams.get('auth_result');
-    if (authProvider !== 'vk' || !authResult) {
+    // Generalised return-from-redirect handler: VK and (hotfix) the Telegram
+    // data-auth-url browser flow both land here with
+    // ?auth_provider&auth_result&token — parsing lives in lib/authReturn
+    // (pure, unit-tested). cleanUrl strips the token from the address bar in
+    // every branch, Telegram included.
+    const authReturn = parseAuthReturn(window.location.href);
+    if (!authReturn) {
       return;
     }
 
     const cleanUrl = () => {
-      ['auth_provider', 'auth_result', 'ticket', 'token', 'message'].forEach((key) =>
-        url.searchParams.delete(key)
-      );
-      window.history.replaceState({}, document.title, url.toString());
+      window.history.replaceState({}, document.title, stripAuthReturnParams(window.location.href));
     };
 
-    if (authResult === 'success') {
-      const token = url.searchParams.get('token') || '';
+    if (authReturn.result === 'success') {
+      const token = authReturn.token;
       cleanUrl();
       if (token) {
         void fetchProfile(token);
@@ -1633,8 +1634,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (authResult === 'preview') {
-      const ticket = url.searchParams.get('ticket') || '';
+    if (authReturn.result === 'preview') {
+      const ticket = authReturn.ticket;
       cleanUrl();
       if (!ticket) {
         return;
@@ -1668,8 +1669,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (authResult === 'error') {
-      const message = url.searchParams.get('message') || 'vk auth failed';
+    if (authReturn.result === 'error') {
+      const message = authReturn.message;
       cleanUrl();
       setStatus('error');
       setError(message);
