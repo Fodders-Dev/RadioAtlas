@@ -130,11 +130,16 @@ const BuilderSubSheet = ({ name, title, onClose, children }: BuilderSubSheetProp
       aria-labelledby={titleId}
       data-theme-builder-subsheet={name}
     >
+      {/* Out of the tab order (Codex P2): useDialog focuses the first
+          focusable element on open, and an invisible full-screen "Close"
+          backdrop is a keyboard/screen-reader trap — initial focus lands on
+          the visible close button instead. Pointer dismissal still works. */}
       <button
         className="bottom-sheet-scrim"
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        tabIndex={-1}
       />
       <div className="bottom-sheet-card theme-builder-subsheet-card">
         <div className="bottom-sheet-handle" aria-hidden="true" />

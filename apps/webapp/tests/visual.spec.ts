@@ -394,6 +394,37 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
   });
 });
 
+// PR-4b fix round: pin the TOP of the studio sheet (current-theme hero + the
+// preset list) in BOTH modes. The original PR shipped only dark builder-crop
+// baselines and the Warm-Light/list breakage sailed through a green gate —
+// theme-dependent regressions need a light-mode pin.
+test('theme studio list mobile visual baseline (dark + warm light)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  await page.locator('.mobile-settings-trigger').click();
+  await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
+  await expect(page.locator('[data-theme-studio]')).toBeVisible();
+  await waitForStableMetrics(page, '.settings-sheet-card--bottom');
+  const darkShot = await page.screenshot({ animations: 'disabled' });
+  expect(darkShot).toMatchSnapshot('theme-studio-list-mobile.png', { maxDiffPixelRatio: 0.04 });
+
+  // Switch to Warm Light through the sheet itself (also pins the active-card
+  // state), then rewind the card scroll the click may have caused.
+  await page.locator('[data-theme-card="pastel"]').click();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.themeMode || ''))
+    .toBe('light');
+  await page.locator('.settings-sheet-card--bottom').evaluate((node) => node.scrollTo(0, 0));
+  await waitForStableMetrics(page, '.settings-sheet-card--bottom');
+  const lightShot = await page.screenshot({ animations: 'disabled' });
+  expect(lightShot).toMatchSnapshot('theme-studio-list-mobile-light.png', {
+    maxDiffPixelRatio: 0.04
+  });
+});
+
 // PR-4b: pin the @360x780 theme-editor bottom form (sticky preview + section
 // nav + one-column fields + sticky save) and the gradient composer sub-sheet.
 test('theme editor mobile visual baseline (form + gradient sheet)', async ({ page }) => {

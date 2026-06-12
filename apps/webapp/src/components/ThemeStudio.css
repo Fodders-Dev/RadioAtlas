@@ -638,9 +638,62 @@
     width: auto;
     max-height: 88dvh;
     padding: var(--space-sm) var(--space-md) calc(var(--space-lg) + var(--shell-safe-bottom));
+    border: 1px solid var(--border);
     border-bottom: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    /* FIX ROUND (review bounce): the shared .settings-sheet-card glass is a
+       fixed DARK translucent stack tuned for the desktop inset card — on Warm
+       Light it composites to a mid-dark surface under the dark-ink tokens
+       (names/labels sink), and on the emulator's WebView (weaker
+       backdrop-filter) it goes fully dark. Use the proven .bottom-sheet-card
+       recipe instead: a high-opacity THEMED overlay that follows light/dark,
+       already emulator-verified by the Globe/Search/Library sheets. */
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-overlay-strong) 92%, transparent),
+        color-mix(in srgb, var(--surface-overlay-strong) 84%, transparent)
+      ),
+      var(--theme-bg-image);
+    background-position: center;
+    background-size: auto, cover;
+    color: var(--text);
+    /* A wide child (overflowing action chips, span-2 rows) must clip at the
+       rounded edge — never bleed past it or open a horizontal scroll. */
+    overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  /* One full-width preset row per line: at narrow widths the auto-fit grid
+     can snap to two ~150px columns — names/authors ellipsize to nothing and
+     the action chips overflow the card (the "floating Ремикс chips" bounce). */
+  .settings-sheet-card--bottom .theme-studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Light-theme guard (FIX ROUND): shared chrome hardcodes near-white ink for
+     .section-title and dark glass for .chip / .chip.active — correct on dark
+     themes, sunk against the now-themed light card. Mirrors the existing
+     desktop (@960) light-chip rule, scoped to the modifier so nothing else
+     moves; on dark themes none of this applies. */
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .section-title {
+    color: var(--text-strong);
+  }
+
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .chip {
+    border-color: var(--theme-border);
+    background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .chip.active {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--theme-border));
+    /* Solid accent + dark ink — the same readable-CTA treatment as the
+       light-mode home play button. */
+    background: var(--accent);
+    color: #2a1a12;
   }
 
   /* The 36x4 grab handle, without touching the shared SettingsSheet DOM. */
@@ -688,10 +741,15 @@
     height: 20px;
   }
 
-  /* [1] Sticky preview strip — the only sticky top inside the card. */
+  /* [1] Sticky preview strip — the only sticky top inside the card. The base
+     panel rides color-mix over --panel, which is translucent enough to read
+     as a washed-out plate over the themed card; pin it to the same themed
+     overlay as the card so the strip stays coherent in BOTH modes. */
   .settings-sheet-card--bottom .theme-studio-builder-preview-panel {
     top: 0;
     z-index: 5;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--surface-overlay-strong) 94%, transparent);
   }
 
   .settings-sheet-card--bottom .theme-studio-builder-preview-panel .theme-preview-surface {
