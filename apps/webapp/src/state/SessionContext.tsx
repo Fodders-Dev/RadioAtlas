@@ -328,18 +328,26 @@ const readTelegramSearchParams = () => {
   };
 };
 
-const readTelegramRuntimeState = (): TelegramRuntimeState => {
+// Exported for unit tests (detection regression guard) — not part of the
+// public session API.
+export const readTelegramRuntimeState = (): TelegramRuntimeState => {
   const webApp = getTelegramWebApp();
   const search = readTelegramSearchParams();
   const runtimeInitData = typeof webApp?.initData === 'string' ? webApp.initData.trim() : '';
   const initData = runtimeInitData || search.initData;
   const userId = Number(webApp?.initDataUnsafe?.user?.id || 0);
   return {
+    // HOTFIX-2: `Boolean(webApp)` is NOT a Mini-App signal — index.html loads
+    // telegram-web-app.js unconditionally (T1.1), so window.Telegram.WebApp
+    // exists in every browser and the old check made telegramMiniApp=true in
+    // plain Safari (login widget never rendered, the bot chip hit the
+    // "initData is not ready" path). Trust only what Telegram itself injects:
+    // a non-empty initData or the tgWebApp* launch params.
     available:
-      Boolean(webApp) ||
+      Boolean(runtimeInitData) ||
+      Boolean(search.initData) ||
       Boolean(search.platform) ||
       Boolean(search.version) ||
-      Boolean(search.initData) ||
       search.hasStartParam,
     initData,
     hasUser: Number.isFinite(userId) && userId > 0
