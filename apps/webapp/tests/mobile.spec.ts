@@ -1627,6 +1627,45 @@ test('mobile search uses compact result cards and can start a result queue', asy
   await expect(page.locator('.player-dock-title')).toContainText(/Tokyo FM|Osaka Nights/);
 });
 
+// Search mobile rebuild: the native-select filter drawer moved into the shared
+// bottom sheet. Opening it, picking a country, and closing must surface an
+// active filter pill AND re-run the search with the filter applied.
+test('mobile search filters open in a bottom sheet and apply a country', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: stations
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('#search-hero-input').first().fill('jpop');
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+
+  await page.getByRole('button', { name: /Показать фильтры|Show filters/ }).click();
+  const sheet = page.locator('[data-search-filters-sheet]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute('role', 'dialog');
+
+  const filteredRequest = page.waitForRequest(
+    (request) =>
+      request.url().includes('/catalog/search') && request.url().includes('country=Japan')
+  );
+  await sheet.locator('select').first().selectOption('Japan');
+  await filteredRequest;
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+
+  // The applied filter is visible as a pill, the trigger badge matches the
+  // active-pill count, and the (mocked) result list is alive after the refetch.
+  const pills = page.locator('.search-hero-filter-pill');
+  await expect(pills.filter({ hasText: 'Japan' })).toBeVisible();
+  const pillCount = await pills.count();
+  await expect(page.locator('.search-hero-filters-badge')).toHaveText(String(pillCount));
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+});
+
 test('mobile search ranks jazz japan by query intent and playability', async ({ page }) => {
   const japaneseJazz = {
     ...stations[0],

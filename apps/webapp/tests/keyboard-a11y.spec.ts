@@ -39,6 +39,31 @@ test.describe('dialog keyboard a11y', () => {
     expect(await activeMatches(page, '.mobile-settings-trigger')).toBe(true);
   });
 
+  // Search mobile rebuild: the filter selects live in a portaled bottom sheet.
+  test('Search filters sheet: focus trap, Escape, and focus restoration', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+    await page.locator('#search-hero-input').first().fill('jpop');
+    await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+
+    const trigger = page.locator('.search-hero-filters-pill');
+    await trigger.click();
+
+    const sheet = page.locator('[data-search-filters-sheet]');
+    await expect(sheet).toBeVisible();
+    expect(await focusIsInside(page, '[data-search-filters-sheet]')).toBe(true);
+
+    for (let i = 0; i < 6; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await focusIsInside(page, '[data-search-filters-sheet]')).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    // Focus returned to the «Фильтры» pill that opened the sheet.
+    expect(await activeMatches(page, '.search-hero-filters-pill')).toBe(true);
+  });
+
   test('FullPlayerOverlay: focus trap, Escape, and focus restoration', async ({ page }) => {
     await page.goto('/');
     // Play a station so the dock (and its artwork trigger that opens the

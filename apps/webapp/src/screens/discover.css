@@ -4,7 +4,10 @@
 .screen-search-v3 {
   display: grid;
   gap: 14px;
-  padding-bottom: calc(var(--dock-offset-v2, 72px) + 24px);
+  /* PR-2 safe-area: --dock-offset-v2 already carries the inset when the dock
+     writes it from JS, but the static fallback doesn't — keep the explicit
+     term so the last row clears the home-indicator either way. */
+  padding-bottom: calc(var(--dock-offset-v2, 72px) + 24px + var(--shell-safe-bottom, 0px));
 }
 
 .screen-search-v3 .search-hero-card {
@@ -27,14 +30,16 @@
   padding: 0 10px;
   min-height: 48px;
   border-radius: 14px;
-  background: rgba(8, 14, 24, 0.55);
-  border: 1px solid rgba(170, 220, 240, 0.16);
+  /* PR-1 contrast norm: themed surface under themed text — the old dark
+     hardcode went black-on-dark-ink the moment Warm Light's tokens applied. */
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  border: 1px solid var(--border);
   transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 .screen-search-v3 .search-hero-input:focus-within {
-  border-color: rgba(120, 220, 255, 0.55);
-  background: rgba(8, 14, 24, 0.78);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
 }
 
 .screen-search-v3 .search-hero-icon {
@@ -51,7 +56,7 @@
   background: transparent;
   border: 0;
   outline: 0;
-  color: rgba(244, 252, 255, 0.96);
+  color: var(--text-strong);
   font-size: 16px;
   min-width: 0;
 }
@@ -73,7 +78,7 @@
   border-radius: 50%;
   border: 0;
   background: rgba(255, 255, 255, 0.08);
-  color: rgba(244, 252, 255, 0.85);
+  color: var(--text);
   font-size: 12px;
   cursor: pointer;
   display: grid;
@@ -93,7 +98,7 @@
   border-radius: 14px;
   border: 1px dashed rgba(180, 220, 240, 0.28);
   background: rgba(8, 14, 24, 0.36);
-  color: rgba(220, 240, 252, 0.82);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -118,7 +123,7 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(167, 247, 255, 0.7);
+  color: var(--muted);
 }
 
 .screen-search-v3 .search-hero-recent-row {
@@ -130,9 +135,9 @@
 .screen-search-v3 .search-hero-recent-chip {
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(180, 223, 255, 0.18);
-  background: rgba(8, 14, 24, 0.42);
-  color: rgba(229, 241, 255, 0.86);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+  color: var(--text);
   font-size: 0.78rem;
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
@@ -160,13 +165,13 @@
   align-items: baseline;
   gap: 6px;
   font-size: 0.86rem;
-  color: rgba(220, 240, 252, 0.7);
+  color: var(--muted);
 }
 
 .screen-search-v3 .search-hero-result-count strong {
   font-size: 1.1rem;
   font-weight: 700;
-  color: rgba(122, 230, 255, 0.95);
+  color: var(--accent);
 }
 
 .screen-search-v3 .search-hero-result-actions {
@@ -201,16 +206,16 @@
   gap: 6px;
   padding: 4px 10px 4px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(120, 220, 255, 0.4);
-  background: rgba(20, 56, 88, 0.4);
-  color: rgba(190, 240, 255, 0.96);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
   font-size: 0.74rem;
   cursor: pointer;
   transition: background 140ms ease;
 }
 
 .screen-search-v3 .search-hero-filter-pill:hover {
-  background: rgba(20, 56, 88, 0.65);
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .screen-search-v3 .search-hero-filter-pill-x {
@@ -262,7 +267,7 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(167, 247, 255, 0.78);
+  color: var(--muted);
 }
 
 .screen-search-v3 .search-rail {
@@ -285,9 +290,9 @@
   gap: 8px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(180, 223, 255, 0.16);
-  background: rgba(8, 14, 24, 0.46);
-  color: rgba(229, 241, 255, 0.88);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
@@ -301,20 +306,20 @@
 }
 
 .screen-search-v3 .search-rail-chip.active {
-  border-color: rgba(120, 220, 255, 0.85);
-  background: linear-gradient(135deg, rgba(36, 80, 116, 0.78), rgba(20, 56, 88, 0.78));
-  color: rgba(244, 252, 255, 0.98);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text-strong);
 }
 
 .screen-search-v3 .search-rail-chip-count {
   font-size: 0.7rem;
   font-weight: 700;
-  color: rgba(122, 230, 255, 0.95);
+  color: var(--accent);
   letter-spacing: 0.02em;
 }
 
 .screen-search-v3 .search-rail-chip.active .search-rail-chip-count {
-  color: rgba(180, 245, 255, 1);
+  color: var(--accent);
 }
 
 /* Quick-return cards (recent stations). */
@@ -331,9 +336,9 @@
   gap: 10px;
   padding: 10px;
   border-radius: 14px;
-  border: 1px solid rgba(180, 223, 255, 0.14);
-  background: rgba(8, 14, 24, 0.4);
-  color: rgba(229, 241, 255, 0.92);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
+  color: var(--text);
   text-align: left;
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
@@ -359,6 +364,7 @@
 .screen-search-v3 .search-quick-return-name {
   font-size: 0.86rem;
   font-weight: 600;
+  color: var(--text-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -366,7 +372,7 @@
 
 .screen-search-v3 .search-quick-return-meta {
   font-size: 0.7rem;
-  color: rgba(190, 220, 235, 0.66);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -770,20 +776,20 @@
 }
 
 .search-card-title {
-  color: #f6fdff;
+  color: var(--text-strong);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.16;
 }
 
 .search-card-meta {
-  color: rgba(211, 226, 240, 0.76);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 650;
 }
 
 .search-card-tags {
-  color: rgba(180, 241, 239, 0.86);
+  color: var(--accent);
   font-size: 10px;
   font-weight: 700;
 }
@@ -2009,4 +2015,235 @@
 :root[data-theme-mode='light'] .screen-globe-v3 .globe-zoom-btn {
   --text-strong: #f5fbff;
   --muted: rgba(225, 238, 249, 0.74);
+}
+
+/* ============================================================================
+   Search mobile (≤720px) — result-bar becomes a fixed count|filters row with
+   the native-select drawer moved into the shared bottom sheet; play-all goes
+   full-width primary; active filter pills and quick-return become peek rails;
+   PR-3 tap floors on the dense in-card controls.
+   ========================================================================== */
+@media (max-width: 720px) {
+  .screen-search-v3 {
+    gap: var(--space-lg);
+  }
+
+  .screen-search-v3 .search-hero-result-bar--compact {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-top: var(--space-xs);
+    border-top: 1px solid rgba(170, 220, 240, 0.08);
+  }
+
+  .screen-search-v3 .search-hero-filters-pill {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 44px;
+    padding: 0 var(--space-lg);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .screen-search-v3 .search-hero-filters-badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    color: var(--text-strong);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  /* Full-width primary play-all — the .home-primary-btn shape/gradient. */
+  .screen-search-v3 .search-hero-play-all-wide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-lg);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 72%, white));
+    color: var(--bg);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .screen-search-v3 .search-hero-play-all-wide:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  /* Active filter pills: a no-wrap peek rail. overscroll-behavior-x:contain —
+     same rule as the home rails, otherwise reaching the rail's end scrolls the
+     page (an already-caught bug). */
+  .screen-search-v3 .search-hero-active-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .screen-search-v3 .search-hero-active-filters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .screen-search-v3 .search-hero-filter-pill {
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+
+  /* PR-3 taps: clear keeps its 26px visual circle inside a 40px hit area via a
+     transparent border + padding-box clip. */
+  .screen-search-v3 .search-hero-clear {
+    width: 40px;
+    height: 40px;
+    border: 7px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .screen-search-v3 .search-hero-recent-chip {
+    min-height: 40px;
+  }
+
+  .search-card-actions .play-btn,
+  .search-card-actions .icon-btn {
+    /* Dense 3-up cluster inside the result card — the PR-3 40px floor. */
+    min-height: 40px;
+  }
+
+  /* Quick-return: collapsing grid → ~2.3-card peek rail (home resume-strip
+     pattern), wheel-converted via the existing useRailWheel ref. */
+  .screen-search-v3 .search-quick-return-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .screen-search-v3 .search-quick-return-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .screen-search-v3 .search-quick-return-card {
+    flex: 0 0 auto;
+    width: min(150px, 44vw);
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-areas:
+      'art play'
+      'copy copy';
+    row-gap: var(--space-xs);
+  }
+
+  .screen-search-v3 .search-quick-return-card .station-artwork-sm {
+    grid-area: art;
+  }
+
+  .screen-search-v3 .search-quick-return-copy {
+    grid-area: copy;
+    min-width: 0;
+  }
+
+  .screen-search-v3 .search-quick-return-play {
+    grid-area: play;
+    justify-self: end;
+  }
+
+  /* Links mode: hero-language input + a 2x2 grid of 44px action chips. */
+  .search-links-stack .settings-input {
+    min-height: 48px;
+  }
+
+  .search-links-stack .settings-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+  }
+
+  .search-links-stack .settings-actions .chip {
+    min-height: 44px;
+  }
+
+  /* Filters bottom-sheet body (rides the shared .bottom-sheet-card). */
+  .search-filters-sheet-body {
+    display: grid;
+    gap: var(--space-lg);
+    padding-top: var(--space-xs);
+  }
+
+  .search-filters-field {
+    display: grid;
+    gap: var(--space-sm);
+  }
+
+  .search-filters-label {
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .search-filters-country-query,
+  .search-filters-select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+    color: var(--text-strong);
+    font: inherit;
+    font-size: var(--text-md);
+  }
+
+  .search-filters-country-query:focus-visible,
+  .search-filters-select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .search-filters-clear-all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-lg);
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .search-filters-clear-all:disabled {
+    cursor: default;
+    opacity: 0.48;
+  }
 }

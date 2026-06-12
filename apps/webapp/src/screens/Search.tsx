@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { StationTable } from '../components/StationTable';
 import { StationArtwork } from '../components/StationArtwork';
 import { useCatalog } from '../state/CatalogContext';
@@ -6,6 +7,7 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import { useDialog } from '../lib/useDialog';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
@@ -155,6 +157,141 @@ const FEATURED_GENRES: ReadonlyArray<string> = [
 // silently no-ops there and the page kept scrolling vertically
 // while the rail also scrolled horizontally. This direct listener
 // blocks the page scroll cleanly.
+type SearchFiltersSheetProps = {
+  stationSearch: ReturnType<typeof useStationSearch>;
+  onClose: () => void;
+};
+
+// Mobile filters bottom-sheet (≤720px) — the hero-card drawer's three NATIVE
+// selects move here on the shared .bottom-sheet-card. Owner's call: selects
+// stay native (full-width ≥48px rows; custom list UIs deferred). State is the
+// EXISTING stationSearch.filtersOpen — no new state. PORTALED to document.body
+// (Globe lesson: .app-shell-v2{isolation:isolate} + the animated screen frame
+// pin even z-130 under the fixed dock — a sibling inside the screen tree is
+// not enough), with its own useDialog (nested dialog roots double-handle Tab).
+const SearchFiltersSheet = ({ stationSearch, onClose }: SearchFiltersSheetProps) => {
+  const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: true, onClose });
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      className="bottom-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      data-search-filters-sheet
+    >
+      <button
+        className="bottom-sheet-scrim"
+        type="button"
+        onClick={onClose}
+        aria-label={t('common.close')}
+      />
+      <div className="bottom-sheet-card">
+        <span className="bottom-sheet-handle" aria-hidden="true" />
+        <div className="bottom-sheet-head">
+          <div>
+            <div className="bottom-sheet-kicker">{t('nav.search')}</div>
+            <div className="bottom-sheet-title" id={titleId}>
+              {t('search.showFilters')}
+            </div>
+          </div>
+          <button
+            className="bottom-sheet-close"
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="search-filters-sheet-body">
+          <label className="search-filters-field">
+            <span className="search-filters-label">{t('search.scopeRegion')}</span>
+            <input
+              className="search-filters-country-query"
+              type="search"
+              inputMode="search"
+              autoComplete="off"
+              placeholder={t('discover.searchPlaceholder')}
+              value={stationSearch.countryQuery}
+              onChange={(event) => stationSearch.setCountryQuery(event.target.value)}
+            />
+            <select
+              className="filter-select search-filters-select"
+              value={stationSearch.countryFilter}
+              onChange={(event) => stationSearch.setCountryFilter(event.target.value)}
+            >
+              <option value="All">{t('discover.regionAll')}</option>
+              {stationSearch.countries
+                .filter((country) => country !== 'All')
+                .map((country) => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label className="search-filters-field">
+            <span className="search-filters-label">{t('search.genresTitle')}</span>
+            <select
+              className="filter-select search-filters-select"
+              value={stationSearch.tagFilter}
+              onChange={(event) => stationSearch.setTagFilter(event.target.value)}
+            >
+              <option value="All">{t('discover.tagTitle')}</option>
+              {stationSearch.tags
+                .filter((tag) => tag !== 'All')
+                .map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label className="search-filters-field">
+            <span className="search-filters-label">{t('search.languagesTitle')}</span>
+            <select
+              className="filter-select search-filters-select"
+              value={stationSearch.languageFilter}
+              onChange={(event) => stationSearch.setLanguageFilter(event.target.value)}
+            >
+              <option value="All">{t('discover.regionAll')}</option>
+              {stationSearch.languages
+                .filter((lang) => lang !== 'All')
+                .map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <button
+            className="search-filters-clear-all"
+            type="button"
+            onClick={stationSearch.resetSearchScope}
+            disabled={stationSearch.activeFilterCount === 0}
+          >
+            {t('search.clearAllFilters')}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const useRailWheel = () => {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -211,6 +348,10 @@ export const Discover = () => {
   const continentsRailRef = useRailWheel();
   const countriesRailRef = useRailWheel();
   const genresRailRef = useRailWheel();
+  // Quick-return became a horizontal peek rail on mobile — same wheel-to-rail
+  // conversion as the idle rails (no-op on desktop where the grid doesn't
+  // overflow).
+  const quickReturnRailRef = useRailWheel();
 
   useEffect(() => {
     const draft = searchDraft.trim();
@@ -381,50 +522,89 @@ export const Discover = () => {
           ) : null}
 
           {queryActive ? (
-            <div className="search-hero-result-bar">
-              <div className="search-hero-result-count">
-                <strong>
-                  {rankedSearchResults.length}
-                  {stationSearch.nextCursor ? '+' : ''}
-                </strong>
-                <span>
-                  / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
-                </span>
-              </div>
-              <div className="search-hero-result-actions">
+            compactResults ? (
+              // ≤720: fixed count-left / filters-pill-right row instead of the
+              // wrapping chip pile; play-all becomes a full-width primary
+              // button below. "Clear all" lives in the filters sheet footer.
+              <>
+                <div className="search-hero-result-bar search-hero-result-bar--compact">
+                  <div className="search-hero-result-count">
+                    <strong>
+                      {rankedSearchResults.length}
+                      {stationSearch.nextCursor ? '+' : ''}
+                    </strong>
+                    <span>
+                      / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
+                    </span>
+                  </div>
+                  <button
+                    className="search-hero-filters-pill"
+                    type="button"
+                    onClick={() => stationSearch.setFiltersOpen(true)}
+                    aria-expanded={stationSearch.filtersOpen}
+                    aria-haspopup="dialog"
+                  >
+                    {t('search.showFilters')}
+                    {filterCount > 0 ? (
+                      <em className="search-hero-filters-badge">{filterCount}</em>
+                    ) : null}
+                  </button>
+                </div>
                 <button
-                  className="chip search-hero-play-all"
+                  className="search-hero-play-all-wide"
                   type="button"
                   onClick={startSearchRadio}
                   disabled={!searchQueue.length}
                 >
                   ▶ {t('search.playAllResults')}
                 </button>
-                <button
-                  className={`chip search-hero-filters-toggle ${
-                    stationSearch.filtersOpen ? 'active' : ''
-                  }`}
-                  type="button"
-                  onClick={() => stationSearch.setFiltersOpen((prev) => !prev)}
-                  aria-expanded={stationSearch.filtersOpen}
-                >
-                  {filterCount > 0
-                    ? `${t('search.showFilters')} · ${filterCount}`
-                    : stationSearch.filtersOpen
-                      ? t('search.hideFilters')
-                      : t('search.showFilters')}
-                </button>
-                {filterCount > 0 ? (
+              </>
+            ) : (
+              <div className="search-hero-result-bar">
+                <div className="search-hero-result-count">
+                  <strong>
+                    {rankedSearchResults.length}
+                    {stationSearch.nextCursor ? '+' : ''}
+                  </strong>
+                  <span>
+                    / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
+                  </span>
+                </div>
+                <div className="search-hero-result-actions">
                   <button
-                    className="chip search-hero-reset"
+                    className="chip search-hero-play-all"
                     type="button"
-                    onClick={stationSearch.resetSearchScope}
+                    onClick={startSearchRadio}
+                    disabled={!searchQueue.length}
                   >
-                    {t('search.clearAllFilters')}
+                    ▶ {t('search.playAllResults')}
                   </button>
-                ) : null}
+                  <button
+                    className={`chip search-hero-filters-toggle ${
+                      stationSearch.filtersOpen ? 'active' : ''
+                    }`}
+                    type="button"
+                    onClick={() => stationSearch.setFiltersOpen((prev) => !prev)}
+                    aria-expanded={stationSearch.filtersOpen}
+                  >
+                    {filterCount > 0
+                      ? `${t('search.showFilters')} · ${filterCount}`
+                      : stationSearch.filtersOpen
+                        ? t('search.hideFilters')
+                        : t('search.showFilters')}
+                  </button>
+                  {filterCount > 0 ? (
+                    <button
+                      className="chip search-hero-reset"
+                      type="button"
+                      onClick={stationSearch.resetSearchScope}
+                    >
+                      {t('search.clearAllFilters')}
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
+            )
           ) : null}
 
           {queryActive && stationSearch.activeFilters.length ? (
@@ -446,7 +626,7 @@ export const Discover = () => {
             </div>
           ) : null}
 
-          {queryActive && stationSearch.filtersOpen ? (
+          {queryActive && stationSearch.filtersOpen && !compactResults ? (
             <div className="search-hero-drawer">
               <div className="search-hero-drawer-row">
                 <select
@@ -556,7 +736,7 @@ export const Discover = () => {
                   {t('search.quickReturnTitle')}
                 </span>
               </div>
-              <div className="search-quick-return-row">
+              <div className="search-quick-return-row" ref={quickReturnRailRef}>
                 {compactQuickReturnStations.map((station) => {
                   const isActive = player.current?.stationuuid === station.stationuuid;
                   return (
@@ -846,6 +1026,12 @@ export const Discover = () => {
             </div>
           ) : null}
         </>
+      ) : null}
+      {queryActive && stationSearch.filtersOpen && compactResults ? (
+        <SearchFiltersSheet
+          stationSearch={stationSearch}
+          onClose={() => stationSearch.setFiltersOpen(false)}
+        />
       ) : null}
     </section>
   );
