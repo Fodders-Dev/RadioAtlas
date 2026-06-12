@@ -500,6 +500,7 @@ export const enDictionary = {
     "cloudEmptyTitle": "Cloud shelf is quiet",
     "cloudEmptyCopy": "Favorite stations or copy a track title and this overview will start filling up.",
     "openHistoryAction": "Open journal",
+    "historyJournalSheet": "History & journal",
     "openQueueAction": "Open queue",
     "openRecentAction": "Open recents",
     "emptyFavoritesTitle": "Save your first stations",

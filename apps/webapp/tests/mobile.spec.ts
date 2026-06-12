@@ -1991,7 +1991,9 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   await expect(page.locator('.library-collection-card')).toHaveCount(1);
   await expect(page.locator('[data-collection-artwork]')).toBeVisible();
   await expect(page.locator('.library-collection-card').getByRole('button', { name: /^Убрать$|^Remove$/ })).toHaveCount(0);
-  await page.locator('.library-collection-card').getByRole('button', { name: /Открыть|Open/ }).first().click();
+  // Library mobile rebuild: the Open chip is gone on mobile — the card's
+  // title button (artwork + name + count) opens the detail.
+  await page.locator('.library-collection-card .library-collection-title-button').first().click();
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
   await expect(page.locator('[data-library-collection-row]')).toHaveCount(5);
 
@@ -2022,6 +2024,71 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   await expect(tokyoRow).toHaveCount(0);
 });
 
+// Library mobile rebuild: the queue's history+journal rail, the expanded track
+// journal, and per-card collection actions live in three portaled bottom
+// sheets (the shared .bottom-sheet-card).
+test('mobile library opens its three bottom sheets', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'queue',
+    stationCache: stations,
+    queue: [stations[0], stations[1], stations[2]],
+    recent: [stations[3]],
+    trackHistory: [
+      {
+        id: 'sheet-track-1',
+        stationId: stations[3].stationuuid,
+        stationName: stations[3].name,
+        track: 'Sheet Mock Song',
+        timestamp: Date.UTC(2026, 4, 1, 9, 0, 0)
+      }
+    ],
+    collections: [
+      {
+        id: 'collection-sheet',
+        name: 'Sheet set',
+        stationIds: stations.slice(0, 3).map((station) => station.stationuuid)
+      }
+    ]
+  });
+
+  await page.goto('/');
+
+  // S1: queue history + journal.
+  await page.getByRole('button', { name: /История и журнал|History & journal/ }).click();
+  const railSheet = page.locator('[data-library-sheet="queue-rail"]');
+  await expect(railSheet).toBeVisible();
+  await expect(railSheet).toContainText('Sheet Mock Song');
+  await page.keyboard.press('Escape');
+  await expect(railSheet).toHaveCount(0);
+
+  // S2: full track journal on the recent tab.
+  await page.locator('.library-tab-chip').filter({ hasText: /Недавнее|Recent/ }).click();
+  await page.getByRole('button', { name: /Показать журнал|Show journal/ }).click();
+  const journalSheet = page.locator('[data-library-sheet="track-journal"]');
+  await expect(journalSheet).toBeVisible();
+  await expect(journalSheet.locator('.track-card')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(journalSheet).toHaveCount(0);
+
+  // S3: per-card collection actions — shuffle starts the collection queue.
+  await page.locator('.library-tab-chip').filter({ hasText: /Коллекции|Collections/ }).click();
+  await page.locator('.library-collection-more').first().click();
+  const actionsSheet = page.locator('[data-library-sheet="collection-actions"]');
+  await expect(actionsSheet).toBeVisible();
+  await actionsSheet.getByRole('button', { name: /Вперемешку|Shuffle/ }).click();
+  await expect(actionsSheet).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('radio:player:v2');
+        return raw ? JSON.parse(raw).queue?.sourceId : null;
+      })
+    )
+    .toBe('collection-collection-sheet');
+});
+
 test('mobile library restores collection scroll after closing detail', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, {
@@ -2041,7 +2108,7 @@ test('mobile library restores collection scroll after closing detail', async ({ 
   const before = await page.evaluate(() => window.scrollY);
   expect(before).toBeGreaterThan(0);
 
-  await targetCard.getByRole('button', { name: /Открыть|Open/ }).click();
+  await targetCard.locator('.library-collection-title-button').click();
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
   await page.locator('[data-library-collection-detail]').getByRole('button', { name: /Назад|Back/ }).click();
   await expect(page.locator('[data-library-collection-detail]')).toHaveCount(0);
@@ -2114,7 +2181,7 @@ test('mobile library hides add-current collection action without a current stati
   const collectionCard = page.locator('.library-collection-card').filter({ hasText: 'No fallback set' });
   await expect(collectionCard).toBeVisible();
   await expect(collectionCard.getByRole('button', { name: /Добавить текущее|Add current/ })).toHaveCount(0);
-  await collectionCard.getByRole('button', { name: /Открыть|Open/ }).first().click();
+  await collectionCard.locator('.library-collection-title-button').click();
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
   await expect(page.getByRole('button', { name: /Добавить текущее|Add current/ })).toHaveCount(0);
   await expect(page.locator('[data-library-collection-row]')).toHaveCount(0);
