@@ -349,3 +349,47 @@ test('search mobile visual baseline (results + filters sheet)', async ({ page })
     maxDiffPixelRatio: 0.04
   });
 });
+
+// Library mobile rebuild: pin the @360x780 queue tab (single column, the
+// metric pills as one horizontal peek strip) and the single-column collections
+// grid with the Play+«···» card actions.
+test('library mobile visual baseline (queue + collections)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'queue',
+    stationCache: stations,
+    queue: [stations[0], stations[1], stations[2]],
+    recent: [stations[3]],
+    trackHistory: [
+      {
+        id: 'visual-track-1',
+        stationId: stations[3].stationuuid,
+        stationName: stations[3].name,
+        track: 'Visual Mock Song',
+        timestamp: Date.UTC(2026, 4, 1, 9, 0, 0)
+      }
+    ],
+    collections: [
+      {
+        id: 'collection-visual',
+        name: 'Visual set',
+        stationIds: stations.slice(0, 4).map((station) => station.stationuuid)
+      }
+    ]
+  });
+  await page.goto('/?api=/api');
+  await expect(page.locator('.library-queue-now-card')).toBeVisible();
+  await waitForStableMetrics(page, '.screen-library-v2');
+
+  const queueShot = await page.screenshot({ animations: 'disabled' });
+  expect(queueShot).toMatchSnapshot('library-mobile-queue.png', { maxDiffPixelRatio: 0.04 });
+
+  await page.locator('.library-tab-chip').filter({ hasText: /Коллекции|Collections/ }).click();
+  await expect(page.locator('.library-collection-card')).toBeVisible();
+  await waitForStableMetrics(page, '.screen-library-v2');
+  const collectionsShot = await page.screenshot({ animations: 'disabled' });
+  expect(collectionsShot).toMatchSnapshot('library-mobile-collections.png', {
+    maxDiffPixelRatio: 0.04
+  });
+});

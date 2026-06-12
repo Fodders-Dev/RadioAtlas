@@ -7481,7 +7481,7 @@ body {
 }
 
 .library-tab-count {
-  color: rgba(215, 230, 245, 0.72);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
@@ -7873,8 +7873,115 @@ body {
     grid-template-columns: 1fr;
   }
 
+  /* Library mobile: the 4 metric pills become ONE horizontal peek strip —
+     overscroll containment per the home-rails rule (otherwise the strip's end
+     scrolls the page). */
   .library-queue-overview {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .library-queue-overview::-webkit-scrollbar {
+    display: none;
+  }
+
+  .library-queue-overview .globe-selection-pill {
+    flex: 0 0 auto;
+  }
+
+  /* Calmer collections rhythm on the single-column grid. */
+  .library-collection-grid {
+    gap: var(--space-lg);
+  }
+
+  /* Collection-card station preview: a ~2.3-tile horizontal peek rail. The
+     StationTable compact rows keep their own play wiring — only the container
+     geometry changes, so the preview stays playable. */
+  .library-collection-preview .station-table.compact {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .library-collection-preview .station-table.compact::-webkit-scrollbar {
+    display: none;
+  }
+
+  .library-collection-preview .station-row {
+    flex: 0 0 auto;
+    width: min(150px, 44vw);
+  }
+
+  .library-collection-preview .station-compact-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-sm);
+  }
+
+  /* Detail chip-row breathes instead of cramming. */
+  .library-collection-detail .chip-row {
+    gap: var(--space-sm);
+  }
+
+  /* The «···» per-card actions trigger keeps the 44px square tap. */
+  .library-collection-more {
+    min-width: 44px;
+    font-size: var(--text-md);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  /* Sheet bodies (ride the shared .bottom-sheet-card). */
+  .library-sheet-stack {
+    display: grid;
+    gap: var(--space-lg);
+    padding-top: var(--space-xs);
+  }
+
+  .library-sheet-track-list {
+    max-height: 62dvh;
+    padding-top: var(--space-xs);
+  }
+
+  .library-sheet-rows {
+    display: grid;
+    gap: var(--space-sm);
+    padding-top: var(--space-xs);
+  }
+
+  .library-sheet-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    min-height: 48px;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .library-sheet-action.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+
+  .library-sheet-action:disabled {
+    cursor: default;
+    opacity: 0.48;
   }
 
   .player-dock-tray[data-mode='queue'],
@@ -9160,9 +9267,11 @@ body {
 .library-inline-toast {
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(180, 241, 239, 0.2);
-  background: rgba(180, 241, 239, 0.1);
-  color: #efffff;
+  /* PR-1 contrast norm: themed accent surface + token text — the old fixed
+     near-white ink vanished on Warm Light. */
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
 }

@@ -500,6 +500,7 @@ export const ruDictionary = {
     "cloudEmptyTitle": "Пустая облачная полка",
     "cloudEmptyCopy": "Лайкни станции или скопируй трек, и здесь появится быстрый обзор твоей библиотеки.",
     "openHistoryAction": "Открыть журнал",
+    "historyJournalSheet": "История и журнал",
     "openQueueAction": "Открыть очередь",
     "openRecentAction": "Открыть недавнее",
     "emptyFavoritesTitle": "Сохрани первые станции",
