@@ -439,3 +439,21 @@ test('observability exposes persisted JSON and prometheus views', async () => {
   assert.match(metrics, /radioatlas_observability_gauge/);
   assert.match(metrics, /radioatlas_request_latency_ms/);
 });
+
+test('AI off (default): /ai/chat and the internal bot AI endpoint are not registered', async () => {
+  // The contract server boots with no AI_ENABLED / DEEPSEEK_API_KEY, so the
+  // assistant routes must not exist — the deploy is byte-identical to today.
+  const chat = await fetch(`${baseUrl}/ai/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'привет' })
+  });
+  assert.equal(chat.status, 404);
+
+  const internal = await fetch(`${baseUrl}/internal/bot/ai-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': 'contract-test-internal-token' },
+    body: JSON.stringify({ telegramId: '1', text: 'привет' })
+  });
+  assert.equal(internal.status, 404);
+});

@@ -30,6 +30,12 @@ import {
   buildStartPayload,
   buildSupportPayload
 } from './replyPayloads.js';
+import {
+  AI_FALLBACK_TEXT,
+  buildAiButtons,
+  isAiEligibleMessage,
+  requestAiChat
+} from './aiChat.js';
 import { createBotUrlRuntime } from './urlRuntime.js';
 
 const token = process.env.BOT_TOKEN;
@@ -51,6 +57,11 @@ if (!internalWebhookToken) {
 // Default is the project owner's TG handle; override via SUPPORT_HANDLE
 // once a dedicated @radioatlas_support account exists.
 const supportHandle = process.env.SUPPORT_HANDLE?.trim() || '@ahjkuio';
+
+// «Лира» AI companion. Gated on AI_ENABLED (the bot never holds the DeepSeek
+// key — it forwards to the api's internal endpoint). When off, the message:text
+// handler is NOT registered, so the bot ignores free text exactly like today.
+const aiEnabled = process.env.AI_ENABLED === '1';
 
 const { apiUrl, webAppUrl, withSharedApi, withMiniAppParam } = createBotUrlRuntime({
   apiUrl: process.env.API_URL,
@@ -410,6 +421,77 @@ bot.on('message:successful_payment', async (ctx) => {
   // renders as monospace tap-to-copy in the Telegram client.
   await ctx.reply(result.replyText, { parse_mode: 'HTML' });
 });
+
+// «Лира» — free-text companion. Registered LAST (grammy matches in order) and
+// only when AI is enabled. Commands (/...) and non-private chats are skipped, so
+// this never shadows the record/start/billing flows.
+if (aiEnabled) {
+  // Per-user in-memory limiter (recordStream.ts pattern): one in-flight reply
+  // per user, ~10/min, plus a global in-flight cap — so a flood can't fan out
+  // into a burst of DeepSeek calls.
+  const AI_USER_WINDOW_MS = 60_000;
+  const AI_USER_MAX_PER_WINDOW = 10;
+  const AI_GLOBAL_MAX_INFLIGHT = 8;
+  const aiInflight = new Set<string>();
+  const aiUserHits = new Map<string, number[]>();
+  let aiGlobalInflight = 0;
+
+  const aiLimiterVerdict = (userId: string): 'ok' | 'busy' | 'flood' => {
+    if (aiInflight.has(userId) || aiGlobalInflight >= AI_GLOBAL_MAX_INFLIGHT) return 'busy';
+    const now = Date.now();
+    const hits = (aiUserHits.get(userId) || []).filter((ts) => now - ts < AI_USER_WINDOW_MS);
+    if (hits.length >= AI_USER_MAX_PER_WINDOW) return 'flood';
+    hits.push(now);
+    aiUserHits.set(userId, hits);
+    return 'ok';
+  };
+
+  bot.on('message:text', async (ctx) => {
+    if (!isAiEligibleMessage({ text: ctx.message.text, chatType: ctx.chat?.type })) return;
+    const userId = String(ctx.from?.id || '');
+    if (!userId) return;
+
+    const verdict = aiLimiterVerdict(userId);
+    if (verdict === 'busy') {
+      await ctx.reply('Секунду, я ещё думаю над прошлым — сейчас отвечу.');
+      return;
+    }
+    if (verdict === 'flood') {
+      await ctx.reply('Ой, как много всего сразу — дай мне чуть выдохнуть, и продолжим.');
+      return;
+    }
+
+    aiInflight.add(userId);
+    aiGlobalInflight += 1;
+    try {
+      await ctx.replyWithChatAction('typing');
+      const result = await requestAiChat(
+        { telegramId: userId, text: ctx.message.text },
+        { fetch: globalThis.fetch.bind(globalThis), apiUrl, internalWebhookToken }
+      );
+      if (!result) {
+        await ctx.reply(AI_FALLBACK_TEXT);
+        return;
+      }
+      const buttons = buildAiButtons(result, ctx.me?.username || '');
+      await ctx.reply(result.reply, {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+        reply_markup: buttons.length ? InlineKeyboard.from(buttons) : undefined
+      });
+    } catch (err) {
+      console.error('ai chat handler error', err);
+      try {
+        await ctx.reply(AI_FALLBACK_TEXT);
+      } catch {
+        // ignore secondary failure
+      }
+    } finally {
+      aiInflight.delete(userId);
+      aiGlobalInflight = Math.max(0, aiGlobalInflight - 1);
+    }
+  });
+}
 
 bot.catch((err) => {
   console.error('Bot error', err);

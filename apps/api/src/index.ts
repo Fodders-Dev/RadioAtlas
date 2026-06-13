@@ -6,6 +6,8 @@ import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
 import { registerBotRoutes } from './botRoutes.js';
+import { createAssistantRuntime, registerAiRoutes } from './aiRoutes.js';
+import { parseMusicServices } from './ai/musicLinks.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
@@ -37,6 +39,16 @@ const VK_CLIENT_ID = process.env.VK_CLIENT_ID || '';
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || '';
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || '';
 const INTERNAL_WEBHOOK_TOKEN = process.env.INTERNAL_WEBHOOK_TOKEN || '';
+// «Лира» AI companion. The DeepSeek key lives in EXACTLY one place — this
+// process — and is read here only. AI_ENABLED defaults OFF so a deploy without
+// the AI envs behaves byte-identically to today.
+const AI_ENABLED = process.env.AI_ENABLED === '1';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
+const AI_TIMEOUT_SEC = Math.max(1, Number(process.env.AI_TIMEOUT_SEC) || 8);
+const AI_MUSIC_SERVICES = parseMusicServices(process.env.AI_MUSIC_SERVICES);
 // T0.2c: opt-out flag for the billing reconciliation sweep. Defaults
 // to ENABLED. Set BILLING_RECONCILE_ENABLED=0 in tests/CI so the
 // in-process setInterval doesn't fire spurious Telegram-API calls
@@ -74,6 +86,16 @@ if (NODE_ENV === 'production' && ENABLE_TEST_AUTH_FIXTURES) {
   );
   process.exit(1);
 }
+
+// AI_ENABLED without a key is a misconfiguration, but a NON-fatal one: log
+// loudly and fall back to AI-off rather than crashing the whole API (radio must
+// keep serving). The assistant is "active" only with both flag AND key.
+if (NODE_ENV === 'production' && AI_ENABLED && !DEEPSEEK_API_KEY) {
+  console.error(
+    'AI_ENABLED=1 but DEEPSEEK_API_KEY is missing — the assistant will run as DISABLED until the key is set.'
+  );
+}
+const AI_ACTIVE = AI_ENABLED && Boolean(DEEPSEEK_API_KEY);
 
 const ALLOWED_ORIGINS = (() => {
   const parsed = ALLOWED_ORIGINS_RAW
@@ -416,11 +438,33 @@ registerBillingRoutes(app, {
   nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
-registerBotRoutes(app, { internalWebhookToken: INTERNAL_WEBHOOK_TOKEN });
 const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles
 });
+// Build the assistant runtime BEFORE registerBotRoutes so the internal bot
+// AI endpoint can share the same warm in-process catalog + the single DeepSeek
+// key. Null when AI is off → no /ai/chat route, no internal endpoint, no bot
+// handler (byte-identical to today).
+const aiRuntime = AI_ACTIVE
+  ? createAssistantRuntime({
+      catalog: catalogService,
+      deepseek: {
+        enabled: true,
+        apiKey: DEEPSEEK_API_KEY,
+        baseUrl: DEEPSEEK_BASE_URL,
+        model: DEEPSEEK_MODEL,
+        maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+        timeoutSec: AI_TIMEOUT_SEC
+      },
+      musicServices: AI_MUSIC_SERVICES,
+      log: (message) => console.warn(`[lira] ${message}`)
+    })
+  : null;
+registerBotRoutes(app, { internalWebhookToken: INTERNAL_WEBHOOK_TOKEN, aiRuntime });
+if (aiRuntime) {
+  registerAiRoutes(app, { runtime: aiRuntime });
+}
 // T_share_3 (PR-A): the Story-card endpoint. Resolves the station via the warm
 // catalog (getStationById is ~16ms post-#43); render/SSRF/cache live in the
 // share/* modules. The native render dep is lazy-loaded there so a bad binary
