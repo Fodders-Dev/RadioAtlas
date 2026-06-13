@@ -663,13 +663,20 @@ export const useAudioPlayer = ({
         dedupeKey: `audio_playing:${playbackSessionRef.current}:${requestedStation?.stationuuid || currentRef.current?.stationuuid || 'unknown'}`,
         dedupeMs: 4_000
       });
-      if ('mediaSession' in navigator) {
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
         try {
-          navigator.mediaSession.setPositionState({
-            duration: 0,
-            playbackRate: 1,
-            position: 0
-          });
+          // Live radio streams report Infinity/NaN duration — never advertise a
+          // finite length to the OS, or the lock screen renders a bogus seek bar
+          // (and the old hardcoded `duration: 0` did exactly that). Publish a
+          // position state ONLY for genuinely finite media; for live streams,
+          // leave it unset.
+          if (Number.isFinite(audio.duration) && audio.duration > 0) {
+            navigator.mediaSession.setPositionState({
+              duration: audio.duration,
+              playbackRate: audio.playbackRate || 1,
+              position: audio.currentTime || 0
+            });
+          }
         } catch {
           // ignore
         }
