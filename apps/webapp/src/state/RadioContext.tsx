@@ -1228,37 +1228,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    void (async () => {
-      if (
-        currentQueue.currentIndex < 0 ||
-        currentQueue.currentIndex >= currentQueue.items.length - 1
-      ) {
-        notify(t('toast.noPlayable'));
-        return;
-      }
-
-      for (
-        let nextIndex = currentQueue.currentIndex + 1;
-        nextIndex < currentQueue.items.length;
-        nextIndex += 1
-      ) {
-        const nextStation = currentQueue.items[nextIndex];
-        if (!nextStation) continue;
-        const nextQueue: QueueSnapshot = {
-          ...currentQueue,
-          currentIndex: nextIndex
-        };
-        const ok = await playStationInternal(nextStation, {
-          recordHistory: false,
-          addToRecent: false,
-          queueSnapshot: nextQueue,
-          suppressErrorToast: true
-        });
-        if (ok) return;
-      }
-
-      notify(t('toast.noPlayable'));
-    })();
+    // Owner decision — NEVER auto-switch the station on a runtime failure. A
+    // stream that died after playback started, and that candidate-switch +
+    // scheduleReconnect (both in useAudioPlayer) could not revive, leaves the
+    // player in `error`. We deliberately do NOT advance the queue or jump to
+    // another station: the current station stays selected (so any further
+    // reconnect/manual retry targets the SAME station), and the user is shown
+    // an "unavailable" notice and left to choose what to play next. The old
+    // auto-skip-to-next loop lived here and is intentionally gone.
+    notify(t('toast.streamUnavailable'));
   }, [player.current, player.failure, player.status]);
 
   useEffect(() => {
@@ -1437,22 +1415,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const pickRandomStation = (pool: StationLite[]) => {
-    if (!pool.length) return null;
-    const currentId = player.current?.stationuuid;
-    if (pool.length === 1) {
-      return pool[0].stationuuid === currentId ? null : pool[0];
-    }
-
-    for (let i = 0; i < 6; i += 1) {
-      const candidate = pool[Math.floor(Math.random() * pool.length)];
-      if (!candidate || candidate.stationuuid === currentId) continue;
-      return candidate;
-    }
-
-    return pool.find((item) => item.stationuuid !== currentId) ?? null;
-  };
-
   const playNext = () => {
     const currentStation = player.current;
     const startedAt = currentStartedAtRef.current;
@@ -1503,36 +1465,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return false;
     };
 
-    const playFromGlobalPool = async () => {
-      const currentQueue = queueRef.current;
-      const globalPool = knownStations;
-      const pool = globalPool.length ? globalPool : currentQueue.items;
-      if (!pool.length) return false;
-
-      const tried = new Set<string>();
-      const maxAttempts = Math.min(12, pool.length);
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const available = pool.filter((station) => !tried.has(station.stationuuid));
-        const candidatePool = available.length ? available : pool;
-        const randomStation = pickRandomStation(candidatePool);
-        if (!randomStation) break;
-        tried.add(randomStation.stationuuid);
-        const ok = await playStationInternal(randomStation, {
-          queueSnapshot: resolveQueueSnapshot(randomStation, {
-            sourceId: 'all-stations',
-            sourceLabel: t('radio.allStations')
-          }),
-          suppressErrorToast: true
-        });
-        if (ok) return true;
-      }
-
-      return false;
-    };
-
+    // Owner decision — NEVER jump to a random station. At the end of the queue
+    // (or on a lone live station) playNext is a no-op beyond a notice; the old
+    // playFromGlobalPool random-fallback is intentionally gone.
     void (async () => {
       if (await playFromQueue()) return;
-      if (await playFromGlobalPool()) return;
       notify(t('toast.noPlayable'));
     })();
   };
@@ -1566,6 +1503,26 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  // FIX 4: keep the mediaSession transport callbacks behind a ref so the
+  // handler-registration effect below depends only on the queue's skippability,
+  // not on `player` identity / now-playing metadata. Without this the handlers
+  // re-registered on every metadata tick (each `nowPlaying` update) and on every
+  // player snapshot.
+  const mediaSessionActionsRef = useRef({
+    playNext,
+    playPrevious,
+    toggle: player.toggle,
+    stop: player.stop
+  });
+  mediaSessionActionsRef.current = {
+    playNext,
+    playPrevious,
+    toggle: player.toggle,
+    stop: player.stop
+  };
+
+  // Metadata + playback state — cheap to re-run on every now-playing/isPlaying
+  // change; sets no action handlers, so it never causes handler churn.
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     const station = player.current;
@@ -1596,13 +1553,36 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       artwork
     });
     navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
+  }, [player.current, player.isPlaying, nowPlaying]);
 
-    navigator.mediaSession.setActionHandler('play', () => player.toggle());
-    navigator.mediaSession.setActionHandler('pause', () => player.toggle());
-    navigator.mediaSession.setActionHandler('stop', () => player.stop());
-    navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
-    navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-  }, [player, player.current, player.isPlaying, nowPlaying]);
+  // Transport action handlers. FIX 2a: expose next/prev ONLY for a multi-item
+  // queue — a lone live station has nowhere to skip, and leaving the handlers
+  // bound let the OS lock-screen "next" trigger playNext (which used to random-
+  // jump). play/pause/stop stay always-on. Re-runs only when the queue crosses
+  // the single-item boundary, not on metadata ticks (FIX 4).
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.setActionHandler('play', () =>
+      mediaSessionActionsRef.current.toggle()
+    );
+    navigator.mediaSession.setActionHandler('pause', () =>
+      mediaSessionActionsRef.current.toggle()
+    );
+    navigator.mediaSession.setActionHandler('stop', () =>
+      mediaSessionActionsRef.current.stop()
+    );
+    if (storedQueue.items.length > 1) {
+      navigator.mediaSession.setActionHandler('nexttrack', () =>
+        mediaSessionActionsRef.current.playNext()
+      );
+      navigator.mediaSession.setActionHandler('previoustrack', () =>
+        mediaSessionActionsRef.current.playPrevious()
+      );
+    } else {
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+    }
+  }, [storedQueue.items.length]);
 
   const openWebAppExternally = () => {
     let url = window.location.origin;

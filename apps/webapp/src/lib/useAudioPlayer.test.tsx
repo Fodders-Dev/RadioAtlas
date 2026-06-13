@@ -198,3 +198,99 @@ describe('useAudioPlayer visualizer pump (T2.1)', () => {
     expect(rafCallbacks.size).toBe(0);
   });
 });
+
+// FIX 3: a live radio stream reports Infinity/NaN duration. handlePlaying must
+// NOT call mediaSession.setPositionState for such streams (the old code passed
+// a hardcoded `duration: 0`, which still made the OS render a bogus 0-length
+// seek bar). It may only publish a position state for genuinely finite media.
+describe('useAudioPlayer mediaSession position state (FIX 3)', () => {
+  let container: HTMLDivElement;
+  let root: Root | null = null;
+  let createdAudio: HTMLAudioElement | null = null;
+  const origCreateElement = document.createElement.bind(document);
+  let mediaSessionDescriptor: PropertyDescriptor | undefined;
+  let setPositionState: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    createdAudio = null;
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string, opts?: unknown) => {
+      const el = origCreateElement(tag as 'audio', opts as undefined);
+      if (tag === 'audio') createdAudio = el as HTMLAudioElement;
+      return el;
+    }) as typeof document.createElement);
+
+    setPositionState = vi.fn();
+    mediaSessionDescriptor = Object.getOwnPropertyDescriptor(navigator, 'mediaSession');
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        setPositionState,
+        setActionHandler: vi.fn(),
+        metadata: null,
+        playbackState: 'none'
+      }
+    });
+  });
+
+  afterEach(() => {
+    if (root) {
+      act(() => root?.unmount());
+      root = null;
+    }
+    vi.restoreAllMocks();
+    if (mediaSessionDescriptor) {
+      Object.defineProperty(navigator, 'mediaSession', mediaSessionDescriptor);
+    } else {
+      delete (navigator as { mediaSession?: unknown }).mediaSession;
+    }
+    container.remove();
+  });
+
+  const Host = () => {
+    useAudioPlayer({});
+    return null;
+  };
+  const mount = () => {
+    act(() => {
+      root = createRoot(container);
+      root.render(createElement(Host));
+    });
+  };
+  const setNumber = (prop: 'duration' | 'currentTime' | 'playbackRate', value: number) => {
+    Object.defineProperty(createdAudio!, prop, { configurable: true, value });
+  };
+  const firePlaying = () => {
+    act(() => {
+      createdAudio?.dispatchEvent(new Event('playing'));
+    });
+  };
+
+  it('does NOT publish a position state for an infinite live stream', () => {
+    mount();
+    setNumber('duration', Infinity);
+    firePlaying();
+    expect(setPositionState).not.toHaveBeenCalled();
+  });
+
+  it('does NOT publish a position state while the duration is still unknown (NaN)', () => {
+    mount();
+    setNumber('duration', NaN);
+    firePlaying();
+    expect(setPositionState).not.toHaveBeenCalled();
+  });
+
+  it('publishes the real duration for genuinely finite media', () => {
+    mount();
+    setNumber('duration', 180);
+    setNumber('currentTime', 0);
+    setNumber('playbackRate', 1);
+    firePlaying();
+    expect(setPositionState).toHaveBeenCalledTimes(1);
+    expect(setPositionState).toHaveBeenCalledWith(expect.objectContaining({ duration: 180 }));
+  });
+});
