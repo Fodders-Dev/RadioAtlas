@@ -39,6 +39,33 @@ test.describe('dialog keyboard a11y', () => {
     expect(await activeMatches(page, '.mobile-settings-trigger')).toBe(true);
   });
 
+  // PR-4b: the theme builder's mobile sub-sheets portal to <body> with their
+  // own useDialog — trap, Escape, and focus restoration must hold even with
+  // the SettingsSheet dialog still open underneath.
+  test('Theme builder sub-sheet: focus trap, Escape, and focus restoration', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.mobile-settings-trigger').click();
+    await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
+    await page.locator('[data-theme-builder-background-source]').selectOption('__custom__');
+
+    const trigger = page.locator('.theme-builder-gradient-trigger');
+    await trigger.click();
+
+    const sheet = page.locator('[data-theme-builder-subsheet="gradient"]');
+    await expect(sheet).toBeVisible();
+    expect(await focusIsInside(page, '[data-theme-builder-subsheet="gradient"]')).toBe(true);
+
+    for (let i = 0; i < 6; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await focusIsInside(page, '[data-theme-builder-subsheet="gradient"]')).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    // Focus returned to the gradient trigger inside the still-open studio.
+    expect(await activeMatches(page, '.theme-builder-gradient-trigger')).toBe(true);
+  });
+
   // Search mobile rebuild: the filter selects live in a portaled bottom sheet.
   test('Search filters sheet: focus trap, Escape, and focus restoration', async ({ page }) => {
     await page.goto('/');

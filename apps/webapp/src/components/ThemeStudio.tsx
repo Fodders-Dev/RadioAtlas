@@ -106,7 +106,13 @@ export const ThemeStudioSheet = ({ open, onClose }: ThemeStudioSheetProps) => {
   };
 
   return (
-    <SettingsSheet open={open} onClose={onClose} kicker={t('theme.kicker')} title={t('theme.title')}>
+    <SettingsSheet
+      open={open}
+      onClose={onClose}
+      kicker={t('theme.kicker')}
+      title={t('theme.title')}
+      cardClassName="settings-sheet-card--bottom"
+    >
       <div className="theme-studio-sheet" data-theme-studio>
         {activeTheme ? (
           <section

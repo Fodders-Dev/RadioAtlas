@@ -621,3 +621,452 @@
     min-height: 164px;
   }
 }
+
+/* ============================================================================
+   PR-4b: the mobile-first builder form (≤720px). The studio card becomes a
+   bottom-anchored sheet via .settings-sheet-card--bottom — a modifier passed
+   only by ThemeStudioSheet, so AccountSheet (which shares the base
+   .settings-sheet-card) stays byte-identical. Everything below is scoped to
+   the modifier or to the new theme-builder-* mobile-only elements.
+   ========================================================================== */
+@media (max-width: 720px) {
+  .settings-sheet-card--bottom {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-height: 88dvh;
+    padding: var(--space-sm) var(--space-md) calc(var(--space-lg) + var(--shell-safe-bottom));
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    /* FIX ROUND (review bounce): the shared .settings-sheet-card glass is a
+       fixed DARK translucent stack tuned for the desktop inset card — on Warm
+       Light it composites to a mid-dark surface under the dark-ink tokens
+       (names/labels sink), and on the emulator's WebView (weaker
+       backdrop-filter) it goes fully dark. Use the proven .bottom-sheet-card
+       recipe instead: a high-opacity THEMED overlay that follows light/dark,
+       already emulator-verified by the Globe/Search/Library sheets. */
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-overlay-strong) 92%, transparent),
+        color-mix(in srgb, var(--surface-overlay-strong) 84%, transparent)
+      ),
+      var(--theme-bg-image);
+    background-position: center;
+    background-size: auto, cover;
+    color: var(--text);
+    /* A wide child (overflowing action chips, span-2 rows) must clip at the
+       rounded edge — never bleed past it or open a horizontal scroll. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* One full-width preset row per line: at narrow widths the auto-fit grid
+     can snap to two ~150px columns — names/authors ellipsize to nothing and
+     the action chips overflow the card (the "floating Ремикс chips" bounce). */
+  .settings-sheet-card--bottom .theme-studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Light-theme guard (FIX ROUND): shared chrome hardcodes near-white ink for
+     .section-title and dark glass for .chip / .chip.active — correct on dark
+     themes, sunk against the now-themed light card. Mirrors the existing
+     desktop (@960) light-chip rule, scoped to the modifier so nothing else
+     moves; on dark themes none of this applies. */
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .section-title {
+    color: var(--text-strong);
+  }
+
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .chip {
+    border-color: var(--theme-border);
+    background: var(--theme-surface, rgba(255, 252, 248, 0.72));
+    color: var(--text);
+    box-shadow: none;
+  }
+
+  :root[data-theme-mode='light'] .settings-sheet-card--bottom .chip.active {
+    border-color: color-mix(in srgb, var(--accent) 60%, var(--theme-border));
+    /* Solid accent + dark ink — the same readable-CTA treatment as the
+       light-mode home play button. */
+    background: var(--accent);
+    color: #2a1a12;
+  }
+
+  /* The 36x4 grab handle, without touching the shared SettingsSheet DOM. */
+  .settings-sheet-card--bottom::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto var(--space-sm);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text) 30%, transparent);
+  }
+
+  /* Flatten the builder section: the boxed card-in-card look is desktop
+     chrome; the bottom form reads as one column between the sticky rails. */
+  .settings-sheet-card--bottom .theme-studio-builder {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .settings-sheet-card--bottom .theme-studio-builder-grid,
+  .settings-sheet-card--bottom .theme-studio-asset-grid,
+  .settings-sheet-card--bottom .theme-studio-accent2-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 44px hit zones: the input box grows, the track stays visually thin. */
+  .settings-sheet-card--bottom .theme-studio-builder input[type='range'],
+  .theme-builder-subsheet-card input[type='range'] {
+    min-height: 44px;
+  }
+
+  .settings-sheet-card--bottom .theme-studio-mode-option {
+    min-height: 44px;
+  }
+
+  .settings-sheet-card--bottom .theme-studio-accent2-toggle {
+    min-height: 44px;
+  }
+
+  .settings-sheet-card--bottom .theme-studio-accent2-toggle input {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* [1] Sticky preview strip — the only sticky top inside the card. The base
+     panel rides color-mix over --panel, which is translucent enough to read
+     as a washed-out plate over the themed card; pin it to the same themed
+     overlay as the card so the strip stays coherent in BOTH modes. */
+  .settings-sheet-card--bottom .theme-studio-builder-preview-panel {
+    top: 0;
+    z-index: 5;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--surface-overlay-strong) 94%, transparent);
+  }
+
+  .settings-sheet-card--bottom .theme-studio-builder-preview-panel .theme-preview-surface {
+    max-height: 38dvh;
+    overflow: hidden;
+  }
+
+  .theme-builder-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .theme-builder-preview-mini {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+    min-height: 52px;
+  }
+
+  .theme-builder-preview-mini strong {
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: var(--text-sm);
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .theme-builder-preview-dot {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+  }
+
+  .theme-builder-preview-swatch {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  .theme-builder-preview-toggle {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .theme-builder-preview-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    transition: transform 160ms ease;
+  }
+
+  [data-theme-builder-preview-collapsed='true'] .theme-builder-preview-toggle svg {
+    transform: rotate(180deg);
+  }
+
+  /* [2] Section nav — one scrolling chip row (library tab-strip mechanics). */
+  .theme-builder-section-nav {
+    display: flex;
+    gap: var(--space-xs);
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .theme-builder-section-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .theme-builder-section-nav .chip {
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+
+  /* Anchor targets land below the (collapsed) sticky preview strip. */
+  .settings-sheet-card--bottom .theme-studio-builder-legend {
+    scroll-margin-top: 96px;
+  }
+
+  /* Slider rows: label left, live value chip right, full-width 44px track. */
+  .theme-builder-slider-field {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .theme-builder-slider-field input[type='range'] {
+    grid-column: 1 / -1;
+  }
+
+  .theme-builder-field-value {
+    padding: 2px var(--space-xs);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
+    color: var(--text);
+    font-size: var(--text-xs);
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  /* Sub-sheet triggers (icons / decor): one full-width 56px row. */
+  .theme-builder-subsheet-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    width: 100%;
+    min-height: 56px;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .theme-builder-subsheet-trigger-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .theme-builder-subsheet-trigger-copy strong {
+    color: var(--text-strong);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .theme-builder-subsheet-trigger-copy small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .theme-builder-subsheet-trigger svg {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    color: var(--muted);
+  }
+
+  /* The custom-gradient entry point: tap the live strip to open the composer. */
+  .theme-builder-gradient-trigger {
+    display: grid;
+    gap: var(--space-xs);
+    width: 100%;
+    padding: var(--space-xs);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .theme-builder-gradient-trigger-strip {
+    display: block;
+    height: 56px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  .theme-builder-gradient-trigger-label {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+
+  /* [4] Sticky save — pinned to the card's bottom edge; the negative bottom
+     margin swallows the card's safe-area padding so the bar itself carries it. */
+  .settings-sheet-card--bottom .theme-studio-builder .settings-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: var(--space-sm) calc(-1 * var(--space-md))
+      calc(-1 * (var(--space-lg) + var(--shell-safe-bottom)));
+    padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + var(--shell-safe-bottom));
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface-overlay-strong) 94%, transparent);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  .settings-sheet-card--bottom .theme-studio-builder .settings-actions .chip {
+    flex: 1 1 100%;
+    min-height: 48px;
+    justify-content: center;
+    font-size: var(--text-sm);
+  }
+
+  /* Sub-sheet internals. */
+  .theme-builder-subsheet-card .theme-studio-gradient {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-preview {
+    height: 56px;
+  }
+
+  /* Stops become stacked rows: 44px swatch + % readout, slider on its own row. */
+  .theme-builder-subsheet-card .theme-studio-gradient-stop {
+    grid-template-columns: 44px minmax(0, 1fr);
+    row-gap: var(--space-xs);
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-stop input[type='color'] {
+    grid-row: 1;
+    grid-column: 1;
+    width: 44px;
+    height: 44px;
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-stop small {
+    grid-row: 1;
+    grid-column: 2;
+    font-size: var(--text-sm);
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-stop input[type='range'] {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-angle {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .theme-builder-subsheet-card .theme-studio-gradient-angle input {
+    grid-column: 1 / -1;
+  }
+
+  .theme-builder-sheet-fields {
+    display: grid;
+    gap: var(--space-sm);
+  }
+
+  .theme-builder-decor-block {
+    display: grid;
+    gap: var(--space-sm);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--border);
+  }
+
+  .theme-builder-decor-block:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  /* Upload rows: label + styled 44px dashed "button"; the real file input is
+     visually hidden but stays in the DOM (e2e setInputFiles contract). */
+  .theme-builder-upload-row {
+    position: relative;
+    display: grid;
+    gap: var(--space-xs);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .theme-builder-upload-button {
+    display: block;
+    overflow: hidden;
+    min-height: 44px;
+    padding: 12px var(--space-md);
+    border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 60%, transparent);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .theme-builder-upload-input {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    clip-path: inset(50%);
+  }
+
+  .theme-builder-upload-row:has(.theme-builder-upload-input:focus-visible)
+    .theme-builder-upload-button {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .theme-builder-upload-hint {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+}
