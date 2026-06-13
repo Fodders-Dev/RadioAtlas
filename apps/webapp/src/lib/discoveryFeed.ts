@@ -328,9 +328,17 @@ export const createDiscoveryFeed = ({
       ]
     : [];
 
+  // The fresh-now shelf is the home's personalised "Для тебя" slot — in the
+  // recommendation path applyRecommendationModules replaces these stations with
+  // the taste-ranked deck (tunedForYou first) under the 'home.personalTitle'
+  // module default. This module is the COLD-START fallback (no taste yet): it
+  // must carry the same "Для тебя" header so the grid label is consistent
+  // across both paths instead of flipping to "Сейчас в фокусе" before the first
+  // like/play. (Content here is still a seeded catalogue slice — the title
+  // names the SLOT, not the ranking state.)
   const freshSignalsModule = buildStationModule(
     'fresh-signals',
-    'home.freshSignalsTitle',
+    'home.personalTitle',
     'home.freshSignalsCopy',
     'home-fresh-signals',
     freshSignals,

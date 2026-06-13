@@ -200,7 +200,6 @@ export const enDictionary = {
     "resumeEmptyTitle": "Queue is quiet",
     "resumeEmptyCopy": "Start a station from search, globe, or the front page and it will appear here.",
     "resumeQueueCopy": "This session already has {count} easy return points.",
-    "freshSignalsTitle": "In focus now",
     "freshSignalsCopy": "Refresh for a new set.",
     "freshSignalsCopyCompact": "Refresh for new stations.",
     "countrySpotlightTitle": "Country spotlight",

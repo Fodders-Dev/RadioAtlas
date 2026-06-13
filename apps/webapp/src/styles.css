@@ -342,6 +342,21 @@ body {
   }
 }
 
+/* The globe topbar floats over the full-bleed MapLibre canvas (fixed at
+   ≤720px, and the lone shell title at any width). The map's luminance varies
+   wildly — bright arctic ice on Warm Light vs dark ocean on the default
+   theme — so the base topbar shadow (tuned for dark chrome) can't keep the
+   white title readable over the bright patches. A stronger dark halo guarantees
+   legibility over ANY map region in BOTH themes: white glyph + dark surround
+   reads on bright AND dark map alike. Scoped to the globe section so the other
+   screens (topbar over a solid glass card) keep their lighter shadow. */
+.app-shell-v2[data-active-section='globe'] .app-topbar-title {
+  text-shadow:
+    0 1px 2px rgba(3, 8, 14, 0.85),
+    0 0 6px rgba(3, 8, 14, 0.72),
+    0 0 16px rgba(3, 8, 14, 0.5);
+}
+
 .boot-splash {
   min-height: 100vh;
   background:

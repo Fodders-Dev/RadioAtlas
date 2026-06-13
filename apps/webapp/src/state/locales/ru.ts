@@ -200,7 +200,6 @@ export const ruDictionary = {
     "resumeEmptyTitle": "Пока без очереди",
     "resumeEmptyCopy": "Запусти станцию из поиска, глобуса или витрины, и она появится здесь.",
     "resumeQueueCopy": "В этой сессии уже есть {count} быстрых точек возврата.",
-    "freshSignalsTitle": "Сейчас в фокусе",
     "freshSignalsCopy": "Подборка на сейчас. Нужны новые — обнови.",
     "freshSignalsCopyCompact": "Подборка на сейчас. Обнови для новых станций.",
     "countrySpotlightTitle": "Фокус",
