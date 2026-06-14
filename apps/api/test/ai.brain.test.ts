@@ -195,14 +195,36 @@ test('voice-unsafe compose → warm fallback instead of the off-voice text', asy
   assert.ok(result.reply.length > 0);
 });
 
-test('SHIP-BLOCKING canary: the DeepSeek key never appears anywhere in the result', async () => {
-  const { fetchImpl } = makeFetch({
-    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
-    compose: 'Вот тёплая станция.'
-  });
-  const deps = makeDeps(fetchImpl, { deepseek: deepseek({ apiKey: 'sk-LEAK-CANARY-123' }) });
-  const result = await chatWithAssistant(ask('посоветуй джаз'), deps);
-  assert.ok(!JSON.stringify(result).includes('sk-LEAK-CANARY-123'));
+test('SHIP-BLOCKING canary: the DeepSeek key never leaks into the result OR the logs (happy + every fallback path)', async () => {
+  const CANARY = 'sk-LEAK-CANARY-123';
+  // Drives one turn and asserts the key is absent from BOTH the structured
+  // result and everything written to the log sink (the real leak channel — an
+  // error string or a debug log — which the old tautological test never read).
+  const assertClean = async (responses: StubResponses, enabled: boolean, message: string) => {
+    const logs: string[] = [];
+    const { fetchImpl } = makeFetch(responses);
+    const deps = makeDeps(fetchImpl, {
+      deepseek: deepseek({ apiKey: CANARY, enabled }),
+      log: (m) => logs.push(m)
+    });
+    const result = await chatWithAssistant(ask(message), deps);
+    assert.ok(!JSON.stringify(result).includes(CANARY), `result leaked the key (${message})`);
+    assert.ok(!logs.join('\n').includes(CANARY), `logs leaked the key (${message})`);
+  };
+
+  // Happy path (planner → tool → compose).
+  await assertClean(
+    {
+      planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
+      compose: 'Вот тёплая станция.'
+    },
+    true,
+    'посоветуй джаз'
+  );
+  // Compose HTTP error → warm fallback (the error path).
+  await assertClean({ planner: ['{"action":"final"}'], composeStatus: 500 }, true, 'расскажи о музыке');
+  // Disabled → immediate fallback (no DeepSeek call at all).
+  await assertClean({}, false, 'включи джаз');
 });
 
 test('get_station with a fake id → zero cards, action none (anti-hallucination backstop)', async () => {

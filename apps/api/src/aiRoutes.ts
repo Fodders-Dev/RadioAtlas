@@ -44,6 +44,8 @@ export const createAssistantRuntime = (options: {
   musicServices: MusicService[];
   maxChatsPerWindow?: number;
   now?: () => number;
+  // Injectable for tests (mirrors the brain's DI'd fetch); defaults to global.
+  fetch?: typeof fetch;
   log?: (message: string) => void;
 }): AssistantRuntime => {
   const now = options.now || (() => Date.now());
@@ -51,7 +53,7 @@ export const createAssistantRuntime = (options: {
     deepseek: options.deepseek,
     tools: createCatalogToolProvider(options.catalog),
     musicServices: options.musicServices,
-    fetch: globalThis.fetch.bind(globalThis),
+    fetch: options.fetch || globalThis.fetch.bind(globalThis),
     log: options.log || (() => {}),
     now
   };

@@ -66,6 +66,8 @@ export type AiLimiter = {
   verdict: (userId: string) => AiLimiterVerdict;
   acquire: (userId: string) => void;
   release: (userId: string) => void;
+  // Number of tracked rolling-window buckets (for the prune-on-empty test).
+  size: () => number;
 };
 
 // Per-user in-memory limiter (DI'd `now` for tests). The rolling-window Map is
@@ -107,7 +109,8 @@ export const createAiLimiter = (options: {
     release: (userId) => {
       inflight.delete(userId);
       globalInflight = Math.max(0, globalInflight - 1);
-    }
+    },
+    size: () => hits.size
   };
 };
 

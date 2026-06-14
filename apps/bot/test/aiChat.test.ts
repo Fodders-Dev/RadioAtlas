@@ -139,3 +139,14 @@ test('createAiLimiter: 10 ok then flood; window expiry resets; busy on in-flight
   fresh.release('g0');
   assert.equal(fresh.verdict('g8'), 'ok');
 });
+
+test('createAiLimiter prunes empty rolling-window buckets (no unbounded Map growth)', () => {
+  let clock = 0;
+  const limiter = createAiLimiter({ windowMs: 1000, maxPerWindow: 5, maxInflight: 8, now: () => clock });
+  limiter.verdict('a');
+  limiter.verdict('b');
+  assert.equal(limiter.size(), 2);
+  clock += 1000; // both windows expire
+  limiter.verdict('a'); // prune deletes a(old) + b, then re-adds a
+  assert.equal(limiter.size(), 1); // only the fresh 'a' bucket; 'b' removed, not kept empty
+});
