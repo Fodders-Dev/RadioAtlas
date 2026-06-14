@@ -58,6 +58,59 @@ export const isAiEligibleMessage = (input: {
   return true;
 };
 
+export type AiLimiterVerdict = 'ok' | 'busy' | 'flood';
+
+export type AiLimiter = {
+  // 'busy' = one already in flight for this user (or the global cap is hit);
+  // 'flood' = too many in the rolling window; 'ok' = accept (records a hit).
+  verdict: (userId: string) => AiLimiterVerdict;
+  acquire: (userId: string) => void;
+  release: (userId: string) => void;
+};
+
+// Per-user in-memory limiter (DI'd `now` for tests). The rolling-window Map is
+// pruned-on-empty every verdict so one-off users can't grow it without limit
+// (the recordStream limiter does the same on release).
+export const createAiLimiter = (options: {
+  windowMs: number;
+  maxPerWindow: number;
+  maxInflight: number;
+  now: () => number;
+}): AiLimiter => {
+  const inflight = new Set<string>();
+  const hits = new Map<string, number[]>();
+  let globalInflight = 0;
+
+  const prune = (t: number) => {
+    for (const [id, stamps] of hits) {
+      const live = stamps.filter((ts) => t - ts < options.windowMs);
+      if (live.length === 0) hits.delete(id);
+      else if (live.length !== stamps.length) hits.set(id, live);
+    }
+  };
+
+  return {
+    verdict: (userId) => {
+      if (inflight.has(userId) || globalInflight >= options.maxInflight) return 'busy';
+      const t = options.now();
+      prune(t);
+      const recent = hits.get(userId) ?? [];
+      if (recent.length >= options.maxPerWindow) return 'flood';
+      recent.push(t);
+      hits.set(userId, recent);
+      return 'ok';
+    },
+    acquire: (userId) => {
+      inflight.add(userId);
+      globalInflight += 1;
+    },
+    release: (userId) => {
+      inflight.delete(userId);
+      globalInflight = Math.max(0, globalInflight - 1);
+    }
+  };
+};
+
 export const requestAiChat = async (
   input: AiChatInput,
   deps: AiChatDeps

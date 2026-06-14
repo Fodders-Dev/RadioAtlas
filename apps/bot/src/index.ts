@@ -33,6 +33,7 @@ import {
 import {
   AI_FALLBACK_TEXT,
   buildAiButtons,
+  createAiLimiter,
   isAiEligibleMessage,
   requestAiChat
 } from './aiChat.js';
@@ -426,32 +427,22 @@ bot.on('message:successful_payment', async (ctx) => {
 // only when AI is enabled. Commands (/...) and non-private chats are skipped, so
 // this never shadows the record/start/billing flows.
 if (aiEnabled) {
-  // Per-user in-memory limiter (recordStream.ts pattern): one in-flight reply
-  // per user, ~10/min, plus a global in-flight cap — so a flood can't fan out
-  // into a burst of DeepSeek calls.
-  const AI_USER_WINDOW_MS = 60_000;
-  const AI_USER_MAX_PER_WINDOW = 10;
-  const AI_GLOBAL_MAX_INFLIGHT = 8;
-  const aiInflight = new Set<string>();
-  const aiUserHits = new Map<string, number[]>();
-  let aiGlobalInflight = 0;
-
-  const aiLimiterVerdict = (userId: string): 'ok' | 'busy' | 'flood' => {
-    if (aiInflight.has(userId) || aiGlobalInflight >= AI_GLOBAL_MAX_INFLIGHT) return 'busy';
-    const now = Date.now();
-    const hits = (aiUserHits.get(userId) || []).filter((ts) => now - ts < AI_USER_WINDOW_MS);
-    if (hits.length >= AI_USER_MAX_PER_WINDOW) return 'flood';
-    hits.push(now);
-    aiUserHits.set(userId, hits);
-    return 'ok';
-  };
+  // Per-user in-memory limiter (DI factory in aiChat.ts, prune-on-empty): one
+  // in-flight reply per user, ~10/min, plus a global in-flight cap — so a flood
+  // can't fan out into a burst of DeepSeek calls.
+  const aiLimiter = createAiLimiter({
+    windowMs: 60_000,
+    maxPerWindow: 10,
+    maxInflight: 8,
+    now: () => Date.now()
+  });
 
   bot.on('message:text', async (ctx) => {
     if (!isAiEligibleMessage({ text: ctx.message.text, chatType: ctx.chat?.type })) return;
     const userId = String(ctx.from?.id || '');
     if (!userId) return;
 
-    const verdict = aiLimiterVerdict(userId);
+    const verdict = aiLimiter.verdict(userId);
     if (verdict === 'busy') {
       await ctx.reply('Секунду, я ещё думаю над прошлым — сейчас отвечу.');
       return;
@@ -461,8 +452,7 @@ if (aiEnabled) {
       return;
     }
 
-    aiInflight.add(userId);
-    aiGlobalInflight += 1;
+    aiLimiter.acquire(userId);
     try {
       await ctx.replyWithChatAction('typing');
       const result = await requestAiChat(
@@ -487,8 +477,7 @@ if (aiEnabled) {
         // ignore secondary failure
       }
     } finally {
-      aiInflight.delete(userId);
-      aiGlobalInflight = Math.max(0, aiGlobalInflight - 1);
+      aiLimiter.release(userId);
     }
   });
 }

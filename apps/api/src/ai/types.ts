@@ -11,7 +11,6 @@ export type ChatInput = {
   history?: ChatTurn[];
   surface: Surface;
   locale?: string;
-  userId?: string;
 };
 
 // A station the model is allowed to name — ONLY ever sourced from a tool

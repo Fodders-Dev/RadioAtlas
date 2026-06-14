@@ -14,11 +14,10 @@ import type {
 
 export type FallbackReason =
   | 'disabled'
-  | 'planner-error'
   | 'compose-error'
   | 'empty'
   | 'voice-unsafe'
-  | 'tool-error';
+  | 'capped';
 
 const WARM_LINES: string[] = [
   'Ой, я на секунду засмотрелась в окно и потеряла нить — скажи ещё разок, под что тебе музыку?',

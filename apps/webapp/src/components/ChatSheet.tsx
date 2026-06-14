@@ -151,7 +151,13 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
           </button>
         </div>
 
-        <div className="chat-sheet-thread" ref={listRef}>
+        <div
+          className="chat-sheet-thread"
+          ref={listRef}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
           {messages.length === 0 ? (
             <div className="chat-bubble chat-bubble--assistant chat-bubble--intro">
               {t('chat.greeting')}

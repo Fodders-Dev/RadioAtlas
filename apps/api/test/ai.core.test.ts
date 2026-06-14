@@ -17,6 +17,7 @@ import {
   collectVerifiedStations,
   isVoiceSafe
 } from '../src/ai/antiHallucination.js';
+import { createRollingVolumeCap } from '../src/ai/volumeCap.js';
 import type { ToolObservation, ToolProvider, VerifiedStationRef } from '../src/ai/types.js';
 
 const station = (over: Partial<VerifiedStationRef> = {}): VerifiedStationRef => ({
@@ -126,9 +127,16 @@ test('collectVerifiedStations returns nothing when there are no observations (fa
 test('isVoiceSafe rejects bot/AI disclosure, bartender metaphor, and tech-speak', () => {
   assert.equal(isVoiceSafe('Под джаз обожаю вечер у окна.'), true);
   assert.equal(isVoiceSafe('Я ассистент и помогу тебе.'), false);
+  assert.equal(isVoiceSafe('Я являюсь ботом.'), false); // noun form
   assert.equal(isVoiceSafe('Я языковая модель.'), false);
   assert.equal(isVoiceSafe('Сейчас налью тебе джаза, я твой бармен.'), false);
-  assert.equal(isVoiceSafe('Нашла в каталоге пару станций.'), false);
+  assert.equal(isVoiceSafe('каталог станций'), false);
+});
+
+test('isVoiceSafe no longer false-flags legit music talk (regression)', () => {
+  // The narrowed regexes must NOT reject ordinary music phrasing.
+  assert.equal(isVoiceSafe('В каталоге Blue Note столько джаза'), true);
+  assert.equal(isVoiceSafe('Песня наливается силой'), true);
 });
 
 test('cleanText: Telegram gets escaped HTML, Mini App gets plain text, both truncate', () => {
@@ -144,4 +152,29 @@ test('cleanText: Telegram gets escaped HTML, Mini App gets plain text, both trun
 
   const long = cleanText('а '.repeat(4000), 'miniapp');
   assert.ok(long.length <= 3500);
+});
+
+test('cleanText: truncating a >3500 bold span never emits an unbalanced <b>/<code> (Telegram 400 guard)', () => {
+  // A single bold span longer than the cap. Truncating AFTER building <b> would
+  // drop the closing </b> → Telegram 400. We truncate the plain text first, so
+  // the interrupted ** simply never becomes a tag — counts stay balanced.
+  const bold = cleanText(`**${'я '.repeat(3000)}**`, 'telegram');
+  const open = (bold.match(/<b>/g) || []).length;
+  const close = (bold.match(/<\/b>/g) || []).length;
+  assert.equal(open, close);
+  const codeRaw = cleanText(`\`${'к '.repeat(3000)}\``, 'telegram');
+  assert.equal((codeRaw.match(/<code>/g) || []).length, (codeRaw.match(/<\/code>/g) || []).length);
+  assert.ok(bold.length <= 3500);
+});
+
+test('createRollingVolumeCap: accepts up to max per window, then caps; resets next window', () => {
+  let clock = 1000;
+  const cap = createRollingVolumeCap({ windowMs: 1000, max: 3, now: () => clock });
+  assert.equal(cap.exceeded(), false); // 1
+  assert.equal(cap.exceeded(), false); // 2
+  assert.equal(cap.exceeded(), false); // 3
+  assert.equal(cap.exceeded(), true); // 4 → over
+  assert.equal(cap.exceeded(), true); // still over within the window
+  clock += 1000; // new window
+  assert.equal(cap.exceeded(), false);
 });

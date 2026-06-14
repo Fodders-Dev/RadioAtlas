@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   AI_FALLBACK_TEXT,
   buildAiButtons,
+  createAiLimiter,
   isAiEligibleMessage,
   requestAiChat,
   stationDeepLink,
@@ -16,7 +17,8 @@ const stubFetch = (response: { ok: boolean; status?: number; body?: unknown }) =
     return {
       ok: response.ok,
       status: response.status ?? (response.ok ? 200 : 500),
-      json: async () => response.body ?? {}
+      // Loosened: a test may pass body:null to exercise the null-JSON path.
+      json: async () => ('body' in response ? response.body : {})
     } as Response;
   }) as typeof fetch;
   return { fetch: fetchImpl, calls };
@@ -101,4 +103,39 @@ test('buildAiButtons: no username → no station deep-links (avoids t.me/undefin
     serviceLinks: []
   };
   assert.deepEqual(buildAiButtons(result, ''), []);
+});
+
+test('buildAiButtons with no stations and no links → empty keyboard', () => {
+  assert.deepEqual(buildAiButtons({ reply: 'r', stations: [], serviceLinks: [] }, 'validuser'), []);
+});
+
+test('requestAiChat returns null on a 200 with a malformed body (reply not a string / null)', async () => {
+  const numberReply = stubFetch({ ok: true, body: { reply: 42 } });
+  assert.equal(await requestAiChat({ telegramId: 1, text: 'hi' }, deps(numberReply.fetch)), null);
+  const nullBody = stubFetch({ ok: true, body: null });
+  assert.equal(await requestAiChat({ telegramId: 1, text: 'hi' }, deps(nullBody.fetch)), null);
+});
+
+test('createAiLimiter: 10 ok then flood; window expiry resets; busy on in-flight; global cap; release frees', () => {
+  let clock = 0;
+  const limiter = createAiLimiter({ windowMs: 1000, maxPerWindow: 10, maxInflight: 8, now: () => clock });
+
+  for (let i = 0; i < 10; i += 1) assert.equal(limiter.verdict('u1'), 'ok');
+  assert.equal(limiter.verdict('u1'), 'flood'); // 11th
+
+  clock += 1000; // window rolls over
+  assert.equal(limiter.verdict('u1'), 'ok');
+
+  // in-flight → busy for the SAME user (acquire without release).
+  limiter.acquire('u2');
+  assert.equal(limiter.verdict('u2'), 'busy');
+  limiter.release('u2');
+  assert.equal(limiter.verdict('u2'), 'ok');
+
+  // global in-flight cap = 8: hold 8 distinct users in flight → a 9th is busy.
+  const fresh = createAiLimiter({ windowMs: 1000, maxPerWindow: 10, maxInflight: 8, now: () => clock });
+  for (let i = 0; i < 8; i += 1) fresh.acquire(`g${i}`);
+  assert.equal(fresh.verdict('g8'), 'busy');
+  fresh.release('g0');
+  assert.equal(fresh.verdict('g8'), 'ok');
 });

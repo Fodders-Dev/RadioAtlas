@@ -39,11 +39,16 @@ export const collectVerifiedStations = (
 // music talk is not false-flagged.
 const VOICE_VIOLATIONS: RegExp[] = [
   /я\s*[—-]?\s*(?:бот|ии|ассистент|нейросет|искусственн|программа|алгоритм)/i,
+  // noun forms: «являюсь ботом / нейросетью / моделью» (Cyrillic class — \w is
+  // ASCII-only and would not consume «юсь»)
+  /явля[а-яё]*\s+(?:ботом|ассистентом|нейросет[а-яё]*|программой|моделью)/i,
   /языков(?:ая|ой|ую)\s+модел/i,
   /бармен/i,
-  /налива|налью|налей/i,
+  // «налью / налей / наливаю…» but NOT «песня наливается силой»
+  /налива(?:ю|ешь|ем)|налью|налей/i,
   /за\s+стойк/i,
-  /каталог/i,
+  // tech-speak «каталог станций/радио/выдачи» but NOT «каталог Blue Note»
+  /каталог(?:\s+(?:станц|радио|выдач))/i,
   /выдач/i,
   /баз[аеуы]\s+данных/i
 ];
@@ -90,6 +95,13 @@ export const cleanText = (
   // Tame runaway blank lines.
   text = text.replace(/\n{3,}/g, '\n\n');
 
+  // Truncate the PLAIN text BEFORE applying HTML/markdown conversion. If we cut
+  // after building <b>/<code>, a boundary inside a span produces an unbalanced
+  // tag → Telegram rejects the message with a 400. Cutting the plain markdown
+  // first means an interrupted **…/`… simply never matches the span regex and
+  // stays as literal text — the emitted HTML is always balanced.
+  text = truncateOnBoundary(text.trim(), MAX_REPLY_CHARS);
+
   if (surface === 'telegram') {
     text = escapeHtml(text);
     text = text.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
@@ -99,5 +111,5 @@ export const cleanText = (
     text = text.replace(/`([^`]+)`/g, '$1');
   }
 
-  return truncateOnBoundary(text.trim(), MAX_REPLY_CHARS);
+  return text.trim();
 };

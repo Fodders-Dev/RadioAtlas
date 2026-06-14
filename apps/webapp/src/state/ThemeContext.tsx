@@ -16,6 +16,8 @@ import {
 } from '../lib/telegram';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
 import { themeRuntimeVars, themeSurfaceVars, themeTextVars } from '../lib/theme/runtime';
+import { readableTextColors } from '../lib/theme/contrast';
+import { parseCssColors } from '../lib/theme/previewContrast';
 import {
   deleteStoredAsset,
   deleteStoredTheme,
@@ -237,6 +239,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     root.dataset.themeMode = currentTheme.mode === 'light' ? 'light' : 'dark';
     root.style.setProperty('--theme-accent', vars.accent);
     root.style.setProperty('--theme-accent-2', vars.accent2);
+    // --accent-ink: a glyph/ink colour with WCAG-AA contrast ON the resolved
+    // accent (a dark accent needs light ink, a light accent dark ink). Used by
+    // any accent-filled chip/button (e.g. the chat user bubble + send button) so
+    // their text/icon never vanishes on a dark accent. Works for both the hsl()
+    // accents themeRuntimeVars emits and the hex accents from telegram-auto.
+    const accentRgb = parseCssColors(vars.accent)[0]?.rgb;
+    root.style.setProperty('--accent-ink', accentRgb ? readableTextColors(accentRgb).text : '#08121d');
     root.style.setProperty('--theme-bg-image', vars.background);
     root.style.setProperty('--theme-font-family', vars.font);
     root.style.setProperty('--theme-icon-radius', vars.iconRadius);

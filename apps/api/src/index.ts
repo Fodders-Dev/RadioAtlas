@@ -49,6 +49,8 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
 const AI_TIMEOUT_SEC = Math.max(1, Number(process.env.AI_TIMEOUT_SEC) || 8);
 const AI_MUSIC_SERVICES = parseMusicServices(process.env.AI_MUSIC_SERVICES);
+// Global cost backstop: total accepted chats per minute across BOTH surfaces.
+const AI_MAX_CHATS_PER_MIN = Math.max(1, Number(process.env.AI_MAX_CHATS_PER_MIN) || 120);
 // T0.2c: opt-out flag for the billing reconciliation sweep. Defaults
 // to ENABLED. Set BILLING_RECONCILE_ENABLED=0 in tests/CI so the
 // in-process setInterval doesn't fire spurious Telegram-API calls
@@ -458,6 +460,7 @@ const aiRuntime = AI_ACTIVE
         timeoutSec: AI_TIMEOUT_SEC
       },
       musicServices: AI_MUSIC_SERVICES,
+      maxChatsPerWindow: AI_MAX_CHATS_PER_MIN,
       log: (message) => console.warn(`[lira] ${message}`)
     })
   : null;

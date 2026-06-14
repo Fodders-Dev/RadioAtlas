@@ -1,10 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type express from 'express';
-import {
-  getAccountByProvider,
-  listNudgeRecipients,
-  recordBotReachability
-} from './accountStore.js';
+import { listNudgeRecipients, recordBotReachability } from './accountStore.js';
 import {
   parseChatHistory,
   recordChatTelemetry,
@@ -59,7 +55,9 @@ export const registerBotRoutes = (
       await recordBotReachability(telegramId);
       res.json({ ok: true });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'reachability failed' });
+      // Static client error; details to the server log only (no internals leak).
+      console.error('internal/bot/reachable failed', err);
+      res.status(500).json({ error: 'reachability failed' });
     }
   });
 
@@ -71,39 +69,34 @@ export const registerBotRoutes = (
       const recipients = await listNudgeRecipients();
       res.json({ recipients });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'recipients failed' });
+      console.error('internal/bot/nudge-recipients failed', err);
+      res.status(500).json({ error: 'recipients failed' });
     }
   });
 
-  // «Лира» AI companion — Telegram surface. The bot forwards {telegramId, text,
-  // history?} here behind the X-Internal-Token gate; we map the Telegram id to
-  // an account (anonymous is fine — userId stays undefined), run the SAME shared
-  // brain with surface:'telegram', and return the abstract result. The bot never
-  // imports the brain and never holds the DeepSeek key.
+  // «Лира» AI companion — Telegram surface. The bot forwards {text, history?}
+  // here behind the X-Internal-Token gate; we run the SAME shared brain with
+  // surface:'telegram' and return the abstract result. runtime.chat already
+  // applies the shared concurrency guard + global volume cap, so this endpoint
+  // shares the api-side cost backstop with /ai/chat. The bot never imports the
+  // brain and never holds the DeepSeek key. (No account lookup: the brain does
+  // not use an account id in v1, so a per-call DB hit would be wasted.)
   const aiRuntime = options.aiRuntime;
   if (aiRuntime) {
     app.post('/internal/bot/ai-chat', async (req, res) => {
       if (!gate(req, res)) return;
-      const telegramId =
-        typeof req.body?.telegramId === 'string' || typeof req.body?.telegramId === 'number'
-          ? String(req.body.telegramId).trim()
-          : '';
       const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
       if (!text) {
         res.status(400).json({ error: 'text is required' });
         return;
       }
-      const account = telegramId
-        ? await getAccountByProvider('telegram', telegramId).catch(() => null)
-        : null;
       const history = parseChatHistory(req.body?.history);
       const startedAt = Date.now();
       try {
         const result = await aiRuntime.chat({
           userMessage: text.slice(0, 2000),
           history,
-          surface: 'telegram',
-          userId: account?.id
+          surface: 'telegram'
         });
         recordChatTelemetry('telegram', startedAt, result);
         res.json({
@@ -117,7 +110,8 @@ export const registerBotRoutes = (
         });
       } catch (err) {
         bumpCounter('ai_chat_error');
-        res.status(500).json({ error: err instanceof Error ? err.message : 'chat failed' });
+        console.error('internal/bot/ai-chat failed', err);
+        res.status(500).json({ error: 'chat failed' });
       }
     });
   }

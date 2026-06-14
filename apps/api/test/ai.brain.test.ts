@@ -28,6 +28,7 @@ const stubTools: ToolProvider = {
 
 type StubResponses = {
   planner?: string[]; // one per planner call, in order
+  plannerStatus?: number;
   compose?: string;
   composeStatus?: number;
 };
@@ -44,9 +45,10 @@ const makeFetch = (responses: StubResponses) => {
     if (isPlanner) {
       const content = responses.planner?.[plannerIndex] ?? '{"action":"final"}';
       plannerIndex += 1;
+      const status = responses.plannerStatus ?? 200;
       return {
-        ok: true,
-        status: 200,
+        ok: status >= 200 && status < 300,
+        status,
         json: async () => ({ choices: [{ message: { content } }], usage: { prompt_tokens: 5, completion_tokens: 5 } })
       };
     }
@@ -191,4 +193,88 @@ test('voice-unsafe compose → warm fallback instead of the off-voice text', asy
   const result = await chatWithAssistant(ask('расскажи о себе'), makeDeps(fetchImpl));
   assert.ok(!/ассистент|каталог/i.test(result.reply));
   assert.ok(result.reply.length > 0);
+});
+
+test('SHIP-BLOCKING canary: the DeepSeek key never appears anywhere in the result', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
+    compose: 'Вот тёплая станция.'
+  });
+  const deps = makeDeps(fetchImpl, { deepseek: deepseek({ apiKey: 'sk-LEAK-CANARY-123' }) });
+  const result = await chatWithAssistant(ask('посоветуй джаз'), deps);
+  assert.ok(!JSON.stringify(result).includes('sk-LEAK-CANARY-123'));
+});
+
+test('get_station with a fake id → zero cards, action none (anti-hallucination backstop)', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"get_station","args":{"id":"does-not-exist"}}'],
+    compose: 'Хм, такой не нашла, но вот что люблю под джаз…'
+  });
+  const result = await chatWithAssistant(ask('включи станцию xyz'), makeDeps(fetchImpl));
+  assert.deepEqual(result.stations, []);
+  assert.equal(result.actions[0]?.kind, 'none');
+});
+
+test('verified station + a hallucinated name in prose → exactly ONE card (the real uuid)', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
+    compose: 'Поставь Paris Jazz — и ещё обожаю выдуманную «Radio Phantom», но её не предлагаю кнопкой.'
+  });
+  const result = await chatWithAssistant(ask('посоветуй джаз'), makeDeps(fetchImpl));
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
+});
+
+test('planner HTTP error → degrades into compose, warm reply, no stations', async () => {
+  const { fetchImpl, calls } = makeFetch({ plannerStatus: 500, compose: 'Тёплый ответ без инструментов.' });
+  const result = await chatWithAssistant(ask('посоветуй джаз'), makeDeps(fetchImpl));
+  // Planner errored → loop stops → compose still runs.
+  assert.equal(calls.at(-1)?.phase, 'compose');
+  assert.ok(result.reply.length > 0);
+  assert.deepEqual(result.stations, []);
+});
+
+test('a throwing ToolProvider is logged and the turn still composes a warm reply', async () => {
+  const logs: string[] = [];
+  const boom = {
+    ...stubTools,
+    searchStations: async () => {
+      throw new Error('catalog exploded');
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
+    compose: 'Ничего страшного, держи тёплое настроение.'
+  });
+  const result = await chatWithAssistant(
+    ask('посоветуй джаз'),
+    makeDeps(fetchImpl, { tools: boom, log: (m) => logs.push(m) })
+  );
+  assert.ok(logs.some((line) => line.includes('catalog exploded')));
+  assert.ok(result.reply.length > 0);
+  assert.deepEqual(result.stations, []);
+});
+
+test('MAX_TOOL_STEPS caps the planner loop (distinct args never loop forever)', async () => {
+  let searchCount = 0;
+  const counting = {
+    ...stubTools,
+    searchStations: async () => {
+      searchCount += 1;
+      return [station()];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    // Each step asks for a DIFFERENT query so the dedup never short-circuits —
+    // only MAX_TOOL_STEPS (3) stops it.
+    planner: [
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz1"}}',
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz2"}}',
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz3"}}',
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz4"}}'
+    ],
+    compose: 'Готово.'
+  });
+  await chatWithAssistant(ask('найди джаз'), makeDeps(fetchImpl, { tools: counting }));
+  assert.equal(searchCount, 3);
 });
