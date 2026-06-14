@@ -879,6 +879,19 @@ export const enDictionary = {
     "showStation": "Show again",
     "artwork": "Artwork"
   },
+  "chat": {
+    "launch": "Lira",
+    "launchHint": "Talk about music",
+    "kicker": "Music companion",
+    "title": "Lira",
+    "greeting": "Hey! Tell me the mood you want music for — and let's talk.",
+    "placeholder": "Write to Lira about music…",
+    "send": "Send",
+    "thinking": "Lira is typing…",
+    "error": "Oops, the line dropped for a second. Try again.",
+    "sourceLabel": "Lira",
+    "playStation": "Play station {name}"
+  },
   "radio": {
     "queueDefault": "Playback queue",
     "favorites": "Favorites",

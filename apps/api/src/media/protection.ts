@@ -12,7 +12,9 @@ type RateLimitBucket = {
 };
 
 type ProtectedRouteOptions = {
-  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library';
+  // 'ai-chat' joins the shared concurrency pool so the (slow) assistant route
+  // can't starve the media routes — and vice versa.
+  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library' | 'ai-chat';
   maxConcurrency: number;
   sharedMaxConcurrency: number;
   rateLimitPerWindow: number;
@@ -67,7 +69,15 @@ const pruneCache = <T,>(cache: Map<string, CacheEntry<T>>) => {
   }
 };
 
-const getClientIp = (req: express.Request) => {
+const getClientIp = (req: express.Request, routeName: ProtectedRouteOptions['routeName']) => {
+  // ai-chat fronts PAID DeepSeek calls and accepts anonymous callers, so its
+  // rate-limit key MUST NOT be derived from a client-controlled header — a
+  // rotating X-Forwarded-For would mint a fresh bucket every request. `trust
+  // proxy` is set (index.ts), so req.ip is the real single hop behind Caddy.
+  // The media routes keep the historical forwarded-first behaviour unchanged.
+  if (routeName === 'ai-chat') {
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  }
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.trim()) {
     return forwarded.split(',')[0]!.trim();
@@ -155,7 +165,7 @@ export class ProtectedMediaRoute<T> {
   }
 
   checkRateLimit(req: express.Request) {
-    const ip = getClientIp(req);
+    const ip = getClientIp(req, this.routeName);
     const now = Date.now();
     const current = this.rateLimits.get(ip);
     if (!current || current.resetAt <= now) {

@@ -108,6 +108,9 @@ declare global {
 
   interface ImportMetaEnv {
     readonly VITE_TG_BOT?: string;
+    // «Лира» AI companion launcher — '1' shows the Home launcher + Chat sheet.
+    // Default unset → byte-identical to today (no launcher).
+    readonly VITE_AI_ENABLED?: string;
   }
 
   interface ImportMeta {
