@@ -40,6 +40,40 @@ const PLANNER_MAX_TOKENS = 400;
 const ACTION_INTENT = /(включ|постав|вруб|запусти|посовету|порекоменд|найд|ищ[уи]|хочу\s+послуша|подбер|что\s+послуша|станци|радио|трек|песн|альбом|саундтрек|soundtrack|плейлист|исполнител|артист|группа)/i;
 const PLAY_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша)/i;
 
+// A strong "act now" intent: an explicit play verb OR a recommend/find verb.
+// When this fires AND a concrete topic survives the noise-strip, the brain
+// FORCES a station search even mid-conversation, instead of letting the planner
+// ask "which jazz?" (the live regression: «включи джаз» with history → no cards).
+const SEARCH_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша|сыграй|ставь|посовету|порекоменд|найд|покаж|подбер|хочу\s+послуша)/i;
+
+// Noise stems removed to derive the station-search query. Cyrillic — JS \b/\w
+// are ASCII-only — so match by word-prefix, not boundary.
+const QUERY_NOISE_STEMS = [
+  'включ', 'постав', 'вруб', 'запусти', 'давай', 'послуша', 'посовету', 'порекоменд',
+  'найд', 'покаж', 'подбер', 'хочу', 'дай', 'ставь', 'сыграй', 'мне', 'нам',
+  'пожалуйста', 'плиз', 'что-ниб', 'чего-ниб', 'чё-ниб', 'какой-ниб', 'какую-ниб',
+  'какое-ниб', 'каких-ниб'
+];
+
+const buildStationQuery = (message: string): string => {
+  const words = message
+    .toLowerCase()
+    .replace(/[?!.,;:()«»"']/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  const kept = words.filter((word) => !QUERY_NOISE_STEMS.some((stem) => word.startsWith(stem)));
+  return kept.join(' ').trim();
+};
+
+// The cleaned topic to search for, ONLY when the request is an explicit play/rec
+// intent that names something concrete. A residual under 3 chars (e.g. «включи
+// что-нибудь») is genuinely ambiguous → null, so the planner may clarify.
+const explicitSearchQuery = (message: string): string | null => {
+  if (!SEARCH_INTENT.test(message)) return null;
+  const query = buildStationQuery(message);
+  return query.length >= 3 ? query : null;
+};
+
 const isSmalltalk = (message: string): boolean => !ACTION_INTENT.test(message);
 
 const trimHistory = (history: ChatTurn[] | undefined): ChatTurn[] =>
@@ -85,6 +119,8 @@ const buildPlannerSystem = (): string => {
     toolList,
     '',
     'Вызывай инструмент ТОЛЬКО когда нужны свежие/проверяемые данные: найти реальную станцию, подтвердить станцию, узнать что сейчас в тренде, или дать ссылки на внешние музыкальные сервисы для конкретного трека/альбома/артиста.',
+    'Если человек явно просит включить/поставить станцию ИЛИ советует жанр/настроение/страну («включи джаз», «посоветуй спокойное на вечер», «поставь что-то бразильское») — СРАЗУ вызывай search_stations с этим запросом, даже посреди разговора и даже если уже болтали. НЕ переспрашивай «а какой именно?».',
+    'Уточняющий вопрос (action "final" без станций) допустим ТОЛЬКО когда жанр/настроение/страна вообще не названы («включи что-нибудь»).',
     'Обычный разговор, мнения, история и эрудиция о музыке → action "final" (без инструмента).',
     'Никогда не вызывай один и тот же инструмент с теми же аргументами дважды.',
     'Когда данных достаточно или инструмент не нужен → action "final".'
@@ -122,6 +158,34 @@ const planAgentStep = async (
   return { result, decision: result.error ? { action: 'final' as const } : parsePlannerDecision(result.content) };
 };
 
+// Run the plan→tool→observe loop from `startStep` up to MAX_TOOL_STEPS, appending
+// observations and accumulating usage. Shared by the normal path (startStep 0)
+// and the forced-search path (startStep 1, after a deterministic first search).
+const runPlannerLoop = async (
+  deps: AssistantDeps,
+  transcript: DeepseekMessage[],
+  observations: ToolObservation[],
+  usedSignatures: Set<string>,
+  usage: ChatUsage,
+  startStep: number
+) => {
+  for (let step = startStep; step < MAX_TOOL_STEPS; step += 1) {
+    const { result, decision } = await planAgentStep(deps, transcript, observations);
+    addUsage(usage, result.usage);
+    if (decision.action !== 'use_tool' || !decision.tool) break;
+    const args = decision.args || {};
+    const signature = toolSignature(decision.tool, args);
+    if (usedSignatures.has(signature)) break; // never repeat the same call
+    usedSignatures.add(signature);
+    const observation = await runTool(decision.tool, args, {
+      tools: deps.tools,
+      musicServices: deps.musicServices
+    });
+    observations.push(observation);
+    if (observation.error) deps.log(`ai tool ${decision.tool} error: ${observation.error}`);
+  }
+};
+
 const composeAgentReply = async (
   deps: AssistantDeps,
   systemPrompt: string,
@@ -135,7 +199,7 @@ const composeAgentReply = async (
       role: 'system',
       content: `Проверенные факты (бери станции — названия и id — ТОЛЬКО отсюда; ничего не выдумывай): ${JSON.stringify(
         factsForModel(observations)
-      )}. Если станций здесь нет — не называй конкретных станций, тепло предложи альтернативу.`
+      )}. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
   return callDeepseek(
@@ -185,25 +249,41 @@ export const chatWithAssistant = async (
   const transcript = transcriptMessages(history, userMessage);
   const usage: ChatUsage = { prompt: 0, completion: 0 };
   const observations: ToolObservation[] = [];
+  const usedSignatures = new Set<string>();
+  const forcedQuery = explicitSearchQuery(userMessage);
 
-  // Planner loop — skipped for obvious chat (latency fast-path).
-  if (!isSmalltalk(userMessage)) {
-    const usedSignatures = new Set<string>();
-    for (let step = 0; step < MAX_TOOL_STEPS; step += 1) {
-      const { result, decision } = await planAgentStep(deps, transcript, observations);
-      addUsage(usage, result.usage);
-      if (decision.action !== 'use_tool' || !decision.tool) break;
-      const args = decision.args || {};
-      const signature = toolSignature(decision.tool, args);
-      if (usedSignatures.has(signature)) break; // never repeat the same call
-      usedSignatures.add(signature);
-      const observation = await runTool(decision.tool, args, {
-        tools: deps.tools,
-        musicServices: deps.musicServices
-      });
-      observations.push(observation);
-      if (observation.error) deps.log(`ai tool ${decision.tool} error: ${observation.error}`);
-    }
+  if (forcedQuery) {
+    // Explicit play/rec intent with a concrete topic → ACT: search stations now
+    // (deterministically, history notwithstanding), then keep planning for any
+    // refinement (e.g. a named track → service links).
+    const forcedArgs = { query: forcedQuery };
+    usedSignatures.add(toolSignature('search_stations', forcedArgs));
+    const forcedObservation = await runTool('search_stations', forcedArgs, {
+      tools: deps.tools,
+      musicServices: deps.musicServices
+    });
+    observations.push(forcedObservation);
+    if (forcedObservation.error) deps.log(`ai tool search_stations error: ${forcedObservation.error}`);
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+  } else if (!isSmalltalk(userMessage)) {
+    // Normal planner loop — skipped for obvious chat (latency fast-path).
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 0);
+  }
+
+  // Empty-result fallback: an explicit play/rec intent that found NO stations and
+  // NO links yet → fetch external service-search links for the same query, so
+  // there is ALWAYS something tappable instead of a prose apology. Runs BEFORE
+  // compose so the reply can offer the services rather than say "не нашла".
+  if (
+    forcedQuery &&
+    collectVerifiedStations(observations).length === 0 &&
+    collectServiceLinks(observations).length === 0
+  ) {
+    const linkObservation = await runTool('music_service_search', { query: forcedQuery }, {
+      tools: deps.tools,
+      musicServices: deps.musicServices
+    });
+    observations.push(linkObservation);
   }
 
   // Compose the reply.

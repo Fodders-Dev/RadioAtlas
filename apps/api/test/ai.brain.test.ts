@@ -142,11 +142,12 @@ test('duplicate tool+args is not run twice — the loop breaks on repeat', async
     }
   };
   const { fetchImpl } = makeFetch({
-    // planner keeps asking for the identical call; the loop must stop after one.
+    // «найди джаз» forces a search for «джаз»; the planner then keeps asking for
+    // the SAME args — the dedup must stop the loop, so search runs exactly once.
     planner: [
-      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}',
-      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}',
-      '{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"джаз"}}',
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"джаз"}}',
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"джаз"}}'
     ],
     compose: 'Готово.'
   });
@@ -157,10 +158,12 @@ test('duplicate tool+args is not run twice — the loop breaks on repeat', async
 test('a model reply that invents a station yields ZERO station buttons (no observation = no card)', async () => {
   const { fetchImpl } = makeFetch({
     // planner finds nothing (final immediately), compose hallucinates a name.
+    // Input matches ACTION_INTENT (станци) but NOT the forced-search intent, so
+    // no tool runs and there is no observation to back the invented name.
     planner: ['{"action":"final"}'],
     compose: 'Обязательно включи «Radio Phantom 101.5» — моя любимая!'
   });
-  const result = await chatWithAssistant(ask('посоветуй радио'), makeDeps(fetchImpl));
+  const result = await chatWithAssistant(ask('а есть классные станции?'), makeDeps(fetchImpl));
   assert.deepEqual(result.stations, []);
   assert.equal(result.actions[0]?.kind, 'none');
 });
@@ -232,7 +235,9 @@ test('get_station with a fake id → zero cards, action none (anti-hallucination
     planner: ['{"action":"use_tool","tool":"get_station","args":{"id":"does-not-exist"}}'],
     compose: 'Хм, такой не нашла, но вот что люблю под джаз…'
   });
-  const result = await chatWithAssistant(ask('включи станцию xyz'), makeDeps(fetchImpl));
+  // ACTION_INTENT (станци) but NOT a forced-search intent → the planner drives a
+  // get_station lookup, which returns null → no observation → no card.
+  const result = await chatWithAssistant(ask('что это за станция?'), makeDeps(fetchImpl));
   assert.deepEqual(result.stations, []);
   assert.equal(result.actions[0]?.kind, 'none');
 });
@@ -249,7 +254,9 @@ test('verified station + a hallucinated name in prose → exactly ONE card (the 
 
 test('planner HTTP error → degrades into compose, warm reply, no stations', async () => {
   const { fetchImpl, calls } = makeFetch({ plannerStatus: 500, compose: 'Тёплый ответ без инструментов.' });
-  const result = await chatWithAssistant(ask('посоветуй джаз'), makeDeps(fetchImpl));
+  // ACTION_INTENT (станци) but NOT a forced-search intent → it goes through the
+  // planner (which 500s) rather than the deterministic search path.
+  const result = await chatWithAssistant(ask('какие джаз-станции бывают?'), makeDeps(fetchImpl));
   // Planner errored → loop stops → compose still runs.
   assert.equal(calls.at(-1)?.phase, 'compose');
   assert.ok(result.reply.length > 0);
@@ -299,4 +306,33 @@ test('MAX_TOOL_STEPS caps the planner loop (distinct args never loop forever)', 
   });
   await chatWithAssistant(ask('найди джаз'), makeDeps(fetchImpl, { tools: counting }));
   assert.equal(searchCount, 3);
+});
+
+test('TUNING (a): explicit play intent WITH history forces search_stations — cards even when the planner would just ask', async () => {
+  // Planner stubbed to go straight to "final" (the live regression: mid-dialog
+  // it asks «какой джаз?» instead of acting). The deterministic forced-search
+  // path must still produce station cards.
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Включаю джаз!' });
+  const history = [
+    { role: 'user' as const, text: 'привет' },
+    { role: 'assistant' as const, text: 'Привет! Под что тебе музыку?' }
+  ];
+  const result = await chatWithAssistant(ask('включи джаз', { history }), makeDeps(fetchImpl));
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
+  assert.equal(result.actions[0]?.kind, 'play');
+});
+
+test('TUNING (b): an empty station search on a rec intent falls back to music-service links (always something tappable)', async () => {
+  const emptyTools: ToolProvider = { ...stubTools, searchStations: async () => [] };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"final"}'],
+    compose: 'Станций прямо под это не нашла, но вот где послушать.'
+  });
+  const result = await chatWithAssistant(
+    ask('посоветуй спокойный джаз на вечер'),
+    makeDeps(fetchImpl, { tools: emptyTools })
+  );
+  assert.deepEqual(result.stations, []); // no hallucinated stations
+  assert.equal(result.serviceLinks.length, 6); // music_service_search fallback ran
 });
