@@ -3336,6 +3336,116 @@ button.app-brand-pill {
   padding: 2px 2px 0;
 }
 
+/* Inline "search my library" filter — sits above the tab strip. Themed
+   surface + tokens so the placeholder/icon stay legible on the dark app shell
+   AND on the light theme. */
+.library-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 8px 4px 12px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--theme-surface, rgba(17, 25, 38, 0.56));
+  border: 1px solid var(--theme-border, var(--border));
+}
+
+.library-search-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.library-search-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.library-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+}
+
+.library-search-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+  font-weight: 500;
+}
+
+/* Hide the native search affordances — the WebKit clear "x" is unreliable
+   inside the Telegram webview, so we draw our own button instead. */
+.library-search-input::-webkit-search-cancel-button,
+.library-search-input::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.library-search-clear {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.library-search-clear svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.library-search-result-bar {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Non-tappable origin label on a library-search result row. Sized to its
+   content (justify/align-self: start) so short labels like "Избранное" show in
+   full; only a genuinely long collection name hits max-width and ellipsises. */
+.station-source-badge {
+  display: inline-block;
+  width: fit-content;
+  align-self: flex-start;
+  justify-self: start;
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: color-mix(in srgb, var(--accent) 60%, var(--text-strong));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In a compact row the copy column is only ~50px wide (four action buttons eat
+   the rest), so the badge sits on its own full-width line under the shell grid
+   instead of being clipped inside that column. */
+.station-compact-shell .station-source-badge-compact {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
 .search-shell-header .chip-row,
 .library-header-card .chip-row {
   justify-content: flex-end;
@@ -5218,6 +5328,13 @@ button.app-brand-pill {
   border: 1px solid rgba(197, 229, 255, 0.14);
   content-visibility: auto;
   contain-intrinsic-size: 280px;
+}
+
+/* The hardcoded dark gradient above reads as pale-on-pale on the light theme;
+   re-point it to the themed surface so the cards keep contrast on Warm Light. */
+:root[data-theme-mode='light'] .library-collection-card {
+  background: var(--theme-surface);
+  border-color: var(--theme-border);
 }
 
 .library-collection-head {
