@@ -12,6 +12,7 @@ export type ProductAnalyticsEventName =
   | 'search_query'
   | 'queue_source'
   | 'queue_reorder'
+  | 'queue_shuffle'
   | 'queue_remove'
   | 'queue_clear_upcoming'
   | 'session_duration'

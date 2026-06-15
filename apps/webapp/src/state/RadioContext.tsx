@@ -82,6 +82,7 @@ import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { usePersistentState } from '../lib/persistentState';
+import { reshuffleQueueSnapshot } from '../lib/shuffleStations';
 import {
   DEFAULT_APP_STATE,
   DEFAULT_LAYOUT,
@@ -2096,6 +2097,33 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             dedupeKey: `queue_reorder:${target.stationuuid}:${index}:${targetIndex}:${Date.now()}`
           }
         );
+      },
+      shuffleQueue: () => {
+        const currentQueue = queueRef.current;
+        // Nothing to shuffle for a 0/1-item queue (the chip is disabled there
+        // too — this is the belt-and-braces guard).
+        if (currentQueue.items.length <= 1) return;
+        // Reorder ONLY the upcoming items: reshuffleQueueSnapshot pins the
+        // playing item at its current index, so playback is untouched
+        // (never-auto-switch, PR #86). Persist via updateQueue ONLY — NO play*
+        // call here, so the audio element, recent log and play_attempt analytics
+        // are never touched. sourceId/sourceLabel are carried through.
+        updateQueue(reshuffleQueueSnapshot(currentQueue));
+        reportProductEvent(
+          'queue_shuffle',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length,
+            activeIndex: currentQueue.currentIndex
+          },
+          {
+            dedupeKey: `queue_shuffle:${currentQueue.sourceId || 'none'}:${Date.now()}`
+          }
+        );
+        // Always give feedback — even when a tiny queue can only reproduce the
+        // same order. The Toast is role=status aria-live=polite, so this single
+        // call is both the visible toast AND the screen-reader announcement.
+        notify(t('library.shuffleQueueAnnounce'));
       },
       clearUpcoming: () => {
         const currentQueue = queueRef.current;

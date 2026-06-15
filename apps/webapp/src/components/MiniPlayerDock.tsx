@@ -349,6 +349,15 @@ export const MiniPlayerDock = () => {
                   >
                     {t('dock.queueOpen')}
                   </button>
+                  <button
+                    className="chip"
+                    type="button"
+                    onClick={() => queue.shuffleQueue()}
+                    disabled={queue.items.length <= 1}
+                    aria-label={t('library.shuffleQueueAria')}
+                  >
+                    {t('library.shuffleQueue')}
+                  </button>
                   <button className="chip" type="button" onClick={() => openLibraryTab('tracks')}>
                     {t('dock.copiedTracksOpen')}
                   </button>

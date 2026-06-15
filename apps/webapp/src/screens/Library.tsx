@@ -5,6 +5,7 @@ import { RegionArtwork } from '../components/RegionArtwork';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import { stationsForRegions } from '../lib/regionRecommendations';
+import { shuffleStations } from '../lib/shuffleStations';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
@@ -350,16 +351,6 @@ export const Library = () => {
     collection.stationIds
       .map((stationId) => stationMap.get(stationId))
       .filter(Boolean) as StationLite[];
-  const shuffleStations = (items: StationLite[]) => {
-    const seeded = [...items];
-    let seed = Date.now() % 2147483647;
-    for (let index = seeded.length - 1; index > 0; index -= 1) {
-      seed = (seed * 48271) % 2147483647;
-      const swapIndex = seed % (index + 1);
-      [seeded[index], seeded[swapIndex]] = [seeded[swapIndex], seeded[index]];
-    }
-    return seeded;
-  };
   const playCollection = (collection: (typeof collections)[number], shuffle = false) => {
     const collectionStations = resolveCollectionStations(collection);
     if (!collectionStations.length) return;
@@ -590,6 +581,15 @@ export const Library = () => {
               </button>
               <button className="chip" type="button" onClick={playNext} disabled={queue.items.length <= 1}>
                 {t('common.next')}
+              </button>
+              <button
+                className="chip"
+                type="button"
+                onClick={() => queue.shuffleQueue()}
+                disabled={queue.items.length <= 1}
+                aria-label={t('library.shuffleQueueAria')}
+              >
+                {t('library.shuffleQueue')}
               </button>
               <button className="chip" type="button" onClick={() => openLibraryTab('recent')}>
                 {t('library.openHistoryAction')}
