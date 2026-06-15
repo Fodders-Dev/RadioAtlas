@@ -4,6 +4,11 @@ import { CollectionArtwork } from '../components/CollectionArtwork';
 import { RegionArtwork } from '../components/RegionArtwork';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
+import {
+  buildLibrarySearchEntries,
+  filterLibraryEntries,
+  type LibrarySearchSource
+} from '../lib/librarySearch';
 import { stationsForRegions } from '../lib/regionRecommendations';
 import { shuffleStations } from '../lib/shuffleStations';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
@@ -110,7 +115,8 @@ export const Library = () => {
     updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast, playNext } = usePlayback();
-  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId } = useShell();
+  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft } =
+    useShell();
   const {
     status: sessionStatus,
     profile,
@@ -144,6 +150,10 @@ export const Library = () => {
   // collection actions (holds the card's collection id).
   const [queueRailSheetOpen, setQueueRailSheetOpen] = useState(false);
   const [collectionActionsId, setCollectionActionsId] = useState<string | null>(null);
+  // Inline "search my library" filter (favorites + recent + collections +
+  // follows). Empty query = the tabs render exactly as before.
+  const [librarySearch, setLibrarySearch] = useState('');
+  const librarySearchInputRef = useRef<HTMLInputElement>(null);
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
@@ -183,6 +193,46 @@ export const Library = () => {
     () => new Map(knownStations.map((station) => [station.stationuuid, station])),
     [knownStations]
   );
+
+  // "Search my library" — a pure in-memory filter over the user's own union
+  // (favorites + recent + collections + follows). NOT the 57k catalog (that
+  // lives on the Search screen). Filters on every keystroke (the set is small).
+  const librarySearchQuery = librarySearch.trim();
+  const librarySearchEntries = useMemo(
+    () =>
+      buildLibrarySearchEntries({ favorites, recent, collections, followedStations, stationMap }),
+    [favorites, recent, collections, followedStations, stationMap]
+  );
+  const librarySearchResults = useMemo(
+    () => filterLibraryEntries(librarySearchEntries, librarySearchQuery),
+    [librarySearchEntries, librarySearchQuery]
+  );
+  const librarySearchStations = useMemo(
+    () => librarySearchResults.map((entry) => entry.station),
+    [librarySearchResults]
+  );
+  const librarySearchSourceLabel = (source: LibrarySearchSource) => {
+    switch (source.kind) {
+      case 'favorite':
+        return t('library.searchResultFromFavorites');
+      case 'collection':
+        return t('library.searchResultFromCollection', { name: source.name });
+      case 'recent':
+        return t('library.searchResultFromRecent');
+      case 'followed':
+        return t('library.searchResultFromFollowed');
+    }
+  };
+  const librarySearchLabelFor = useMemo(() => {
+    const labels = new Map<string, string>();
+    librarySearchResults.forEach((entry) =>
+      labels.set(entry.station.stationuuid, librarySearchSourceLabel(entry.source))
+    );
+    return (stationuuid: string) => labels.get(stationuuid);
+    // librarySearchSourceLabel only closes over t (stable per locale).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [librarySearchResults, t]);
+
   const libraryFeed = useMemo(
     () =>
       createLibraryDiscoveryFeed({
@@ -506,6 +556,90 @@ export const Library = () => {
 
   return (
     <section className="screen screen-library-v2">
+      <div className="library-search-bar">
+        <span className="library-search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M10.5 4a6.5 6.5 0 1 0 4.05 11.58l4.44 4.44 1.41-1.41-4.44-4.44A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+          </svg>
+        </span>
+        <input
+          ref={librarySearchInputRef}
+          className="library-search-input"
+          type="search"
+          inputMode="search"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          placeholder={t('library.searchPlaceholder')}
+          aria-label={t('library.searchPlaceholder')}
+          value={librarySearch}
+          onChange={(event) => setLibrarySearch(event.target.value)}
+        />
+        {librarySearch ? (
+          <button
+            type="button"
+            className="library-search-clear"
+            aria-label={t('library.searchClear')}
+            onClick={() => {
+              setLibrarySearch('');
+              librarySearchInputRef.current?.focus();
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z" />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+
+      {librarySearchQuery ? (
+        <div
+          className="glass-card library-search-results"
+          role="region"
+          aria-label={t('library.searchResults')}
+        >
+          {!librarySearchEntries.length ? (
+            <div className="empty-state library-empty-state">
+              <div className="library-empty-title">{t('library.searchEmptyLibrary')}</div>
+            </div>
+          ) : librarySearchResults.length ? (
+            <>
+              <div className="library-search-result-bar">
+                <span aria-live="polite">
+                  {t('library.searchResultCount', { count: librarySearchResults.length })}
+                </span>
+              </div>
+              <StationTable
+                stations={librarySearchStations}
+                compact={compactRows}
+                sourceId="library-search"
+                sourceLabelFor={librarySearchLabelFor}
+                nowPlayingMode="viewport"
+              />
+            </>
+          ) : (
+            <div className="empty-state library-empty-state" aria-live="polite">
+              <div className="library-empty-title">
+                {t('library.searchNoResults', { query: librarySearchQuery })}
+              </div>
+              <div className="hero-chip-row">
+                <button
+                  className="chip active"
+                  type="button"
+                  onClick={() => {
+                    setSearchDraft(librarySearchQuery);
+                    setActiveSection('search');
+                  }}
+                >
+                  {t('library.searchInCatalog')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       <div className="library-tab-strip" role="tablist" aria-label={t('library.title')}>
         {TAB_ORDER.map((tab) => (
           <button
@@ -1316,6 +1450,8 @@ export const Library = () => {
           </div>
         </div>
       ) : null}
+        </>
+      )}
 
       {/* Mobile bottom sheets — exactly three in this PR (per the owner's
           limit): S1 queue history+journal, S2 full track journal, S3 per-card

@@ -27,6 +27,10 @@ type StationTableProps = {
   sourceId?: string;
   buildQueue?: boolean;
   nowPlayingMode?: 'active-only' | 'viewport';
+  // Optional non-tappable per-row origin label (e.g. library search results
+  // tag each row with where it came from). Undefined for every normal usage,
+  // so rows render byte-identically and the row memo is unaffected.
+  sourceLabelFor?: (stationuuid: string) => string | undefined;
 };
 
 declare global {
@@ -79,6 +83,7 @@ type StationTableRowProps = {
   active: boolean;
   liked: boolean;
   hidden: boolean;
+  sourceLabel?: string;
   behaviorProfile: BehaviorProfile | null | undefined;
   activePlayback: ActivePlayback | null;
   // Stable callbacks (parent keeps them referentially stable via refs).
@@ -96,6 +101,7 @@ const StationTableRow = memo(({
   active,
   liked,
   hidden,
+  sourceLabel,
   behaviorProfile,
   activePlayback,
   onPlay,
@@ -364,6 +370,11 @@ const StationTableRow = memo(({
               </svg>
             </button>
           </div>
+          {sourceLabel ? (
+            <span className="station-source-badge station-source-badge-compact" title={sourceLabel}>
+              {sourceLabel}
+            </span>
+          ) : null}
         </div>
       ) : (
         <>
@@ -377,6 +388,11 @@ const StationTableRow = memo(({
                 <div className="station-title" title={normalizeStationName(station.name)}>
                   <span className="marquee-text">{normalizeStationName(station.name)}</span>
                 </div>
+                {sourceLabel ? (
+                  <span className="station-source-badge" title={sourceLabel}>
+                    {sourceLabel}
+                  </span>
+                ) : null}
                 {reason ? (
                   <span
                     className={`station-reason-chip station-reason-chip-${reason.kind}`}
@@ -548,7 +564,8 @@ export const StationTable = ({
   compact,
   sourceId,
   buildQueue = true,
-  nowPlayingMode = 'active-only'
+  nowPlayingMode = 'active-only',
+  sourceLabelFor
 }: StationTableProps) => {
   const { t } = useLocale();
 
@@ -638,6 +655,7 @@ export const StationTable = ({
         active={active}
         liked={favoriteIds.has(station.stationuuid)}
         hidden={isStationHiddenFromRecommendations(station.stationuuid)}
+        sourceLabel={sourceLabelFor?.(station.stationuuid)}
         behaviorProfile={behaviorProfile}
         activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
         onPlay={handlePlay}

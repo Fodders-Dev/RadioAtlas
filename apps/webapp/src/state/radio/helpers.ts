@@ -169,6 +169,7 @@ export const getQueueSourceLabel = (
   }
   if (sourceId === 'favorites') return t('radio.favorites');
   if (sourceId === 'recent') return t('radio.recent');
+  if (sourceId === 'library-search') return t('library.searchResults');
   if (sourceId === 'search-stations' || sourceId === 'discover-stations') return t('radio.searchResults');
   if (sourceId === 'search-links' || sourceId === 'discover-links') return t('radio.savedLinks');
   if (sourceId === 'search-links-recent' || sourceId === 'discover-links-recent') return t('radio.recentLinks');
