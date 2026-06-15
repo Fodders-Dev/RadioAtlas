@@ -103,6 +103,7 @@ export const Library = () => {
     clearRecent,
     clearTrackHistory,
     createCollection,
+    deleteCollection,
     toggleCollectionPinned,
     renameCollection,
     moveStationInCollection,
@@ -150,6 +151,10 @@ export const Library = () => {
   // collection actions (holds the card's collection id).
   const [queueRailSheetOpen, setQueueRailSheetOpen] = useState(false);
   const [collectionActionsId, setCollectionActionsId] = useState<string | null>(null);
+  // Two-tap delete confirm: the first «Удалить» tap arms this id, the second
+  // («Точно удалить?») commits. Lives inline in the detail row / S3 sheet — NOT
+  // a new fixed element (would hit the z-130-under-dock trap).
+  const [deleteArmedCollectionId, setDeleteArmedCollectionId] = useState<string | null>(null);
   // Inline "search my library" filter (favorites + recent + collections +
   // follows). Empty query = the tabs render exactly as before.
   const [librarySearch, setLibrarySearch] = useState('');
@@ -169,6 +174,13 @@ export const Library = () => {
     const timeout = window.setTimeout(() => setCollectionNotice(null), 2800);
     return () => window.clearTimeout(timeout);
   }, [collectionNotice]);
+
+  // An armed delete-confirm disarms itself if the user doesn't follow through.
+  useEffect(() => {
+    if (!deleteArmedCollectionId) return;
+    const timeout = window.setTimeout(() => setDeleteArmedCollectionId(null), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [deleteArmedCollectionId]);
 
   useEffect(() => {
     if (selectedCollectionId !== null || pendingCollectionScrollRestoreRef.current === null) return;
@@ -442,6 +454,36 @@ export const Library = () => {
     setCollectionNotice(t('library.collectionRenamed', { name }));
     cancelRenameCollection();
   };
+  // First tap arms the inline confirm; the second tap (while armed) commits.
+  const requestDeleteCollection = (collection: (typeof collections)[number]) => {
+    if (deleteArmedCollectionId !== collection.id) {
+      setDeleteArmedCollectionId(collection.id);
+      return;
+    }
+    const wasOpen = selectedCollectionId === collection.id;
+    deleteCollection(collection.id);
+    // Clear every transient that points at the now-gone collection, or the
+    // detail / sheet would render against a missing id.
+    setDeleteArmedCollectionId(null);
+    setCollectionActionsId(null);
+    setRenamingCollectionId(null);
+    setCollectionRenameDraft('');
+    setCollectionReorderMode(false);
+    if (wasOpen) {
+      closeCollectionDetail();
+    }
+    setCollectionNotice(t('library.collectionDeleted', { name: collection.name }));
+  };
+  // Rename from the «···» sheet: open the detail already in rename mode.
+  const renameCollectionFromSheet = (collection: (typeof collections)[number]) => {
+    setCollectionActionsId(null);
+    setDeleteArmedCollectionId(null);
+    openCollectionDetail(collection.id);
+    beginRenameCollection(collection);
+  };
+  const addStationsToCollection = () => {
+    setActiveSection('search');
+  };
   const queueLeadStation =
     player.current ??
     (queue.currentIndex >= 0 ? queue.items[queue.currentIndex] : null) ??
@@ -540,7 +582,16 @@ export const Library = () => {
     const collectionStations = resolveCollectionStations(collection);
 
     if (!collectionStations.length) {
-      return <div className="empty-state library-empty-state">{t('library.collectionEmpty')}</div>;
+      return (
+        <div className="empty-state library-empty-state">
+          <div className="section-subtitle">{t('library.collectionEmpty')}</div>
+          <div className="hero-chip-row">
+            <button className="chip active" type="button" onClick={addStationsToCollection}>
+              {t('library.addStationsToCollection')}
+            </button>
+          </div>
+        </div>
+      );
     }
 
     return (
@@ -699,6 +750,7 @@ export const Library = () => {
             <div>
               <div className="section-title">{t('playlist.title')}</div>
               <div className="section-subtitle">{queueSourceLabel}</div>
+              <div className="library-queue-explainer">{t('library.queueExplainer')}</div>
             </div>
             <div className="chip-row">
               <button
@@ -1028,6 +1080,17 @@ export const Library = () => {
                   >
                     {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
                   </button>
+                  <button
+                    className={`chip library-delete-chip ${
+                      deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
+                    }`}
+                    type="button"
+                    onClick={() => requestDeleteCollection(selectedCollection)}
+                  >
+                    {deleteArmedCollectionId === selectedCollection.id
+                      ? t('library.deleteCollectionConfirm')
+                      : t('library.deleteCollection')}
+                  </button>
                 </div>
               </div>
 
@@ -1100,7 +1163,23 @@ export const Library = () => {
                   ))}
                 </div>
               ) : (
-                <div className="empty-state library-empty-state">{t('library.collectionEmpty')}</div>
+                <div className="empty-state library-empty-state">
+                  <div className="section-subtitle">{t('library.collectionEmpty')}</div>
+                  <div className="hero-chip-row">
+                    <button className="chip active" type="button" onClick={addStationsToCollection}>
+                      {t('library.addStationsToCollection')}
+                    </button>
+                    {player.current ? (
+                      <button
+                        className="chip"
+                        type="button"
+                        onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}
+                      >
+                        {t('library.addCurrentToCollection')}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
               )}
             </div>
           ) : (
@@ -1180,67 +1259,44 @@ export const Library = () => {
                           </div>
                         </div>
                       </button>
-                      {isMobileLayout ? (
-                        // ≤720px: one primary Play + a «···» trigger for the S3
-                        // per-card actions sheet. The Open chip is gone on
-                        // mobile — the title button already opens the detail.
-                        <div className="chip-row library-collection-card-actions">
-                          <button
-                            className="chip active"
-                            type="button"
-                            onClick={() => playCollection(collection)}
-                            disabled={!collection.stationIds.length}
-                          >
-                            {t('library.playCollection')}
-                          </button>
-                          <button
-                            className="chip library-collection-more"
-                            type="button"
-                            onClick={() => setCollectionActionsId(collection.id)}
-                            aria-label={`${t('common.actions')}: ${collection.name}`}
-                          >
-                            ···
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="chip-row">
-                          <button
-                            className="chip active"
-                            type="button"
-                            onClick={() => playCollection(collection)}
-                            disabled={!collection.stationIds.length}
-                          >
-                            {t('library.playCollection')}
-                          </button>
-                          <button
-                            className="chip"
-                            type="button"
-                            onClick={() => playCollection(collection, true)}
-                            disabled={!collection.stationIds.length}
-                          >
-                            {t('library.shuffleCollection')}
-                          </button>
-                          <button className="chip active" type="button" onClick={() => openCollectionDetail(collection.id)}>
-                            {t('library.openCollection')}
-                          </button>
-                          <button
-                            className={`chip ${collection.pinned ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => toggleCollectionPinned(collection.id)}
-                          >
-                            {collection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
-                          </button>
-                          {player.current ? (
-                            <button
-                              className="chip"
-                              type="button"
-                              onClick={() => addCurrentToCollection(collection.id, collection.name)}
-                            >
-                              {t('library.addCurrentToCollection')}
-                            </button>
-                          ) : null}
-                        </div>
-                      )}
+                      {/* Identical primary actions on BOTH layouts: Play +
+                          Shuffle + «···». The title button opens the detail
+                          (full action set); «···» opens the S3 sheet (same
+                          actions). */}
+                      <div className="chip-row library-collection-card-actions">
+                        <button
+                          className="chip active"
+                          type="button"
+                          onClick={() => playCollection(collection)}
+                          disabled={!collection.stationIds.length}
+                        >
+                          {t('library.playCollection')}
+                        </button>
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => playCollection(collection, true)}
+                          disabled={!collection.stationIds.length}
+                        >
+                          {t('library.shuffleCollection')}
+                        </button>
+                        <button
+                          className="chip library-collection-more"
+                          type="button"
+                          // Same overflow on both layouts, reaching the same
+                          // action set: the S3 sheet on mobile, the detail
+                          // chip-row on desktop (the bottom sheet is a mobile
+                          // idiom; both surfaces carry Rename/Pin/Add/Delete).
+                          onClick={() =>
+                            isMobileLayout
+                              ? setCollectionActionsId(collection.id)
+                              : openCollectionDetail(collection.id)
+                          }
+                          aria-label={`${t('common.actions')}: ${collection.name}`}
+                        >
+                          ···
+                        </button>
+                      </div>
                     </div>
                     {renderCollectionStations(collection)}
                     {collection.stationIds.length ? (
@@ -1484,14 +1540,31 @@ export const Library = () => {
         </LibrarySheet>
       ) : null}
 
+      {/* S3 per-card actions sheet (mobile «···» target; desktop «···» opens the
+          detail instead). Mirrors the detail chip-row action set. Portals to
+          document.body via LibrarySheet. */}
       {isMobileLayout && collectionActionsSheet ? (
         <LibrarySheet
           sheetId="collection-actions"
           kicker={t('library.collectionsTitle')}
           title={collectionActionsSheet.name}
-          onClose={() => setCollectionActionsId(null)}
+          onClose={() => {
+            setCollectionActionsId(null);
+            setDeleteArmedCollectionId(null);
+          }}
         >
           <div className="library-sheet-rows">
+            <button
+              className="library-sheet-action"
+              type="button"
+              onClick={() => {
+                playCollection(collectionActionsSheet);
+                setCollectionActionsId(null);
+              }}
+              disabled={!collectionActionsSheet.stationIds.length}
+            >
+              {t('library.playCollection')}
+            </button>
             <button
               className="library-sheet-action"
               type="button"
@@ -1502,6 +1575,24 @@ export const Library = () => {
               disabled={!collectionActionsSheet.stationIds.length}
             >
               {t('library.shuffleCollection')}
+            </button>
+            <button
+              className="library-sheet-action"
+              type="button"
+              onClick={() => {
+                openCollectionDetail(collectionActionsSheet.id);
+                setCollectionActionsId(null);
+                setDeleteArmedCollectionId(null);
+              }}
+            >
+              {t('library.openCollection')}
+            </button>
+            <button
+              className="library-sheet-action"
+              type="button"
+              onClick={() => renameCollectionFromSheet(collectionActionsSheet)}
+            >
+              {t('library.renameCollection')}
             </button>
             <button
               className={`library-sheet-action ${collectionActionsSheet.pinned ? 'active' : ''}`}
@@ -1527,6 +1618,17 @@ export const Library = () => {
                 {t('library.addCurrentToCollection')}
               </button>
             ) : null}
+            <button
+              className={`library-sheet-action library-sheet-action-danger ${
+                deleteArmedCollectionId === collectionActionsSheet.id ? 'is-armed' : ''
+              }`}
+              type="button"
+              onClick={() => requestDeleteCollection(collectionActionsSheet)}
+            >
+              {deleteArmedCollectionId === collectionActionsSheet.id
+                ? t('library.deleteCollectionConfirm')
+                : t('library.deleteCollection')}
+            </button>
           </div>
         </LibrarySheet>
       ) : null}

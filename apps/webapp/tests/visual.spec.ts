@@ -385,7 +385,7 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
   const queueShot = await page.screenshot({ animations: 'disabled' });
   expect(queueShot).toMatchSnapshot('library-mobile-queue.png', { maxDiffPixelRatio: 0.04 });
 
-  await page.locator('.library-tab-chip').filter({ hasText: /Коллекции|Collections/ }).click();
+  await page.locator('.library-tab-chip').filter({ hasText: /Плейлисты|Playlists/ }).click();
   await expect(page.locator('.library-collection-card')).toBeVisible();
   await waitForStableMetrics(page, '.screen-library-v2');
   const collectionsShot = await page.screenshot({ animations: 'disabled' });

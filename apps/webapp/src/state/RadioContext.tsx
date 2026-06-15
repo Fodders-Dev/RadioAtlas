@@ -1755,6 +1755,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     ]);
     setLibraryTab('collections');
   };
+  const deleteCollection = (collectionId: string) => {
+    // Plain filter via setCollections — the same channel every other collection
+    // mutator uses, so the cloud push effect (full-replace) propagates the
+    // removal. The one-time hydration union-merge already ran before this, so a
+    // deleted playlist does not resurrect in-session. (No tombstones: a stale
+    // copy on a DIFFERENT device can still re-add it on its next union-merge —
+    // a pre-existing cross-device limitation shared by favorites etc.)
+    setCollections((prev) => prev.filter((collection) => collection.id !== collectionId));
+  };
   const toggleCollectionPinned = (collectionId: string) => {
     setCollections((prev) =>
       prev.map((collection) =>
@@ -2315,6 +2324,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearRecent,
       clearTrackHistory,
       createCollection,
+      deleteCollection,
       toggleCollectionPinned,
       renameCollection,
       moveStationInCollection,
@@ -2336,6 +2346,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearTrackHistory,
       collections,
       createCollection,
+      deleteCollection,
       digests,
       favorites,
       followedRegions,

@@ -9473,6 +9473,24 @@ body {
   font-weight: 700;
 }
 
+/* One-line explainer under the «Очередь» tab title: a temporary now-playing
+   list, not a saved playlist. Muted, low-emphasis. */
+.library-queue-explainer {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Two-tap delete confirm — neutral chip until armed, then a clear danger state
+   (works on both themes; --danger is a fixed warm red). */
+.library-delete-chip.is-armed,
+.library-sheet-action.library-sheet-action-danger.is-armed {
+  color: #fff;
+  background: color-mix(in srgb, var(--danger) 88%, #000);
+  border-color: var(--danger);
+}
+
 .library-create-collection-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
