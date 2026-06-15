@@ -188,6 +188,7 @@ export type LibraryContextValue = {
   clearRecent: () => void;
   clearTrackHistory: () => void;
   createCollection: (name: string) => void;
+  saveQueueAsCollection: (name: string) => void;
   deleteCollection: (collectionId: string) => void;
   toggleCollectionPinned: (collectionId: string) => void;
   renameCollection: (collectionId: string, name: string) => void;

@@ -83,6 +83,7 @@ import { useSession } from './SessionContext';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { usePersistentState } from '../lib/persistentState';
 import { reshuffleQueueSnapshot } from '../lib/shuffleStations';
+import { buildQueueCollection } from '../lib/queueToCollection';
 import {
   DEFAULT_APP_STATE,
   DEFAULT_LAYOUT,
@@ -1755,6 +1756,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     ]);
     setLibraryTab('collections');
   };
+  const saveQueueAsCollection = (name: string) => {
+    const queueStations = queueRef.current.items;
+    const now = Date.now();
+    const collection = buildQueueCollection(name, queueStations, {
+      id: `collection-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      now
+    });
+    if (!collection) return;
+    // CRITICAL: cache every queue station so the new playlist can resolve them
+    // via the stationMap (knownStations = Object.values(stationCache)). The
+    // queue holds StationLite that may never have entered the cache — without
+    // this the playlist would render dangling ids. Same path as
+    // addStationToCollection. Pure data-op: playback is NOT touched
+    // (never-auto-switch — the queue keeps playing as it was).
+    rememberStations(queueStations);
+    setCollections((prev) => [collection, ...prev]);
+    setLibraryTab('collections');
+  };
   const deleteCollection = (collectionId: string) => {
     // Plain filter via setCollections — the same channel every other collection
     // mutator uses, so the cloud push effect (full-replace) propagates the
@@ -2324,6 +2343,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearRecent,
       clearTrackHistory,
       createCollection,
+      saveQueueAsCollection,
       deleteCollection,
       toggleCollectionPinned,
       renameCollection,
@@ -2346,6 +2366,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearTrackHistory,
       collections,
       createCollection,
+      saveQueueAsCollection,
       deleteCollection,
       digests,
       favorites,

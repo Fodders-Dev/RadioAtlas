@@ -521,6 +521,9 @@ export const enDictionary = {
       "collections": "Playlists"
     },
     "queueExplainer": "What's playing now and next — a temporary list",
+    "saveQueueAsPlaylist": "Save as playlist",
+    "saveQueuePrompt": "Queue · {date}",
+    "queueSavedAsPlaylist": "Queue saved as playlist: {name}",
     "collectionsTitle": "Playlists and follows",
     "collectionsCopy": "Build station sets, keep favorite regions nearby, and surface alerts in one place.",
     "createCollection": "New playlist",
