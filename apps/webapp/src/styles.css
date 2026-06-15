@@ -120,6 +120,23 @@
     var(--theme-surface-2, rgba(255, 250, 244, 0.82));
 }
 
+/* The topbar surface is re-skinned LIGHT above, but its title + stat ink stayed
+   hardcoded #f4f9ff (white) in the shared cluster → invisible on Warm Light
+   (confirmed live on the Search screen). Re-point them to the theme's dark ink
+   and drop the dark-tuned halo. The topbar is the same light glass on every
+   section incl. globe (it's a fixed glass card, not transparent over the map),
+   so this applies everywhere. The kicker's fixed teal also washes out on the
+   cream glass → readable accent-on-ink tint. */
+:root[data-theme-mode='light'] .app-topbar-title,
+:root[data-theme-mode='light'] .app-topbar-stat-tile strong {
+  color: var(--text-strong);
+  text-shadow: none;
+}
+
+:root[data-theme-mode='light'] .app-topbar-v2 .shell-kicker {
+  color: color-mix(in srgb, var(--accent) 46%, var(--text));
+}
+
 :root[data-theme-mode='light'] .home-personal-radio {
   background:
     radial-gradient(circle at 16% 40%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 38%),
@@ -2629,6 +2646,22 @@ body {
   border-color: rgba(214, 237, 255, 0.2);
 }
 
+/* «Лира» desktop rail item — a prominent accent-tinted hero among the tabs. */
+.nav-rail-chat {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--text-strong);
+}
+
+.nav-rail-chat .nav-rail-icon {
+  color: var(--accent);
+}
+
+.nav-rail-chat:hover {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 30%, transparent), transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
 .nav-rail-item span:last-child,
 .nav-utility-btn span:last-child {
   min-width: 0;
@@ -4378,6 +4411,53 @@ button.app-brand-pill {
   .mobile-nav-item.active {
     background: rgba(214, 237, 255, 0.08);
     color: #b9fff5;
+  }
+
+  /* «Лира» hero FAB, centred between the 2+2 tabs (VITE_AI_ENABLED only). The
+     5-col grid gives the round button its own auto column; it pokes above the
+     bar for the "hero" read. --accent-ink keeps the glyph readable on a dark
+     accent. */
+  .app-navigation-mobile--with-chat {
+    grid-template-columns: 1fr 1fr auto 1fr 1fr;
+  }
+
+  .mobile-nav-chat {
+    display: grid;
+    place-items: center;
+    gap: 1px;
+    padding: 0 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .mobile-nav-chat-fab {
+    display: grid;
+    place-items: center;
+    width: 50px;
+    height: 50px;
+    margin-top: -22px;
+    border-radius: var(--radius-full);
+    border: 2px solid color-mix(in srgb, var(--accent) 30%, #ffffff);
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, #ffffff));
+    color: var(--accent-ink, #08121d);
+    box-shadow:
+      0 10px 22px color-mix(in srgb, var(--accent) 45%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .mobile-nav-chat-fab svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+  }
+
+  .mobile-nav-chat-label {
+    margin-top: -2px;
+    color: var(--accent);
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
   }
 
   .mobile-settings-trigger span {

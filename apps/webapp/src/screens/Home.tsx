@@ -35,8 +35,6 @@ import {
   tasteSignature
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
-import { ChatSheet } from '../components/ChatSheet';
-import { isAiAssistantEnabled } from '../lib/aiChat';
 import {
   HomePersonalRadioCard,
   HomeRail,
@@ -884,10 +882,6 @@ export const Home = () => {
       sourceLabel: station.name
     });
   };
-  // «Лира» AI companion launcher — gated on VITE_AI_ENABLED so an AI-off build
-  // is byte-identical (no launcher, no sheet).
-  const aiAssistantEnabled = isAiAssistantEnabled();
-  const [chatOpen, setChatOpen] = useState(false);
   const handlePlayPersonalRadio = () => {
     if (queue.sourceId === personalRadioQueue.sourceId && player.current) {
       player.toggle();
@@ -924,25 +918,8 @@ export const Home = () => {
             refreshing={refreshing}
             onRefresh={handleRefresh}
           />
-          {aiAssistantEnabled ? (
-            <button
-              className="home-chat-launcher"
-              type="button"
-              onClick={() => setChatOpen(true)}
-              data-chat-launcher
-            >
-              <span className="home-chat-launcher-dot" aria-hidden="true">
-                ♪
-              </span>
-              <span className="home-chat-launcher-copy">
-                <strong>{t('chat.launch')}</strong>
-                <small>{t('chat.launchHint')}</small>
-              </span>
-              <span className="home-chat-launcher-go" aria-hidden="true">
-                →
-              </span>
-            </button>
-          ) : null}
+          {/* «Лира» launcher moved to the shell's central nav button (App.tsx)
+              so it opens from any screen — no Home-level launcher now. */}
           {/* T_home_redesign_1: HomeHeroCard removed per the owner's redesign —
               the personal-radio CTA above stays as the user's entry point and the
               first content rail (fresh-now) becomes the visual top of the feed.
@@ -1049,10 +1026,6 @@ export const Home = () => {
           onExplore={openSearch}
         />
       ))}
-
-      {aiAssistantEnabled ? (
-        <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} />
-      ) : null}
     </section>
   );
 };

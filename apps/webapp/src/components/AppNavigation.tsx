@@ -41,15 +41,45 @@ const NAV_ITEMS: NavItem[] = [
   }
 ];
 
+// «Лира» companion — a speech bubble with a music note.
+const CHAT_ICON = (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm9.2 3.2v4.62a2.1 2.1 0 1 0 1.5 2.01V9.4l2.3-.66V7.2l-3.8 1.1V7.2Z" />
+  </svg>
+);
+
 type AppNavigationProps = {
   active: AppSection;
   onChange: (section: AppSection) => void;
   onSettings: () => void;
   onPreload?: (section: AppSection) => void;
+  // When provided (VITE_AI_ENABLED), a hero «Лира» button is added — centred FAB
+  // on mobile, a prominent rail item on desktop — opening the shared ChatSheet.
+  onOpenChat?: () => void;
 };
 
-export const AppNavigation = ({ active, onChange, onSettings, onPreload }: AppNavigationProps) => {
+export const AppNavigation = ({
+  active,
+  onChange,
+  onSettings,
+  onPreload,
+  onOpenChat
+}: AppNavigationProps) => {
   const { t } = useLocale();
+
+  const renderMobileItem = (item: NavItem) => (
+    <button
+      key={item.id}
+      className={`mobile-nav-item ${active === item.id ? 'active' : ''}`}
+      type="button"
+      onClick={() => onChange(item.id)}
+      onTouchStart={() => onPreload?.(item.id)}
+      onFocus={() => onPreload?.(item.id)}
+    >
+      <span className="mobile-nav-icon">{item.icon}</span>
+      <span>{t(`nav.${item.id}`)}</span>
+    </button>
+  );
 
   return (
     <>
@@ -76,6 +106,12 @@ export const AppNavigation = ({ active, onChange, onSettings, onPreload }: AppNa
               <span>{t(`nav.${item.id}`)}</span>
             </button>
           ))}
+          {onOpenChat ? (
+            <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
+              <span className="nav-rail-icon">{CHAT_ICON}</span>
+              <span>{t('chat.launch')}</span>
+            </button>
+          ) : null}
         </nav>
 
         <button className="nav-utility-btn" type="button" onClick={onSettings}>
@@ -86,20 +122,29 @@ export const AppNavigation = ({ active, onChange, onSettings, onPreload }: AppNa
         </button>
       </aside>
 
-      <nav className="app-navigation-mobile" aria-label="Primary navigation">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`mobile-nav-item ${active === item.id ? 'active' : ''}`}
-            type="button"
-            onClick={() => onChange(item.id)}
-            onTouchStart={() => onPreload?.(item.id)}
-            onFocus={() => onPreload?.(item.id)}
-          >
-            <span className="mobile-nav-icon">{item.icon}</span>
-            <span>{t(`nav.${item.id}`)}</span>
-          </button>
-        ))}
+      <nav
+        className={`app-navigation-mobile ${onOpenChat ? 'app-navigation-mobile--with-chat' : ''}`.trim()}
+        aria-label="Primary navigation"
+      >
+        {onOpenChat ? (
+          <>
+            {NAV_ITEMS.slice(0, 2).map(renderMobileItem)}
+            <button
+              className="mobile-nav-chat"
+              type="button"
+              onClick={onOpenChat}
+              aria-label={t('chat.launch')}
+            >
+              <span className="mobile-nav-chat-fab" aria-hidden="true">
+                {CHAT_ICON}
+              </span>
+              <span className="mobile-nav-chat-label">{t('chat.launch')}</span>
+            </button>
+            {NAV_ITEMS.slice(2).map(renderMobileItem)}
+          </>
+        ) : (
+          NAV_ITEMS.map(renderMobileItem)
+        )}
       </nav>
     </>
   );

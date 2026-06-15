@@ -71,6 +71,17 @@
   color: rgba(180, 215, 235, 0.55);
 }
 
+/* Warm Light: the hardcoded light-blue placeholder + icon wash out on the cream
+   glass. Re-point to the theme's muted ink so they read on the light surface
+   (dark theme keeps the blue tint above). */
+:root[data-theme-mode='light'] .screen-search-v3 .search-hero-input input::placeholder {
+  color: var(--muted);
+}
+
+:root[data-theme-mode='light'] .screen-search-v3 .search-hero-icon {
+  color: var(--muted);
+}
+
 .screen-search-v3 .search-hero-clear {
   flex: 0 0 auto;
   width: 26px;
