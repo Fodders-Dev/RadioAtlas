@@ -6,6 +6,7 @@ import { SettingsSheet } from './components/SettingsSheet';
 import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
+import { isAiAssistantEnabled } from './lib/aiChat';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
 import { useCompactLayout } from './lib/useCompactLayout';
@@ -80,6 +81,11 @@ const FullPlayerOverlayLazy = lazy(() =>
 const ThemeStudioSheetLazy = lazy(() =>
   import('./components/ThemeStudio').then((mod) => ({ default: mod.ThemeStudioSheet }))
 );
+// «Лира» chat — lifted to the shell so the central nav button opens it from ANY
+// screen. Lazy so AI-off bundles never pull it in.
+const ChatSheetLazy = lazy(() =>
+  import('./components/ChatSheet').then((mod) => ({ default: mod.ChatSheet }))
+);
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
   home: HomeScreen,
@@ -106,6 +112,10 @@ const App = () => {
     setSkinLabOpen
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // «Лира» chat lives at the shell level so the central nav button opens it from
+  // any screen. Gated on VITE_AI_ENABLED (same flag as the rest of the feature).
+  const aiAssistantEnabled = isAiAssistantEnabled();
+  const [chatOpen, setChatOpen] = useState(false);
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const startHandledRef = useRef(false);
   // T_deeplink_lifecycle_fix: the deep-link effect runs once on mount (deps []),
@@ -373,6 +383,7 @@ const App = () => {
           active={activeSection}
           onChange={handleSectionChange}
           onSettings={() => setSettingsOpen(true)}
+          onOpenChat={aiAssistantEnabled ? () => setChatOpen(true) : undefined}
           onPreload={(section) => {
             if (section === 'home') void loadHomeScreen();
             if (section === 'search') void loadSearchScreen();
@@ -507,6 +518,11 @@ const App = () => {
       {accountSheetOpen ? (
         <Suspense fallback={null}>
           <AccountSheetLazy open={accountSheetOpen} onClose={closeAccountSheet} />
+        </Suspense>
+      ) : null}
+      {aiAssistantEnabled ? (
+        <Suspense fallback={null}>
+          <ChatSheetLazy open={chatOpen} onClose={() => setChatOpen(false)} />
         </Suspense>
       ) : null}
       {winamp.expanded ? (
