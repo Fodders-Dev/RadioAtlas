@@ -2020,7 +2020,7 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   const tokyoRow = page.locator('[data-library-collection-row][data-station-id="uuid-tokyo"]');
   await tokyoRow.getByRole('button', { name: /Опустить Tokyo FM|Move Tokyo FM down/ }).click();
   await expect(detail.locator('[data-library-collection-row]').first()).not.toHaveAttribute('data-station-id', 'uuid-tokyo');
-  await tokyoRow.getByRole('button', { name: /Убрать Tokyo FM из коллекции|Remove Tokyo FM from collection/ }).click();
+  await tokyoRow.getByRole('button', { name: /Убрать Tokyo FM из плейлиста|Remove Tokyo FM from playlist/ }).click();
   await expect(tokyoRow).toHaveCount(0);
 });
 
@@ -2073,7 +2073,7 @@ test('mobile library opens its three bottom sheets', async ({ page }) => {
   await expect(journalSheet).toHaveCount(0);
 
   // S3: per-card collection actions — shuffle starts the collection queue.
-  await page.locator('.library-tab-chip').filter({ hasText: /Коллекции|Collections/ }).click();
+  await page.locator('.library-tab-chip').filter({ hasText: /Плейлисты|Playlists/ }).click();
   await page.locator('.library-collection-more').first().click();
   const actionsSheet = page.locator('[data-library-sheet="collection-actions"]');
   await expect(actionsSheet).toBeVisible();
@@ -2152,8 +2152,8 @@ test('mobile library creates collections inline without native prompt', async ({
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: /Новая коллекция|New collection/ }).first().click();
-  await page.getByLabel(/Название коллекции|Collection name/).fill('Night drives');
+  await page.getByRole('button', { name: /Новый плейлист|New playlist/ }).first().click();
+  await page.getByLabel(/Название плейлиста|Playlist name/).fill('Night drives');
   await page.getByRole('button', { name: /Сохранить|Save/ }).click();
 
   expect(promptCalled).toBe(false);
