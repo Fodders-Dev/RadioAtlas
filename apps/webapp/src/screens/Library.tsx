@@ -103,6 +103,7 @@ export const Library = () => {
     clearRecent,
     clearTrackHistory,
     createCollection,
+    saveQueueAsCollection,
     deleteCollection,
     toggleCollectionPinned,
     renameCollection,
@@ -143,6 +144,10 @@ export const Library = () => {
   const [collectionRenameDraft, setCollectionRenameDraft] = useState('');
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  // Inline "save current queue as a playlist" form (queue tab) — reuses the
+  // create-collection inline pattern, NOT a bottom sheet.
+  const [isSavingQueue, setIsSavingQueue] = useState(false);
+  const [queueSaveDraft, setQueueSaveDraft] = useState('');
   const [collectionNotice, setCollectionNotice] = useState<string | null>(null);
   const [trackJournalOpen, setTrackJournalOpen] = useState(false);
   const [collectionReorderMode, setCollectionReorderMode] = useState(false);
@@ -381,6 +386,26 @@ export const Library = () => {
     createCollection(name);
     setCollectionNotice(t('library.collectionCreated', { name }));
     cancelCreateCollection();
+  };
+  const beginSaveQueue = () => {
+    const defaultName = t('library.saveQueuePrompt', {
+      date: new Date().toLocaleDateString(locale, { day: '2-digit', month: 'short' })
+    });
+    setQueueSaveDraft(defaultName.slice(0, 48));
+    setIsSavingQueue(true);
+  };
+  const cancelSaveQueue = () => {
+    setQueueSaveDraft('');
+    setIsSavingQueue(false);
+  };
+  const saveQueueNow = () => {
+    const name = queueSaveDraft.trim();
+    if (!name || !queue.items.length) return;
+    // Pure data-op: snapshots the queue into a new playlist (stations cached so
+    // they resolve) and leaves playback untouched.
+    saveQueueAsCollection(name);
+    setCollectionNotice(t('library.queueSavedAsPlaylist', { name }));
+    cancelSaveQueue();
   };
   const openLibraryTab = (tab: LibraryTab) => setLibraryTab(tab);
   const openCollectionDetail = (collectionId: string) => {
@@ -777,6 +802,14 @@ export const Library = () => {
               >
                 {t('library.shuffleQueue')}
               </button>
+              <button
+                className="chip"
+                type="button"
+                onClick={beginSaveQueue}
+                disabled={!queue.items.length}
+              >
+                {t('library.saveQueueAsPlaylist')}
+              </button>
               <button className="chip" type="button" onClick={() => openLibraryTab('recent')}>
                 {t('library.openHistoryAction')}
               </button>
@@ -794,6 +827,29 @@ export const Library = () => {
               ) : null}
             </div>
           </div>
+          {isSavingQueue ? (
+            <form
+              className="library-create-collection-row library-save-queue-row"
+              onSubmit={(event) => {
+                event.preventDefault();
+                saveQueueNow();
+              }}
+            >
+              <input
+                value={queueSaveDraft}
+                onChange={(event) => setQueueSaveDraft(event.target.value)}
+                placeholder={t('library.createCollectionPrompt')}
+                aria-label={t('library.saveQueueAsPlaylist')}
+                autoFocus
+              />
+              <button className="chip active" type="submit" disabled={!queueSaveDraft.trim()}>
+                {t('common.save')}
+              </button>
+              <button className="chip" type="button" onClick={cancelSaveQueue}>
+                {t('common.cancel')}
+              </button>
+            </form>
+          ) : null}
           <div className="library-queue-overview">
             <div className="globe-selection-pill">
               <span>{t('playlist.title')}</span>

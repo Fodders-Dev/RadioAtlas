@@ -521,6 +521,9 @@ export const ruDictionary = {
       "collections": "Плейлисты"
     },
     "queueExplainer": "Что играет сейчас и дальше — временный список",
+    "saveQueueAsPlaylist": "Сохранить как плейлист",
+    "saveQueuePrompt": "Очередь · {date}",
+    "queueSavedAsPlaylist": "Очередь сохранена как плейлист: {name}",
     "collectionsTitle": "Плейлисты и подписки",
     "collectionsCopy": "Собирай свои наборы станций, а рядом держи регионы и алерты возврата.",
     "createCollection": "Новый плейлист",
