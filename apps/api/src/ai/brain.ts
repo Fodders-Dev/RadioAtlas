@@ -46,6 +46,15 @@ const PLAY_INTENT = /(включ|постав|вруб|запусти|давай
 // ask "which jazz?" (the live regression: «включи джаз» with history → no cards).
 const SEARCH_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша|сыграй|ставь|посовету|порекоменд|найд|покаж|подбер|хочу\s+послуша)/i;
 
+// A bare mood / activity / vibe / context reply (no music keyword) is still a
+// recommendation request — «для крутой прогулки», «что-нибудь для драки»,
+// «спокойное на вечер». Without this they read as smalltalk and the planner is
+// skipped, so Лира just describes genres in prose and never searches (the live
+// bug). Matching it routes the turn through the planner, which then maps the
+// vibe to genre tags and calls search_stations.
+const VIBE_INTENT =
+  /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн)/i;
+
 // Noise stems removed to derive the station-search query. Cyrillic — JS \b/\w
 // are ASCII-only — so match by word-prefix, not boundary.
 const QUERY_NOISE_STEMS = [
@@ -74,7 +83,16 @@ const explicitSearchQuery = (message: string): string | null => {
   return query.length >= 3 ? query : null;
 };
 
-const isSmalltalk = (message: string): boolean => !ACTION_INTENT.test(message);
+const isSmalltalk = (message: string): boolean =>
+  !ACTION_INTENT.test(message) && !VIBE_INTENT.test(message);
+
+// Factual / news / biography questions Лира cannot verify from observations
+// («жив ли X», «что нового у …», release dates, «правда ли что…»). A stopgap
+// before a real web-search tool: when this fires, the composer gets an extra
+// guard so Лира stays honest instead of inventing confident "news". Opinions
+// and impressions about music are NOT factual and stay free.
+const FACTUAL_QUESTION =
+  /(жив[аы]?\s+ли|ещ[её]\s+жив|умер|сконча|погиб|распал[аи]сь|воссоедин|что\s+нового|какие?\s+новост|новост[ьи]|когда\s+(родил|умер|вы(йдет|ходит|пуст)|релиз|конц|тур|альбом)|в\s+каком\s+году|сколько\s+(ему|ей)\s+лет|биографи|что\s+(случилось|стало)\s+с|правда\s+ли)/i;
 
 const trimHistory = (history: ChatTurn[] | undefined): ChatTurn[] =>
   (history || [])
@@ -121,11 +139,13 @@ const buildPlannerSystem = (): string => {
     'Вызывай инструмент ТОЛЬКО когда нужны свежие/проверяемые данные: найти реальную станцию, подтвердить станцию, узнать что сейчас в тренде, или дать ссылки на внешние музыкальные сервисы для конкретного трека/альбома/артиста.',
     'Если человек явно просит включить/поставить станцию ИЛИ советует жанр/настроение/страну («включи джаз», «посоветуй спокойное на вечер», «поставь что-то бразильское») — СРАЗУ вызывай search_stations с этим запросом, даже посреди разговора и даже если уже болтали. НЕ переспрашивай «а какой именно?».',
     '',
+    'ДЕЙСТВУЙ НА ВАЙБ. Любой запрос на музыку под настроение, занятие, вайб или контекст — даже сложный или абстрактный («музыку для драки», «для прогулки чтобы чувствовать себя крутым», «чтобы взбодриться утром», «под дорогу») — это запрос на станции, а НЕ повод порассуждать. ОБЯЗАТЕЛЬНО сам выбери 1–2 конкретных канонических жанра-тега под этот вайб и вызови search_stations. НЕ описывай жанры словами без вызова инструмента — назвать жанр («тут подойдёт трип-хоп») и НЕ поискать — это ошибка. Примеры маппинга вайба → теги: «для драки» → «hardcore» или «punk»/«metal»; «крутая прогулка» → «trip hop» или «hip-hop»; «взбодриться» → «electronic»/«drum and bass»; «уютный вечер» → «chillout»/«jazz».',
+    '',
     'РАСШИРЕНИЕ ЗАПРОСА. Каталог станций ищет по ИМЕНИ и ТЕГАМ станций (теги — в основном английские жанры), НЕ по именам артистов и не по свободным фразам. Поэтому в search_stations.query клади ЭФФЕКТИВНЫЙ поисковый запрос — канонический английский жанр/тег, а не дословную фразу пользователя:',
     '— Артист или группа → его жанр(ы): «Limp Bizkit» → «nu metal», «Daft Punk» → «electronic», «Hans Zimmer» → «soundtrack». Ищи ЖАНР, а не имя артиста.',
     '— Русское или нечёткое описание → канонический английский тег: «игровые саундтреки» → «video game music», «спокойное на вечер» → «chillout» или «ambient», «вечерний джаз» → «jazz», «что-то бразильское» → «brazilian», «бодрое для спорта» → «workout».',
     'Если search_stations вернул пусто (found=false или станций нет) — НЕ сдавайся: вызови ЕЩЁ ОДИН search_stations с ДРУГИМ запросом (более широкий жанр, другой английский тег или одно самое сильное слово) ПРЕЖДЕ чем звать music_service_search. Только когда и расширенный поиск пуст — тогда music_service_search.',
-    'Уточняющий вопрос (action "final" без станций) допустим ТОЛЬКО когда жанр/настроение/страна вообще не названы («включи что-нибудь»).',
+    'Уточняющий вопрос (action "final" без станций) допустим ТОЛЬКО когда вообще нет НИКАКОЙ зацепки — ни жанра, ни настроения, ни занятия, ни вайба («включи что-нибудь»). Если названо хоть что-то — ищи, а не переспрашивай.',
     'Обычный разговор, мнения, история и эрудиция о музыке → action "final" (без инструмента).',
     'Никогда не вызывай один и тот же инструмент с теми же аргументами дважды.',
     'Когда данных достаточно или инструмент не нужен → action "final".'
@@ -191,11 +211,17 @@ const runPlannerLoop = async (
   }
 };
 
+// Extra composer guard for unverifiable factual/news/biography questions — keeps
+// Лира honest instead of inventing confident "news" (stopgap before web search).
+const FACTUAL_GUARD_NOTE =
+  'Этот вопрос про факты/новости/биографию, которые ты НЕ можешь подтвердить проверенными данными. НЕ утверждай конкретику (жив/умер, даты, релизы, события, «что нового») как факт и не выдумывай новостей. Честно скажи, что не возьмёшься утверждать и не хочешь сочинять; можешь предложить послушать самого артиста или поискать в сервисах. Мнения и впечатления о музыке при этом высказывай свободно.';
+
 const composeAgentReply = async (
   deps: AssistantDeps,
   systemPrompt: string,
   transcript: DeepseekMessage[],
-  observations: ToolObservation[]
+  observations: ToolObservation[],
+  opts: { factualGuard?: boolean } = {}
 ) => {
   const messages: DeepseekMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -207,6 +233,9 @@ const composeAgentReply = async (
       )}. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
+  if (opts.factualGuard) {
+    messages.push({ role: 'system', content: FACTUAL_GUARD_NOTE });
+  }
   return callDeepseek(
     deps.deepseek,
     messages,
@@ -291,8 +320,13 @@ export const chatWithAssistant = async (
     observations.push(linkObservation);
   }
 
-  // Compose the reply.
-  const composed = await composeAgentReply(deps, systemPrompt, transcript, observations);
+  // Compose the reply. A factual/news/biography question that we couldn't ground
+  // in any station observation gets the honesty guard so Лира won't invent facts.
+  const factualGuard =
+    FACTUAL_QUESTION.test(userMessage) && collectVerifiedStations(observations).length === 0;
+  const composed = await composeAgentReply(deps, systemPrompt, transcript, observations, {
+    factualGuard
+  });
   addUsage(usage, composed.usage);
 
   const stations = collectVerifiedStations(observations);
