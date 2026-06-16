@@ -368,14 +368,46 @@ test('QUERY EXPANSION (a): an empty first search lets the planner retry a DIFFER
   assert.deepEqual(result.stations, []);
 });
 
-test('QUERY EXPANSION (b): buildStationQuery keeps artist / genre / concept queries intact (does not strip them as noise)', async () => {
-  // The noise-strip removes RU command words only; a real artist/genre/concept
+test('QUERY EXPANSION (b): buildStationQuery keeps artist / genre / vibe queries intact (does not strip them as noise)', async () => {
+  // The noise-strip removes RU command words only; a real artist/genre/vibe
   // must survive verbatim so the search (and the LLM expansion on top) has a
   // clean topic to work from.
   assert.equal(buildStationQuery('limp bizkit'), 'limp bizkit');
   assert.equal(buildStationQuery('nu metal'), 'nu metal');
   assert.equal(buildStationQuery('video game music'), 'video game music');
+  assert.equal(buildStationQuery('для драки'), 'для драки'); // vibe words survive
   // ...even when wrapped in a command the strip targets.
   assert.equal(buildStationQuery('включи limp bizkit'), 'limp bizkit');
   assert.equal(buildStationQuery('посоветуй nu metal'), 'nu metal');
+});
+
+test('ACT ON VIBE (A): a bare mood/activity reply still routes through the planner and searches (not smalltalk)', async () => {
+  // «для крутой прогулки» has no music keyword — before the fix it read as
+  // smalltalk and the planner was skipped (Лира just named a genre in prose).
+  // Now it reaches the planner, which (stubbed here) issues search_stations.
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"trip hop"}}', '{"action":"final"}'],
+    compose: 'Под крутую прогулку — вот это.'
+  });
+  const result = await chatWithAssistant(ask('для крутой прогулки чтобы чувствовать себя круто'), makeDeps(fetchImpl));
+  assert.ok(calls.some((c) => c.phase === 'planner'), 'the planner ran (not smalltalk-skipped)');
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
+});
+
+test('NO FABRICATION (B): an unverifiable factual question adds the honesty guard to the composer', async () => {
+  // «жив ли …» is factual/news Лира cannot verify → the composer must receive
+  // the anti-fabrication guard so she stays honest instead of inventing news.
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"final"}'],
+    compose: 'Актуального не возьмусь утверждать — не хочу выдумывать.'
+  });
+  const result = await chatWithAssistant(ask('жив ли Oliver Tree сейчас? что у него нового?'), makeDeps(fetchImpl));
+  const compose = calls.find((c) => c.phase === 'compose');
+  assert.ok(compose, 'composer ran');
+  const guarded = compose!.body.messages.some(
+    (m: any) => typeof m.content === 'string' && m.content.includes('НЕ утверждай конкретику')
+  );
+  assert.ok(guarded, 'the factual honesty guard was passed to the composer');
+  assert.deepEqual(result.stations, []); // no hallucinated stations either
 });
