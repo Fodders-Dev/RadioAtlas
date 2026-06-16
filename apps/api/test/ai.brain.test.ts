@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chatWithAssistant } from '../src/ai/brain.js';
+import { buildStationQuery, chatWithAssistant } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
@@ -335,4 +335,47 @@ test('TUNING (b): an empty station search on a rec intent falls back to music-se
   );
   assert.deepEqual(result.stations, []); // no hallucinated stations
   assert.equal(result.serviceLinks.length, 6); // music_service_search fallback ran
+});
+
+test('QUERY EXPANSION (a): an empty first search lets the planner retry a DIFFERENT query BEFORE the service-link fallback', async () => {
+  // The literal forced search comes back empty; the planner (prompted to expand
+  // artist→genre) retries a different query. ONLY when that is also empty does
+  // the service-link fallback run — so real station cards are tried first.
+  const searched: string[] = [];
+  const emptyCatalog: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    // planner[0] = the step-1 decision after the forced literal search.
+    planner: [
+      '{"action":"use_tool","tool":"search_stations","args":{"query":"nu metal"}}',
+      '{"action":"final"}'
+    ],
+    compose: 'Под Limp Bizkit вот где послушать.'
+  });
+  const result = await chatWithAssistant(
+    ask('включи limp bizkit'),
+    makeDeps(fetchImpl, { tools: emptyCatalog })
+  );
+  // Both the literal forced query AND the planner's expanded retry ran...
+  assert.deepEqual(searched, ['limp bizkit', 'nu metal']);
+  // ...and only then the service-link fallback (so cards are attempted first).
+  assert.equal(result.serviceLinks.length, 6);
+  assert.deepEqual(result.stations, []);
+});
+
+test('QUERY EXPANSION (b): buildStationQuery keeps artist / genre / concept queries intact (does not strip them as noise)', async () => {
+  // The noise-strip removes RU command words only; a real artist/genre/concept
+  // must survive verbatim so the search (and the LLM expansion on top) has a
+  // clean topic to work from.
+  assert.equal(buildStationQuery('limp bizkit'), 'limp bizkit');
+  assert.equal(buildStationQuery('nu metal'), 'nu metal');
+  assert.equal(buildStationQuery('video game music'), 'video game music');
+  // ...even when wrapped in a command the strip targets.
+  assert.equal(buildStationQuery('включи limp bizkit'), 'limp bizkit');
+  assert.equal(buildStationQuery('посоветуй nu metal'), 'nu metal');
 });
