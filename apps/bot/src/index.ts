@@ -37,6 +37,7 @@ import {
   isAiEligibleMessage,
   requestAiChat
 } from './aiChat.js';
+import { createChatHistory } from './chatHistory.js';
 import { createBotUrlRuntime } from './urlRuntime.js';
 
 const token = process.env.BOT_TOKEN;
@@ -436,6 +437,10 @@ if (aiEnabled) {
     maxInflight: 8,
     now: () => Date.now()
   });
+  // Per-user conversation memory so «Лира» follows the thread instead of treating
+  // every message as new (the brain already consumes history; the bot just has to
+  // build it). In-memory, bounded, idle-expiring — see chatHistory.ts.
+  const aiHistory = createChatHistory({ now: () => Date.now() });
 
   bot.on('message:text', async (ctx) => {
     if (!isAiEligibleMessage({ text: ctx.message.text, chatType: ctx.chat?.type })) return;
@@ -456,13 +461,15 @@ if (aiEnabled) {
     try {
       await ctx.replyWithChatAction('typing');
       const result = await requestAiChat(
-        { telegramId: userId, text: ctx.message.text },
+        { telegramId: userId, text: ctx.message.text, history: aiHistory.get(userId) },
         { fetch: globalThis.fetch.bind(globalThis), apiUrl, internalWebhookToken }
       );
       if (!result) {
         await ctx.reply(AI_FALLBACK_TEXT);
         return;
       }
+      // Remember this exchange so the next message has context (the goldfish-memory fix).
+      aiHistory.record(userId, ctx.message.text, result.reply);
       const buttons = buildAiButtons(result, ctx.me?.username || '');
       await ctx.reply(result.reply, {
         parse_mode: 'HTML',
