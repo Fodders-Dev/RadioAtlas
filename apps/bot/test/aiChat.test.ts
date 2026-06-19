@@ -46,6 +46,17 @@ test('requestAiChat posts to the internal endpoint with the X-Internal-Token and
   assert.equal(result?.stations[0]?.stationuuid, 'u1');
 });
 
+test('requestAiChat forwards conversation history in the body (so the brain has context)', async () => {
+  const { fetch: fetchImpl, calls } = stubFetch({ ok: true, body: { reply: 'ok' } });
+  const history = [
+    { role: 'user' as const, text: 'котёнок-поварёнок' },
+    { role: 'assistant' as const, text: 'JPop Kawaii' }
+  ];
+  await requestAiChat({ telegramId: 7, text: 'без азиатских нот', history }, deps(fetchImpl));
+  const body = JSON.parse(calls[0]?.init?.body);
+  assert.deepEqual(body.history, history);
+});
+
 test('requestAiChat returns null on a non-200 (bot then shows the warm fallback)', async () => {
   const { fetch: fetchImpl } = stubFetch({ ok: false, status: 500 });
   assert.equal(await requestAiChat({ telegramId: 1, text: 'hi' }, deps(fetchImpl)), null);
