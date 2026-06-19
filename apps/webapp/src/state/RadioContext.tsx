@@ -17,6 +17,8 @@ import type {
   StationLite
 } from '../types';
 import { toLite } from '../lib/stationUtils';
+import { useSleepTimer } from '../lib/sleepTimer';
+import { useOutputDeviceGuard } from '../lib/outputDeviceGuard';
 import {
   recordSectionVisit,
   recordStationSignal
@@ -2282,6 +2284,39 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }),
     [player.current, setStoredLayout, setStoredShellState, storedLayout, winampExpanded]
   );
+  // — Sleep timer + headphone-unplug guard. A ref tracks the latest player so the
+  // timer/guard callbacks always pause the live engine, not a stale snapshot. —
+  const playerRef = useRef(player);
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
+
+  const pauseOnHeadphoneUnplug = storedAppState.pauseOnHeadphoneUnplug ?? true;
+  const setPauseOnHeadphoneUnplug = useCallback(
+    (value: boolean) => {
+      setStoredAppState((prev) => ({ ...prev, pauseOnHeadphoneUnplug: value }));
+    },
+    [setStoredAppState]
+  );
+
+  const pausePlayback = useCallback(() => {
+    playerRef.current.pause();
+  }, []);
+
+  const {
+    active: sleepActive,
+    minutes: sleepMinutes,
+    remainingMs: sleepRemaining,
+    start: startSleepTimer,
+    cancel: cancelSleepTimer
+  } = useSleepTimer(pausePlayback);
+
+  useOutputDeviceGuard({
+    enabled: pauseOnHeadphoneUnplug,
+    isPlaying: player.isPlaying,
+    onUnplug: pausePlayback
+  });
+
   const playbackValue = useMemo<PlaybackContextValue>(
     () => ({
       nowPlaying,
@@ -2296,7 +2331,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playLast,
       copyTrack,
       openExternal,
-      shareStation
+      shareStation,
+      sleepTimer: { active: sleepActive, minutes: sleepMinutes, remainingMs: sleepRemaining },
+      startSleepTimer,
+      cancelSleepTimer,
+      pauseOnHeadphoneUnplug,
+      setPauseOnHeadphoneUnplug
     }),
     [
       copyTrack,
@@ -2311,7 +2351,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playStationQueue,
       player,
       queue,
-      shareStation
+      shareStation,
+      sleepActive,
+      sleepMinutes,
+      sleepRemaining,
+      startSleepTimer,
+      cancelSleepTimer,
+      pauseOnHeadphoneUnplug,
+      setPauseOnHeadphoneUnplug
     ]
   );
 

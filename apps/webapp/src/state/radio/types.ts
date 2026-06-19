@@ -83,6 +83,9 @@ export type StoredAppState = {
   tasteProfile: TasteProfileV2;
   stationHealthProfile: StationHealthProfile;
   radioSessionEvents: RadioSessionEvent[];
+  // Pause playback when headphones / the audio output device are unplugged
+  // (default on; read with `?? true` so existing stored blobs opt in).
+  pauseOnHeadphoneUnplug?: boolean;
 };
 
 export type StoredLibraryState = {
@@ -159,6 +162,11 @@ export type PlaybackContextValue = {
   copyTrack: () => void;
   openExternal: (station: Station | StationLite) => void;
   shareStation: (station: Station | StationLite) => void;
+  sleepTimer: { active: boolean; minutes: number | null; remainingMs: number };
+  startSleepTimer: (minutes: number) => void;
+  cancelSleepTimer: () => void;
+  pauseOnHeadphoneUnplug: boolean;
+  setPauseOnHeadphoneUnplug: (value: boolean) => void;
 };
 
 export type LibraryContextValue = {
