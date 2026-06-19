@@ -1192,6 +1192,17 @@ export const useAudioPlayer = ({
     }
   };
 
+  // Pause without tearing down the stream — keeps the current station loaded so a
+  // tap on play resumes it. Used by the sleep timer and the headphone-unplug guard
+  // (an explicit, intent-revealing pause vs. the toggle()/stop() paths).
+  const pause = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    clearReconnect();
+    clearWaitingTimeout();
+    audio.pause();
+  };
+
   const stop = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -1253,6 +1264,7 @@ export const useAudioPlayer = ({
     resetEq,
     playStation,
     toggle,
+    pause,
     stop
   };
 };

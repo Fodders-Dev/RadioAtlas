@@ -2,13 +2,21 @@ import { useEffect, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
-import { useLibrary, useShell } from '../state/RadioContext';
+import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
+import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 
 export const Settings = () => {
   const { clearFavorites, clearRecent } = useLibrary();
   const { clearCatalogCache } = useCatalog();
+  const {
+    sleepTimer,
+    startSleepTimer,
+    cancelSleepTimer,
+    pauseOnHeadphoneUnplug,
+    setPauseOnHeadphoneUnplug
+  } = usePlayback();
   const {
     clearCache,
     openWebAppExternally,
@@ -152,6 +160,56 @@ export const Settings = () => {
           </div>
           <button className="chip" onClick={clearRecent} type="button">
             {t('settings.clearRecent')}
+          </button>
+        </div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">{t('settings.sleepTitle')}</div>
+        <div className="settings-card stack">
+          <div>
+            <div className="settings-label">{t('settings.sleepTimerLabel')}</div>
+            <div className="settings-desc">{t('settings.sleepTimerDesc')}</div>
+          </div>
+          <div className="settings-actions">
+            {SLEEP_TIMER_PRESETS_MIN.map((min) => (
+              <button
+                key={min}
+                className={`chip ${sleepTimer.active && sleepTimer.minutes === min ? 'active' : ''}`}
+                type="button"
+                onClick={() => startSleepTimer(min)}
+              >
+                {min} {t('settings.sleepMin')}
+              </button>
+            ))}
+            <button
+              className={`chip ${sleepTimer.active ? '' : 'active'}`}
+              type="button"
+              onClick={cancelSleepTimer}
+              disabled={!sleepTimer.active}
+            >
+              {t('settings.off')}
+            </button>
+          </div>
+          {sleepTimer.active ? (
+            <div className="settings-desc" aria-live="polite">
+              {t('settings.sleepLeft')} {formatSleepRemaining(sleepTimer.remainingMs)}
+            </div>
+          ) : null}
+        </div>
+        <div className="settings-card">
+          <div>
+            <div className="settings-label">{t('settings.headphoneLabel')}</div>
+            <div className="settings-desc">{t('settings.headphoneDesc')}</div>
+          </div>
+          <button
+            className={`chip ${pauseOnHeadphoneUnplug ? 'active' : ''}`}
+            type="button"
+            role="switch"
+            aria-checked={pauseOnHeadphoneUnplug}
+            onClick={() => setPauseOnHeadphoneUnplug(!pauseOnHeadphoneUnplug)}
+          >
+            {pauseOnHeadphoneUnplug ? t('settings.on') : t('settings.off')}
           </button>
         </div>
       </div>
