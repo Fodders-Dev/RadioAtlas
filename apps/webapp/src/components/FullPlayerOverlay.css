@@ -1015,25 +1015,67 @@
 .full-player-sleep-sheet {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm, 10px);
-  padding-top: 4px;
-}
-
-.full-player-sleep-hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
+  align-items: center;
+  gap: var(--space-md, 14px);
+  padding-top: 8px;
 }
 
 .full-player-sleep-presets {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
-.full-player-sleep-countdown {
-  margin: 0;
-  font-size: 13px;
+.sleep-dial {
+  width: min(208px, 64vw);
+  height: auto;
+  display: block;
+  margin: 4px auto;
+  touch-action: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sleep-dial-track {
+  stroke: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.sleep-dial-arc {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.15s ease;
+}
+
+.sleep-dial.is-running .sleep-dial-arc {
+  transition: stroke-dashoffset 0.9s linear;
+}
+
+.sleep-dial-handle {
+  fill: var(--accent);
+  stroke: var(--surface-raised, #ffffff);
+  stroke-width: 3;
+}
+
+.sleep-dial-label {
+  fill: var(--text-strong, var(--text));
+  font-size: 38px;
   font-weight: 800;
-  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.full-player-sleep-start {
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink, #08121d);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.full-player-sleep-start:active {
+  filter: brightness(1.08);
 }

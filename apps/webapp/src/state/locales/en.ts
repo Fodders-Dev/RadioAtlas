@@ -696,6 +696,8 @@ export const enDictionary = {
     "sleepTimerDesc": "The radio stops itself after the chosen time — drift off in peace.",
     "sleepMin": "min",
     "sleepLeft": "Left",
+    "sleepStart": "Start",
+    "sleepStop": "Cancel",
     "headphoneLabel": "Pause when headphones unplug",
     "headphoneDesc": "Pull out your headphones and the radio pauses instead of blasting the speaker.",
     "on": "On",
