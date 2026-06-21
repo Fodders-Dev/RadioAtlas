@@ -88,7 +88,9 @@ export const enDictionary = {
     "unhideFromRecommendations": "Show in recommendations again",
     "verified": "Verified",
     "promoted": "Sponsored",
-    "claimed": "Claimed"
+    "claimed": "Claimed",
+    "badgeBroken": "Station is down",
+    "badgeNoMetadata": "No track titles"
   },
   "stationTile": {
     "playLabel": "Play: {name}"

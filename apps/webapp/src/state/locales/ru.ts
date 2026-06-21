@@ -88,7 +88,9 @@ export const ruDictionary = {
     "unhideFromRecommendations": "Вернуть в рекомендации",
     "verified": "Проверено",
     "promoted": "Промо",
-    "claimed": "Заявлена"
+    "claimed": "Заявлена",
+    "badgeBroken": "Станция не работает",
+    "badgeNoMetadata": "Не приходят названия треков"
   },
   "stationTile": {
     "playLabel": "Слушать: {name}"

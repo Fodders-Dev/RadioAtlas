@@ -253,6 +253,22 @@ export const isStationSuppressedByHealth = (
   return signal.lastFailureAt > lastSuccessAt && now - signal.lastFailureAt <= RECENT_HEALTH_FAILURE_WINDOW_MS;
 };
 
+// True when the station's MOST RECENT health event (within the signal TTL) was a
+// metadata miss — i.e. we played it and it sent no track title. A playback
+// SUCCESS overwrites lastKind to a *-success kind (recordStationHealthSignal), so
+// a single good play/title clears this immediately. Deliberately NOT keyed on
+// metadataMisses (that counter only increments, capped 99, and never resets — it
+// would stick for the full 21-day TTL after a station resumes titles). Heuristic
+// for the «нет названий» badge; Phase F swaps in the harvested supports_metadata.
+export const isStationMetadataUnavailable = (
+  profile: StationHealthProfile | null | undefined,
+  station: StationLite | string,
+  now = Date.now()
+): boolean => {
+  const signal = getSignal(profile, station, now);
+  return Boolean(signal && signal.lastKind === 'metadata-unavailable');
+};
+
 export const resolveBestPlayableCandidate = (
   station: StationLite,
   healthProfile: StationHealthProfile | null | undefined,
