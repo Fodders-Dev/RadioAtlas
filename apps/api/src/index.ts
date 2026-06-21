@@ -11,6 +11,7 @@ import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
+import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
 import { registerShareRoutes } from './shareRoutes.js';
@@ -170,7 +171,7 @@ const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
 
 const RADIO_BROWSER_URLS = API_URLS.length ? API_URLS : DEFAULT_API_URLS;
 
-type Station = {
+export type Station = {
   stationuuid: string;
   name: string;
   url: string;
@@ -342,12 +343,16 @@ const readCatalogArtifact = async (mode: 'fast' | 'full') => {
   const target = mode === 'fast' ? CATALOG_ARTIFACT_FAST_URL : CATALOG_ARTIFACT_FULL_URL;
   const raw = await readFile(target, 'utf8');
   const parsed = JSON.parse(raw) as Station[];
-  return parsed.map(normalizeStation).filter((station) => Boolean(station.url_resolved));
+  return applyCuratedOverlay(
+    parsed.map(normalizeStation).filter((station) => Boolean(station.url_resolved))
+  );
 };
 
 const readCatalogSnapshot = async (mode: 'fast' | 'full') => {
   const parsed = await readPersistedCatalog<Station>(mode);
-  return parsed.map(normalizeStation).filter((station) => Boolean(station.url_resolved));
+  return applyCuratedOverlay(
+    parsed.map(normalizeStation).filter((station) => Boolean(station.url_resolved))
+  );
 };
 
 const getCatalog = async (mode: 'fast' | 'full') => {
@@ -404,9 +409,14 @@ const getCatalog = async (mode: 'fast' | 'full') => {
     }
   });
 
-  const stations = Array.from(byId.values())
-    .map(normalizeStation)
-    .filter((station) => Boolean(station.url_resolved));
+  // Overlay BEFORE persist+cache so the curated rows ride the 30-min refresh and
+  // the snapshot written to disk is already overlaid (the snapshot-fallback boot
+  // path must not serve the dead upstream rows).
+  const stations = applyCuratedOverlay(
+    Array.from(byId.values())
+      .map(normalizeStation)
+      .filter((station) => Boolean(station.url_resolved))
+  );
 
   void persistCatalogSnapshot(mode, stations);
   return cacheCatalog(mode, stations);
