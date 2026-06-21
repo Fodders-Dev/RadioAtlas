@@ -57,6 +57,13 @@ export const useOutputDeviceGuard = ({
 
   useEffect(() => {
     if (!enabled) return undefined;
+    // Drop any baseline captured during a previous enabled session: toggling the
+    // setting off→on (or a re-mount) must re-seed from the CURRENT device set
+    // before any comparison, or a devicechange in the seeding window would be
+    // measured against a stale count → a spurious pause or a missed unplug.
+    // handleChange early-returns while this is null, so pausing stays suppressed
+    // until seedCount() establishes the real baseline.
+    lastCountRef.current = null;
     const mediaDevices =
       typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
     if (!mediaDevices?.addEventListener || !mediaDevices.enumerateDevices) return undefined;
