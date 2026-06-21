@@ -44,6 +44,17 @@ export type ServiceLink = {
   query: string;
 };
 
+// A factual web source surfaced by web_search_factual. The edge renders these
+// as citation buttons. Snippets are UNTRUSTED text (hostile input) — they are
+// sanitized + fenced before they ever reach the model (see untrustedData.ts).
+export type WebSource = {
+  title: string;
+  url: string;
+  snippet: string;
+  score: number;
+  publishedDate?: string;
+};
+
 export type AssistantAction = {
   kind: 'play' | 'open-station' | 'none';
   stationuuid?: string;
@@ -55,6 +66,7 @@ export type ChatResult = {
   reply: string;
   stations: VerifiedStationRef[];
   serviceLinks: ServiceLink[];
+  sources: WebSource[];
   actions: AssistantAction[];
   usage?: ChatUsage;
 };
@@ -101,8 +113,22 @@ export type ToolObservation = {
   found: boolean;
   stations?: VerifiedStationRef[];
   serviceLinks?: ServiceLink[];
+  sources?: WebSource[];
   note?: string;
   error?: string;
+};
+
+// --- Web-search seam (Tavily only; key server-only, like DeepSeek) ----------
+export type WebSearchOutcome =
+  | { status: 'ok'; sources: WebSource[] }
+  | { status: 'empty'; sources: [] }
+  | { status: 'capped'; sources: [] }
+  | { status: 'error'; sources: [] };
+
+// DI seam: the api binds this to the Tavily client; tests bind a stub. Absent
+// (undefined) ⇒ web search is OFF and the tool is never offered to the planner.
+export type WebSearchProvider = {
+  search: (query: string, opts: { fresh: boolean }) => Promise<WebSearchOutcome>;
 };
 
 export type PlannerDecision = {
@@ -116,6 +142,9 @@ export type AssistantDeps = {
   deepseek: DeepseekConfig;
   tools: ToolProvider;
   musicServices: MusicService[];
+  // Optional web-search provider — when present, web_search_factual is offered
+  // to the planner; when undefined, web search is OFF (default).
+  webSearch?: WebSearchProvider;
   fetch: typeof fetch;
   log: (message: string) => void;
   now: () => number;

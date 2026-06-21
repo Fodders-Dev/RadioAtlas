@@ -25,6 +25,12 @@ export type ChatServiceLink = {
   query: string;
 };
 
+export type ChatSource = {
+  title: string;
+  url: string;
+  publishedDate?: string;
+};
+
 export type ChatActionRef = {
   kind: 'play' | 'open-station' | 'none';
   stationuuid?: string;
@@ -34,6 +40,7 @@ export type ChatResponse = {
   reply: string;
   stations: ChatStationRef[];
   serviceLinks: ChatServiceLink[];
+  sources: ChatSource[];
   actions: ChatActionRef[];
 };
 
@@ -73,6 +80,7 @@ export const postChatMessage = async (
     reply: typeof body?.reply === 'string' ? body.reply : '',
     stations: Array.isArray(body?.stations) ? body!.stations! : [],
     serviceLinks: Array.isArray(body?.serviceLinks) ? body!.serviceLinks! : [],
+    sources: Array.isArray(body?.sources) ? body!.sources! : [],
     actions: Array.isArray(body?.actions) ? body!.actions! : []
   };
 };

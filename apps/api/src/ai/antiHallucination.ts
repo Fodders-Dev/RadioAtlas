@@ -6,9 +6,10 @@
 //     bar/bartender metaphor, never tech-speak ("база/каталог/выдача"). A
 //     violation rejects the text so the caller swaps a warm fallback.
 
-import type { ToolObservation, VerifiedStationRef } from './types.js';
+import type { ToolObservation, VerifiedStationRef, WebSource } from './types.js';
 
 const MAX_STATION_CARDS = 5;
+const MAX_SOURCE_CITATIONS = 4;
 const MAX_REPLY_CHARS = 3500;
 
 // Collect every station a tool surfaced, de-duped by uuid, capped. Order is
@@ -26,6 +27,23 @@ export const collectVerifiedStations = (
       seen.add(station.stationuuid);
       out.push(station);
       if (out.length >= MAX_STATION_CARDS) return out;
+    }
+  }
+  return out;
+};
+
+// Collect every web source a tool surfaced, de-duped by url, capped. Citation
+// buttons are ONLY ever built from these (same anti-hallucination rule as
+// stations — a URL the model merely names in prose never becomes a button).
+export const collectVerifiedSources = (observations: ToolObservation[]): WebSource[] => {
+  const seen = new Set<string>();
+  const out: WebSource[] = [];
+  for (const observation of observations) {
+    for (const source of observation.sources || []) {
+      if (!source || !source.url || seen.has(source.url)) continue;
+      seen.add(source.url);
+      out.push(source);
+      if (out.length >= MAX_SOURCE_CITATIONS) return out;
     }
   }
   return out;

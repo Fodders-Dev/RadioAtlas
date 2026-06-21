@@ -18,10 +18,16 @@ export type AiServiceLink = {
   query: string;
 };
 
+export type AiSource = {
+  title: string;
+  url: string;
+};
+
 export type AiChatResult = {
   reply: string;
   stations: AiChatStation[];
   serviceLinks: AiServiceLink[];
+  sources: AiSource[];
 };
 
 export type AiChatDeps = {
@@ -138,7 +144,8 @@ export const requestAiChat = async (
     return {
       reply: body.reply,
       stations: Array.isArray(body.stations) ? body.stations : [],
-      serviceLinks: Array.isArray(body.serviceLinks) ? body.serviceLinks : []
+      serviceLinks: Array.isArray(body.serviceLinks) ? body.serviceLinks : [],
+      sources: Array.isArray(body.sources) ? body.sources : []
     };
   } catch {
     return null;
@@ -158,6 +165,11 @@ export const buildAiButtons = (
       if (!station?.stationuuid || !station.name) continue;
       rows.push([{ text: `▶ ${station.name}`, url: stationDeepLink(username, station.stationuuid) }]);
     }
+  }
+  // Web-source citations — one row each (a title can be long), capped.
+  for (const source of (result.sources || []).slice(0, 4)) {
+    if (!source?.url || !source.title) continue;
+    rows.push([{ text: `🔗 ${source.title.slice(0, 60)}`, url: source.url }]);
   }
   let pending: Array<{ text: string; url: string }> = [];
   for (const link of result.serviceLinks) {

@@ -249,6 +249,30 @@
   text-decoration: none;
 }
 
+/* Web-source citations — one per row (titles can be long), muted vs services. */
+.chat-source-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.chat-source-chip {
+  display: block;
+  min-height: 44px;
+  padding: 10px var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-raised) 45%, transparent);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Input */
 .chat-sheet-input {
   display: flex;
