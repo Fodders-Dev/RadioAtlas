@@ -635,7 +635,8 @@ export const enDictionary = {
     "buffering": "Buffering",
     "reconnecting": "Reconnecting",
     "fallbackCandidate": "Fallback stream",
-    "externalOpen": "Open externally"
+    "externalOpen": "Open externally",
+    "retry": "Retry"
   },
   "queue": {
     "nowPlaying": "Now playing",

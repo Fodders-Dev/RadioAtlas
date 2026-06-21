@@ -19,7 +19,8 @@ export const MiniPlayerDock = () => {
     queue,
     playNext,
     playStation,
-    copyTrack
+    copyTrack,
+    openExternal
   } = usePlayback();
   const {
     toggleFavorite,
@@ -95,7 +96,7 @@ export const MiniPlayerDock = () => {
     failure: player.failure
   });
   const activeTrack = trackTrust.track || '';
-  const playbackState =
+  const playbackState: { label: string; tone: 'warning' | 'accent'; onAction?: () => void } | null =
     current && player.status === 'buffering'
       ? {
           label:
@@ -110,15 +111,27 @@ export const MiniPlayerDock = () => {
             player.failure.kind
           )
         ? {
+            // A blocked transport can't play in-app, but the stream opens fine in
+            // a browser — make the pill actually do that instead of being a label.
             label: t('dock.externalOpen'),
-            tone: 'warning'
+            tone: 'warning',
+            onAction: () => openExternal(current)
           }
-        : current && player.transport.activeCandidate?.isFallback
+        : current && player.status === 'error'
           ? {
-              label: t('dock.fallbackCandidate'),
-              tone: 'accent'
+              // Stream exhausted / failed (e.g. no-playable-candidate): the play
+              // button is disabled, so without this the dock is a silent dead end.
+              // Give a one-tap retry.
+              label: t('dock.retry'),
+              tone: 'warning',
+              onAction: () => playStation(current)
             }
-          : null;
+          : current && player.transport.activeCandidate?.isFallback
+            ? {
+                label: t('dock.fallbackCandidate'),
+                tone: 'accent'
+              }
+            : null;
   const stationTitle = normalizeStationName(current?.name) || t('dock.emptyTitle');
   const trackTitle = activeTrack
     ? activeTrack
@@ -383,7 +396,19 @@ export const MiniPlayerDock = () => {
           <div className="player-dock-title">{stationTitle}</div>
         </button>
         {playbackState ? (
-          <div className={`player-dock-status-pill is-${playbackState.tone}`}>{playbackState.label}</div>
+          playbackState.onAction ? (
+            <button
+              type="button"
+              className={`player-dock-status-pill is-${playbackState.tone}`}
+              onClick={playbackState.onAction}
+            >
+              {playbackState.label}
+            </button>
+          ) : (
+            <div className={`player-dock-status-pill is-${playbackState.tone}`}>
+              {playbackState.label}
+            </div>
+          )
         ) : null}
         <button
           className={`player-dock-track-button ${activeTrack ? 'active' : ''}`}

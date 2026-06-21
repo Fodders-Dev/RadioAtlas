@@ -8404,6 +8404,21 @@ body {
   text-transform: uppercase;
 }
 
+/* When the pill is an actionable recovery control (retry / open externally) it
+   renders as a <button>; reset the UA chrome and give a tap affordance. */
+button.player-dock-status-pill {
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+button.player-dock-status-pill:active {
+  transform: scale(0.95);
+  filter: brightness(1.12);
+}
+
 .player-dock-status-pill.is-accent {
   border-color: rgba(168, 242, 233, 0.24);
   background: rgba(124, 238, 219, 0.1);

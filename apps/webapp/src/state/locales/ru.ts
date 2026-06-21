@@ -635,7 +635,8 @@ export const ruDictionary = {
     "buffering": "Буферизация",
     "reconnecting": "Переподключение",
     "fallbackCandidate": "Резервный поток",
-    "externalOpen": "Открыть снаружи"
+    "externalOpen": "Открыть снаружи",
+    "retry": "Повторить"
   },
   "queue": {
     "nowPlaying": "Сейчас играет",
