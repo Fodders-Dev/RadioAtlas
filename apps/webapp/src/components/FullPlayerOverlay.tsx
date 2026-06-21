@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
+import { SleepTimerDial } from './SleepTimerDial';
 import {
   canShareToStory,
   openStationRecording,
@@ -193,6 +194,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   const [queueSheetOpen, setQueueSheetOpen] = useState(false);
   const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
+  const [dialMinutes, setDialMinutes] = useState(30);
   const sleepLabel = sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : t('settings.off');
   // Mounted only while open (App.tsx gates on winamp.expanded), so isOpen
   // is true for the hook's lifetime; close routes through setExpanded.
@@ -803,34 +805,37 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           title={t('settings.sleepTimerLabel')}
         >
           <div className="full-player-sleep-sheet">
-            <p className="full-player-sleep-hint">{t('settings.sleepTimerDesc')}</p>
-            <div className="full-player-sleep-presets">
-              {SLEEP_TIMER_PRESETS_MIN.map((min) => (
-                <button
-                  key={min}
-                  className={`full-player-small-chip ${
-                    sleepTimer.active && sleepTimer.minutes === min ? 'active' : ''
-                  }`}
-                  type="button"
-                  onClick={() => startSleepTimer(min)}
-                >
-                  {min} {t('settings.sleepMin')}
-                </button>
-              ))}
-              <button
-                className={`full-player-small-chip ${sleepTimer.active ? '' : 'active'}`}
-                type="button"
-                onClick={cancelSleepTimer}
-                disabled={!sleepTimer.active}
-              >
-                {t('settings.off')}
-              </button>
-            </div>
-            {sleepTimer.active ? (
-              <p className="full-player-sleep-countdown" aria-live="polite">
-                {t('settings.sleepLeft')} {formatSleepRemaining(sleepTimer.remainingMs)}
-              </p>
+            <SleepTimerDial
+              minutes={dialMinutes}
+              onChange={setDialMinutes}
+              active={sleepTimer.active}
+              remainingMs={sleepTimer.remainingMs}
+              totalMs={(sleepTimer.minutes || dialMinutes) * 60000}
+              centerLabel={
+                sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : `${dialMinutes}:00`
+              }
+            />
+            {!sleepTimer.active ? (
+              <div className="full-player-sleep-presets">
+                {SLEEP_TIMER_PRESETS_MIN.map((min) => (
+                  <button
+                    key={min}
+                    className={`full-player-small-chip ${dialMinutes === min ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => setDialMinutes(min)}
+                  >
+                    {min} {t('settings.sleepMin')}
+                  </button>
+                ))}
+              </div>
             ) : null}
+            <button
+              className="full-player-sleep-start"
+              type="button"
+              onClick={() => (sleepTimer.active ? cancelSleepTimer() : startSleepTimer(dialMinutes))}
+            >
+              {sleepTimer.active ? t('settings.sleepStop') : t('settings.sleepStart')}
+            </button>
           </div>
         </FullPlayerSheet>
       ) : null}

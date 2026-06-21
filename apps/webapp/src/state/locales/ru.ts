@@ -696,6 +696,8 @@ export const ruDictionary = {
     "sleepTimerDesc": "Радио само остановится через выбранное время — спокойно засыпай.",
     "sleepMin": "мин",
     "sleepLeft": "Осталось",
+    "sleepStart": "Запустить",
+    "sleepStop": "Отменить",
     "headphoneLabel": "Пауза при отключении наушников",
     "headphoneDesc": "Вынул наушники — радио встаёт на паузу, а не играет в динамик.",
     "on": "Вкл",
