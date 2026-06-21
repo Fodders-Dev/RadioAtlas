@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
+import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import {
   canShareToStory,
   openStationRecording,
@@ -59,7 +60,8 @@ const actionIcon = {
   remove: (
     <path d="M7 6V4h10v2h4v2h-2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8H3V6h4Zm0 2v11h10V8H7Zm2 2h2v7H9v-7Zm4 0h2v7h-2v-7Z" />
   ),
-  record: <circle cx="12" cy="12" r="6" />
+  record: <circle cx="12" cy="12" r="6" />,
+  sleep: <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" />
 };
 
 const Icon = ({ children }: { children: ReactNode }) => (
@@ -171,7 +173,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     playLast,
     copyTrack,
     openExternal,
-    shareStation
+    shareStation,
+    sleepTimer,
+    startSleepTimer,
+    cancelSleepTimer
   } = usePlayback();
   const {
     playbackHistory,
@@ -187,6 +192,8 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const isMobileLayout = useMobilePlayerLayout();
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   const [queueSheetOpen, setQueueSheetOpen] = useState(false);
+  const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
+  const sleepLabel = sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : t('settings.off');
   // Mounted only while open (App.tsx gates on winamp.expanded), so isOpen
   // is true for the hook's lifetime; close routes through setExpanded.
   // The dock that opened this unmounts while the overlay is up, so restore
@@ -704,6 +711,18 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               <span>{t('playlist.title')}</span>
               <em>{t('winamp.queueCount', { count: queue.items.length })}</em>
             </button>
+            <button
+              className={`full-player-action-row ${sleepTimer.active ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setActionsSheetOpen(false);
+                setSleepSheetOpen(true);
+              }}
+            >
+              <Icon>{actionIcon.sleep}</Icon>
+              <span>{t('settings.sleepTimerLabel')}</span>
+              <em>{sleepLabel}</em>
+            </button>
             {canShareToStory() && (
               <button
                 className="full-player-action-row"
@@ -772,6 +791,46 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <div className="full-player-sheet-panels">
             {renderQueuePanel()}
             {renderRecentPanel()}
+          </div>
+        </FullPlayerSheet>
+      ) : null}
+
+      {isMobileLayout ? (
+        <FullPlayerSheet
+          open={sleepSheetOpen}
+          onClose={() => setSleepSheetOpen(false)}
+          kicker={t('settings.sleepTitle')}
+          title={t('settings.sleepTimerLabel')}
+        >
+          <div className="full-player-sleep-sheet">
+            <p className="full-player-sleep-hint">{t('settings.sleepTimerDesc')}</p>
+            <div className="full-player-sleep-presets">
+              {SLEEP_TIMER_PRESETS_MIN.map((min) => (
+                <button
+                  key={min}
+                  className={`full-player-small-chip ${
+                    sleepTimer.active && sleepTimer.minutes === min ? 'active' : ''
+                  }`}
+                  type="button"
+                  onClick={() => startSleepTimer(min)}
+                >
+                  {min} {t('settings.sleepMin')}
+                </button>
+              ))}
+              <button
+                className={`full-player-small-chip ${sleepTimer.active ? '' : 'active'}`}
+                type="button"
+                onClick={cancelSleepTimer}
+                disabled={!sleepTimer.active}
+              >
+                {t('settings.off')}
+              </button>
+            </div>
+            {sleepTimer.active ? (
+              <p className="full-player-sleep-countdown" aria-live="polite">
+                {t('settings.sleepLeft')} {formatSleepRemaining(sleepTimer.remainingMs)}
+              </p>
+            ) : null}
           </div>
         </FullPlayerSheet>
       ) : null}
