@@ -1004,3 +1004,36 @@
     height: 16%;
   }
 }
+
+/* Sleep-timer sheet (player-face shortcut → Settings «Сон и звук» mirror). */
+.full-player-small-chip.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text-strong, var(--text));
+}
+
+.full-player-sleep-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 10px);
+  padding-top: 4px;
+}
+
+.full-player-sleep-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.full-player-sleep-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.full-player-sleep-countdown {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+}
