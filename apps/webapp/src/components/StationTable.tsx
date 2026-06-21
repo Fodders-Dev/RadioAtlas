@@ -15,6 +15,7 @@ import { getDeviceProfile } from '../lib/deviceProfile';
 import type { StationLite } from '../types';
 import type { BehaviorProfile } from '../lib/homeProfile';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import { getStationBadgeState, type StationBadgeState } from '../lib/stationStatusBadge';
 import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { getRecommendationReason } from '../lib/recommendationReason';
@@ -84,6 +85,7 @@ type StationTableRowProps = {
   liked: boolean;
   hidden: boolean;
   sourceLabel?: string;
+  badge?: StationBadgeState;
   behaviorProfile: BehaviorProfile | null | undefined;
   activePlayback: ActivePlayback | null;
   // Stable callbacks (parent keeps them referentially stable via refs).
@@ -91,6 +93,36 @@ type StationTableRowProps = {
   onToggleFavorite: (station: StationLite) => void;
   onToggleHidden: (station: StationLite, currentlyHidden: boolean) => void;
   onShare: (station: StationLite) => void;
+};
+
+// Corner status icon: ⚠ triangle for «нет названий треков», 🚫 no-entry for
+// «не работает». Themed via currentColor (the tone class). Hidden when 'none'.
+const StationStatusBadge = ({ state }: { state: StationBadgeState }) => {
+  const { t } = useLocale();
+  if (state === 'none') return null;
+  const broken = state === 'broken';
+  const label = t(broken ? 'stationTable.badgeBroken' : 'stationTable.badgeNoMetadata');
+  return (
+    <span
+      className={`station-status-badge ${broken ? 'is-broken' : 'is-no-metadata'}`}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      {broken ? (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <line x1="3.9" y1="3.9" x2="12.1" y2="12.1" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 2.2 15 14H1L8 2.2Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <line x1="8" y1="6.6" x2="8" y2="9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="8" cy="11.7" r="0.85" fill="currentColor" />
+        </svg>
+      )}
+    </span>
+  );
 };
 
 const StationTableRow = memo(({
@@ -102,6 +134,7 @@ const StationTableRow = memo(({
   liked,
   hidden,
   sourceLabel,
+  badge,
   behaviorProfile,
   activePlayback,
   onPlay,
@@ -247,6 +280,7 @@ const StationTableRow = memo(({
             <StationArtwork station={station} size="card" />
             <div className="station-compact-copy">
               <div className="station-title" title={normalizeStationName(station.name)}>
+                <StationStatusBadge state={badge ?? 'none'} />
                 <span className="marquee-text">{normalizeStationName(station.name)}</span>
               </div>
               {reason ? (
@@ -386,6 +420,7 @@ const StationTableRow = memo(({
               <StationArtwork station={station} size="md" />
               <div className="station-name-stack">
                 <div className="station-title" title={normalizeStationName(station.name)}>
+                  <StationStatusBadge state={badge ?? 'none'} />
                   <span className="marquee-text">{normalizeStationName(station.name)}</span>
                 </div>
                 {sourceLabel ? (
@@ -582,6 +617,8 @@ export const StationTable = ({
   const {
     favorites,
     behaviorProfile,
+    playabilityProfile,
+    stationHealthProfile,
     toggleFavorite,
     hideStationFromRecommendations,
     unhideStationFromRecommendations,
@@ -656,6 +693,7 @@ export const StationTable = ({
         liked={favoriteIds.has(station.stationuuid)}
         hidden={isStationHiddenFromRecommendations(station.stationuuid)}
         sourceLabel={sourceLabelFor?.(station.stationuuid)}
+        badge={getStationBadgeState(station, { healthProfile: stationHealthProfile, playabilityProfile })}
         behaviorProfile={behaviorProfile}
         activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
         onPlay={handlePlay}

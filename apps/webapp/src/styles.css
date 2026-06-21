@@ -1079,6 +1079,31 @@ input {
   overflow-wrap: anywhere;
 }
 
+/* Per-station status icon shown before the name: ⚠ no track titles, 🚫 broken. */
+.station-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-right: 5px;
+  vertical-align: -2px;
+  flex: none;
+}
+
+.station-status-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+.station-status-badge.is-broken {
+  color: var(--danger, #ff6f59);
+}
+
+.station-status-badge.is-no-metadata {
+  color: var(--warning, #f5b14c);
+}
+
 .marquee {
   white-space: nowrap;
   overflow: hidden;
