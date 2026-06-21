@@ -7,6 +7,7 @@ import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
 import { registerBotRoutes } from './botRoutes.js';
 import { createAssistantRuntime, registerAiRoutes } from './aiRoutes.js';
+import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
@@ -49,6 +50,11 @@ const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
 const AI_TIMEOUT_SEC = Math.max(1, Number(process.env.AI_TIMEOUT_SEC) || 8);
 const AI_MUSIC_SERVICES = parseMusicServices(process.env.AI_MUSIC_SERVICES);
+// Web-search facts (news-stack P1). OFF by default like the rest of «Лира»; the
+// Tavily key lives ONLY here (like DEEPSEEK_API_KEY) and never reaches a client.
+const AI_WEB_SEARCH_ENABLED = process.env.AI_WEB_SEARCH_ENABLED === '1';
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY || '';
+const AI_WEB_SEARCH_DAILY_CAP = Math.max(1, Number(process.env.AI_WEB_SEARCH_DAILY_CAP) || 300);
 // Global cost backstop: total accepted chats per minute across BOTH surfaces.
 const AI_MAX_CHATS_PER_MIN = Math.max(1, Number(process.env.AI_MAX_CHATS_PER_MIN) || 120);
 // T0.2c: opt-out flag for the billing reconciliation sweep. Defaults
@@ -97,7 +103,16 @@ if (NODE_ENV === 'production' && AI_ENABLED && !DEEPSEEK_API_KEY) {
     'AI_ENABLED=1 but DEEPSEEK_API_KEY is missing — the assistant will run as DISABLED until the key is set.'
   );
 }
+// Same non-fatal posture for web search: flag on without a Tavily key → web
+// search stays OFF (Лира keeps her honest "не возьмусь утверждать" fallback).
+if (NODE_ENV === 'production' && AI_ENABLED && AI_WEB_SEARCH_ENABLED && !TAVILY_API_KEY) {
+  console.error(
+    'AI_WEB_SEARCH_ENABLED=1 but TAVILY_API_KEY is missing — web search will stay OFF until the key is set.'
+  );
+}
 const AI_ACTIVE = AI_ENABLED && Boolean(DEEPSEEK_API_KEY);
+// Web search is active only when AI is active AND its own flag AND a Tavily key.
+const AI_WEB_SEARCH_ACTIVE = AI_ACTIVE && AI_WEB_SEARCH_ENABLED && Boolean(TAVILY_API_KEY);
 
 const ALLOWED_ORIGINS = (() => {
   const parsed = ALLOWED_ORIGINS_RAW
@@ -460,6 +475,14 @@ const aiRuntime = AI_ACTIVE
         timeoutSec: AI_TIMEOUT_SEC
       },
       musicServices: AI_MUSIC_SERVICES,
+      webSearch: AI_WEB_SEARCH_ACTIVE
+        ? createTavilyWebSearch({
+            apiKey: TAVILY_API_KEY,
+            dailyCap: AI_WEB_SEARCH_DAILY_CAP,
+            fetch: globalThis.fetch.bind(globalThis),
+            now: () => Date.now()
+          })
+        : undefined,
       maxChatsPerWindow: AI_MAX_CHATS_PER_MIN,
       log: (message) => console.warn(`[lira] ${message}`)
     })

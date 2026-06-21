@@ -9,7 +9,8 @@ import type {
   ChatResult,
   ServiceLink,
   Surface,
-  VerifiedStationRef
+  VerifiedStationRef,
+  WebSource
 } from './types.js';
 
 export type FallbackReason =
@@ -38,6 +39,7 @@ export const buildFallbackResult = (options: {
   now: number;
   stations?: VerifiedStationRef[];
   serviceLinks?: ServiceLink[];
+  sources?: WebSource[];
   reason: FallbackReason;
 }): ChatResult => {
   const stations = (options.stations || []).slice(0, 5);
@@ -46,6 +48,7 @@ export const buildFallbackResult = (options: {
     reply: cleanText(text, options.surface),
     stations,
     serviceLinks: options.serviceLinks || [],
+    sources: options.sources || [],
     actions: [{ kind: 'none' }]
   };
 };

@@ -106,7 +106,8 @@ export const registerBotRoutes = (
             name: station.name,
             country: station.country
           })),
-          serviceLinks: result.serviceLinks
+          serviceLinks: result.serviceLinks,
+          sources: result.sources
         });
       } catch (err) {
         bumpCounter('ai_chat_error');

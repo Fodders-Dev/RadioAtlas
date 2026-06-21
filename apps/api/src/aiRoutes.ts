@@ -23,7 +23,8 @@ import type {
   ChatResult,
   ChatTurn,
   DeepseekConfig,
-  MusicService
+  MusicService,
+  WebSearchProvider
 } from './ai/types.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
 import { bumpCounter, setGauge } from './observabilityStore.js';
@@ -42,6 +43,8 @@ export const createAssistantRuntime = (options: {
   catalog: CatalogServiceLike;
   deepseek: DeepseekConfig;
   musicServices: MusicService[];
+  // Optional Tavily-backed web search — omit to keep web search OFF (default).
+  webSearch?: WebSearchProvider;
   maxChatsPerWindow?: number;
   now?: () => number;
   // Injectable for tests (mirrors the brain's DI'd fetch); defaults to global.
@@ -53,6 +56,7 @@ export const createAssistantRuntime = (options: {
     deepseek: options.deepseek,
     tools: createCatalogToolProvider(options.catalog),
     musicServices: options.musicServices,
+    webSearch: options.webSearch,
     fetch: options.fetch || globalThis.fetch.bind(globalThis),
     log: options.log || (() => {}),
     now
@@ -161,6 +165,7 @@ export const registerAiRoutes = (
         reply: result.reply,
         stations: result.stations,
         serviceLinks: result.serviceLinks,
+        sources: result.sources,
         actions: result.actions
       });
     } catch {

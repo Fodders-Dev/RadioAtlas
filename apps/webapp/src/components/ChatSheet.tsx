@@ -14,6 +14,7 @@ import {
   postChatMessage,
   type ChatHistoryTurn,
   type ChatServiceLink,
+  type ChatSource,
   type ChatStationRef
 } from '../lib/aiChat';
 import { useLocale } from '../state/LocaleContext';
@@ -27,6 +28,7 @@ type ChatMessage = {
   text: string;
   stations?: ChatStationRef[];
   serviceLinks?: ChatServiceLink[];
+  sources?: ChatSource[];
 };
 
 type ChatSheetProps = { open: boolean; onClose: () => void };
@@ -84,7 +86,8 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
           role: 'assistant',
           text: response.reply,
           stations: response.stations,
-          serviceLinks: response.serviceLinks
+          serviceLinks: response.serviceLinks,
+          sources: response.sources
         }
       ]);
       // The brain marks the lead station for autoplay on an explicit "включи".
@@ -216,6 +219,22 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                       rel="noopener noreferrer"
                     >
                       {link.label}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+              {message.sources && message.sources.length ? (
+                <div className="chat-source-row">
+                  {message.sources.map((source, index) => (
+                    <a
+                      key={`${message.id}-source-${index}`}
+                      className="chat-source-chip"
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={source.title}
+                    >
+                      🔗 {source.title}
                     </a>
                   ))}
                 </div>

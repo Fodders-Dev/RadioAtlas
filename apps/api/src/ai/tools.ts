@@ -8,7 +8,8 @@ import type {
   MusicService,
   PlannerDecision,
   ToolObservation,
-  ToolProvider
+  ToolProvider,
+  WebSearchProvider
 } from './types.js';
 
 export const MAX_TOOL_STEPS = 3;
@@ -43,10 +44,25 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       'Дать ссылки на музыкальные сервисы для КОНКРЕТНОГО трека/альбома/артиста (не радио): попса, андеграунд, саундтреки к фильмам и играм.',
     args: '{ "query": string }'
+  },
+  {
+    name: 'web_search_factual',
+    description:
+      'Проверить ФАКТ или новость в вебе, когда нельзя выдумывать: жив ли артист, что у него нового, даты, релизы, события. Верни короткий запрос. Доступен НЕ всегда.',
+    args: '{ "query": string }'
   }
 ];
 
+// web_search_factual is only OFFERED to the planner when web search is active
+// (see buildPlannerSystem); it stays in TOOL_SCHEMAS so parsePlannerDecision
+// accepts it, but runTool refuses gracefully when the provider is absent.
+export const WEB_SEARCH_TOOL = 'web_search_factual';
+
 export const TOOL_NAMES = TOOL_SCHEMAS.map((schema) => schema.name);
+
+// A query about a life/death/news status wants the freshest data (short cache).
+const VOLATILE_FACT =
+  /(жив|умер|сконча|погиб|сейчас|сегодня|новост|вышел|выйдет|релиз|концерт|тур|latest|today|news|recent|2024|2025|2026)/i;
 
 // Stable signature for the "never call the same tool+args twice" dedup.
 export const toolSignature = (tool: string, args: Record<string, unknown>): string => {
@@ -73,7 +89,7 @@ const asLimit = (value: unknown): number | undefined => {
 export const runTool = async (
   tool: string,
   args: Record<string, unknown>,
-  ctx: { tools: ToolProvider; musicServices: MusicService[] }
+  ctx: { tools: ToolProvider; musicServices: MusicService[]; webSearch?: WebSearchProvider }
 ): Promise<ToolObservation> => {
   const base = { tool, args };
   try {
@@ -106,6 +122,18 @@ export const runTool = async (
         const query = asString(args.query);
         const serviceLinks = buildServiceSearchLinks(query, ctx.musicServices);
         return { ...base, found: serviceLinks.length > 0, serviceLinks };
+      }
+      case WEB_SEARCH_TOOL: {
+        if (!ctx.webSearch) return { ...base, found: false, error: 'web search disabled' };
+        const query = asString(args.query);
+        if (!query) return { ...base, found: false };
+        const outcome = await ctx.webSearch.search(query, { fresh: VOLATILE_FACT.test(query) });
+        return {
+          ...base,
+          found: outcome.sources.length > 0,
+          sources: outcome.sources,
+          note: outcome.status
+        };
       }
       default:
         return { ...base, found: false, error: `unknown tool: ${tool}` };
