@@ -605,20 +605,32 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
           result: metadata
         });
         const { title, logs, source } = metadata;
-        if (title) {
-          return {
-            status: 200,
-            body: { title, logs, source },
-            cacheTtlMs: options.metadataCacheTtlMs
-          };
-        }
 
+        // Radio Vanya: their playlist API is the AUTHORITATIVE now-playing
+        // source (it's what radiovanya.ru itself shows), so prefer it over the
+        // generic ICY StreamTitle — several of their mounts (e.g. the main
+        // /radiovanya and /rv_Happy_Dance) advertise the station ident
+        // "radiovanya.ru" in ICY instead of the track, which would otherwise
+        // win the early-return below. Falls back to the ICY title (or the other
+        // providers further down) when the playlist yields nothing, so this
+        // never makes a station worse than before.
         if (isRadioVanyaUrl(url)) {
           const log = (msg: string) => {
             console.log(`[Metadata] ${msg}`);
             logs.push(msg);
           };
-          const radioVanyaTitle = await fetchFromRadioVanya(url, options, log);
+          // Non-fatal: a radiovanya.ru outage must fall back to the ICY title
+          // below, never 502 a station that the generic probe already resolved.
+          let radioVanyaTitle: string | null = null;
+          try {
+            radioVanyaTitle = await fetchFromRadioVanya(url, options, log);
+          } catch (radioVanyaError) {
+            logs.push(
+              `RadioVanya playlist lookup failed: ${
+                radioVanyaError instanceof Error ? radioVanyaError.message : 'error'
+              }`
+            );
+          }
           if (radioVanyaTitle) {
             logs.push(`Got from RadioVanya playlist API: ${radioVanyaTitle}`);
             const body = { title: radioVanyaTitle, logs, source: 'radiovanya' };
@@ -632,6 +644,14 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
               cacheTtlMs: options.metadataCacheTtlMs
             };
           }
+        }
+
+        if (title) {
+          return {
+            status: 200,
+            body: { title, logs, source },
+            cacheTtlMs: options.metadataCacheTtlMs
+          };
         }
 
         const oneOhOneChannelId = get101ChannelId(url);
