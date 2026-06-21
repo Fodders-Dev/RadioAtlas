@@ -120,6 +120,14 @@ const normalizeText = (value?: string | null) =>
 
 const normalizeKey = (value?: string | null) => normalizeText(value).toLowerCase();
 
+// Fold the Cyrillic ё (U+0451) onto е so «ёлка»/«елка» and «весёлый»/«веселый»
+// match regardless of which the user typed. Cyrillic-only by design — Latin is
+// untouched. Applied symmetrically on the query side (normalizeQuery) and the
+// index side (computeSearchHaystack/computeSearchTagText) so the precompute ===
+// live invariant holds. Inputs are already lowercased, so the lowercase ё covers
+// the uppercase Ё too.
+const foldCyrillic = (value: string) => value.replace(/ё/g, 'е');
+
 const hasUsefulState = (state?: string | null, country?: string | null) => {
   const stateKey = normalizeKey(state);
   if (!stateKey || GENERIC_STATE_KEYS.has(stateKey)) return false;
@@ -193,7 +201,7 @@ export const parseLimit = (value: unknown, fallback: number, max = 100) => {
 };
 
 export const normalizeQuery = (value: unknown) =>
-  typeof value === 'string' ? value.trim().toLowerCase() : '';
+  typeof value === 'string' ? foldCyrillic(value.trim().toLowerCase()) : '';
 
 export const normalizeCatalogText = (value: unknown) =>
   normalizeText(typeof value === 'string' ? value : '');
@@ -463,10 +471,13 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
 // refresh and (2) used as the live-compute fallback. These are pure functions of
 // static station fields, so precomputed === live.
 const computeSearchHaystack = (station: CatalogStation) =>
-  [station.name, station.tags, station.country, station.state, station.language]
-    .join(' ')
-    .toLowerCase();
-const computeSearchTagText = (station: CatalogStation) => (station.tags || '').toLowerCase();
+  foldCyrillic(
+    [station.name, station.tags, station.country, station.state, station.language]
+      .join(' ')
+      .toLowerCase()
+  );
+const computeSearchTagText = (station: CatalogStation) =>
+  foldCyrillic((station.tags || '').toLowerCase());
 const computeSearchTags = (station: CatalogStation) =>
   (station.tags || '')
     .split(',')
