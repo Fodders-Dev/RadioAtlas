@@ -48,6 +48,22 @@ describe('requestStationByIdWithRetry (T_deeplink_resilience)', () => {
     expect(calls).toBe(3);
   });
 
+  // 5xx is retried generically — a cold-boot upstream may surface as a 502 from
+  // the API OR a 503 from Caddy; the tap must resolve either way, not just 503.
+  it('rides out a transient 502 burst: 502, 200 → resolves the station', async () => {
+    let calls = 0;
+    const request: StationByIdRequest = async () => {
+      calls += 1;
+      if (calls <= 1) throw httpError(502);
+      return { item: station('kazak') };
+    };
+
+    const result = await requestStationByIdWithRetry(request, 'kazak', { sleep: noopSleep });
+
+    expect(result?.stationuuid).toBe('kazak');
+    expect(calls).toBe(2);
+  });
+
   it('uses EXPONENTIAL backoff (1000, 2000, 4000) across the 4 attempts', async () => {
     const sleep = vi.fn(async (_ms: number) => {});
     const request: StationByIdRequest = async () => {
@@ -103,7 +119,10 @@ describe('requestStationByIdWithRetry (T_deeplink_resilience)', () => {
     expect(calls).toBe(2);
   });
 
-  it('attempts: 1 (the default non-deep-link path) does NOT retry, even on 503', async () => {
+  // The lib still honours an explicit attempts:1 cap (callers can opt out of
+  // retries). NOTE: the app no longer uses this — fetchStationById always passes
+  // the full attempt count now, so every tap rides out the cold-boot 5xx.
+  it('attempts: 1 caps retries — a single try, no retry even on 503', async () => {
     let calls = 0;
     const sleep = vi.fn(async (_ms: number) => {});
     const request: StationByIdRequest = async () => {
