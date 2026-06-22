@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { readFile } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
 import { listCatalogProfileOverrides } from './accountStore.js';
 import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
@@ -110,6 +111,16 @@ if (NODE_ENV === 'production' && AI_ENABLED && AI_WEB_SEARCH_ENABLED && !TAVILY_
   console.error(
     'AI_WEB_SEARCH_ENABLED=1 but TAVILY_API_KEY is missing — web search will stay OFF until the key is set.'
   );
+}
+// station-intelligence DB (harvested by the manual script). A set-but-RELATIVE
+// path resolves inside the release dir and is wiped by the deploy prune (~5th
+// deploy) — silently losing the DB, like ACCOUNT_STORE_PATH would. Fail fast.
+const STATION_INTEL_DB_PATH = process.env.STATION_INTEL_DB_PATH || '';
+if (STATION_INTEL_DB_PATH && !isAbsolute(STATION_INTEL_DB_PATH)) {
+  console.error(
+    'STATION_INTEL_DB_PATH must be an ABSOLUTE path (a release-relative path is wiped by the deploy prune).'
+  );
+  process.exit(1);
 }
 const AI_ACTIVE = AI_ENABLED && Boolean(DEEPSEEK_API_KEY);
 // Web search is active only when AI is active AND its own flag AND a Tavily key.
