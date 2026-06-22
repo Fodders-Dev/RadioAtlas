@@ -9,7 +9,39 @@ import {
 } from './shared.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
 
-const metadataCache = new Map<string, { ts: number; result: MetadataLookupResult }>();
+type MetadataCacheEntry = { ts: number; result: MetadataLookupResult };
+type MetadataCache = Map<string, MetadataCacheEntry>;
+
+const metadataCache: MetadataCache = new Map();
+
+// Default hard cap on the metadata cache. The cache is keyed by stream url and,
+// before this, only ever GREW — one entry per probed url, never evicted (TTL was
+// checked on read only). On the 512M api box that is an unbounded leak. Negative
+// (title:null) entries count toward the cap too.
+const DEFAULT_METADATA_CACHE_MAX_ENTRIES = 5000;
+
+// Pure cache writer (exported for tests): insert/refresh a url entry while
+// (a) sweeping TTL-expired entries — using the SAME ttl the read path checks, so
+// behaviour on hit/TTL is unchanged — and (b) LRU-evicting the OLDEST entries
+// past maxEntries. A Map preserves insertion order, so keys().next() is the
+// oldest; re-setting an existing key keeps its position (a refresh, not a bump).
+export const writeMetadataCacheEntry = (
+  cache: MetadataCache,
+  url: string,
+  entry: MetadataCacheEntry,
+  ttlMs: number,
+  maxEntries: number
+): void => {
+  for (const [key, value] of cache) {
+    if (entry.ts - value.ts >= ttlMs) cache.delete(key);
+  }
+  cache.set(url, entry);
+  while (cache.size > Math.max(1, maxEntries)) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+};
 
 const isTechnicalTrackPayload = (value: string) =>
   /^\{.*"(status|message|result|errorCode)".*\}\s*\d*$/i.test(value);
@@ -82,8 +114,15 @@ const extractIcyTrackTitle = (
   return null;
 };
 
-const metadataProbeTimeoutMs = (options: MediaRouteOptions) => options.metadataProbeTimeoutMs || 5_000;
-const metadataStreamTimeoutMs = (options: MediaRouteOptions) => options.metadataStreamTimeoutMs || 10_000;
+// Worst-case bound on dead/slow http streams: a 5s floor (don't cut real, slow
+// resolvers short) and an 8s ceiling (so a hung stream is dropped by ~8s, not
+// the old 10s+).
+const metadataProbeTimeoutMs = (options: MediaRouteOptions) =>
+  Math.max(5_000, options.metadataProbeTimeoutMs || 5_000);
+const metadataStreamTimeoutMs = (options: MediaRouteOptions) =>
+  Math.max(5_000, Math.min(8_000, options.metadataStreamTimeoutMs || 8_000));
+const metadataCacheMaxEntries = (options: MediaRouteOptions) =>
+  options.metadataCacheMaxEntries || DEFAULT_METADATA_CACHE_MAX_ENTRIES;
 
 const fetchMetadataPayload = async (
   targetUrl: string,
@@ -173,13 +212,15 @@ const fetchAzuraMetadata = async (
   log: (msg: string) => void
 ): Promise<string | null> => {
   const candidates = [`https://${host}/api/nowplaying/1`, `https://${host}/api/nowplaying`];
-  for (const candidate of candidates) {
-    log(`Trying AzuraCast status: ${candidate}`);
-    const data = await fetchMetadataPayload(candidate, 'json', options);
-    const track = parseAzuraMetadata(data);
-    if (track) return track;
-  }
-  return null;
+  // Concurrent (was sequential): a hung host would otherwise pay both timeouts.
+  // First candidate that yields a track wins — same result, bounded latency.
+  const tracks = await Promise.all(
+    candidates.map(async (candidate) => {
+      log(`Trying AzuraCast status: ${candidate}`);
+      return parseAzuraMetadata(await fetchMetadataPayload(candidate, 'json', options));
+    })
+  );
+  return tracks.find(Boolean) || null;
 };
 
 const fetchStreamMetadata = async (
@@ -196,17 +237,22 @@ const fetchStreamMetadata = async (
 
   try {
     const parsedUrl = new URL(url);
-    const icecastTitle = await fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, options, log);
+    // The status-JSON probes used to run SEQUENTIALLY, and each swallows its own
+    // timeout (returns null), so a host that HANGS cost icecast+shoutcast+azura
+    // timeouts stacked (~tens of seconds) before we even reached the ICY fetch.
+    // Run them concurrently and pick by the SAME priority (icecast > shoutcast >
+    // azura) — identical output, but the worst case collapses to one timeout.
+    const [icecastTitle, shoutcastTitle, azuraTitle] = await Promise.all([
+      fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, options, log).catch(() => null),
+      fetchShoutcastMetadata(parsedUrl.origin, options, log).catch(() => null),
+      fetchAzuraMetadata(parsedUrl.host, options, log).catch(() => null)
+    ]);
     if (icecastTitle) {
       return { title: icecastTitle, logs, source: 'icecast-status' };
     }
-
-    const shoutcastTitle = await fetchShoutcastMetadata(parsedUrl.origin, options, log);
     if (shoutcastTitle) {
       return { title: shoutcastTitle, logs, source: 'shoutcast-status' };
     }
-
-    const azuraTitle = await fetchAzuraMetadata(parsedUrl.host, options, log);
     if (azuraTitle) {
       return { title: azuraTitle, logs, source: 'azuracast' };
     }
@@ -214,6 +260,11 @@ const fetchStreamMetadata = async (
     log(`Status probe skipped: ${error instanceof Error ? error.message : String(error)}`);
   }
 
+  // Own the abort so we can DROP the connection the moment we're done — on the
+  // no-metaint early-return especially. cleanup() only clears the deadline timer;
+  // without this, a station with no icy-metaint (or a hung body) left the socket
+  // dangling until GC. Aborting in `finally` releases it immediately.
+  const streamAbort = new AbortController();
   try {
     const { response, cleanup } = await fetchWithDeadline(
       url,
@@ -223,7 +274,8 @@ const fetchStreamMetadata = async (
           'User-Agent': options.userAgent
         }
       },
-      metadataStreamTimeoutMs(options)
+      metadataStreamTimeoutMs(options),
+      streamAbort.signal
     );
     try {
       log(`Status: ${response.status}`);
@@ -291,6 +343,8 @@ const fetchStreamMetadata = async (
       }
     } finally {
       cleanup();
+      // Drop the (possibly hung / never-fully-read) stream connection now.
+      streamAbort.abort();
     }
   } catch (error) {
     log(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -600,10 +654,13 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
     try {
       const result = await guard.run(url, async () => {
         const metadata = await fetchStreamMetadata(url, options);
-        metadataCache.set(url, {
-          ts: Date.now(),
-          result: metadata
-        });
+        writeMetadataCacheEntry(
+          metadataCache,
+          url,
+          { ts: Date.now(), result: metadata },
+          options.metadataCacheTtlMs,
+          metadataCacheMaxEntries(options)
+        );
         const { title, logs, source } = metadata;
 
         // Radio Vanya: their playlist API is the AUTHORITATIVE now-playing
@@ -634,10 +691,13 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
           if (radioVanyaTitle) {
             logs.push(`Got from RadioVanya playlist API: ${radioVanyaTitle}`);
             const body = { title: radioVanyaTitle, logs, source: 'radiovanya' };
-            metadataCache.set(url, {
-              ts: Date.now(),
-              result: { title: radioVanyaTitle, logs, source: 'radiovanya' }
-            });
+            writeMetadataCacheEntry(
+              metadataCache,
+              url,
+              { ts: Date.now(), result: { title: radioVanyaTitle, logs, source: 'radiovanya' } },
+              options.metadataCacheTtlMs,
+              metadataCacheMaxEntries(options)
+            );
             return {
               status: 200,
               body,
@@ -661,10 +721,13 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
           if (oneOhOneTitle) {
             logs.push(`Got from 101.ru: ${oneOhOneTitle}`);
             const body = { title: oneOhOneTitle, logs, source: '101.ru' };
-            metadataCache.set(url, {
-              ts: Date.now(),
-              result: { title: oneOhOneTitle, logs, source: '101.ru' }
-            });
+            writeMetadataCacheEntry(
+              metadataCache,
+              url,
+              { ts: Date.now(), result: { title: oneOhOneTitle, logs, source: '101.ru' } },
+              options.metadataCacheTtlMs,
+              metadataCacheMaxEntries(options)
+            );
             return {
               status: 200,
               body,
@@ -680,10 +743,13 @@ export const createMetadataHandler = (options: MediaRouteOptions) => {
           if (topRadioTitle) {
             logs.push(`Got from top-radio: ${topRadioTitle}`);
             const body = { title: topRadioTitle, logs, source: 'top-radio.ru' };
-            metadataCache.set(url, {
-              ts: Date.now(),
-              result: { title: topRadioTitle, logs, source: 'top-radio.ru' }
-            });
+            writeMetadataCacheEntry(
+              metadataCache,
+              url,
+              { ts: Date.now(), result: { title: topRadioTitle, logs, source: 'top-radio.ru' } },
+              options.metadataCacheTtlMs,
+              metadataCacheMaxEntries(options)
+            );
             return {
               status: 200,
               body,

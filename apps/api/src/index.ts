@@ -133,6 +133,9 @@ const isAllowedOrigin = (origin: string): boolean => {
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const OAUTH_TTL_MS = 1000 * 60 * 10;
 const METADATA_CACHE_TTL_MS = 1000 * 15;
+// Hard cap on the in-process metadata cache (LRU past this) so it can't grow
+// without bound on the 512M api box. ~5000 entries ≈ a few MB.
+const METADATA_CACHE_MAX_ENTRIES = Math.max(1, Number(process.env.METADATA_CACHE_MAX_ENTRIES) || 5000);
 const METADATA_NEGATIVE_CACHE_TTL_MS = Number(process.env.METADATA_NEGATIVE_CACHE_TTL_MS || 5000);
 const METADATA_PROBE_TIMEOUT_MS = Number(process.env.METADATA_PROBE_TIMEOUT_MS || 5000);
 const METADATA_STREAM_TIMEOUT_MS = Number(process.env.METADATA_STREAM_TIMEOUT_MS || 7000);
@@ -514,6 +517,7 @@ registerMediaRoutes(app, {
   userAgent: USER_AGENT,
   extractorUrl: EXTRACTOR_URL,
   metadataCacheTtlMs: METADATA_CACHE_TTL_MS,
+  metadataCacheMaxEntries: METADATA_CACHE_MAX_ENTRIES,
   metadataNegativeCacheTtlMs: METADATA_NEGATIVE_CACHE_TTL_MS,
   metadataProbeTimeoutMs: METADATA_PROBE_TIMEOUT_MS,
   metadataStreamTimeoutMs: METADATA_STREAM_TIMEOUT_MS,

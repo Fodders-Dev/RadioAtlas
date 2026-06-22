@@ -2,6 +2,9 @@ export type MediaRouteOptions = {
   userAgent: string;
   extractorUrl: string;
   metadataCacheTtlMs: number;
+  // Hard cap on the in-process metadata cache (LRU eviction past this). Bounds
+  // RAM growth on the 512M api box. Default ~5000.
+  metadataCacheMaxEntries?: number;
   metadataNegativeCacheTtlMs?: number;
   metadataProbeTimeoutMs?: number;
   metadataStreamTimeoutMs?: number;
