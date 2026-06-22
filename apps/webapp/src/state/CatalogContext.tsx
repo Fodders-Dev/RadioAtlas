@@ -26,6 +26,7 @@ import {
   requestStationByIdWithRetry,
   STATION_BY_ID_RETRY_ATTEMPTS
 } from '../lib/stationByIdRetry';
+import { resolveCachedStation, shouldCacheStationLookup } from '../lib/stationCachePolicy';
 
 type SearchStationsInput = {
   q?: string;
@@ -52,10 +53,7 @@ type CatalogContextValue = {
     areaId: string,
     options?: { limit?: number; cursor?: string | null }
   ) => Promise<CatalogAreaStationsResponse>;
-  fetchStationById: (
-    stationId: string,
-    options?: { retryOn5xx?: boolean }
-  ) => Promise<StationLite | null>;
+  fetchStationById: (stationId: string) => Promise<StationLite | null>;
   rememberStations: (stations: Array<Station | StationLite>) => void;
   getStationById: (stationId: string) => StationLite | null;
   clearCatalogCache: () => void;
@@ -478,39 +476,49 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const fetchStationById = useCallback(
-    async (stationId: string, options?: { retryOn5xx?: boolean }) => {
+    async (stationId: string) => {
       const cached = stationCacheRef.current.get(stationId);
       if (cached) {
         return cached;
       }
       const cacheKey = stationByIdCacheKey(stationId);
       const cachedStorage = await readCatalogCache<StationLite | null>(cacheKey);
-      if (cachedStorage) {
-        if (cachedStorage.payload) {
-          rememberStations([cachedStorage.payload]);
-        }
-        return cachedStorage.payload;
+      // A non-null cached station is a real hit. A cached EMPTY payload (a null
+      // poisoned in by an older build during a transient cold-boot 5xx) is
+      // treated as a MISS so we re-request and self-heal instead of returning
+      // "not found" for 24h.
+      const resolvedCached = resolveCachedStation(cachedStorage);
+      if (resolvedCached) {
+        rememberStations([resolvedCached]);
+        return resolvedCached;
       }
 
       let item: StationLite | null = null;
       try {
-        // T_deeplink_resilience: opt-in retry (deep-link only) rides out the
-        // transient cold-boot 503 before falling back; default (1 attempt) keeps
-        // interactive lookups (globe tap) at current latency.
+        // Retry the by-id lookup on EVERY playback (globe/rail/search tap, not
+        // just deep links): a cold-boot 502/503 is transient and clears once the
+        // catalog finishes parsing — the retry (1s→2s→4s) rides it out before we
+        // fall back. 404 still fails fast (a real not-found).
         item = await requestStationByIdWithRetry(
           (path) => requestJson<{ item: StationLite | null }>(path),
           stationId,
-          { attempts: options?.retryOn5xx ? STATION_BY_ID_RETRY_ATTEMPTS : 1 }
+          { attempts: STATION_BY_ID_RETRY_ATTEMPTS }
         );
-        await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
+        // NEVER cache a null — a transient miss must not poison the 24h cache.
+        if (shouldCacheStationLookup(item)) {
+          await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
+        }
       } catch {
         const stale = await readCatalogCache<StationLite | null>(cacheKey, { allowExpired: true });
-        if (stale) {
+        if (stale?.payload) {
           item = stale.payload;
         } else {
           const fallback = await loadFallbackCatalog();
           item = await fallback.fetchRadioBrowserFallbackStationById(stationId);
-          await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
+          // Same rule on the fallback path — don't cache a null result.
+          if (shouldCacheStationLookup(item)) {
+            await writeCatalogCache(cacheKey, item, STATION_BY_ID_CACHE_TTL_MS);
+          }
         }
       }
       if (item) {

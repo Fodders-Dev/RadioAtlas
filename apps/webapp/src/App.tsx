@@ -260,10 +260,10 @@ const App = () => {
     void (async () => {
       const handlers = deepLinkHandlersRef.current;
       try {
-        // T_deeplink_resilience: retry the by-id lookup through the transient
-        // cold-boot 503 (the boot request burst stalls the API) so a shared
-        // station actually resolves and plays instead of silently bailing.
-        const station = await handlers.fetchStationById(stationId, { retryOn5xx: true });
+        // The by-id lookup now retries the transient cold-boot 5xx for ALL
+        // playbacks (see fetchStationById), so a shared station resolves and
+        // plays instead of silently bailing.
+        const station = await handlers.fetchStationById(stationId);
         if (!station) {
           reportClientEvent('deeplink_error', {
             dedupeKey: 'deeplink_error',
