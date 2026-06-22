@@ -336,11 +336,17 @@ export const rankStationsForHome = (
 ) => {
   const stationPool = uniqueStations(stations);
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
-  const ranked = filterStationsByPlayability(stationPool, profile, now, healthProfile)
+  // Phase B-PR2: broken stations are no longer DROPPED from discovery — they
+  // carry a 🚫/⚠ status badge instead of vanishing (Artem: «вместо того, чтобы
+  // ее вообще не показывать, сделай значки»). They are still heavily DEMOTED:
+  // the score terms below (playability + health*2.4 + upstream) are strongly
+  // negative for a broken station, so over a real catalog they sink past the
+  // rail's limit and only surface once the healthy pool is exhausted. The
+  // shared filterStationsByPlayability stays in force for taste/queue/favorites
+  // (autoplay must never pick a broken station). Session-excluded (recently
+  // shown) stations are a diversity mechanism, not brokenness — still filtered.
+  const ranked = stationPool
     .filter((station) => !sessionExcludedIds.has(station.stationuuid))
-    // Drop stations Radio Browser itself just confirmed are broken
-    // — saves the user from clicking dead streams in discovery.
-    .filter((station) => !isStationHardHiddenByUpstream(station, now))
     .map((station, index) => ({
       station,
       index,
@@ -452,7 +458,14 @@ export const rankStationsForSearch = (
   const stationPool = uniqueStations(stations);
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
   const explicitQuery = queryTokens(query).length > 1;
-  const ranked = filterStationsByPlayability(stationPool, playabilityProfile, now, healthProfile)
+  // Phase B-PR2: do NOT drop broken stations from search — show them (with a
+  // 🚫/⚠ badge) so a user can still FIND a station they typed even if it is
+  // currently unplayable. The score below already demotes broken stations
+  // (negative playability/health/upstream terms), and for an explicit query the
+  // reduced upstreamWeight keeps an exact-name match visible rather than buried
+  // — the original deliberate behaviour, now extended to playability/health
+  // failures too. filterStationsByPlayability is unchanged for taste/queue.
+  const ranked = stationPool
     .map((station, index) => {
       const intent = queryIntentScore(station, query);
       const promotedBoost = intent >= 20 ? 0.1 : station.promoted ? 1 : 0;

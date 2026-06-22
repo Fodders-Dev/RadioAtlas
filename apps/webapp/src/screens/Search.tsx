@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StationTable } from '../components/StationTable';
 import { StationArtwork } from '../components/StationArtwork';
+import { StationStatusBadge } from '../components/StationStatusBadge';
+import { getStationBadgeState } from '../lib/stationStatusBadge';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
@@ -30,9 +32,15 @@ type SearchResultCardProps = {
 const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps) => {
   const { t } = useLocale();
   const { playStation, player, shareStation } = usePlayback();
-  const { toggleFavorite, isFavorite } = useLibrary();
+  const { toggleFavorite, isFavorite, playabilityProfile, stationHealthProfile } = useLibrary();
   const active = player.current?.stationuuid === station.stationuuid;
   const liked = isFavorite(station.stationuuid);
+  // Phase B-PR2: broken stations are now shown in search (demoted, not hidden) —
+  // mark them with the shared 🚫/⚠ corner badge so the user knows before tapping.
+  const badge = getStationBadgeState(station, {
+    healthProfile: stationHealthProfile,
+    playabilityProfile
+  });
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
   const tags = stationTags(station);
   const location = stationLocation(station);
@@ -68,6 +76,7 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
       </button>
       <div className="search-station-card-copy">
         <div className="search-card-title" title={normalizeStationName(station.name)}>
+          <StationStatusBadge state={badge} />
           {normalizeStationName(station.name)}
         </div>
         <div className="search-card-meta" title={location}>

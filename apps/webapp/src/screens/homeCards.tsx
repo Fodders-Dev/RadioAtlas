@@ -8,6 +8,9 @@ import type {
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
+import { useLibrary } from '../state/RadioContext';
+import { getStationBadgeState } from '../lib/stationStatusBadge';
+import { StationStatusBadge } from '../components/StationStatusBadge';
 import type { StationLite } from '../types';
 
 type PlayHandler = (station: StationLite, playlist: StationLite[], sourceId: string) => void;
@@ -70,7 +73,15 @@ const HomeStationTile = ({
   logoOnly = false
 }: HomeStationTileProps) => {
   const { t } = useLocale();
+  const { playabilityProfile, stationHealthProfile } = useLibrary();
   const caption = captionForStation(station, isActive, activeTrack, t);
+  // Phase B-PR2: a broken station that survives into a rail (demoted, not
+  // dropped) shows the shared 🚫/⚠ badge instead of looking healthy. Computed
+  // inline (the tile is not memoised, so this adds no re-render cost).
+  const badge = getStationBadgeState(station, {
+    healthProfile: stationHealthProfile,
+    playabilityProfile
+  });
 
   // T2.23 logo-strip variant: artwork-only chip that still plays on click and
   // keeps an accessible name (no visible text/metadata/actions).
@@ -127,6 +138,7 @@ const HomeStationTile = ({
         />
         <div className="home-station-copy">
           <div className="home-station-title" title={normalizeStationName(station.name)}>
+            <StationStatusBadge state={badge} />
             {normalizeStationName(station.name)}
           </div>
           <div className="home-station-caption" title={caption}>
