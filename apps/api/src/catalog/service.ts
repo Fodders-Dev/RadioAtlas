@@ -48,6 +48,12 @@ export type CatalogStation = {
   searchContinent?: string;
   searchTagText?: string;
   searchTags?: string[];
+  // T_station_intel P1 (v1): a precomputed 0-ish quality score (reachability +
+  // bitrate + codec + popularity) used to ORDER search results so the top of the
+  // slice is the BEST match, not an arbitrary catalog-order one. Matters most for
+  // Лира's search_stations (limit 8) — the anti-hallucination cap shows 5 cards,
+  // so ranking makes them the best 5. Precomputed once per profiling refresh.
+  searchQuality?: number;
 };
 
 export type CatalogDependencies = {
@@ -478,6 +484,33 @@ const computeSearchHaystack = (station: CatalogStation) =>
   );
 const computeSearchTagText = (station: CatalogStation) =>
   foldCyrillic((station.tags || '').toLowerCase());
+
+// Efficient codecs (AAC/AAC+/OGG/Opus) sound better per bitrate than MP3; any
+// declared codec beats none.
+const codecQualityBonus = (codec?: string): number => {
+  const value = (codec || '').toUpperCase();
+  if (!value) return 0;
+  if (value.includes('AAC') || value.includes('OGG') || value.includes('OPUS')) return 0.5;
+  if (value.includes('MP3') || value.includes('MPEG')) return 0.3;
+  return 0.15;
+};
+
+// Pure per-station quality score for ORDERING search results (higher = better).
+// Reachability dominates (a station Radio Browser just failed sinks below every
+// healthy one); bitrate + codec capture stream quality; votes/clicks (log-scaled
+// so a few mega-stations don't dwarf the field) capture popularity. Tolerant of
+// missing fields (artifact rows without votes ⇒ 0). NOT an absolute metric — only
+// the relative order within a result set matters.
+const computeQualityScore = (station: CatalogStation): number => {
+  const reach = station.lastcheckok === 1 ? 2 : station.lastcheckok === 0 ? -4 : 0;
+  const bitrate = Math.min(Math.max(station.bitrate || 0, 0), 320) / 320;
+  const codec = codecQualityBonus(station.codec);
+  const popularity = Math.log10(
+    1 + Math.max(0, station.votes || 0) + Math.max(0, station.clickcount || 0)
+  );
+  const trend = Math.log10(1 + Math.max(0, station.clicktrend || 0)) * 0.5;
+  return reach + bitrate * 1.5 + codec + popularity + trend;
+};
 const computeSearchTags = (station: CatalogStation) =>
   (station.tags || '')
     .split(',')
@@ -498,6 +531,8 @@ const searchTagTextOf = (station: CatalogStation) =>
   station.searchTagText ?? computeSearchTagText(station);
 const searchTagsOf = (station: CatalogStation) =>
   station.searchTags ?? computeSearchTags(station);
+const searchQualityOf = (station: CatalogStation) =>
+  station.searchQuality ?? computeQualityScore(station);
 
 // Attach the precomputed search index to every station. Runs ONCE per profiling
 // refresh inside getProfiledCatalog (cached in profiledFullCache, invalidated
@@ -513,7 +548,8 @@ export const attachSearchIndex = (stations: CatalogStation[]): CatalogStation[] 
     searchLanguage: normalizeText(station.language),
     searchContinent: resolveContinent(station),
     searchTagText: computeSearchTagText(station),
-    searchTags: computeSearchTags(station)
+    searchTags: computeSearchTags(station),
+    searchQuality: computeQualityScore(station)
   }));
 
 export const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchFilters) => {
@@ -553,8 +589,14 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const nextCursor =
     filters.cursor + filters.limit < filtered.length ? String(filters.cursor + filters.limit) : null;
 
+  // T_station_intel P1 (v1): order the matches by quality so the slice (and Лира's
+  // limit-8 tool) leads with the best stations instead of catalog order. Facets,
+  // total and nextCursor stay on the unsorted `filtered` (counts are order-free).
+  // Stable sort (V8) keeps equal-score stations in their original order.
+  const ranked = [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left));
+
   return {
-    items: filtered.slice(filters.cursor, filters.cursor + filters.limit).map(toStationLite),
+    items: ranked.slice(filters.cursor, filters.cursor + filters.limit).map(toStationLite),
     total: filtered.length,
     nextCursor,
     facets: {
