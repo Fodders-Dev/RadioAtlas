@@ -342,9 +342,12 @@ const fetchStreamMetadata = async (
         }
       }
     } finally {
-      cleanup();
-      // Drop the (possibly hung / never-fully-read) stream connection now.
+      // Abort BEFORE cleanup: cleanup() unbinds streamAbort from the fetch's
+      // internal controller, so aborting after it would be a no-op and the
+      // (possibly hung / never-fully-read) stream socket would linger until GC.
+      // Aborting first, while still bound, drops the connection immediately.
       streamAbort.abort();
+      cleanup();
     }
   } catch (error) {
     log(`Error: ${error instanceof Error ? error.message : String(error)}`);
