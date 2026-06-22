@@ -7,7 +7,15 @@ import {
   rankStationsForSearch
 } from './stationPlayability';
 import { DEFAULT_BEHAVIOR_PROFILE } from './homeProfile';
+import { DEFAULT_STATION_HEALTH_PROFILE, recordStationHealthSignal } from './stationHealth';
 import type { StationLite } from '../types';
+
+const healthSuppressed = (uuid: string, now: number) => {
+  // Two recent hard failures → isStationSuppressedByHealth → "broken".
+  let profile = recordStationHealthSignal(DEFAULT_STATION_HEALTH_PROFILE, uuid, 'stream-failure', { now });
+  profile = recordStationHealthSignal(profile, uuid, 'stream-failure', { now: now + 1000 });
+  return profile;
+};
 
 const station = (
   id: string,
@@ -222,10 +230,10 @@ describe('isStationHardHiddenByUpstream', () => {
   });
 });
 
-describe('rankStationsForHome — upstream health filter', () => {
+describe('rankStationsForHome — broken stations demoted, not dropped (Phase B-PR2)', () => {
   const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
 
-  it('drops upstream-broken stations from background discovery', () => {
+  it('keeps an upstream-broken station in discovery but ranks it below the healthy one', () => {
     const broken = station('broken', 'Broken Stream', 'Russia', 'rock', {
       lastcheckok: 0,
       lastcheckok_at: NOW - 60_000
@@ -238,8 +246,49 @@ describe('rankStationsForHome — upstream health filter', () => {
       now: NOW,
       limit: 10
     });
-    expect(ranked.map((s) => s.stationuuid)).not.toContain('broken');
-    expect(ranked.map((s) => s.stationuuid)).toContain('ok');
+    const ids = ranked.map((s) => s.stationuuid);
+    // No longer hidden — it shows (with a 🚫 badge in the UI) but sinks below
+    // the working station instead of vanishing.
+    expect(ids).toContain('broken');
+    expect(ids).toContain('ok');
+    expect(ids.indexOf('ok')).toBeLessThan(ids.indexOf('broken'));
+  });
+
+  it('keeps a health-suppressed station in discovery but ranks it below the healthy one', () => {
+    const broken = station('broken', 'Flaky', 'Russia', 'rock', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ok = station('ok', 'Working', 'Russia', 'rock', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ranked = rankStationsForHome([broken, ok], DEFAULT_PLAYABILITY_PROFILE, {
+      now: NOW,
+      limit: 10,
+      healthProfile: healthSuppressed('broken', NOW - 5_000)
+    });
+    const ids = ranked.map((s) => s.stationuuid);
+    expect(ids).toContain('broken');
+    expect(ids.indexOf('ok')).toBeLessThan(ids.indexOf('broken'));
+  });
+
+  it('does not let a broken station crowd a healthy one out of a limited rail', () => {
+    const broken = station('broken', 'Broken Stream', 'Russia', 'rock', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ok = station('ok', 'Working', 'Russia', 'rock', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    // Only one slot — the healthy station wins, the broken one is sliced off the
+    // tail (demotion respects the limit, so discovery still leads with healthy).
+    const ranked = rankStationsForHome([broken, ok], DEFAULT_PLAYABILITY_PROFILE, {
+      now: NOW,
+      limit: 1
+    });
+    expect(ranked.map((s) => s.stationuuid)).toEqual(['ok']);
   });
 });
 
@@ -266,5 +315,27 @@ describe('rankStationsForSearch — upstream health weight', () => {
     expect(ranked).toHaveLength(2);
     expect(ranked[0].stationuuid).toBe('ok');
     expect(ranked[1].stationuuid).toBe('broken');
+  });
+
+  it('shows a health-suppressed station in results (Phase B-PR2: un-hidden), ranked last', () => {
+    // Pre-PR2 filterStationsByPlayability DROPPED this from search entirely.
+    const broken = station('broken', 'Working Title', 'Russia', 'pop', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ok = station('ok', 'Working Title', 'Russia', 'pop', {
+      lastcheckok: 1,
+      lastcheckok_at: NOW - 60_000
+    });
+    const ranked = rankStationsForSearch([broken, ok], {
+      query: 'working title',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+      healthProfile: healthSuppressed('broken', NOW - 5_000),
+      now: NOW
+    });
+    const ids = ranked.map((s) => s.stationuuid);
+    expect(ids).toContain('broken');
+    expect(ids.indexOf('ok')).toBeLessThan(ids.indexOf('broken'));
   });
 });

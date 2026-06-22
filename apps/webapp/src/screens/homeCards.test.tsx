@@ -11,6 +11,14 @@ import type { StationLite } from '../types';
 // desktop so the hero + its (removed) metrics row are the ones under test.
 vi.mock('../lib/useCompactLayout', () => ({ useCompactLayout: () => false }));
 
+// Phase B-PR2: HomeStationTile reads the playability/health profiles via
+// useLibrary to compute its status badge. These tiles render outside a
+// RadioProvider here, so stub the hook with empty profiles (no signals →
+// badge 'none' → nothing rendered, so the tile-count/click tests are unchanged).
+vi.mock('../state/RadioContext', () => ({
+  useLibrary: () => ({ playabilityProfile: null, stationHealthProfile: null })
+}));
+
 import { HomeHeroCard, HomeRail } from './homeCards';
 import { LocaleProvider } from '../state/LocaleContext';
 import { ruDictionary } from '../state/locales/ru';
