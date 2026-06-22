@@ -11,6 +11,7 @@ import {
 } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
+import { latestTrackForStation } from '../state/radio/helpers';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
 import { FullPlayerBackdrop } from './FullPlayerBackdrop';
@@ -226,7 +227,21 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     playerStatus: player.status,
     failure: player.failure
   });
-  const displayTrack = trust.track || (current ? t('dock.currentTrackUnavailable') : t('winamp.noStation'));
+  // Last-heard fallback: when the live metadata has RESOLVED EMPTY (not just
+  // loading) and there's no trusted live track, surface the most recent recorded
+  // track for this station — dimmed + labeled, never treated as live (copy stays
+  // disabled, bound to the live nowPlaying only). 'loading' shows neither so a
+  // real title can still arrive without a flash.
+  const lastHeard = useMemo(
+    () =>
+      nowPlayingStatus === 'unavailable' && !trust.track && current
+        ? latestTrackForStation(trackHistory, current.stationuuid)
+        : null,
+    [nowPlayingStatus, trust.track, current, trackHistory]
+  );
+  const isLastHeard = !trust.track && Boolean(lastHeard);
+  const displayTrack =
+    trust.track || lastHeard?.track || (current ? t('dock.currentTrackUnavailable') : t('winamp.noStation'));
   const queuePreview = useMemo(() => {
     if (!queue.items.length) return [];
     const start = Math.max(activeQueueIndex, 0);
@@ -362,8 +377,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
         if (canCopyTrack) void copyTrack();
       }}
       data-full-player-track
+      data-last-heard={isLastHeard ? 'true' : undefined}
     >
       <span>{displayTrack}</span>
+      {isLastHeard ? <span className="full-player-track-tag">{t('dock.lastHeard')}</span> : null}
       {canCopyTrack ? <Icon>{actionIcon.copy}</Icon> : null}
     </button>
   );

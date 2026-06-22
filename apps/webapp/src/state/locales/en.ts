@@ -638,7 +638,9 @@ export const enDictionary = {
     "reconnecting": "Reconnecting",
     "fallbackCandidate": "Fallback stream",
     "externalOpen": "Open externally",
-    "retry": "Retry"
+    "retry": "Retry",
+    "lastHeard": "Last heard",
+    "lastHeardAria": "Last heard track: {track}"
   },
   "queue": {
     "nowPlaying": "Now playing",

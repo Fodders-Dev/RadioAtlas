@@ -43,6 +43,21 @@ export const mergeTrackHistory = (...groups: TrackHistoryItem[][]) => {
     .slice(0, MAX_TRACK_HISTORY);
 };
 
+// The most recent recorded track for a station (newest-first history → first
+// match). Powers the player faces' dimmed "last heard" line when the live
+// now-playing metadata is silent. Entries are already trust-filtered at write
+// time, so a returned track is safe to show (but NOT live — see the faces).
+export const latestTrackForStation = (
+  history: TrackHistoryItem[],
+  stationId?: string | null
+): TrackHistoryItem | null => {
+  if (!stationId) return null;
+  for (const item of history) {
+    if (item.stationId === stationId && item.track.trim()) return item;
+  }
+  return null;
+};
+
 export const stationsMatch = (left: StationLite[], right: StationLite[]) =>
   left.length === right.length &&
   left.every((station, index) => station.stationuuid === right[index]?.stationuuid);

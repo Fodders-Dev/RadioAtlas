@@ -4201,6 +4201,43 @@ button.app-brand-pill {
   max-width: 100%;
 }
 
+/* Last-heard fallback: a stale track shown when live metadata resolved empty.
+   Dimmed + italic via the theme-derived --muted (AA on Warm-Light cream AND the
+   Neon dark scrim — deliberately NOT the hardcoded cyan some now-playing styles
+   use). A live title stays full-strength/non-italic, so last-heard reads as
+   "previously", and the copy control is disabled (bound to the live track). */
+.full-player-track[data-last-heard='true'] span:first-child,
+.player-dock-track-button[data-last-heard='true'] .player-dock-track-button-text {
+  color: var(--muted);
+  font-style: italic;
+  opacity: 0.78;
+}
+
+/* The track title ellipses so the "last heard" tag always shows in full (it's
+   the key signal that this isn't live). Specificity beats .full-player-track span. */
+.full-player-track[data-last-heard='true'] span:first-child {
+  flex: 1 1 auto;
+}
+
+.full-player-track .full-player-track-tag {
+  flex: 0 0 auto;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.full-player-track-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
 .player-dock-track-button svg {
   width: 14px;
   height: 14px;

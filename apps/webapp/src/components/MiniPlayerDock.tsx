@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLocale } from '../state/LocaleContext';
+import { latestTrackForStation } from '../state/radio/helpers';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
@@ -24,7 +25,8 @@ export const MiniPlayerDock = () => {
   } = usePlayback();
   const {
     toggleFavorite,
-    isFavorite
+    isFavorite,
+    trackHistory
   } = useLibrary();
   const {
     playerPresentation,
@@ -96,6 +98,17 @@ export const MiniPlayerDock = () => {
     failure: player.failure
   });
   const activeTrack = trackTrust.track || '';
+  // Last-heard fallback (see FullPlayerOverlay): only once the live metadata has
+  // resolved EMPTY ('unavailable'), never while loading; dimmed + labeled, never
+  // copyable (the copy guard stays bound to activeTrack/live).
+  const lastHeard = useMemo(
+    () =>
+      nowPlayingStatus === 'unavailable' && !trackTrust.track && current
+        ? latestTrackForStation(trackHistory, current.stationuuid)
+        : null,
+    [nowPlayingStatus, trackTrust.track, current, trackHistory]
+  );
+  const isLastHeard = !activeTrack && Boolean(lastHeard);
   const playbackState: { label: string; tone: 'warning' | 'accent'; onAction?: () => void } | null =
     current && player.status === 'buffering'
       ? {
@@ -135,12 +148,16 @@ export const MiniPlayerDock = () => {
   const stationTitle = normalizeStationName(current?.name) || t('dock.emptyTitle');
   const trackTitle = activeTrack
     ? activeTrack
-    : current
-      ? t('dock.currentTrackUnavailable')
-      : t('dock.emptySubtitle');
+    : lastHeard?.track
+      ? lastHeard.track
+      : current
+        ? t('dock.currentTrackUnavailable')
+        : t('dock.emptySubtitle');
   const trackAriaLabel = activeTrack
     ? t('dock.copyCurrentTrack')
-    : playbackState?.label || trackTitle;
+    : isLastHeard
+      ? t('dock.lastHeardAria', { track: lastHeard!.track })
+      : playbackState?.label || trackTitle;
   const volumePercent = Math.round(player.volume * 100);
   const isMuted = player.volume <= 0.01;
   const showQueueButton = queueCount > 0;
@@ -413,6 +430,7 @@ export const MiniPlayerDock = () => {
         <button
           className={`player-dock-track-button ${activeTrack ? 'active' : ''}`}
           type="button"
+          data-last-heard={isLastHeard ? 'true' : undefined}
           onClick={() => {
             if (activeTrack) {
               void copyTrack();
