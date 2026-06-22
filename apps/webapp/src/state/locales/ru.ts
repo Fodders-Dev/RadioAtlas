@@ -638,7 +638,9 @@ export const ruDictionary = {
     "reconnecting": "Переподключение",
     "fallbackCandidate": "Резервный поток",
     "externalOpen": "Открыть снаружи",
-    "retry": "Повторить"
+    "retry": "Повторить",
+    "lastHeard": "Ранее",
+    "lastHeardAria": "Последний услышанный трек: {track}"
   },
   "queue": {
     "nowPlaying": "Сейчас играет",
