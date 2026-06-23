@@ -4604,23 +4604,29 @@ button.app-brand-pill {
   }
 
   .mobile-nav-chat-fab {
+    /* Compact in-nav FAB: sits just inside the nav row instead of poking ~22px
+       above it, so the player dock-bar (whose bottom edge meets the nav top)
+       can no longer clip/overpaint it. z-index is insurance for safe-area
+       rounding on real devices; stays below the full-player overlay (120). */
+    position: relative;
+    z-index: 95;
     display: grid;
     place-items: center;
-    width: 50px;
-    height: 50px;
-    margin-top: -22px;
+    width: 44px;
+    height: 44px;
+    margin-top: -6px;
     border-radius: var(--radius-full);
     border: 2px solid color-mix(in srgb, var(--accent) 30%, #ffffff);
     background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, #ffffff));
     color: var(--accent-ink, #08121d);
     box-shadow:
-      0 10px 22px color-mix(in srgb, var(--accent) 45%, transparent),
+      0 8px 18px color-mix(in srgb, var(--accent) 42%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
 
   .mobile-nav-chat-fab svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     fill: currentColor;
   }
 
