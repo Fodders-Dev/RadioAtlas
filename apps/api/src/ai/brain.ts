@@ -268,7 +268,7 @@ const composeAgentReply = async (
       role: 'system',
       content: `Проверенные факты (бери станции — названия и id — ТОЛЬКО отсюда; ничего не выдумывай): ${JSON.stringify(
         factsForModel(observations)
-      )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай по памяти названия вроде «Europa Plus», «NTS Radio», «Серебряный дождь». Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
+      )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай названия станций по памяти. Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
   const sources = opts.sources || [];
@@ -322,7 +322,10 @@ const VIBE_TAG_SYSTEM =
 
 export const parseGenreTags = (raw: string | null | undefined): string[] => {
   return String(raw || '')
-    .split(/[,\n;/|]+/)
+    // Split on `:` and `!` too so a chatty prefix («Вот теги: chillout, jazz»,
+    // «Конечно! indie, lounge») doesn't glue itself to the FIRST tag and get
+    // dropped by the strict char-class below — we'd lose the best genre.
+    .split(/[,\n;/|:!]+/)
     .map((tag) => tag.trim().toLowerCase().replace(/^["'«»`.\-\s]+|["'«»`.\-\s]+$/g, '').trim())
     // English-ish radio tags only (drops any Cyrillic the model might echo back).
     .filter((tag) => tag.length >= 2 && tag.length <= 30 && /^[a-z0-9][a-z0-9 +&'-]*$/.test(tag))
@@ -399,7 +402,16 @@ export const chatWithAssistant = async (
   // genre tags and search each, so an abstract «гулять по солнечному питеру»
   // still produces real station CARDS instead of prose. The fast path is
   // untouched: a concrete «включи джаз» already found stations → this is skipped.
-  const musicIntent = ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage);
+  // NOT on a factual/news question: «что нового у группы X», «когда умер
+  // солист Y» match ACTION_INTENT (группа/солист) too. Letting the backstop run
+  // there would surface genre cards for a news question AND — because the
+  // factualGuard below requires 0 stations — DROP the honesty guard, letting
+  // Лира invent "news". Excluding FACTUAL_QUESTION keeps both the backstop and
+  // the service-links branch (gated on musicIntent) off those turns; an
+  // explicit «поставь X» still routes via forcedQuery, unaffected.
+  const musicIntent =
+    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage)) &&
+    !FACTUAL_QUESTION.test(userMessage);
   if (musicIntent && collectVerifiedStations(observations).length === 0) {
     const { tags, usage: tagUsage } = await mapVibeToTags(deps, userMessage);
     addUsage(usage, tagUsage);

@@ -548,6 +548,9 @@ test('parseGenreTags: parses comma tags, lowercases, drops Cyrillic/junk, caps a
   assert.deepEqual(parseGenreTags('chillout\nambient\njazz'), ['chillout', 'ambient']); // cap 2
   assert.deepEqual(parseGenreTags('"trip hop", lo-fi'), ['trip hop', 'lo-fi']);
   assert.deepEqual(parseGenreTags('инди, lounge'), ['lounge']); // Cyrillic dropped
+  // A chatty model prefix must not glue itself to (and drop) the FIRST tag.
+  assert.deepEqual(parseGenreTags('Конечно! indie, lounge'), ['indie', 'lounge']);
+  assert.deepEqual(parseGenreTags('Вот теги: chillout, jazz'), ['chillout', 'jazz']);
   assert.deepEqual(parseGenreTags(''), []);
   assert.deepEqual(parseGenreTags(null), []);
 });
@@ -628,4 +631,33 @@ test('ANTI-FABRICATION: the composer is told NEVER to name a station that is not
       m.content.includes('НИКОГДА не называй конкретную радиостанцию по имени')
   );
   assert.ok(guarded, 'the no-fabricated-station-names guard reached the composer');
+});
+
+test('VIBE BACKSTOP (4): a factual/news question with a music keyword does NOT trigger the backstop — the honesty guard survives', async () => {
+  // «что нового у группы X» matches ACTION_INTENT (группа) AND FACTUAL_QUESTION
+  // (что нового). The backstop must NOT fire — it would map the news question to
+  // a genre, surface station CARDS, and (because factualGuard needs 0 stations)
+  // DROP the honesty guard, letting Лира invent "news". With web off she must
+  // stay honest: no vibe-tags call, no station search, no cards, guard kept.
+  const searched: string[] = [];
+  const tagTools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station({ stationuuid: 'uuid-nu', name: 'Nu Metal FM' })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"final"}'],
+    vibeTags: 'nu metal',
+    compose: 'Честно, последних новостей про группу не знаю.'
+  });
+  const result = await chatWithAssistant(
+    ask('что нового у группы Linkin Park?'),
+    makeDeps(fetchImpl, { tools: tagTools }) // web off
+  );
+  assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), 'no vibe→tags backstop on a factual question');
+  assert.deepEqual(searched, [], 'no station search on a factual question');
+  assert.equal(result.stations.length, 0, 'no cards surfaced for a news question');
+  assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'the factual honesty guard survives');
 });
