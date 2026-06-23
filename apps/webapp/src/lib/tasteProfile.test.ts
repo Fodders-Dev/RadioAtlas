@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_TASTE_PROFILE_V2,
   hideStationFromTasteProfile,
+  rankStationsForUser,
   recordTasteSignal,
   tasteSignature,
   type TasteProfileV2
@@ -98,5 +99,48 @@ describe('tasteSignature (T_audit_9)', () => {
     expect(tasteSignature(null)).toBe('|h:0');
     expect(tasteSignature(undefined)).toBe('|h:0');
     expect(tasteSignature(DEFAULT_TASTE_PROFILE_V2)).toBe('|h:0');
+  });
+});
+
+// «Моя Волна» freshness: the per-seed rotation must genuinely reshuffle the head
+// each new seed (the «каждый раз одно и то же» / "ничего нового" fix) WITHOUT
+// abandoning taste — a markedly stronger match (liked genre) must still outrank
+// an un-liked one regardless of seed.
+describe('rankStationsForUser rotation (home freshness)', () => {
+  // Eight equally-strong jazz matches (same tag → same taste score, so only the
+  // seed separates them) plus four un-liked polka stations.
+  const jazzPool = Array.from({ length: 8 }, (_, i) => station(`jazz-pool-${i}`, 'jazz'));
+  const polkaPool = Array.from({ length: 4 }, (_, i) => station(`polka-${i}`, 'polka'));
+  const pool = [...jazzPool, ...polkaPool];
+
+  const headFor = (seed: number) =>
+    rankStationsForUser(pool, establishedProfile(), null, {
+      mode: 'personal',
+      seed,
+      now: NOW
+    })
+      .slice(0, 4)
+      .map((item) => item.stationuuid)
+      .join('|');
+
+  it('produces more than one distinct head ordering across seeds', () => {
+    const orderings = new Set(Array.from({ length: 8 }, (_, i) => headFor(i + 1)));
+    // A static rail collapses to a single ordering; the rotation must yield ≥2.
+    expect(orderings.size).toBeGreaterThan(1);
+  });
+
+  it('keeps the liked genre on top for every seed (taste is preserved)', () => {
+    for (let seed = 1; seed <= 8; seed += 1) {
+      const ranked = rankStationsForUser(pool, establishedProfile(), null, {
+        mode: 'personal',
+        seed,
+        now: NOW
+      });
+      // The first 8 slots are the jazz matches; no un-liked polka station may
+      // jump ahead of a liked-genre one.
+      const firstPolka = ranked.findIndex((s) => s.tags === 'polka');
+      const lastJazz = ranked.map((s) => s.tags).lastIndexOf('jazz');
+      expect(firstPolka).toBeGreaterThan(lastJazz);
+    }
   });
 });
