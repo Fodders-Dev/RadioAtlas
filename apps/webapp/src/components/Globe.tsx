@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl, { type MapGeoJSONFeature } from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { feature as topoFeature } from 'topojson-client';
 import worldData from '../assets/countries-110m.json';
@@ -94,6 +94,11 @@ const SCALE_TO_ZOOM = (scale: number) =>
   Math.max(0, Math.min(20, scale + SCALE_BASE_OFFSET));
 const ZOOM_TO_SCALE = (zoom: number) =>
   Math.max(0, Math.min(10, zoom - SCALE_BASE_OFFSET));
+
+// Finger-sized tap tolerance: a tap within this many CSS px of a station dot
+// plays the nearest one (the dots themselves render ~1.4–5.4px, far too small
+// to require a pixel-perfect hit on touch).
+const TAP_PICK_RADIUS_PX = 46;
 
 // Country polygons + centroids extracted from the same Natural Earth
 // topology the resolver uses. Built once at module load — the file is
@@ -714,12 +719,21 @@ export const Globe = ({
       onZoomChange(nextScale);
     });
 
-    map.on('click', 'stations-dot', (event) => {
-      const feature = event.features?.[0] as MapGeoJSONFeature | undefined;
-      const stationId = feature?.properties?.id;
-      if (typeof stationId === 'string') {
-        onPick?.(stationId);
-      }
+    // Forgiving tap-to-play: a tap doesn't need to land pixel-perfectly on a
+    // (tiny) dot — pick the nearest point within a finger-sized radius of where
+    // the user actually tapped. This is the reliable "aim at a point and it
+    // plays" on touch, at ANY zoom (the old exact-hit `click` on 'stations-dot'
+    // only fired when a dot was big enough to hit, i.e. zoomed in). A tap on
+    // genuinely empty space resolves to null → nothing happens.
+    map.on('click', (event) => {
+      const nearest = pickNearestPointToReticle(
+        pointsRef.current,
+        { lat: event.lngLat.lat, lon: event.lngLat.lng },
+        { cx: event.point.x, cy: event.point.y },
+        (lon, lat) => map.project([lon, lat]),
+        TAP_PICK_RADIUS_PX
+      );
+      if (nearest) onPick?.(nearest);
     });
 
     map.on('mouseenter', 'stations-dot', () => {
