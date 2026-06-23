@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildStationQuery, chatWithAssistant } from '../src/ai/brain.js';
+import { buildStationQuery, chatWithAssistant, parseGenreTags } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
@@ -31,17 +31,32 @@ type StubResponses = {
   plannerStatus?: number;
   compose?: string;
   composeStatus?: number;
+  vibeTags?: string; // the vibe→tags backstop call's reply (comma tags)
 };
 
+const hasSystem = (body: any, needle: string) =>
+  body.messages.some(
+    (m: any) => m.role === 'system' && typeof m.content === 'string' && m.content.includes(needle)
+  );
+
 const makeFetch = (responses: StubResponses) => {
-  const calls: Array<{ phase: 'planner' | 'compose'; body: any }> = [];
+  const calls: Array<{ phase: 'planner' | 'compose' | 'vibe-tags'; body: any }> = [];
   let plannerIndex = 0;
   const fetchImpl = (async (_url: string, init: any) => {
     const body = JSON.parse(init.body);
-    const isPlanner = body.messages.some(
-      (m: any) => m.role === 'system' && typeof m.content === 'string' && m.content.includes('PLANNER MODE')
-    );
-    calls.push({ phase: isPlanner ? 'planner' : 'compose', body });
+    const isPlanner = hasSystem(body, 'PLANNER MODE');
+    const isVibeTags = !isPlanner && hasSystem(body, 'radio genre tag');
+    calls.push({ phase: isPlanner ? 'planner' : isVibeTags ? 'vibe-tags' : 'compose', body });
+    if (isVibeTags) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: responses.vibeTags ?? '' } }],
+          usage: { prompt_tokens: 3, completion_tokens: 3 }
+        })
+      };
+    }
     if (isPlanner) {
       const content = responses.planner?.[plannerIndex] ?? '{"action":"final"}';
       plannerIndex += 1;
@@ -524,4 +539,93 @@ test('WEB SEARCH OFF: the tool is never offered and a factual question keeps the
   // With web off this factual question reads as smalltalk → planner skipped.
   assert.ok(!calls.some((c) => c.phase === 'planner'), 'no planner call (tool not offered)');
   assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'honest fallback kept');
+});
+
+// --- VIBE BACKSTOP — abstract requests must return real station CARDS ---------
+
+test('parseGenreTags: parses comma tags, lowercases, drops Cyrillic/junk, caps at 2', () => {
+  assert.deepEqual(parseGenreTags('Indie, Lounge'), ['indie', 'lounge']);
+  assert.deepEqual(parseGenreTags('chillout\nambient\njazz'), ['chillout', 'ambient']); // cap 2
+  assert.deepEqual(parseGenreTags('"trip hop", lo-fi'), ['trip hop', 'lo-fi']);
+  assert.deepEqual(parseGenreTags('инди, lounge'), ['lounge']); // Cyrillic dropped
+  assert.deepEqual(parseGenreTags(''), []);
+  assert.deepEqual(parseGenreTags(null), []);
+});
+
+test('VIBE BACKSTOP (1): an abstract vibe with 0 stations → vibe→tags search → real CARDS', async () => {
+  // The catalog has indie/lounge but not a station literally matching the vibe
+  // phrase. The planner goes 'final' (prose), leaving 0 stations → the backstop
+  // maps the vibe to tags and searches those.
+  const searched: string[] = [];
+  const tagTools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return args.query === 'indie' ? [station({ stationuuid: 'uuid-indie', name: 'Indie Air' })] : [];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"final"}'],
+    vibeTags: 'indie, lounge',
+    compose: 'Под солнечную прогулку — что-то лёгкое инди.'
+  });
+  const result = await chatWithAssistant(
+    ask('дай радио чтобы гулять по солнечному питеру'),
+    makeDeps(fetchImpl, { tools: tagTools })
+  );
+  // The backstop ran (a dedicated vibe-tags call) and searched the mapped tag...
+  assert.ok(calls.some((c) => c.phase === 'vibe-tags'), 'vibe→tags call happened');
+  assert.ok(searched.includes('indie'), 'searched the mapped tag');
+  // ...producing a real station CARD (not prose / not service links).
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-indie');
+  assert.equal(result.actions[0]?.kind, 'open-station');
+});
+
+test('VIBE BACKSTOP (2): fast path untouched — a concrete genre that already found stations does NOT trigger the backstop', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Вот джаз.'
+  });
+  const result = await chatWithAssistant(ask('посоветуй джазовую станцию'), makeDeps(fetchImpl));
+  assert.equal(result.stations.length, 1);
+  assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), 'no backstop when stations already found');
+});
+
+test('VIBE BACKSTOP (3): a multi-word vibe is NOT force-searched verbatim (lets the backstop map it)', async () => {
+  // «посоветуй радио чтобы гулять…» — explicit verb, but the residual is a vibe
+  // phrase, so we must NOT fire a doomed literal search for it. The only
+  // search_stations calls should be the backstop's tags.
+  const searched: string[] = [];
+  const tagTools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return args.query === 'lounge' ? [station({ stationuuid: 'uuid-lounge', name: 'Lounge FM' })] : [];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"final"}'],
+    vibeTags: 'lounge',
+    compose: 'Что-то спокойное под прогулку.'
+  });
+  const result = await chatWithAssistant(
+    ask('посоветуй радио чтобы гулять по вечернему городу'),
+    makeDeps(fetchImpl, { tools: tagTools })
+  );
+  // The vibe phrase itself was never searched — only the mapped tag.
+  assert.deepEqual(searched, ['lounge']);
+  assert.equal(result.stations.length, 1);
+});
+
+test('ANTI-FABRICATION: the composer is told NEVER to name a station that is not in the verified cards', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'Ок.' });
+  await chatWithAssistant(ask('посоветуй джазовую станцию'), makeDeps(fetchImpl));
+  const compose = calls.find((c) => c.phase === 'compose');
+  const guarded = compose!.body.messages.some(
+    (m: any) =>
+      typeof m.content === 'string' &&
+      m.content.includes('НИКОГДА не называй конкретную радиостанцию по имени')
+  );
+  assert.ok(guarded, 'the no-fabricated-station-names guard reached the composer');
 });

@@ -82,13 +82,28 @@ export const buildStationQuery = (message: string): string => {
   return kept.join(' ').trim();
 };
 
-// The cleaned topic to search for, ONLY when the request is an explicit play/rec
-// intent that names something concrete. A residual under 3 chars (e.g. «включи
-// что-нибудь») is genuinely ambiguous → null, so the planner may clarify.
+// RU connector/filler words that mark a VIBE phrase rather than a concrete tag.
+const VIBE_CONNECTOR = /(^|\s)(чтобы|чтоб|для|под|по|на|про|если|когда|около|возле|где|пока|такое|такой|такую|типа|вроде)(\s|$)/i;
+
+// A residual is a CONCRETE topic to force-search verbatim (a genre/tag/artist) —
+// short and connector-free («джаз», «nu metal», «jazz fusion», «русский рок»).
+// A multi-word vibe phrase («радио чтобы гулять по солнечному питеру») is NOT
+// concrete → we don't force a doomed literal search; the vibe→tags backstop
+// (below) maps it to real genre tags instead.
+const looksConcreteTopic = (query: string): boolean => {
+  if (query.length < 3) return false;
+  if (VIBE_CONNECTOR.test(query)) return false;
+  return query.split(/\s+/).filter(Boolean).length <= 3;
+};
+
+// The cleaned topic to force-search, ONLY when the request is an explicit
+// play/rec intent that names something concrete. «включи что-нибудь» (too short)
+// and vibe phrases (multi-word / connectors) return null so the planner + the
+// vibe→tags backstop handle them.
 const explicitSearchQuery = (message: string): string | null => {
   if (!SEARCH_INTENT.test(message)) return null;
   const query = buildStationQuery(message);
-  return query.length >= 3 ? query : null;
+  return looksConcreteTopic(query) ? query : null;
 };
 
 const isSmalltalk = (message: string): boolean =>
@@ -253,7 +268,7 @@ const composeAgentReply = async (
       role: 'system',
       content: `Проверенные факты (бери станции — названия и id — ТОЛЬКО отсюда; ничего не выдумывай): ${JSON.stringify(
         factsForModel(observations)
-      )}. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
+      )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай по памяти названия вроде «Europa Plus», «NTS Radio», «Серебряный дождь». Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
   const sources = opts.sources || [];
@@ -296,6 +311,43 @@ const collectServiceLinks = (observations: ToolObservation[]): ServiceLink[] => 
     if (obs.serviceLinks && obs.serviceLinks.length) return obs.serviceLinks;
   }
   return [];
+};
+
+// vibe→tags: a tiny, cheap DeepSeek call that maps ANY request (incl. an abstract
+// vibe like «гулять по солнечному питеру») to 1–2 canonical ENGLISH radio genre
+// tags the catalog actually indexes. Semantic mapping is far more robust than a
+// regex on «солнечный питер». Returns [] on error/empty (caller then degrades).
+const VIBE_TAG_SYSTEM =
+  'Ты сопоставляешь запрос человека с жанрами радио. Верни 1–2 канонических АНГЛИЙСКИХ radio genre tag, какие бывают в каталоге станций (например: chillout, lounge, ambient, indie, indie rock, jazz, lo-fi, hip-hop, electronic, house, rock, metal, classical, soul, funk, reggae, folk, pop, dance, trip hop, downtempo). Подбери под смысл и настроение запроса. Ответь ТОЛЬКО тегами через запятую, в нижнем регистре, без пояснений, кавычек и иного текста.';
+
+export const parseGenreTags = (raw: string | null | undefined): string[] => {
+  return String(raw || '')
+    .split(/[,\n;/|]+/)
+    .map((tag) => tag.trim().toLowerCase().replace(/^["'«»`.\-\s]+|["'«»`.\-\s]+$/g, '').trim())
+    // English-ish radio tags only (drops any Cyrillic the model might echo back).
+    .filter((tag) => tag.length >= 2 && tag.length <= 30 && /^[a-z0-9][a-z0-9 +&'-]*$/.test(tag))
+    .filter((tag, index, all) => all.indexOf(tag) === index)
+    .slice(0, 2);
+};
+
+const mapVibeToTags = async (
+  deps: AssistantDeps,
+  userMessage: string
+): Promise<{ tags: string[]; usage?: ChatUsage }> => {
+  const result = await callDeepseek(
+    deps.deepseek,
+    [
+      { role: 'system', content: VIBE_TAG_SYSTEM },
+      { role: 'user', content: userMessage }
+    ],
+    { temperature: 0.2, maxTokens: 24 },
+    deps.fetch
+  );
+  if (result.error) {
+    deps.log(`ai vibe-tags error: ${result.error}`);
+    return { tags: [], usage: result.usage };
+  }
+  return { tags: parseGenreTags(result.content), usage: result.usage };
 };
 
 export const chatWithAssistant = async (
@@ -341,16 +393,42 @@ export const chatWithAssistant = async (
     await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 0);
   }
 
-  // Empty-result fallback: an explicit play/rec intent that found NO stations and
-  // NO links yet → fetch external service-search links for the same query, so
-  // there is ALWAYS something tappable instead of a prose apology. Runs BEFORE
-  // compose so the reply can offer the services rather than say "не нашла".
+  // BACKSTOP — always return cards on a music request. Any ACTION/VIBE-intent
+  // turn that ended with ZERO verified stations (a vibe/abstract phrase the
+  // literal search couldn't match) → map the message to 1–2 canonical English
+  // genre tags and search each, so an abstract «гулять по солнечному питеру»
+  // still produces real station CARDS instead of prose. The fast path is
+  // untouched: a concrete «включи джаз» already found stations → this is skipped.
+  const musicIntent = ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage);
+  if (musicIntent && collectVerifiedStations(observations).length === 0) {
+    const { tags, usage: tagUsage } = await mapVibeToTags(deps, userMessage);
+    addUsage(usage, tagUsage);
+    for (const tag of tags) {
+      const args = { query: tag };
+      const signature = toolSignature('search_stations', args);
+      if (usedSignatures.has(signature)) continue;
+      usedSignatures.add(signature);
+      const observation = await runTool('search_stations', args, {
+        tools: deps.tools,
+        musicServices: deps.musicServices
+      });
+      observations.push(observation);
+      if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
+      if (collectVerifiedStations(observations).length > 0) break;
+    }
+  }
+
+  // Empty-result fallback: a music request that STILL found NO stations and NO
+  // links (even the vibe→tags backstop came up empty) → external service-search
+  // links so there is ALWAYS something tappable instead of a prose apology. Runs
+  // BEFORE compose so the reply offers the services rather than say "не нашла".
   if (
-    forcedQuery &&
+    (forcedQuery || musicIntent) &&
     collectVerifiedStations(observations).length === 0 &&
     collectServiceLinks(observations).length === 0
   ) {
-    const linkObservation = await runTool('music_service_search', { query: forcedQuery }, {
+    const fallbackQuery = forcedQuery || buildStationQuery(userMessage) || userMessage;
+    const linkObservation = await runTool('music_service_search', { query: fallbackQuery }, {
       tools: deps.tools,
       musicServices: deps.musicServices
     });
