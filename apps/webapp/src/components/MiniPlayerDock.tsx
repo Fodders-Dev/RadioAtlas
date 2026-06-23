@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
+import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { useLocale } from '../state/LocaleContext';
 import { latestTrackForStation } from '../state/radio/helpers';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
@@ -9,7 +10,25 @@ import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
 import './MiniPlayerDock.css';
 
-type DockTrayMode = 'queue' | 'volume' | null;
+type DockTrayMode = 'queue' | 'volume' | 'more' | null;
+
+// Icons for the «Ещё» (more-functions) tray. Same glyphs as the full-player
+// action sheet so the dock shortcut and the full player read identically —
+// Artem wanted the ☰ button to surface the extra functions (sleep timer,
+// share, open-in-browser, station details, hide-from-recs) Yandex/Spotify
+// style, without having to open the full player to reach them.
+const MORE_ICON = {
+  more: 'M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z',
+  queue:
+    'M3 6h12v2H3V6Zm0 5h12v2H3v-2Zm0 5h8v2H3v-2Zm16-2.55V6h2v9.5a3.25 3.25 0 1 1-2-3.05ZM17.75 19a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z',
+  details: 'M11 17h2v-6h-2v6Zm1-14a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 16a7 7 0 1 1 0-14 7 7 0 0 1 0 14Zm-1-9h2V7h-2v3Z',
+  share:
+    'M18 16.1c-.76 0-1.44.3-1.96.77L8.9 12.7c.06-.23.1-.46.1-.7s-.04-.47-.1-.7l7.06-4.12A2.99 2.99 0 1 0 15 5c0 .24.04.47.1.7L8.04 9.82A3 3 0 1 0 8.04 14.2l7.13 4.18c-.05.2-.08.41-.08.62A2.91 2.91 0 1 0 18 16.1Z',
+  external:
+    'M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7ZM14 3v2h3.6l-9.8 9.8 1.4 1.4L19 6.4V10h2V3h-7Z',
+  hide: 'M12 5c5 0 8.5 4.5 9.7 6.2.22.3.22.7 0 1C20.5 14 17 18.5 12 18.5S3.5 14 2.3 12.2a.86.86 0 0 1 0-1C3.5 9.5 7 5 12 5Zm0 2C8.5 7 5.8 9.7 4.4 11.7 5.8 13.8 8.5 16.5 12 16.5s6.2-2.7 7.6-4.8C18.2 9.7 15.5 7 12 7Zm0 1.5a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4Z',
+  sleep: 'M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z'
+} as const;
 
 export const MiniPlayerDock = () => {
   const { t } = useLocale();
@@ -21,12 +40,19 @@ export const MiniPlayerDock = () => {
     playNext,
     playStation,
     copyTrack,
-    openExternal
+    openExternal,
+    shareStation,
+    sleepTimer,
+    startSleepTimer,
+    cancelSleepTimer
   } = usePlayback();
   const {
     toggleFavorite,
     isFavorite,
-    trackHistory
+    trackHistory,
+    hideStationFromRecommendations,
+    unhideStationFromRecommendations,
+    isStationHiddenFromRecommendations
   } = useLibrary();
   const {
     playerPresentation,
@@ -72,6 +98,9 @@ export const MiniPlayerDock = () => {
 
   const current = player.current;
   const liked = current ? isFavorite(current.stationuuid) : false;
+  const stationHidden = current
+    ? isStationHiddenFromRecommendations(current.stationuuid)
+    : false;
   const queueCount = Math.max(queue.items.length, 0);
   const isDormantDock = !current && queueCount === 0;
   const resolvedQueueIndex =
@@ -160,7 +189,7 @@ export const MiniPlayerDock = () => {
       : playbackState?.label || trackTitle;
   const volumePercent = Math.round(player.volume * 100);
   const isMuted = player.volume <= 0.01;
-  const showQueueButton = queueCount > 0;
+  const showMoreButton = Boolean(current) || queueCount > 0;
   const showExploreButton = !current && queueCount === 0;
 
   useEffect(() => {
@@ -285,7 +314,13 @@ export const MiniPlayerDock = () => {
           className="player-dock-tray"
           data-mode={trayMode}
           role="region"
-          aria-label={trayMode === 'volume' ? t('dock.volume') : t('playlist.title')}
+          aria-label={
+            trayMode === 'volume'
+              ? t('dock.volume')
+              : trayMode === 'more'
+                ? t('dock.more')
+                : t('playlist.title')
+          }
         >
           <div className="player-dock-tray-panel">
             {trayMode === 'volume' ? (
@@ -322,6 +357,119 @@ export const MiniPlayerDock = () => {
                   />
                 </label>
               </>
+            ) : trayMode === 'more' ? (
+              <div className="player-dock-more-tray">
+                <div className="player-dock-tray-head">
+                  <div className="player-dock-tray-title">{t('dock.more')}</div>
+                </div>
+                <div className="player-dock-more-list">
+                  <button
+                    className="player-dock-more-row"
+                    type="button"
+                    onClick={() => setTrayMode('queue')}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={MORE_ICON.queue} />
+                    </svg>
+                    <span>{t('playlist.title')}</span>
+                    {queueCount ? <em>{queueCount}</em> : null}
+                  </button>
+                  <button
+                    className="player-dock-more-row"
+                    type="button"
+                    onClick={() => {
+                      if (!current) return;
+                      setTrayMode(null);
+                      setDetailsOpen(true);
+                    }}
+                    disabled={!current}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={MORE_ICON.details} />
+                    </svg>
+                    <span>{t('winamp.stationDetails')}</span>
+                  </button>
+                  <button
+                    className="player-dock-more-row"
+                    type="button"
+                    onClick={() => {
+                      if (current) void shareStation(current);
+                      setTrayMode(null);
+                    }}
+                    disabled={!current}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={MORE_ICON.share} />
+                    </svg>
+                    <span>{t('common.share')}</span>
+                  </button>
+                  <button
+                    className="player-dock-more-row"
+                    type="button"
+                    onClick={() => {
+                      if (current) openExternal(current);
+                      setTrayMode(null);
+                    }}
+                    disabled={!current?.url_resolved}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={MORE_ICON.external} />
+                    </svg>
+                    <span>{t('common.openBrowser')}</span>
+                  </button>
+                  <button
+                    className={`player-dock-more-row ${stationHidden ? 'active' : ''}`}
+                    type="button"
+                    onClick={() => {
+                      if (!current) return;
+                      if (stationHidden) unhideStationFromRecommendations(current);
+                      else hideStationFromRecommendations(current);
+                      setTrayMode(null);
+                    }}
+                    disabled={!current}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d={MORE_ICON.hide} />
+                    </svg>
+                    <span>
+                      {stationHidden
+                        ? t('details.showInRecommendations')
+                        : t('details.hideFromRecommendations')}
+                    </span>
+                  </button>
+                </div>
+                <div className="player-dock-more-sleep">
+                  <div className="player-dock-tray-subtitle">
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      className="player-dock-more-sleep-icon"
+                    >
+                      <path d={MORE_ICON.sleep} />
+                    </svg>
+                    {t('settings.sleepTimerLabel')}
+                    {sleepTimer.active ? ` · ${formatSleepRemaining(sleepTimer.remainingMs)}` : ''}
+                  </div>
+                  <div className="chip-row">
+                    {sleepTimer.active ? (
+                      <button className="chip active" type="button" onClick={() => cancelSleepTimer()}>
+                        {t('settings.sleepStop')}
+                      </button>
+                    ) : (
+                      SLEEP_TIMER_PRESETS_MIN.map((min) => (
+                        <button
+                          key={min}
+                          className="chip"
+                          type="button"
+                          onClick={() => startSleepTimer(min)}
+                        >
+                          {min} {t('settings.sleepMin')}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="player-dock-queue-tray">
                 <div className="player-dock-tray-head player-dock-queue-head">
@@ -450,15 +598,17 @@ export const MiniPlayerDock = () => {
       </div>
 
       <div className="player-dock-actions">
-        {showQueueButton ? (
+        {showMoreButton ? (
           <button
-            className={`dock-icon-btn dock-queue-btn ${trayMode === 'queue' ? 'active' : ''}`}
+            className={`dock-icon-btn dock-more-btn ${trayMode === 'more' ? 'active' : ''}`}
             type="button"
-            onClick={() => setTrayMode((prev) => (prev === 'queue' ? null : 'queue'))}
-            aria-label={t('dock.queueOpen')}
+            onClick={() => setTrayMode((prev) => (prev === 'more' ? null : 'more'))}
+            aria-label={t('dock.more')}
+            aria-expanded={trayMode === 'more'}
+            title={t('dock.more')}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 6h16v2H4V6Zm0 5h10v2H4v-2Zm0 5h16v2H4v-2Z" />
+              <path d={MORE_ICON.more} />
             </svg>
           </button>
         ) : null}

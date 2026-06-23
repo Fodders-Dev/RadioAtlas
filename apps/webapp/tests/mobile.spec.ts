@@ -1802,14 +1802,16 @@ test('dock separates empty explore from queue controls', async ({ page }) => {
 
   await page.locator('.player-peek-handle').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
-  await expect(page.locator('.dock-queue-btn')).toHaveCount(0);
+  // Dormant dock (no station, empty queue): only the explore shortcut — no
+  // more-menu button, since there is nothing to act on yet.
+  await expect(page.locator('.dock-more-btn')).toHaveCount(0);
   await expect(page.locator('.dock-explore-btn')).toBeVisible();
 
   await page.locator('.dock-explore-btn').click();
   await expect(page.locator('.screen-search-v2')).toBeVisible();
 });
 
-test('dock shows queue control only when queue has items', async ({ page }) => {
+test('dock more-menu surfaces the queue when queue has items', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, {
     queue: stations.slice(0, 3)
@@ -1818,12 +1820,17 @@ test('dock shows queue control only when queue has items', async ({ page }) => {
   await page.goto('/');
   await page.locator('.player-peek-handle').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
-  await expect(page.locator('.dock-queue-btn')).toBeVisible();
+  await expect(page.locator('.dock-more-btn')).toBeVisible();
   await expect(page.locator('.dock-explore-btn')).toHaveCount(0);
 
-  await page.locator('.dock-queue-btn').click();
-  await expect(page.locator('.player-dock-tray[data-mode="queue"]')).toBeVisible();
+  // ☰ now opens the extra-functions menu (not the queue directly)…
+  await page.locator('.dock-more-btn').click();
+  await expect(page.locator('.player-dock-tray[data-mode="more"]')).toBeVisible();
   await expect(page.locator('.screen-search-v2')).toHaveCount(0);
+
+  // …and the queue stays one tap away via the «Очередь» row inside it.
+  await page.locator('.player-dock-more-tray .player-dock-more-row').first().click();
+  await expect(page.locator('.player-dock-tray[data-mode="queue"]')).toBeVisible();
 });
 
 test('dock long station and track text stay readable without overflow', async ({ page }) => {

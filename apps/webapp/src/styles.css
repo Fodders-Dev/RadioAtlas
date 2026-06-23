@@ -7844,18 +7844,18 @@ body {
   line-height: 1.2;
 }
 
-.player-dock-tray[data-mode='queue'] {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) {
   width: min(320px, calc(100vw - 20px));
   right: 0;
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
   width: min(320px, calc(100vw - 20px));
   padding: 14px;
   border-radius: 22px;
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-title {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-title {
   display: block;
   font-size: 11px;
   font-weight: 700;
@@ -7864,16 +7864,16 @@ body {
   color: var(--muted);
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-head {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-head {
   align-items: flex-start;
   gap: 10px;
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-head > div {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-head > div {
   text-align: left;
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-subtitle {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-subtitle {
   margin-top: 4px;
   font-size: 13px;
   font-weight: 700;
@@ -7959,6 +7959,111 @@ body {
 
 .player-dock-queue-actions {
   justify-content: flex-start;
+}
+
+/* «Ещё» (more-functions) tray — a compact vertical list of the extra actions
+   that previously only lived in the full player. The dock is a dark-glass
+   island in every theme, so the rows reuse the same dark-glass recipe as the
+   queue items (color: inherit / --muted) and stay readable on light skins. */
+.player-dock-more-tray {
+  display: grid;
+  gap: 12px;
+}
+
+.player-dock-more-list {
+  display: grid;
+  gap: 6px;
+}
+
+.player-dock-more-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 247, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    rgba(7, 16, 28, 0.42);
+  color: inherit;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.player-dock-more-row svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: currentColor;
+  opacity: 0.85;
+}
+
+.player-dock-more-row span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-dock-more-row em {
+  flex: none;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.player-dock-more-row:hover,
+.player-dock-more-row:focus-visible,
+.player-dock-more-row.active {
+  transform: translateY(-1px);
+  border-color: rgba(180, 241, 239, 0.24);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(184, 247, 241, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(210, 248, 244, 0.16), rgba(111, 180, 255, 0.07)),
+    rgba(12, 31, 49, 0.5);
+}
+
+.player-dock-more-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.player-dock-more-sleep {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(240, 247, 255, 0.08);
+}
+
+.player-dock-more-sleep .player-dock-tray-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-dock-more-sleep-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: currentColor;
+  opacity: 0.8;
+}
+
+/* The more-menu carries more rows than the volume/queue trays (5 actions + the
+   sleep presets), so give it extra height to keep the sleep chips visible
+   without a scroll on normal phones; very short screens still scroll. The
+   .player-dock-bar prefix outranks the base .player-dock .player-dock-tray-panel
+   40vh cap regardless of stylesheet order. */
+.player-dock-bar .player-dock-tray[data-mode='more'] .player-dock-tray-panel {
+  max-height: min(54vh, 440px);
 }
 
 .library-queue-shell {
@@ -8249,8 +8354,8 @@ body {
     opacity: 0.48;
   }
 
-  .player-dock-tray[data-mode='queue'],
-  .player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']),
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
     width: min(320px, calc(100vw - 16px));
   }
 }
@@ -8272,8 +8377,8 @@ body {
     font-size: 11px;
   }
 
-  .player-dock-tray[data-mode='queue'],
-  .player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']),
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
     width: min(320px, calc(100vw - 24px));
   }
 
@@ -8597,12 +8702,12 @@ button.player-dock-status-pill:active {
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.player-dock-tray[data-mode='queue'],
-.player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']),
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
   width: min(296px, calc(100vw - 20px));
 }
 
-.player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+.player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
   padding: 12px;
 }
 
@@ -8698,8 +8803,8 @@ button.player-dock-status-pill:active {
     height: 34px;
   }
 
-  .player-dock-tray[data-mode='queue'],
-  .player-dock-tray[data-mode='queue'] .player-dock-tray-panel {
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']),
+  .player-dock-tray:is([data-mode='queue'], [data-mode='more']) .player-dock-tray-panel {
     width: min(292px, calc(100vw - 16px));
   }
 }
