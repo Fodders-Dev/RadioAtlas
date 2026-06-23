@@ -65,6 +65,9 @@ export type StationIntelStore = {
     checkedAt: number,
     titleAt: number | null
   ) => void;
+  // station_uuid → last_harvested_at (epoch ms), for all probed stations. Drives
+  // least-recently-harvested-first rotation. Never-probed stations are absent.
+  harvestedAtMap: () => Map<string, number>;
   topArtists: (stationUuid: string, limit?: number) => ArtistIndexRow[];
   pruneObservations: (now: number, retentionMs?: number) => number;
   close: () => void;
@@ -99,7 +102,11 @@ export const STATION_INTEL_SCHEMA = `
     station_uuid TEXT PRIMARY KEY,
     supports_metadata INTEGER,
     last_checked_at INTEGER,
-    last_title_at INTEGER
+    last_title_at INTEGER,
+    -- Coverage rotation: the epoch-ms of the last probe (with OR without a
+    -- title). least-recently-harvested-first ordering reads this so each run
+    -- takes a fresh slice and the whole reachable catalog is covered over time.
+    last_harvested_at INTEGER
   );
 `;
 
@@ -107,6 +114,19 @@ export const STATION_INTEL_SCHEMA = `
 // pass an in-memory `new DatabaseSync(':memory:')`.
 export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
   db.exec(STATION_INTEL_SCHEMA);
+  // Migration for DBs created before last_harvested_at existed (#110). ALTER
+  // throws "duplicate column" on an already-migrated/fresh table — that's the
+  // success path, so swallow it.
+  try {
+    db.exec(`ALTER TABLE station_meta_state ADD COLUMN last_harvested_at INTEGER`);
+  } catch {
+    /* column already present */
+  }
+  // Index AFTER the column is guaranteed to exist (the schema CREATE TABLE has it
+  // for fresh DBs; the ALTER adds it to pre-rotation #110 DBs).
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_meta_state_harvested ON station_meta_state(last_harvested_at)`
+  );
 
   const insertObs = db.prepare(
     `INSERT INTO track_observations (station_uuid, artist, title, raw_title, observed_at)
@@ -126,12 +146,16 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
     `SELECT supports_metadata FROM station_meta_state WHERE station_uuid = ?`
   );
   const setStateStmt = db.prepare(
-    `INSERT INTO station_meta_state (station_uuid, supports_metadata, last_checked_at, last_title_at)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO station_meta_state (station_uuid, supports_metadata, last_checked_at, last_title_at, last_harvested_at)
+     VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(station_uuid)
      DO UPDATE SET supports_metadata = excluded.supports_metadata,
                    last_checked_at = excluded.last_checked_at,
-                   last_title_at = COALESCE(excluded.last_title_at, station_meta_state.last_title_at)`
+                   last_title_at = COALESCE(excluded.last_title_at, station_meta_state.last_title_at),
+                   last_harvested_at = excluded.last_harvested_at`
+  );
+  const harvestedAtStmt = db.prepare(
+    `SELECT station_uuid, last_harvested_at FROM station_meta_state WHERE last_harvested_at IS NOT NULL`
   );
   const topArtistsStmt = db.prepare(
     `SELECT artist, obs_count, last_seen FROM station_artist_index
@@ -160,7 +184,15 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
       return Number(row.supports_metadata) === 1 ? 1 : 0;
     },
     setSupportsMetadata: (stationUuid, value, checkedAt, titleAt) => {
-      setStateStmt.run(stationUuid, value, checkedAt, titleAt);
+      // checkedAt IS the probe time → also stamp last_harvested_at (rotation).
+      setStateStmt.run(stationUuid, value, checkedAt, titleAt, checkedAt);
+    },
+    harvestedAtMap: () => {
+      const map = new Map<string, number>();
+      for (const row of harvestedAtStmt.all()) {
+        map.set(String(row.station_uuid), Number(row.last_harvested_at));
+      }
+      return map;
     },
     topArtists: (stationUuid, limit = 20) =>
       topArtistsStmt.all(stationUuid, limit).map((row) => ({

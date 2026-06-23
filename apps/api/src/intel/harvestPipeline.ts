@@ -57,7 +57,12 @@ export type HarvestCandidate = {
   urlResolved: string;
   lastcheckok?: 0 | 1 | null;
   quality?: number;
+  // epoch ms of the last probe (from station_meta_state). null/undefined = never
+  // harvested → sorts FIRST in 'stale' order.
+  lastHarvestedAt?: number | null;
 };
+
+export type HarvestOrder = 'quality' | 'stale';
 
 // A reachable http(s) stream only. lastcheckok===0 is a confirmed-dead station —
 // probing it would be wasted load AND impolite to the origin; skip it. Unknown
@@ -68,15 +73,30 @@ const isProbeable = (c: HarvestCandidate): boolean => {
   return /^https?:\/\//i.test(c.urlResolved);
 };
 
+// Never-harvested stations sort before everyone (sentinel -Infinity); avoids the
+// `(-Infinity) - (-Infinity) = NaN` trap of a plain subtraction comparator.
+const staleKey = (c: HarvestCandidate): number =>
+  c.lastHarvestedAt == null ? Number.NEGATIVE_INFINITY : c.lastHarvestedAt;
+
 export const selectHarvestBatch = (
   candidates: HarvestCandidate[],
-  options: { limit: number }
+  options: { limit: number; order?: HarvestOrder }
 ): HarvestCandidate[] => {
   const limit = Math.max(0, Math.floor(options.limit));
-  return candidates
-    .filter(isProbeable)
-    .sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0))
-    .slice(0, limit);
+  const order = options.order ?? 'quality';
+  const probeable = candidates.filter(isProbeable);
+  // 'stale' = least-recently-harvested-first (never-probed → oldest), so each run
+  // takes a FRESH slice and the whole reachable catalog is covered over N runs.
+  // Array.sort is stable → equal keys keep input order → idempotent.
+  const sorted =
+    order === 'stale'
+      ? probeable.sort((a, b) => {
+          const ka = staleKey(a);
+          const kb = staleKey(b);
+          return ka === kb ? 0 : ka < kb ? -1 : 1;
+        })
+      : probeable.sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0));
+  return sorted.slice(0, limit);
 };
 
 // A coarse quality proxy from the catalog artifact (which has bitrate/codec but
@@ -128,9 +148,16 @@ export type HarvestDeps = {
   now: () => number;
   concurrency?: number;
   perRequestPauseMs?: number;
+  // GLOBAL minimum spacing between ANY two requests (across all workers) — the
+  // ToS-at-scale rate floor. perRequestPauseMs is the additional per-worker
+  // cooldown after each request.
+  minRequestIntervalMs?: number;
   consecutiveFailLimit?: number;
   sleep?: (ms: number) => Promise<void>;
   log?: (msg: string) => void;
+  // Routed to a LOUD channel (console.error) by the script so a tripped breaker
+  // stands out in the pm2 logs. Falls back to log when not provided.
+  onAlert?: (msg: string) => void;
 };
 
 export type HarvestSummary = {
@@ -152,9 +179,11 @@ export const runHarvestBatch = async (
 ): Promise<HarvestSummary> => {
   const concurrency = Math.max(1, deps.concurrency ?? 2);
   const pause = Math.max(0, deps.perRequestPauseMs ?? 0);
+  const minInterval = Math.max(0, deps.minRequestIntervalMs ?? 0);
   const sleep = deps.sleep ?? defaultSleep;
-  const log = deps.log ?? (() => {});
-  const breaker = new CircuitBreaker(Math.max(1, deps.consecutiveFailLimit ?? 8));
+  const failLimit = Math.max(1, deps.consecutiveFailLimit ?? 8);
+  const alert = deps.onAlert ?? deps.log ?? (() => {});
+  const breaker = new CircuitBreaker(failLimit);
 
   const summary: HarvestSummary = {
     processed: 0,
@@ -165,6 +194,22 @@ export const runHarvestBatch = async (
     tripped: false
   };
 
+  // Global rate floor: every request claims the next time slot so ANY two
+  // requests (across all workers) are ≥ minInterval apart — ToS-at-scale safety.
+  let nextSlot = 0;
+  const acquireSlot = async () => {
+    if (!minInterval) return;
+    const slot = Math.max(deps.now(), nextSlot);
+    nextSlot = slot + minInterval;
+    const wait = slot - deps.now();
+    if (wait > 0) await sleep(wait);
+  };
+
+  const trip = (reason: string) => {
+    summary.tripped = true;
+    alert(`[HARVEST-ALERT] circuit breaker tripped after ${failLimit} consecutive failures (${reason}) — stopping the run`);
+  };
+
   let cursor = 0;
   const next = (): HarvestCandidate | null => {
     if (breaker.tripped || cursor >= batch.length) return null;
@@ -173,15 +218,13 @@ export const runHarvestBatch = async (
 
   const worker = async () => {
     for (let station = next(); station; station = next()) {
+      await acquireSlot();
       let result: MetadataFetchResult;
       try {
         result = await deps.fetchMetadata(station.urlResolved);
-      } catch (error) {
+      } catch {
         summary.failures += 1;
-        if (breaker.recordFailure()) {
-          summary.tripped = true;
-          log(`circuit breaker tripped after consecutive failures (fetch error)`);
-        }
+        if (breaker.recordFailure()) trip('fetch error');
         if (pause) await sleep(pause);
         continue;
       }
@@ -190,10 +233,7 @@ export const runHarvestBatch = async (
         summary.failures += 1;
         // Respect Retry-After on a 429 before the breaker decides.
         if (isRateLimit(result.status) && result.retryAfterMs) await sleep(result.retryAfterMs);
-        if (breaker.recordFailure()) {
-          summary.tripped = true;
-          log(`circuit breaker tripped after ${deps.consecutiveFailLimit ?? 8} consecutive 429/5xx — stopping`);
-        }
+        if (breaker.recordFailure()) trip(`${result.status}`);
         if (pause) await sleep(pause);
         continue;
       }
