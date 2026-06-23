@@ -21,6 +21,16 @@ const hasUnsafeChar = (text: string): boolean => {
 
 export type ParsedTrack = { artist: string | null; title: string; raw: string };
 
+// HLS / stream-manifest attribute leaking in place of a track title — e.g.
+// AUDIO="program_audio", CODECS="mp4a.40.2", BANDWIDTH=128000. An uppercase
+// KEY= token or any key="…" shape is never a song; reject it.
+const looksLikeManifestAttr = (text: string): boolean => /[A-Z][A-Z0-9_-]{2,}=|="/.test(text);
+
+// A bare numeric ident ("6464", "1234567") is a station counter, not a song.
+// Only digits + separators (no letters, no other symbols) → reject; a symbolic
+// title like "2 + 2 = 5" keeps its + / = and survives.
+const isCounterIdent = (text: string): boolean => /^[\d\s.\-]+$/.test(text);
+
 export const parseTrackTitle = (value: string | null | undefined): ParsedTrack | null => {
   if (typeof value !== 'string') return null;
   const cleaned = value
@@ -31,13 +41,26 @@ export const parseTrackTitle = (value: string | null | undefined): ParsedTrack |
   if (cleaned.length < 2 || cleaned.length > 200) return null;
   if (hasUnsafeChar(cleaned)) return null;
   if (!/[a-zа-яё0-9]/i.test(cleaned)) return null;
+  if (looksLikeManifestAttr(cleaned)) return null;
 
   const idx = cleaned.indexOf(' - ');
   if (idx > 0 && idx < cleaned.length - 3) {
     const artist = cleaned.slice(0, idx).trim();
     const title = cleaned.slice(idx + 3).trim();
-    if (artist && title) return { artist, title, raw: cleaned };
+    if (artist && title) {
+      // "6464 - 6464" / "Jingle - Jingle": a token repeated on both sides is a
+      // station counter / ident, not an artist+title pair.
+      if (artist.toLowerCase() === title.toLowerCase()) return null;
+      // "04 - Night Comes On": a pure 1–3 digit "artist" is a TRACK NUMBER, not
+      // an artist — drop it and keep the title (rather than poisoning the
+      // artist index with "04"). A 4-digit value (e.g. a year) is left intact.
+      if (!/^\d{1,3}$/.test(artist)) {
+        return { artist, title, raw: cleaned };
+      }
+      return isCounterIdent(title) ? null : { artist: null, title, raw: cleaned };
+    }
   }
+  if (isCounterIdent(cleaned)) return null;
   return { artist: null, title: cleaned, raw: cleaned };
 };
 

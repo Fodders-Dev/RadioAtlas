@@ -44,6 +44,41 @@ test('parseTrackTitle rejects junk (empty, control chars, mojibake, no alnum)', 
   assert.equal(parseTrackTitle('---'), null); // no alphanumeric
 });
 
+test('parseTrackTitle rejects HLS / manifest-attribute leaks', () => {
+  assert.equal(parseTrackTitle('AUDIO="program_audio"'), null);
+  assert.equal(parseTrackTitle('CODECS="mp4a.40.2"'), null);
+  assert.equal(parseTrackTitle('BANDWIDTH=128000'), null);
+  // A real title with an equals sign but no attribute shape survives.
+  assert.deepEqual(parseTrackTitle('2 + 2 = 5'), { artist: null, title: '2 + 2 = 5', raw: '2 + 2 = 5' });
+});
+
+test('parseTrackTitle rejects letterless / repeated counter idents', () => {
+  assert.equal(parseTrackTitle('6464'), null); // bare counter, no letters
+  assert.equal(parseTrackTitle('6464 - 6464'), null); // repeated token on both sides
+  assert.equal(parseTrackTitle('1234567'), null);
+});
+
+test('parseTrackTitle strips a track-number "artist" but keeps the song', () => {
+  // "04 - Night Comes On": the 04 is a track index, not an artist.
+  assert.deepEqual(parseTrackTitle('04 - Night Comes On'), {
+    artist: null,
+    title: 'Night Comes On',
+    raw: '04 - Night Comes On'
+  });
+  // A real numeric-looking artist (>3 digits, e.g. a year) is left intact.
+  assert.deepEqual(parseTrackTitle('1979 - The Smashing Pumpkins'), {
+    artist: '1979',
+    title: 'The Smashing Pumpkins',
+    raw: '1979 - The Smashing Pumpkins'
+  });
+  // A genuine artist that merely starts with digits is NOT a bare number.
+  assert.deepEqual(parseTrackTitle('50 Cent - In Da Club'), {
+    artist: '50 Cent',
+    title: 'In Da Club',
+    raw: '50 Cent - In Da Club'
+  });
+});
+
 // ── supports_metadata state machine ─────────────────────────────────────────
 test('nextSupportsMetadata: a title sets 1; no title is 0 unless already proven 1', () => {
   assert.equal(nextSupportsMetadata(null, true), 1);
