@@ -107,6 +107,20 @@ const hashValue = (value: string) => {
   return hash;
 };
 
+// Mix a station's stable hash with the rotation seed so that changing the seed
+// actually permutes the order. hashValue(`${id}:${seed}`) does NOT: the seed is
+// a low-order suffix, so a new seed shifts every station's hash by the SAME
+// amount and the relative order is preserved — which is why the rails looked
+// frozen across re-opens / «Обновить». The fmix-style finalizer below avalanches
+// the combined bits so any seed change reshuffles the whole set. Returns 0..1.
+const seededJitter = (id: string, seed: number) => {
+  let h = (hashValue(id) ^ Math.imul(seed | 0, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return (h % 1000) / 1000;
+};
+
 const addScore = (target: Record<string, number>, key: string, value: number) => {
   if (!key || !Number.isFinite(value) || value === 0) return;
   target[key] = Number(((target[key] || 0) + value).toFixed(4));
@@ -389,6 +403,13 @@ export const unhideStationFromTasteProfile = (
   };
 };
 
+// Per-seed rotation strength for «Моя Волна» (see rankStationsForUser). A flat
+// floor lets even low-taste matches rotate; the taste fraction widens the shuffle
+// for stronger matches so a genre's near-equal stations vary run-to-run without
+// a clearly stronger pick ever sinking below a weaker one.
+const TASTE_ROTATION_FLOOR = 1.4;
+const TASTE_ROTATION_TASTE_FRACTION = 0.22;
+
 const tasteScore = (station: StationLite, profile: TasteProfileV2 | null | undefined) => {
   if (!profile || profile.version !== 2) return 0;
   const stationScore = profile.stationScores[station.stationuuid] || 0;
@@ -422,14 +443,22 @@ export const rankStationsForUser = (
     .filter((station) => station.stationuuid !== currentId && !hiddenIds.has(station.stationuuid))
     .filter((station) => !sessionExcludedIds.has(station.stationuuid))
     .map((station, index) => {
-      const jitter = (hashValue(`${station.stationuuid}:${seed}`) % 1000) / 1000;
+      const taste = tasteScore(station, profile);
+      // Per-seed rotation so «Моя Волна» surfaces DIFFERENT likeable stations
+      // each refresh/session instead of «каждый раз одно и то же». The old
+      // jitter * 0.18 was swamped by taste scores in the tens; scale it to a
+      // taste band (flat floor + a slice of the station's own taste) so it
+      // reshuffles near-equal matches within the user's genres while a clearly
+      // stronger match still leads. Seeded → deterministic per seed.
+      const jitter = seededJitter(station.stationuuid, seed);
+      const rotation = jitter * (TASTE_ROTATION_FLOOR + Math.max(0, taste) * TASTE_ROTATION_TASTE_FRACTION);
       const score =
-        tasteScore(station, profile) +
+        taste +
         getSessionStationScore(station, sessionEvents, stationPool, now) +
         getStationPlayabilityScore(playabilityProfile, station, now) * 2.8 +
         getStationHealthScore(healthProfile, station, now) * 2.4 +
         qualityScore(station) +
-        jitter * 0.18;
+        rotation;
 
       return {
         station,
