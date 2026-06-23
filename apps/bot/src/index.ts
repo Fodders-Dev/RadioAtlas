@@ -11,6 +11,7 @@ import { recordReachability } from './botReachability.js';
 import { forwardBillingWebhook } from './billingForward.js';
 import { resolveInlineQuery } from './inlineQuery.js';
 import { buildStationStreamTargets } from './stationStreams.js';
+import { buildTracklistText, readIcyTracklist, type TracklistEntry } from './icyTracklist.js';
 import {
   clampDuration,
   createRecordingLimiter,
@@ -176,6 +177,24 @@ const presentStationForRecording = async (ctx: Context, stationId: string, canEd
   await ctx.reply(text, { reply_markup: markup });
 };
 
+// Split a long tracklist into Telegram-sized messages (cap ~4096) on line
+// boundaries so a timecode line is never cut in half.
+const chunkMessage = (text: string, limit = 3500): string[] => {
+  const chunks: string[] = [];
+  let current = '';
+  for (const line of text.split('\n')) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (candidate.length > limit && current) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+};
+
 // Start the actual recording for a resolved station + chosen duration. Shared by
 // the in-chat flow and (PR2) the Mini-App flow.
 const runRecording = async (ctx: Context, station: RecordStation, durationSec: number) => {
@@ -209,6 +228,16 @@ const runRecording = async (ctx: Context, station: RecordStation, durationSec: n
     );
     progressMessageId = progress.message_id;
 
+    // Tracklist (fail-isolated): a SECOND, ffmpeg-independent ICY connection to
+    // the same candidates, reading StreamTitle blocks for the same window. It
+    // resolves on its own (never rejects); `.catch` is belt-and-suspenders so it
+    // can NEVER delay or break the audio send below.
+    const tracklistPromise = readIcyTracklist(
+      candidates,
+      { durationSec, station },
+      { signal: controller.signal, log: (line) => console.warn(line) }
+    ).catch(() => [] as TracklistEntry[]);
+
     const result = await recordStream(
       { streamCandidates: candidates, durationSec, stationName: station.name, outputPath },
       {
@@ -227,11 +256,34 @@ const runRecording = async (ctx: Context, station: RecordStation, durationSec: n
     );
 
     if (result.ok) {
-      await ctx.replyWithAudio(new InputFile(outputPath), {
+      // The reader is bounded to the SAME window, so it's usually finished by
+      // now; give it a short settle race so we never hold the audio hostage.
+      const tracklist = await Promise.race([
+        tracklistPromise,
+        new Promise<TracklistEntry[]>((resolve) => setTimeout(() => resolve([]), 1500))
+      ]);
+      const tracklistText = buildTracklistText(tracklist);
+
+      const audioOptions: Parameters<typeof ctx.replyWithAudio>[1] = {
         title: `${station.name} — ${formatMskTimestamp(new Date())} МСК`,
         performer: station.name,
         duration: durationSec
-      });
+      };
+      // Telegram caption cap is ~1024; keep the tracklist on the audio caption
+      // when it comfortably fits, else send a short caption + a follow-up message
+      // (chunked, since a long set can exceed the 4096 message limit). On no ICY
+      // metadata `tracklistText` is empty → behave exactly as before (silent).
+      if (tracklistText && tracklistText.length <= 900) {
+        audioOptions.caption = tracklistText;
+        await ctx.replyWithAudio(new InputFile(outputPath), audioOptions);
+      } else {
+        await ctx.replyWithAudio(new InputFile(outputPath), audioOptions);
+        if (tracklistText) {
+          for (const chunk of chunkMessage(tracklistText)) {
+            await ctx.reply(chunk);
+          }
+        }
+      }
     } else if (result.reason !== 'cancelled') {
       await ctx.reply(recordErrorText(result.reason));
     }
@@ -243,6 +295,10 @@ const runRecording = async (ctx: Context, station: RecordStation, durationSec: n
       /* user closed the chat */
     }
   } finally {
+    // Tear down anything still running on this job — notably the tracklist
+    // reader on a failed (non-cancelled) recording, so it can't keep an ICY
+    // connection open in the background until its window deadline.
+    controller.abort();
     activeRecordings.delete(jobId);
     recordingLimiter.release(userId);
     if (progressMessageId !== undefined) {
