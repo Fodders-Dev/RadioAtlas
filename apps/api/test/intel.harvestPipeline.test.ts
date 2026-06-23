@@ -68,6 +68,26 @@ test('selectHarvestBatch skips dead (lastcheckok 0) + non-http, ranks by quality
   assert.deepEqual(batch.map((c) => c.stationUuid), ['live-hi', 'mid', 'unknown']);
 });
 
+test("selectHarvestBatch 'stale' order: never-harvested first, then oldest; idempotent; skip-dead survives", () => {
+  const candidates: HarvestCandidate[] = [
+    { stationUuid: 'recent', urlResolved: 'http://a/1', lastcheckok: 1, lastHarvestedAt: 5000 },
+    { stationUuid: 'never-b', urlResolved: 'http://a/2', lastcheckok: 1, lastHarvestedAt: null },
+    { stationUuid: 'old', urlResolved: 'http://a/3', lastcheckok: 1, lastHarvestedAt: 1000 },
+    { stationUuid: 'dead', urlResolved: 'http://a/4', lastcheckok: 0, lastHarvestedAt: null }, // skipped despite never-harvested
+    { stationUuid: 'never-a', urlResolved: 'http://a/5', lastcheckok: 1 } // undefined === never
+  ];
+  const order = () => selectHarvestBatch(candidates, { limit: 10, order: 'stale' }).map((c) => c.stationUuid);
+  // never-harvested (input order preserved for ties) → oldest → most recent. Dead skipped.
+  assert.deepEqual(order(), ['never-b', 'never-a', 'old', 'recent']);
+  // Idempotent: re-running the same input yields the same order.
+  assert.deepEqual(order(), ['never-b', 'never-a', 'old', 'recent']);
+  // The limit still applies on the stale order (take the N stalest).
+  assert.deepEqual(
+    selectHarvestBatch(candidates, { limit: 2, order: 'stale' }).map((c) => c.stationUuid),
+    ['never-b', 'never-a']
+  );
+});
+
 test('harvestQualityScore: reach dominates, codec + bitrate add', () => {
   const reachable = harvestQualityScore({ lastcheckok: 1, bitrate: 320, codec: 'aac' });
   const dead = harvestQualityScore({ lastcheckok: 0, bitrate: 320, codec: 'flac' });
@@ -132,9 +152,10 @@ test('runHarvestBatch records titles + sets supports_metadata, skips no-title st
   assert.equal(store.observations[0]?.artist, 'Artist');
 });
 
-test('runHarvestBatch: the circuit breaker STOPS the run after consecutive 429s', async () => {
+test('runHarvestBatch: the circuit breaker STOPS the run after consecutive 429s + fires a loud onAlert', async () => {
   const store = stubStore();
   let calls = 0;
+  const alerts: string[] = [];
   const fetchMetadata = async (): Promise<MetadataFetchResult> => {
     calls += 1;
     return { status: 429, title: null, retryAfterMs: 0 };
@@ -145,13 +166,38 @@ test('runHarvestBatch: the circuit breaker STOPS the run after consecutive 429s'
     now: () => 1,
     concurrency: 1,
     consecutiveFailLimit: 5,
-    sleep: async () => {}
+    sleep: async () => {},
+    onAlert: (msg) => alerts.push(msg)
   });
   assert.equal(summary.tripped, true);
   assert.equal(summary.processed, 0);
   // Stopped at the breaker, NOT after all 100.
   assert.equal(calls, 5);
   assert.equal(summary.failures, 5);
+  // The breaker trip routed to onAlert (loud channel) with the marker.
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0]!, /HARVEST-ALERT/);
+});
+
+test('runHarvestBatch: a global rate floor spaces requests by minRequestIntervalMs', async () => {
+  const store = stubStore();
+  let clock = 0;
+  const waits: number[] = [];
+  const summary = await runHarvestBatch(batchOf(3), {
+    fetchMetadata: async () => ({ status: 200, title: 'A - B' }),
+    store,
+    now: () => clock,
+    concurrency: 1,
+    minRequestIntervalMs: 500,
+    // Advancing clock so the slot maths is realistic; record the floor waits.
+    sleep: async (ms) => {
+      if (ms > 0) waits.push(ms);
+      clock += ms;
+    }
+  });
+  assert.equal(summary.processed, 3);
+  // First request fires immediately; the next two each wait the 500ms floor.
+  assert.deepEqual(waits, [500, 500]);
 });
 
 test('runHarvestBatch: a 5xx burst that recovers does NOT trip (consecutive resets on success)', async () => {

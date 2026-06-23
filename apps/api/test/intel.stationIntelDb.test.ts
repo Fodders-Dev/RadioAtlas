@@ -50,6 +50,20 @@ test('supports_metadata is NULL until checked, then 0/1', () => {
   store.close();
 });
 
+test('last_harvested_at is stamped on EVERY probe (with or without a title) → harvestedAtMap', () => {
+  const store = memStore();
+  assert.equal(store.harvestedAtMap().size, 0); // nothing probed yet
+  store.setSupportsMetadata('with-title', 1, 1000, 1000); // a probe WITH a title
+  store.setSupportsMetadata('no-title', 0, 2000, null); // a probe WITHOUT a title
+  const map = store.harvestedAtMap();
+  assert.equal(map.get('with-title'), 1000);
+  assert.equal(map.get('no-title'), 2000); // stamped even with no title
+  // A later re-probe advances last_harvested_at (rotation moves it to the back).
+  store.setSupportsMetadata('with-title', 1, 9000, 9000);
+  assert.equal(store.harvestedAtMap().get('with-title'), 9000);
+  store.close();
+});
+
 test('pruneObservations deletes only rows older than the retention window', () => {
   const store = memStore();
   const now = 1_000_000_000_000;
@@ -60,6 +74,26 @@ test('pruneObservations deletes only rows older than the retention window', () =
   assert.equal(deleted, 1);
   // The recent row survives → it's still the last raw title.
   assert.equal(store.lastRawTitle('s'), 'A - recent');
+  store.close();
+});
+
+test('migrates a pre-rotation DB (#110, no last_harvested_at column) without data loss', () => {
+  // Simulate an existing #110 DB: station_meta_state WITHOUT last_harvested_at.
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE station_meta_state (
+    station_uuid TEXT PRIMARY KEY,
+    supports_metadata INTEGER,
+    last_checked_at INTEGER,
+    last_title_at INTEGER
+  );`);
+  db.prepare(`INSERT INTO station_meta_state (station_uuid, supports_metadata, last_checked_at) VALUES ('legacy', 1, 500)`).run();
+
+  // Opening the store must ALTER in last_harvested_at, preserving the old row.
+  const store = createStationIntelStore(db);
+  assert.equal(store.getSupportsMetadata('legacy'), 1); // old data survived
+  assert.equal(store.harvestedAtMap().size, 0); // legacy row has NULL last_harvested_at
+  store.setSupportsMetadata('legacy', 1, 1234, 1234); // a new probe stamps it
+  assert.equal(store.harvestedAtMap().get('legacy'), 1234);
   store.close();
 });
 

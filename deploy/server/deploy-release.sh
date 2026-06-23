@@ -93,6 +93,9 @@ start_pm2_release() {
   # release) is delete + start.
   pm2 delete radioatlas-api >/dev/null 2>&1 || true
   pm2 delete radioatlas-bot >/dev/null 2>&1 || true
+  # Scheduled one-shot harvester (gated OFF by default) — same delete+start so it
+  # re-evaluates __dirname against the new release; a no-op until enabled.
+  pm2 delete radioatlas-harvester >/dev/null 2>&1 || true
   pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
   pm2 save
 }
@@ -100,6 +103,9 @@ start_pm2_release() {
 restart_pm2_release_clean() {
   pm2 delete radioatlas-api >/dev/null 2>&1 || true
   pm2 delete radioatlas-bot >/dev/null 2>&1 || true
+  # Scheduled one-shot harvester (gated OFF by default) — same delete+start so it
+  # re-evaluates __dirname against the new release; a no-op until enabled.
+  pm2 delete radioatlas-harvester >/dev/null 2>&1 || true
   pm2 start "$CURRENT_LINK/ecosystem.config.cjs" --update-env
   pm2 save
 }
