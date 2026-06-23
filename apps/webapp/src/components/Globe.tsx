@@ -774,7 +774,13 @@ export const Globe = ({
     if (!map || !ready) return;
 
     const SETTLE_DELAY_MS = 900;
-    const AUTO_TUNE_MIN_ZOOM = 3.5;
+    // Aim-to-play floor. The default planet view is scale 1 = map zoom 2.4,
+    // so the old 3.5 floor (≈ scale 2.1) meant the crosshair only auto-tuned
+    // after the user had zoomed well past the natural view — Artem's "only
+    // works when I zoom in a lot". Drop it below the default so aiming a dot
+    // under the crosshair tunes from the normal globe view down; the lock
+    // radius + the empty-aim null-relax below keep world-view aims honest.
+    const AUTO_TUNE_MIN_ZOOM = 1.5;
 
     let lastHoverId: string | null = null;
     let userHasDragged = false;
@@ -782,9 +788,12 @@ export const Globe = ({
 
     // Returns the station whose rendered dot is *visually* closest to
     // the reticle right now. The pixel cap means we only commit when
-    // a dot is within ~140 px of the crosshair — beyond that the
+    // a dot is within the lock radius of the crosshair — beyond that the
     // user clearly aimed at empty space and we should not auto-tune.
-    const RETICLE_LOCK_RADIUS_PX = 140;
+    // The radius tapers at the newly-enabled low zoom levels (small planet,
+    // dense dots) so a far-off dot can't snap under the crosshair, while the
+    // zoom range that already worked (≥ ~2.5) keeps the proven 140 px cap.
+    const lockRadiusForZoom = (zoom: number) => Math.min(140, 50 + zoom * 36);
 
     // Nearest rendered station dot to the crosshair, capped at the lock
     // radius. Backed by an in-memory two-pass search (see
@@ -800,7 +809,7 @@ export const Globe = ({
           { lat: center.lat, lon: center.lng },
           { cx: canvas.clientWidth / 2, cy: canvas.clientHeight / 2 },
           (lon, lat) => map.project([lon, lat]),
-          RETICLE_LOCK_RADIUS_PX
+          lockRadiusForZoom(map.getZoom())
         );
       } catch {
         return null;
