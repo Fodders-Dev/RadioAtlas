@@ -9627,7 +9627,10 @@ button.player-dock-status-pill:active {
   box-shadow: 0 6px 12px rgba(3, 9, 18, 0.1) !important;
 }
 
-/* Stage 4: mobile library simplification */
+/* Stage 4: mobile library simplification. All 5 tabs must fit at 360px WITHOUT a
+   side-scroll (it hid «Треки»/«Плейлисты» off the edge) — so the strip becomes
+   an equal-width segmented row, chips shrink, and the wide count badge is
+   dropped on mobile (the label is what matters for reaching a tab). */
 .library-tab-strip {
   width: 100%;
   max-width: 100%;
@@ -9647,6 +9650,28 @@ button.player-dock-status-pill:active {
 
 .library-tab-chip {
   flex: 0 0 auto;
+}
+
+/* Phone-only (≤720px): all 5 tabs must fit WITHOUT a side-scroll (it hid
+   «Треки»/«Плейлисты» off the edge). Wrap to a second row instead, with compact
+   natural-width chips and the wide count badge dropped — every tab reachable,
+   no «крутилка». Desktop keeps its single fitting row + counts untouched. */
+@media (max-width: 720px) {
+  .library-tab-strip {
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 6px 5px;
+  }
+
+  .library-tab-chip {
+    gap: 4px;
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .library-tab-count {
+    display: none;
+  }
 }
 
 .library-inline-toast {
