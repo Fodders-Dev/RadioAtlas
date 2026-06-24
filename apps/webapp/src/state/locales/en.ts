@@ -408,6 +408,8 @@ export const enDictionary = {
     "kicker": "Live radio on the map",
     "heroSubtitle": "Tap a bright point to zoom into a country or region first, then choose stations inside it.",
     "tapArea": "Tap a bright point",
+    "tapToPlayHint": "Aim a dot at the centre and tap — the station plays",
+    "aimTapCta": "Tap to play",
     "controlsHint": "Drag to spin. Tap bright points to zoom into countries and cities.",
     "controlsHintDesktop": "Drag · scroll · tap",
     "controlsHintMobile": "Drag · pinch · tap",
