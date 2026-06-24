@@ -484,6 +484,13 @@ export const GlobeScreen = () => {
             immersive
           />
         </Suspense>
+        {!visibleStation ? (
+          // Discoverability: tap-to-play isn't obvious. A clear cue over the
+          // globe, dismissed once the user picks/plays their first station.
+          <div className="globe-tap-hint" role="note">
+            {t('globe.tapToPlayHint')}
+          </div>
+        ) : null}
         {reticleContext ? (
           isMobileLayout ? (
             // Compact aim-readout pill: COUNTRY · region on the first line,
@@ -502,6 +509,9 @@ export const GlobeScreen = () => {
                     .filter(Boolean)
                     .join(' · ')}
                 </div>
+              ) : null}
+              {reticleContext.name && !visibleStation ? (
+                <div className="globe-aim-cta">{t('globe.aimTapCta')}</div>
               ) : null}
             </div>
           ) : (

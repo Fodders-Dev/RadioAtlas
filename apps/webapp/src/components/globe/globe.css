@@ -194,10 +194,53 @@
   text-overflow: ellipsis;
 }
 
+/* Discoverability: the tap-to-play interaction isn't obvious, so this hint
+   teaches it (shown until the first station is picked/playing). A legible
+   dark pill so it reads over the busy satellite map; no backdrop-filter
+   (dies on some WebViews). */
 .globe-hint {
-  margin-top: 0;
+  align-self: flex-start;
   text-align: left;
   font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0;
-  color: var(--muted);
+  color: #eef6ff;
+  background: rgba(8, 16, 28, 0.82);
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 6px 16px rgba(2, 8, 16, 0.4);
+}
+
+/* The "tap to play" cue inside the aim-readout pill, shown while a dot sits
+   under the reticle and nothing is playing yet. */
+.globe-aim-cta {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--accent) 80%, #ffffff);
+}
+
+/* Dedicated tap-to-play hint over the globe (the built-in .globe-overlay is
+   display:none on mobile). Top-centre so it clears the bottom now-bar; a
+   legible dark pill over the busy satellite map; auto-dismisses on first play. */
+.globe-tap-hint {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: calc(100% - 28px);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #eef6ff;
+  background: rgba(8, 16, 28, 0.85);
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, rgba(255, 255, 255, 0.2));
+  box-shadow: 0 8px 20px rgba(2, 8, 16, 0.45);
+  pointer-events: none;
 }
