@@ -635,7 +635,12 @@ export const Globe = ({
       dragRotate: false,
       maxPitch: 0,
       renderWorldCopies: true,
-      fadeDuration: 200
+      fadeDuration: 200,
+      // A finger tap on a dot jitters several px; the 3px default made those
+      // taps register as a drag (so the tap-to-play click never fired and the
+      // gesture fell through to a pan). 10px lets a slightly-imprecise tap still
+      // count as a tap → plays the dot the user aimed at.
+      clickTolerance: 10
     });
 
     mapRef.current = map;
@@ -913,32 +918,20 @@ export const Globe = ({
       userHasDragged = false;
     };
 
+    // Auto-tune-on-settle is OFF: a drag PANS the globe and never surprise-plays
+    // whatever ends up under the crosshair (Artem's "выбираю одно радио, а меня
+    // переносит к другому повыше"). Tap a dot to play it. The reticle stays a
+    // visual aim guide + the aim-pill's "tap to play" cue; the settle machinery
+    // above is retained (unused) so re-enabling it later is a one-line change.
     const handleDragEnd = () => {
       cancelSettle();
-      if (!userHasDragged) return;
-      // If the user is still mid-zoom we shouldn't stamp a settle
-      // — they're not done positioning yet.
-      if (map.isZooming()) return;
-      if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
-        userHasDragged = false;
-        return;
-      }
-      scheduleSettle();
+      userHasDragged = false;
+      if (reticleStateRef.current === 'aiming') setReticle('idle');
     };
 
-    // Pinch / wheel zoom shouldn't trigger settle, but if a settle is
-    // already pending from a previous drag and the user starts
-    // zooming during the debounce, they've signalled they're not done
-    // yet — postpone the auto-tune until the zoom finishes.
     const handleZoomEnd = () => {
-      if (settleTimeout === null) return;
       cancelSettle();
-      if (!userHasDragged) return;
-      if (map.getZoom() < AUTO_TUNE_MIN_ZOOM) {
-        userHasDragged = false;
-        return;
-      }
-      scheduleSettle();
+      userHasDragged = false;
     };
 
     map.on('dragstart', handleDragStart);
