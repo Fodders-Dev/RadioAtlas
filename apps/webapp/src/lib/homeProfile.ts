@@ -135,6 +135,35 @@ const hashValue = (value: string) => {
   return hash;
 };
 
+// Mix a station's stable hash with the rotation seed (fmix finalizer) so any
+// seed change genuinely permutes the order — `${id}:${seed}` would just shift
+// every station's hash by the same amount. Returns 0..1. Mirrors
+// tasteProfile.seededJitter (the «Моя Волна» fix).
+const seededJitter = (id: string, seed: number) => {
+  let h = (hashValue(id) ^ Math.imul(seed | 0, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return (h % 1000) / 1000;
+};
+
+// «Для тебя» freshness: instead of always showing the top-N by score (which made
+// the rail «каждый раз одно и то же» — the in-data score gradient between the
+// leaders is wider than the old 0..1 rotationJitter could ever overcome, so the
+// SAME top-N always won), rank by score, take a POOL of the strongest matches
+// (limit × multiplier), then re-order WITHIN that pool by a blend of score and a
+// seed-mixed jitter. Re-opening / «Обновить» mints a new seed → a genuinely
+// different but still on-taste slice. Crucially scoreStation and the minScore
+// gate are untouched and the pool boundary is by RAW score, so the rail stays
+// on-taste; the blend keeps score in the key so the eager-taste re-rank survives
+// (a like adds ≈+12, far past the jitter amplitude, so it still breaks a station
+// to the front), and a fixed seed is deterministic so the T1.2 play-freeze holds.
+const FRESH_POOL_MULTIPLIER = 2;
+// Jitter swing added to the in-pool sort key. Comfortably above the score spread
+// between near-equal same-tag peers (so seeds permute them → freshness) and well
+// below a `liked` boost (so a like still wins → eager re-rank).
+const FRESH_ROTATION_AMPLITUDE = 4;
+
 const topEntries = (scores: ScoreMap, kind: TasteSignalKind, limit: number): HomeTasteSignal[] =>
   Object.entries(scores)
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
@@ -178,19 +207,43 @@ const rankStations = (
   limit: number,
   minScore = 1.25
 ) =>
-  stations
-    .filter(predicate)
-    .map((station) => ({
-      station,
-      score: scoreStation(station, profile, rotationSeed)
-    }))
-    .filter((item) => item.score >= minScore)
-    .sort(
-      (left, right) =>
-        right.score - left.score || left.station.name.localeCompare(right.station.name)
-    )
-    .slice(0, limit)
-    .map((item) => item.station);
+  pickFreshSlice(
+    stations
+      .filter(predicate)
+      .map((station) => ({
+        station,
+        score: scoreStation(station, profile, rotationSeed)
+      }))
+      .filter((item) => item.score >= minScore)
+      .sort(
+        (left, right) =>
+          right.score - left.score || left.station.name.localeCompare(right.station.name)
+      ),
+    rotationSeed,
+    limit
+  );
+
+// Take a pool of the top (limit × multiplier) score-ranked items and re-order it
+// by `score + amplitude × seededJitter`, then return `limit` of them. The pool
+// (top by RAW score) keeps the rail on-taste; the jitter term makes near-equal
+// peers swap across seeds (freshness) while the score term keeps a strong like
+// dominant (eager re-rank). With ≤ limit candidates the slice is the whole pool
+// — still deterministic for a fixed seed, so the play-freeze snapshot is stable.
+const pickFreshSlice = (
+  ranked: Array<{ station: StationLite; score: number }>,
+  rotationSeed: number,
+  limit: number
+): StationLite[] => {
+  const pool = ranked.slice(0, Math.max(limit, limit * FRESH_POOL_MULTIPLIER));
+  const freshKey = (item: { station: StationLite; score: number }) =>
+    item.score + FRESH_ROTATION_AMPLITUDE * seededJitter(item.station.stationuuid, rotationSeed);
+  pool.sort(
+    (left, right) =>
+      freshKey(right) - freshKey(left) ||
+      left.station.name.localeCompare(right.station.name)
+  );
+  return pool.slice(0, limit).map((item) => item.station);
+};
 
 export const recordSectionVisit = (profile: BehaviorProfile, section: AppSection): BehaviorProfile => ({
   ...profile,
