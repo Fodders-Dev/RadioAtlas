@@ -19,7 +19,7 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
 
-const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'collections'];
+const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'tracks', 'collections'];
 const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
 
 type LibrarySheetProps = {
@@ -1035,6 +1035,30 @@ export const Library = () => {
                   {t('nav.home')}
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {activeLibraryTab === 'tracks' ? (
+        <div className="glass-card">
+          <div className="library-section-head">
+            <div>
+              <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
+              <div className="section-subtitle">{t('library.tracksSubtitle')}</div>
+            </div>
+            {trackHistory.length ? (
+              <button className="chip" type="button" onClick={clearTrackHistory}>
+                {t('common.clear')}
+              </button>
+            ) : null}
+          </div>
+          {trackHistory.length ? (
+            <div className="track-list track-list-scroll">{renderTrackJournalEntries()}</div>
+          ) : (
+            <div className="empty-state library-empty-state">
+              <div className="library-empty-title">{t('favoritesScreen.journalEmpty')}</div>
+              <div className="section-subtitle">{t('library.tracksEmptyHint')}</div>
             </div>
           )}
         </div>

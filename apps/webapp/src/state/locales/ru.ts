@@ -515,6 +515,8 @@ export const ruDictionary = {
     "trackJournalCount": "Скопировано: {count}",
     "trackJournalExpand": "Показать журнал",
     "trackJournalCollapse": "Свернуть журнал",
+    "tracksSubtitle": "Названия треков, которые ты скопировал из эфира.",
+    "tracksEmptyHint": "Копируй название трека в плеере — оно появится здесь.",
     "stationHistory": "История живых станций для быстрого возврата в эфир.",
     "tabs": {
       "favorites": "Избранное",
