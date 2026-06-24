@@ -515,6 +515,8 @@ export const enDictionary = {
     "trackJournalCount": "Copied: {count}",
     "trackJournalExpand": "Show journal",
     "trackJournalCollapse": "Hide journal",
+    "tracksSubtitle": "Track titles you've copied from the air.",
+    "tracksEmptyHint": "Copy a track title in the player — it shows up here.",
     "stationHistory": "Live station history for returning to the right mood fast.",
     "tabs": {
       "favorites": "Favorites",
