@@ -409,7 +409,10 @@ const MAX_REDIRECT_HOPS = 5;
 
 const isRedirectStatus = (status: number) => status >= 300 && status < 400;
 
-const drainResponseBody = async (response: Response) => {
+// Cancelling the body settles the agent-disposal wrapper (wrapResponseWithAgentDisposal),
+// which is the ONLY thing that fires the pinned undici Agent's close(). Any caller that
+// abandons a response without reading it must drain it, or it leaks a socket + Agent.
+export const drainResponseBody = async (response: Response) => {
   if (!response.body) return;
   try {
     await response.body.cancel();

@@ -3,6 +3,7 @@ import { PassThrough, Readable } from 'node:stream';
 import type express from 'express';
 import type { MediaRouteOptions } from './types.js';
 import {
+  drainResponseBody,
   fetchUrlCandidates,
   fetchWithDeadline,
   fetchWithTimeout,
@@ -194,6 +195,10 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
               proxyTimeoutMs(options)
             );
             if (!response.ok) {
+              // Drain the abandoned body so its agent-disposal wrapper closes
+              // the pinned socket; dead/redirecting stream URLs are common, and
+              // a bare `continue` here leaks an Agent per failed candidate.
+              await drainResponseBody(response);
               lastError = new Error(`Upstream ${response.status}`);
               continue;
             }
@@ -356,6 +361,9 @@ export const createImageHandler = (options: MediaRouteOptions) => {
               proxyTimeoutMs(options)
             );
             if (!response.ok) {
+              // Same leak as the stream loop: artwork URLs 404/redirect often,
+              // so drain the discarded body to release the pinned Agent.
+              await drainResponseBody(response);
               lastError = new Error(`Upstream ${response.status}`);
               continue;
             }

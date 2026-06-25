@@ -357,7 +357,11 @@ const getStoredTrack = (key: string) => {
   const cache = readStoredTrackCache();
   const entry = cache[key];
   if (!entry?.track || !entry.updatedAt) return null;
-  if (Date.now() - entry.updatedAt > LAST_KNOWN_TRACKS_MAX_AGE_MS) {
+  // Treat future-dated entries as expired too: a backward clock correction makes
+  // (now - updatedAt) negative, so a `> MAX_AGE` check alone would never expire a
+  // weeks-old track and we'd surface it as the confident current «сейчас играет».
+  const age = Date.now() - entry.updatedAt;
+  if (age < 0 || age > LAST_KNOWN_TRACKS_MAX_AGE_MS) {
     delete cache[key];
     persistStoredTrackCache(cache);
     return null;
@@ -882,7 +886,17 @@ const fetchServerProxyTrack = async ({
     });
 
     if (res.ok) {
-      const data = await res.json();
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        // A 200 with an unparseable body (gateway HTML error page, a truncated
+        // proxy reply) is NOT an API outage. Falling through to the outer catch
+        // would call markApiUnavailable and black out EVERY station's server-proxy
+        // strategy for 6s. Treat it as "no track this poll" instead.
+        if (logDebug) logDebug('[SSR] 200 with non-JSON body');
+        return { apiFailed: false, track: null };
+      }
       if (data.logs && logDebug && Array.isArray(data.logs)) {
         data.logs.forEach((line: string) => logDebug(`[SSR] ${line}`));
       }

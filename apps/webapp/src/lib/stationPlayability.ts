@@ -247,7 +247,15 @@ export const getStationPlayabilityScore = (
 
   const lastSuccessAt = signal.lastSuccessAt || 0;
   const lastFailureAt = signal.lastFailureAt || 0;
-  const ageFactor = Math.max(0.35, 1 - (now - signal.lastEventAt) / PLAYABILITY_SIGNAL_TTL_MS);
+  // Clamp BOTH ends: the lower bound is decay, the upper bound (1) guards a
+  // backward clock correction. If lastEventAt is in the future relative to `now`
+  // (device clock was running ahead, then NTP rewinds it), (now - lastEventAt)
+  // goes negative and the factor would exceed 1, AMPLIFYING the score instead of
+  // decaying it — pushing a stale station up/down the rail. min(1, …) prevents it.
+  const ageFactor = Math.min(
+    1,
+    Math.max(0.35, 1 - (now - signal.lastEventAt) / PLAYABILITY_SIGNAL_TTL_MS)
+  );
   const recentSuccess = lastSuccessAt && now - lastSuccessAt <= RECENT_SUCCESS_WINDOW_MS ? 1.7 : 0;
   const failureAfterSuccess = lastFailureAt > lastSuccessAt;
   const recentFailure =
