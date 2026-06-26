@@ -629,6 +629,38 @@ export const fetchWithDeadline = async (
   }
 };
 
+// Read a response body into a Buffer with a hard byte cap, cancelling the read
+// (which settles the agent-disposal wrapper → releases the socket) the moment it
+// exceeds the cap. Use instead of `arrayBuffer()` when the upstream size is
+// untrusted — arrayBuffer() buffers the WHOLE body into RAM before any limit, so
+// one oversized response with a missing/false content-length can OOM the process.
+export const readBytesWithLimit = async (
+  response: Response,
+  maxBytes: number
+): Promise<Buffer> => {
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel('response too large');
+      throw new Error(`response exceeded ${maxBytes} bytes`);
+    }
+    chunks.push(Buffer.from(value));
+  }
+
+  return Buffer.concat(chunks);
+};
+
 export const readTextWithLimit = async (
   response: Response,
   maxBytes = 256 * 1024

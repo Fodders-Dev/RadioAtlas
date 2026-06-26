@@ -8,6 +8,7 @@ import {
   fetchWithDeadline,
   fetchWithTimeout,
   parseAndValidateHttpUrl,
+  readBytesWithLimit,
   readTextWithLimit,
   rewriteM3U8,
   sendJsonError
@@ -415,12 +416,18 @@ export const createImageHandler = (options: MediaRouteOptions) => {
           return toArtworkFallback(parsed.target, 'Artwork too large');
         }
 
-        const body = Buffer.from(await upstream.arrayBuffer());
-        if (!body.byteLength || body.byteLength > IMAGE_PROXY_MAX_BYTES) {
-          return toArtworkFallback(
-            parsed.target,
-            body.byteLength > IMAGE_PROXY_MAX_BYTES ? 'Artwork too large' : 'Artwork missing'
-          );
+        let body: Buffer;
+        try {
+          // Stream with a hard byte cap instead of arrayBuffer(): a missing or
+          // false content-length skips the pre-check above, and an unbounded
+          // arrayBuffer() would buffer the whole (possibly huge) body into RAM
+          // before any limit — one oversized ?url= could OOM the API.
+          body = await readBytesWithLimit(upstream, IMAGE_PROXY_MAX_BYTES);
+        } catch {
+          return toArtworkFallback(parsed.target, 'Artwork too large');
+        }
+        if (!body.byteLength) {
+          return toArtworkFallback(parsed.target, 'Artwork missing');
         }
 
         return {
