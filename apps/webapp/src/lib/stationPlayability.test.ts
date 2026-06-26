@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PLAYABILITY_PROFILE,
+  getStationPlayabilityScore,
   getUpstreamHealthScore,
   isStationHardHiddenByUpstream,
   rankStationsForHome,
-  rankStationsForSearch
+  rankStationsForSearch,
+  recordPlaybackOutcome
 } from './stationPlayability';
 import { DEFAULT_BEHAVIOR_PROFILE } from './homeProfile';
 import { DEFAULT_STATION_HEALTH_PROFILE, recordStationHealthSignal } from './stationHealth';
@@ -337,5 +339,26 @@ describe('rankStationsForSearch — upstream health weight', () => {
     const ids = ranked.map((s) => s.stationuuid);
     expect(ids).toContain('broken');
     expect(ids.indexOf('ok')).toBeLessThan(ids.indexOf('broken'));
+  });
+});
+
+describe('getStationPlayabilityScore ageFactor clamp (backward clock skew)', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const s = station('clock-skew', 'Clock Skew FM', 'Russia', 'rock');
+
+  it('never amplifies the score when the clock is corrected backward (ageFactor ≤ 1)', () => {
+    // Record a success at NOW (lastEventAt = lastSuccessAt = NOW).
+    const profile = recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, s, 'success', NOW);
+    const atEvent = getStationPlayabilityScore(profile, s, NOW);
+    // Now the device clock rewinds a week: scoring `now` is BEFORE the stored
+    // lastEventAt, so (now - lastEventAt) is negative. Pre-fix ageFactor became
+    // 1.5 and magnified the term; the clamp pins it at 1.0.
+    const backwardSkew = getStationPlayabilityScore(profile, s, NOW - WEEK_MS);
+    expect(atEvent).toBeGreaterThan(0);
+    expect(backwardSkew).toBeGreaterThan(0);
+    expect(backwardSkew).toBeLessThanOrEqual(atEvent);
+    // Exactly equal: both sides cap at ageFactor 1, same success term.
+    expect(backwardSkew).toBeCloseTo(atEvent, 6);
   });
 });
