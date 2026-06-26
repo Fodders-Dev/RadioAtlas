@@ -693,6 +693,19 @@ export const useAudioPlayer = ({
       setCurrentTime(audio.currentTime || 0);
     };
     const handleWaiting = () => {
+      // A manually paused element (user pause, sleep-timer, or headphone-unplug —
+      // all call pause() without bumping the session or clearing the refs) can
+      // still emit 'waiting'/'stalled' when its buffer goes idle. Without this
+      // guard the rebuffer timer below would fire tryNextCandidate → audio.play()
+      // and silently RESUME the stream the user just paused (and, after a
+      // headphone unplug, blast it through the phone speaker). Mirror the
+      // `!audio.paused` guard handleVisibility already uses: never act on a
+      // buffering event while paused. After audio.play() the element is NOT
+      // paused even during startup buffering, so this only bails on a real pause.
+      if (audio.paused) {
+        pushEvent('audio: waiting (ignored, paused)');
+        return;
+      }
       const activeSession = playbackSessionRef.current;
       if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
