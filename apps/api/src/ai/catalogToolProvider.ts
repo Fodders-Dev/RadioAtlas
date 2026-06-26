@@ -3,7 +3,8 @@
 // catalog-internal imports. Even Telegram tool calls run through here in-process
 // (the bot calls the brain over HTTP; the brain calls the catalog in-process).
 
-import type { ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
+import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
+import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
 // them (a superset is fine).
@@ -31,7 +32,28 @@ export type CatalogServiceLike = {
     moodRails?: Array<{ id: string; stations: CatalogStationLite[] }>;
     trending?: CatalogStationLite[];
   }>;
+  // Full profiled catalog (curated overlay already applied) — scanned by the
+  // artist-search layers for live-card lookup and name matching.
+  getCatalog: (mode: 'full') => Promise<CatalogStationLite[]>;
 };
+
+const CDN_HOST = 'icecast-radiovanya.cdnvideo.ru';
+
+// Lowercased CDN mount path of a station url, or '' when it isn't a Radio-Vanya
+// CDN url (mirrors curatedOverlay.cdnMountOf so a curated hit's `mount` lines up
+// with the live row's url_resolved).
+const mountOf = (rawUrl: string | null | undefined): string => {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.hostname.toLowerCase() !== CDN_HOST) return '';
+    return parsed.pathname.replace(/^\/+/, '').toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const MAX_NAME_MATCHES = 5;
 
 const MOOD_LABELS: Record<string, string> = {
   'mood-late-night': 'Поздний вечер',
@@ -104,6 +126,40 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     if (!id) return null;
     const station = await catalog.getStationById(id);
     return station && station.url_resolved ? toRef(station) : null;
+  },
+  // L1 card fetch: locate the LIVE catalog row for a curated artist hit so the
+  // card carries the real (overlay-resolved) uuid + stream, not the fallback id.
+  // Match by CDN mount first (stable across overlay uuid claiming), then by exact
+  // name, then by the curated fallback uuid.
+  resolveArtistStation: async (hit: CuratedArtistHit) => {
+    const stations = await catalog.getCatalog('full');
+    const byMount = hit.mount
+      ? stations.find((s) => mountOf(s.url_resolved) === hit.mount)
+      : undefined;
+    const match =
+      byMount ||
+      stations.find((s) => s.name === hit.name) ||
+      stations.find((s) => s.stationuuid === hit.stationuuid);
+    return match && match.url_resolved ? toRef(match) : null;
+  },
+  // L3: catalog stations whose NAME (not tags) matches the artist by case-tolerant
+  // token-prefix. Catalog order is already quality-ranked, so the first matches
+  // are the strongest; cap to keep the card list tight.
+  matchStationsByArtistName: async (artist: string) => {
+    const artistNorm = normalizeArtist(artist);
+    if (!artistNorm) return [];
+    const stations = await catalog.getCatalog('full');
+    const out: VerifiedStationRef[] = [];
+    for (const station of stations) {
+      if (!station.url_resolved) continue;
+      // artist is the KEY (every artist token must appear in the station NAME);
+      // the name is the haystack. So «Linkin Park» matches «Linkin Park Radio».
+      if (artistTokensMatch(normalizeArtist(station.name), artistNorm)) {
+        out.push(toRef(station));
+        if (out.length >= MAX_NAME_MATCHES) break;
+      }
+    }
+    return out;
   },
   discoverTrending: async (seed) => {
     const summary = await catalog.getSummary(hashSeed(seed));

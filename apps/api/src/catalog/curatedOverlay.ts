@@ -37,6 +37,13 @@ type CuratedStream = {
   shortName: string;
   /** Extra search phrases (Cyrillic/Latin variants) for findability. */
   aliases?: string[];
+  /**
+   * The single artist/band this stream is dedicated to, when it is an
+   * artist-station (vs a genre/mood stream). Source of truth for the curated
+   * artist index (apps/api/src/ai/curatedArtistIndex.ts) — only streams that
+   * carry this are eligible for find_stations_by_artist grounding:'curated'.
+   */
+  artist?: string;
   /** Dead Radio-Browser UUIDs this stream replaces in-place (favorites survive). */
   supersedeUuids?: string[];
   /** Stable curated id used only when no existing row is matched/superseded. */
@@ -55,17 +62,35 @@ const CURATED: CuratedStream[] = [
   { slug: 'rv_techno_dance', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_techno_dance', name: 'Радио Ваня — Техно Дэнс', shortName: 'Техно Дэнс', aliases: ['техно данс', 'techno', 'танцы'], fallbackUuid: 'curated-radiovanya-techno' },
   { slug: 'rv_medlyaki', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_medlyaki', name: 'Радио Ваня — Медляки', shortName: 'Медляки', aliases: ['медленные', 'lyrics', 'романтика'], fallbackUuid: 'curated-radiovanya-medlyaki' },
   { slug: 'rv_latina_dance', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_latina_dance', name: 'Радио Ваня — Латина Дэнс', shortName: 'Латина Дэнс', aliases: ['латина данс', 'latina', 'латино', 'танцы'], fallbackUuid: 'curated-radiovanya-latina' },
-  { slug: 'rv_ruki_vverh', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_ruki_vverh', name: 'Радио Ваня — Руки Вверх!', shortName: 'Руки Вверх!', aliases: ['руки вверх', 'ruki vverh'], fallbackUuid: 'curated-radiovanya-ruki-vverh' },
-  { slug: 'rv_gubin', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_gubin', name: 'Радио Ваня — Андрей Губин', shortName: 'Андрей Губин', aliases: ['губин', 'gubin'], fallbackUuid: 'curated-radiovanya-gubin' },
-  { slug: 'rv_diskoteka_avaria', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_diskoteka_avaria', name: 'Радио Ваня — Дискотека Авария', shortName: 'Дискотека Авария', aliases: ['дискотека авария', 'avaria'], fallbackUuid: 'curated-radiovanya-avaria' },
+  { slug: 'rv_ruki_vverh', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_ruki_vverh', name: 'Радио Ваня — Руки Вверх!', shortName: 'Руки Вверх!', artist: 'Руки Вверх!', aliases: ['руки вверх', 'ruki vverh'], fallbackUuid: 'curated-radiovanya-ruki-vverh' },
+  { slug: 'rv_gubin', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_gubin', name: 'Радио Ваня — Андрей Губин', shortName: 'Андрей Губин', artist: 'Андрей Губин', aliases: ['губин', 'gubin'], fallbackUuid: 'curated-radiovanya-gubin' },
+  { slug: 'rv_diskoteka_avaria', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_diskoteka_avaria', name: 'Радио Ваня — Дискотека Авария', shortName: 'Дискотека Авария', artist: 'Дискотека Авария', aliases: ['дискотека авария', 'avaria'], fallbackUuid: 'curated-radiovanya-avaria' },
   { slug: 'rv_vintage', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_vintage', name: 'Радио Ваня — Винтаж', shortName: 'Винтаж', aliases: ['винтаж', 'vintage'], fallbackUuid: 'curated-radiovanya-vintage' },
-  { slug: 'rv_nysha', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_nysha', name: 'Радио Ваня — NYUSHA', shortName: 'NYUSHA', aliases: ['нюша', 'nyusha'], fallbackUuid: 'curated-radiovanya-nyusha' },
-  { slug: 'rv_mari_kraimbrery', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_mari_kraimbrery', name: 'Радио Ваня — Мари Краймбрери', shortName: 'Мари Краймбрери', aliases: ['мари краймбрери', 'mari kraimbrery'], fallbackUuid: 'curated-radiovanya-mari' },
-  { slug: 'rv_ivanushki', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_ivanushki', name: 'Радио Ваня — Иванушки International', shortName: 'Иванушки International', aliases: ['иванушки', 'ivanushki'], fallbackUuid: 'curated-radiovanya-ivanushki' },
-  { slug: 'rv_bilan', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_bilan', name: 'Радио Ваня — Дима Билан', shortName: 'Дима Билан', aliases: ['дима билан', 'bilan'], fallbackUuid: 'curated-radiovanya-bilan' },
-  { slug: 'rv_artik_asti', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_artik_asti', name: 'Радио Ваня — Artik & Asti', shortName: 'Artik & Asti', aliases: ['артик и асти', 'artik asti', 'artik & asti'], fallbackUuid: 'curated-radiovanya-artik-asti' },
-  { slug: 'rv_gosti', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_gosti', name: 'Радио Ваня — Гости из будущего', shortName: 'Гости из будущего', aliases: ['гости из будущего', 'gosti'], fallbackUuid: 'curated-radiovanya-gosti' }
+  { slug: 'rv_nysha', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_nysha', name: 'Радио Ваня — NYUSHA', shortName: 'NYUSHA', artist: 'NYUSHA', aliases: ['нюша', 'nyusha'], fallbackUuid: 'curated-radiovanya-nyusha' },
+  { slug: 'rv_mari_kraimbrery', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_mari_kraimbrery', name: 'Радио Ваня — Мари Краймбрери', shortName: 'Мари Краймбрери', artist: 'Мари Краймбрери', aliases: ['мари краймбрери', 'mari kraimbrery'], fallbackUuid: 'curated-radiovanya-mari' },
+  { slug: 'rv_ivanushki', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_ivanushki', name: 'Радио Ваня — Иванушки International', shortName: 'Иванушки International', artist: 'Иванушки International', aliases: ['иванушки', 'ivanushki'], fallbackUuid: 'curated-radiovanya-ivanushki' },
+  { slug: 'rv_bilan', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_bilan', name: 'Радио Ваня — Дима Билан', shortName: 'Дима Билан', artist: 'Дима Билан', aliases: ['дима билан', 'bilan'], fallbackUuid: 'curated-radiovanya-bilan' },
+  { slug: 'rv_artik_asti', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_artik_asti', name: 'Радио Ваня — Artik & Asti', shortName: 'Artik & Asti', artist: 'Artik & Asti', aliases: ['артик и асти', 'artik asti', 'artik & asti'], fallbackUuid: 'curated-radiovanya-artik-asti' },
+  { slug: 'rv_gosti', url: 'https://icecast-radiovanya.cdnvideo.ru/rv_gosti', name: 'Радио Ваня — Гости из будущего', shortName: 'Гости из будущего', artist: 'Гости из будущего', aliases: ['гости из будущего', 'gosti'], fallbackUuid: 'curated-radiovanya-gosti' }
 ];
+
+// A curated artist-station, projected for the AI artist index. Decoupled from
+// the overlay's internal CuratedStream shape so curatedArtistIndex.ts depends on
+// this stable view, not the mount/url internals it doesn't need.
+export type CuratedArtistStation = {
+  /** Canonical artist/band name. */
+  artist: string;
+  /** Sub-stream display label («Дискотека Авария»). */
+  displayName: string;
+  /** Full catalog station name («Радио Ваня — Дискотека Авария»). */
+  name: string;
+  /** Cyrillic/Latin search aliases. */
+  aliases: string[];
+  /** Lowercased CDN mount (e.g. «rv_diskoteka_avaria»), for live-card lookup. */
+  mount: string;
+  /** Stable curated id used when no live row was matched/superseded. */
+  fallbackUuid: string;
+};
 
 // Health fields normalizeStation attaches but the local Station type doesn't
 // declare; carried structurally so curated rows can set them without a cast.
@@ -84,6 +109,20 @@ const cdnMountOf = (rawUrl: string): string | null => {
     return null;
   }
 };
+
+// The curated artist-stations (those carrying `artist`), source of truth for the
+// AI artist index. Derived once at module load — placed after cdnMountOf so the
+// mount projection runs with that helper already initialised.
+export const CURATED_ARTIST_STATIONS: CuratedArtistStation[] = CURATED.filter(
+  (stream) => stream.artist
+).map((stream) => ({
+  artist: stream.artist as string,
+  displayName: stream.shortName,
+  name: stream.name,
+  aliases: stream.aliases ?? [],
+  mount: cdnMountOf(stream.url) ?? '',
+  fallbackUuid: stream.fallbackUuid
+}));
 
 const buildTags = (stream: CuratedStream): string => {
   const short = stream.shortName.toLowerCase();
