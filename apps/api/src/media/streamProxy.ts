@@ -15,6 +15,32 @@ import {
 import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
 
 const proxyTimeoutMs = (options: MediaRouteOptions) => options.upstreamTimeoutMs || 12_000;
+
+/**
+ * Tear down the upstream read when the client disconnects mid-stream.
+ *
+ * A live radio response effectively never ends — the client (skip station, app
+ * close, network drop) is what closes `res`. Node's pipe unpipes `res` on that
+ * close but never destroys the source, so the upstream connection and the
+ * 512KB PassThrough buffer leak until the upstream itself ends (for live radio:
+ * never), accumulating per abandoned listen. Destroying the source on a
+ * PREMATURE close cancels the upstream web body, which fires the agent-disposal
+ * wrapper (shared.ts wrapResponseWithAgentDisposal) and releases the pinned
+ * socket. A normal completion (`res.writableEnded`) is left untouched, so the
+ * happy path is unchanged.
+ */
+export const wireClientDisconnectTeardown = (
+  res: { writableEnded: boolean; on: (event: 'close', listener: () => void) => void },
+  ...streams: Array<{ destroy: () => void }>
+) => {
+  res.on('close', () => {
+    if (res.writableEnded) return;
+    for (const stream of streams) {
+      stream.destroy();
+    }
+  });
+};
+
 const IMAGE_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
 const IMAGE_NEGATIVE_CACHE_TTL_MS = 1000 * 60 * 15;
 const IMAGE_PROXY_MAX_BYTES = 1024 * 1024 * 2;
@@ -285,6 +311,7 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
           res.destroy();
         }
       });
+      wireClientDisconnectTeardown(res, sourceStream, bufferStream);
       sourceStream.pipe(bufferStream).pipe(res);
     } catch (error) {
       if (error instanceof MediaOverloadError) {
