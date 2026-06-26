@@ -96,6 +96,25 @@ export type TrendingRail = {
   stations: VerifiedStationRef[];
 };
 
+// How strongly a find_stations_by_artist result is tied to the artist:
+//  - 'curated': a Radio-Vanya station DEDICATED to that artist (owner-verified) —
+//    Лира may state it plays the artist.
+//  - 'name-match': a catalog station whose NAME merely matches the artist — Лира
+//    says "по названию похоже", never that it plays them.
+//  - 'none': no station; external service-search links only.
+export type ArtistGrounding = 'curated' | 'name-match' | 'none';
+
+// The curated artist-station the L1 resolver matched (curatedArtistIndex.ts).
+// Carries the keys the catalog tool provider uses to fetch the LIVE card.
+export type CuratedArtistHit = {
+  stationuuid: string; // curated fallback uuid (live uuid resolved from catalog)
+  artist: string;
+  displayName: string;
+  name: string; // full catalog station name («Радио Ваня — Дискотека Авария»)
+  mount: string; // lowercased CDN mount, for live-row lookup
+  matchTerms: string[]; // name + display + aliases, for substring fallback lookup
+};
+
 // DI seam: the api binds this to the in-process catalogService; tests bind a
 // stub. music_service_search is deterministic (no network) and lives in
 // musicLinks.ts, so it is NOT part of the provider.
@@ -103,6 +122,13 @@ export type ToolProvider = {
   searchStations: (args: SearchStationsArgs) => Promise<VerifiedStationRef[]>;
   getStation: (id: string) => Promise<VerifiedStationRef | null>;
   discoverTrending: (seed?: string) => Promise<TrendingRail[]>;
+  // Artist-search seam (find_stations_by_artist). Optional so existing stub
+  // providers/tests stay valid; when absent the tool falls straight to L4 links.
+  //  - resolveArtistStation: fetch the LIVE catalog card for an L1 curated hit.
+  //  - matchStationsByArtistName: L3 — catalog stations whose NAME matches the
+  //    artist (token-prefix, NOT tags), ranked, capped.
+  resolveArtistStation?: (hit: CuratedArtistHit) => Promise<VerifiedStationRef | null>;
+  matchStationsByArtistName?: (artist: string) => Promise<VerifiedStationRef[]>;
 };
 
 // One result of running a tool, fed back into the planner/composer as the
@@ -116,6 +142,11 @@ export type ToolObservation = {
   sources?: WebSource[];
   note?: string;
   error?: string;
+  // Set ONLY by find_stations_by_artist — how strongly the cards tie to the
+  // artist (drives the composer's "plays X" vs "name looks similar" guard).
+  grounding?: ArtistGrounding;
+  // The artist the find tool resolved against (for the composer's grounding note).
+  artist?: string;
 };
 
 // --- Web-search seam (Tavily only; key server-only, like DeepSeek) ----------

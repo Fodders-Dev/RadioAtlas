@@ -5,6 +5,7 @@ import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
   ChatInput,
+  CuratedArtistHit,
   DeepseekConfig,
   ToolProvider,
   VerifiedStationRef
@@ -660,4 +661,119 @@ test('VIBE BACKSTOP (4): a factual/news question with a music keyword does NOT t
   assert.deepEqual(searched, [], 'no station search on a factual question');
   assert.equal(result.stations.length, 0, 'no cards surfaced for a news question');
   assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'the factual honesty guard survives');
+});
+
+// --- find_stations_by_artist — curated-grounded artist search -----------------
+
+test('ARTIST ROUTING: «радио с <curated artist>» → find_stations_by_artist leads with the curated card', async () => {
+  let resolvedHit: CuratedArtistHit | null = null;
+  const tools: ToolProvider = {
+    ...stubTools,
+    // generic search would return Paris Jazz — proving routing means we do NOT
+    // see that; we see the curated artist station instead.
+    resolveArtistStation: async (hit) => {
+      resolvedHit = hit;
+      return station({ stationuuid: 'uuid-avaria', name: 'Радио Ваня — Дискотека Авария', tags: ['russian'] });
+    },
+    matchStationsByArtistName: async () => []
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"final"}'],
+    compose: 'Лови нашу станцию, целиком про Дискотеку Аварию!'
+  });
+  const result = await chatWithAssistant(ask('радио с Дискотекой Авария'), makeDeps(fetchImpl, { tools }));
+  // the L1 curated hit (inflected query → resolved) was handed to the provider…
+  assert.equal(resolvedHit?.artist, 'Дискотека Авария');
+  // …and its live card is the one that surfaced (not the generic jazz station).
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-avaria');
+});
+
+test('ARTIST COMPOSE (curated): the composer is told it MAY say the station plays the artist', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    resolveArtistStation: async () => station({ stationuuid: 'uuid-avaria', name: 'Радио Ваня — Дискотека Авария' }),
+    matchStationsByArtistName: async () => []
+  };
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Готово!' });
+  await chatWithAssistant(ask('радио с Дискотекой Авария'), makeDeps(fetchImpl, { tools }));
+  const compose = calls.find((c) => c.phase === 'compose');
+  const note = compose!.body.messages.find(
+    (m: any) => typeof m.content === 'string' && m.content.includes('станция-посвящение')
+  );
+  assert.ok(note, 'curated grounding note reached the composer');
+});
+
+test('ARTIST COMPOSE (name-match): an UNGROUNDED result forbids the composer claiming the station plays X', async () => {
+  // No curated station, but a catalog NAME matches → grounding name-match. The
+  // composer must be told NOT to assert the station plays the artist.
+  const tools: ToolProvider = {
+    ...stubTools,
+    resolveArtistStation: async () => null,
+    matchStationsByArtistName: async () => [station({ stationuuid: 'uuid-name', name: 'Avaria Sound' })]
+  };
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Похоже по названию.' });
+  const result = await chatWithAssistant(ask('радио с Дискотекой Авария'), makeDeps(fetchImpl, { tools }));
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-name');
+  const compose = calls.find((c) => c.phase === 'compose');
+  const guarded = compose!.body.messages.some(
+    (m: any) => typeof m.content === 'string' && m.content.includes('ТОЛЬКО по названию')
+  );
+  assert.ok(guarded, 'name-match guard reached the composer (no "plays X" claim)');
+});
+
+test('ARTIST COMPOSE (none): no station at all → composer told not to invent one, links offered', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [], // backstop also finds nothing
+    resolveArtistStation: async () => null,
+    matchStationsByArtistName: async () => []
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"final"}'],
+    vibeTags: '',
+    compose: 'Своей станции нет, но вот ссылки.'
+  });
+  const result = await chatWithAssistant(ask('радио с Linkin Park'), makeDeps(fetchImpl, { tools }));
+  assert.deepEqual(result.stations, []);
+  assert.ok(result.serviceLinks.length > 0, 'L4 fell back to external service links');
+  const compose = calls.find((c) => c.phase === 'compose');
+  const guarded = compose!.body.messages.some(
+    (m: any) => typeof m.content === 'string' && m.content.includes('не нашлось')
+  );
+  assert.ok(guarded, 'none grounding note reached the composer');
+});
+
+test('ARTIST ROUTING: a forced play of a curated artist («включи Руки Вверх») routes to the artist tool + autoplays', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    resolveArtistStation: async () => station({ stationuuid: 'uuid-ruki', name: 'Радио Ваня — Руки Вверх!' }),
+    matchStationsByArtistName: async () => []
+  };
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Включаю!' });
+  const result = await chatWithAssistant(ask('включи Руки Вверх'), makeDeps(fetchImpl, { tools }));
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-ruki');
+  assert.equal(result.actions[0]?.kind, 'play'); // explicit play verb → autoplay
+});
+
+test('ARTIST ROUTING: a plain genre («включи джаз») is NOT hijacked by the artist tool', async () => {
+  let artistCalled = false;
+  const tools: ToolProvider = {
+    ...stubTools,
+    resolveArtistStation: async () => {
+      artistCalled = true;
+      return station({ stationuuid: 'uuid-wrong' });
+    },
+    matchStationsByArtistName: async () => {
+      artistCalled = true;
+      return [station({ stationuuid: 'uuid-wrong' })];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Вот джаз.'
+  });
+  const result = await chatWithAssistant(ask('включи джаз'), makeDeps(fetchImpl, { tools }));
+  assert.equal(artistCalled, false); // «джаз» isn't a curated artist → normal search path
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
 });

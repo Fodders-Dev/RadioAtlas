@@ -14,6 +14,7 @@ import {
   collectVerifiedStations,
   isVoiceSafe
 } from './antiHallucination.js';
+import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
@@ -106,6 +107,27 @@ const explicitSearchQuery = (message: string): string | null => {
   return looksConcreteTopic(query) ? query : null;
 };
 
+// Explicit "a station FOR artist X" phrasings → the artist name to resolve.
+// «радио с Дискотекой Авария», «станция с группой …», «где играет Дима Билан»,
+// «что-нибудь про NYUSHA». The captured tail is the artist (token-matching in
+// the index tolerates the case ending, so we don't over-clean it). A leading
+// «группой/артистом/певицей …» qualifier is stripped.
+const ARTIST_REQUEST_PATTERNS: RegExp[] = [
+  /(?:радио|станци\w*|волн\w*|плейлист\w*|сборник\w*|подборк\w*|что-?нибудь|чего-?нибудь|музык\w*)\s+(?:с|со)\s+(?:групп\w+\s+|артист\w+\s+|певц\w+\s+|певиц\w+\s+|исполнител\w+\s+)?(.+)$/i,
+  /(?:где|которое|что)\s+(?:сейчас\s+)?(?:играет|играют|крутят|поют|звучит)\s+(.+)$/i,
+  /(?:радио|станци\w*|что-?нибудь)\s+про\s+(?:групп\w+\s+|артист\w+\s+)?(.+)$/i,
+  /про\s+групп\w+\s+(.+)$/i
+];
+
+const explicitArtistQuery = (message: string): string | null => {
+  for (const pattern of ARTIST_REQUEST_PATTERNS) {
+    const match = message.match(pattern);
+    const artist = match?.[1]?.trim().replace(/[?!.]+$/, '').trim();
+    if (artist && artist.length >= 2) return artist;
+  }
+  return null;
+};
+
 const isSmalltalk = (message: string): boolean =>
   !ACTION_INTENT.test(message) && !VIBE_INTENT.test(message);
 
@@ -136,16 +158,37 @@ const addUsage = (into: ChatUsage, add: ChatUsage | undefined) => {
 
 // Compact station facts the composer is allowed to reference (names/ids only
 // from here). Excludes url_resolved — the model never needs the raw stream.
-const factsForModel = (observations: ToolObservation[]) => ({
-  stations: collectVerifiedStations(observations).map((station) => ({
-    id: station.stationuuid,
-    name: station.name,
-    country: station.country,
-    tags: station.tags
-  })),
-  hasServiceLinks: observations.some((obs) => (obs.serviceLinks || []).length > 0),
-  trendingNote: observations.find((obs) => obs.tool === 'discover_trending')?.note || null
-});
+const artistObservation = (observations: ToolObservation[]): ToolObservation | undefined =>
+  observations.find((obs) => obs.tool === 'find_stations_by_artist' && obs.artist);
+
+const factsForModel = (observations: ToolObservation[]) => {
+  const artistObs = artistObservation(observations);
+  return {
+    stations: collectVerifiedStations(observations).map((station) => ({
+      id: station.stationuuid,
+      name: station.name,
+      country: station.country,
+      tags: station.tags
+    })),
+    hasServiceLinks: observations.some((obs) => (obs.serviceLinks || []).length > 0),
+    trendingNote: observations.find((obs) => obs.tool === 'discover_trending')?.note || null,
+    // Artist grounding tier so the composer knows whether it may claim "plays X".
+    artist: artistObs ? { name: artistObs.artist, grounding: artistObs.grounding } : null
+  };
+};
+
+// Grounding-aware guard for find_stations_by_artist: Лира may claim a station
+// plays/ is dedicated to the artist ONLY when grounding is 'curated'.
+const artistGroundingNote = (obs: ToolObservation): string => {
+  const artist = obs.artist || 'этого артиста';
+  if (obs.grounding === 'curated') {
+    return `Станция в карточках — наша станция-посвящение артисту ${artist}: можешь прямо и тепло сказать, что она целиком про ${artist} и играет его. Это подтверждённый факт.`;
+  }
+  if (obs.grounding === 'name-match') {
+    return `Станции в карточках совпали с «${artist}» ТОЛЬКО по названию. НЕ утверждай, что они играют ${artist} — скажи осторожно («по названию похоже, что про ${artist}, но точно не обещаю»).`;
+  }
+  return `Своей станции под ${artist} не нашлось. НЕ называй и не выдумывай станцию с этим артистом и НЕ утверждай, что где-то он играет; предложи внешние ссылки (если есть) или близкий по духу вайб.`;
+};
 
 const buildPlannerSystem = (webSearchActive: boolean): string => {
   // web_search_factual is only OFFERED when active — otherwise the planner is
@@ -171,11 +214,12 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
     '',
     'Вызывай инструмент ТОЛЬКО когда нужны свежие/проверяемые данные: найти реальную станцию, подтвердить станцию, узнать что сейчас в тренде, или дать ссылки на внешние музыкальные сервисы для конкретного трека/альбома/артиста.',
     'Если человек явно просит включить/поставить станцию ИЛИ советует жанр/настроение/страну («включи джаз», «посоветуй спокойное на вечер», «поставь что-то бразильское») — СРАЗУ вызывай search_stations с этим запросом, даже посреди разговора и даже если уже болтали. НЕ переспрашивай «а какой именно?».',
+    'Если человек называет КОНКРЕТНОГО исполнителя или группу (не жанр) и хочет станцию/радио с ним («радио с Дискотекой Авария», «где играет Дима Билан», «включи Руки Вверх», «станция про NYUSHA») — вызывай find_stations_by_artist с именем артиста в args.artist, а НЕ search_stations. Этот инструмент знает наши станции-посвящения конкретным артистам.',
     '',
     'ДЕЙСТВУЙ НА ВАЙБ. Любой запрос на музыку под настроение, занятие, вайб или контекст — даже сложный или абстрактный («музыку для драки», «для прогулки чтобы чувствовать себя крутым», «чтобы взбодриться утром», «под дорогу») — это запрос на станции, а НЕ повод порассуждать. ОБЯЗАТЕЛЬНО сам выбери 1–2 конкретных канонических жанра-тега под этот вайб и вызови search_stations. НЕ описывай жанры словами без вызова инструмента — назвать жанр («тут подойдёт трип-хоп») и НЕ поискать — это ошибка. Примеры маппинга вайба → теги: «для драки» → «hardcore» или «punk»/«metal»; «крутая прогулка» → «trip hop» или «hip-hop»; «взбодриться» → «electronic»/«drum and bass»; «уютный вечер» → «chillout»/«jazz».',
     '',
     'РАСШИРЕНИЕ ЗАПРОСА. Каталог станций ищет по ИМЕНИ и ТЕГАМ станций (теги — в основном английские жанры), НЕ по именам артистов и не по свободным фразам. Поэтому в search_stations.query клади ЭФФЕКТИВНЫЙ поисковый запрос — канонический английский жанр/тег, а не дословную фразу пользователя:',
-    '— Артист или группа → его жанр(ы): «Limp Bizkit» → «nu metal», «Daft Punk» → «electronic», «Hans Zimmer» → «soundtrack». Ищи ЖАНР, а не имя артиста.',
+    '— Артист или группа: СНАЧАЛА find_stations_by_artist (вернёт нашу станцию артиста, если есть). Если станций нет — тогда search_stations по его жанру: «Limp Bizkit» → «nu metal», «Daft Punk» → «electronic», «Hans Zimmer» → «soundtrack». В search_stations ищи ЖАНР, а не имя артиста.',
     '— Русское или нечёткое описание → канонический английский тег: «игровые саундтреки» → «video game music», «спокойное на вечер» → «chillout» или «ambient», «вечерний джаз» → «jazz», «что-то бразильское» → «brazilian», «бодрое для спорта» → «workout».',
     'Если search_stations вернул пусто (found=false или станций нет) — НЕ сдавайся: вызови ЕЩЁ ОДИН search_stations с ДРУГИМ запросом (более широкий жанр, другой английский тег или одно самое сильное слово) ПРЕЖДЕ чем звать music_service_search. Только когда и расширенный поиск пуст — тогда music_service_search.',
     'Уточняющий вопрос (action "final" без станций) допустим ТОЛЬКО когда вообще нет НИКАКОЙ зацепки — ни жанра, ни настроения, ни занятия, ни вайба («включи что-нибудь»). Если названо хоть что-то — ищи, а не переспрашивай.',
@@ -271,6 +315,11 @@ const composeAgentReply = async (
       )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай названия станций по памяти. Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
+  // Artist grounding note (curated / name-match / none) — gates "plays X" claims.
+  const artistObs = artistObservation(observations);
+  if (artistObs) {
+    messages.push({ role: 'system', content: artistGroundingNote(artistObs) });
+  }
   const sources = opts.sources || [];
   if (sources.length) {
     // P0: web data enters as an UNTRUSTED user message (fenced + sanitized),
@@ -373,8 +422,26 @@ export const chatWithAssistant = async (
   const observations: ToolObservation[] = [];
   const usedSignatures = new Set<string>();
   const forcedQuery = explicitSearchQuery(userMessage);
+  // Artist requests route to find_stations_by_artist BEFORE the substring search.
+  // Two triggers: an explicit «радио с/про/где играет X» phrasing, OR a forced
+  // play/rec query that resolves to a curated artist («включи Руки Вверх»). Either
+  // way the dedicated tool (curated-grounded) runs first; the planner + backstop
+  // still follow, so a genre that slipped through here is recovered.
+  const artistQuery =
+    explicitArtistQuery(userMessage) ||
+    (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null);
 
-  if (forcedQuery) {
+  if (artistQuery) {
+    const artistArgs = { artist: artistQuery };
+    usedSignatures.add(toolSignature('find_stations_by_artist', artistArgs));
+    const artistObs = await runTool('find_stations_by_artist', artistArgs, {
+      tools: deps.tools,
+      musicServices: deps.musicServices
+    });
+    observations.push(artistObs);
+    if (artistObs.error) deps.log(`ai tool find_stations_by_artist error: ${artistObs.error}`);
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+  } else if (forcedQuery) {
     // Explicit play/rec intent with a concrete topic → ACT: search stations now
     // (deterministically, history notwithstanding), then keep planning for any
     // refinement (e.g. a named track → service links).

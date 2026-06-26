@@ -3,6 +3,7 @@
 // executes against the DI'd ToolProvider (catalog, in-process) or the
 // deterministic music-link builder, and NEVER throws into the loop.
 
+import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { buildServiceSearchLinks } from './musicLinks.js';
 import type {
   MusicService,
@@ -26,6 +27,12 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       'Найти реальные радио-станции в полке под запрос/жанр/настроение/страну. Используй, когда человек хочет ВКЛЮЧИТЬ радио или просит посоветовать станцию.',
     args: '{ "query": string, "country"?: string, "language"?: string, "tag"?: string, "limit"?: number }'
+  },
+  {
+    name: 'find_stations_by_artist',
+    description:
+      'Найти станцию, посвящённую КОНКРЕТНОМУ исполнителю или группе («радио с Дискотекой Авария», «где играет Дима Билан», «станция про NYUSHA»). Используй именно это, а не search_stations, когда человек называет артиста/группу, а не жанр. Передай имя артиста в args.artist.',
+    args: '{ "artist": string }'
   },
   {
     name: 'get_station',
@@ -103,6 +110,29 @@ export const runTool = async (
           limit: asLimit(args.limit)
         });
         return { ...base, found: stations.length > 0, stations };
+      }
+      case 'find_stations_by_artist': {
+        const artist = asString(args.artist);
+        if (!artist) return { ...base, found: false, grounding: 'none', artist: '' };
+        // L1 — curated artist-station (authoritative). The pure index decides
+        // WHICH station; the provider fetches its live card (correct uuid/stream).
+        const curatedHit = resolveCuratedArtist(artist);
+        if (curatedHit && ctx.tools.resolveArtistStation) {
+          const card = await ctx.tools.resolveArtistStation(curatedHit);
+          if (card) {
+            return { ...base, found: true, stations: [card], grounding: 'curated', artist: curatedHit.artist };
+          }
+        }
+        // L3 — catalog stations whose NAME matches the artist (NOT tags).
+        if (ctx.tools.matchStationsByArtistName) {
+          const cards = await ctx.tools.matchStationsByArtistName(artist);
+          if (cards.length) {
+            return { ...base, found: true, stations: cards, grounding: 'name-match', artist };
+          }
+        }
+        // L4 — no station we can ground: external service-search links only.
+        const serviceLinks = buildServiceSearchLinks(artist, ctx.musicServices);
+        return { ...base, found: serviceLinks.length > 0, serviceLinks, grounding: 'none', artist };
       }
       case 'get_station': {
         const station = await ctx.tools.getStation(asString(args.id));
