@@ -178,3 +178,16 @@ test('createRollingVolumeCap: accepts up to max per window, then caps; resets ne
   clock += 1000; // new window
   assert.equal(cap.exceeded(), false);
 });
+
+test('cleanText: strips the reflexive «О,/Ой,/Ого,» opener tic and re-capitalizes; keeps the preposition «о»', () => {
+  assert.equal(cleanText('О, вот это вещь!', 'miniapp'), 'Вот это вещь!');
+  assert.equal(cleanText('Ой, классная песня', 'miniapp'), 'Классная песня');
+  assert.equal(cleanText('Ого, как качает', 'miniapp'), 'Как качает');
+  assert.equal(cleanText('Ага, согласна полностью', 'miniapp'), 'Согласна полностью');
+  // the PREPOSITION «о» (no punctuation after it) must survive untouched
+  assert.equal(cleanText('о чём ты вообще', 'miniapp'), 'о чём ты вообще');
+  // a bare one-word reaction must NOT be blanked out
+  assert.equal(cleanText('Ого!', 'miniapp'), 'Ого!');
+  // a station-ish word starting with the same letters is not eaten (no separator)
+  assert.equal(cleanText('Эхо Москвы — моя любимая', 'miniapp'), 'Эхо Москвы — моя любимая');
+});

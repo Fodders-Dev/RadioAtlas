@@ -47,6 +47,21 @@ const splitTags = (tags: string | null | undefined): string[] =>
     .filter((tag) => tag && tag.toLowerCase() !== 'no tags')
     .slice(0, 6);
 
+// Spoken-word / news / talk formats that pollute MUSIC recommendations (France
+// Info, BBC World Service, RTL surfaced for «что послушать сегодня?»). Matched on
+// name+tags. EN + a few common non-EN markers. NOT applied to the main catalog
+// ranking — only here, in the AI rec path, and only when the user didn't ask for
+// talk/news themselves.
+const TALK_FORMAT =
+  /(\bnews\b|\btalk\b|talk\s*radio|sport[s]?\s*talk|spoken\s*word|\binfo\b|actualit|nachrichten|\bparliament\b|pol[ií]tica|разговорн|новост|\bречь\b)/i;
+
+const isTalkFormat = (station: CatalogStationLite): boolean =>
+  TALK_FORMAT.test(`${station.name || ''} ${station.tags || ''}`);
+
+// Did the user's own query/tag ask for talk/news? Then we must NOT filter it out.
+const queryWantsTalk = (query: string, tag?: string): boolean =>
+  TALK_FORMAT.test(`${query} ${tag || ''}`);
+
 const toRef = (station: CatalogStationLite): VerifiedStationRef => ({
   stationuuid: station.stationuuid,
   name: station.name,
@@ -65,17 +80,23 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    const wantsTalk = queryWantsTalk(args.query || '', args.tag);
+    // When we'll drop talk/news rows, over-fetch so a genre query still returns a
+    // full set of MUSIC stations after filtering (the main ranking is untouched —
+    // we just ask the same ranked search for more rows and post-filter here).
+    const fetchLimit = wantsTalk ? limit : Math.min(24, limit * 3);
     const response = await catalog.search({
       q: args.query || '',
       country: args.country || '',
       language: args.language || '',
       tag: args.tag || '',
       continent: '',
-      limit,
+      limit: fetchLimit,
       cursor: 0
     });
     return (response.items || [])
       .filter((station) => station.url_resolved)
+      .filter((station) => wantsTalk || !isTalkFormat(station))
       .slice(0, limit)
       .map(toRef);
   },

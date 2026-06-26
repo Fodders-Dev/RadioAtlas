@@ -97,6 +97,23 @@ const truncateOnBoundary = (text: string, max: number): string => {
   return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim() + '…';
 };
 
+// Лира opens ~2/3 of replies with a reflexive interjection («О,»/«Ой,»/«Ого,»…).
+// persona.ts forbids it but the model ignores that, so strip a SINGLE leading
+// interjection token + its trailing punctuation deterministically, then
+// re-capitalize the new first letter. The bare «О» branch requires real
+// punctuation (,/!/…) so we never eat the preposition «о» in «о чём ты»; the
+// multi-letter interjections are unambiguous and may be followed by a space too.
+// The next char after the token must be a separator, so «Эхо»/«Охапка» are safe.
+const LEADING_INTERJECTION = /^\s*(?:(?:ой|ого|ох|ага|эх)[\s,!…—–-]+|о[,!…]+[\s—–-]*)/i;
+
+const stripLeadingInterjection = (text: string): string => {
+  const stripped = text.replace(LEADING_INTERJECTION, '');
+  // Only act if we actually removed an opener, and never blank a one-word
+  // reaction («Ого!» → '' would be worse than keeping it).
+  if (!stripped || stripped === text) return text;
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+};
+
 // Strip markdown that the persona is told not to use but a model might still
 // emit. Telegram gets light HTML (escaped, then bold/code re-applied); the Mini
 // App gets plain unicode text.
@@ -112,6 +129,9 @@ export const cleanText = (
   text = text.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
   // Tame runaway blank lines.
   text = text.replace(/\n{3,}/g, '\n\n');
+  // Drop the reflexive «О,/Ой,/Ого,…» opener tic (deterministic; persona alone
+  // doesn't stop it).
+  text = stripLeadingInterjection(text);
 
   // Truncate the PLAIN text BEFORE applying HTML/markdown conversion. If we cut
   // after building <b>/<code>, a boundary inside a span produces an unbalanced
