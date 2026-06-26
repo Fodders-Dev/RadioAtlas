@@ -663,6 +663,73 @@ test('VIBE BACKSTOP (4): a factual/news question with a music keyword does NOT t
   assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'the factual honesty guard survives');
 });
 
+// --- Answer-quality batch (prod audit fixes) ---------------------------------
+
+test('AQ-1 «правда что …альбом…» now routes FACTUAL (honesty guard, no generic-rock backstop)', async () => {
+  // Root bug: FACTUAL_QUESTION had `правда\s+ли`, so «правда что» missed → ACTION
+  // («альбом») made it musicIntent → genre backstop bolted on a rock block AND
+  // dropped the honesty guard. The regex now matches «правда что».
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"final"}'],
+    compose: 'Актуальное не возьмусь утверждать.'
+  });
+  const result = await chatWithAssistant(ask('правда что Цой выпустил новый альбом?'), makeDeps(fetchImpl));
+  assert.deepEqual(result.stations, []); // no generic-rock block
+  assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), 'no genre backstop on a factual question');
+  assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'honesty guard applied');
+});
+
+test('AQ-1 negative: bare «правда» as an intensifier is NOT treated as factual', async () => {
+  // «это правда классная песня» must NOT trip the factual guard (the mandatory
+  // (ли|что|ль) group + Cyrillic-aware boundary keep bare «правда» out).
+  const { fetchImpl, calls } = makeFetch({ compose: 'Согласна, отличная!' });
+  await chatWithAssistant(ask('это правда классная песня'), makeDeps(fetchImpl));
+  assert.ok(!composeText(calls).includes('Этот вопрос про факты'), 'no false factual guard on an intensifier');
+});
+
+test('AQ-2 trivia «расскажи интересное про X» reaches web search → grounded in sources, not invented', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    planner: [
+      '{"action":"use_tool","tool":"web_search_factual","args":{"query":"viktor tsoi facts"}}',
+      '{"action":"final"}'
+    ],
+    compose: 'По последним данным…'
+  });
+  const result = await chatWithAssistant(
+    ask('расскажи интересное про Виктора Цоя'),
+    makeDeps(fetchImpl, { webSearch: webSearch([aliveSource]) })
+  );
+  const plannerSys = calls.find((c) => c.phase === 'planner')?.body.messages[0]?.content ?? '';
+  assert.ok(plannerSys.includes('web_search_factual'), 'trivia reached the planner with the web tool offered');
+  assert.equal(result.sources.length, 1); // grounded in a real source
+});
+
+test('AQ-2 trivia with NO grounding → honesty guard (never a bare invented date)', async () => {
+  // Even offline (web off), a trivia/biography ask must hedge, not fabricate
+  // («хит „Небо" вышел в 2000» was wrong — it's 2003).
+  const { fetchImpl, calls } = makeFetch({ compose: 'Точную дату не назову — врать не хочу.' });
+  const result = await chatWithAssistant(ask('расскажи интересное про Виктора Цоя'), makeDeps(fetchImpl)); // no webSearch
+  assert.deepEqual(result.stations, []);
+  assert.ok(composeText(calls).includes('Этот вопрос про факты'), 'honesty guard on ungrounded trivia');
+});
+
+test('AQ-4 the web-grounded compose note forbids embellishment and "go google it"', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    planner: [
+      '{"action":"use_tool","tool":"web_search_factual","args":{"query":"oliver tree news"}}',
+      '{"action":"final"}'
+    ],
+    compose: 'Ок.'
+  });
+  await chatWithAssistant(
+    ask('что нового у Oliver Tree?'),
+    makeDeps(fetchImpl, { webSearch: webSearch([aliveSource]) })
+  );
+  const text = composeText(calls);
+  assert.ok(text.includes('не выдумывай названий наград'), 'no-embellishment instruction reached the composer');
+  assert.ok(text.includes('погуглить'), 'the "never tell them to google it" instruction reached the composer');
+});
+
 // --- find_stations_by_artist — curated-grounded artist search -----------------
 
 test('ARTIST ROUTING: «радио с <curated artist>» → find_stations_by_artist leads with the curated card', async () => {
