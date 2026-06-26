@@ -167,10 +167,16 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       .map((rail) => ({
         id: rail.id,
         label: MOOD_LABELS[rail.id] || rail.id,
-        stations: (rail.stations || []).filter((s) => s.url_resolved).map(toRef)
+        // discover_trending is pure music discovery (no user query to honour a
+        // talk/news ask) — always drop talk-format rows here. This is the
+        // «что послушать сегодня?» path that leaked RTL / France Info; the
+        // query-aware filter on searchStations didn't cover it.
+        stations: (rail.stations || []).filter((s) => s.url_resolved && !isTalkFormat(s)).map(toRef)
       }))
       .filter((rail) => rail.stations.length);
-    const trending = (summary.trending || []).filter((s) => s.url_resolved).map(toRef);
+    const trending = (summary.trending || [])
+      .filter((s) => s.url_resolved && !isTalkFormat(s))
+      .map(toRef);
     if (trending.length) {
       rails.unshift({ id: 'trending', label: 'Сейчас в тренде', stations: trending.slice(0, 6) });
     }
