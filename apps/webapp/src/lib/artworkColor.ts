@@ -170,6 +170,12 @@ const buildExtractionUrl = (rawUrl: string): string => {
   return `${proxyBase}/image?url=${encodeURIComponent(rawUrl)}`;
 };
 
+// A hung /image fetch can fire NEITHER onload nor onerror, leaving the cached
+// task promise unsettled forever — it's never evicted, so that station is pinned
+// on the generated fallback for the page lifetime. Race the load against a
+// timeout that rejects (→ caught → null → evicted → retryable next time).
+const LOAD_TIMEOUT_MS = 7000;
+
 const loadImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     if (typeof Image === 'undefined') {
@@ -179,8 +185,31 @@ const loadImage = (url: string): Promise<HTMLImageElement> =>
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.decoding = 'async';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('artwork load failed'));
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      timer = null;
+      // Abort the hung fetch so it can't keep the connection (and this promise)
+      // alive; the existing catch→null + cache eviction then restores retry.
+      try {
+        img.src = '';
+      } catch {
+        // ignore environments that reject an empty src
+      }
+      reject(new Error('artwork load timeout'));
+    }, LOAD_TIMEOUT_MS);
+    const clearTimer = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    img.onload = () => {
+      clearTimer();
+      resolve(img);
+    };
+    img.onerror = () => {
+      clearTimer();
+      reject(new Error('artwork load failed'));
+    };
     img.src = url;
   });
 

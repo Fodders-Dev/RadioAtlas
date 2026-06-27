@@ -78,6 +78,8 @@ describe('extractArtworkPalette (load + cache)', () => {
   let imageCtorCount = 0;
   let mockPixels: { data: Uint8ClampedArray; width: number; height: number };
   let realImage: typeof globalThis.Image;
+  // 'hang' = never fire onload/onerror (simulates a stuck /image fetch).
+  let loadBehavior: 'auto' | 'hang' = 'auto';
 
   class FakeImage {
     crossOrigin = '';
@@ -96,6 +98,7 @@ describe('extractArtworkPalette (load + cache)', () => {
 
     set src(value: string) {
       this.#src = value;
+      if (loadBehavior === 'hang') return; // never settles → timeout must fire
       // The proxied url embeds the raw url; a 'fail' cover rejects.
       queueMicrotask(() => {
         if (/fail/.test(value)) this.onerror?.();
@@ -111,6 +114,7 @@ describe('extractArtworkPalette (load + cache)', () => {
   beforeEach(() => {
     __clearArtworkPaletteCache();
     imageCtorCount = 0;
+    loadBehavior = 'auto';
     mockPixels = solid(4, 4, [200, 30, 30, 255]);
     realImage = globalThis.Image;
     (globalThis as { Image: unknown }).Image = FakeImage;
@@ -133,6 +137,7 @@ describe('extractArtworkPalette (load + cache)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     (globalThis as { Image: unknown }).Image = realImage;
   });
 
@@ -161,5 +166,22 @@ describe('extractArtworkPalette (load + cache)', () => {
   it('resolves null for an empty url without touching the loader', async () => {
     expect(await extractArtworkPalette('')).toBeNull();
     expect(imageCtorCount).toBe(0);
+  });
+
+  it('times out a hung load → null and evicts (retryable, not pinned forever)', async () => {
+    vi.useFakeTimers();
+    loadBehavior = 'hang'; // onload/onerror never fire — only the timer can settle it
+    const pending = extractArtworkPalette('http://cdn/hang.png');
+    expect(imageCtorCount).toBe(1);
+
+    // Nothing has settled it yet; advancing past the load timeout rejects it,
+    // which the loader catches → null.
+    await vi.advanceTimersByTimeAsync(7000);
+    expect(await pending).toBeNull();
+
+    // The failed entry was evicted, so a later call reconstructs (not pinned).
+    const before = imageCtorCount;
+    void extractArtworkPalette('http://cdn/hang.png');
+    expect(imageCtorCount).toBe(before + 1);
   });
 });
