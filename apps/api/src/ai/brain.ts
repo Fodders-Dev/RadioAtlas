@@ -16,6 +16,7 @@ import {
 } from './antiHallucination.js';
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { resolveCulturalVibe } from './culturalVibes.js';
+import { resolveArtistGenres } from './artistGenreFallback.js';
 import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
@@ -215,7 +216,7 @@ const artistGroundingNote = (obs: ToolObservation): string => {
   if (obs.grounding === 'name-match') {
     return `Станции в карточках совпали с «${artist}» ТОЛЬКО по названию. НЕ утверждай, что они играют ${artist} — скажи осторожно («по названию похоже, что про ${artist}, но точно не обещаю»).`;
   }
-  return `Своей станции под ${artist} не нашлось. НЕ называй и не выдумывай станцию с этим артистом и НЕ утверждай, что где-то он играет; предложи внешние ссылки (если есть) или близкий по духу вайб.`;
+  return `Отдельной станции-посвящения ${artist} у нас нет — но НЕ извиняйся и не сокрушайся, это не повод грустить. НЕ выдумывай станцию с этим артистом и НЕ утверждай, что где-то именно он играет. Если в карточках есть станции — тепло и уверенно предложи их как «то же настроение / близкое по духу» (это похожий ЖАНР, а не сам артист). И отдельно скажи, что самого ${artist} можно послушать по ссылкам на сервисы ниже.`;
 };
 
 const buildPlannerSystem = (webSearchActive: boolean): string => {
@@ -512,6 +513,27 @@ export const chatWithAssistant = async (
     });
     observations.push(artistObs);
     if (artistObs.error) deps.log(`ai tool find_stations_by_artist error: ${artistObs.error}`);
+    // No dedicated/name-matched station for this artist → search a curated
+    // "close in spirit" genre (Russian-aware) BEFORE the planner/backstop, so the
+    // recs are real and on-genre. Without this the backstop maps e.g. «Летов» to
+    // bare «punk», which the catalog pollutes with cyberpunk/darksynth/ska; the
+    // artist tool's L4 service links still let the listener hear the real artist.
+    if (collectVerifiedStations(observations).length === 0) {
+      const fallbackTags = resolveArtistGenres(artistQuery) || resolveArtistGenres(userMessage);
+      for (const tag of fallbackTags || []) {
+        const args = { query: tag };
+        const signature = toolSignature('search_stations', args);
+        if (usedSignatures.has(signature)) continue;
+        usedSignatures.add(signature);
+        const observation = await runTool('search_stations', args, {
+          tools: deps.tools,
+          musicServices: deps.musicServices
+        });
+        observations.push(observation);
+        if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
+        if (collectVerifiedStations(observations).length > 0) break;
+      }
+    }
     await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
   } else if (forcedQuery) {
     // Explicit play/rec intent with a concrete topic → ACT: search stations now
