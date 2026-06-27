@@ -15,6 +15,7 @@ import {
   isVoiceSafe
 } from './antiHallucination.js';
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
+import { resolveCulturalVibe } from './culturalVibes.js';
 import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
@@ -311,6 +312,12 @@ const runPlannerLoop = async (
 
 // Extra composer guard for unverifiable factual/news/biography questions — keeps
 // Лира honest instead of inventing confident "news" (stopgap before web search).
+// Honesty/framing guard for cultural-vibe turns («музыка как в GTA Vice City»).
+// The cards are stations matched by GENRE-vibe, not the franchise's own
+// soundtrack — Лира must frame them that way, never promise the actual tracks.
+const CULTURAL_GROUNDING_NOTE =
+  'Человек попросил музыку в духе культурной вселенной/франшизы (игра, фильм, сериал, аниме). Станции в карточках подобраны по ЖАНРУ-вайбу этой вселенной — это НЕ официальный саундтрек и НЕ те же самые треки из неё. Так и подай: тепло скажи, что это станции, которые ЛОВЯТ тот самый вайб/настроение (назови жанр — например «синтвейв и нью-вейв 80-х»), а НЕ «вот саундтрек из GTA». НЕ обещай конкретные песни из франшизы и не утверждай, что станция играет именно их.';
+
 const FACTUAL_GUARD_NOTE =
   'Этот вопрос про факты/новости/биографию, которые ты НЕ можешь подтвердить проверенными данными. НЕ утверждай конкретику (жив/умер, даты, релизы, события, «что нового») как факт и не выдумывай новостей. НЕ называй конкретные песни, альбомы, годы, награды или события как факт — если не уверена в названии или дате, говори ОБЩО («у них заводные танцевальные хиты», «целая эпоха»), без конкретных названий и цифр. Честно скажи, что не возьмёшься утверждать и не хочешь сочинять; можешь предложить послушать самого артиста или поискать в сервисах. Мнения и впечатления о музыке при этом высказывай свободно.';
 
@@ -319,7 +326,7 @@ const composeAgentReply = async (
   systemPrompt: string,
   transcript: DeepseekMessage[],
   observations: ToolObservation[],
-  opts: { factualGuard?: boolean; sources?: WebSource[] } = {}
+  opts: { factualGuard?: boolean; culturalVibe?: boolean; sources?: WebSource[] } = {}
 ) => {
   const messages: DeepseekMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -338,6 +345,9 @@ const composeAgentReply = async (
   const artistObs = artistObservation(observations);
   if (artistObs) {
     messages.push({ role: 'system', content: artistGroundingNote(artistObs) });
+  }
+  if (opts.culturalVibe) {
+    messages.push({ role: 'system', content: CULTURAL_GROUNDING_NOTE });
   }
   const sources = opts.sources || [];
   if (sources.length) {
@@ -441,16 +451,47 @@ export const chatWithAssistant = async (
   const observations: ToolObservation[] = [];
   const usedSignatures = new Set<string>();
   const forcedQuery = explicitSearchQuery(userMessage);
+  // Cultural / franchise references («вайб GTA Vice City», «как в Cyberpunk»,
+  // «радио по Наруто») → curated canonical genre tags, resolved BEFORE the artist
+  // and literal-search paths (otherwise the franchise phrase gets mis-captured as
+  // an "artist" or hits a doomed literal search → DeepSeek mis-maps it to bland
+  // retro). Gated on the SAME signal as the vibe backstop — a real music ask and
+  // never a factual question — so a passing chat mention of a franchise («вчера
+  // прошёл cyberpunk») doesn't trigger a station search.
+  const culturalTags =
+    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage)) &&
+    !FACTUAL_QUESTION.test(userMessage)
+      ? resolveCulturalVibe(userMessage)
+      : null;
   // Artist requests route to find_stations_by_artist BEFORE the substring search.
   // Two triggers: an explicit «радио с/про/где играет X» phrasing, OR a forced
   // play/rec query that resolves to a curated artist («включи Руки Вверх»). Either
   // way the dedicated tool (curated-grounded) runs first; the planner + backstop
-  // still follow, so a genre that slipped through here is recovered.
-  const artistQuery =
-    explicitArtistQuery(userMessage) ||
-    (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null);
+  // still follow, so a genre that slipped through here is recovered. Skipped when
+  // a cultural reference already matched (its phrase would mis-capture as artist).
+  const artistQuery = culturalTags
+    ? null
+    : explicitArtistQuery(userMessage) ||
+      (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null);
 
-  if (artistQuery) {
+  if (culturalTags) {
+    // Search the curated tags in priority order, stopping once we have real cards;
+    // then keep planning (round 1) for any refinement, like the forcedQuery path.
+    for (const tag of culturalTags) {
+      const args = { query: tag };
+      const signature = toolSignature('search_stations', args);
+      if (usedSignatures.has(signature)) continue;
+      usedSignatures.add(signature);
+      const observation = await runTool('search_stations', args, {
+        tools: deps.tools,
+        musicServices: deps.musicServices
+      });
+      observations.push(observation);
+      if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
+      if (collectVerifiedStations(observations).length > 0) break;
+    }
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+  } else if (artistQuery) {
     const artistArgs = { artist: artistQuery };
     usedSignatures.add(toolSignature('find_stations_by_artist', artistArgs));
     const artistObs = await runTool('find_stations_by_artist', artistArgs, {
@@ -546,6 +587,7 @@ export const chatWithAssistant = async (
     sources.length === 0;
   const composed = await composeAgentReply(deps, systemPrompt, transcript, observations, {
     factualGuard,
+    culturalVibe: Boolean(culturalTags),
     sources
   });
   addUsage(usage, composed.usage);

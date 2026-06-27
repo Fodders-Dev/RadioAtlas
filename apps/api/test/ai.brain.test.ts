@@ -844,3 +844,55 @@ test('ARTIST ROUTING: a plain genre («включи джаз») is NOT hijacked 
   assert.equal(artistCalled, false); // «джаз» isn't a curated artist → normal search path
   assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
 });
+
+test('CULTURAL VIBE: «GTA Vice City» → search_stations on the curated tag (synthwave), with the honesty note', async () => {
+  const searched: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station()];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({});
+  const result = await chatWithAssistant(
+    ask('сделай радио с вайбом GTA Vice City'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.equal(searched[0], 'synthwave'); // curated tag, not the literal phrase nor an "artist"
+  assert.ok(result.stations.length > 0);
+  const compose = calls.find((c) => c.phase === 'compose');
+  assert.ok(compose && hasSystem(compose.body, 'официальный саундтрек')); // CULTURAL_GROUNDING_NOTE present
+});
+
+test('CULTURAL VIBE does NOT hijack a plain genre — «включи джаз» still searches джаз', async () => {
+  const searched: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station()];
+    }
+  };
+  const { fetchImpl } = makeFetch({});
+  await chatWithAssistant(ask('включи джаз'), makeDeps(fetchImpl, { tools }));
+  assert.equal(searched[0], 'джаз');
+  assert.ok(!searched.includes('synthwave'));
+});
+
+test('CULTURAL VIBE is gated on a music ask — a chat mention of a franchise triggers NO search', async () => {
+  const searched: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station()];
+    }
+  };
+  const { fetchImpl } = makeFetch({});
+  await chatWithAssistant(
+    ask('вчера наконец прошёл cyberpunk 2077, отличная игра'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.deepEqual(searched, []); // no intent → no cultural hijack
+});
