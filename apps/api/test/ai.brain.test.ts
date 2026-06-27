@@ -896,3 +896,18 @@ test('CULTURAL VIBE is gated on a music ask — a chat mention of a franchise tr
   );
   assert.deepEqual(searched, []); // no intent → no cultural hijack
 });
+
+test('CULTURAL VIBE fires on a music-context phrasing with no ACTION/VIBE keyword — «музыку как в гта сан андреас»', async () => {
+  const searched: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station()];
+    }
+  };
+  const { fetchImpl } = makeFetch({});
+  const result = await chatWithAssistant(ask('музыку как в гта сан андреас'), makeDeps(fetchImpl, { tools }));
+  assert.equal(searched[0], 'west coast'); // San Andreas → west coast, via the soft «музык» gate
+  assert.ok(result.stations.length > 0);
+});
