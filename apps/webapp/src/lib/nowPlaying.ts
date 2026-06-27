@@ -265,6 +265,22 @@ const ensureNightrideSource = () => {
   }
 };
 
+// Close the shared SSE and drop its cache. Called when the last subscriber
+// leaves: otherwise the EventSource lives forever and its onerror keeps
+// reconnecting in the background, draining battery/data on mobile long after
+// nothing on screen is listening. A later subscription re-opens it.
+const teardownNightrideSource = () => {
+  if (nightrideSource) {
+    try {
+      nightrideSource.close();
+    } catch {
+      // ignore — already closed / unsupported
+    }
+    nightrideSource = null;
+  }
+  nightrideCache.clear();
+};
+
 export const subscribeNowPlaying = (
   station: StationLite,
   onTrack: (track: string | null) => void
@@ -289,6 +305,10 @@ export const subscribeNowPlaying = (
 
   return () => {
     nightrideListeners.delete(handler);
+    // Last listener gone → tear the socket down so it can't reconnect forever.
+    if (nightrideListeners.size === 0) {
+      teardownNightrideSource();
+    }
   };
 };
 
