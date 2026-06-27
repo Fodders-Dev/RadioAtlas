@@ -806,7 +806,10 @@ test('ARTIST COMPOSE (none): no station at all → composer told not to invent o
   assert.ok(result.serviceLinks.length > 0, 'L4 fell back to external service links');
   const compose = calls.find((c) => c.phase === 'compose');
   const guarded = compose!.body.messages.some(
-    (m: any) => typeof m.content === 'string' && m.content.includes('не нашлось')
+    (m: any) =>
+      typeof m.content === 'string' &&
+      m.content.includes('станции-посвящения') &&
+      m.content.includes('близкое по духу')
   );
   assert.ok(guarded, 'none grounding note reached the composer');
 });
@@ -910,4 +913,26 @@ test('CULTURAL VIBE fires on a music-context phrasing with no ACTION/VIBE keywor
   const result = await chatWithAssistant(ask('музыку как в гта сан андреас'), makeDeps(fetchImpl, { tools }));
   assert.equal(searched[0], 'west coast'); // San Andreas → west coast, via the soft «музык» gate
   assert.ok(result.stations.length > 0);
+});
+
+test('RUSSIAN ARTIST FALLBACK: «где играет Егор Летов» (no station) → searches «russian punk», not bare «punk»', async () => {
+  const searched: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station()];
+    },
+    resolveArtistStation: async () => null, // no curated/L1 hit
+    matchStationsByArtistName: async () => [] // no L3 name match → only L4 links
+  };
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'] });
+  const result = await chatWithAssistant(
+    ask('Радио, где играет Егор Летов или Гражданская Оборона'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.equal(searched[0], 'russian punk'); // clean Russian genre, not the polluted bare «punk»
+  assert.ok(!searched.includes('punk'));
+  assert.ok(result.stations.length > 0);
+  assert.ok((result.serviceLinks?.length ?? 0) > 0); // L4 links still let them hear the real artist
 });
