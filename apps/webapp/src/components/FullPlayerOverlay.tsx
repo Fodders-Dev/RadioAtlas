@@ -14,7 +14,7 @@ import { useLocale } from '../state/LocaleContext';
 import { latestTrackForStation } from '../state/radio/helpers';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
-import { FullPlayerBackdrop } from './FullPlayerBackdrop';
+import { StationBackdrop } from './StationBackdrop';
 import { FullPlayerVisualizer } from './FullPlayerVisualizer';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
@@ -541,7 +541,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
         aria-modal="true"
         aria-label={normalizeStationName(current?.name) || t('dock.ready')}
       >
-        <FullPlayerBackdrop active={player.visualizer.active} subscribe={player.subscribeVisualizer} />
+        <StationBackdrop
+          station={current}
+          active={player.visualizer.active}
+          subscribe={player.subscribeVisualizer}
+        />
         {isMobileLayout ? (
           <>
             <header className="full-player-header full-player-header--stage">
