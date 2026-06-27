@@ -27,38 +27,6 @@ import { usePlayback, useShell } from './state/RadioContext';
 import { useSession } from './state/SessionContext';
 import type { AppSection, LibraryTab } from './types';
 
-const scheduleDeferredTask = (task: () => void, delayMs = 1200) => {
-  if (typeof window === 'undefined') {
-    task();
-    return () => {};
-  }
-  const idleCallback = (
-    window as typeof window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    }
-  ).requestIdleCallback;
-  const cancelIdleCallback = (
-    window as typeof window & {
-      cancelIdleCallback?: (handle: number) => void;
-    }
-  ).cancelIdleCallback;
-  if (idleCallback) {
-    const handle = idleCallback(task, { timeout: delayMs });
-    return () => cancelIdleCallback?.(handle);
-  }
-  const handle = window.setTimeout(task, delayMs);
-  return () => window.clearTimeout(handle);
-};
-
-const loadGlobalStyles = (() => {
-  let stylesPromise: Promise<unknown> | null = null;
-  return () => {
-    stylesPromise ??= import('./styles.css');
-    return stylesPromise;
-  };
-})();
-
 const HomeScreen = lazy(loadHomeScreen);
 const SearchScreen = lazy(loadSearchScreen);
 const GlobeScreenLazy = lazy(loadGlobeScreen);
@@ -209,13 +177,6 @@ const App = () => {
   useEffect(() => {
     setSectionMotionTick((value) => value + 1);
   }, [activeSection]);
-
-  useEffect(() => {
-    const cancelScheduledLoad = scheduleDeferredTask(() => {
-      void loadGlobalStyles().catch(() => {});
-    });
-    return cancelScheduledLoad;
-  }, []);
 
   useEffect(() => {
     // T_deeplink_lifecycle_fix: run ONCE on mount (deps []) and never cancel the
