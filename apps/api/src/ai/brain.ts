@@ -65,6 +65,14 @@ const SEARCH_INTENT = /(включ|постав|вруб|запусти|дава
 const VIBE_INTENT =
   /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн)/i;
 
+// Soft music-context markers that, ALONGSIDE a cultural reference, mark a real
+// music ask even without an ACTION/VIBE keyword — «музыку как в гта сан андреас»,
+// «послушать что-то в духе Ведьмака», «в стиле Cyberpunk». Kept narrow and
+// unambiguous so a plain chat mention of a franchise («вчера прошёл cyberpunk»)
+// still carries none of these and never triggers a search. Only consulted by the
+// cultural-vibe gate (never globally), so it can't loosen the other intent paths.
+const CULTURAL_MUSIC_CONTEXT = /(музык|послуша|в\s+стиле|в\s+духе)/i;
+
 // Noise stems removed to derive the station-search query. Cyrillic — JS \b/\w
 // are ASCII-only — so match by word-prefix, not boundary.
 const QUERY_NOISE_STEMS = [
@@ -455,11 +463,15 @@ export const chatWithAssistant = async (
   // «радио по Наруто») → curated canonical genre tags, resolved BEFORE the artist
   // and literal-search paths (otherwise the franchise phrase gets mis-captured as
   // an "artist" or hits a doomed literal search → DeepSeek mis-maps it to bland
-  // retro). Gated on the SAME signal as the vibe backstop — a real music ask and
-  // never a factual question — so a passing chat mention of a franchise («вчера
-  // прошёл cyberpunk») doesn't trigger a station search.
+  // retro). Gated on a real music ask (ACTION/VIBE intent OR a soft music-context
+  // marker like «музыку…»/«в стиле…»), never a factual question — so a passing
+  // chat mention of a franchise («вчера прошёл cyberpunk») doesn't trigger a
+  // search, but a natural «музыку как в гта сан андреас» (no ACTION/VIBE keyword)
+  // still does.
   const culturalTags =
-    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage)) &&
+    (ACTION_INTENT.test(userMessage) ||
+      VIBE_INTENT.test(userMessage) ||
+      CULTURAL_MUSIC_CONTEXT.test(userMessage)) &&
     !FACTUAL_QUESTION.test(userMessage)
       ? resolveCulturalVibe(userMessage)
       : null;
