@@ -151,6 +151,9 @@ const METADATA_NEGATIVE_CACHE_TTL_MS = Number(process.env.METADATA_NEGATIVE_CACH
 const METADATA_PROBE_TIMEOUT_MS = Number(process.env.METADATA_PROBE_TIMEOUT_MS || 5000);
 const METADATA_STREAM_TIMEOUT_MS = Number(process.env.METADATA_STREAM_TIMEOUT_MS || 7000);
 const STREAM_PROXY_TIMEOUT_MS = Number(process.env.STREAM_PROXY_TIMEOUT_MS || 8000);
+// Idle/stall budget for the live-stream BODY transfer (the headers fetch uses
+// STREAM_PROXY_TIMEOUT_MS). Kills a half-open upstream that pins a slot.
+const STREAM_STALL_TIMEOUT_MS = Number(process.env.STREAM_STALL_TIMEOUT_MS || 20000);
 const FETCH_CACHE_TTL_MS = Number(process.env.FETCH_CACHE_TTL_MS || 5000);
 const FETCH_NEGATIVE_CACHE_TTL_MS = Number(process.env.FETCH_NEGATIVE_CACHE_TTL_MS || 2500);
 const MEDIA_RATE_LIMIT_WINDOW_MS = Number(process.env.MEDIA_RATE_LIMIT_WINDOW_MS || 60000);
@@ -535,6 +538,7 @@ registerMediaRoutes(app, {
   fetchCacheTtlMs: FETCH_CACHE_TTL_MS,
   fetchNegativeCacheTtlMs: FETCH_NEGATIVE_CACHE_TTL_MS,
   upstreamTimeoutMs: STREAM_PROXY_TIMEOUT_MS,
+  streamStallTimeoutMs: STREAM_STALL_TIMEOUT_MS,
   metadataRateLimitPerWindow: METADATA_RATE_LIMIT_PER_WINDOW,
   fetchRateLimitPerWindow: FETCH_RATE_LIMIT_PER_WINDOW,
   streamRateLimitPerWindow: STREAM_RATE_LIMIT_PER_WINDOW,

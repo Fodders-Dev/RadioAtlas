@@ -113,6 +113,58 @@ const formatMediaError = (audio: HTMLAudioElement | null) => {
   }
 };
 
+// hls.js shape we depend on (loaded via dynamic import; typed structurally so
+// the test can pass a fake without pulling the real module).
+type HlsLike = {
+  loadSource: (url: string) => void;
+  attachMedia: (media: HTMLMediaElement) => void;
+  destroy: () => void;
+};
+type HlsConstructor = new (config: Record<string, unknown>) => HlsLike;
+
+// Tuned for live radio HLS (infinite stream, modest buffer). Module-level so the
+// supersede helper and its test share one config.
+const HLS_CONFIG: Record<string, unknown> = {
+  enableWorker: true,
+  lowLatencyMode: false,
+  maxBufferLength: 30,
+  maxMaxBufferLength: 60,
+  maxBufferSize: 60 * 1000 * 1000,
+  maxBufferHole: 0.5,
+  liveSyncDurationCount: 3,
+  liveMaxLatencyDurationCount: 10,
+  liveDurationInfinity: true,
+  highBufferWatchdogPeriod: 2
+};
+
+/**
+ * Construct + attach an Hls instance ONLY if the playback session is still
+ * current.
+ *
+ * attachSource awaits `import('hls.js')` before it can build the player. If the
+ * user switched stations during that async gap, attaching now would call
+ * attachMedia on the SHARED <audio> element — hijacking it from the newer
+ * session — and overwrite hlsRef, orphaning the newer session's Hls (a leak).
+ * Re-checking `isCurrent()` AFTER the import and bailing before we construct or
+ * touch the element prevents both. Returns the attached Hls, or null when
+ * superseded (the caller then leaves hlsRef / the element untouched).
+ *
+ * Pure + DI'd ctor for unit testing.
+ */
+export const attachHlsIfCurrent = (
+  HlsCtor: HlsConstructor,
+  audio: HTMLMediaElement,
+  url: string,
+  isCurrent: () => boolean,
+  config: Record<string, unknown> = HLS_CONFIG
+): HlsLike | null => {
+  if (!isCurrent()) return null;
+  const hls = new HlsCtor(config);
+  hls.loadSource(url);
+  hls.attachMedia(audio);
+  return hls;
+};
+
 export const useAudioPlayer = ({
   onEvent
 }: {
@@ -352,7 +404,7 @@ export const useAudioPlayer = ({
     }
   };
 
-  const attachSource = async (url: string) => {
+  const attachSource = async (url: string, sessionId = playbackSessionRef.current) => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -364,20 +416,18 @@ export const useAudioPlayer = ({
 
     if (isHls(url) && !audio.canPlayType('application/vnd.apple.mpegurl')) {
       const mod = await import('hls.js/dist/hls.light.mjs');
-      const hls = new mod.default({
-        enableWorker: true,
-        lowLatencyMode: false,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 10,
-        liveDurationInfinity: true,
-        highBufferWatchdogPeriod: 2
-      });
-      hls.loadSource(url);
-      hls.attachMedia(audio);
+      // The await above is the danger window: a station switch during the
+      // import must NOT let this (now-stale) call attach to the shared <audio>.
+      const hls = attachHlsIfCurrent(
+        mod.default as unknown as HlsConstructor,
+        audio,
+        url,
+        () => isSessionCurrent(sessionId)
+      );
+      if (!hls) {
+        pushEvent('hls: superseded before attach');
+        return;
+      }
       hlsRef.current = hls;
       pushEvent('hls: attached');
     } else {
@@ -453,7 +503,7 @@ export const useAudioPlayer = ({
       candidateIndexRef.current = index;
       try {
         try {
-          await attachSource(nextUrl);
+          await attachSource(nextUrl, sessionId);
         } catch (error) {
           const attachError =
             error instanceof Error ? error.message : formatMediaError(audio) || 'attach failed';
