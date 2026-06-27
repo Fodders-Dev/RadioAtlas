@@ -59,7 +59,12 @@ module.exports = {
         HARVEST_CONCURRENCY: '2',
         HARVEST_PAUSE_MS: '500',
         HARVEST_MIN_INTERVAL_MS: '300',
-        API_BASE: 'http://localhost:3001'
+        API_BASE: 'http://localhost:3001',
+        // PERSISTENT db OUTSIDE the release dir — survives deploys + prune_old_releases.
+        // Without this the harvester defaults to a release-relative path
+        // (apps/api/data/station-intelligence.sqlite) recreated EMPTY on every
+        // deploy → all accumulated coverage resets. shared/data persists.
+        STATION_INTEL_DB_PATH: '/opt/RadioAtlas/shared/data/station-intelligence.sqlite'
       }
     }
   ]
