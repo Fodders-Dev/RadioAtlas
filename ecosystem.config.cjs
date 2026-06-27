@@ -53,7 +53,7 @@ module.exports = {
       max_memory_restart: '400M',
       env: {
         NODE_ENV: 'production',
-        HARVESTER_ENABLED: '0', // <-- flip to '1' to activate (then pm2 restart)
+        HARVESTER_ENABLED: '1', // <-- flip to '1' to activate (then pm2 restart)
         HARVEST_ORDER: 'stale',
         HARVEST_LIMIT: '200',
         HARVEST_CONCURRENCY: '2',
