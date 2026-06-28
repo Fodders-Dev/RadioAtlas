@@ -16,15 +16,6 @@ const NAV_ITEMS: NavItem[] = [
     )
   },
   {
-    // «Лента» — the vertical discovery feed. A stacked-cards glyph.
-    id: 'feed',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
-      </svg>
-    )
-  },
-  {
     id: 'search',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">

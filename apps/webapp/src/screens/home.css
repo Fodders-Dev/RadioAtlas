@@ -1531,3 +1531,80 @@
 .home-rail-show-all:focus-visible {
   border-color: var(--accent-border, rgba(180, 223, 255, 0.3));
 }
+
+/* «Лента» entry — the Discovery Feed lives here on Home, not in the bottom dock
+   (it crowded the dock + pushed «Медиатека» off-screen at 360). A prominent,
+   accent-tinted card right under search. */
+.home-feed-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  background:
+    radial-gradient(130% 150% at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%),
+    var(--theme-surface, rgba(17, 25, 38, 0.56));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.home-feed-entry:active {
+  transform: scale(0.99);
+}
+
+.home-feed-entry:hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+}
+
+.home-feed-entry-glyph {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+.home-feed-entry-glyph svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.home-feed-entry-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.home-feed-entry-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.home-feed-entry-sub {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-feed-entry-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.home-feed-entry-arrow svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
