@@ -211,8 +211,10 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   await startSearchResultsRadio(page);
   await expect.poll(() => distinctPlayedStations(page)).toBe(1);
 
-  // Open «Лента». Mounting it is NOT a swipe → ZERO new plays past the settle.
-  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Лента|Feed/ }).click();
+  // Open «Лента» from its Home entry (it's not in the bottom dock). Mounting it
+  // is NOT a swipe → ZERO new plays past the settle.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
+  await page.locator('.home-feed-entry').click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
   await page.waitForTimeout(700); // well past the 220ms settle window

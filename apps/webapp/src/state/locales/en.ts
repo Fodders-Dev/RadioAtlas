@@ -197,6 +197,8 @@ export const enDictionary = {
     "searchTitle": "Find a station",
     "openGlobe": "Open globe",
     "openSearch": "Open search",
+    "feedEntryTitle": "Feed",
+    "feedEntrySub": "Swipe and listen — stations one after another",
     "openLibrary": "Open library",
     "refreshFeed": "Refresh feed",
     "showAll": "Show all",

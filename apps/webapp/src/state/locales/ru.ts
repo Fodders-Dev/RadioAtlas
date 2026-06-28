@@ -197,6 +197,8 @@ export const ruDictionary = {
     "searchTitle": "Найти станцию",
     "openGlobe": "Открыть глобус",
     "openSearch": "Открыть поиск",
+    "feedEntryTitle": "Лента",
+    "feedEntrySub": "Свайпай и слушай — станции одна за другой",
     "openLibrary": "Открыть медиатеку",
     "refreshFeed": "Обновить витрину",
     "showAll": "Показать все",

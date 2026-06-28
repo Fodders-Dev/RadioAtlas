@@ -984,6 +984,23 @@ export const Home = () => {
         </section>
       ) : null}
 
+      <button type="button" className="home-feed-entry" onClick={() => setActiveSection('feed')}>
+        <span className="home-feed-entry-glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
+          </svg>
+        </span>
+        <span className="home-feed-entry-copy">
+          <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
+          <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
+        </span>
+        <span className="home-feed-entry-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+          </svg>
+        </span>
+      </button>
+
       {resumeModule ? (
         <HomeResumeStrip
           dense={denseLayout}

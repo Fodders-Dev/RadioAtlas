@@ -406,9 +406,9 @@ test('discovery feed mobile visual baseline (card + actions)', async ({ page }) 
   await seedRadioState(page, { activeSection: 'feed' });
   await page.goto('/?api=/api');
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
-  // The landed first card autoplays — wait for its live pill so the playing
-  // state is reflected deterministically before the shot.
-  await expect(page.locator('.station-feed-live').first()).toBeVisible();
+  // Opening the feed no longer auto-plays when a station is already current (the
+  // #86 fix), so we pin the card chrome rather than waiting on a live pill (which
+  // reflects playback state, not the render under test).
   const freezeStage = {
     content: '.station-backdrop-energy, .station-backdrop-image { visibility: hidden !important; }'
   };
@@ -423,7 +423,6 @@ test('discovery feed mobile visual baseline (card + actions)', async ({ page }) 
   );
   await page.reload();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
-  await expect(page.locator('.station-feed-live').first()).toBeVisible();
   await page.addStyleTag(freezeStage);
   await waitForStableMetrics(page, '.station-feed-overlay');
   const lightShot = await page.screenshot({ animations: 'disabled' });
