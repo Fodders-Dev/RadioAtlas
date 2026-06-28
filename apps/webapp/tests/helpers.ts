@@ -227,7 +227,7 @@ const DEFAULT_HOME_SEED = 424242;
 
 type SeedStation = (typeof stations)[number];
 type SeedRadioStateOptions = {
-  activeSection?: 'home' | 'search' | 'globe' | 'library';
+  activeSection?: 'home' | 'feed' | 'search' | 'globe' | 'library';
   libraryTab?: string;
   homeSessionSeed?: number;
   behaviorProfile?: BehaviorProfile;

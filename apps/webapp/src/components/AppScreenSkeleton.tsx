@@ -8,6 +8,7 @@ type AppScreenSkeletonProps = {
 
 const SKELETON_ROWS: Record<AppSection, number> = {
   home: 4,
+  feed: 3,
   search: 5,
   globe: 4,
   library: 4

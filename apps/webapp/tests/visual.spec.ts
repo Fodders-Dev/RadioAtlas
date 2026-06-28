@@ -394,6 +394,42 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
   });
 });
 
+// Phase 2 discovery feed: pin the @360x780 fullscreen card — station-backdrop
+// stage, bottom identity block, right action rail (like · queue · open player).
+// The landed card autoplays, so the active backdrop's --ra-energy glow is
+// written per-frame from JS (animations:'disabled' can't freeze it) → the energy
+// layer is hidden for the shot; the deterministic palette gradient + scrim +
+// copy/controls remain. Pinned in BOTH themes — the stage is a dark immersive
+// surface either way, so the light copy must stay AA in both.
+test('discovery feed mobile visual baseline (card + actions)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { activeSection: 'feed' });
+  await page.goto('/?api=/api');
+  await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  // The landed first card autoplays — wait for its live pill so the playing
+  // state is reflected deterministically before the shot.
+  await expect(page.locator('.station-feed-live').first()).toBeVisible();
+  const freezeStage = {
+    content: '.station-backdrop-energy, .station-backdrop-image { visibility: hidden !important; }'
+  };
+  await page.addStyleTag(freezeStage);
+  await waitForStableMetrics(page, '.station-feed-overlay');
+  const darkShot = await page.screenshot({ animations: 'disabled' });
+  expect(darkShot).toMatchSnapshot('station-feed-mobile.png', { maxDiffPixelRatio: 0.04 });
+
+  // Light theme (pastel) — the dark stage and its light copy must still read AA.
+  await page.evaluate(() =>
+    window.localStorage.setItem('radio:theme-current:v1', JSON.stringify('pastel'))
+  );
+  await page.reload();
+  await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  await expect(page.locator('.station-feed-live').first()).toBeVisible();
+  await page.addStyleTag(freezeStage);
+  await waitForStableMetrics(page, '.station-feed-overlay');
+  const lightShot = await page.screenshot({ animations: 'disabled' });
+  expect(lightShot).toMatchSnapshot('station-feed-mobile-light.png', { maxDiffPixelRatio: 0.04 });
+});
+
 // PR-4b fix round: pin the TOP of the studio sheet (current-theme hero + the
 // preset list) in BOTH modes. The original PR shipped only dark builder-crop
 // baselines and the Warm-Light/list breakage sailed through a green gate —

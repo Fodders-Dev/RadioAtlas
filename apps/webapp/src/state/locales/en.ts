@@ -21,6 +21,7 @@ export const enDictionary = {
   },
   "nav": {
     "home": "Home",
+    "feed": "Feed",
     "search": "Search",
     "globe": "Globe",
     "library": "Library",
@@ -30,6 +31,23 @@ export const enDictionary = {
     "Discover": "Discover",
     "Playlist": "Queue",
     "Settings": "Settings"
+  },
+  "feed": {
+    "title": "Feed",
+    "tagline": "Swipe and listen",
+    "sourceLabel": "Feed",
+    "openPlayer": "Open player",
+    "addToQueue": "Add to queue",
+    "addedToQueue": "Added to queue",
+    "alreadyQueued": "Already queued",
+    "like": "Add to favorites",
+    "unlike": "Remove from favorites",
+    "live": "Live",
+    "loading": "Tuning in…",
+    "swipeHint": "Swipe up",
+    "emptyTitle": "Nothing to flip through yet",
+    "emptyBody": "Play a few stations and the feed will fill up with what you like.",
+    "close": "Close feed"
   },
   "common": {
     "play": "Play",

@@ -1,0 +1,287 @@
+/* Phase 2 discovery feed — a fullscreen, one-station-per-screen vertical pager.
+   Rendered through a portal on <body> at z-index 100 so it takes over the whole
+   screen (above the dock z-85, player-dock z-90, chat-fab z-95). The station
+   backdrop makes every card a DARK immersive stage, so the copy is light in BOTH
+   themes — the colours here are self-contained (no theme-token inheritance
+   needed through the portal) and stay AA over the scrim. */
+.station-feed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  color: #f6faff;
+  background: #05070d;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Fixed chrome: close + title. pointer-events are off on the wrapper so a swipe
+   that starts up here still reaches the pager; only the button opts back in. */
+.station-feed-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3, 7, 14, 0.62), transparent);
+}
+
+.station-feed-close {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.5);
+  color: #f6faff;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.station-feed-close:hover {
+  background: rgba(8, 12, 20, 0.72);
+}
+
+.station-feed-close svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.station-feed-heading {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-shadow: 0 1px 12px rgba(3, 7, 14, 0.7);
+}
+
+.station-feed-heading strong {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.station-feed-heading span {
+  font-size: 12px;
+  color: rgba(238, 245, 252, 0.72);
+}
+
+/* The snap pager. One card = one viewport; mandatory snap + snap-stop so a flick
+   advances exactly one station. */
+.station-feed-scroller {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.station-feed-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.station-feed-card {
+  position: relative;
+  width: 100%;
+  height: 100vh; /* fallback for browsers without svh */
+  height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+}
+
+.station-feed-card-content {
+  position: absolute;
+  inset: 0;
+}
+
+/* Right-hand action rail (tik-tok style): 48px round taps, light glyphs on a
+   translucent dark chip so they read over any cover. */
+.station-feed-card-actions {
+  position: absolute;
+  right: 12px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.station-feed-action {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.46);
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.station-feed-action:hover {
+  background: rgba(10, 14, 22, 0.66);
+}
+
+.station-feed-action:active {
+  transform: scale(0.92);
+}
+
+.station-feed-action svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.station-feed-action.is-on {
+  background: rgba(255, 76, 124, 0.92);
+  color: #fff;
+}
+
+.station-feed-action svg [data-filled='true'],
+.station-feed-action svg path[data-filled='true'] {
+  fill: currentColor;
+}
+
+/* Bottom-left identity block. Kept clear of the action rail on the right. */
+.station-feed-card-info {
+  position: absolute;
+  left: 18px;
+  right: 78px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  z-index: 2;
+  text-shadow: 0 1px 16px rgba(3, 7, 14, 0.66);
+}
+
+.station-feed-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 76, 124, 0.92);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.station-feed-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #fff;
+  animation: station-feed-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes station-feed-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.station-feed-card-name {
+  margin: 0;
+  font-size: clamp(22px, 6.6vw, 30px);
+  font-weight: 800;
+  line-height: 1.12;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.station-feed-card-track {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f6faff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station-feed-card-meta {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: rgba(238, 245, 252, 0.74);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station-feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100svh;
+  padding: 0 32px;
+  text-align: center;
+}
+
+.station-feed-empty strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.station-feed-empty p {
+  margin: 0;
+  max-width: 280px;
+  font-size: 13.5px;
+  color: rgba(238, 245, 252, 0.72);
+}
+
+@keyframes station-feed-pulse-still {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .station-feed-live-dot {
+    animation: none;
+  }
+  .station-feed-action {
+    transition: none;
+  }
+}
+
+/* Desktop (>720px) — not a priority surface: a centred narrow column over a
+   dimmed stage, so the feed still works without a bespoke desktop layout. */
+.station-feed-overlay--desktop {
+  background: #05070d;
+}
+
+.station-feed-overlay--desktop .station-feed-scroller {
+  max-width: 460px;
+  margin: 0 auto;
+  box-shadow: 0 0 120px rgba(0, 0, 0, 0.6);
+}
+
+.station-feed-overlay--desktop .station-feed-topbar {
+  max-width: 460px;
+  margin: 0 auto;
+}

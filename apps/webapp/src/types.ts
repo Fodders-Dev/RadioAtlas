@@ -44,7 +44,7 @@ export type ContinentId =
 
 export type BrowseState = 'continents' | 'countries' | 'stations';
 
-export type AppSection = 'home' | 'search' | 'globe' | 'library';
+export type AppSection = 'home' | 'feed' | 'search' | 'globe' | 'library';
 
 export type PlayerPresentation = 'peek' | 'bar' | 'expanded';
 
