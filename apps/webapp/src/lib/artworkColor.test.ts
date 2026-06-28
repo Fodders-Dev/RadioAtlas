@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  __artworkPaletteCacheSize,
   __clearArtworkPaletteCache,
   analyzeImageData,
   extractArtworkPalette,
@@ -183,5 +184,16 @@ describe('extractArtworkPalette (load + cache)', () => {
     const before = imageCtorCount;
     void extractArtworkPalette('http://cdn/hang.png');
     expect(imageCtorCount).toBe(before + 1);
+  });
+
+  it('caps the cache at the LRU limit as the feed scrolls many stations', async () => {
+    // 65 distinct successful covers — the bounded cache must evict the oldest so
+    // a long feed scroll can't grow it without limit.
+    for (let i = 0; i < 65; i += 1) {
+      await extractArtworkPalette(`http://cdn/feed-${i}.png`);
+    }
+    expect(__artworkPaletteCacheSize()).toBeLessThanOrEqual(60);
+    // The most-recently-loaded cover is still cached (it was not the evicted one).
+    expect(await extractArtworkPalette('http://cdn/feed-64.png')).not.toBeNull();
   });
 });

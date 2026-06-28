@@ -4,6 +4,9 @@ export const loadHomeScreen = () =>
 export const loadSearchScreen = () =>
   import('../screens/Search').then((mod) => ({ default: mod.Search }));
 
+export const loadFeedScreen = () =>
+  import('../screens/StationFeed').then((mod) => ({ default: mod.StationFeed }));
+
 export const loadGlobeScreen = () =>
   import('../screens/GlobeScreen').then((mod) => ({ default: mod.GlobeScreen }));
 

@@ -119,6 +119,33 @@ test.describe('dialog keyboard a11y', () => {
     await expect.poll(() => activeMatches(page, '.player-dock-artwork-trigger')).toBe(true);
   });
 
+  // Phase 2 Discovery Feed: a fullscreen portal dialog — it must honour the same
+  // contract (focus lands inside, Tab stays trapped, Escape closes, focus
+  // returns to the «Лента» nav button that opened it).
+  test('Discovery feed: focus trap, Escape, and focus restoration', async ({ page }) => {
+    await page.goto('/');
+    const trigger = page.locator('.app-navigation-mobile').getByRole('button', { name: /Лента|Feed/ });
+    await trigger.click();
+
+    const overlay = page.locator('.station-feed-overlay');
+    await expect(overlay).toBeVisible();
+    expect(await focusIsInside(page, '.station-feed-overlay')).toBe(true);
+
+    for (let i = 0; i < 5; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await focusIsInside(page, '.station-feed-overlay')).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(overlay).toHaveCount(0);
+    // Focus returned to the «Лента» nav button that opened the feed.
+    const restored = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      return Boolean(el?.closest('.app-navigation-mobile') && /Лента|Feed/.test(el.textContent || ''));
+    });
+    expect(restored).toBe(true);
+  });
+
   test('T1.8: visible focus indicator + <html lang> reflects locale', async ({ page }) => {
     await page.goto('/');
     // LocaleProvider syncs <html lang> to the default locale on boot.

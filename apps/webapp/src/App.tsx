@@ -13,6 +13,7 @@ import { useCompactLayout } from './lib/useCompactLayout';
 import { useTelegramViewport } from './lib/useTelegramViewport';
 import {
   loadAccountSheet,
+  loadFeedScreen,
   loadGlobeScreen,
   loadHomeScreen,
   loadLibraryScreen,
@@ -28,6 +29,7 @@ import { useSession } from './state/SessionContext';
 import type { AppSection, LibraryTab } from './types';
 
 const HomeScreen = lazy(loadHomeScreen);
+const FeedScreen = lazy(loadFeedScreen);
 const SearchScreen = lazy(loadSearchScreen);
 const GlobeScreenLazy = lazy(loadGlobeScreen);
 const LibraryScreen = lazy(loadLibraryScreen);
@@ -57,6 +59,7 @@ const ChatSheetLazy = lazy(() =>
 
 const SECTION_COMPONENTS: Record<AppSection, ComponentType> = {
   home: HomeScreen,
+  feed: FeedScreen,
   search: SearchScreen,
   globe: GlobeScreenLazy,
   library: LibraryScreen
@@ -262,6 +265,13 @@ const App = () => {
         subtitle: '',
         context: ''
       },
+      // The feed renders a fullscreen portal that covers this topbar; the entry
+      // exists so the shell's section meta stays total over AppSection.
+      feed: {
+        title: t('nav.feed'),
+        subtitle: '',
+        context: ''
+      },
       search: {
         title: t('nav.search'),
         subtitle: t('search.topbarSubtitle'),
@@ -347,6 +357,7 @@ const App = () => {
           onOpenChat={aiAssistantEnabled ? () => setChatOpen(true) : undefined}
           onPreload={(section) => {
             if (section === 'home') void loadHomeScreen();
+            if (section === 'feed') void loadFeedScreen();
             if (section === 'search') void loadSearchScreen();
             if (section === 'globe') void loadGlobeScreen();
             if (section === 'library') void loadLibraryScreen();

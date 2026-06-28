@@ -21,6 +21,7 @@ export const ruDictionary = {
   },
   "nav": {
     "home": "Главная",
+    "feed": "Лента",
     "search": "Поиск",
     "globe": "Глобус",
     "library": "Медиатека",
@@ -30,6 +31,23 @@ export const ruDictionary = {
     "Discover": "Поиск",
     "Playlist": "Очередь",
     "Settings": "Настройки"
+  },
+  "feed": {
+    "title": "Лента",
+    "tagline": "Свайпай и слушай",
+    "sourceLabel": "Лента",
+    "openPlayer": "Открыть плеер",
+    "addToQueue": "В очередь",
+    "addedToQueue": "Добавлено в очередь",
+    "alreadyQueued": "Уже в очереди",
+    "like": "В избранное",
+    "unlike": "Убрать из избранного",
+    "live": "В эфире",
+    "loading": "Подбираю поток…",
+    "swipeHint": "Листай вверх",
+    "emptyTitle": "Пока нечего листать",
+    "emptyBody": "Послушай пару станций — и лента наполнится тем, что тебе по душе.",
+    "close": "Закрыть ленту"
   },
   "common": {
     "play": "Слушать",

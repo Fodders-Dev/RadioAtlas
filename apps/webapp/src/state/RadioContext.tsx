@@ -2207,6 +2207,40 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           currentIndex: -1
         });
         player.stop();
+      },
+      enqueue: (station) => {
+        const currentQueue = queueRef.current;
+        const [incoming] = normalizeStations([station]);
+        if (!incoming) return false;
+        // Append-only: if it's already queued, do nothing (never reorders nor
+        // replays — the playing station and currentIndex are untouched, so this
+        // can NEVER auto-switch playback, PR #86).
+        if (currentQueue.items.some((item) => item.stationuuid === incoming.stationuuid)) {
+          notify(t('feed.alreadyQueued'));
+          return false;
+        }
+        // Keep the station resolvable later (queue items dehydrate to ids).
+        rememberStations([incoming]);
+        updateQueue({
+          ...currentQueue,
+          items: [...currentQueue.items, incoming],
+          // currentIndex deliberately carried through unchanged.
+          sourceId: currentQueue.sourceId ?? 'discovery-feed',
+          sourceLabel: currentQueue.sourceLabel ?? null
+        });
+        notify(t('feed.addedToQueue'));
+        reportProductEvent(
+          'queue_enqueue',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length + 1,
+            activeIndex: currentQueue.currentIndex
+          },
+          {
+            dedupeKey: `queue_enqueue:${incoming.stationuuid}:${Date.now()}`
+          }
+        );
+        return true;
       }
     }),
     [player, storedQueue]

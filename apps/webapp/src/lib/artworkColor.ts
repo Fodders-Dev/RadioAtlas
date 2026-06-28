@@ -235,15 +235,24 @@ const sampleImageData = (img: HTMLImageElement): { data: Uint8ClampedArray } | n
   }
 };
 
-// Cache resolved palettes per URL. Failures resolve null and are evicted so a
-// later attempt can retry; in-flight calls share one promise (dedupe).
+// LRU cache of resolved palettes per URL. Failures resolve null and are evicted
+// so a later attempt can retry; in-flight calls share one promise (dedupe). The
+// Phase 2 feed scrolls through many stations, so the cache is BOUNDED (Map
+// insertion order = recency; a hit re-inserts to mark most-recent, and a set
+// past the cap evicts the least-recently-used).
+const MAX_CACHE_ENTRIES = 60;
 const cache = new Map<string, Promise<ExtractedPalette | null>>();
 
 export const extractArtworkPalette = (rawUrl?: string | null): Promise<ExtractedPalette | null> => {
   const url = String(rawUrl || '').trim();
   if (!url) return Promise.resolve(null);
   const cached = cache.get(url);
-  if (cached) return cached;
+  if (cached) {
+    // Touch: move to the most-recent end so a re-viewed station isn't evicted.
+    cache.delete(url);
+    cache.set(url, cached);
+    return cached;
+  }
 
   const task = (async (): Promise<ExtractedPalette | null> => {
     try {
@@ -256,6 +265,11 @@ export const extractArtworkPalette = (rawUrl?: string | null): Promise<Extracted
   })();
 
   cache.set(url, task);
+  // Evict the least-recently-used entry once we exceed the cap.
+  if (cache.size > MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined && oldest !== url) cache.delete(oldest);
+  }
   task.then(
     (result) => {
       if (!result) cache.delete(url);
@@ -265,7 +279,8 @@ export const extractArtworkPalette = (rawUrl?: string | null): Promise<Extracted
   return task;
 };
 
-// Test seam — drop the module cache between cases.
+// Test seams — drop the module cache / inspect its size between cases.
 export const __clearArtworkPaletteCache = () => {
   cache.clear();
 };
+export const __artworkPaletteCacheSize = () => cache.size;

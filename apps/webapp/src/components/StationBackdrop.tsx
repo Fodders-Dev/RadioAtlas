@@ -4,6 +4,7 @@ import type { StationLite } from '../types';
 import { createGeneratedArtworkPalette } from '../lib/artwork';
 import { extractArtworkPalette, type ExtractedPalette } from '../lib/artworkColor';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
+import './StationBackdrop.css';
 
 // Phase 1 station-backdrop engine (generalizes the old FullPlayerBackdrop). A
 // reusable, full-bleed, two-layer background tinted by THE STATION rather than

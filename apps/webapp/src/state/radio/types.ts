@@ -117,6 +117,10 @@ export type QueueState = QueueSnapshot & {
   shuffleQueue: () => void;
   clearUpcoming: () => void;
   clearQueue: () => void;
+  // Append-only: add a station to the END of the queue without touching the
+  // playing station or currentIndex (the Discovery Feed «в очередь» action).
+  // Returns true when it was newly added, false when already queued.
+  enqueue: (station: Station | StationLite) => boolean;
 };
 
 export type WinampState = {
