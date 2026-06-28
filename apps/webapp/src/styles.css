@@ -8110,6 +8110,28 @@ body {
   gap: 12px;
 }
 
+/* Decluttered queue hero: one full-width Play, then a single tidy swipe-row of
+   secondary actions (was a 7-chip header + a 4-pill stat grid). */
+.library-queue-hero-play {
+  width: 100%;
+  justify-content: center;
+}
+
+.library-queue-actions {
+  margin-top: 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.library-queue-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.library-queue-actions .chip {
+  flex: 0 0 auto;
+}
+
 .library-queue-row-copy {
   gap: 6px;
   min-width: 0;
@@ -9657,16 +9679,29 @@ button.player-dock-status-pill:active {
    natural-width chips and the wide count badge dropped — every tab reachable,
    no «крутилка». Desktop keeps its single fitting row + counts untouched. */
 @media (max-width: 720px) {
+  /* Phone-only (≤720px): make the 5 tabs an EQUAL-WIDTH segmented row that fits
+     on ONE line — no wrap (looked «криво») and no side-scroller (hid tabs). Each
+     tab flexes to 1/5 width with a centered, ellipsis-safe label. */
   .library-tab-strip {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     overflow: visible;
-    gap: 6px 5px;
+    gap: 4px;
   }
 
   .library-tab-chip {
-    gap: 4px;
-    padding: 7px 10px;
-    font-size: 11px;
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 8px 3px;
+    font-size: 10px;
+    letter-spacing: -0.1px;
+  }
+
+  .library-tab-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .library-tab-count {

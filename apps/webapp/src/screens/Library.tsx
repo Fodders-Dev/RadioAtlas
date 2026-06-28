@@ -775,56 +775,6 @@ export const Library = () => {
             <div>
               <div className="section-title">{t('playlist.title')}</div>
               <div className="section-subtitle">{queueSourceLabel}</div>
-              <div className="library-queue-explainer">{t('library.queueExplainer')}</div>
-            </div>
-            <div className="chip-row">
-              <button
-                className="chip active"
-                type="button"
-                onClick={() => {
-                  if (queue.items.length) {
-                    queue.playAtIndex(Math.max(queue.currentIndex, 0));
-                  }
-                }}
-                disabled={!queue.items.length}
-              >
-                {t('playlist.playCurrent')}
-              </button>
-              <button className="chip" type="button" onClick={playNext} disabled={queue.items.length <= 1}>
-                {t('common.next')}
-              </button>
-              <button
-                className="chip"
-                type="button"
-                onClick={() => queue.shuffleQueue()}
-                disabled={queue.items.length <= 1}
-                aria-label={t('library.shuffleQueueAria')}
-              >
-                {t('library.shuffleQueue')}
-              </button>
-              <button
-                className="chip"
-                type="button"
-                onClick={beginSaveQueue}
-                disabled={!queue.items.length}
-              >
-                {t('library.saveQueueAsPlaylist')}
-              </button>
-              <button className="chip" type="button" onClick={() => openLibraryTab('recent')}>
-                {t('library.openHistoryAction')}
-              </button>
-              <button className="chip" type="button" onClick={() => queue.clearQueue()} disabled={!queue.items.length}>
-                {t('playlist.clearQueue')}
-              </button>
-              {isMobileLayout ? (
-                <button
-                  className="chip"
-                  type="button"
-                  onClick={() => setQueueRailSheetOpen(true)}
-                >
-                  {t('library.historyJournalSheet')}
-                </button>
-              ) : null}
             </div>
           </div>
           {isSavingQueue ? (
@@ -850,25 +800,6 @@ export const Library = () => {
               </button>
             </form>
           ) : null}
-          <div className="library-queue-overview">
-            <div className="globe-selection-pill">
-              <span>{t('playlist.title')}</span>
-              <strong>{queue.items.length}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('app.nowPlayingLabel')}</span>
-              <strong>{queueSlotValue}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('favoritesScreen.journalTitle')}</span>
-              <strong>{trackHistory.length}</strong>
-            </div>
-            <div className="globe-selection-pill">
-              <span>{t('playlist.historyTitle')}</span>
-              <strong>{playbackHistory.length}</strong>
-            </div>
-          </div>
-
           {queue.items.length ? (
             <div className="library-queue-layout">
               <div className="library-queue-main">
@@ -881,9 +812,9 @@ export const Library = () => {
                     {nowPlaying?.trim() ||
                       (queueLeadStation ? stationLocation(queueLeadStation) : t('playlist.empty'))}
                   </div>
-                  <div className="hero-chip-row">
+                  <div className="hero-chip-row library-queue-hero-actions">
                     <button
-                      className="chip active"
+                      className="chip active library-queue-hero-play"
                       type="button"
                       onClick={() => {
                         if (queueLeadStation) {
@@ -898,13 +829,25 @@ export const Library = () => {
                     >
                       {player.current && player.isPlaying ? t('playlist.playing') : t('common.play')}
                     </button>
-                    <button className="chip" type="button" onClick={playLast}>
-                      {t('common.resume')}
-                    </button>
-                    <button className="chip" type="button" onClick={() => openLibraryTab('recent')}>
-                      {t('library.openRecentAction')}
-                    </button>
                   </div>
+                </div>
+
+                <div className="chip-row library-queue-actions">
+                  <button
+                    className="chip"
+                    type="button"
+                    onClick={() => queue.shuffleQueue()}
+                    disabled={queue.items.length <= 1}
+                    aria-label={t('library.shuffleQueueAria')}
+                  >
+                    {t('library.shuffleQueue')}
+                  </button>
+                  <button className="chip" type="button" onClick={beginSaveQueue} disabled={!queue.items.length}>
+                    {t('library.saveQueueAsPlaylist')}
+                  </button>
+                  <button className="chip" type="button" onClick={() => queue.clearQueue()} disabled={!queue.items.length}>
+                    {t('playlist.clearQueue')}
+                  </button>
                 </div>
 
                 <div className="playlist-list library-queue-list">
