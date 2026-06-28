@@ -194,3 +194,33 @@ test('FIX 1: a runtime stream death does not advance the queue or switch station
   // The user is told the stream is unavailable (not silently skipped).
   await expect(page.locator('.toast')).toContainText(/недоступ|unavailable/i);
 });
+
+test('FEED #86: opening «Лента» while a station plays does NOT switch it; a deliberate swipe does', async ({
+  page
+}) => {
+  // The Discovery Feed autoplays the card you LAND on — but OPENING the feed is
+  // not a swipe, so mounting it while a station is playing must NOT switch the
+  // persistent player (the kickstart seeds the opening card as already-played).
+  // The first play must come only from a deliberate swipe to a DIFFERENT card.
+  await installPlayProbe(page);
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+
+  // A station is playing (first search result).
+  await startSearchResultsRadio(page);
+  await expect.poll(() => distinctPlayedStations(page)).toBe(1);
+
+  // Open «Лента». Mounting it is NOT a swipe → ZERO new plays past the settle.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Лента|Feed/ }).click();
+  await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  await page.waitForTimeout(700); // well past the 220ms settle window
+  expect(await distinctPlayedStations(page)).toBe(1); // never auto-switched on open
+
+  // A DELIBERATE swipe to the next card DOES play (autoplay-on-landing).
+  await page.locator('.station-feed-scroller').evaluate((el) => {
+    el.scrollTop += el.clientHeight;
+  });
+  await expect.poll(() => distinctPlayedStations(page), { timeout: 4000 }).toBeGreaterThanOrEqual(2);
+});

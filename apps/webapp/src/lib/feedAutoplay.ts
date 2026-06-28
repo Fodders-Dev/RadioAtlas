@@ -18,6 +18,13 @@ export type AutoplaySettler = {
   // Report the currently-landed card index (≥60% visible). Resets the settle
   // timer; only the index still landed after `settleMs` of quiet gets played.
   notify: (index: number) => void;
+  // Mark `index` as already-played WITHOUT playing it, and drop any pending
+  // settle. Used when the feed opens ON a card whose station is ALREADY current
+  // (a station is playing/paused): the IntersectionObserver's initial fire for
+  // that card must NOT auto-play it — opening «Лента» is not a swipe, so it must
+  // never switch the persistent player (#86). The first play then comes from a
+  // deliberate swipe to a DIFFERENT card.
+  seedPlayed: (index: number) => void;
   // Forget the last-played index — the next landing always re-plays (used when
   // the feed re-opens so re-entering replays the focused card).
   reset: () => void;
@@ -64,6 +71,11 @@ export const createAutoplaySettler = ({
         }
       }, settleMs);
     },
+    seedPlayed: (index) => {
+      clear();
+      pending = null;
+      played = index;
+    },
     reset: () => {
       played = null;
     },
@@ -72,4 +84,19 @@ export const createAutoplaySettler = ({
       pending = null;
     }
   };
+};
+
+// Decide where the feed opens and whether the landed card auto-plays on mount.
+// #86: opening «Лента» must NOT switch the persistent player, because opening is
+// not a swipe. So autoplay-on-open happens ONLY when nothing is currently loaded
+// (open-to-discover). If a station is already current, the feed opens ON that
+// station's card when it's in the feed (else card 0) with NO mount play — the
+// first play then comes from a deliberate swipe to a DIFFERENT card.
+export const resolveFeedEntry = (
+  feed: ReadonlyArray<{ stationuuid: string }>,
+  currentStationId: string | null | undefined
+): { index: number; autoplayInitial: boolean } => {
+  if (!currentStationId) return { index: 0, autoplayInitial: true };
+  const index = feed.findIndex((station) => station.stationuuid === currentStationId);
+  return { index: index >= 0 ? index : 0, autoplayInitial: false };
 };

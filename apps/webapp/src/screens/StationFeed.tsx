@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StationBackdrop } from '../components/StationBackdrop';
-import { createAutoplaySettler } from '../lib/feedAutoplay';
+import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import { buildStationFeed } from '../lib/stationFeed';
 import { rankStationsForUser } from '../lib/tasteProfile';
+import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
 import { latestTrackForStation } from '../state/radio/helpers';
 import { useCatalog } from '../state/CatalogContext';
@@ -236,8 +237,6 @@ export const StationFeed = () => {
   playStationRef.current = playStation;
   const currentIdRef = useRef(player.current?.stationuuid ?? null);
   currentIdRef.current = player.current?.stationuuid ?? null;
-  const isPlayingRef = useRef(player.isPlaying);
-  isPlayingRef.current = player.isPlaying;
   const sourceLabel = t('feed.sourceLabel');
   const sourceLabelRef = useRef(sourceLabel);
   sourceLabelRef.current = sourceLabel;
@@ -249,8 +248,10 @@ export const StationFeed = () => {
         onSettle: (index) => {
           const station = feedRef.current[index];
           if (!station) return;
-          // Already the live station → don't reconnect/restart it.
-          if (currentIdRef.current === station.stationuuid && isPlayingRef.current) return;
+          // Skip if this is ALREADY the current station — playing OR paused.
+          // Landing back on the current card must never restart it (#86), and
+          // this backstops the seedPlayed guard for the open-on-current case.
+          if (currentIdRef.current === station.stationuuid) return;
           playStationRef.current(station, {
             playlist: feedRef.current,
             sourceId: FEED_SOURCE_ID,
@@ -264,18 +265,42 @@ export const StationFeed = () => {
   // Tear down any pending play when the feed closes/unmounts.
   useEffect(() => () => settler.cancel(), [settler]);
 
-  // Kickstart: land the first card as soon as the feed has content. The
+  const handleClose = useCallback(() => {
+    settler.cancel();
+    setActiveSection('home');
+  }, [settler, setActiveSection]);
+
+  // Accessible modal: focus-trap + Escape-to-close + #root inerting + focus
+  // restoration, the project's portal-overlay contract (FullPlayerOverlay /
+  // Globe / Library). The scroll-snap pager is unaffected — useDialog only
+  // governs Tab / Escape / inert.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDialog(rootRef, { isOpen: true, onClose: handleClose });
+
+  // Kickstart: settle the OPENING card once the feed has content. The
   // IntersectionObserver's INITIAL callback can race with layout (report ratio 0
   // for a card that fills the viewport, then never re-fire on a static page), so
-  // opening the feed wouldn't autoplay. This guarantees card 0 lands once; the
-  // observer below takes over for every subsequent swipe.
+  // without this opening the feed wouldn't act. resolveFeedEntry enforces #86:
+  // autoplay-on-open ONLY when nothing is currently loaded; if a station is
+  // already current the feed opens ON its card (scrolled there) and is SEEDED as
+  // already-played so neither this nor the observer's initial fire can switch the
+  // persistent player — the first play must be a deliberate swipe to another card.
   const kickstartedRef = useRef(false);
   useEffect(() => {
-    if (!kickstartedRef.current && feedStations.length > 0) {
-      kickstartedRef.current = true;
-      setVisibleIndex(0);
-      settler.notify(0);
+    if (kickstartedRef.current || feedStations.length === 0) return;
+    kickstartedRef.current = true;
+    const { index, autoplayInitial } = resolveFeedEntry(feedStations, currentIdRef.current);
+    setVisibleIndex(index);
+    if (autoplayInitial) {
+      settler.notify(index);
+      return;
     }
+    settler.seedPlayed(index);
+    const scroller = scrollerRef.current;
+    if (scroller && index > 0) {
+      scroller.scrollTop = index * scroller.clientHeight;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedStations, settler]);
 
   // Track which card has "landed" (≥60% visible). The immediate signal drives the
@@ -311,11 +336,6 @@ export const StationFeed = () => {
     return () => observer.disconnect();
   }, [feedStations, settler]);
 
-  const handleClose = () => {
-    settler.cancel();
-    setActiveSection('home');
-  };
-
   const handleOpenPlayer = (station: StationLite) => {
     if (player.current?.stationuuid !== station.stationuuid) {
       playStation(station, {
@@ -340,6 +360,7 @@ export const StationFeed = () => {
 
   const overlay = (
     <div
+      ref={rootRef}
       className={`station-feed-overlay ${isMobile ? '' : 'station-feed-overlay--desktop'}`.trim()}
       role="dialog"
       aria-modal="true"

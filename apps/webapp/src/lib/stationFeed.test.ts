@@ -96,6 +96,43 @@ describe('buildStationFeed', () => {
     expect([...d].sort()).toEqual([...e].sort());
   });
 
+  it('uses the whole pool when there is no taste and no trending (fresh user)', () => {
+    // A brand-new user has only a catalog pool. The random budget (~7 of 40)
+    // must NOT cap the feed when it is the ONLY source — the pool IS the feed.
+    const feed = buildStationFeed({
+      tasteStations: [],
+      trending: [],
+      pool: range('p', 30),
+      seed: 3,
+      limit: 40
+    });
+    expect(feed).toHaveLength(30); // full pool, not the ~7-item random budget
+    expect(ids(feed).every((id) => id.startsWith('p'))).toBe(true);
+    // Still capped by `limit` when the pool is larger than the target size.
+    const capped = buildStationFeed({
+      tasteStations: [],
+      trending: [],
+      pool: range('p', 90),
+      seed: 3,
+      limit: 40
+    });
+    expect(capped).toHaveLength(40);
+  });
+
+  it('keeps the pool RARE once any taste or trending signal exists', () => {
+    // With a trending signal present, the pool returns to its rare-discovery
+    // budget — it must not flood the feed.
+    const feed = buildStationFeed({
+      tasteStations: [],
+      trending: range('r', 6),
+      pool: range('p', 200),
+      seed: 3,
+      limit: 40
+    });
+    const randomCount = ids(feed).filter((id) => id.startsWith('p')).length;
+    expect(randomCount).toBeLessThanOrEqual(8);
+  });
+
   it('handles empty sources without throwing', () => {
     expect(buildStationFeed({ tasteStations: [], trending: [], pool: [], seed: 1 })).toEqual([]);
     const tasteOnly = buildStationFeed({

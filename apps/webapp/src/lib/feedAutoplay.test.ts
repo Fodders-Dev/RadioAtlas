@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAutoplaySettler } from './feedAutoplay';
+import { createAutoplaySettler, resolveFeedEntry } from './feedAutoplay';
 
 // Manual timer scheduler — the settler keeps at most one pending timer, so
 // flush() = "the scroll went quiet for settleMs".
@@ -129,5 +129,47 @@ describe('createAutoplaySettler', () => {
     expect(timers.count()).toBe(0);
     timers.flush();
     expect(plays).toEqual([]);
+  });
+
+  it('seedPlayed() blocks the opening card from auto-playing, but a swipe to another plays', () => {
+    // #86: the feed opens ON the already-current station's card (index 3) — its
+    // initial IntersectionObserver fire must NOT switch the persistent player.
+    const plays: number[] = [];
+    const timers = manualTimers();
+    const settler = createAutoplaySettler({
+      settleMs: 200,
+      onSettle: (i) => plays.push(i),
+      setTimer: timers.setTimer,
+      clearTimer: timers.clearTimer
+    });
+
+    settler.seedPlayed(3); // opened on the current station's card
+    settler.notify(3); // the IO's initial fire for that same card
+    expect(timers.count()).toBe(0); // no timer armed → no mount play
+    timers.flush();
+    expect(plays).toEqual([]);
+
+    settler.notify(5); // a deliberate swipe to a DIFFERENT card
+    timers.flush();
+    expect(plays).toEqual([5]);
+  });
+});
+
+describe('resolveFeedEntry', () => {
+  const feed = ['a', 'b', 'c', 'd'].map((stationuuid) => ({ stationuuid }));
+
+  it('autoplays the first card when nothing is currently loaded (open-to-discover)', () => {
+    expect(resolveFeedEntry(feed, null)).toEqual({ index: 0, autoplayInitial: true });
+    expect(resolveFeedEntry(feed, undefined)).toEqual({ index: 0, autoplayInitial: true });
+    expect(resolveFeedEntry(feed, '')).toEqual({ index: 0, autoplayInitial: true });
+  });
+
+  it('opens ON the current station card with NO mount play when one is already current', () => {
+    // #86: a station is playing/paused → don't auto-switch; land on its card.
+    expect(resolveFeedEntry(feed, 'c')).toEqual({ index: 2, autoplayInitial: false });
+  });
+
+  it('starts at 0 with NO mount play when the current station is not in the feed', () => {
+    expect(resolveFeedEntry(feed, 'zzz')).toEqual({ index: 0, autoplayInitial: false });
   });
 });

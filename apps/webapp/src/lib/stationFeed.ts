@@ -67,13 +67,17 @@ export const buildStationFeed = ({
   const taste = dedupe(tasteStations, seen);
   const trend = dedupe(trending, seen);
 
-  // «редкие случайные»: cap the random pool to a small slice of the target size
-  // (at least a couple) so discovery stays present without diluting the mix.
-  const randomBudget = Math.max(2, Math.round(limit * randomRatio));
   const randomCandidates = dedupe(pool, seen).sort(
     (left, right) => seededJitter(left.stationuuid, seed) - seededJitter(right.stationuuid, seed)
   );
-  const random = randomCandidates.slice(0, randomBudget);
+  // «редкие случайные»: normally the random pool is capped to a small slice so
+  // discovery stays present without diluting the mix. BUT when there's no taste
+  // AND no trending signal (a fresh user with only a catalog pool), the pool IS
+  // the feed — use it whole (capped only by `limit` below) instead of the ~7-item
+  // budget, so the feed isn't near-empty.
+  const poolIsPrimary = taste.length === 0 && trend.length === 0;
+  const randomBudget = Math.max(2, Math.round(limit * randomRatio));
+  const random = poolIsPrimary ? randomCandidates : randomCandidates.slice(0, randomBudget);
 
   const sources: Array<{ items: StationLite[]; weight: number }> = [
     { items: taste, weight: 0.5 },
