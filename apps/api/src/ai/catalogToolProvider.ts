@@ -75,14 +75,24 @@ const splitTags = (tags: string | null | undefined): string[] =>
 // ranking — only here, in the AI rec path, and only when the user didn't ask for
 // talk/news themselves.
 const TALK_FORMAT =
-  /(\bnews\b|\btalk\b|talk\s*radio|sport[s]?\s*talk|spoken\s*word|\binfo\b|actualit|nachrichten|\bparliament\b|pol[ií]tica|разговорн|новост|\bречь\b)/i;
+  /(\bnews\b|\btalk\b|talk\s*radio|sport[s]?\s*talk|spoken\s*word|\binfo\b|actualit|nachrichten|noticias|g[eé]n[eéa]ralist|\bparliament\b|pol[ií]tica|разговорн|новост|\bречь\b)/i;
+
+// Brand denylist for generalist talk/news stations whose NAME + (often empty)
+// tags don't reveal the format, so TALK_FORMAT can't catch them — e.g. «RTL»
+// (France, tags ''), which leaked in first on «что послушать?». Bounded so music
+// siblings stay: \brtl\b matches «RTL» but NOT «RTL2» (pop,rock). Mirrored in
+// queryWantsTalk so an explicit «включи RTL» is still honored. Keep this list
+// SHORT + verified — only opaque brands with no music namesake in the catalog.
+const TALK_BRANDS = /(\brtl\b)/i;
 
 const isTalkFormat = (station: CatalogStationLite): boolean =>
-  TALK_FORMAT.test(`${station.name || ''} ${station.tags || ''}`);
+  TALK_FORMAT.test(`${station.name || ''} ${station.tags || ''}`) ||
+  TALK_BRANDS.test(station.name || '');
 
-// Did the user's own query/tag ask for talk/news? Then we must NOT filter it out.
+// Did the user's own query/tag ask for talk/news (or name a talk brand)? Then we
+// must NOT filter it out.
 const queryWantsTalk = (query: string, tag?: string): boolean =>
-  TALK_FORMAT.test(`${query} ${tag || ''}`);
+  TALK_FORMAT.test(`${query} ${tag || ''}`) || TALK_BRANDS.test(`${query} ${tag || ''}`);
 
 const toRef = (station: CatalogStationLite): VerifiedStationRef => ({
   stationuuid: station.stationuuid,
