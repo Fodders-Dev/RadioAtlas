@@ -56,7 +56,11 @@ export const CULTURAL_VIBES: CulturalVibe[] = [
   // Tarantino — surf rock + soul + funk needle-drops.
   { label: 'tarantino', pattern: /тарантино|tarantino|kill[\s-]?bill|убить[\s-]?билла|pulp[\s-]?fiction/i, tags: ['surf rock', 'soul', 'funk'] },
   // Peaky Blinders — bluesy / indie rock.
-  { label: 'peaky-blinders', pattern: /острые[\s-]?козырьки|peaky[\s-]?blinders/i, tags: ['blues rock', 'indie rock'] }
+  { label: 'peaky-blinders', pattern: /острые[\s-]?козырьки|peaky[\s-]?blinders/i, tags: ['blues rock', 'indie rock'] },
+  // City pop — the 80s Japanese groove. A genre alias (not a franchise) but it
+  // belongs here for the same reason: the DeepSeek vibe-mapping mis-read «сити-поп»
+  // as smooth jazz, so pin it to the real tags.
+  { label: 'city-pop', pattern: /сити[\s-]?поп|city[\s-]?pop/i, tags: ['city pop', 'j-pop', 'japanese'] }
 ];
 
 /**

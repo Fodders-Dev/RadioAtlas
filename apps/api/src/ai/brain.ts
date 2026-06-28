@@ -64,7 +64,19 @@ const SEARCH_INTENT = /(включ|постав|вруб|запусти|дава
 // bug). Matching it routes the turn through the planner, which then maps the
 // vibe to genre tags and calls search_stations.
 const VIBE_INTENT =
-  /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн)/i;
+  /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн|поора|накрич|поплак|пореве|выпустить\s+пар|агресс|ярост)/i;
+
+// A clear MUSIC request can carry NO play-verb and NO vibe-word — a bare genre, a
+// decade, «женский вокал», «хиты 90-х», «что-нибудь в стиле дрилл». Those read as
+// smalltalk → the planner was skipped → Лира just DESCRIBED the genre instead of
+// returning stations («назвал жанр и не поискал» — the live bug). Matching music
+// vocabulary makes the turn NOT smalltalk so the planner runs and searches. Used
+// ONLY for the smalltalk gate (not the vibe-backstop) — the planner is the smart
+// arbiter (it searches a real ask, finals a statement like «я не люблю музыку»),
+// so a false positive only costs one planner call, never a wrong card. Short
+// stems get a Cyrillic/Latin-aware boundary so «урок»≠«рок», «попа»≠«поп».
+const MUSIC_DESCRIPTOR =
+  /(музык|вокал|инструментал|хиты|хитов|хит-парад|\d0-?[еёхxs]|девяност|восьмидес|семидес|шестидес|нулев[ыо]|двухтысячн|(?:^|[^a-zа-яё])(?:рок|поп|рэп|рнб|джаз|метал{1,2}|панк|фонк|блюз|соул|фанк|диско|техно|хаус|house|регги|reggae|трэп|trap|гранж|grunge|инди|indie|эмбиент|ambient|шансон|дрилл|drill|грайм|grime|хардкор|hardcore|дабстеп|dubstep|синтвейв|synthwave|дарквейв|darkwave|шугейз|shoegaze|лоу-?фай|lo-?fi|фолк|folk|кантри|country|электрон|вейпорвейв|vaporwave|хип-?хоп|hip-?hop|сити-?поп|city\s?pop|к-?поп|k-?pop|джей-?поп|j-?pop|госпел|gospel|латин|latin|босса|самб|танго|кельтск|celtic|металкор|metalcore|ска|ska)(?![a-zа-яё]))/i;
 
 // Soft music-context markers that, ALONGSIDE a cultural reference, mark a real
 // music ask even without an ACTION/VIBE keyword — «музыку как в гта сан андреас»,
@@ -139,7 +151,7 @@ const explicitArtistQuery = (message: string): string | null => {
 };
 
 const isSmalltalk = (message: string): boolean =>
-  !ACTION_INTENT.test(message) && !VIBE_INTENT.test(message);
+  !ACTION_INTENT.test(message) && !VIBE_INTENT.test(message) && !MUSIC_DESCRIPTOR.test(message);
 
 // Factual / news / biography questions Лира cannot verify from observations
 // («жив ли X», «что нового у …», release dates, «правда ли что…»). A stopgap
