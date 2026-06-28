@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   CircuitBreaker,
   harvestQualityScore,
+  isNonArtistName,
   nextSupportsMetadata,
   parseTrackTitle,
   runHarvestBatch,
@@ -253,4 +254,35 @@ test('runHarvestBatch: a 5xx burst that recovers does NOT trip (consecutive rese
   });
   assert.equal(summary.tripped, false);
   assert.equal(summary.processed, 3); // the 3 successes
+});
+
+// ── isNonArtistName ─────────────────────────────────────────────────────────
+test('isNonArtistName: keeps real performers', () => {
+  for (const a of ['Daft Punk', 'AC/DC', 'Depeche Mode', 'Pink Floyd', 'Егор Летов', 'Кино', 'Radiohead']) {
+    assert.equal(isNonArtistName(a), false, a);
+  }
+  // a real performer is kept even when probed with an unrelated station name
+  assert.equal(isNonArtistName('Depeche Mode', 'Radio Bob'), false);
+});
+
+test('isNonArtistName: drops generic ident/placeholder markers', () => {
+  for (const a of ['Unknown', 'unknown artist', 'N/A', 'On Air', 'ONAIR', 'LIVE', 'Advert', 'Jingle', 'Various Artists', 'Station ID', 'now playing']) {
+    assert.equal(isNonArtistName(a), true, a);
+  }
+});
+
+test('isNonArtistName: drops a URL/domain in the artist slot', () => {
+  assert.equal(isNonArtistName('www.radiobob.de'), true);
+  assert.equal(isNonArtistName('listen at example.com'), true);
+  assert.equal(isNonArtistName('https://stream.fm'), true);
+});
+
+test('isNonArtistName: drops the station\'s OWN name (ident leak), exact match only', () => {
+  assert.equal(isNonArtistName('RADIO BOB', 'Radio Bob!'), true); // punctuation-folded exact
+  assert.equal(isNonArtistName('SUNSHINE LIVE', 'Sunshine Live'), true);
+  assert.equal(isNonArtistName('90s90s', '90s90s'), true);
+  assert.equal(isNonArtistName('NPO Radio 1', 'NPO Radio 1'), true);
+  // NOT a loose substring: a real artist whose name merely contains the station
+  // token survives (only an exact, fully-normalized match is dropped).
+  assert.equal(isNonArtistName('Bob Marley', 'Radio Bob'), false);
 });

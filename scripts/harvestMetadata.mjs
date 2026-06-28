@@ -100,6 +100,7 @@ const main = async () => {
     .filter((s) => s && s.stationuuid && s.url_resolved)
     .map((s) => ({
       stationUuid: s.stationuuid,
+      name: s.name,
       urlResolved: s.url_resolved,
       lastcheckok: s.lastcheckok,
       quality: harvestQualityScore(s),
