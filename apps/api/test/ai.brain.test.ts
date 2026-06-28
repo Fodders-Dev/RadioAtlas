@@ -936,3 +936,19 @@ test('RUSSIAN ARTIST FALLBACK: «где играет Егор Летов» (no s
   assert.ok(result.stations.length > 0);
   assert.ok((result.serviceLinks?.length ?? 0) > 0); // L4 links still let them hear the real artist
 });
+
+test('MUSIC DESCRIPTOR: a bare genre / decade / vocal ask reaches the planner (not skipped as smalltalk)', async () => {
+  for (const q of ['что-нибудь в стиле дрилл', 'женский вокал инди', 'хиты 90-х', 'музыка чтобы поплакать', 'поорать в зале']) {
+    const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'] });
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl));
+    assert.ok(calls.some((c) => c.phase === 'planner'), `"${q}" should reach the planner`);
+  }
+});
+
+test('MUSIC DESCRIPTOR does NOT fire on pure chat — planner stays skipped (urok≠rok)', async () => {
+  for (const q of ['привет, как дела?', 'который час?', 'урок математики']) {
+    const { fetchImpl, calls } = makeFetch({});
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl));
+    assert.ok(!calls.some((c) => c.phase === 'planner'), `"${q}" should stay smalltalk (no planner)`);
+  }
+});
