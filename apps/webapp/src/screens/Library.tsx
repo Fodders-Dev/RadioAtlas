@@ -19,8 +19,40 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
 
-const TAB_ORDER: LibraryTab[] = ['favorites', 'queue', 'recent', 'tracks', 'collections'];
+const TAB_ORDER = ['favorites', 'queue', 'recent', 'tracks', 'collections'] as const;
 const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
+
+// Per-tab glyphs (Artem ask) — inline SVG in the AppNavigation style, tinted via
+// `fill: currentColor`. Favorites=heart, Queue=queue-list, Recent=clock,
+// Tracks=note, Collections=stack. Keyed off TAB_ORDER so it stays exhaustive
+// over exactly the visible tabs (LibraryTab also has settings/history).
+const TAB_ICONS: Record<(typeof TAB_ORDER)[number], JSX.Element> = {
+  favorites: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20.7 4.2 12.9a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.7Z" />
+    </svg>
+  ),
+  queue: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h12v2H4V6Zm0 5h12v2H4v-2Zm0 5h8v2H4v-2Zm12 .5v-5l4 2.5-4 2.5Z" />
+    </svg>
+  ),
+  recent: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 3v6l5 3 1-1.7-4-2.4V7h-2Z" />
+    </svg>
+  ),
+  tracks: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6Z" />
+    </svg>
+  ),
+  collections: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2 1 8l11 6 11-6-11-6Zm7.5 6L12 12.2 4.5 8 12 3.8 19.5 8ZM1 16l11 6 11-6-2.1-1.15L12 19.7 3.1 14.85 1 16Zm0-4 11 6 11-6-2.1-1.15L12 15.7 3.1 10.85 1 12Z" />
+    </svg>
+  )
+};
 
 type LibrarySheetProps = {
   sheetId: string;
@@ -149,13 +181,14 @@ export const Library = () => {
   const [isSavingQueue, setIsSavingQueue] = useState(false);
   const [queueSaveDraft, setQueueSaveDraft] = useState('');
   const [collectionNotice, setCollectionNotice] = useState<string | null>(null);
-  const [trackJournalOpen, setTrackJournalOpen] = useState(false);
   const [collectionReorderMode, setCollectionReorderMode] = useState(false);
-  // Mobile bottom sheets (exactly three in this PR): S1 queue history+journal,
-  // S2 recent-tab track journal (reuses trackJournalOpen), S3 per-card
-  // collection actions (holds the card's collection id).
-  const [queueRailSheetOpen, setQueueRailSheetOpen] = useState(false);
+  // Bottom sheets: the per-card grid collection actions (mobile «···», holds the
+  // card's collection id) and the collection-detail «Ещё» overflow (rename /
+  // pin / add-current / reorder / delete) — the latter works in BOTH layouts
+  // (not gated on isMobileLayout) since the detail card declutters to one
+  // primary action everywhere.
   const [collectionActionsId, setCollectionActionsId] = useState<string | null>(null);
+  const [detailActionsOpen, setDetailActionsOpen] = useState(false);
   // Two-tap delete confirm: the first «Удалить» tap arms this id, the second
   // («Точно удалить?») commits. Lives inline in the detail row / S3 sheet — NOT
   // a new fixed element (would hit the z-130-under-dock trap).
@@ -412,6 +445,7 @@ export const Library = () => {
     collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
+    setDetailActionsOpen(false);
     setSelectedCollectionId(collectionId);
   };
   const closeCollectionDetail = () => {
@@ -419,6 +453,7 @@ export const Library = () => {
     setSelectedCollectionId(null);
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
+    setDetailActionsOpen(false);
   };
   const addCurrentToCollection = (collectionId: string, collectionName: string) => {
     if (!player.current) return;
@@ -491,6 +526,7 @@ export const Library = () => {
     // detail / sheet would render against a missing id.
     setDeleteArmedCollectionId(null);
     setCollectionActionsId(null);
+    setDetailActionsOpen(false);
     setRenamingCollectionId(null);
     setCollectionRenameDraft('');
     setCollectionReorderMode(false);
@@ -528,8 +564,8 @@ export const Library = () => {
     });
   };
 
-  // Full track-journal entries — shared verbatim by the inline desktop panel
-  // and the mobile S2 bottom sheet.
+  // Full copied-track journal entries — rendered only in the «Треки» tab now
+  // (the recent-tab inline panel and its bottom sheet were removed).
   const renderTrackJournalEntries = () =>
     trackHistory.map((item) => (
       <div key={item.id} className="track-card">
@@ -724,7 +760,8 @@ export const Library = () => {
             type="button"
             onClick={() => setLibraryTab(tab)}
           >
-            <span>{t(`library.tabs.${tab}`)}</span>
+            <span className="library-tab-icon" aria-hidden="true">{TAB_ICONS[tab]}</span>
+            <span className="library-tab-label">{t(`library.tabs.${tab}`)}</span>
             <strong className="library-tab-count">{tabCounts[tab]}</strong>
           </button>
         ))}
@@ -732,10 +769,10 @@ export const Library = () => {
 
       {activeLibraryTab === 'favorites' ? (
         <div className="glass-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('library.tabs.favorites')}</div>
-            </div>
+          {/* The tab strip already names this surface — no duplicate title, just
+              the compact Clear action (unified .library-tab-toolbar rhythm). */}
+          <div className="library-tab-toolbar">
+            <span className="library-tab-toolbar-lead" />
             <button className="chip" type="button" onClick={clearFavorites} disabled={!favorites.length}>
               {t('settings.clearFavorites')}
             </button>
@@ -883,8 +920,10 @@ export const Library = () => {
                 </div>
               </div>
 
-              {/* ≤720px the rail moves into the S1 bottom sheet (trigger chip in
-                  the queue header) — inline it stays a desktop side column. */}
+              {/* Desktop side column only. ≤720px the same context lives in
+                  dedicated tabs now — station history in «Недавнее», the copied
+                  track journal in «Треки» — so the queue tab stays a clean
+                  hero + actions + list with no extra rail/sheet. */}
               {!isMobileLayout ? (
                 <div className="library-queue-rail">{renderQueueRailCards()}</div>
               ) : null}
@@ -916,56 +955,21 @@ export const Library = () => {
 
       {activeLibraryTab === 'recent' ? (
         <div className="glass-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('favoritesScreen.recentStations')}</div>
-              <div className="section-subtitle">{t('explore.recentSubtitle')}</div>
-            </div>
+          {/* Curated: «Недавнее» is recent STATIONS only now — the copied-track
+              journal lives solely in «Треки». Unified toolbar (subtitle + Clear). */}
+          <div className="library-tab-toolbar">
+            <div className="section-subtitle">{t('explore.recentSubtitle')}</div>
             <button className="chip" type="button" onClick={clearRecent} disabled={!recent.length}>
               {t('settings.clearRecent')}
             </button>
           </div>
           {recentStations.length ? (
-            <>
-              <StationTable
-                stations={recentStations}
-                compact={compactRows}
-                sourceId="recent"
-                nowPlayingMode="viewport"
-              />
-              <div className="library-track-journal-panel">
-                <div className="library-section-head">
-                  <div>
-                    <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
-                    <div className="section-subtitle">{t('library.trackJournalCollapsed')}</div>
-                  </div>
-                  <div className="chip-row">
-                    <button
-                      className={`chip ${trackJournalOpen ? 'active' : ''}`}
-                      type="button"
-                      onClick={() => setTrackJournalOpen((value) => !value)}
-                      disabled={!trackHistory.length}
-                    >
-                      {trackJournalOpen ? t('library.trackJournalCollapse') : t('library.trackJournalExpand')}
-                    </button>
-                    {trackHistory.length ? (
-                      <button className="chip" type="button" onClick={clearTrackHistory}>
-                        {t('common.clear')}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                {/* ≤720px the expanded journal renders in the S2 bottom sheet
-                    (mounted at the end of the screen) instead of inline. */}
-                {trackJournalOpen && !isMobileLayout ? (
-                  trackHistory.length ? (
-                    <div className="track-list track-list-scroll">{renderTrackJournalEntries()}</div>
-                  ) : (
-                    <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
-                  )
-                ) : null}
-              </div>
-            </>
+            <StationTable
+              stations={recentStations}
+              compact={compactRows}
+              sourceId="recent"
+              nowPlayingMode="viewport"
+            />
           ) : (
             <div className="empty-state library-empty-state">
               <div className="library-empty-title">{t('explore.recentTitle')}</div>
@@ -985,16 +989,18 @@ export const Library = () => {
 
       {activeLibraryTab === 'tracks' ? (
         <div className="glass-card">
-          <div className="library-section-head">
-            <div>
-              <div className="section-title">{t('favoritesScreen.journalTitle')}</div>
-              <div className="section-subtitle">{t('library.tracksSubtitle')}</div>
-            </div>
-            {trackHistory.length ? (
-              <button className="chip" type="button" onClick={clearTrackHistory}>
-                {t('common.clear')}
-              </button>
-            ) : null}
+          {/* Unified toolbar (subtitle + Clear) — the tab strip already labels
+              this «Треки», so no duplicate section title. */}
+          <div className="library-tab-toolbar">
+            <div className="section-subtitle">{t('library.tracksSubtitle')}</div>
+            <button
+              className="chip"
+              type="button"
+              onClick={clearTrackHistory}
+              disabled={!trackHistory.length}
+            >
+              {t('common.clear')}
+            </button>
           </div>
           {trackHistory.length ? (
             <div className="track-list track-list-scroll">{renderTrackJournalEntries()}</div>
@@ -1056,64 +1062,46 @@ export const Library = () => {
                   )}
                   </div>
                 </div>
-                <div className="chip-row">
-                  <button
-                    className="chip active"
-                    type="button"
-                    onClick={() => playCollection(selectedCollection)}
-                    disabled={!selectedCollectionStations.length}
-                  >
-                    {t('library.playCollection')}
-                  </button>
-                  <button
-                    className="chip"
-                    type="button"
-                    onClick={() => playCollection(selectedCollection, true)}
-                    disabled={!selectedCollectionStations.length}
-                  >
-                    {t('library.shuffleCollection')}
-                  </button>
-                  <button
-                    className="chip"
-                    type="button"
-                    onClick={() => beginRenameCollection(selectedCollection)}
-                  >
-                    {t('library.renameCollection')}
-                  </button>
-                  <button
-                    className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => toggleCollectionPinned(selectedCollection.id)}
-                  >
-                    {selectedCollection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
-                  </button>
-                  {player.current ? (
+                {/* Decluttered: ONE primary action (Слушать) + one secondary
+                    (Вперемешку) + «Ещё» → detail-actions sheet (rename / pin /
+                    add-current / reorder / delete). Reorder mode collapses the
+                    row to a single «Готово» so the list is the focus. */}
+                <div className="chip-row library-collection-detail-actions">
+                  {collectionReorderMode ? (
                     <button
                       className="chip active"
                       type="button"
-                      onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}
+                      onClick={() => setCollectionReorderMode(false)}
                     >
-                      {t('library.addCurrentToCollection')}
+                      {t('library.reorderDone')}
                     </button>
-                  ) : null}
-                  <button
-                    className={`chip ${collectionReorderMode ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => setCollectionReorderMode((value) => !value)}
-                  >
-                    {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
-                  </button>
-                  <button
-                    className={`chip library-delete-chip ${
-                      deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
-                    }`}
-                    type="button"
-                    onClick={() => requestDeleteCollection(selectedCollection)}
-                  >
-                    {deleteArmedCollectionId === selectedCollection.id
-                      ? t('library.deleteCollectionConfirm')
-                      : t('library.deleteCollection')}
-                  </button>
+                  ) : (
+                    <>
+                      <button
+                        className="chip active library-collection-detail-play"
+                        type="button"
+                        onClick={() => playCollection(selectedCollection)}
+                        disabled={!selectedCollectionStations.length}
+                      >
+                        {t('library.playCollection')}
+                      </button>
+                      <button
+                        className="chip"
+                        type="button"
+                        onClick={() => playCollection(selectedCollection, true)}
+                        disabled={!selectedCollectionStations.length}
+                      >
+                        {t('library.shuffleCollection')}
+                      </button>
+                      <button
+                        className="chip"
+                        type="button"
+                        onClick={() => setDetailActionsOpen(true)}
+                      >
+                        {t('library.more')}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1532,34 +1520,81 @@ export const Library = () => {
         </>
       )}
 
-      {/* Mobile bottom sheets — exactly three in this PR (per the owner's
-          limit): S1 queue history+journal, S2 full track journal, S3 per-card
-          collection actions. Each portals to document.body. */}
-      {isMobileLayout && queueRailSheetOpen && activeLibraryTab === 'queue' ? (
-        <LibrarySheet
-          sheetId="queue-rail"
-          kicker={t('nav.library')}
-          title={t('library.historyJournalSheet')}
-          onClose={() => setQueueRailSheetOpen(false)}
-        >
-          <div className="library-sheet-stack">{renderQueueRailCards()}</div>
-        </LibrarySheet>
-      ) : null}
+      {/* Bottom sheets (portal to document.body): the collection-detail «Ещё»
+          overflow (both layouts) and the per-card grid actions (mobile «···»).
+          The recent-tab track-journal sheet and the queue history+journal rail
+          sheet are both gone — that context lives in the «Недавнее» and «Треки»
+          tabs now. */}
 
-      {isMobileLayout && trackJournalOpen && activeLibraryTab === 'recent' ? (
+      {/* Collection-detail «Ещё» — the actions removed from the hero row. Works
+          in BOTH layouts (the detail card declutters everywhere). */}
+      {detailActionsOpen && selectedCollection ? (
         <LibrarySheet
-          sheetId="track-journal"
-          kicker={t('favoritesScreen.recentStations')}
-          title={t('favoritesScreen.journalTitle')}
-          onClose={() => setTrackJournalOpen(false)}
+          sheetId="collection-detail-actions"
+          kicker={t('library.collectionsTitle')}
+          title={selectedCollection.name}
+          onClose={() => {
+            setDetailActionsOpen(false);
+            setDeleteArmedCollectionId(null);
+          }}
         >
-          {trackHistory.length ? (
-            <div className="track-list track-list-scroll library-sheet-track-list">
-              {renderTrackJournalEntries()}
-            </div>
-          ) : (
-            <div className="empty-state">{t('favoritesScreen.journalEmpty')}</div>
-          )}
+          <div className="library-sheet-rows">
+            <button
+              className="library-sheet-action"
+              type="button"
+              onClick={() => {
+                beginRenameCollection(selectedCollection);
+                setDetailActionsOpen(false);
+              }}
+            >
+              {t('library.renameCollection')}
+            </button>
+            <button
+              className={`library-sheet-action ${selectedCollection.pinned ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                toggleCollectionPinned(selectedCollection.id);
+                setDetailActionsOpen(false);
+              }}
+            >
+              {selectedCollection.pinned
+                ? t('library.unpinCollection')
+                : t('library.pinCollection')}
+            </button>
+            {player.current ? (
+              <button
+                className="library-sheet-action"
+                type="button"
+                onClick={() => {
+                  addCurrentToCollection(selectedCollection.id, selectedCollection.name);
+                  setDetailActionsOpen(false);
+                }}
+              >
+                {t('library.addCurrentToCollection')}
+              </button>
+            ) : null}
+            <button
+              className={`library-sheet-action ${collectionReorderMode ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setCollectionReorderMode((value) => !value);
+                setDetailActionsOpen(false);
+              }}
+            >
+              {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
+            </button>
+            <button
+              className={`library-sheet-action library-sheet-action-danger ${
+                deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
+              }`}
+              type="button"
+              onClick={() => requestDeleteCollection(selectedCollection)}
+            >
+              {deleteArmedCollectionId === selectedCollection.id
+                ? t('library.deleteCollectionConfirm')
+                : t('library.deleteCollection')}
+            </button>
+          </div>
         </LibrarySheet>
       ) : null}
 

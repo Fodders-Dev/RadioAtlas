@@ -534,7 +534,7 @@ export const enDictionary = {
     "trackJournalExpand": "Show journal",
     "trackJournalCollapse": "Hide journal",
     "tracksSubtitle": "Track titles you've copied from the air.",
-    "tracksEmptyHint": "Copy a track title in the player — it shows up here.",
+    "tracksEmptyHint": "Copy a track with the button in the player — it's saved here.",
     "stationHistory": "Live station history for returning to the right mood fast.",
     "tabs": {
       "favorites": "Favorites",
@@ -593,6 +593,7 @@ export const enDictionary = {
     "unpinCollection": "Unpin",
     "reorderMode": "Reorder",
     "reorderDone": "Done",
+    "more": "More",
     "sortPinned": "Pinned",
     "sortRecent": "Recent",
     "sortName": "Name",

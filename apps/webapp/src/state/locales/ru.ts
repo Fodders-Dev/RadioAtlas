@@ -534,7 +534,7 @@ export const ruDictionary = {
     "trackJournalExpand": "Показать журнал",
     "trackJournalCollapse": "Свернуть журнал",
     "tracksSubtitle": "Названия треков, которые ты скопировал из эфира.",
-    "tracksEmptyHint": "Копируй название трека в плеере — оно появится здесь.",
+    "tracksEmptyHint": "Скопируй трек кнопкой в плеере — он сохранится здесь.",
     "stationHistory": "История живых станций для быстрого возврата в эфир.",
     "tabs": {
       "favorites": "Избранное",
@@ -593,6 +593,7 @@ export const ruDictionary = {
     "unpinCollection": "Открепить",
     "reorderMode": "Порядок",
     "reorderDone": "Готово",
+    "more": "Ещё",
     "sortPinned": "Закреплённые",
     "sortRecent": "Свежие",
     "sortName": "По имени",

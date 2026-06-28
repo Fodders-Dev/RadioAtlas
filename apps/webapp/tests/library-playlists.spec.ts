@@ -72,14 +72,24 @@ test('two-tap delete from detail removes the playlist and closes the detail clea
   await page.locator('.library-collection-title-button').first().click();
   await expect(page.locator('.library-collection-detail')).toBeVisible();
 
-  const del = page.locator('.library-delete-chip');
+  // Declutter: Delete moved off the hero row into the «Ещё» overflow sheet
+  // (keeps the two-tap inline confirm).
+  await page
+    .locator('.library-collection-detail')
+    .getByRole('button', { name: /^Ещё$|^More$/ })
+    .click();
+  const sheet = page.locator('[data-library-sheet="collection-detail-actions"]');
+  await expect(sheet).toBeVisible();
+  const del = sheet.locator('.library-sheet-action-danger');
   await expect(del).toContainText(/Удалить|Delete/);
-  // First tap arms the confirm; the playlist still exists.
+  // First tap arms the confirm; the playlist still exists, the sheet stays open.
   await del.click();
   await expect(del).toContainText(/Точно|sure/i);
+  await expect(sheet).toBeVisible();
   await expect(page.locator('.library-collection-detail')).toBeVisible();
-  // Second tap commits: detail closes, the grid is back, the playlist is gone.
+  // Second tap commits: sheet + detail close, the grid is back, playlist gone.
   await del.click();
+  await expect(sheet).toHaveCount(0);
   await expect(page.locator('.library-collection-detail')).toHaveCount(0);
   await expect(page.locator('.library-collection-card')).toHaveCount(0);
   await expect(page.locator('.library-inline-toast')).toContainText(/удал|deleted/i);
@@ -104,9 +114,13 @@ test('deleting the LIVE queue source keeps playback going (never-auto-switch)', 
   expect(before.length).toBeGreaterThan(0);
   expect(await distinctPlayedStations(page)).toBe(1);
 
-  // Delete that very playlist (two-tap from detail).
+  // Delete that very playlist (two-tap via the detail «Ещё» sheet).
   await page.locator('.library-collection-title-button').first().click();
-  const del = page.locator('.library-delete-chip');
+  await page
+    .locator('.library-collection-detail')
+    .getByRole('button', { name: /^Ещё$|^More$/ })
+    .click();
+  const del = page.locator('[data-library-sheet="collection-detail-actions"] .library-sheet-action-danger');
   await del.click();
   await del.click();
   await page.waitForTimeout(300);
