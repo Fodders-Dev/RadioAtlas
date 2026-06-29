@@ -1043,11 +1043,18 @@ test('REFERENCE ANCHOR: common-noun band stems do NOT hijack ordinary chat (ки
   }
 });
 
-test('DESCRIPTOR BACKSTOP: a genre DISLIKE («не люблю транс») is NOT answered with that genre as cards', async () => {
+test('DESCRIPTOR DISLIKE: «не люблю транс» stays smalltalk — planner skipped, no genre cards', async () => {
+  // The planner (not just the backstop) must be skipped, else it sees the genre word
+  // and searches it anyway — answering "I hate trance" with trance stations (a prod miss).
   for (const q of ['не люблю транс', 'ненавижу рэп', 'я не люблю музыку', 'фу, шансон']) {
     const { tools, searchQueries } = makeSpyTools();
-    const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'trance', compose: 'Понимаю.' });
+    const { fetchImpl, calls } = makeFetch({
+      planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"trance"}}'],
+      vibeTags: 'trance',
+      compose: 'Понимаю.'
+    });
     const result = await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.ok(!calls.some((c) => c.phase === 'planner'), `"${q}" → planner should be skipped`);
     assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), `"${q}" → backstop wrongly fired`);
     assert.equal(result.stations.length, 0, `"${q}" → no forced cards`);
     assert.equal(searchQueries.length, 0);
