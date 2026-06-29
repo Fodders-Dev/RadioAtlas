@@ -148,7 +148,7 @@ export const Library = () => {
     markDigestRead,
     updateNotificationPreference
   } = useLibrary();
-  const { queue, player, nowPlaying, playStation, playStationQueue, playLast, playNext } = usePlayback();
+  const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
   const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft } =
     useShell();
   const {
@@ -440,7 +440,6 @@ export const Library = () => {
     setCollectionNotice(t('library.queueSavedAsPlaylist', { name }));
     cancelSaveQueue();
   };
-  const openLibraryTab = (tab: LibraryTab) => setLibraryTab(tab);
   const openCollectionDetail = (collectionId: string) => {
     collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
     setCollectionReorderMode(false);
@@ -551,9 +550,6 @@ export const Library = () => {
     queue.items[0] ??
     null;
   const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
-  const queueSlotValue = queue.items.length
-    ? `${Math.min(Math.max(queue.currentIndex, 0) + 1, queue.items.length)}/${queue.items.length}`
-    : '0/0';
   const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
   const playHistoryStation = (station: StationLite) => {
@@ -1586,8 +1582,9 @@ export const Library = () => {
           sheet are both gone — that context lives in the «Недавнее» and «Треки»
           tabs now. */}
 
-      {/* Collection-detail «Ещё» — the actions removed from the hero row. Works
-          in BOTH layouts (the detail card declutters everywhere). */}
+      {/* Collection-detail «Ещё» overflow — PHONE-ONLY (the sheet CSS is scoped to
+          ≤720px). Desktop renders these same actions inline as chips in the detail
+          action row above; do NOT un-gate this or the unstyled sheet inerts #root. */}
       {isMobileLayout && detailActionsOpen && selectedCollection ? (
         <LibrarySheet
           sheetId="collection-detail-actions"
