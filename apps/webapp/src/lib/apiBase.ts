@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'radio:api-url';
-const CANONICAL_PROD_HOST = 'radioatlas.duckdns.org';
+// Canonical prod hosts. radioatlas.ru is the primary domain (BotFather Mini App
+// URL); radioatlas.duckdns.org is kept as a dual-served fallback. Either one being
+// the page host means a stale legacy (vercel) api base should be discarded.
+const CANONICAL_PROD_HOSTS = new Set(['radioatlas.ru', 'www.radioatlas.ru', 'radioatlas.duckdns.org']);
 const LEGACY_API_HOSTS = new Set(['radio-atlas-miniapp.vercel.app']);
 const getEnvApiUrl = () =>
   normalizeBase(
@@ -40,7 +43,7 @@ const getCandidateHost = (value: string) => {
 
 const shouldDiscardLegacyBase = (value: string) => {
   if (typeof window === 'undefined') return false;
-  if (window.location.hostname.toLowerCase() !== CANONICAL_PROD_HOST) return false;
+  if (!CANONICAL_PROD_HOSTS.has(window.location.hostname.toLowerCase())) return false;
   return LEGACY_API_HOSTS.has(getCandidateHost(value));
 };
 
