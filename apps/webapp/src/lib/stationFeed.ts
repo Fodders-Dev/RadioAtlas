@@ -24,11 +24,24 @@ const seededJitter = (id: string, seed: number) => {
   return (h % 1000) / 1000;
 };
 
-const dedupe = (stations: Array<StationLite | null | undefined>, seen: Set<string>) => {
+// Collect playable, NEW, LIVE stations in source order. One shared `seen` set
+// across sources enforces the de-dup priority (taste → trending → random). The
+// `exclude` set drops what's already in the user's world (favorites + recent +
+// the currently-playing station) BEFORE weighting, so every card is something
+// new — «новизна в твоём вкусе». `isLive` is the health gate: a dead/broken
+// station never enters the feed (it would autoplay on swipe).
+const collect = (
+  stations: Array<StationLite | null | undefined>,
+  seen: Set<string>,
+  exclude: Set<string>,
+  isLive: (station: StationLite) => boolean
+) => {
   const out: StationLite[] = [];
   for (const station of stations) {
     if (!station || !station.stationuuid || !station.url_resolved) continue;
+    if (exclude.has(station.stationuuid)) continue;
     if (seen.has(station.stationuuid)) continue;
+    if (!isLive(station)) continue;
     seen.add(station.stationuuid);
     out.push(station);
   }
@@ -43,10 +56,18 @@ export type BuildStationFeedInput = {
   limit?: number;
   // Fraction of the feed pulled from the random pool («редкие случайные»).
   randomRatio?: number;
+  // Station ids already in the user's world (favorites + recent + the current
+  // station). Dropped from EVERY source before weighting → the feed is new.
+  exclude?: Iterable<string>;
+  // Liveness gate run on every candidate (drops dead/broken stations the feed
+  // would otherwise autoplay). Defaults to "everything is live" so the pure unit
+  // tests and any caller without a health profile keep working.
+  isLive?: (station: StationLite) => boolean;
 };
 
 const DEFAULT_LIMIT = 40;
 const DEFAULT_RANDOM_RATIO = 0.18;
+const ALWAYS_LIVE = () => true;
 
 // Proportional weighted interleave: each source's items keep their internal order
 // but are positioned by `(indexInSource + jitter) / weight`, so a higher-weight
@@ -60,14 +81,19 @@ export const buildStationFeed = ({
   pool,
   seed,
   limit = DEFAULT_LIMIT,
-  randomRatio = DEFAULT_RANDOM_RATIO
+  randomRatio = DEFAULT_RANDOM_RATIO,
+  exclude,
+  isLive = ALWAYS_LIVE
 }: BuildStationFeedInput): StationLite[] => {
+  const excludeSet = exclude instanceof Set ? exclude : new Set(exclude ?? []);
   const seen = new Set<string>();
-  // Priority order for de-dup: taste → trending → random pool.
-  const taste = dedupe(tasteStations, seen);
-  const trend = dedupe(trending, seen);
+  // Priority order for de-dup: taste → trending → random pool. Every source is
+  // exclude- and liveness-filtered HERE, before any weighting, so the mix only
+  // ever positions stations that are genuinely new and playable.
+  const taste = collect(tasteStations, seen, excludeSet, isLive);
+  const trend = collect(trending, seen, excludeSet, isLive);
 
-  const randomCandidates = dedupe(pool, seen).sort(
+  const randomCandidates = collect(pool, seen, excludeSet, isLive).sort(
     (left, right) => seededJitter(left.stationuuid, seed) - seededJitter(right.stationuuid, seed)
   );
   // «редкие случайные»: normally the random pool is capped to a small slice so
@@ -79,8 +105,14 @@ export const buildStationFeed = ({
   const randomBudget = Math.max(2, Math.round(limit * randomRatio));
   const random = poolIsPrimary ? randomCandidates : randomCandidates.slice(0, randomBudget);
 
+  // Card 0 = the strongest PERSONAL pick (top of the taste deck) so opening the
+  // feed lands on «твой вайб» immediately. It's pinned out of the weighted mix
+  // (already in `seen`, so it never reappears) and the rest interleave behind it.
+  const lead = taste[0] ?? null;
+  const tasteRest = lead ? taste.slice(1) : taste;
+
   const sources: Array<{ items: StationLite[]; weight: number }> = [
-    { items: taste, weight: 0.5 },
+    { items: tasteRest, weight: 0.5 },
     { items: trend, weight: 0.32 },
     { items: random, weight: 0.18 }
   ].filter((source) => source.items.length > 0);
@@ -93,5 +125,7 @@ export const buildStationFeed = ({
   );
   keyed.sort((left, right) => left.key - right.key);
 
-  return keyed.map((entry) => entry.station).slice(0, limit);
+  const mixed = keyed.map((entry) => entry.station);
+  const ordered = lead ? [lead, ...mixed] : mixed;
+  return ordered.slice(0, limit);
 };

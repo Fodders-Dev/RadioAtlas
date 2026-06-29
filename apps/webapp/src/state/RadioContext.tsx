@@ -278,6 +278,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       lastBuiltAt: null,
       snapshot: null
     });
+  // Discovery «Лента» open-seed. Separate from the Home sessionSeed (which is
+  // frozen per session to keep the Home rails from reshuffling) so the feed can
+  // re-roll on EVERY open — a fresh personal-fresh mix each time — without
+  // disturbing Home. rerollFeedSeed is called from the «Лента» entry's onClick
+  // (a user gesture, never an effect), so it is StrictMode-safe: one bump per
+  // real tap, no double-fire. Transient (not persisted): a reload naturally
+  // mints a new seed, which is the desired "fresh feed on open" behaviour.
+  const [feedSeed, setFeedSeed] = useState(() => homeState.sessionSeed);
+  const rerollFeedSeed = useCallback(() => setFeedSeed(Date.now()), []);
   const setSearchDraft = (value: string) =>
     setStoredShellState((prev) =>
       prev.searchDraft === value
@@ -2497,6 +2506,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       homeState,
       setHomeSnapshot,
       refreshHomeSurface,
+      feedSeed,
+      rerollFeedSeed,
       searchDraft,
       setSearchDraft,
       clearSearchDraft,
@@ -2513,9 +2524,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearSearchDraft,
       debugLogs,
       detailsOpen,
+      feedSeed,
       globeFocusRegionId,
       homeState,
       libraryTab,
+      rerollFeedSeed,
       openWebAppExternally,
       playerPresentation,
       refreshHomeSurface,

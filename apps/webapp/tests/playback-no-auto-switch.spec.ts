@@ -116,7 +116,7 @@ test('FIX 2a: mediaSession next/prev are unbound for a single-item queue, bound 
   // seeded single-item queue exercises the lone-station branch directly.
   await seedRadioState(page, { queue: [stations[0]] });
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await expect.poll(() => lastHandlerFor(page, 'nexttrack')).toBe(false);
   expect(await lastHandlerFor(page, 'previoustrack')).toBe(false);
@@ -140,7 +140,7 @@ test('FIX 2b: exhausting the queue with manual next never jumps to a random stat
   await installPlayProbe(page);
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await startSearchResultsRadio(page);
   await expect.poll(() => queueLength(page)).toBeGreaterThan(1);
@@ -168,7 +168,7 @@ test('FIX 1: a runtime stream death does not advance the queue or switch station
   await installPlayProbe(page);
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   // A multi-item queue, first station playing.
   await startSearchResultsRadio(page);
@@ -205,7 +205,7 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   await installPlayProbe(page);
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   // A station is playing (first search result).
   await startSearchResultsRadio(page);
@@ -214,7 +214,8 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   // Open «Лента» from its Home entry (it's not in the bottom dock). Mounting it
   // is NOT a swipe → ZERO new plays past the settle.
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
-  await page.locator('.home-feed-entry').click();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+  await page.locator('[data-home-feed-entry]').click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
   await page.waitForTimeout(700); // well past the 220ms settle window

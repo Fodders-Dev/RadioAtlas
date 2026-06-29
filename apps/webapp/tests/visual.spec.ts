@@ -80,7 +80,7 @@ const openHome = async (
 ) => {
   await seedRadioState(page, options);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(180);
@@ -89,7 +89,7 @@ const openHome = async (
 
 const readHomeSurfaceSignature = async (page: Page) =>
   page.evaluate(() => ({
-    personalRadio: Boolean(document.querySelector('[data-home-personal-radio]')),
+    feedEntry: Boolean(document.querySelector('[data-home-feed-entry]')),
     hero: document.querySelector('[data-home-hero]')?.getAttribute('data-home-hero') || null,
     rails: Array.from(document.querySelectorAll('[data-home-rail]')).map((node) => ({
       id: node.getAttribute('data-home-rail'),
@@ -128,7 +128,7 @@ test('home renders without window.Telegram (standalone web fallback)', async ({ 
   }));
   expect(tgPresence.telegram).toBe('undefined');
   expect(tgPresence.webApp).toBe('undefined');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
   await expect(page.locator('.player-dock').first()).toBeVisible();
 });
 
@@ -167,15 +167,14 @@ test('home surface stays stable during like and play actions', async ({ page }) 
   const before = await readHomeSurfaceSignature(page);
 
   await page.locator('[data-home-rail] .home-action-btn-like').first().click();
-  await page.locator('[data-home-personal-radio] .home-personal-play').click();
+  await page.locator('[data-home-rail] [data-home-station]').first().locator('.home-action-btn-play').click();
   await expect(page.locator('[data-home-resume]')).toBeVisible();
 
   const after = await readHomeSurfaceSignature(page);
-  // Hero and rail composition stay the same; rail station lists may shrink
-  // because Personal Radio now claims its first station (and hides it from
-  // discovery rails) once playback starts. We just assert the discovery
-  // surface keeps the same shape and never drops a rail or swaps the hero.
-  expect(after.personalRadio).toBe(before.personalRadio);
+  // Hero and rail composition stay the same after a normal rail play; the
+  // discovery surface should keep its shape and never drop a rail or swap the
+  // Feed entry while playback state updates.
+  expect(after.feedEntry).toBe(before.feedEntry);
   expect(after.hero).toBe(before.hero);
   expect(after.rails.map((rail) => rail.id)).toEqual(before.rails.map((rail) => rail.id));
 });
@@ -183,7 +182,7 @@ test('home surface stays stable during like and play actions', async ({ page }) 
 test('home refresh rebuilds the discovery surface', async ({ page }) => {
   await openHome(page);
   const before = JSON.stringify(await readHomeSurfaceSignature(page));
-  await page.locator('.home-personal-refresh').click();
+  await page.locator('.home-surface-refresh').click();
   await expect
     .poll(async () => JSON.stringify(await readHomeSurfaceSignature(page)))
     .not.toBe(before);
@@ -437,7 +436,7 @@ test('theme studio list mobile visual baseline (dark + warm light)', async ({ pa
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await page.locator('.mobile-settings-trigger').click();
   await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
@@ -466,7 +465,7 @@ test('theme editor mobile visual baseline (form + gradient sheet)', async ({ pag
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await page.locator('.mobile-settings-trigger').click();
   await page.getByRole('button', { name: /Open Theme Studio|Открыть Theme Studio/ }).click();
