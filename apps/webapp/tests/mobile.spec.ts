@@ -1898,7 +1898,7 @@ test('dock buffering status does not duplicate loading in the track line', async
   await expect(page.locator('.player-dock-track-button-text')).not.toContainText(/Загрузка|Loading/i);
 });
 
-test('mobile library keeps four non-wrapping tabs and opens collection detail', async ({ page }) => {
+test('mobile library keeps five equal-width non-wrapping tabs and opens collection detail', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, {
     activeSection: 'library',
@@ -1914,33 +1914,30 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   });
 
   await page.goto('/');
+  // Declutter: the strip now carries all five visible tabs (Треки joined the
+  // set) as an equal-width segmented row — no side-scroller, no wrap, History
+  // still hidden (a non-visible legacy tab).
   const tabs = page.locator('.library-tab-chip');
-  await expect(tabs).toHaveCount(4);
-  await expect(tabs.filter({ hasText: /Tracks|Треки|History|История/ })).toHaveCount(0);
+  await expect(tabs).toHaveCount(5);
+  await expect(tabs.filter({ hasText: /Треки|Tracks/ })).toHaveCount(1);
+  await expect(tabs.filter({ hasText: /История|History/ })).toHaveCount(0);
   const tabStrip = await page.locator('.library-tab-strip').evaluate((node) => {
     const computed = window.getComputedStyle(node);
     const tops = Array.from(node.children).map((child) => child.getBoundingClientRect().top);
     return {
       flexWrap: computed.flexWrap,
-      overflowX: computed.overflowX,
-      rows: new Set(tops.map((top) => Math.round(top))).size
-    };
-  });
-  expect(tabStrip.flexWrap).toBe('nowrap');
-  expect(tabStrip.overflowX).toBe('auto');
-  expect(tabStrip.rows).toBe(1);
-  const tabScroll = await page.locator('.library-tab-strip').evaluate((node) => {
-    const before = node.scrollLeft;
-    node.scrollLeft = node.scrollWidth;
-    return {
-      before,
-      after: node.scrollLeft,
+      rows: new Set(tops.map((top) => Math.round(top))).size,
       scrollWidth: node.scrollWidth,
       clientWidth: node.clientWidth
     };
   });
-  expect(tabScroll.scrollWidth).toBeGreaterThan(tabScroll.clientWidth);
-  expect(tabScroll.after).toBeGreaterThan(tabScroll.before);
+  expect(tabStrip.flexWrap).toBe('nowrap');
+  expect(tabStrip.rows).toBe(1);
+  // Equal-width fit: all five sit within the strip, so there's nothing to
+  // horizontally scroll (the old layout was a side-scroller that hid tabs).
+  expect(tabStrip.scrollWidth).toBeLessThanOrEqual(tabStrip.clientWidth + 1);
+  // Each tab stacks its glyph above the label so the labels never truncate.
+  await expect(page.locator('.library-tab-chip .library-tab-icon').first()).toBeVisible();
   await expectNoDocumentHorizontalOverflow(page);
 
   await expect(page.locator('.library-collection-card')).toHaveCount(1);
@@ -1966,12 +1963,22 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
       items: expect.arrayContaining([expect.objectContaining({ stationuuid: 'uuid-tokyo' })])
     });
 
-  await detail.getByRole('button', { name: /Переименовать|Rename/ }).click();
+  // Declutter: rename + reorder moved off the hero row into the «Ещё» sheet.
+  const moreSheet = page.locator('[data-library-sheet="collection-detail-actions"]');
+  await detail.getByRole('button', { name: /^Ещё$|^More$/ }).click();
+  await expect(moreSheet).toBeVisible();
+  await moreSheet.getByRole('button', { name: /Переименовать|Rename/ }).click();
+  await expect(moreSheet).toHaveCount(0);
   await detail.getByLabel(/Новое название|New collection name/).fill('Japan radio');
   await detail.getByRole('button', { name: /Сохранить|Save/ }).click();
   await expect(detail.locator('.section-title').first()).toContainText('Japan radio');
 
-  await detail.getByRole('button', { name: /Порядок|Reorder/ }).click();
+  await detail.getByRole('button', { name: /^Ещё$|^More$/ }).click();
+  await expect(moreSheet).toBeVisible();
+  await moreSheet.getByRole('button', { name: /Порядок|Reorder/ }).click();
+  await expect(moreSheet).toHaveCount(0);
+  // Reorder mode collapses the hero row to a single «Готово».
+  await expect(detail.getByRole('button', { name: /^Готово$|^Done$/ })).toBeVisible();
   const tokyoRow = page.locator('[data-library-collection-row][data-station-id="uuid-tokyo"]');
   await tokyoRow.getByRole('button', { name: /Опустить Tokyo FM|Move Tokyo FM down/ }).click();
   await expect(detail.locator('[data-library-collection-row]').first()).not.toHaveAttribute('data-station-id', 'uuid-tokyo');
@@ -1979,14 +1986,16 @@ test('mobile library keeps four non-wrapping tabs and opens collection detail', 
   await expect(tokyoRow).toHaveCount(0);
 });
 
-// Library mobile rebuild: the queue's history+journal rail, the expanded track
-// journal, and per-card collection actions live in three portaled bottom
-// sheets (the shared .bottom-sheet-card).
-test('mobile library opens its three bottom sheets', async ({ page }) => {
+// Library declutter: two portaled bottom sheets (the shared .bottom-sheet-card)
+// — the per-card grid collection actions and the collection-detail «Ещё»
+// overflow. The queue history+journal rail sheet and the recent-tab track
+// journal sheet were both removed; that context lives in the «Недавнее» and
+// «Треки» tabs now.
+test('mobile library opens its two bottom sheets', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, {
     activeSection: 'library',
-    libraryTab: 'queue',
+    libraryTab: 'collections',
     stationCache: stations,
     queue: [stations[0], stations[1], stations[2]],
     recent: [stations[3]],
@@ -2010,25 +2019,7 @@ test('mobile library opens its three bottom sheets', async ({ page }) => {
 
   await page.goto('/');
 
-  // S1: queue history + journal.
-  await page.getByRole('button', { name: /История и журнал|History & journal/ }).click();
-  const railSheet = page.locator('[data-library-sheet="queue-rail"]');
-  await expect(railSheet).toBeVisible();
-  await expect(railSheet).toContainText('Sheet Mock Song');
-  await page.keyboard.press('Escape');
-  await expect(railSheet).toHaveCount(0);
-
-  // S2: full track journal on the recent tab.
-  await page.locator('.library-tab-chip').filter({ hasText: /Недавнее|Recent/ }).click();
-  await page.getByRole('button', { name: /Показать журнал|Show journal/ }).click();
-  const journalSheet = page.locator('[data-library-sheet="track-journal"]');
-  await expect(journalSheet).toBeVisible();
-  await expect(journalSheet.locator('.track-card')).toHaveCount(1);
-  await page.keyboard.press('Escape');
-  await expect(journalSheet).toHaveCount(0);
-
-  // S3: per-card collection actions — shuffle starts the collection queue.
-  await page.locator('.library-tab-chip').filter({ hasText: /Плейлисты|Playlists/ }).click();
+  // Sheet 1: per-card collection actions from the grid — shuffle starts the queue.
   await page.locator('.library-collection-more').first().click();
   const actionsSheet = page.locator('[data-library-sheet="collection-actions"]');
   await expect(actionsSheet).toBeVisible();
@@ -2042,6 +2033,21 @@ test('mobile library opens its three bottom sheets', async ({ page }) => {
       })
     )
     .toBe('collection-collection-sheet');
+
+  // Sheet 2: the collection-detail «Ещё» overflow (rename / pin / add-current /
+  // reorder / delete).
+  await page.locator('.library-collection-card .library-collection-title-button').first().click();
+  await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
+  const detailActions = page.locator('[data-library-sheet="collection-detail-actions"]');
+  await page
+    .locator('[data-library-collection-detail]')
+    .getByRole('button', { name: /^Ещё$|^More$/ })
+    .click();
+  await expect(detailActions).toBeVisible();
+  await expect(detailActions.getByRole('button', { name: /Переименовать|Rename/ })).toBeVisible();
+  await expect(detailActions.getByRole('button', { name: /^Удалить$|^Delete$/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(detailActions).toHaveCount(0);
 });
 
 test('mobile library restores collection scroll after closing detail', async ({ page }) => {
@@ -2072,25 +2078,28 @@ test('mobile library restores collection scroll after closing detail', async ({ 
   expect(after).toBeGreaterThan(0);
 });
 
-test('mobile library preserves the Tracks tab without writing shell state', async ({ page }) => {
+test('mobile library coerces a legacy recent tab to «Недавнее» without writing shell state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
+  // 'history' is a non-visible legacy tab now that 'tracks' graduated into the
+  // strip — seeding it must still coerce the DISPLAY to «Недавнее» without
+  // rewriting persisted shell state.
   await seedRadioState(page, {
     activeSection: 'library',
-    libraryTab: 'tracks',
+    libraryTab: 'history',
     stationCache: stations,
     recent: [stations[0]],
     playbackHistory: [stations[1]]
   });
 
   await page.goto('/');
-  await expect(page.locator('.library-tab-chip.active')).toContainText(/Треки|Tracks/);
+  await expect(page.locator('.library-tab-chip.active')).toContainText(/Недавнее|Recent/);
   await page.waitForTimeout(220);
   const storedTab = await page.evaluate(() => {
     const raw = window.localStorage.getItem('radio:app:v2');
     if (!raw) return null;
     return (JSON.parse(raw) as { shell?: { libraryTab?: string } }).shell?.libraryTab || null;
   });
-  expect(storedTab).toBe('tracks');
+  expect(storedTab).toBe('history');
 });
 
 test('mobile library creates collections inline without native prompt', async ({ page }) => {

@@ -1653,11 +1653,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  useEffect(() => {
-    const station = player.current;
-    if (!station || !nowPlaying) return;
-    rememberTrackHistory(station, nowPlaying);
-  }, [nowPlaying, player.current]);
+  // «Треки» is a CURATED collection — ONLY tracks the user explicitly copies
+  // (copyTrack → rememberTrackHistory) land there, so it stays a keep-list of
+  // songs you actually liked. We deliberately do NOT auto-log every nowPlaying
+  // track here — that filled the tab with «всякий шлак» (everything that played).
 
   useEffect(() => {
     const nextDigests = buildRadioDigests({

@@ -7718,8 +7718,25 @@ body {
   gap: 8px;
 }
 
-.library-tab-chip span {
+.library-tab-label {
   min-width: 0;
+}
+
+/* Per-tab glyph (Artem ask). Inline SVG, fill: currentColor so it tints with
+   the chip text in both themes and brightens on .active. */
+.library-tab-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+
+.library-tab-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 
 .library-tab-count {
@@ -7729,6 +7746,39 @@ body {
   line-height: 1;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Unified header rhythm for the chrome-less tabs (favorites / recent / tracks):
+   a single subtitle line on the left, one compact action on the right, same
+   height whether or not a subtitle is present. Replaces the old
+   .library-section-head (title + subtitle + action) on those surfaces. */
+.library-tab-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  margin-bottom: 12px;
+}
+
+.library-tab-toolbar .section-subtitle {
+  margin: 0;
+}
+
+.library-tab-toolbar-lead {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Collection-detail hero action row — one primary (Слушать) + one secondary
+   (Вперемешку) + «Ещё». The primary fills the row on mobile so it reads as the
+   obvious tap target; the rest sit beside it. */
+.library-collection-detail-actions {
+  flex-wrap: wrap;
+}
+
+.library-collection-detail-play {
+  font-weight: 700;
 }
 
 @media (max-width: 1180px) {
@@ -8048,12 +8098,6 @@ body {
   gap: 18px;
 }
 
-.library-queue-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
 .library-queue-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
@@ -8085,6 +8129,28 @@ body {
 
 .library-queue-list {
   gap: 12px;
+}
+
+/* Decluttered queue hero: one full-width Play, then a single tidy swipe-row of
+   secondary actions (was a 7-chip header + a 4-pill stat grid). */
+.library-queue-hero-play {
+  width: 100%;
+  justify-content: center;
+}
+
+.library-queue-actions {
+  margin-top: 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.library-queue-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.library-queue-actions .chip {
+  flex: 0 0 auto;
 }
 
 .library-queue-row-copy {
@@ -8186,9 +8252,6 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .library-queue-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 720px) {
@@ -8218,27 +8281,6 @@ body {
 
   .player-dock-signal-row {
     grid-template-columns: 1fr;
-  }
-
-  /* Library mobile: the 4 metric pills become ONE horizontal peek strip —
-     overscroll containment per the home-rails rule (otherwise the strip's end
-     scrolls the page). */
-  .library-queue-overview {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: var(--space-sm);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .library-queue-overview::-webkit-scrollbar {
-    display: none;
-  }
-
-  .library-queue-overview .globe-selection-pill {
-    flex: 0 0 auto;
   }
 
   /* Calmer collections rhythm on the single-column grid. */
@@ -8287,17 +8329,6 @@ body {
   }
 
   /* Sheet bodies (ride the shared .bottom-sheet-card). */
-  .library-sheet-stack {
-    display: grid;
-    gap: var(--space-lg);
-    padding-top: var(--space-xs);
-  }
-
-  .library-sheet-track-list {
-    max-height: 62dvh;
-    padding-top: var(--space-xs);
-  }
-
   .library-sheet-rows {
     display: grid;
     gap: var(--space-sm);
@@ -9629,20 +9660,42 @@ button.player-dock-status-pill:active {
   flex: 0 0 auto;
 }
 
-/* Phone-only (≤720px): keep the 5-tab strip in one row and let it scroll
-   horizontally. Wrapping makes the library header jump and buries the first
-   collection card below the fold on 360px screens. */
+/* Phone-only (≤720px): the 5 tabs are an EQUAL-WIDTH segmented row that fits on
+   ONE line — no wrap, no side-scroller. The old single-row layout shared each
+   1/5 chip between an icon and a horizontal label, which truncated «Избранн…» /
+   «Плейлис…». Stacking the glyph ABOVE the label hands the full chip width to
+   the text, so every label fits whole. Count badge dropped on phone. */
 @media (max-width: 720px) {
   .library-tab-strip {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     overflow: visible;
-    gap: 6px 5px;
+    gap: 4px;
   }
 
   .library-tab-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 4px;
-    padding: 7px 10px;
-    font-size: 11px;
+    padding: 7px 2px;
+    font-size: 10px;
+    line-height: 1.1;
+    letter-spacing: -0.2px;
+  }
+
+  .library-tab-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .library-tab-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
   }
 
   .library-tab-count {
@@ -9662,14 +9715,6 @@ button.player-dock-status-pill:active {
   font-weight: 700;
 }
 
-/* One-line explainer under the «Очередь» tab title: a temporary now-playing
-   list, not a saved playlist. Muted, low-emphasis. */
-.library-queue-explainer {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
 
 /* Two-tap delete confirm — neutral chip until armed, then a clear danger state
    (works on both themes; --danger is a fixed warm red). */
@@ -9744,12 +9789,6 @@ button.player-dock-status-pill:active {
 
 .library-detail-station-row {
   grid-template-columns: auto minmax(0, 1fr) auto;
-}
-
-.library-track-journal-panel {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .library-follow-row {
