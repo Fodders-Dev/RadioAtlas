@@ -188,7 +188,11 @@ const referenceAnchorQuery = (message: string): string | null => {
 const isSmalltalk = (message: string): boolean =>
   !ACTION_INTENT.test(message) &&
   !VIBE_INTENT.test(message) &&
-  !MUSIC_DESCRIPTOR.test(message) &&
+  // A genre word inside a DISLIKE («не люблю транс», «ненавижу рэп») is NOT a
+  // request — keep it smalltalk so the planner is skipped entirely, otherwise the
+  // planner sees the genre and searches it anyway (answering "I hate trance" with
+  // trance stations). An explicit «не ставь рэп, дай рок» still has ACTION/VIBE.
+  !(MUSIC_DESCRIPTOR.test(message) && !MUSIC_DISLIKE.test(message)) &&
   !referenceAnchorQuery(message);
 
 // Factual / news / biography questions Лира cannot verify from observations
