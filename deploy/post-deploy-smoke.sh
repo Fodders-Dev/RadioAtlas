@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-BASE_URL="${BASE_URL:-https://radioatlas.duckdns.org}"
+BASE_URL="${BASE_URL:-https://radioatlas.ru}"
 BASE_URL="${BASE_URL%/}"
 API_BASE="${API_BASE:-${BASE_URL}/api}"
 
