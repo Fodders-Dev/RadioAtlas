@@ -14,10 +14,6 @@ import {
   type HomeRailModule,
   type HomeSurfaceFeed
 } from '../lib/homeSurface';
-import {
-  buildPersonalRadioQueue,
-  PERSONAL_RADIO_QUEUE_LIMIT
-} from '../lib/personalRadio';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { reportProductEvent } from '../lib/productAnalytics';
 import { useCompactLayout } from '../lib/useCompactLayout';
@@ -35,11 +31,7 @@ import {
   tasteSignature
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
-import {
-  HomePersonalRadioCard,
-  HomeRail,
-  HomeResumeStrip
-} from './homeCards';
+import { HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
 
 // T_mobile_1 D: shortened from 2h to 30min. Re-opens within the bucket reuse
@@ -351,12 +343,13 @@ export const Home = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { player, queue, nowPlaying, playStation, playStationQueue } = usePlayback();
+  const { player, queue, nowPlaying, playStation } = usePlayback();
   const {
     setActiveSection,
     homeState,
     setHomeSnapshot,
     refreshHomeSurface,
+    rerollFeedSeed,
     setSearchDraft
   } = useShell();
   const { t } = useLocale();
@@ -559,42 +552,6 @@ export const Home = () => {
         .filter((value): value is string => Boolean(value))
         .slice(0, denseLayout ? DENSE_QUICK_CHIP_LIMIT : 4);
   const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
-  const personalRadioQueue = useMemo(
-    () => {
-      const live = homeRankInputsRef.current;
-      return buildPersonalRadioQueue({
-        catalog,
-        favorites,
-        recent: live.recent,
-        queuePreview: live.queuePreview,
-        playbackHistory: live.playbackHistory,
-        trackHistory: live.trackHistory,
-        collections,
-        followedStations,
-        followedRegions,
-        behaviorProfile: live.behaviorProfile,
-        playabilityProfile: live.playabilityProfile,
-        tasteProfile: live.tasteProfile,
-        healthProfile: live.stationHealthProfile,
-        sessionEvents: live.radioSessionEvents,
-        context: {
-          mode: 'personal',
-          currentStation: live.currentStation,
-          seed: homeState.sessionSeed,
-          limit: PERSONAL_RADIO_QUEUE_LIMIT
-        }
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      catalog,
-      collections,
-      favorites,
-      followedStations,
-      followedRegions,
-      homeState.sessionSeed
-    ]
-  );
   // Note: rankedCatalogRails uses the same homeRankInputsRef snapshot
   // above. The post-rank `isStationHiddenFromRecommendations` filter
   // still reads `tasteProfile` from the ref so an explicit hide takes
@@ -649,9 +606,6 @@ export const Home = () => {
   }>({ seed: null, stations: [] });
   if (sessionBlockedStationsRef.current.seed !== homeState.sessionSeed) {
     const blocked: string[] = [];
-    if (personalRadioQueue.stations[0]) {
-      blocked.push(personalRadioQueue.stations[0].stationuuid);
-    }
     if (resumeModule?.stations.length) {
       const sliceLength = denseLayout ? 1 : resumeModule.stations.length;
       resumeModule.stations.slice(0, sliceLength).forEach((station) => {
@@ -716,19 +670,12 @@ export const Home = () => {
       'home-world-stations',
       catalog
     );
-    pushRail(
-      'home-personal-radio-rail',
-      'home.personalTitle',
-      'home.freshSignalsCopy',
-      'home-personal-radio',
-      personalRadioQueue.stations
-    );
 
     return rails.slice(0, limit);
     // sessionBlockedStationsRef is read inside; it re-snapshots only on
     // homeState.sessionSeed change which is implicit through surfaceRails.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, denseLayout, personalRadioQueue.stations, rankedCatalogRails, surfaceRails]);
+  }, [catalog, denseLayout, rankedCatalogRails, surfaceRails]);
 
   // T2.23: jump-scroll chips, one per visible discovery shelf.
   const anchorChips = useMemo(
@@ -744,7 +691,6 @@ export const Home = () => {
 
   useEffect(() => {
     const stationIds = mergeStations(
-      personalRadioQueue.stations.slice(0, 12),
       visibleRails.flatMap((rail) => rail.stations.slice(0, 8))
     ).map((station) => station.stationuuid);
     if (!stationIds.length) return;
@@ -764,7 +710,7 @@ export const Home = () => {
         dedupeMs: 60_000
       }
     );
-  }, [denseLayout, personalRadioQueue.stations, visibleRails]);
+  }, [denseLayout, visibleRails]);
 
   useEffect(() => {
     if (!summary || sessionBucketPrimedRef.current) return;
@@ -882,18 +828,13 @@ export const Home = () => {
       sourceLabel: station.name
     });
   };
-  const handlePlayPersonalRadio = () => {
-    if (queue.sourceId === personalRadioQueue.sourceId && player.current) {
-      player.toggle();
-      return;
-    }
-    playStationQueue(personalRadioQueue.stations, {
-      sourceId: personalRadioQueue.sourceId,
-      sourceLabel: t('home.personalRadioTitle')
-    });
-  };
-  const personalRadioActive = queue.sourceId === personalRadioQueue.sourceId && Boolean(player.current);
   const showHomeHeroSkeleton = summaryLoading && !surfaceFeed && !homeState.snapshot;
+  const openFeed = () => {
+    // Re-roll the feed seed on the gesture (StrictMode-safe — a click, not an
+    // effect) so each open gets a fresh personal-fresh mix, then navigate.
+    rerollFeedSeed();
+    setActiveSection('feed');
+  };
   const showSummaryErrorBanner =
     Boolean(summaryError) &&
     (!summary || catalog.length === 0) &&
@@ -909,23 +850,49 @@ export const Home = () => {
         <AppScreenSkeleton section="home" scope="home-hero" />
       ) : (
         <>
-          <HomePersonalRadioCard
-            dense={denseLayout}
-            queueCount={personalRadioQueue.stations.length}
-            isPlaying={personalRadioActive && player.isPlaying}
-            disabled={!personalRadioQueue.stations.length}
-            onPlay={handlePlayPersonalRadio}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-          />
-          {/* «Лира» launcher moved to the shell's central nav button (App.tsx)
-              so it opens from any screen — no Home-level launcher now. */}
-          {/* T_home_redesign_1: HomeHeroCard removed per the owner's redesign —
-              the personal-radio CTA above stays as the user's entry point and the
-              first content rail (fresh-now) becomes the visual top of the feed.
-              The surfaceFeed.hero field is kept on the type because
-              isSameSurfaceDeck + rotateSurfaceFeed still read .station and
-              .companionStations from it (rotating the deck across sessions). */}
+          {/* Rank-freeze escape valve for the discovery rails below — the
+              icon-only refresh detached from the retired «Моя Волна» card. Sits
+              small and top-right so the «Лента» hero owns the slot. */}
+          <button
+            className={`home-surface-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label={t('home.refreshFeed')}
+            title={t('home.refreshFeed')}
+            data-action="refresh-feed"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
+            </svg>
+          </button>
+          {/* «Лента» is the home hero now — the big, inviting tik-tok entry takes
+              over the prominent slot the «Моя Волна» CTA used to hold. Opening it
+              re-rolls the feed seed (openFeed) for a fresh personal mix. The
+              data-home-feed-entry hook doubles as the "home content is ready"
+              sentinel: it renders only past the hero skeleton, exactly where the
+              old card did, so the e2e suite waits on it. */}
+          <button
+            type="button"
+            className="home-feed-entry"
+            data-home-feed-entry="true"
+            onClick={openFeed}
+          >
+            <span className="home-feed-entry-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
+              </svg>
+            </span>
+            <span className="home-feed-entry-copy">
+              <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
+              <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
+            </span>
+            <span className="home-feed-entry-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+              </svg>
+            </span>
+          </button>
         </>
       )}
 

@@ -314,91 +314,17 @@
   color: rgba(255, 164, 185, 0.96);
 }
 
-.home-personal-radio {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-lg);
-  border: 1px solid rgba(170, 220, 255, 0.12);
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at 16% 40%, rgba(121, 219, 240, 0.2), transparent 34%),
-    linear-gradient(135deg, rgba(10, 22, 36, 0.92), rgba(15, 31, 52, 0.78));
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
-}
-
-.home-personal-copy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.home-personal-copy span {
-  color: rgba(167, 247, 255, 0.78);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.home-personal-copy strong {
-  overflow: hidden;
-  color: rgba(244, 250, 255, 0.96);
-  font-size: 1.08rem;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-personal-play {
+/* Standalone rank-freeze refresh — the icon-only escape valve that used to ride
+   the retired «Моя Волна» card. Sits small and top-right above the «Лента» hero
+   so the hero owns the slot. */
+.home-surface-refresh {
   display: inline-flex;
+  align-self: flex-end;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 999px;
-  /* P1b: accent-driven, mirroring the full-player transport primary button
-     (FullPlayerOverlay.css) — was a hardcoded cyan gradient that ignored the
-     theme and read as a cool mismatch on warm presets. `color: var(--bg)` is
-     the theme's dark ink under dark themes; the light surface block overrides
-     the ink so it stays readable on a light shell. */
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 72%, white));
-  color: var(--bg);
-  font-weight: 800;
-}
-
-.home-personal-play:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
-}
-
-.home-personal-play svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
-/* T_home_redesign_1: wrap the play CTA + the relocated refresh icon so they
-   share the right column of the Personal-Radio card. The play button keeps
-   its existing typography; the refresh sits to its right as a small icon-only
-   button mirroring the topbar gear/profile pattern. */
-.home-personal-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.home-personal-refresh {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   border: 1px solid rgba(180, 223, 255, 0.18);
   background: rgba(8, 14, 24, 0.42);
@@ -407,31 +333,37 @@
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
-.home-personal-refresh:hover,
-.home-personal-refresh:focus-visible {
+.home-surface-refresh:hover,
+.home-surface-refresh:focus-visible {
   background: rgba(20, 36, 56, 0.62);
   color: rgba(244, 250, 255, 0.96);
   border-color: rgba(180, 223, 255, 0.28);
 }
 
-.home-personal-refresh:disabled,
-.home-personal-refresh.is-loading {
+.home-surface-refresh:disabled,
+.home-surface-refresh.is-loading {
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.home-personal-refresh.is-loading svg {
-  animation: home-personal-refresh-spin 0.9s linear infinite;
+.home-surface-refresh.is-loading svg {
+  animation: home-surface-refresh-spin 0.9s linear infinite;
 }
 
-.home-personal-refresh svg {
+.home-surface-refresh svg {
   width: 18px;
   height: 18px;
   fill: currentColor;
 }
 
-@keyframes home-personal-refresh-spin {
+@keyframes home-surface-refresh-spin {
   to { transform: rotate(360deg); }
+}
+
+/* The refresh sits just above the hero; pull the hero up so they read as one
+   cluster, not two stacked rows with a full gap between them. */
+.home-surface-refresh + .home-feed-entry {
+  margin-top: calc(var(--space-sm) * -1);
 }
 
 .home-hero-metrics {
@@ -1128,46 +1060,6 @@
   gap: var(--space-lg);
 }
 
-/* PR-5: "Моя волна" is the mobile hero — a large, full-width card that stacks
-   the copy over a big ▶ play CTA, the prominent top-of-feed entry point. */
-.home-personal-radio.is-dense {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-md);
-  padding: var(--space-xl);
-  border-radius: var(--radius-lg);
-}
-
-.home-personal-radio.is-dense .home-personal-copy {
-  gap: var(--space-xs);
-}
-
-.home-personal-radio.is-dense .home-personal-copy span {
-  font-size: var(--text-xs);
-}
-
-.home-personal-radio.is-dense .home-personal-copy strong {
-  font-size: var(--text-lg);
-}
-
-.home-personal-radio.is-dense .home-personal-actions {
-  width: 100%;
-  gap: var(--space-sm);
-}
-
-.home-personal-radio.is-dense .home-personal-play {
-  flex: 1 1 auto;
-  min-height: 52px;
-  padding: 0 var(--space-lg);
-  font-size: var(--text-md);
-}
-
-.home-personal-radio.is-dense .home-personal-refresh {
-  width: 48px;
-  min-width: 48px;
-  height: 48px;
-}
-
 .screen-home-next[data-density='dense'] .home-hero-card {
   gap: 0;
   padding: 10px;
@@ -1530,4 +1422,91 @@
 .home-rail-show-all:hover,
 .home-rail-show-all:focus-visible {
   border-color: var(--accent-border, rgba(180, 223, 255, 0.3));
+}
+
+/* «Лента» entry — the Discovery Feed lives here on Home, not in the bottom dock
+   (it crowded the dock + pushed «Медиатека» off-screen at 360). A prominent,
+   accent-tinted card right under search. */
+/* «Лента» is the home hero now (it replaced the «Моя Волна» CTA in the prominent
+   top slot): a big, inviting full-width tap target with a layered accent glow. */
+.home-feed-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 96px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background:
+    radial-gradient(140% 165% at 0% 0%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 60%),
+    radial-gradient(120% 150% at 100% 120%, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 64%),
+    var(--theme-surface, rgba(17, 25, 38, 0.62));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 16px 32px rgba(4, 10, 19, 0.22);
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.home-feed-entry:active {
+  transform: scale(0.99);
+}
+
+.home-feed-entry:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 20px 40px rgba(4, 10, 19, 0.28);
+}
+
+.home-feed-entry-glyph {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 36%, transparent),
+    color-mix(in srgb, var(--accent-2) 28%, transparent)
+  );
+  color: var(--accent);
+}
+
+.home-feed-entry-glyph svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
+.home-feed-entry-copy {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.home-feed-entry-title {
+  font-size: 1.18rem;
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.home-feed-entry-sub {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-feed-entry-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.home-feed-entry-arrow svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }

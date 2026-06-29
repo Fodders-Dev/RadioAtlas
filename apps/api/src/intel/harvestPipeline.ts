@@ -64,6 +64,43 @@ export const parseTrackTitle = (value: string | null | undefined): ParsedTrack |
   return { artist: null, title: cleaned, raw: cleaned };
 };
 
+// ── 1b. Reject non-artist "artists" before they pollute the index ────────────
+// The structural "ARTIST - TITLE" split can't tell a real performer from a
+// station ident the broadcaster dropped in the artist slot («RADIO BOB - The
+// Best Rock», «SUNSHINE LIVE - …»), a placeholder («Unknown - …»), or a jingle —
+// these dominated the early station_artist_index. We keep the OBSERVATION (the
+// title is still useful) but drop the artist so "which stations play X" stays
+// real. The caller passes the station's own name to catch the ident-leak case.
+const NON_ARTIST_MARKERS = new Set([
+  'unknown', 'unknown artist', 'n a', 'na', 'none', 'no artist', 'nil',
+  'on air', 'onair', 'live', 'advert', 'advertisement', 'ad', 'ads',
+  'jingle', 'commercial', 'commercial break', 'station id', 'id', 'ident',
+  'various', 'various artists', 'va', 'top 40', 'now playing'
+]);
+
+const normalizeIdent = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[!?.,:;'"`«»()|/\\–—_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export const isNonArtistName = (artist: string, stationName?: string | null): boolean => {
+  const a = normalizeIdent(artist);
+  if (!a) return true;
+  if (NON_ARTIST_MARKERS.has(a)) return true;
+  // A URL / domain in the artist slot is a stream ident, never a performer.
+  if (/(^|\s)(www\.|https?:\/\/)|\.(com|net|fm|org|ru|de|fr|nl)(\b|\/)/i.test(artist)) return true;
+  // A station that put its OWN name in the artist slot — the dominant junk
+  // («RADIO BOB», «SUNSHINE LIVE», «90s90s», «NPO Radio 1»). Exact match only, so
+  // a real performer can never be dropped by a loose substring.
+  if (stationName) {
+    const s = normalizeIdent(stationName);
+    if (s && a === s) return true;
+  }
+  return false;
+};
+
 // ── 2. supports_metadata state machine ──────────────────────────────────────
 // null = never checked, 0 = checked / no title, 1 = a real title was seen.
 // Once a station has PROVEN it emits titles (1) it stays 1 even on a later empty
@@ -77,6 +114,9 @@ export const nextSupportsMetadata = (current: 0 | 1 | null, hadTitle: boolean): 
 // ── 3. Batch selection (skip dead, rank by quality, cap) ────────────────────
 export type HarvestCandidate = {
   stationUuid: string;
+  // Catalog name — used only to reject the station's own ident leaking into the
+  // artist slot (see isNonArtistName). Optional so older callers/tests still work.
+  name?: string | null;
   urlResolved: string;
   lastcheckok?: 0 | 1 | null;
   quality?: number;
@@ -267,9 +307,13 @@ export const runHarvestBatch = async (
       const hadTitle = Boolean(parsed);
       if (hadTitle && parsed) {
         summary.withTitle += 1;
+        // Keep the observation (title) but drop a non-artist (station ident /
+        // jingle / placeholder) so it never enters the artist index.
+        const artist =
+          parsed.artist && !isNonArtistName(parsed.artist, station.name) ? parsed.artist : null;
         const recorded = deps.store.recordObservation({
           stationUuid: station.stationUuid,
-          artist: parsed.artist,
+          artist,
           title: parsed.title,
           rawTitle: parsed.raw,
           observedAt: deps.now()

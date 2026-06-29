@@ -16,7 +16,7 @@ import {
 } from './antiHallucination.js';
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { resolveCulturalVibe } from './culturalVibes.js';
-import { resolveArtistGenres } from './artistGenreFallback.js';
+import { resolveAnchorGenres, resolveArtistGenres } from './artistGenreFallback.js';
 import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
@@ -64,7 +64,28 @@ const SEARCH_INTENT = /(включ|постав|вруб|запусти|дава
 // bug). Matching it routes the turn through the planner, which then maps the
 // vibe to genre tags and calls search_stations.
 const VIBE_INTENT =
-  /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн)/i;
+  /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн|поора|накрич|поплак|пореве|выпустить\s+пар|агресс|ярост)/i;
+
+// A clear MUSIC request can carry NO play-verb and NO vibe-word — a bare genre, a
+// decade, «женский вокал», «хиты 90-х», «что-нибудь в стиле дрилл». Those read as
+// smalltalk → the planner was skipped → Лира just DESCRIBED the genre instead of
+// returning stations («назвал жанр и не поискал» — the live bug). Matching music
+// vocabulary makes the turn NOT smalltalk so the planner runs and searches. Used
+// ONLY for the smalltalk gate (not the vibe-backstop) — the planner is the smart
+// arbiter (it searches a real ask, finals a statement like «я не люблю музыку»),
+// so a false positive only costs one planner call, never a wrong card. Short
+// stems get a Cyrillic/Latin-aware boundary so «урок»≠«рок», «попа»≠«поп».
+const MUSIC_DESCRIPTOR =
+  /(музык|вокал|инструментал|хиты|хитов|хит-парад|\d0-?[еёхxs]|девяност|восьмидес|семидес|шестидес|нулев[ыо]|двухтысячн|драм-?н-?бэйс|драм\s+энд\s+бэйс|drum\s?(?:and|n|&|'n')?\s?bass|(?:^|[^a-zа-яё])(?:рок|поп|рэп|рнб|джаз|метал{1,2}|панк|фонк|блюз|соул|фанк|диско|техно|хаус|house|регги|reggae|трэп|trap|гранж|grunge|инди|indie|эмбиент|ambient|шансон|дрилл|drill|грайм|grime|хардкор|hardcore|дабстеп|dubstep|синтвейв|synthwave|дарквейв|darkwave|шугейз|shoegaze|лоу-?фай|lo-?fi|фолк|folk|кантри|country|электрон|electronic|вейпорвейв|vaporwave|хип-?хоп|hip-?hop|сити-?поп|city\s?pop|к-?поп|k-?pop|джей-?поп|j-?pop|госпел|gospel|латин|latin|босса|самб|танго|кельтск|celtic|металкор|metalcore|ска|ska|транс|trance|дрим|dream|евроданс|eurodance|психоделик|psytrance|психотранс|гоа[\s-]?транс|goa[\s-]?trance|хардстайл|hardstyle|брейкбит|breakbeat|биг-?бит|big\s?beat|днб|dnb|айдиэм|idm|даунтемпо|downtempo|прогрессив|progressive|пост-?панк|post-?punk|пост-?рок|post-?rock|дэт-?метал|death\s?metal|блэк-?метал|black\s?metal|дум-?метал|doom\s?metal|нью-?вейв|new\s?wave|итало|italo)(?![a-zа-яё]))/i;
+
+// Dislike / negation of a genre — «не люблю транс», «ненавижу рэп», «терпеть не
+// могу попсу», «не слушаю метал», «фу, шансон», «надоел рэп». Used ONLY to narrow
+// the DESCRIPTOR-driven card backstop: a bare genre word inside a rejection is not
+// a request, so we must not answer «не люблю транс» with trance cards. Kept off the
+// smalltalk gate and the ACTION/VIBE paths (an explicit «не ставь рэп, дай рок» is
+// still a request via its own verb). Cyrillic-aware; «не» may be split from the verb.
+const MUSIC_DISLIKE =
+  /(не\s+любл|ненавиж|терп[еи]ть\s+не|не\s+слуша|не\s+вынош|не\s+перевар|против\s+|надоел|задолбал|бесит|фу\s|фу,|не\s+по\s+душе|не\s+нрав)/i;
 
 // Soft music-context markers that, ALONGSIDE a cultural reference, mark a real
 // music ask even without an ACTION/VIBE keyword — «музыку как в гта сан андреас»,
@@ -138,8 +159,41 @@ const explicitArtistQuery = (message: string): string | null => {
   return null;
 };
 
+// A vibe ANCHOR names a reference act/track to sound LIKE — «в стиле Robert
+// Miles», «что-то типа Children Robert Miles», «в духе Burial», «вроде Aphex
+// Twin». The named act is the STRONGEST genre signal, but without «радио/станци»
+// these read as smalltalk → no search (the live bug: «что-то типа boards of
+// canada» → 0 cards; and even WITH «радио» the planner over-weights loose mood
+// words → «радио в стиле robert miles» landed on ambient SLEEP stations). We
+// capture the tail and route it through the curated artist→genre map. The tail
+// must be a CONCRETE topic (≤3 words, connector-free — so «в стиле бохо где купить
+// платье» is rejected by the «где» connector) and not a bare filler («ну типа
+// того»), so non-music anchors stay smalltalk (verified: those return 0 cards).
+// Bare «как» is excluded on purpose (как дела / как ты / как настроение).
+const REFERENCE_ANCHOR =
+  /(?:в\s+стиле|в\s+духе|в\s+жанре|типа|вроде|похож[еио][а-яё]*\s+на|на\s+манер)\s+(.{2,})$/i;
+// Cyrillic word-end: JS \b is ASCII-only (it would NOT fire after «того», whose
+// last char isn't an ASCII word char — the same trap flagged all over this file),
+// so a literal \b here would let «ну типа того» / «вроде бы …» leak through as a
+// fake anchor. Use a Cyrillic-aware lookahead instead.
+const ANCHOR_FILLER =
+  /^(того|та|так|это|этого|эту|тот|те[бх]|да|нет|чего|чё|что|бы|же|ли|ну|вот|меня|вас|нас|не[ёе]|него|их|оно|сам|свои|такого|такой)(?![а-яёa-z])/i;
+const referenceAnchorQuery = (message: string): string | null => {
+  const match = message.match(REFERENCE_ANCHOR);
+  const tail = match?.[1]?.trim().replace(/[?!.,]+$/, '').trim();
+  if (!tail || tail.length < 3 || ANCHOR_FILLER.test(tail)) return null;
+  return looksConcreteTopic(tail) ? tail : null;
+};
+
 const isSmalltalk = (message: string): boolean =>
-  !ACTION_INTENT.test(message) && !VIBE_INTENT.test(message);
+  !ACTION_INTENT.test(message) &&
+  !VIBE_INTENT.test(message) &&
+  // A genre word inside a DISLIKE («не люблю транс», «ненавижу рэп») is NOT a
+  // request — keep it smalltalk so the planner is skipped entirely, otherwise the
+  // planner sees the genre and searches it anyway (answering "I hate trance" with
+  // trance stations). An explicit «не ставь рэп, дай рок» still has ACTION/VIBE.
+  !(MUSIC_DESCRIPTOR.test(message) && !MUSIC_DISLIKE.test(message)) &&
+  !referenceAnchorQuery(message);
 
 // Factual / news / biography questions Лира cannot verify from observations
 // («жив ли X», «что нового у …», release dates, «правда ли что…»). A stopgap
@@ -249,6 +303,7 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
     '',
     'РАСШИРЕНИЕ ЗАПРОСА. Каталог станций ищет по ИМЕНИ и ТЕГАМ станций (теги — в основном английские жанры), НЕ по именам артистов и не по свободным фразам. Поэтому в search_stations.query клади ЭФФЕКТИВНЫЙ поисковый запрос — канонический английский жанр/тег, а не дословную фразу пользователя:',
     '— Артист или группа: СНАЧАЛА find_stations_by_artist (вернёт нашу станцию артиста, если есть). Если станций нет — тогда search_stations по его жанру: «Limp Bizkit» → «nu metal», «Daft Punk» → «electronic», «Hans Zimmer» → «soundtrack». В search_stations ищи ЖАНР, а не имя артиста.',
+    '— ОРИЕНТИР НА АРТИСТА/ТРЕК сильнее слов о настроении. Если человек называет конкретного исполнителя или трек как образец («что-то типа Children Роберта Майлза», «в стиле Aphex Twin», «как Boards of Canada»), определи РЕАЛЬНЫЙ жанр этого артиста и ищи ИМЕННО его, а прилагательные про настроение (меланхоличный, ностальгичный, мечтательный) — вторичны и НЕ должны подменять жанр на общий «ambient»/«chillout»: «Robert Miles» → «trance» (а не «ambient»), «Aphex Twin» → «idm», «Burial» → «future garage». Бери ПОПУЛЯРНЫЙ широкий тег жанра, а не редкий микро-жанр.',
     '— Русское или нечёткое описание → канонический английский тег: «игровые саундтреки» → «video game music», «спокойное на вечер» → «chillout» или «ambient», «вечерний джаз» → «jazz», «что-то бразильское» → «brazilian», «бодрое для спорта» → «workout».',
     'Если search_stations вернул пусто (found=false или станций нет) — НЕ сдавайся: вызови ЕЩЁ ОДИН search_stations с ДРУГИМ запросом (более широкий жанр, другой английский тег или одно самое сильное слово) ПРЕЖДЕ чем звать music_service_search. Только когда и расширенный поиск пуст — тогда music_service_search.',
     'Уточняющий вопрос (action "final" без станций) допустим ТОЛЬКО когда вообще нет НИКАКОЙ зацепки — ни жанра, ни настроения, ни занятия, ни вайба («включи что-нибудь»). Если названо хоть что-то — ищи, а не переспрашивай.',
@@ -405,7 +460,7 @@ const collectServiceLinks = (observations: ToolObservation[]): ServiceLink[] => 
 // tags the catalog actually indexes. Semantic mapping is far more robust than a
 // regex on «солнечный питер». Returns [] on error/empty (caller then degrades).
 const VIBE_TAG_SYSTEM =
-  'Ты сопоставляешь запрос человека с жанрами радио. Верни 1–2 канонических АНГЛИЙСКИХ radio genre tag, какие бывают в каталоге станций (например: chillout, lounge, ambient, indie, indie rock, jazz, lo-fi, hip-hop, electronic, house, rock, metal, classical, soul, funk, reggae, folk, pop, dance, trip hop, downtempo). Подбери под смысл и настроение запроса. Ответь ТОЛЬКО тегами через запятую, в нижнем регистре, без пояснений, кавычек и иного текста.';
+  'Ты сопоставляешь запрос человека с жанрами радио. Верни 1–2 канонических АНГЛИЙСКИХ radio genre tag, какие бывают в каталоге станций (например: chillout, lounge, ambient, indie, indie rock, jazz, lo-fi, hip-hop, electronic, house, rock, metal, classical, soul, funk, reggae, folk, pop, dance, trip hop, downtempo, trance, drum and bass, synthwave, eurodance, idm, future garage, soundtrack). Подбери под смысл и настроение запроса. Ответь ТОЛЬКО тегами через запятую, в нижнем регистре, без пояснений, кавычек и иного текста.';
 
 export const parseGenreTags = (raw: string | null | undefined): string[] => {
   return String(raw || '')
@@ -482,10 +537,21 @@ export const chatWithAssistant = async (
   // way the dedicated tool (curated-grounded) runs first; the planner + backstop
   // still follow, so a genre that slipped through here is recovered. Skipped when
   // a cultural reference already matched (its phrase would mis-capture as artist).
+  // A reference anchor («в стиле Robert Miles», «типа children robert miles») is
+  // routed through the artist path ONLY when resolveAnchorGenres (the UNAMBIGUOUS
+  // subset — distinctive/multiword names, NOT common-noun band stems like
+  // кино/алиса/аквариум) knows the named act — then its real genre grounds the
+  // search (Robert Miles → trance, NOT the ambient sleep stations the generic
+  // planner picked from the mood words). An anchor the safe-map doesn't know is
+  // deliberately NOT sent to the artist tool (its L4 would emit bogus service links
+  // for a non-artist phrase, and a loose stem would mis-fire on «что-то типа кино»);
+  // it only flips isSmalltalk so the planner runs and decides.
+  const anchorQuery = culturalTags ? null : referenceAnchorQuery(userMessage);
   const artistQuery = culturalTags
     ? null
     : explicitArtistQuery(userMessage) ||
-      (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null);
+      (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null) ||
+      (anchorQuery && resolveAnchorGenres(anchorQuery) ? anchorQuery : null);
 
   if (culturalTags) {
     // Search the curated tags in priority order, stopping once we have real cards;
@@ -570,8 +636,24 @@ export const chatWithAssistant = async (
   // Лира invent "news". Excluding FACTUAL_QUESTION keeps both the backstop and
   // the service-links branch (gated on musicIntent) off those turns; an
   // explicit «поставь X» still routes via forcedQuery, unaffected.
+  // A bare MUSIC_DESCRIPTOR ask («меланхоличная электроника 90х», «дрим транс»)
+  // also counts: it reached the planner (not smalltalk) but the planner sometimes
+  // DEFERS («давай подберу») → 0 cards. The descriptor proves a real music ask, so
+  // the backstop must net it — EXCEPT a trivia «расскажи про рок 90х», which keeps
+  // its honesty path (the factualGuard needs 0 stations, so forcing cards there
+  // would silence it). #147 fed MUSIC_DESCRIPTOR to the smalltalk gate only; this
+  // closes the hole where a descriptor reached the planner and got nothing back.
+  // AND a descriptor that is a DISLIKE/negation («не люблю транс», «ненавижу рэп»,
+  // «я не люблю музыку») is NOT a request — the planner rightly finals it, so the
+  // descriptor path must not force that genre's cards. (An explicit ACTION/VIBE
+  // dislike like «не ставь рэп, посоветуй другое» still has its own intent and is
+  // unaffected — the guard only narrows the descriptor-only trigger.)
+  const isDescriptorRequest =
+    MUSIC_DESCRIPTOR.test(userMessage) &&
+    !TRIVIA_QUESTION.test(userMessage) &&
+    !MUSIC_DISLIKE.test(userMessage);
   const musicIntent =
-    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage)) &&
+    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage) || isDescriptorRequest) &&
     !FACTUAL_QUESTION.test(userMessage);
   if (musicIntent && collectVerifiedStations(observations).length === 0) {
     const { tags, usage: tagUsage } = await mapVibeToTags(deps, userMessage);

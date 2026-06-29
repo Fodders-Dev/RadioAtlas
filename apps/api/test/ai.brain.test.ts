@@ -936,3 +936,127 @@ test('RUSSIAN ARTIST FALLBACK: «где играет Егор Летов» (no s
   assert.ok(result.stations.length > 0);
   assert.ok((result.serviceLinks?.length ?? 0) > 0); // L4 links still let them hear the real artist
 });
+
+test('MUSIC DESCRIPTOR: a bare genre / decade / vocal ask reaches the planner (not skipped as smalltalk)', async () => {
+  for (const q of ['что-нибудь в стиле дрилл', 'женский вокал инди', 'хиты 90-х', 'музыка чтобы поплакать', 'поорать в зале']) {
+    const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'] });
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl));
+    assert.ok(calls.some((c) => c.phase === 'planner'), `"${q}" should reach the planner`);
+  }
+});
+
+test('MUSIC DESCRIPTOR does NOT fire on pure chat — planner stays skipped (urok≠rok)', async () => {
+  for (const q of ['привет, как дела?', 'который час?', 'урок математики']) {
+    const { fetchImpl, calls } = makeFetch({});
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl));
+    assert.ok(!calls.some((c) => c.phase === 'planner'), `"${q}" should stay smalltalk (no planner)`);
+  }
+});
+
+const makeSpyTools = (): { tools: ToolProvider; searchQueries: string[] } => {
+  const searchQueries: string[] = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async ({ query }) => {
+      searchQueries.push(query);
+      return [station()];
+    }
+  };
+  return { tools, searchQueries };
+};
+
+test('REFERENCE ANCHOR: a known act anchor («в стиле robert miles», even with no «радио») searches ITS genre, not the mood', async () => {
+  for (const q of ['радио в стиле robert miles', 'что-то типа children robert miles', 'станция в духе aphex twin']) {
+    const { tools, searchQueries } = makeSpyTools();
+    const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Лови волну.' });
+    const result = await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.ok(searchQueries.some((s) => /trance|idm|eurodance/.test(s)), `"${q}" → searched [${searchQueries.join(', ')}]`);
+    assert.ok(result.stations.length > 0, `"${q}" → has cards`);
+  }
+});
+
+test('REFERENCE ANCHOR: «что-то типа гражданской обороны» routes to its russian tag (no «радио» keyword needed)', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'] });
+  await chatWithAssistant(ask('что-то типа гражданской обороны'), makeDeps(fetchImpl, { tools }));
+  assert.ok(searchQueries.some((s) => /russian punk/.test(s)), `searched [${searchQueries.join(', ')}]`);
+});
+
+test('REFERENCE ANCHOR: non-music / filler anchors do NOT force curated genre cards', async () => {
+  // «в стиле бохо где купить платье» (the «где» connector fails looksConcreteTopic)
+  // and «ну типа того» (bare filler tail) must stay smalltalk — no forced search.
+  for (const q of ['в стиле бохо где купить платье', 'ну типа того']) {
+    const { tools, searchQueries } = makeSpyTools();
+    const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Поболтаем?' });
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.equal(searchQueries.length, 0, `"${q}" → unexpected search [${searchQueries.join(', ')}]`);
+  }
+});
+
+test('DESCRIPTOR BACKSTOP: planner defers on «электроника 90х» → vibe-tags backstop still yields cards', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'downtempo', compose: 'Лови.' });
+  const result = await chatWithAssistant(ask('меланхоличная электроника 90х'), makeDeps(fetchImpl, { tools }));
+  assert.ok(calls.some((c) => c.phase === 'vibe-tags'), 'descriptor backstop ran');
+  assert.ok(searchQueries.includes('downtempo'), `searched [${searchQueries.join(', ')}]`);
+  assert.ok(result.stations.length > 0);
+});
+
+test('DESCRIPTOR BACKSTOP excludes trivia — «расскажи про рок 90х» keeps its honesty path (no forced cards)', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'rock' });
+  await chatWithAssistant(ask('расскажи про рок 90х'), makeDeps(fetchImpl, { tools }));
+  assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), 'no card-forcing backstop on a trivia question');
+  assert.equal(searchQueries.length, 0);
+});
+
+test('MUSIC DESCRIPTOR vocab: trance / dnb genres now reach the planner', async () => {
+  for (const q of ['дрим транс', 'драм-н-бэйс', 'хочу drum and bass']) {
+    const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'] });
+    await chatWithAssistant(ask(q), makeDeps(fetchImpl));
+    assert.ok(calls.some((c) => c.phase === 'planner'), `"${q}" → planner`);
+  }
+});
+
+test('REGEX FP GUARDS: «ну типа того» / «вроде бы …» / «на гоа отдыхать» stay smalltalk (no planner, no forced cards)', async () => {
+  // Cyrillic-boundary filler + the goa-is-a-place guard: these reached neither the
+  // planner nor the card-forcing backstop. Regression locks for the review fixes.
+  for (const q of ['ну типа того', 'вроде бы всё нормально', 'на гоа отдыхать']) {
+    const { tools, searchQueries } = makeSpyTools();
+    const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'goa', compose: 'Поболтаем?' });
+    const result = await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.ok(!calls.some((c) => c.phase === 'planner'), `"${q}" should stay smalltalk (no planner)`);
+    assert.equal(result.stations.length, 0, `"${q}" → no forced cards`);
+    assert.equal(searchQueries.length, 0, `"${q}" → no search`);
+  }
+});
+
+test('REFERENCE ANCHOR: common-noun band stems do NOT hijack ordinary chat (кино / алиса / аквариум)', async () => {
+  // The HIGH adversarial-review finding: «что-то типа кино» (=movie) must not route to
+  // the Кино band → russian rock. resolveAnchorGenres excludes these loose stems.
+  for (const q of ['что-то типа кино', 'купи мне колонку типа алиса', 'что-нибудь в стиле немого кино', 'в духе аквариума']) {
+    const { tools, searchQueries } = makeSpyTools();
+    const { fetchImpl } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'russian rock', compose: 'Поболтаем?' });
+    const result = await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.equal(searchQueries.length, 0, `"${q}" → unexpected curated search [${searchQueries.join(', ')}]`);
+    assert.equal(result.stations.length, 0, `"${q}" → no forced cards`);
+  }
+});
+
+test('DESCRIPTOR DISLIKE: «не люблю транс» stays smalltalk — planner skipped, no genre cards', async () => {
+  // The planner (not just the backstop) must be skipped, else it sees the genre word
+  // and searches it anyway — answering "I hate trance" with trance stations (a prod miss).
+  for (const q of ['не люблю транс', 'ненавижу рэп', 'я не люблю музыку', 'фу, шансон']) {
+    const { tools, searchQueries } = makeSpyTools();
+    const { fetchImpl, calls } = makeFetch({
+      planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"trance"}}'],
+      vibeTags: 'trance',
+      compose: 'Понимаю.'
+    });
+    const result = await chatWithAssistant(ask(q), makeDeps(fetchImpl, { tools }));
+    assert.ok(!calls.some((c) => c.phase === 'planner'), `"${q}" → planner should be skipped`);
+    assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), `"${q}" → backstop wrongly fired`);
+    assert.equal(result.stations.length, 0, `"${q}" → no forced cards`);
+    assert.equal(searchQueries.length, 0);
+  }
+});

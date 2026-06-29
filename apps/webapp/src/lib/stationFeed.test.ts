@@ -133,6 +133,75 @@ describe('buildStationFeed', () => {
     expect(randomCount).toBeLessThanOrEqual(8);
   });
 
+  it('excludes the user\'s own stations (favorites/recent/current) from every source', () => {
+    // The exclude-set is applied BEFORE weighting, to ALL sources, so a station
+    // the user already has never shows up — even if taste AND trending list it.
+    const feed = buildStationFeed({
+      tasteStations: [station('t0'), station('fav1'), station('t1')],
+      trending: [station('fav1'), station('r0')],
+      pool: [station('cur'), station('p0')],
+      seed: 4,
+      exclude: ['fav1', 'cur']
+    });
+    expect(ids(feed)).not.toContain('fav1');
+    expect(ids(feed)).not.toContain('cur');
+    expect(ids(feed)).toEqual(expect.arrayContaining(['t0', 't1', 'r0', 'p0']));
+  });
+
+  it('drops stations that fail the liveness gate from every source', () => {
+    const dead = new Set(['dead1', 'dead2']);
+    const feed = buildStationFeed({
+      tasteStations: [station('t0'), station('dead1')],
+      trending: [station('dead2'), station('r0')],
+      pool: [station('p0')],
+      seed: 2,
+      isLive: (s) => !dead.has(s.stationuuid)
+    });
+    expect(ids(feed)).not.toContain('dead1');
+    expect(ids(feed)).not.toContain('dead2');
+    expect(ids(feed)).toEqual(expect.arrayContaining(['t0', 'r0']));
+  });
+
+  it('pins card 0 to the strongest personal pick regardless of seed', () => {
+    // Opening the feed must land on «твой вайб»: the top of the taste deck leads
+    // the feed for ANY seed (the rest reshuffle behind it).
+    const taste = range('t', 5);
+    const shared = { tasteStations: taste, trending: range('r', 5), pool: range('p', 20) };
+    const a = buildStationFeed({ ...shared, seed: 11 });
+    const b = buildStationFeed({ ...shared, seed: 88 });
+    expect(a[0].stationuuid).toBe('t0');
+    expect(b[0].stationuuid).toBe('t0');
+    // Pinned exactly once — never duplicated back into the weighted mix.
+    expect(ids(a).filter((id) => id === 't0')).toHaveLength(1);
+    // The tail still permutes per seed (only the lead is fixed).
+    expect(ids(a).slice(1)).not.toEqual(ids(b).slice(1));
+  });
+
+  it('per-open re-seed (rerollFeedSeed) yields a fresh mix each open while keeping the personal lead', () => {
+    // Every «Лента» open mints a new seed (rerollFeedSeed → setFeedSeed(Date.now())),
+    // so two opens of the SAME inputs reshuffle the tail for freshness but keep
+    // card 0 = the strongest personal pick (so "open → plays your vibe" holds each time).
+    const shared = { tasteStations: range('t', 6), trending: range('r', 6), pool: range('p', 20) };
+    const open1 = ids(buildStationFeed({ ...shared, seed: 1700000000001 }));
+    const open2 = ids(buildStationFeed({ ...shared, seed: 1700000000002 }));
+    expect(open1).not.toEqual(open2); // fresh mix per open
+    expect(open1[0]).toBe('t0'); // ...but the personal lead is stable across opens
+    expect(open2[0]).toBe(open1[0]);
+  });
+
+  it('card 0 falls through when the top taste pick is excluded or dead', () => {
+    const feed = buildStationFeed({
+      tasteStations: [station('t0'), station('t1'), station('t2')],
+      trending: [],
+      pool: [],
+      seed: 6,
+      exclude: ['t0'],
+      isLive: (s) => s.stationuuid !== 't1'
+    });
+    // t0 excluded, t1 dead → t2 is the strongest AVAILABLE personal pick.
+    expect(feed[0].stationuuid).toBe('t2');
+  });
+
   it('handles empty sources without throwing', () => {
     expect(buildStationFeed({ tasteStations: [], trending: [], pool: [], seed: 1 })).toEqual([]);
     const tasteOnly = buildStationFeed({

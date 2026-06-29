@@ -4,6 +4,11 @@ import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import { buildStationFeed } from '../lib/stationFeed';
+import {
+  isStationHardHiddenByPlayability,
+  isStationHardHiddenByUpstream
+} from '../lib/stationPlayability';
+import { isStationSuppressedByHealth } from '../lib/stationHealth';
 import { rankStationsForUser } from '../lib/tasteProfile';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
@@ -177,18 +182,40 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, homeState, winamp } = useShell();
+  const { setActiveSection, feedSeed, winamp } = useShell();
   const isMobile = useMobileLayout();
 
-  const seed = homeState.sessionSeed;
+  // The feed re-rolls on EVERY open: rerollFeedSeed runs from the «Лента» entry's
+  // onClick, so each open mints a new seed → a fresh personal-fresh mix, while
+  // Home's own sessionSeed (frozen per session) stays put.
+  const seed = feedSeed;
 
-  // Build the feed ONCE per (catalog, seed): a session-stable list you can scroll
-  // without it reshuffling underneath you. Volatile inputs (the playing station,
-  // a like you just tapped) are read at compute time but deliberately kept OUT of
-  // the deps so a swipe-to-play or a like never reorders the list mid-scroll.
+  // Build the feed ONCE per (catalog, seed): a list you can scroll without it
+  // reshuffling underneath you. Volatile inputs (the playing station, favorites,
+  // recent, a like you just tapped) are read at compute time but deliberately
+  // kept OUT of the deps so a swipe-to-play or a like never reorders the list
+  // mid-scroll — yet because `seed` changes per open, the NEXT open re-reads them
+  // (so a station you just liked/played is freshly excluded next time).
   const feedStations = useMemo(() => {
     const pool = summary?.catalogPool ?? [];
     if (!pool.length) return [];
+    const now = Date.now();
+    // Liveness gate: drop anything broken/suppressed so the feed never autoplays
+    // a dead stream on a swipe. Mirrors filterStationsByPlayability + the upstream
+    // hard-hidden check used across discovery.
+    const isLive = (candidate: StationLite) =>
+      !isStationHardHiddenByPlayability(playabilityProfile, candidate, now) &&
+      !isStationSuppressedByHealth(stationHealthProfile, candidate, now) &&
+      !isStationHardHiddenByUpstream(candidate, now);
+    // Freshness: drop what's already in the user's world so every card is new —
+    // their favorites, recently-played stations, and the one playing right now.
+    // (#86-safe: excluding the current station means the feed opens on card 0
+    // without switching the player; resolveFeedEntry seeds it as already-played.)
+    const exclude = new Set<string>();
+    favorites.forEach((s) => exclude.add(s.stationuuid));
+    recent.forEach((s) => exclude.add(s.stationuuid));
+    if (player.current) exclude.add(player.current.stationuuid);
+
     const rankedCatalog = rankStationsForUser(pool, tasteProfile, playabilityProfile, {
       mode: 'personal',
       currentStation: null,
@@ -211,6 +238,7 @@ export const StationFeed = () => {
       currentStation: null,
       rotationSeed: seed
     });
+    // Taste leads, strongest first (tunedForYou[0] becomes the pinned card 0).
     const tasteStations = mergeUnique(
       recommendation.tunedForYou,
       recommendation.becauseYouLiked,
@@ -220,7 +248,9 @@ export const StationFeed = () => {
       tasteStations,
       trending: summary?.trending ?? [],
       pool: rankedCatalog,
-      seed
+      seed,
+      exclude,
+      isLive
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary, seed]);

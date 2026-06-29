@@ -22,7 +22,7 @@ const openHomeWithShim = async (page: Page) => {
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 };
@@ -31,7 +31,7 @@ const openHomeWithoutShim = async (page: Page) => {
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 };
@@ -61,7 +61,7 @@ test('inside-telegram: play toggles enableClosingConfirmation; pause toggles dis
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -89,7 +89,7 @@ test('standalone-web: playing does NOT toggle closing confirmation (no SDK)', as
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -107,7 +107,7 @@ test('inside-telegram: dock play button fires exactly one HapticFeedback.impactO
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -131,7 +131,7 @@ test('standalone-web: dock play button does NOT fire HapticFeedback (no SDK)', a
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -176,7 +176,7 @@ test('T1.3 (a) inside-telegram with themeParams applies Telegram colours to rend
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -211,7 +211,7 @@ test('T1.3 (b) explicit Theme Studio pick wins over Telegram themeParams', async
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -231,7 +231,7 @@ test('T1.3 (c) standalone-web (no SDK) never picks up Telegram colours', async (
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -251,7 +251,7 @@ test('T1.3 (d) themeChanged event re-applies tokens without remount', async ({
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -294,7 +294,7 @@ test('T1.3 (e) inside-telegram with empty themeParams stays on Classic (floor)',
   await installMediaMocks(page);
   await mockStations(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 
@@ -317,7 +317,7 @@ test('inside-telegram: queue row move/remove buttons do NOT fire HapticFeedback 
     queue: [stations[0]!, stations[1]!, stations[2]!]
   });
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
 

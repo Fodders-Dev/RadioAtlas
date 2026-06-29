@@ -60,7 +60,7 @@ const seedSummary = async (page: Page) => {
 const openHome = async (page: Page) => {
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
@@ -342,7 +342,7 @@ test.describe('T_audit_10 cold-load stale-cache surface', () => {
     await page.goto('/?api=/api');
 
     // Home hydrates from the cached payload first (5 base rails).
-    await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
 
     // Without any refresh click, the background network revalidation must
     // rebuild the surface to the full Sprint-v2 set. Pre-fix the snapshot froze

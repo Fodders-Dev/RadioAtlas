@@ -55,3 +55,8 @@ test('every entry maps to 1–3 non-empty tags', () => {
     assert.ok(v.label && v.pattern instanceof RegExp, `${v.label}: shape`);
   }
 });
+
+test('City pop → city pop / j-pop / japanese (not smooth jazz)', () => {
+  assert.deepEqual(resolveCulturalVibe('японское сити-поп радио'), ['city pop', 'j-pop', 'japanese']);
+  assert.equal(resolveCulturalVibe('city pop')?.[0], 'city pop');
+});

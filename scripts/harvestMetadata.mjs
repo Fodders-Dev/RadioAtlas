@@ -69,7 +69,7 @@ const REQUEST_TIMEOUT_MS = num('HARVEST_REQUEST_TIMEOUT_MS', 15_000);
 // A contactable User-Agent (ToS-polite — identifies us + how to reach us).
 const USER_AGENT = env(
   'HARVEST_USER_AGENT',
-  'RadioAtlasHarvester/0.1 (+https://radioatlas.duckdns.org; contact: ahjkuio@gmail.com)'
+  'RadioAtlasHarvester/0.1 (+https://radioatlas.ru; contact: ahjkuio@gmail.com)'
 );
 
 const log = (msg) => console.log(`[harvest] ${msg}`);
@@ -100,6 +100,7 @@ const main = async () => {
     .filter((s) => s && s.stationuuid && s.url_resolved)
     .map((s) => ({
       stationUuid: s.stationuuid,
+      name: s.name,
       urlResolved: s.url_resolved,
       lastcheckok: s.lastcheckok,
       quality: harvestQualityScore(s),

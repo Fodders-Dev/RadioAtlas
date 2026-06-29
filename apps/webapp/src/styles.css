@@ -105,8 +105,8 @@
 }
 
 /* P1b: light-mode chrome-wiring. A few chrome pieces predate the surface tokens
-   and hardcode a dark background (the topbar, the personal-radio "my wave" card,
-   the home icon buttons, the bottom nav) or a fixed cyan fill (the play CTA).
+   and hardcode a dark background (the topbar, the home icon buttons, the bottom
+   nav) or a fixed cyan fill (the play CTA).
    Under a dark theme they're correct; under a light theme the body went light but
    these stayed as dark/pale islands. Re-skin them from the light surface tokens,
    and turn the CTA into a solid accent button with dark ink (it was a pale cyan
@@ -137,30 +137,7 @@
   color: color-mix(in srgb, var(--accent) 46%, var(--text));
 }
 
-:root[data-theme-mode='light'] .home-personal-radio {
-  background:
-    radial-gradient(circle at 16% 40%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 38%),
-    var(--theme-surface-2, rgba(255, 250, 244, 0.82));
-  border-color: var(--theme-border);
-  box-shadow: 0 12px 26px var(--shadow-soft);
-}
-
-:root[data-theme-mode='light'] .home-personal-copy span {
-  color: color-mix(in srgb, var(--accent) 52%, var(--text));
-}
-
-:root[data-theme-mode='light'] .home-personal-copy strong {
-  color: var(--text);
-}
-
-/* The CTA: a solid accent button with dark ink — a clear, readable call to
-   action on a light shell (was a fixed pale-cyan gradient that vanished). */
-:root[data-theme-mode='light'] .home-personal-play {
-  background: var(--accent);
-  color: #2a1a12;
-}
-
-:root[data-theme-mode='light'] .home-personal-refresh,
+:root[data-theme-mode='light'] .home-surface-refresh,
 :root[data-theme-mode='light'] .home-icon-btn,
 :root[data-theme-mode='light'] .home-action-btn {
   background: var(--theme-surface, rgba(255, 252, 248, 0.72));
