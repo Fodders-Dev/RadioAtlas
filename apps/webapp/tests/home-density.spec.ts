@@ -62,7 +62,7 @@ const openHome = async (page: Page) => {
   // diversity supplies the spotlight rails on its own.
   await seedRadioState(page, { favorites: bigCatalog.slice(0, 4) });
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
@@ -119,7 +119,7 @@ test.describe('T2.20 Home density', () => {
     expect((kickerText || '').trim()).toBe('');
   });
 
-  // PR-5: the mobile Home was rebuilt mobile-first — a large "Моя волна" hero, a
+  // PR-5: the mobile Home was rebuilt mobile-first — a large Feed hero, a
   // 2-column "Для тебя" grid of large cards, and discovery PEEK rails (~2.3 big
   // covers in view). That deliberately trades the old packed density (≥6 above
   // fold) for a calmer rhythm with bigger, finger-friendly cards, so a handful of

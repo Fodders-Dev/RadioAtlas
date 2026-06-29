@@ -8,6 +8,15 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 - Radio Garden: globe with station dots; bottom nav Explore / Favorites / Browse / Search / Settings; persistent player.
 
 ## Screens
+- Home
+  - Primary top surface is the large `Лента` / Feed entry.
+  - The old `Моя волна` Home CTA is retired; its taste signals remain internal ranking input.
+  - Home still shows personalized discovery rails, resume context, search entry, and the persistent player.
+- Feed
+  - Fullscreen swipe feed of playable stations.
+  - Mix is personal-fresh: taste-led recommendations, trends, and a small random slice.
+  - Favorites, recent stations, and the currently playing station are excluded before ranking.
+  - Card 0 is the strongest available personal pick; each Feed open gets a fresh seed.
 - Explore
   - Orthographic globe with animated spin + station dots.
   - Timezone meridians, zoom controls, pause rotation.

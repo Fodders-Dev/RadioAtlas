@@ -7,8 +7,8 @@ export type { DictionaryTree, DictionaryValue, Locale } from './locales/types';
 // paint is fully translated — no flash of raw i18n keys at startup. Previously
 // defaultDictionary was a hand-curated SUBSET and the full ru dictionary was a
 // lazy chunk loaded deferred (up to ~2.4s via requestIdleCallback), so the Home
-// rails / personal-radio / search-placeholder strings rendered as raw keys
-// («home.personalRadioTitle» etc.) until that chunk arrived. Using the full ru
+// rails / search-placeholder strings rendered as raw keys until that chunk
+// arrived. Using the full ru
 // dictionary as the synchronous default removes that window entirely. EN stays
 // code-split (loaded lazily on switch); ru users — the default + majority —
 // never see the flash.

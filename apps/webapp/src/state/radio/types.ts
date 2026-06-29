@@ -230,6 +230,10 @@ export type ShellContextValue = {
   homeState: StoredShellState['home'];
   setHomeSnapshot: (snapshot: HomeSurfaceFeed) => void;
   refreshHomeSurface: (seed?: number) => void;
+  // Discovery «Лента» open-seed — re-rolled on every feed open (see RadioContext)
+  // so the feed mix is fresh each time, independent of the frozen Home seed.
+  feedSeed: number;
+  rerollFeedSeed: () => void;
   searchDraft: string;
   setSearchDraft: (value: string) => void;
   clearSearchDraft: () => void;

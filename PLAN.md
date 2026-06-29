@@ -78,6 +78,20 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   - Reduce queue-row control noise on 360px.
   - Keep current/upcoming actions explicit enough for Telegram WebView.
 
+## Discovery Feed Primary Surface (done)
+
+- [x] Retire the Home `Моя волна` CTA as a user-facing surface.
+  - Home now uses a large `Лента` entry in the primary slot with the refresh affordance detached above it.
+  - The internal personal-radio/taste engines remain available for ranking and queue continuity.
+- [x] Make Feed personal-fresh on every open.
+  - Feed excludes favorites, recent stations, and the currently playing station before weighting.
+  - Feed candidates are health/playability gated before they can autoplay on swipe.
+  - Card 0 is pinned to the strongest available personal pick; each Home Feed open re-rolls a transient seed.
+- [x] Refresh tests and visual baselines.
+  - Home/feed selectors now use `[data-home-feed-entry]`.
+  - Feed #86 no-auto-switch-on-open remains covered.
+  - Home and Library mobile visual baselines were regenerated for the new hero/tab layout.
+
 ## Theme Studio (in progress)
 
 - [x] 17.0 Hide Webamp behind easter-egg gate

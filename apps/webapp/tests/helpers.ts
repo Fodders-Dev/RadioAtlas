@@ -873,7 +873,7 @@ export const mockStations = async (
 };
 
 export const playHomeStation = async (page: Page, name: string) => {
-  await page.locator('[data-home-personal-radio], [data-home-rail]').first().waitFor({ state: 'visible' });
+  await page.locator('[data-home-feed-entry], [data-home-rail]').first().waitFor({ state: 'visible' });
   // T2.20 removed the Home search-launcher's inline preview list (the launcher
   // is now a compact form that navigates to the Search screen on submit). Play
   // straight from a Home rail tile if the station is on the surface, otherwise

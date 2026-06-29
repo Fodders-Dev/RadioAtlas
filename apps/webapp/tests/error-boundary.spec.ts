@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installMediaMocks, mockStations } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
 // T1.7: a render crash in a screen is contained by the screen-level
 // ErrorBoundary — the app shell stays alive and the user can recover.
@@ -19,6 +19,7 @@ test.describe('screen error boundary', () => {
       (window as unknown as { __radioatlasForceScreenError__?: boolean }).__radioatlasForceScreenError__ =
         true;
     });
+    await seedRadioState(page, { stationCache: stations });
     await page.goto('/');
 
     // Fallback is shown...
@@ -41,7 +42,9 @@ test.describe('screen error boundary', () => {
 
     await expect(page.locator('.error-boundary-fallback')).toHaveCount(0);
     // Home content renders after recovery.
-    await expect(page.locator('[data-home-rail], #home-search-launcher').first()).toBeVisible();
+    await expect(page.locator('[data-home-feed-entry], [data-home-rail]').first()).toBeVisible({
+      timeout: 15_000
+    });
   });
 
   // T_audit_6: a stale-chunk error after a deploy reloads exactly once

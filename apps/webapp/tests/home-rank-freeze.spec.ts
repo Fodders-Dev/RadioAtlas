@@ -4,15 +4,14 @@ import { installMediaMocks, mockStations, seedRadioState, stations } from './hel
 const openHome = async (page: Page) => {
   await installMediaMocks(page);
   await mockStations(page);
-  // A seeded queue with a current station guarantees the home rails
-  // render with a primed personal-radio module and a populated hero,
-  // so `[data-home-rail]` containers exist and the first-N station
-  // tiles are stable across hydration.
+  // A seeded queue with a current station guarantees the Home rails render with
+  // a populated resume context, so `[data-home-rail]` containers exist and the
+  // first-N station tiles are stable across hydration.
   await seedRadioState(page, {
     queue: stations.slice(0, 4)
   });
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
     timeout: 15_000
   });
   await expect(page.locator('[data-home-rail]').first()).toBeVisible({
@@ -124,9 +123,8 @@ test('T_audit_9: a like re-ranks fresh-now within the session bucket (eager tast
 test('explicit "refresh feed" button still wires through to handleRefresh', async ({ page }) => {
   // Positive control for the freeze: if the rails are frozen on plays,
   // the user needs SOME path to fold the session bias back in. That
-  // path is the .home-personal-refresh icon-button on the Personal
-  // Radio card (T_home_redesign_1 relocated it from the now-removed
-  // HomeHeroCard). We don't try to observe the new rank order (small
+  // path is the .home-surface-refresh icon-button above the Feed hero.
+  // We don't try to observe the new rank order (small
   // mock dataset, small chance of visible reorder), but we DO observe
   // that the button enters its `is-loading` state for the duration of
   // the async handleRefresh — proof the click reached
@@ -143,7 +141,7 @@ test('explicit "refresh feed" button still wires through to handleRefresh', asyn
   await firstRail.locator('[data-home-station]').first().locator('.home-action-btn-play').click();
   await page.waitForTimeout(300);
 
-  const refreshButton = page.locator('.home-personal-refresh').first();
+  const refreshButton = page.locator('.home-surface-refresh').first();
   await expect(refreshButton).toBeVisible({ timeout: 5000 });
 
   // Slow refreshSummary down so the loading class is observable. The

@@ -48,7 +48,7 @@ const seedSummary = async (page: Page) => {
 const openHome = async (page: Page) => {
   await seedRadioState(page);
   await page.goto('/?api=/api');
-  await expect(page.locator('[data-home-personal-radio]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
