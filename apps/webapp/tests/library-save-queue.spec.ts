@@ -76,7 +76,8 @@ test('saving the queue creates a playlist whose stations resolve and are visible
   await expect.poll(() => queueLength(page)).toBe(3);
 
   // Start the queue so we can prove playback survives the save.
-  await page.getByRole('button', { name: /Слушать текущую|Play current/ }).click();
+  // The queue hero «Слушать» (declutter #146 renamed it from «Слушать текущую»).
+  await page.locator('.library-queue-hero-play').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
   expect(await distinctPlayedStations(page)).toBe(1);
 
@@ -108,10 +109,12 @@ test('saving the queue creates a playlist whose stations resolve and are visible
   expect(await queueLength(page)).toBe(3);
 });
 
-test('the save-as-playlist action is disabled when the queue is empty', async ({ page }) => {
+test('the save-as-playlist action is hidden when the queue is empty', async ({ page }) => {
   await seedRadioState(page, { activeSection: 'library', libraryTab: 'queue', queue: [] });
   await page.goto('/?api=/api');
+  // Declutter #146: the queue hero + action row (incl. «Сохранить как плейлист»)
+  // render ONLY when the queue is non-empty; an empty queue shows the empty-state.
   await expect(
     page.getByRole('button', { name: /Сохранить как плейлист|Save as playlist/ })
-  ).toBeDisabled();
+  ).toHaveCount(0);
 });

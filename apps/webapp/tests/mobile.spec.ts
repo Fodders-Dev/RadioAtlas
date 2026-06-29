@@ -2078,7 +2078,7 @@ test('mobile library restores collection scroll after closing detail', async ({ 
   expect(after).toBeGreaterThan(0);
 });
 
-test('mobile library preserves the Tracks tab without writing shell state', async ({ page }) => {
+test('mobile library coerces a legacy recent tab to «Недавнее» without writing shell state', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   // 'history' is a non-visible legacy tab now that 'tracks' graduated into the
   // strip — seeding it must still coerce the DISPLAY to «Недавнее» without
@@ -2092,7 +2092,7 @@ test('mobile library preserves the Tracks tab without writing shell state', asyn
   });
 
   await page.goto('/');
-  await expect(page.locator('.library-tab-chip.active')).toContainText(/Треки|Tracks/);
+  await expect(page.locator('.library-tab-chip.active')).toContainText(/Недавнее|Recent/);
   await page.waitForTimeout(220);
   const storedTab = await page.evaluate(() => {
     const raw = window.localStorage.getItem('radio:app:v2');

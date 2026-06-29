@@ -53,7 +53,8 @@ const readQueue = (page: Page) =>
   });
 
 const playCurrent = async (page: Page) => {
-  await page.getByRole('button', { name: /Слушать текущую|Play current/ }).click();
+  // The queue hero «Слушать» (declutter #146 renamed it from «Слушать текущую»).
+  await page.locator('.library-queue-hero-play').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 };
 

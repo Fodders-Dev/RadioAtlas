@@ -131,6 +131,27 @@ test('deleting the LIVE queue source keeps playback going (never-auto-switch)', 
   expect(after.length).toBe(before.length);
 });
 
+test('desktop collection detail renders overflow actions INLINE (no phone-only sheet, no app freeze)', async ({
+  page
+}) => {
+  // Regression for the desktop «Ещё» bug: the sheet CSS is phone-only, so opening
+  // it on desktop (>720px) rendered an unstyled sheet AND inerted #root (whole app
+  // frozen). On desktop the actions must render inline as chips instead.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await seedOnePlaylist(page, [sapporo.stationuuid]);
+  await page.goto('/?api=/api');
+  await page.locator('.library-collection-title-button').first().click();
+  await expect(page.locator('.library-collection-detail')).toBeVisible();
+
+  const actions = page.locator('.library-collection-detail-actions');
+  await expect(actions.getByRole('button', { name: /Переименовать|Rename/ })).toBeVisible();
+  await expect(actions.locator('.library-delete-chip')).toContainText(/Удалить|Delete/);
+  // No «Ещё» collapse and NO sheet on desktop (the sheet mounting was the freeze bug).
+  await expect(actions.getByRole('button', { name: /^Ещё$|^More$/ })).toHaveCount(0);
+  await expect(page.locator('[data-library-sheet="collection-detail-actions"]')).toHaveCount(0);
+  await expect(page.locator('.bottom-sheet')).toHaveCount(0);
+});
+
 test('an empty playlist offers «Добавить станции» that jumps to Search', async ({ page }) => {
   await seedOnePlaylist(page, []);
   await page.goto('/?api=/api');

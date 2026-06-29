@@ -184,9 +184,9 @@ export const Library = () => {
   const [collectionReorderMode, setCollectionReorderMode] = useState(false);
   // Bottom sheets: the per-card grid collection actions (mobile «···», holds the
   // card's collection id) and the collection-detail «Ещё» overflow (rename /
-  // pin / add-current / reorder / delete) — the latter works in BOTH layouts
-  // (not gated on isMobileLayout) since the detail card declutters to one
-  // primary action everywhere.
+  // pin / add-current / reorder / delete). Both are PHONE-only — the sheet CSS is
+  // scoped to ≤720px, so on desktop the detail card renders those actions inline
+  // as chips instead of opening a sheet.
   const [collectionActionsId, setCollectionActionsId] = useState<string | null>(null);
   const [detailActionsOpen, setDetailActionsOpen] = useState(false);
   // Two-tap delete confirm: the first «Удалить» tap arms this id, the second
@@ -1093,13 +1093,73 @@ export const Library = () => {
                       >
                         {t('library.shuffleCollection')}
                       </button>
-                      <button
-                        className="chip"
-                        type="button"
-                        onClick={() => setDetailActionsOpen(true)}
-                      >
-                        {t('library.more')}
-                      </button>
+                      {/* Mobile collapses the rest into «Ещё» → a bottom sheet; the
+                          sheet's CSS is phone-only, so on desktop (>720px, where there
+                          is room) render the same actions INLINE as chips instead —
+                          otherwise the ungated sheet rendered unstyled and inerted the
+                          whole app. */}
+                      {isMobileLayout ? (
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => setDetailActionsOpen(true)}
+                        >
+                          {t('library.more')}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => beginRenameCollection(selectedCollection)}
+                          >
+                            {t('library.renameCollection')}
+                          </button>
+                          <button
+                            className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => toggleCollectionPinned(selectedCollection.id)}
+                          >
+                            {selectedCollection.pinned
+                              ? t('library.unpinCollection')
+                              : t('library.pinCollection')}
+                          </button>
+                          {player.current ? (
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() =>
+                                addCurrentToCollection(
+                                  selectedCollection.id,
+                                  selectedCollection.name
+                                )
+                              }
+                            >
+                              {t('library.addCurrentToCollection')}
+                            </button>
+                          ) : null}
+                          <button
+                            className={`chip ${collectionReorderMode ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => setCollectionReorderMode((value) => !value)}
+                          >
+                            {collectionReorderMode
+                              ? t('library.reorderDone')
+                              : t('library.reorderMode')}
+                          </button>
+                          <button
+                            className={`chip library-delete-chip ${
+                              deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
+                            }`}
+                            type="button"
+                            onClick={() => requestDeleteCollection(selectedCollection)}
+                          >
+                            {deleteArmedCollectionId === selectedCollection.id
+                              ? t('library.deleteCollectionConfirm')
+                              : t('library.deleteCollection')}
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -1528,7 +1588,7 @@ export const Library = () => {
 
       {/* Collection-detail «Ещё» — the actions removed from the hero row. Works
           in BOTH layouts (the detail card declutters everywhere). */}
-      {detailActionsOpen && selectedCollection ? (
+      {isMobileLayout && detailActionsOpen && selectedCollection ? (
         <LibrarySheet
           sheetId="collection-detail-actions"
           kicker={t('library.collectionsTitle')}
