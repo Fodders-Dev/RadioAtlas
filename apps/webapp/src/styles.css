@@ -105,8 +105,8 @@
 }
 
 /* P1b: light-mode chrome-wiring. A few chrome pieces predate the surface tokens
-   and hardcode a dark background (the topbar, the personal-radio "my wave" card,
-   the home icon buttons, the bottom nav) or a fixed cyan fill (the play CTA).
+   and hardcode a dark background (the topbar, the home icon buttons, the bottom
+   nav) or a fixed cyan fill (the play CTA).
    Under a dark theme they're correct; under a light theme the body went light but
    these stayed as dark/pale islands. Re-skin them from the light surface tokens,
    and turn the CTA into a solid accent button with dark ink (it was a pale cyan

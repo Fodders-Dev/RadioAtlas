@@ -177,6 +177,18 @@ describe('buildStationFeed', () => {
     expect(ids(a).slice(1)).not.toEqual(ids(b).slice(1));
   });
 
+  it('per-open re-seed (rerollFeedSeed) yields a fresh mix each open while keeping the personal lead', () => {
+    // Every «Лента» open mints a new seed (rerollFeedSeed → setFeedSeed(Date.now())),
+    // so two opens of the SAME inputs reshuffle the tail for freshness but keep
+    // card 0 = the strongest personal pick (so "open → plays your vibe" holds each time).
+    const shared = { tasteStations: range('t', 6), trending: range('r', 6), pool: range('p', 20) };
+    const open1 = ids(buildStationFeed({ ...shared, seed: 1700000000001 }));
+    const open2 = ids(buildStationFeed({ ...shared, seed: 1700000000002 }));
+    expect(open1).not.toEqual(open2); // fresh mix per open
+    expect(open1[0]).toBe('t0'); // ...but the personal lead is stable across opens
+    expect(open2[0]).toBe(open1[0]);
+  });
+
   it('card 0 falls through when the top taste pick is excluded or dead', () => {
     const feed = buildStationFeed({
       tasteStations: [station('t0'), station('t1'), station('t2')],
