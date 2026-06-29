@@ -10,7 +10,13 @@ module.exports = {
       exp_backoff_restart_delay: 2000,
       kill_timeout: 5000,
       listen_timeout: 10000,
-      max_memory_restart: '512M',
+      // 512M was too tight for the /ai/chat working set: one Лира turn grows the
+      // heap ~+77M (catalog/DeepSeek buffers), and a small burst of concurrent
+      // chats spiked past 512M before GC ran → pm2 gracefully restarted the api
+      // mid-request → Caddy saw EOF → intermittent 502s (~1/3 on heavy queries).
+      // Not a leak (heap plateaus at ~373M one-at-a-time). The box has ~2GB free,
+      // so give node room to GC under burst before pm2 trips. (task_25d9a620)
+      max_memory_restart: '896M',
       min_uptime: '10s',
       restart_delay: 2000,
       env: {
