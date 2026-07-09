@@ -167,6 +167,16 @@ const uniqueStations = (stations: StationLite[]) => {
 const qualityScore = (station: StationLite) =>
   (station.isVerified ? 1.15 : 0) + (station.isClaimed ? 0.4 : 0) - (station.promoted ? 0.2 : 0);
 
+const FAVORITE_STATION_SCORE_FLOOR = 15;
+const FAVORITE_PRIMARY_TAG_SCORE = 10.5;
+const FAVORITE_COUNTRY_SCORE = 5.2;
+const FAVORITE_LANGUAGE_SCORE = 4.1;
+
+const applyScoreFloor = (target: Record<string, number>, key: string, value: number) => {
+  if (!key || !Number.isFinite(value) || value <= 0) return;
+  target[key] = Math.max(target[key] || 0, Number(value.toFixed(4)));
+};
+
 export const getTasteProfileUpdatedAt = (profile: TasteProfileV2 | null | undefined) =>
   profile?.lastUpdatedAt ||
   profile?.signals?.reduce((latest, signal) => Math.max(latest, signal.timestamp), 0) ||
@@ -212,6 +222,47 @@ export const tasteSignature = (profile: TasteProfileV2 | null | undefined): stri
     .map(([tag]) => tag)
     .join('>');
   return `${topTags}|h:${normalized.hiddenStationIds.length}`;
+};
+
+// Favorites are the most explicit taste signal in the product. Keep them as a
+// pure ranking overlay so synced/legacy favorites influence recommendations even
+// if their historical `liked` signals were never recorded or have decayed away.
+export const withFavoriteTasteBoosts = (
+  profile: TasteProfileV2 | null | undefined,
+  favorites: StationLite[] | null | undefined
+): TasteProfileV2 => {
+  const base = normalizeTasteProfile(profile);
+  const likedStations = uniqueStations((favorites || []).filter((station) => Boolean(station?.stationuuid)));
+  if (!likedStations.length) return base;
+
+  const stationScores = { ...base.stationScores };
+  const tagFloors: Record<string, number> = {};
+  const countryFloors: Record<string, number> = {};
+  const languageFloors: Record<string, number> = {};
+
+  likedStations.forEach((station) => {
+    applyScoreFloor(stationScores, station.stationuuid, FAVORITE_STATION_SCORE_FLOOR);
+    firstTags(station).forEach((tag, index) => {
+      addScore(tagFloors, tag, FAVORITE_PRIMARY_TAG_SCORE * (index === 0 ? 1 : index === 1 ? 0.62 : 0.38));
+    });
+    addScore(countryFloors, normalizeLabel(station.country), FAVORITE_COUNTRY_SCORE);
+    addScore(languageFloors, stationLanguage(station), FAVORITE_LANGUAGE_SCORE);
+  });
+
+  const tagScores = { ...base.tagScores };
+  const countryScores = { ...base.countryScores };
+  const languageScores = { ...base.languageScores };
+  Object.entries(tagFloors).forEach(([tag, score]) => applyScoreFloor(tagScores, tag, score));
+  Object.entries(countryFloors).forEach(([country, score]) => applyScoreFloor(countryScores, country, score));
+  Object.entries(languageFloors).forEach(([language, score]) => applyScoreFloor(languageScores, language, score));
+
+  return {
+    ...base,
+    stationScores: trimScores(stationScores, MAX_STATION_SCORES),
+    tagScores: trimScores(tagScores, MAX_TAG_SCORES),
+    countryScores: trimScores(countryScores, MAX_COUNTRY_SCORES),
+    languageScores: trimScores(languageScores, MAX_LANGUAGE_SCORES)
+  };
 };
 
 const mergeScoreMaps = (limit: number, ...sources: Array<Record<string, number> | null | undefined>) =>

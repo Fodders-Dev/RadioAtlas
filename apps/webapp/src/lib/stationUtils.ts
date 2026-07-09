@@ -1,4 +1,5 @@
 import type { Station, StationLite } from '../types';
+import { applyCuratedStationFixup } from './curatedStationFixups';
 
 const COUNTRY_LABELS: Record<string, string> = {
   'The United Kingdom Of Great Britain And Northern Ireland': 'United Kingdom',
@@ -14,19 +15,22 @@ const formatLocationPart = (value?: string) => {
   return COUNTRY_LABELS[cleaned] || cleaned;
 };
 
-export const toLite = (station: Station | StationLite): StationLite => ({
-  stationuuid: station.stationuuid,
-  name: station.name,
-  url: ('url' in station && station.url) || station.url_resolved,
-  url_resolved: station.url_resolved,
-  homepage: 'homepage' in station ? station.homepage : '',
-  favicon: station.favicon,
-  country: station.country,
-  state: station.state,
-  tags: station.tags,
-  geo_lat: station.geo_lat ?? null,
-  geo_long: station.geo_long ?? null
-});
+export const toLite = (station: Station | StationLite): StationLite =>
+  applyCuratedStationFixup({
+    stationuuid: station.stationuuid,
+    name: station.name,
+    url: ('url' in station && station.url) || station.url_resolved,
+    url_resolved: station.url_resolved,
+    homepage: 'homepage' in station ? station.homepage : '',
+    favicon: station.favicon,
+    country: station.country,
+    state: station.state,
+    tags: station.tags,
+    geo_lat: station.geo_lat ?? null,
+    geo_long: station.geo_long ?? null,
+    lastcheckok: station.lastcheckok,
+    lastcheckok_at: station.lastcheckok_at
+  });
 
 // P1 (+PR-4): catalog names arrive with junk padding ("___80 EXITOS", doubled
 // spaces, a stray "CHRISTMAS CHOR_ by"). Tidy on OUTPUT only — never mutate the

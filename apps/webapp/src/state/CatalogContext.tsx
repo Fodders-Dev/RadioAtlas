@@ -36,6 +36,7 @@ type SearchStationsInput = {
   continent?: string;
   limit?: number;
   cursor?: string | null;
+  seed?: number;
 };
 
 type CatalogContextValue = {
@@ -134,7 +135,8 @@ const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
   tag: input.tag?.trim() || '',
   continent: input.continent?.trim() || '',
   limit: input.limit || 50,
-  cursor: input.cursor || ''
+  cursor: input.cursor || '',
+  seed: input.seed || 0
 });
 
 const searchCacheKey = (input: SearchStationsInput) =>
@@ -329,6 +331,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (input.continent?.trim()) params.set('continent', input.continent.trim());
       params.set('limit', String(input.limit || 50));
       if (input.cursor) params.set('cursor', input.cursor);
+      if (input.seed) params.set('seed', String(input.seed));
       const cacheKey = searchCacheKey(input);
       const cached = await readCatalogCache<CatalogSearchResponse>(cacheKey);
       if (cached) {

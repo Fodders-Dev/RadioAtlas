@@ -5,6 +5,7 @@ import {
   rankStationsForUser,
   recordTasteSignal,
   tasteSignature,
+  withFavoriteTasteBoosts,
   type TasteProfileV2
 } from './tasteProfile';
 import type { StationLite } from '../types';
@@ -142,5 +143,39 @@ describe('rankStationsForUser rotation (home freshness)', () => {
       const lastJazz = ranked.map((s) => s.tags).lastIndexOf('jazz');
       expect(firstPolka).toBeGreaterThan(lastJazz);
     }
+  });
+});
+
+describe('withFavoriteTasteBoosts', () => {
+  it('turns synced/legacy favorites into an effective taste signature', () => {
+    const boosted = withFavoriteTasteBoosts(DEFAULT_TASTE_PROFILE_V2, [
+      station('liked-jazz-1', 'jazz, lounge'),
+      station('liked-jazz-2', 'jazz')
+    ]);
+
+    expect(tasteSignature(boosted)).toContain('jazz');
+    expect(boosted.stationScores['liked-jazz-1']).toBeGreaterThan(0);
+  });
+
+  it('ranks stations similar to favorites above unrelated catalog rows even with an empty stored profile', () => {
+    const effective = withFavoriteTasteBoosts(DEFAULT_TASTE_PROFILE_V2, [
+      station('fav-jazz', 'jazz, lounge', 'France')
+    ]);
+    const ranked = rankStationsForUser(
+      [
+        station('polka-1', 'polka', 'Poland'),
+        station('jazz-1', 'jazz, fusion', 'France'),
+        station('noise-1', 'noise', 'Nowhere')
+      ],
+      effective,
+      null,
+      {
+        mode: 'personal',
+        seed: 1,
+        now: NOW
+      }
+    );
+
+    expect(ranked[0].stationuuid).toBe('jazz-1');
   });
 });

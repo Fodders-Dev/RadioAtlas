@@ -1,4 +1,5 @@
 import type { StationLite } from '../types';
+import { diversifyStationOrder } from './stationDiversity';
 
 // Phase 2 Discovery Feed builder. Pure + deterministic on `seed`: blends the
 // «Для тебя» taste deck, server trending, and a sprinkle of random discovery
@@ -30,6 +31,23 @@ const seededJitter = (id: string, seed: number) => {
 // the currently-playing station) BEFORE weighting, so every card is something
 // new — «новизна в твоём вкусе». `isLive` is the health gate: a dead/broken
 // station never enters the feed (it would autoplay on swipe).
+const normalizeFeedText = (value?: string | null) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const FEED_NON_MUSIC_PATTERN =
+  /\b(?:news|talk|spoken\s*word|sports?|public\s*radio|parliament|politic(?:s|al)?|business|traffic|weather|scanner|dispatch|sermon|preach|generaliste|actualites?|noticias|nachrichten|information|infos?|новост(?:и|ное|ная|ной)?|разговорн\w*|политик\w*|спорт\w*|трафик|погод\w*)\b/i;
+
+export const isFeedStationEligible = (station: StationLite) => {
+  const name = normalizeFeedText(station.name).replace(/\s+/g, ' ').trim();
+  const haystack = normalizeFeedText(`${station.name || ''} ${station.tags || ''}`);
+  if (name === 'rtl') return false;
+  if (FEED_NON_MUSIC_PATTERN.test(haystack)) return false;
+  return true;
+};
+
 const collect = (
   stations: Array<StationLite | null | undefined>,
   seen: Set<string>,
@@ -41,6 +59,7 @@ const collect = (
     if (!station || !station.stationuuid || !station.url_resolved) continue;
     if (exclude.has(station.stationuuid)) continue;
     if (seen.has(station.stationuuid)) continue;
+    if (!isFeedStationEligible(station)) continue;
     if (!isLive(station)) continue;
     seen.add(station.stationuuid);
     out.push(station);
@@ -66,7 +85,8 @@ export type BuildStationFeedInput = {
 };
 
 const DEFAULT_LIMIT = 40;
-const DEFAULT_RANDOM_RATIO = 0.18;
+const DEFAULT_RANDOM_RATIO = 0.1;
+const PERSONAL_LEAD_POOL = 4;
 const ALWAYS_LIVE = () => true;
 
 // Proportional weighted interleave: each source's items keep their internal order
@@ -105,16 +125,24 @@ export const buildStationFeed = ({
   const randomBudget = Math.max(2, Math.round(limit * randomRatio));
   const random = poolIsPrimary ? randomCandidates : randomCandidates.slice(0, randomBudget);
 
-  // Card 0 = the strongest PERSONAL pick (top of the taste deck) so opening the
-  // feed lands on «твой вайб» immediately. It's pinned out of the weighted mix
-  // (already in `seen`, so it never reappears) and the rest interleave behind it.
-  const lead = taste[0] ?? null;
-  const tasteRest = lead ? taste.slice(1) : taste;
+  // Card 0 rotates inside the strongest personal mini-pool. The old invariant
+  // pinned `taste[0]` forever, so every Feed open started with the same station
+  // even though the tail reshuffled. Rotating among the top few keeps the first
+  // card personal while making repeat opens feel fresh.
+  const leadPool = taste.slice(0, PERSONAL_LEAD_POOL);
+  const lead = leadPool.length
+    ? [...leadPool].sort(
+        (left, right) =>
+          seededJitter(left.stationuuid, seed + 911) - seededJitter(right.stationuuid, seed + 911)
+      )[0] ?? null
+    : null;
+  const tasteRest = lead ? taste.filter((station) => station.stationuuid !== lead.stationuuid) : taste;
 
+  const hasPersonalSource = taste.length > 0;
   const sources: Array<{ items: StationLite[]; weight: number }> = [
-    { items: tasteRest, weight: 0.5 },
-    { items: trend, weight: 0.32 },
-    { items: random, weight: 0.18 }
+    { items: tasteRest, weight: hasPersonalSource ? 0.76 : 0 },
+    { items: trend, weight: hasPersonalSource ? 0.16 : 0.64 },
+    { items: random, weight: hasPersonalSource ? 0.08 : 0.36 }
   ].filter((source) => source.items.length > 0);
 
   const keyed = sources.flatMap(({ items, weight }) =>
@@ -127,5 +155,11 @@ export const buildStationFeed = ({
 
   const mixed = keyed.map((entry) => entry.station);
   const ordered = lead ? [lead, ...mixed] : mixed;
-  return ordered.slice(0, limit);
+  return diversifyStationOrder(ordered, {
+    limit,
+    preserveFirst: Boolean(lead),
+    maxPerCountry: 4,
+    maxPerPrimaryTag: 5,
+    maxPerNameKey: 1
+  });
 };

@@ -195,7 +195,7 @@ const scoreStation = (station: StationLite, profile: BehaviorProfile, rotationSe
     return sum + (profile.tagScores[tag] || 0) * multiplier;
   }, 0);
   const qualityBoost = (station.isVerified ? 0.8 : 0) + (station.isClaimed ? 0.35 : 0) - (station.promoted ? 2.5 : 0);
-  const rotationJitter = (hashValue(`${station.stationuuid}:${rotationSeed}`) % 1000) / 1000;
+  const rotationJitter = seededJitter(station.stationuuid, rotationSeed);
   return stationScore * 1.3 + tagScore * 1.7 + countryScore * 1.12 + stateScore * 0.9 + qualityBoost + rotationJitter;
 };
 

@@ -17,9 +17,10 @@ export const mergeUniqueStations = (...groups: Array<Array<StationLite | null | 
 
   groups.forEach((group) => {
     group.forEach((station) => {
-      if (!station || seen.has(station.stationuuid)) return;
-      seen.add(station.stationuuid);
-      merged.push(station);
+      if (!station?.stationuuid || seen.has(station.stationuuid)) return;
+      const normalized = toLite(station);
+      seen.add(normalized.stationuuid);
+      merged.push(normalized);
     });
   });
 

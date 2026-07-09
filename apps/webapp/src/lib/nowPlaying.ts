@@ -1073,7 +1073,9 @@ export const fetchNowPlayingSnapshot = async (
       return buildSnapshot(null, 'idle', 'none', null, pollMs);
     }
 
+    let serverProxyTried = false;
     if (shouldPreferServerMetadata(url)) {
+      serverProxyTried = true;
       const server = await fetchServerProxyTrack({
         url,
         apiBase,
@@ -1105,13 +1107,26 @@ export const fetchNowPlayingSnapshot = async (
     }
 
     if (lowImpact || signal?.aborted) {
+      if (lowImpact && !signal?.aborted && apiBase && apiAvailable && !serverProxyTried) {
+        const server = await fetchServerProxyTrack({
+          url,
+          apiBase,
+          apiAvailable,
+          signal,
+          logDebug
+        });
+        apiProxyFailed = apiProxyFailed || server.apiFailed;
+        if (server.track) {
+          return buildSnapshot(server.track, 'ready', 'server-proxy', null, pollMs);
+        }
+      }
       continue;
     }
 
     const icy = await fetchIcy(url, 3500, signal);
     if (icy) return buildSnapshot(icy, 'ready', 'icy-stream', null, pollMs);
 
-    if (apiBase && apiAvailable && !signal?.aborted) {
+    if (apiBase && apiAvailable && !signal?.aborted && !serverProxyTried) {
       const server = await fetchServerProxyTrack({
         url,
         apiBase,
