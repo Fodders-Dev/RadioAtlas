@@ -14,6 +14,7 @@ import type { StationHealthProfile } from '../../lib/stationHealth';
 import type { StationPlayabilityProfile } from '../../lib/stationPlayability';
 import type { TasteProfileV2 } from '../../lib/tasteProfile';
 import type { RadioSessionEvent } from '../../lib/radioSession';
+import type { StationExposureLedger } from '../../lib/stationExposure';
 import type { useAudioPlayer } from '../../lib/useAudioPlayer';
 import type {
   AppSection,
@@ -83,6 +84,10 @@ export type StoredAppState = {
   tasteProfile: TasteProfileV2;
   stationHealthProfile: StationHealthProfile;
   radioSessionEvents: RadioSessionEvent[];
+  // Cross-session "shown/played" ledger driving soft demotion of just-seen
+  // stations across discovery surfaces (optional; read with `?? {}` so existing
+  // stored blobs opt in). See lib/stationExposure.ts.
+  stationExposure?: StationExposureLedger;
   // Pause playback when headphones / the audio output device are unplugged
   // (default on; read with `?? true` so existing stored blobs opt in).
   pauseOnHeadphoneUnplug?: boolean;
@@ -190,6 +195,10 @@ export type LibraryContextValue = {
   tasteProfile: TasteProfileV2;
   stationHealthProfile: StationHealthProfile;
   radioSessionEvents: RadioSessionEvent[];
+  stationExposure: StationExposureLedger;
+  // Record that these stations were surfaced to the user (discovery impressions),
+  // so future discovery ranking can softly demote them. See lib/stationExposure.ts.
+  recordStationsShown: (stationIds: string[]) => void;
   toggleFavorite: (station: Station | StationLite) => void;
   isFavorite: (stationId: string) => boolean;
   hideStationFromRecommendations: (station: Station | StationLite) => void;

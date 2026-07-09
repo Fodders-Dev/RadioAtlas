@@ -441,6 +441,13 @@ export const Discover = () => {
   const tasteProfileRef = useRef(tasteProfile);
   const stationHealthProfileRef = useRef(stationHealthProfile);
   const radioSessionEventsRef = useRef(radioSessionEvents);
+  // Recently-played set, read through refs so it never re-triggers the snapshot
+  // memo (same freeze contract as the scoring signals above). Used to demote
+  // just-listened stations to the tail of a no-query browse so «одно и то же»
+  // that you already heard stops leading the discovery list.
+  const recentRef = useRef(recent);
+  const playbackHistoryRef = useRef(playbackHistory);
+  const playerCurrentIdRef = useRef(player.current?.stationuuid ?? null);
   const rankedSearchSnapshotRef = useRef<{
     signature: string;
     rawIds: string[];
@@ -453,6 +460,9 @@ export const Discover = () => {
     tasteProfileRef.current = tasteProfile;
     stationHealthProfileRef.current = stationHealthProfile;
     radioSessionEventsRef.current = radioSessionEvents;
+    recentRef.current = recent;
+    playbackHistoryRef.current = playbackHistory;
+    playerCurrentIdRef.current = player.current?.stationuuid ?? null;
   });
 
   const rankedSearchResults = useMemo(
@@ -472,6 +482,21 @@ export const Discover = () => {
         rawIds.length >= previous.rawIds.length &&
         previous.rawIds.every((stationId, index) => rawIds[index] === stationId);
 
+      // Stations the user just heard: push them to the tail of a no-query browse
+      // so discovery leads with something new instead of what's already playing /
+      // in their recents. Typed search is left untouched (relevance-first).
+      const demotedIds = new Set<string>();
+      recentRef.current.forEach((station) => demotedIds.add(station.stationuuid));
+      playbackHistoryRef.current.forEach((station) => demotedIds.add(station.stationuuid));
+      if (playerCurrentIdRef.current) demotedIds.add(playerCurrentIdRef.current);
+      const demoteRecentlyPlayed = (list: StationLite[]) => {
+        if (!demotedIds.size) return list;
+        const fresh: StationLite[] = [];
+        const played: StationLite[] = [];
+        list.forEach((station) => (demotedIds.has(station.stationuuid) ? played : fresh).push(station));
+        return played.length ? [...fresh, ...played] : list;
+      };
+
       const rankPage = (page: StationLite[], seedOffset: number) => {
         if (!page.length) return [];
         if (query.length >= 2) {
@@ -486,29 +511,33 @@ export const Discover = () => {
 
         const base = page;
         if (!hasPersonalSearchTaste(tasteProfileRef.current, favoritesRef.current)) {
-          return diversifyStationOrder(base, {
-            limit: base.length,
-            maxPerCountry: 4,
-            maxPerPrimaryTag: 5,
-            maxPerNameKey: 1
-          });
+          return demoteRecentlyPlayed(
+            diversifyStationOrder(base, {
+              limit: base.length,
+              maxPerCountry: 4,
+              maxPerPrimaryTag: 5,
+              maxPerNameKey: 1
+            })
+          );
         }
 
         const effectiveTaste = withFavoriteTasteBoosts(tasteProfileRef.current, favoritesRef.current);
-        return diversifyStationOrder(
-          rankStationsForUser(base, effectiveTaste, playabilityProfileRef.current, {
-            mode: 'search',
-            seed: browseSeedRef.current + seedOffset,
-            limit: base.length,
-            healthProfile: stationHealthProfileRef.current,
-            sessionEvents: radioSessionEventsRef.current
-          }),
-          {
-            limit: base.length,
-            maxPerCountry: 4,
-            maxPerPrimaryTag: 5,
-            maxPerNameKey: 1
-          }
+        return demoteRecentlyPlayed(
+          diversifyStationOrder(
+            rankStationsForUser(base, effectiveTaste, playabilityProfileRef.current, {
+              mode: 'search',
+              seed: browseSeedRef.current + seedOffset,
+              limit: base.length,
+              healthProfile: stationHealthProfileRef.current,
+              sessionEvents: radioSessionEventsRef.current
+            }),
+            {
+              limit: base.length,
+              maxPerCountry: 4,
+              maxPerPrimaryTag: 5,
+              maxPerNameKey: 1
+            }
+          )
         );
       };
 

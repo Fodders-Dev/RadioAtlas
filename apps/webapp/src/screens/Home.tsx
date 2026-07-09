@@ -190,6 +190,9 @@ const buildSurfaceFeed = (input: {
   tasteProfile: ReturnType<typeof useLibrary>['tasteProfile'];
   stationHealthProfile: ReturnType<typeof useLibrary>['stationHealthProfile'];
   radioSessionEvents: ReturnType<typeof useLibrary>['radioSessionEvents'];
+  // Cross-session exposure ledger: softly demote just-seen/played stations so
+  // «Для тебя» stays fresh across opens (shared with the «Лента» feed).
+  exposure?: ReturnType<typeof useLibrary>['stationExposure'] | null;
   metrics: HomeSurfaceFeed['metrics'];
   queuePreview: StationLite[];
   recent: StationLite[];
@@ -216,7 +219,8 @@ const buildSurfaceFeed = (input: {
     seed: input.seed,
     limit: input.catalog.length,
     healthProfile: input.stationHealthProfile,
-    sessionEvents: input.radioSessionEvents
+    sessionEvents: input.radioSessionEvents,
+    exposure: input.exposure
   });
   const ownedStationIds = new Set<string>();
   input.favorites.forEach((station) => ownedStationIds.add(station.stationuuid));
@@ -233,7 +237,8 @@ const buildSurfaceFeed = (input: {
         seed: input.seed + seedOffset,
         limit: stations?.length || 0,
         healthProfile: input.stationHealthProfile,
-        sessionEvents: input.radioSessionEvents
+        sessionEvents: input.radioSessionEvents,
+        exposure: input.exposure
       }).filter(isFreshRecommendation),
       {
         limit: stations?.length || 0,
@@ -265,7 +270,8 @@ const buildSurfaceFeed = (input: {
     followedRegions: input.followedRegions,
     behaviorProfile: input.behaviorProfile,
     currentStation: input.currentStation,
-    rotationSeed: input.seed
+    rotationSeed: input.seed,
+    exposure: input.exposure
   });
   const discoveryFeed = createDiscoveryFeed({
     catalog: discoveryCatalog,
@@ -384,6 +390,7 @@ export const Home = () => {
     tasteProfile,
     stationHealthProfile,
     radioSessionEvents,
+    stationExposure,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -491,6 +498,7 @@ export const Home = () => {
     tasteProfile: effectiveTasteProfile,
     stationHealthProfile,
     radioSessionEvents,
+    stationExposure,
     trackHistory,
     recent,
     playbackHistory,
@@ -504,6 +512,7 @@ export const Home = () => {
       tasteProfile: effectiveTasteProfile,
       stationHealthProfile,
       radioSessionEvents,
+      stationExposure,
       trackHistory,
       recent,
       playbackHistory,
@@ -560,6 +569,7 @@ export const Home = () => {
       tasteProfile: effectiveTasteProfile,
       stationHealthProfile: live.stationHealthProfile,
       radioSessionEvents: live.radioSessionEvents,
+      exposure: live.stationExposure,
       trackHistory: live.trackHistory,
       seed: homeState.sessionSeed,
       metrics,
@@ -826,6 +836,7 @@ export const Home = () => {
         tasteProfile: effectiveTasteProfile,
         stationHealthProfile,
         radioSessionEvents,
+        exposure: stationExposure,
         trackHistory,
         seed: nextSeed,
         metrics: effectiveSummary.counts,

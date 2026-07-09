@@ -60,7 +60,8 @@ export const DEFAULT_APP_STATE: StoredAppState = {
   playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
   tasteProfile: DEFAULT_TASTE_PROFILE_V2,
   stationHealthProfile: DEFAULT_STATION_HEALTH_PROFILE,
-  radioSessionEvents: []
+  radioSessionEvents: [],
+  stationExposure: {}
 };
 
 export const DEFAULT_LIBRARY_STATE: StoredLibraryState = {

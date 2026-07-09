@@ -184,6 +184,8 @@ export const StationFeed = () => {
     tasteProfile,
     stationHealthProfile,
     radioSessionEvents,
+    stationExposure,
+    recordStationsShown,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -231,7 +233,9 @@ export const StationFeed = () => {
       seed,
       limit: pool.length,
       healthProfile: stationHealthProfile,
-      sessionEvents: radioSessionEvents
+      sessionEvents: radioSessionEvents,
+      exposure: stationExposure,
+      now
     });
     const recommendation = createHomeRecommendationFeed({
       catalog: rankedCatalog,
@@ -245,7 +249,9 @@ export const StationFeed = () => {
       followedRegions,
       behaviorProfile,
       currentStation: null,
-      rotationSeed: seed
+      rotationSeed: seed,
+      exposure: stationExposure,
+      now
     });
     // Taste leads, strongest first (tunedForYou[0] becomes the pinned card 0).
     const tasteStations = mergeUnique(
@@ -287,6 +293,13 @@ export const StationFeed = () => {
   const sourceLabel = t('feed.sourceLabel');
   const sourceLabelRef = useRef(sourceLabel);
   sourceLabelRef.current = sourceLabel;
+  // Collect the ids of cards the user actually LANDS on (ref, no re-render), then
+  // flush them once when the feed closes so the next open can softly demote them.
+  // This is the cross-session «freshness» signal the feed lacked — cheap: zero
+  // per-swipe state churn, one batched write on unmount.
+  const shownIdsRef = useRef<Set<string>>(new Set());
+  const recordShownRef = useRef(recordStationsShown);
+  recordShownRef.current = recordStationsShown;
 
   const settler = useMemo(
     () =>
@@ -311,6 +324,17 @@ export const StationFeed = () => {
 
   // Tear down any pending play when the feed closes/unmounts.
   useEffect(() => () => settler.cancel(), [settler]);
+
+  // Flush the "shown" impressions once on unmount (feed close), so the exposure
+  // ledger demotes these stations on the next open. Read through refs so the
+  // effect stays mount-once and never re-fires mid-scroll.
+  useEffect(
+    () => () => {
+      const ids = Array.from(shownIdsRef.current);
+      if (ids.length) recordShownRef.current(ids);
+    },
+    []
+  );
 
   useEffect(() => {
     setVisibleLimit(FEED_INITIAL_VISIBLE);
@@ -393,6 +417,8 @@ export const StationFeed = () => {
         if (landed >= 0) {
           setVisibleIndex(landed);
           settler.notify(landed);
+          const landedId = feedRef.current[landed]?.stationuuid;
+          if (landedId) shownIdsRef.current.add(landedId);
         }
       },
       { root, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] }

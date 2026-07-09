@@ -72,6 +72,11 @@ import {
   recordRadioSessionEvent,
   type RadioSessionEvent
 } from '../lib/radioSession';
+import {
+  recordStationPlayed,
+  recordStationsShown as recordStationsShownInLedger,
+  type StationExposureLedger
+} from '../lib/stationExposure';
 import type {
   TasteProfileV2,
   TasteSignalAction,
@@ -242,6 +247,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const radioSessionEvents = Array.isArray(storedAppState.radioSessionEvents)
     ? storedAppState.radioSessionEvents
     : DEFAULT_APP_STATE.radioSessionEvents;
+  const stationExposure =
+    storedAppState.stationExposure && typeof storedAppState.stationExposure === 'object'
+      ? storedAppState.stationExposure
+      : {};
   const [transientHomeState, setTransientHomeState] = useState(storedShellState.home);
   const homeState = transientHomeState;
   const searchDraft = storedShellState.searchDraft;
@@ -352,6 +361,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const radioSessionEvents = resolveUpdater(prev.radioSessionEvents || [], next);
       return Object.is(radioSessionEvents, prev.radioSessionEvents) ? prev : { ...prev, radioSessionEvents };
     });
+  const setStationExposure = (
+    next: StationExposureLedger | ((prev: StationExposureLedger) => StationExposureLedger)
+  ) =>
+    setStoredAppState((prev) => {
+      const stationExposure = resolveUpdater(prev.stationExposure || {}, next);
+      return Object.is(stationExposure, prev.stationExposure) ? prev : { ...prev, stationExposure };
+    });
+  // Discovery surfaces (the «Лента» feed) flush the ids they actually surfaced so
+  // the next open can softly demote them. One batched update per flush.
+  const recordStationsShown = (stationIds: string[]) => {
+    const ids = (stationIds || []).filter(Boolean);
+    if (!ids.length) return;
+    setStationExposure((prev) => recordStationsShownInLedger(prev, ids));
+  };
   const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
     setStoredLibraryState((prev) => ({
       ...prev,
@@ -1178,6 +1201,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       addRecent(playedStation);
     }
     recordBehaviorForStation(playedStation, 'play');
+    if (playedStation.stationuuid) {
+      setStationExposure((prev) => recordStationPlayed(prev, playedStation.stationuuid));
+    }
     currentStartedAtRef.current = playStartedAt;
     currentStartedStationIdRef.current = playedStation.stationuuid;
     listened30sRef.current = null;
@@ -1339,6 +1365,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       tasteProfile,
       healthProfile: stationHealthProfile,
       sessionEvents: radioSessionEvents,
+      exposure: stationExposure,
       context: {
         mode: 'personal',
         currentStation: player.current,
@@ -2496,6 +2523,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       tasteProfile,
       stationHealthProfile,
       radioSessionEvents,
+      stationExposure,
+      recordStationsShown,
       toggleFavorite,
       isFavorite,
       hideStationFromRecommendations,
@@ -2550,6 +2579,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playbackHistoryEntries,
       playabilityProfile,
       radioSessionEvents,
+      stationExposure,
+      recordStationsShown,
       renameCollection,
       tasteProfile,
       stationHealthProfile,

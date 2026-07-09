@@ -13,6 +13,7 @@ import {
   getSessionStationScore,
   type RadioSessionEvent
 } from './radioSession';
+import { getStationExposurePenalty, type StationExposureLedger } from './stationExposure';
 
 export type TasteSignalAction =
   | 'play-started'
@@ -54,6 +55,9 @@ export type TasteRecommendationContext = {
   now?: number;
   healthProfile?: StationHealthProfile | null;
   sessionEvents?: RadioSessionEvent[];
+  // Recently shown/played stations are softly demoted so discovery surfaces
+  // (Лента, Personal Radio) stop leading with «одно и то же» each open.
+  exposure?: StationExposureLedger | null;
 };
 
 export const DEFAULT_TASTE_PROFILE_V2: TasteProfileV2 = {
@@ -483,7 +487,8 @@ export const rankStationsForUser = (
     limit = stations.length,
     now = Date.now(),
     healthProfile = null,
-    sessionEvents = []
+    sessionEvents = [],
+    exposure = null
   }: TasteRecommendationContext = { mode: 'personal' }
 ) => {
   const currentId = currentStation?.stationuuid || null;
@@ -509,7 +514,8 @@ export const rankStationsForUser = (
         getStationPlayabilityScore(playabilityProfile, station, now) * 2.8 +
         getStationHealthScore(healthProfile, station, now) * 2.4 +
         qualityScore(station) +
-        rotation;
+        rotation -
+        getStationExposurePenalty(exposure, station.stationuuid, now);
 
       return {
         station,
