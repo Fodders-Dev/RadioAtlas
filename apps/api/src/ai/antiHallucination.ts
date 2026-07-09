@@ -9,22 +9,34 @@
 import type { ToolObservation, VerifiedStationRef, WebSource } from './types.js';
 
 const MAX_STATION_CARDS = 5;
-const MAX_SOURCE_CITATIONS = 4;
+const MAX_SOURCE_CITATIONS = 2;
 const MAX_REPLY_CHARS = 3500;
 
 // Collect every station a tool surfaced, de-duped by uuid, capped. Order is
 // preserved (first observation wins) so the most relevant tool result leads.
+const normalizedStationNameKey = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/(?:^|\s)[[(]?(?:hd|hq|opus|aac|mp3|ogg|flac|128k|192k|256k|320k)[)\]]?(?=\s|$)/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export const collectVerifiedStations = (
   observations: ToolObservation[]
 ): VerifiedStationRef[] => {
   const seen = new Set<string>();
+  const seenNames = new Set<string>();
   const out: VerifiedStationRef[] = [];
   for (const observation of observations) {
     for (const station of observation.stations || []) {
       if (!station || !station.stationuuid || seen.has(station.stationuuid)) continue;
       // Only stations with a resolvable stream become playable cards.
       if (!station.url_resolved) continue;
+      const nameKey = normalizedStationNameKey(station.name || '');
+      if (nameKey && seenNames.has(nameKey)) continue;
       seen.add(station.stationuuid);
+      if (nameKey) seenNames.add(nameKey);
       out.push(station);
       if (out.length >= MAX_STATION_CARDS) return out;
     }

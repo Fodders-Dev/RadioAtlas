@@ -26,7 +26,8 @@ const catalogOf = (rows: Row[]): CatalogServiceLike => ({
   // filtering), so we can prove the genre set is still full of MUSIC.
   search: async (filters) => ({ items: rows.slice(0, filters.limit) }),
   getStationById: async () => null,
-  getSummary: async () => ({})
+  getSummary: async () => ({}),
+  getCatalog: async () => rows
 });
 
 test('searchStations: talk/news formats are dropped from MUSIC recommendations', async () => {
@@ -55,6 +56,19 @@ test('searchStations: a Russian «разговорное» request also keeps ta
   assert.ok(out.length >= 3, 'talk request is not stripped');
 });
 
+test('searchStations: humor/anecdote requests keep spoken-word humor stations', async () => {
+  const rows: Row[] = [
+    { stationuuid: 'jz1', name: 'Paris Jazz', tags: 'jazz', url_resolved: 'http://s/jz1' },
+    { stationuuid: 'valakas', name: 'Глад Валакас', tags: 'humor,russian,talk & speech', url_resolved: 'http://s/valakas' },
+    { stationuuid: 'anekdot', name: 'анекдот фм', tags: 'анекдот,юмор', url_resolved: 'http://s/anekdot' }
+  ];
+  const tools = createCatalogToolProvider(catalogOf(rows));
+  const humor = await tools.searchStations({ query: 'юмор', tag: 'юмор' });
+  const ids = humor.map((s) => s.stationuuid);
+  assert.ok(ids.includes('valakas'), 'talk-format humor is kept for an explicit humor query');
+  assert.ok(ids.includes('anekdot'), 'anecdote station is kept');
+});
+
 test('discoverTrending: talk/news is dropped from the discovery rails («что послушать» path)', async () => {
   // The vague «что послушать сегодня?» routes through discover_trending, NOT
   // search_stations — so this path needs its own talk filter (it leaked RTL /
@@ -63,6 +77,7 @@ test('discoverTrending: talk/news is dropped from the discovery rails («что 
   const catalog: CatalogServiceLike = {
     search: async () => ({ items: [] }),
     getStationById: async () => null,
+    getCatalog: async () => ROWS,
     getSummary: async () => ({
       moodRails: [{ id: 'late-night', stations: ROWS }],
       trending: ROWS
@@ -106,6 +121,7 @@ test('discoverTrending: the opaque RTL brand is dropped from the «что пос
   const catalog: CatalogServiceLike = {
     search: async () => ({ items: [] }),
     getStationById: async () => null,
+    getCatalog: async () => BRAND_ROWS,
     getSummary: async () => ({ moodRails: [{ id: 'top', stations: BRAND_ROWS }], trending: BRAND_ROWS })
   };
   const tools = createCatalogToolProvider(catalog);

@@ -1,12 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
 import type express from 'express';
-import { listNudgeRecipients, recordBotReachability } from './accountStore.js';
+import { getAccountByProvider, listNudgeRecipients, recordBotReachability } from './accountStore.js';
+import type { SyncedLibrary } from './accountStore.js';
 import {
   parseChatHistory,
   recordChatTelemetry,
   type AssistantRuntime
 } from './aiRoutes.js';
 import { bumpCounter } from './observabilityStore.js';
+import type { UserTasteContext } from './ai/types.js';
 
 // Mirrors the billing webhook gate: constant-time compare, empty token fails closed.
 const isValidInternalToken = (expected: string, provided: string | undefined): boolean => {
@@ -15,6 +17,81 @@ const isValidInternalToken = (expected: string, provided: string | undefined): b
   const providedBuf = Buffer.from(provided, 'utf8');
   if (expectedBuf.length !== providedBuf.length) return false;
   return timingSafeEqual(expectedBuf, providedBuf);
+};
+
+const normalizeTasteLabel = (value: string | null | undefined) =>
+  String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const addScore = (target: Record<string, number>, key: string, value: number) => {
+  const normalized = normalizeTasteLabel(key);
+  if (!normalized || !Number.isFinite(value) || value <= 0) return;
+  target[normalized] = Number(((target[normalized] || 0) + value).toFixed(4));
+};
+
+const addSignedStationScore = (target: Record<string, number>, stationId: string, value: number) => {
+  const normalized = stationId.trim();
+  if (!normalized || !Number.isFinite(value) || value === 0) return;
+  target[normalized] = Number(((target[normalized] || 0) + value).toFixed(4));
+};
+
+const buildUserTasteContext = (library: SyncedLibrary | null | undefined): UserTasteContext | undefined => {
+  if (!library) return undefined;
+  const stationScores: Record<string, number> = {};
+  const tagScores: Record<string, number> = {};
+  const countryScores: Record<string, number> = {};
+  const languageScores: Record<string, number> = {};
+  Object.entries(library.tasteProfile?.stationScores || {}).forEach(([key, value]) => addSignedStationScore(stationScores, key, value));
+  Object.entries(library.tasteProfile?.tagScores || {}).forEach(([key, value]) => addScore(tagScores, key, value));
+  Object.entries(library.tasteProfile?.countryScores || {}).forEach(([key, value]) => addScore(countryScores, key, value));
+  Object.entries(library.tasteProfile?.languageScores || {}).forEach(([key, value]) => addScore(languageScores, key, value));
+
+  for (const station of library.favorites || []) {
+    String(station.tags || '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag && tag.toLowerCase() !== 'no tags')
+      .slice(0, 5)
+      .forEach((tag, index) => addScore(tagScores, tag, 10.5 * (index === 0 ? 1 : index === 1 ? 0.62 : 0.38)));
+    addScore(countryScores, station.country, 5.2);
+  }
+
+  const favoriteStationIds = (library.favorites || [])
+    .map((station) => station.stationuuid)
+    .filter(Boolean)
+    .slice(0, 200);
+
+  const recentStationIds = (library.recent || [])
+    .map((station) => station.stationuuid)
+    .filter(Boolean)
+    .slice(0, 80);
+  const hiddenStationIds = (library.tasteProfile?.hiddenStationIds || []).filter(Boolean).slice(0, 160);
+  const negativeStationIds = Object.entries(stationScores)
+    .filter(([, value]) => value <= -4)
+    .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
+    .map(([stationId]) => stationId)
+    .slice(0, 80);
+
+  if (
+    !favoriteStationIds.length &&
+    !recentStationIds.length &&
+    !hiddenStationIds.length &&
+    !negativeStationIds.length &&
+    !Object.keys(stationScores).length &&
+    !Object.keys(tagScores).length &&
+    !Object.keys(countryScores).length
+  ) {
+    return undefined;
+  }
+  return {
+    favoriteStationIds,
+    recentStationIds,
+    hiddenStationIds,
+    negativeStationIds,
+    stationScores,
+    tagScores,
+    countryScores,
+    languageScores
+  };
 };
 
 // R1 bot retention (PR-A). These endpoints touch chat_id + opt-in (PII), so they
@@ -90,13 +167,19 @@ export const registerBotRoutes = (
         res.status(400).json({ error: 'text is required' });
         return;
       }
+      const telegramId =
+        typeof req.body?.telegramId === 'string' || typeof req.body?.telegramId === 'number'
+          ? String(req.body.telegramId).trim()
+          : '';
       const history = parseChatHistory(req.body?.history);
       const startedAt = Date.now();
       try {
+        const account = telegramId ? await getAccountByProvider('telegram', telegramId).catch(() => null) : null;
         const result = await aiRuntime.chat({
           userMessage: text.slice(0, 2000),
           history,
-          surface: 'telegram'
+          surface: 'telegram',
+          userTaste: buildUserTasteContext(account?.library)
         });
         recordChatTelemetry('telegram', startedAt, result);
         res.json({

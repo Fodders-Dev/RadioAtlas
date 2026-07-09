@@ -27,7 +27,6 @@ test('unknown artist / empty → null (no over-matching)', () => {
   assert.equal(resolveArtistGenres('Drake'), null);
   assert.equal(resolveArtistGenres('Дима Билан'), null);
   assert.equal(resolveArtistGenres(''), null);
-  // @ts-expect-error — defensive against non-string input
   assert.equal(resolveArtistGenres(null), null);
 });
 

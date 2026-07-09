@@ -49,6 +49,34 @@ test('search items are ordered by quality — reachable + high-bitrate + popular
   assert.deepEqual(ids, ['best', 'low', 'dead']);
 });
 
+test('typed search ignores browse seed and stays quality-first', () => {
+  const indexed = attachSearchIndex(fixture);
+  const seedOne = buildSearchResponse(indexed, f({ q: 'jazz', seed: 1 })).items.map((s) => s.stationuuid);
+  const seedTwo = buildSearchResponse(indexed, f({ q: 'jazz', seed: 999 })).items.map((s) => s.stationuuid);
+  assert.deepEqual(seedOne, ['best', 'low', 'dead']);
+  assert.deepEqual(seedTwo, seedOne);
+});
+
+test('browse search uses seed so the opening page is not the same global leaders forever', () => {
+  const browseFixture = attachSearchIndex(
+    Array.from({ length: 16 }, (_, index) =>
+      station({
+        stationuuid: `browse-${index}`,
+        name: `Browse ${index}`,
+        tags: 'music',
+        lastcheckok: 1,
+        bitrate: 128,
+        codec: 'MP3',
+        votes: 10,
+        clickcount: 10
+      })
+    )
+  );
+  const seedOne = buildSearchResponse(browseFixture, f({ limit: 8, seed: 11 })).items.map((s) => s.stationuuid);
+  const seedTwo = buildSearchResponse(browseFixture, f({ limit: 8, seed: 42 })).items.map((s) => s.stationuuid);
+  assert.notDeepEqual(seedOne, seedTwo);
+});
+
 test('the quality sort preserves the precompute === live invariant', () => {
   const indexed = attachSearchIndex(fixture);
   const live = buildSearchResponse(fixture, f({ q: 'jazz' }));

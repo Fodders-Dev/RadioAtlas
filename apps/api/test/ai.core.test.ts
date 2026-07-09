@@ -114,10 +114,28 @@ test('runTool never throws — a provider that throws becomes a found:false obse
 // --- anti-hallucination ----------------------------------------------------
 test('collectVerifiedStations: dedup by uuid, drop streamless, cap at 5', () => {
   const obs: ToolObservation[] = [
-    { tool: 'search_stations', args: {}, found: true, stations: [station(), station(), station({ stationuuid: 'u2' }), station({ stationuuid: 'u3', url_resolved: '' })] }
+    { tool: 'search_stations', args: {}, found: true, stations: [station(), station(), station({ stationuuid: 'u2', name: 'Jazz FM 2' }), station({ stationuuid: 'u3', url_resolved: '' })] }
   ];
   const out = collectVerifiedStations(obs);
   assert.deepEqual(out.map((s) => s.stationuuid), ['uuid-1', 'u2']); // u3 dropped (no stream), uuid-1 deduped
+});
+
+test('collectVerifiedStations: dedup obvious quality-variant station names', () => {
+  const obs: ToolObservation[] = [
+    {
+      tool: 'search_stations',
+      args: {},
+      found: true,
+      stations: [
+        station({ stationuuid: 'vinyl-a', name: 'Classic Vinyl HD' }),
+        station({ stationuuid: 'vinyl-b', name: 'Classic Vinyl HD Opus' }),
+        station({ stationuuid: 'jazz-a', name: 'Adroit Jazz Underground' }),
+        station({ stationuuid: 'jazz-b', name: 'Adroit Jazz Underground AAC' })
+      ]
+    }
+  ];
+  const out = collectVerifiedStations(obs);
+  assert.deepEqual(out.map((s) => s.stationuuid), ['vinyl-a', 'jazz-a']);
 });
 
 test('collectVerifiedStations returns nothing when there are no observations (fake-station guard)', () => {

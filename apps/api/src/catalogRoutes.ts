@@ -13,6 +13,11 @@ export const registerCatalogRoutes = (
   dependencies: CatalogDependencies
 ) => {
   const catalog = createCatalogService(dependencies);
+  const parseSeed = (value: unknown) => {
+    if (typeof value !== 'string') return Date.now();
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+  };
 
   // The bare GET /catalog route used to JSON.stringify the full ~32 MB
   // catalog onto the response in one shot, blocking the event loop and
@@ -27,7 +32,7 @@ export const registerCatalogRoutes = (
 
   app.get('/catalog/summary', async (req, res) => {
     try {
-      const seed = typeof req.query.seed === 'string' ? Number(req.query.seed) || Date.now() : Date.now();
+      const seed = parseSeed(req.query.seed);
       res.json(await catalog.getSummary(seed));
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : 'Catalog summary failed' });
@@ -44,7 +49,8 @@ export const registerCatalogRoutes = (
           tag: normalizeQuery(req.query.tag),
           continent: typeof req.query.continent === 'string' ? req.query.continent : '',
           limit: parseLimit(req.query.limit, 50),
-          cursor: parseCursor(req.query.cursor)
+          cursor: parseCursor(req.query.cursor),
+          seed: parseSeed(req.query.seed)
         })
       );
     } catch (error) {

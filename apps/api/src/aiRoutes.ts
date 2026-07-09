@@ -24,6 +24,7 @@ import type {
   ChatTurn,
   DeepseekConfig,
   MusicService,
+  UserTasteContext,
   WebSearchProvider
 } from './ai/types.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
@@ -114,6 +115,93 @@ export const parseChatHistory = (raw: unknown): ChatTurn[] => {
   return turns.slice(-MAX_HISTORY_TURNS);
 };
 
+const MAX_TASTE_IDS = 80;
+const MAX_TASTE_SCORES = 32;
+
+const normalizeTasteLabel = (value: unknown) =>
+  String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const parseTasteIds = (raw: unknown, limit = MAX_TASTE_IDS): string[] => {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(
+    new Set(
+      raw
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0)
+    )
+  ).slice(0, limit);
+};
+
+const parseTasteScoreMap = (raw: unknown): Record<string, number> => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .map(([key, value]) => {
+        const label = normalizeTasteLabel(key);
+        const score = Number(value);
+        if (!label || !Number.isFinite(score) || Math.abs(score) < 0.05) return null;
+        return [label, Math.max(-40, Math.min(40, Number(score.toFixed(4))))] as const;
+      })
+      .filter((entry): entry is readonly [string, number] => entry !== null)
+      .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]) || left[0].localeCompare(right[0]))
+      .slice(0, MAX_TASTE_SCORES)
+  );
+};
+
+const parseStationScoreMap = (raw: unknown): Record<string, number> => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .map(([key, value]) => {
+        const stationId = key.trim();
+        const score = Number(value);
+        if (!stationId || !Number.isFinite(score) || Math.abs(score) < 0.05) return null;
+        return [stationId, Math.max(-40, Math.min(40, Number(score.toFixed(4))))] as const;
+      })
+      .filter((entry): entry is readonly [string, number] => entry !== null)
+      .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]) || left[0].localeCompare(right[0]))
+      .slice(0, MAX_TASTE_SCORES)
+  );
+};
+
+export const parseUserTasteContext = (raw: unknown): UserTasteContext | undefined => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  const favoriteStationIds = parseTasteIds(value.favoriteStationIds);
+  const recentStationIds = parseTasteIds(value.recentStationIds);
+  const hiddenStationIds = parseTasteIds(value.hiddenStationIds);
+  const negativeStationIds = parseTasteIds(value.negativeStationIds);
+  const lastRecommendedStationIds = parseTasteIds(value.lastRecommendedStationIds);
+  const stationScores = parseStationScoreMap(value.stationScores);
+  const tagScores = parseTasteScoreMap(value.tagScores);
+  const countryScores = parseTasteScoreMap(value.countryScores);
+  const languageScores = parseTasteScoreMap(value.languageScores);
+  if (
+    !favoriteStationIds.length &&
+    !recentStationIds.length &&
+    !hiddenStationIds.length &&
+    !negativeStationIds.length &&
+    !lastRecommendedStationIds.length &&
+    !Object.keys(stationScores).length &&
+    !Object.keys(tagScores).length &&
+    !Object.keys(countryScores).length &&
+    !Object.keys(languageScores).length
+  ) {
+    return undefined;
+  }
+  return {
+    favoriteStationIds,
+    recentStationIds,
+    hiddenStationIds,
+    negativeStationIds,
+    lastRecommendedStationIds,
+    stationScores,
+    tagScores,
+    countryScores,
+    languageScores
+  };
+};
+
 export const recordChatTelemetry = (
   surface: 'miniapp' | 'telegram',
   startedAt: number,
@@ -158,7 +246,8 @@ export const registerAiRoutes = (
         userMessage: message.slice(0, MAX_MESSAGE_CHARS),
         history,
         surface: 'miniapp',
-        locale
+        locale,
+        userTaste: parseUserTasteContext(req.body?.userTaste)
       });
       recordChatTelemetry('miniapp', startedAt, result);
       res.json({

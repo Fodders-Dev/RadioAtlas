@@ -74,6 +74,7 @@ type CatalogSearchFilters = {
   continent: string;
   limit: number;
   cursor: number;
+  seed?: number;
 };
 
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
@@ -534,6 +535,18 @@ const searchTagsOf = (station: CatalogStation) =>
 const searchQualityOf = (station: CatalogStation) =>
   station.searchQuality ?? computeQualityScore(station);
 
+const seededSearchBrowseOrder = (
+  stations: CatalogStation[],
+  seed = Date.now(),
+  limit = 50
+) => {
+  const ranked = [...stations].sort((left, right) => searchQualityOf(right) - searchQualityOf(left));
+  const headSize = Math.min(ranked.length, Math.max(600, limit * 24));
+  const head = seededOrder(ranked.slice(0, headSize), seed);
+  const tail = ranked.length > headSize ? seededOrder(ranked.slice(headSize), seed + 17) : [];
+  return [...head, ...tail];
+};
+
 // Attach the precomputed search index to every station. Runs ONCE per profiling
 // refresh inside getProfiledCatalog (cached in profiledFullCache, invalidated
 // with the catalog), and rides the #43 boot-warm path so the first search after
@@ -589,11 +602,12 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const nextCursor =
     filters.cursor + filters.limit < filtered.length ? String(filters.cursor + filters.limit) : null;
 
-  // T_station_intel P1 (v1): order the matches by quality so the slice (and Лира's
-  // limit-8 tool) leads with the best stations instead of catalog order. Facets,
-  // total and nextCursor stay on the unsorted `filtered` (counts are order-free).
-  // Stable sort (V8) keeps equal-score stations in their original order.
-  const ranked = [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left));
+  // Typed search stays relevance/quality-first. Browse/filter-only search uses
+  // a per-session seeded order inside a large healthy-quality head pool, so the
+  // Search screen does not start with the same global leaders on every open.
+  const ranked = filters.q
+    ? [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
+    : seededSearchBrowseOrder(filtered, filters.seed, filters.limit);
 
   return {
     items: ranked.slice(filters.cursor, filters.cursor + filters.limit).map(toStationLite),
