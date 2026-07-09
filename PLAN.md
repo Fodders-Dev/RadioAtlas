@@ -130,4 +130,4 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: finish audit/refactor validation by keeping typecheck, API/bot tests, webapp e2e, build, and npm audit green; then run live Telegram mobile QA on low-power Android/iOS WebView for cold Home, Search, Globe, Library, and Full Player. Keep Theme Studio local-only until a separate review opens Stage 18.
+Next: deploy and live QA the playlist UX pass, clean station rows, and seeded Search freshness pass in Telegram: verify per-station "add to playlist", full-library/favorites shuffle, rows without personal reason badges, Search infinite-scroll append without top reordering, and varied no-query Search openings that no longer repeat the same global leaders. Also retest Lira recommendations after likes, hides, skips, and already shown station cards. Upgrade the VPS runtime from Node 22 to Node 24 so production matches the repo engine requirement.

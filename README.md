@@ -9,8 +9,8 @@ Monorepo with Telegram bot + webapp MVP.
 - `apps/extractor` - NewPipe-style extractor service (YouTube blocked)
 
 ## Requirements
-- Node.js 18+
-- npm 9+
+- Node.js 24+
+- npm 10+
 - Java 17+ (optional, for extractor)
 
 ## Quick start
@@ -74,7 +74,15 @@ Then use the "Extract streams" button in Search → Links.
 ```
 BOT_TOKEN=...
 WEBAPP_URL=https://your-webapp-url
+API_URL=https://radioatlas.ru/api
+AI_ENABLED=0
 WEBAPP_DEEPLINK=https://t.me/your_bot?startapp=radio
+```
+
+`apps/api/.env`:
+```
+AI_ENABLED=0
+DEEPSEEK_API_KEY=
 ```
 
 `apps/webapp/.env`:
