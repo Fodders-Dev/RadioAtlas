@@ -339,6 +339,53 @@ const App = () => {
     setLegacyWinampUnlocked(true);
     winamp.setExpanded(true);
   };
+  const focusSearchInput = () => {
+    const input = document.querySelector<HTMLInputElement>('#search-hero-input');
+    if (!input) return;
+    input.scrollIntoView({
+      behavior: lowPowerShell ? 'auto' : 'smooth',
+      block: 'center'
+    });
+    window.setTimeout(() => input.focus({ preventScroll: true }), lowPowerShell ? 0 : 120);
+  };
+
+  const renderTopbarTitle = () => {
+    const title = (
+      <div className="app-topbar-title">
+        <span>{meta.title}</span>
+        {activeSection === 'search' ? (
+          <svg className="app-topbar-title-cue" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 17.2 5.9 11.1l1.4-1.4 3.7 3.7V5h2v8.4l3.7-3.7 1.4 1.4L12 17.2Z" />
+          </svg>
+        ) : null}
+      </div>
+    );
+
+    if (activeSection === 'search') {
+      return (
+        <button
+          className="app-topbar-title-stack app-topbar-title-action"
+          type="button"
+          onClick={focusSearchInput}
+          aria-label={`${t('nav.search')}: ${t('discover.searchPlaceholder')}`}
+        >
+          <div className="shell-kicker">{meta.context}</div>
+          {title}
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className="app-topbar-title-stack"
+        data-winamp-easter-egg-trigger="title"
+        onClick={handleBrandGesture}
+      >
+        <div className="shell-kicker">{meta.context}</div>
+        {title}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -381,14 +428,7 @@ const App = () => {
               </button>
             </div>
             <div className="app-topbar-main-row">
-              <div
-                className="app-topbar-title-stack"
-                data-winamp-easter-egg-trigger="title"
-                onClick={handleBrandGesture}
-              >
-                <div className="shell-kicker">{meta.context}</div>
-                <div className="app-topbar-title">{meta.title}</div>
-              </div>
+              {renderTopbarTitle()}
               <div className="app-topbar-utility-row">
                 <button
                   className={`app-topbar-status-chip ${player.current ? 'is-live' : ''}`}

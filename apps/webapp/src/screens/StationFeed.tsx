@@ -9,7 +9,7 @@ import {
   isStationHardHiddenByUpstream
 } from '../lib/stationPlayability';
 import { isStationSuppressedByHealth } from '../lib/stationHealth';
-import { rankStationsForUser } from '../lib/tasteProfile';
+import { rankStationsForUser, withFavoriteTasteBoosts } from '../lib/tasteProfile';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
 import { latestTrackForStation } from '../state/radio/helpers';
@@ -36,6 +36,11 @@ const SETTLE_MS = 220;
 // — for the focused card only — the 30Hz audio subscription). Every card still
 // renders a full-height spacer so scroll height and snap points stay correct.
 const RENDER_WINDOW = 2;
+const FEED_INITIAL_VISIBLE = 40;
+const FEED_VISIBLE_BATCH = 40;
+const FEED_PREFETCH_REMAINING = 6;
+const FEED_MAX_ITEMS = 320;
+const FEED_PERSONAL_POOL_LIMIT = 160;
 
 const mergeUnique = (...collections: StationLite[][]): StationLite[] => {
   const seen = new Set<string>();
@@ -189,6 +194,10 @@ export const StationFeed = () => {
   // onClick, so each open mints a new seed → a fresh personal-fresh mix, while
   // Home's own sessionSeed (frozen per session) stays put.
   const seed = feedSeed;
+  const effectiveTasteProfile = useMemo(
+    () => withFavoriteTasteBoosts(tasteProfile, favorites),
+    [favorites, tasteProfile]
+  );
 
   // Build the feed ONCE per (catalog, seed): a list you can scroll without it
   // reshuffling underneath you. Volatile inputs (the playing station, favorites,
@@ -216,7 +225,7 @@ export const StationFeed = () => {
     recent.forEach((s) => exclude.add(s.stationuuid));
     if (player.current) exclude.add(player.current.stationuuid);
 
-    const rankedCatalog = rankStationsForUser(pool, tasteProfile, playabilityProfile, {
+    const rankedCatalog = rankStationsForUser(pool, effectiveTasteProfile, playabilityProfile, {
       mode: 'personal',
       currentStation: null,
       seed,
@@ -242,13 +251,15 @@ export const StationFeed = () => {
     const tasteStations = mergeUnique(
       recommendation.tunedForYou,
       recommendation.becauseYouLiked,
-      recommendation.outsideOrbit
+      recommendation.outsideOrbit,
+      rankedCatalog.slice(0, FEED_PERSONAL_POOL_LIMIT)
     );
     return buildStationFeed({
       tasteStations,
       trending: summary?.trending ?? [],
       pool: rankedCatalog,
       seed,
+      limit: Math.min(FEED_MAX_ITEMS, rankedCatalog.length || FEED_MAX_ITEMS),
       exclude,
       isLive
     });
@@ -256,13 +267,19 @@ export const StationFeed = () => {
   }, [summary, seed]);
 
   const [visibleIndex, setVisibleIndex] = useState(0);
+  const [visibleLimit, setVisibleLimit] = useState(FEED_INITIAL_VISIBLE);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
+  const kickstartedRef = useRef(false);
+  const visibleFeedStations = useMemo(
+    () => feedStations.slice(0, Math.min(visibleLimit, feedStations.length)),
+    [feedStations, visibleLimit]
+  );
 
   // Latest-value refs so the single (stable) settler reads the current list /
   // player without being torn down and recreated on every render.
-  const feedRef = useRef(feedStations);
-  feedRef.current = feedStations;
+  const feedRef = useRef(visibleFeedStations);
+  feedRef.current = visibleFeedStations;
   const playStationRef = useRef(playStation);
   playStationRef.current = playStation;
   const currentIdRef = useRef(player.current?.stationuuid ?? null);
@@ -295,6 +312,14 @@ export const StationFeed = () => {
   // Tear down any pending play when the feed closes/unmounts.
   useEffect(() => () => settler.cancel(), [settler]);
 
+  useEffect(() => {
+    setVisibleLimit(FEED_INITIAL_VISIBLE);
+    setVisibleIndex(0);
+    cardRefs.current = [];
+    kickstartedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
+
   const handleClose = useCallback(() => {
     settler.cancel();
     setActiveSection('home');
@@ -315,11 +340,10 @@ export const StationFeed = () => {
   // already current the feed opens ON its card (scrolled there) and is SEEDED as
   // already-played so neither this nor the observer's initial fire can switch the
   // persistent player — the first play must be a deliberate swipe to another card.
-  const kickstartedRef = useRef(false);
   useEffect(() => {
-    if (kickstartedRef.current || feedStations.length === 0) return;
+    if (kickstartedRef.current || visibleFeedStations.length === 0) return;
     kickstartedRef.current = true;
-    const { index, autoplayInitial } = resolveFeedEntry(feedStations, currentIdRef.current);
+    const { index, autoplayInitial } = resolveFeedEntry(visibleFeedStations, currentIdRef.current);
     setVisibleIndex(index);
     if (autoplayInitial) {
       settler.notify(index);
@@ -331,14 +355,25 @@ export const StationFeed = () => {
       scroller.scrollTop = index * scroller.clientHeight;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedStations, settler]);
+  }, [visibleFeedStations, settler]);
+
+  useEffect(() => {
+    if (visibleFeedStations.length === 0) return;
+    if (visibleLimit >= feedStations.length) return;
+    if (visibleIndex < visibleFeedStations.length - FEED_PREFETCH_REMAINING) return;
+    setVisibleLimit((current) => Math.min(feedStations.length, current + FEED_VISIBLE_BATCH));
+  }, [feedStations.length, visibleFeedStations.length, visibleIndex, visibleLimit]);
+
+  useEffect(() => {
+    cardRefs.current = cardRefs.current.slice(0, visibleFeedStations.length);
+  }, [visibleFeedStations.length]);
 
   // Track which card has "landed" (≥60% visible). The immediate signal drives the
   // ±2 render window; the SAME signal, debounced through the settler, drives the
   // autoplay so a fast swipe doesn't thrash playback.
   useEffect(() => {
     const root = scrollerRef.current;
-    if (!root || feedStations.length === 0) return undefined;
+    if (!root || visibleFeedStations.length === 0) return undefined;
     const ratios = new Map<number, number>();
     const observer = new IntersectionObserver(
       (entries) => {
@@ -364,12 +399,12 @@ export const StationFeed = () => {
     );
     cardRefs.current.forEach((node) => node && observer.observe(node));
     return () => observer.disconnect();
-  }, [feedStations, settler]);
+  }, [visibleFeedStations, settler]);
 
   const handleOpenPlayer = (station: StationLite) => {
     if (player.current?.stationuuid !== station.stationuuid) {
       playStation(station, {
-        playlist: feedStations,
+        playlist: visibleFeedStations,
         sourceId: FEED_SOURCE_ID,
         sourceLabel
       });
@@ -414,13 +449,13 @@ export const StationFeed = () => {
       </header>
 
       <div ref={scrollerRef} className="station-feed-scroller">
-        {feedStations.length === 0 ? (
+        {visibleFeedStations.length === 0 ? (
           <div className="station-feed-empty">
             <strong>{summary ? t('feed.emptyTitle') : t('feed.loading')}</strong>
             {summary ? <p>{t('feed.emptyBody')}</p> : null}
           </div>
         ) : (
-          feedStations.map((station, index) => {
+          visibleFeedStations.map((station, index) => {
             const windowed = Math.abs(index - visibleIndex) <= RENDER_WINDOW;
             const isCurrent = player.current?.stationuuid === station.stationuuid;
             const liveTrack = isCurrent && nowPlaying ? nowPlaying.trim() : '';

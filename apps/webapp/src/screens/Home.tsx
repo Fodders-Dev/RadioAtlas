@@ -25,10 +25,12 @@ import {
   filterStationsByPlayability,
   rankStationsForHome
 } from '../lib/stationPlayability';
+import { diversifyStationOrder } from '../lib/stationDiversity';
 import {
   isStationHiddenFromRecommendations,
   rankStationsForUser,
-  tasteSignature
+  tasteSignature,
+  withFavoriteTasteBoosts
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import { HomeRail, HomeResumeStrip } from './homeCards';
@@ -216,8 +218,43 @@ const buildSurfaceFeed = (input: {
     healthProfile: input.stationHealthProfile,
     sessionEvents: input.radioSessionEvents
   });
+  const ownedStationIds = new Set<string>();
+  input.favorites.forEach((station) => ownedStationIds.add(station.stationuuid));
+  input.recent.forEach((station) => ownedStationIds.add(station.stationuuid));
+  if (input.currentStation) ownedStationIds.add(input.currentStation.stationuuid);
+  const isFreshRecommendation = (station: StationLite) => !ownedStationIds.has(station.stationuuid);
+  const recommendationCatalog = rankedCatalog.filter(isFreshRecommendation);
+  const discoveryCatalog = recommendationCatalog.length >= 12 ? recommendationCatalog : rankedCatalog;
+  const personalizeStations = (stations: StationLite[] | undefined, seedOffset: number) =>
+    diversifyStationOrder(
+      rankStationsForUser(stations || [], input.tasteProfile, input.playabilityProfile, {
+        mode: 'personal',
+        currentStation: input.currentStation,
+        seed: input.seed + seedOffset,
+        limit: stations?.length || 0,
+        healthProfile: input.stationHealthProfile,
+        sessionEvents: input.radioSessionEvents
+      }).filter(isFreshRecommendation),
+      {
+        limit: stations?.length || 0,
+        maxPerCountry: 2,
+        maxPerPrimaryTag: 3,
+        maxPerNameKey: 1
+      }
+    );
+  const personalizeSpotlight = (spotlight: CatalogSpotlight | null | undefined, seedOffset: number) =>
+    spotlight
+      ? {
+          ...spotlight,
+          stations: personalizeStations(spotlight.stations, seedOffset)
+        }
+      : null;
+  const personalizedMoodRails = (input.moodRails || []).map((rail, index) => ({
+    ...rail,
+    stations: personalizeStations(rail.stations, 310 + index * 17)
+  }));
   const recommendationFeed = createHomeRecommendationFeed({
-    catalog: rankedCatalog,
+    catalog: recommendationCatalog.length ? recommendationCatalog : rankedCatalog,
     favorites: filterStationsByPlayability(input.favorites, input.playabilityProfile, undefined, input.stationHealthProfile),
     recent: filterStationsByPlayability(input.recent, input.playabilityProfile, undefined, input.stationHealthProfile),
     queuePreview: filterStationsByPlayability(input.queuePreview, input.playabilityProfile, undefined, input.stationHealthProfile),
@@ -231,7 +268,7 @@ const buildSurfaceFeed = (input: {
     rotationSeed: input.seed
   });
   const discoveryFeed = createDiscoveryFeed({
-    catalog: rankedCatalog,
+    catalog: discoveryCatalog,
     favorites: input.favorites,
     recent: input.recent,
     queuePreview: input.queuePreview,
@@ -240,19 +277,26 @@ const buildSurfaceFeed = (input: {
     showcaseSeed: input.seed,
     query: '',
     metrics: input.metrics,
-    trending: input.trending,
-    topVoted: input.topVoted,
-    aroundTheWorld: input.aroundTheWorld,
-    moodRails: input.moodRails
+    trending: personalizeStations(input.trending, 101),
+    topVoted: personalizeStations(input.topVoted, 137),
+    aroundTheWorld: personalizeSpotlight(input.aroundTheWorld, 173),
+    moodRails: personalizedMoodRails
   });
   const recommendationDeck = mergeStations(
     recommendationFeed.tunedForYou,
     recommendationFeed.becauseYouLiked,
     recommendationFeed.outsideOrbit,
-    rankedCatalog
+    recommendationCatalog.length ? recommendationCatalog : rankedCatalog
   );
-  const primaryStation = recommendationDeck[0] || null;
-  const railStations = recommendationDeck.filter(
+  const diversifiedRecommendationDeck = diversifyStationOrder(recommendationDeck, {
+    limit: recommendationDeck.length,
+    preserveFirst: true,
+    maxPerCountry: 3,
+    maxPerPrimaryTag: 4,
+    maxPerNameKey: 1
+  });
+  const primaryStation = diversifiedRecommendationDeck[0] || null;
+  const railStations = diversifiedRecommendationDeck.filter(
     (station) => station.stationuuid !== primaryStation?.stationuuid
   );
   const personalizedDiscoveryFeed = applyRecommendationModules(
@@ -366,6 +410,10 @@ export const Home = () => {
     () => mergeStations(summary?.catalogPool || [], knownStations),
     [knownStations, summary?.catalogPool]
   );
+  const effectiveTasteProfile = useMemo(
+    () => withFavoriteTasteBoosts(tasteProfile, favorites),
+    [favorites, tasteProfile]
+  );
   const queuePreview = useMemo(() => {
     const startIndex = Math.max(queue.currentIndex, 0);
     return queue.items.slice(startIndex, startIndex + 4);
@@ -440,7 +488,7 @@ export const Home = () => {
   const homeRankInputsRef = useRef({
     behaviorProfile,
     playabilityProfile,
-    tasteProfile,
+    tasteProfile: effectiveTasteProfile,
     stationHealthProfile,
     radioSessionEvents,
     trackHistory,
@@ -453,7 +501,7 @@ export const Home = () => {
     homeRankInputsRef.current = {
       behaviorProfile,
       playabilityProfile,
-      tasteProfile,
+      tasteProfile: effectiveTasteProfile,
       stationHealthProfile,
       radioSessionEvents,
       trackHistory,
@@ -476,7 +524,7 @@ export const Home = () => {
   // the taste-ranked fresh-now rail re-orders; the seed-ordered server pools
   // stay put). A single play doesn't shift the top tags, so the signature is
   // stable and the snapshot stays frozen — preserving the T1.2 rank-freeze.
-  const tasteSig = tasteSignature(tasteProfile);
+  const tasteSig = tasteSignature(effectiveTasteProfile);
   const surfaceFeedBase = useMemo(() => {
     const snapshotFresh =
       homeState.snapshot &&
@@ -506,14 +554,10 @@ export const Home = () => {
       collections,
       playbackHistory: live.playbackHistory,
       playabilityProfile: live.playabilityProfile,
-      // T_audit_9: tasteProfile is read DIRECT (current render), not from the
-      // ref like the other live.* inputs. The ref updates in a post-render
-      // effect, so it lags a render — and the whole point here is to rebuild
-      // with the taste that JUST changed. The rest stay on the ref because they
-      // are the play-churn fields we intentionally freeze. The memo only
-      // re-runs when tasteSig (a dep) changes, so reading tasteProfile direct
-      // never re-ranks on a play (tasteSig is stable there).
-      tasteProfile,
+      // T_audit_9 + favorites overlay: use the current effective taste directly.
+      // The ref updates after render, so it can lag the just-changed like set;
+      // the rest stay on the ref because they are play-churn fields we freeze.
+      tasteProfile: effectiveTasteProfile,
       stationHealthProfile: live.stationHealthProfile,
       radioSessionEvents: live.radioSessionEvents,
       trackHistory: live.trackHistory,
@@ -779,7 +823,7 @@ export const Home = () => {
         collections,
         playbackHistory,
         playabilityProfile,
-        tasteProfile,
+        tasteProfile: effectiveTasteProfile,
         stationHealthProfile,
         radioSessionEvents,
         trackHistory,
@@ -790,7 +834,7 @@ export const Home = () => {
         aroundTheWorld: effectiveSummary.aroundTheWorld,
         moodRails: effectiveSummary.moodRails,
         summarySignature: summaryRailSignature(effectiveSummary),
-        tasteSignature: tasteSignature(tasteProfile)
+        tasteSignature: tasteSignature(effectiveTasteProfile)
       });
 
       if (isSameSurfaceDeck(nextSurface, surfaceFeed)) {

@@ -1575,6 +1575,73 @@ test('mobile search uses compact result cards and can start a result queue', asy
   await expect(page.locator('.player-dock-title')).toContainText(/Tokyo FM|Osaka Nights/);
 });
 
+test('mobile search lazily appends results without a load-more button', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMediaMocks(page);
+  await mockStations(page);
+
+  const pagedStations = Array.from({ length: 45 }, (_, index) => ({
+    ...stations[index % stations.length],
+    stationuuid: `uuid-jpop-page-${index + 1}`,
+    name: `JPop Page ${String(index + 1).padStart(2, '0')}`,
+    tags: 'jpop,paged',
+    country: 'Japan',
+    countrycode: 'JP',
+    state: index < 32 ? 'First page' : 'Second page'
+  }));
+  const searchRequests: string[] = [];
+
+  await page.unroute('**/catalog/search**');
+  await page.route('**/catalog/search**', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    searchRequests.push(requestUrl.search);
+    const limit = Number(requestUrl.searchParams.get('limit') || 32);
+    const cursor = Number(requestUrl.searchParams.get('cursor') || 0);
+    const nextCursor = cursor + limit < pagedStations.length ? String(cursor + limit) : null;
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: pagedStations.slice(cursor, cursor + limit),
+        total: pagedStations.length,
+        nextCursor,
+        facets: {
+          countries: ['Japan'],
+          tags: ['jpop', 'paged'],
+          languages: ['Japanese'],
+          continentCounts: [{ id: 'Asia', count: pagedStations.length }],
+          featuredCountries: [
+            { key: 'jp', country: 'Japan', continent: 'Asia', count: pagedStations.length }
+          ]
+        }
+      })
+    });
+  });
+
+  await seedRadioState(page, {
+    activeSection: 'search',
+    stationCache: pagedStations
+  });
+
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  await page.locator('#search-hero-input').first().fill('jpop');
+
+  const cards = page.locator('[data-search-station-card]');
+  await expect(cards).toHaveCount(32);
+  await expect(cards.nth(31)).toContainText('JPop Page 32');
+  await expect(page.getByRole('button', { name: /Показать еще|Show more|Load more/ })).toHaveCount(0);
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(cards).toHaveCount(45);
+  await expect(cards.nth(32)).toContainText('JPop Page 33');
+  expect(searchRequests.some((query) => query.includes('cursor=32'))).toBe(true);
+
+  const firstCardHeight = await cards.first().evaluate((node) => node.getBoundingClientRect().height);
+  expect(firstCardHeight).toBeLessThanOrEqual(88);
+});
+
 // Search mobile rebuild: the native-select filter drawer moved into the shared
 // bottom sheet. Opening it, picking a country, and closing must surface an
 // active filter pill AND re-run the search with the filter applied.

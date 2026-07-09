@@ -131,9 +131,8 @@ export const Library = () => {
     notificationPreference,
     trackHistory,
     playbackHistory,
-    clearFavorites,
     clearRecent,
-    clearTrackHistory,
+    removeTrackHistoryItem,
     createCollection,
     saveQueueAsCollection,
     deleteCollection,
@@ -498,6 +497,38 @@ export const Library = () => {
       sourceLabel: digest.title
     });
   };
+  const libraryShuffleStations = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: StationLite[] = [];
+    const append = (station: StationLite | null | undefined) => {
+      if (!station || seen.has(station.stationuuid)) return;
+      seen.add(station.stationuuid);
+      merged.push(station);
+    };
+
+    favorites.forEach(append);
+    recentStations.forEach(append);
+    collections.forEach((collection) => {
+      collection.stationIds.forEach((stationId) => append(stationMap.get(stationId)));
+    });
+    followedStationRows.forEach(({ station }) => append(station));
+
+    return merged;
+  }, [collections, favorites, followedStationRows, recentStations, stationMap]);
+  const playLibraryShuffle = () => {
+    if (!libraryShuffleStations.length) return;
+    playStationQueue(shuffleStations(libraryShuffleStations), {
+      sourceId: 'library-shuffle',
+      sourceLabel: t('library.shuffleLibrarySource')
+    });
+  };
+  const playFavoritesShuffle = () => {
+    if (!favorites.length) return;
+    playStationQueue(shuffleStations(favorites), {
+      sourceId: 'favorites-shuffle',
+      sourceLabel: t('library.tabs.favorites')
+    });
+  };
   const beginRenameCollection = (collection: (typeof collections)[number]) => {
     setCollectionRenameDraft(collection.name);
     setRenamingCollectionId(collection.id);
@@ -571,13 +602,26 @@ export const Library = () => {
             {item.stationName} · {formatTime(item.timestamp)}
           </div>
         </div>
-        <button
-          className="chip"
-          type="button"
-          onClick={() => navigator.clipboard.writeText(item.track)}
-        >
-          {t('common.copy')}
-        </button>
+        <div className="track-card-actions">
+          <button
+            className="chip"
+            type="button"
+            onClick={() => navigator.clipboard.writeText(item.track)}
+          >
+            {t('common.copy')}
+          </button>
+          <button
+            className="track-remove-btn"
+            type="button"
+            aria-label={t('library.removeTrackHistoryItem', { track: item.track })}
+            title={t('common.remove')}
+            onClick={() => removeTrackHistoryItem(item.id)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" />
+            </svg>
+          </button>
+        </div>
       </div>
     ));
 
@@ -701,6 +745,29 @@ export const Library = () => {
         ) : null}
       </div>
 
+      {!librarySearchQuery ? (
+        <div className="library-header-actions library-quick-actions">
+          <button
+            className="chip active"
+            type="button"
+            onClick={playLibraryShuffle}
+            disabled={!libraryShuffleStations.length}
+          >
+            {t('library.shuffleLibrary')}
+          </button>
+          <button
+            className="chip"
+            type="button"
+            onClick={() => {
+              setLibraryTab('collections');
+              beginCreateCollection();
+            }}
+          >
+            {t('library.createCollection')}
+          </button>
+        </div>
+      ) : null}
+
       {librarySearchQuery ? (
         <div
           className="glass-card library-search-results"
@@ -765,13 +832,18 @@ export const Library = () => {
 
       {activeLibraryTab === 'favorites' ? (
         <div className="glass-card">
-          {/* The tab strip already names this surface — no duplicate title, just
-              the compact Clear action (unified .library-tab-toolbar rhythm). */}
           <div className="library-tab-toolbar">
             <span className="library-tab-toolbar-lead" />
-            <button className="chip" type="button" onClick={clearFavorites} disabled={!favorites.length}>
-              {t('settings.clearFavorites')}
-            </button>
+            <div className="chip-row">
+              <button
+                className="chip active"
+                type="button"
+                onClick={playFavoritesShuffle}
+                disabled={!favorites.length}
+              >
+                {t('library.shuffleFavorites')}
+              </button>
+            </div>
           </div>
           {favorites.length ? (
             <StationTable
@@ -989,14 +1061,6 @@ export const Library = () => {
               this «Треки», so no duplicate section title. */}
           <div className="library-tab-toolbar">
             <div className="section-subtitle">{t('library.tracksSubtitle')}</div>
-            <button
-              className="chip"
-              type="button"
-              onClick={clearTrackHistory}
-              disabled={!trackHistory.length}
-            >
-              {t('common.clear')}
-            </button>
           </div>
           {trackHistory.length ? (
             <div className="track-list track-list-scroll">{renderTrackJournalEntries()}</div>
@@ -1162,73 +1226,67 @@ export const Library = () => {
               </div>
 
               {selectedCollectionStations.length ? (
-                <div className="library-detail-station-list">
-                  {selectedCollectionStations.map((station, index) => (
-                    <div
-                      key={`${selectedCollection.id}-${station.stationuuid}`}
-                      className="playlist-row library-detail-station-row"
-                      data-library-collection-row
-                      data-station-id={station.stationuuid}
-                    >
-                      <div className="playlist-order">{index + 1}</div>
-                      <div className="playlist-body">
-                        <div className="playlist-name">{normalizeStationName(station.name)}</div>
-                        <div className="playlist-meta">{stationLocation(station)}</div>
+                collectionReorderMode ? (
+                  <div className="library-detail-station-list">
+                    {selectedCollectionStations.map((station, index) => (
+                      <div
+                        key={`${selectedCollection.id}-${station.stationuuid}`}
+                        className="playlist-row library-detail-station-row"
+                        data-library-collection-row
+                        data-station-id={station.stationuuid}
+                      >
+                        <div className="playlist-order">{index + 1}</div>
+                        <div className="playlist-body">
+                          <div className="playlist-name">{normalizeStationName(station.name)}</div>
+                          <div className="playlist-meta">{stationLocation(station)}</div>
+                        </div>
+                        <div className="playlist-actions">
+                          <button
+                            className="chip"
+                            type="button"
+                            aria-label={t('library.removeStationFromCollection', {
+                              station: normalizeStationName(station.name)
+                            })}
+                            onClick={() => removeStationFromCollection(selectedCollection.id, station.stationuuid)}
+                          >
+                            {t('common.remove')}
+                          </button>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, -1)}
+                            disabled={index === 0}
+                            aria-label={t('library.moveStationUp', {
+                              station: normalizeStationName(station.name)
+                            })}
+                          >
+                            {t('library.moveUp')}
+                          </button>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, 1)}
+                            disabled={index === selectedCollectionStations.length - 1}
+                            aria-label={t('library.moveStationDown', {
+                              station: normalizeStationName(station.name)
+                            })}
+                          >
+                            {t('library.moveDown')}
+                          </button>
+                        </div>
                       </div>
-                      <div className="playlist-actions">
-                        <button
-                          className="chip active"
-                          type="button"
-                          onClick={() =>
-                            playStation(station, {
-                              playlist: selectedCollectionStations,
-                              sourceId: `collection-${selectedCollection.id}`,
-                              sourceLabel: selectedCollection.name
-                            })
-                          }
-                        >
-                          {t('common.play')}
-                        </button>
-                        <button
-                          className="chip"
-                          type="button"
-                          aria-label={t('library.removeStationFromCollection', {
-                            station: normalizeStationName(station.name)
-                          })}
-                          onClick={() => removeStationFromCollection(selectedCollection.id, station.stationuuid)}
-                        >
-                          {t('common.remove')}
-                        </button>
-                        {collectionReorderMode ? (
-                          <>
-                            <button
-                              className="chip"
-                              type="button"
-                              onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, -1)}
-                              disabled={index === 0}
-                              aria-label={t('library.moveStationUp', {
-                                station: normalizeStationName(station.name)
-                              })}
-                            >
-                              {t('library.moveUp')}
-                            </button>
-                            <button
-                              className="chip"
-                              type="button"
-                              onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, 1)}
-                              disabled={index === selectedCollectionStations.length - 1}
-                              aria-label={t('library.moveStationDown', {
-                                station: normalizeStationName(station.name)
-                              })}
-                            >
-                              {t('library.moveDown')}
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="library-detail-station-list library-detail-station-table">
+                    <StationTable
+                      stations={selectedCollectionStations}
+                      compact
+                      sourceId={`collection-${selectedCollection.id}`}
+                      sourceLabel={selectedCollection.name}
+                    />
+                  </div>
+                )
               ) : (
                 <div className="empty-state library-empty-state">
                   <div className="section-subtitle">{t('library.collectionEmpty')}</div>
@@ -1398,179 +1456,181 @@ export const Library = () => {
           </div>
           )}
 
-          <div className="library-history-grid">
-            <div className="glass-card">
-              <div className="section-title">{t('library.followedStationsTitle')}</div>
-              <div className="section-subtitle">{t('library.followedStationsCopy')}</div>
-              {followedStationRows.length ? (
-                <div className="playlist-history-list">
-                  {followedStationRows.map(({ follow, station, fallbackStation }) => (
-                    <div key={follow.stationId} className="playlist-history-item library-follow-row">
-                      <div className="playlist-history-name">{follow.stationName}</div>
-                      <div className="playlist-history-meta">{follow.country}</div>
-                      <div className="chip-row library-follow-actions">
-                        <button
-                          className="chip active"
-                          type="button"
-                          disabled={!station}
-                          onClick={() =>
-                            station
-                              ? playStation(station, {
-                                  playlist: followedStationRows
-                                    .map((row) => row.station)
-                                    .filter(Boolean) as StationLite[],
-                                  sourceId: 'followed-stations',
-                                  sourceLabel: t('library.followedStationsTitle')
-                                })
-                              : undefined
-                          }
-                        >
-                          {t('common.play')}
-                        </button>
-                        <button
-                          className="chip"
-                          type="button"
-                          onClick={() => toggleFollowStation(fallbackStation)}
-                        >
-                          {t('library.unfollow')}
-                        </button>
-                      </div>
+          {!selectedCollection ? (
+            <>
+              <div className="library-history-grid">
+                <div className="glass-card">
+                  <div className="section-title">{t('library.followedStationsTitle')}</div>
+                  <div className="section-subtitle">{t('library.followedStationsCopy')}</div>
+                  {followedStationRows.length ? (
+                    <div className="playlist-history-list">
+                      {followedStationRows.map(({ follow, station, fallbackStation }) => (
+                        <div key={follow.stationId} className="playlist-history-item library-follow-row">
+                          <div className="playlist-history-name">{follow.stationName}</div>
+                          <div className="playlist-history-meta">{follow.country}</div>
+                          <div className="chip-row library-follow-actions">
+                            <button
+                              className="chip active"
+                              type="button"
+                              disabled={!station}
+                              onClick={() =>
+                                station
+                                  ? playStation(station, {
+                                      playlist: followedStationRows
+                                        .map((row) => row.station)
+                                        .filter(Boolean) as StationLite[],
+                                      sourceId: 'followed-stations',
+                                      sourceLabel: t('library.followedStationsTitle')
+                                    })
+                                  : undefined
+                              }
+                            >
+                              {t('common.play')}
+                            </button>
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => toggleFollowStation(fallbackStation)}
+                            >
+                              {t('library.unfollow')}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="empty-state">{t('library.followedStationsEmpty')}</div>
+                  )}
                 </div>
-              ) : (
-                <div className="empty-state">{t('library.followedStationsEmpty')}</div>
-              )}
-            </div>
 
-            <div className="glass-card">
-              <div className="section-title">{t('library.followedRegionsTitle')}</div>
-              <div className="section-subtitle">{t('library.followedRegionsCopy')}</div>
-              {libraryFeed.followedRegionsPreview.length ? (
-                <div className="playlist-history-list">
-                  {libraryFeed.followedRegionsPreview.map((region) => (
-                    <div key={region.id} className="playlist-history-item library-follow-row">
-                      <div className="library-follow-main">
-                        <RegionArtwork region={region} />
-                        <div>
-                          <div className="playlist-history-name">{region.label}</div>
-                          <div className="playlist-history-meta">{region.scope}</div>
+                <div className="glass-card">
+                  <div className="section-title">{t('library.followedRegionsTitle')}</div>
+                  <div className="section-subtitle">{t('library.followedRegionsCopy')}</div>
+                  {libraryFeed.followedRegionsPreview.length ? (
+                    <div className="playlist-history-list">
+                      {libraryFeed.followedRegionsPreview.map((region) => (
+                        <div key={region.id} className="playlist-history-item library-follow-row">
+                          <div className="library-follow-main">
+                            <RegionArtwork region={region} />
+                            <div>
+                              <div className="playlist-history-name">{region.label}</div>
+                              <div className="playlist-history-meta">{region.scope}</div>
+                            </div>
+                          </div>
+                          <div className="chip-row library-follow-actions">
+                            <button
+                              className="chip active"
+                              type="button"
+                              onClick={() => playFollowedRegion(region)}
+                              disabled={!stationsForRegions(knownStations, [region], 1).length}
+                            >
+                              {t('common.play')}
+                            </button>
+                            <button className="chip active" type="button" onClick={() => openFollowedRegion(region.id)}>
+                              {t('library.openRegion')}
+                            </button>
+                            <button className="chip" type="button" onClick={() => toggleFollowRegion(region)}>
+                              {t('library.unfollow')}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state">{t('library.followedRegionsEmpty')}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="glass-card">
+                <div className="library-section-head">
+                  <div>
+                    <div className="section-title">{t('library.alertsTitle')}</div>
+                    <div className="section-subtitle">{t('library.alertsCopy')}</div>
+                  </div>
+                  <div className="chip-row">
+                    <button
+                      className={`chip ${notificationPreference.inAppAlerts ? 'active' : ''}`}
+                      type="button"
+                      onClick={() =>
+                        updateNotificationPreference({
+                          inAppAlerts: !notificationPreference.inAppAlerts
+                        })
+                      }
+                    >
+                      {notificationPreference.inAppAlerts
+                        ? t('library.alertsEnabled')
+                        : t('library.alertsDisabled')}
+                    </button>
+                    <button
+                      className={`chip ${profile?.botOptedIn ? 'active' : ''}`}
+                      type="button"
+                      disabled={!profile}
+                      onClick={() => void handleBotOptInToggle()}
+                    >
+                      {profile?.botOptedIn ? t('library.botOptedIn') : t('library.botOptIn')}
+                    </button>
+                    {profile?.botOptedIn && botReachable === false && botUsername ? (
+                      <a
+                        className="chip"
+                        href={`https://t.me/${botUsername}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t('library.botStartHint')}
+                      </a>
+                    ) : null}
+                    <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
+                      <span>{t('library.alertsUnread')}</span>
+                      <strong>{libraryFeed.unreadAlerts}</strong>
+                    </div>
+                  </div>
+                </div>
+                {digests.length ? (
+                  <div className="track-list track-list-scroll library-digest-list">
+                    {digests.slice(0, 4).map((digest) => (
+                      <div key={digest.id} className={`track-card ${digest.readAt ? '' : 'active'}`}>
+                        <div className="track-card-copy">
+                          <div className="track-title">{digest.title}</div>
+                          <div className="track-meta">{digest.body}</div>
+                        </div>
+                        <div className="chip-row">
+                          <button
+                            className="chip active"
+                            type="button"
+                            onClick={() => playDigest(digest)}
+                            disabled={!digest.stationIds.some((stationId) => stationMap.has(stationId))}
+                          >
+                            {t('library.digestPlay')}
+                          </button>
+                          <button className="chip" type="button" onClick={() => markDigestRead(digest.id)}>
+                            {digest.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
+                          </button>
                         </div>
                       </div>
-                      <div className="chip-row library-follow-actions">
-                        <button
-                          className="chip active"
-                          type="button"
-                          onClick={() => playFollowedRegion(region)}
-                          disabled={!stationsForRegions(knownStations, [region], 1).length}
-                        >
-                          {t('common.play')}
-                        </button>
-                        <button className="chip active" type="button" onClick={() => openFollowedRegion(region.id)}>
-                          {t('library.openRegion')}
-                        </button>
-                        <button className="chip" type="button" onClick={() => toggleFollowRegion(region)}>
-                          {t('library.unfollow')}
+                    ))}
+                  </div>
+                ) : null}
+                {alerts.length ? (
+                  <div className="track-list track-list-scroll">
+                    {alerts.slice(0, 8).map((alert) => (
+                      <div key={alert.id} className={`track-card ${alert.readAt ? '' : 'active'}`}>
+                        <div className="track-card-copy">
+                          <div className="track-title">{alert.title}</div>
+                          <div className="track-meta">{alert.body}</div>
+                        </div>
+                        <button className="chip" type="button" onClick={() => markAlertRead(alert.id)}>
+                          {alert.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
                         </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">{t('library.followedRegionsEmpty')}</div>
-              )}
-            </div>
-          </div>
-
-          <div className="glass-card">
-            <div className="library-section-head">
-              <div>
-                <div className="section-title">{t('library.alertsTitle')}</div>
-                <div className="section-subtitle">{t('library.alertsCopy')}</div>
-              </div>
-              <div className="chip-row">
-                <button
-                  className={`chip ${notificationPreference.inAppAlerts ? 'active' : ''}`}
-                  type="button"
-                  onClick={() =>
-                    updateNotificationPreference({
-                      inAppAlerts: !notificationPreference.inAppAlerts
-                    })
-                  }
-                >
-                  {notificationPreference.inAppAlerts
-                    ? t('library.alertsEnabled')
-                    : t('library.alertsDisabled')}
-                </button>
-                <button
-                  className={`chip ${profile?.botOptedIn ? 'active' : ''}`}
-                  type="button"
-                  disabled={!profile}
-                  onClick={() => void handleBotOptInToggle()}
-                >
-                  {profile?.botOptedIn ? t('library.botOptedIn') : t('library.botOptIn')}
-                </button>
-                {/* R1 (PR-A): opted-in but the bot can't DM yet (never /start-ed) →
-                    point the user at the bot. No message is sent until PR-B. */}
-                {profile?.botOptedIn && botReachable === false && botUsername ? (
-                  <a
-                    className="chip"
-                    href={`https://t.me/${botUsername}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {t('library.botStartHint')}
-                  </a>
-                ) : null}
-                <div className={`globe-selection-pill ${unreadAlerts.length ? 'active' : ''}`}>
-                  <span>{t('library.alertsUnread')}</span>
-                  <strong>{libraryFeed.unreadAlerts}</strong>
-                </div>
-              </div>
-            </div>
-            {digests.length ? (
-              <div className="track-list track-list-scroll library-digest-list">
-                {digests.slice(0, 4).map((digest) => (
-                  <div key={digest.id} className={`track-card ${digest.readAt ? '' : 'active'}`}>
-                    <div className="track-card-copy">
-                      <div className="track-title">{digest.title}</div>
-                      <div className="track-meta">{digest.body}</div>
-                    </div>
-                    <div className="chip-row">
-                      <button
-                        className="chip active"
-                        type="button"
-                        onClick={() => playDigest(digest)}
-                        disabled={!digest.stationIds.some((stationId) => stationMap.has(stationId))}
-                      >
-                        {t('library.digestPlay')}
-                      </button>
-                      <button className="chip" type="button" onClick={() => markDigestRead(digest.id)}>
-                        {digest.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  !digests.length ? <div className="empty-state">{t('library.alertsEmpty')}</div> : null
+                )}
               </div>
-            ) : null}
-            {alerts.length ? (
-              <div className="track-list track-list-scroll">
-                {alerts.slice(0, 8).map((alert) => (
-                  <div key={alert.id} className={`track-card ${alert.readAt ? '' : 'active'}`}>
-                    <div className="track-card-copy">
-                      <div className="track-title">{alert.title}</div>
-                      <div className="track-meta">{alert.body}</div>
-                    </div>
-                    <button className="chip" type="button" onClick={() => markAlertRead(alert.id)}>
-                      {alert.readAt ? t('library.alertRead') : t('library.alertMarkRead')}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              !digests.length ? <div className="empty-state">{t('library.alertsEmpty')}</div> : null
-            )}
-          </div>
+            </>
+          ) : null}
         </div>
       ) : null}
         </>

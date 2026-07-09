@@ -11,6 +11,7 @@ export type SearchStationsInput = {
   continent?: string;
   limit?: number;
   cursor?: string | null;
+  seed?: number;
 };
 
 export type SearchStationsFn = (input: SearchStationsInput) => Promise<CatalogSearchResponse>;
