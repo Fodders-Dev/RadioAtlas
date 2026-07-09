@@ -26,6 +26,7 @@ export type CatalogServiceLike = {
     continent: string;
     limit: number;
     cursor: number;
+    relevance?: boolean;
   }) => Promise<{ items: CatalogStationLite[] }>;
   getStationById: (id: string) => Promise<CatalogStationLite | null>;
   getSummary: (seed: number) => Promise<{
@@ -128,7 +129,10 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       tag: args.tag || '',
       continent: '',
       limit: fetchLimit,
-      cursor: 0
+      cursor: 0,
+      // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
+      // returns actual genre stations instead of the most-voted substring match.
+      relevance: true
     });
     return (response.items || [])
       .filter((station) => station.url_resolved)

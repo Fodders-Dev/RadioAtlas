@@ -99,3 +99,50 @@ test('facet counts and total are unaffected by the quality sort (computed over a
   assert.equal(response.total, 3);
   assert.ok(response.facets.tags.includes('jazz'));
 });
+
+// AI/Лира relevance ordering (opt-in): a real genre station must beat a more-
+// popular station that only substring-matches the query, so «соул» stops
+// returning generic/chillout and «мимо» picks. The HTTP Search path (no
+// relevance flag) is unchanged — popularity still wins there.
+test('relevance ordering lifts an exact-genre station above a popular substring match', () => {
+  const stations = attachSearchIndex([
+    // Mega-popular but NOT a soul station — only its NAME contains "soul".
+    station({
+      stationuuid: 'namehit',
+      name: 'Soulful Pop',
+      tags: 'pop, dance',
+      lastcheckok: 1,
+      bitrate: 256,
+      codec: 'AAC',
+      votes: 99999,
+      clickcount: 99999
+    }),
+    // A real soul station, barely voted.
+    station({
+      stationuuid: 'realsoul',
+      name: 'Deep Soul',
+      tags: 'soul',
+      lastcheckok: 1,
+      bitrate: 128,
+      codec: 'MP3',
+      votes: 10
+    })
+  ]);
+  // Default (UI) ordering: popularity wins → the pop station leads.
+  const popularityFirst = buildSearchResponse(stations, f({ q: 'soul' })).items.map((s) => s.stationuuid);
+  assert.deepEqual(popularityFirst, ['namehit', 'realsoul']);
+  // AI relevance ordering: the actual soul station leads.
+  const relevanceFirst = buildSearchResponse(stations, f({ q: 'soul', relevance: true })).items.map(
+    (s) => s.stationuuid
+  );
+  assert.deepEqual(relevanceFirst, ['realsoul', 'namehit']);
+});
+
+test('relevance tag matching is word-aware — "soul" does not reward "Seoul"', () => {
+  const stations = attachSearchIndex([
+    station({ stationuuid: 'seoul', name: 'Seoul FM', tags: 'kpop', country: 'Seoul', lastcheckok: 1, votes: 5000 }),
+    station({ stationuuid: 'soul', name: 'Night Soul', tags: 'soul, jazz', lastcheckok: 1, votes: 5 })
+  ]);
+  const ids = buildSearchResponse(stations, f({ q: 'soul', relevance: true })).items.map((s) => s.stationuuid);
+  assert.equal(ids[0], 'soul');
+});

@@ -75,6 +75,12 @@ type CatalogSearchFilters = {
   limit: number;
   cursor: number;
   seed?: number;
+  // Opt-in (AI/Лира path only): order a typed-q search by genre RELEVANCE blended
+  // with quality, instead of quality-only. Fixes «мимо» picks where a bare-genre
+  // `q` substring-matched the whole catalog and popularity alone chose the winner
+  // (e.g. soul → generic, pop → global grab-bag). The HTTP catalog/search route
+  // leaves this unset so the Search screen's ordering is unchanged.
+  relevance?: boolean;
 };
 
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
@@ -535,6 +541,31 @@ const searchTagsOf = (station: CatalogStation) =>
 const searchQualityOf = (station: CatalogStation) =>
   station.searchQuality ?? computeQualityScore(station);
 
+// AI/Лира relevance: how well a station MATCHES the intended genre/name, so a
+// bare-genre `q` returns actual genre stations instead of the most-voted row that
+// merely contains the substring. Word-aware on the comma-split tags (so `tag=soul`
+// hits «soul», «classic soul», «neo soul» but not «Seoul»/«console»). Blended with
+// quality (not replacing it) so popularity only breaks ties WITHIN a relevance tier.
+const computeSearchRelevance = (station: CatalogStation, q: string, tag: string): number => {
+  let score = 0;
+  const tags = searchTagsOf(station);
+  const tagTerm = foldCyrillic(String(tag || q || '').toLowerCase().trim());
+  if (tagTerm) {
+    if (tags.includes(tagTerm)) score += 6;
+    else if (tags.some((value) => value.split(/\s+/).includes(tagTerm))) score += 4;
+    else if (tags.some((value) => value.includes(tagTerm))) score += 2;
+  }
+  const nameTerm = foldCyrillic(String(q || '').toLowerCase().trim());
+  if (nameTerm) {
+    const name = foldCyrillic(String(station.name || '').toLowerCase());
+    if (name === nameTerm) score += 4;
+    else if (name.split(/[^0-9a-zа-я]+/i).filter(Boolean).includes(nameTerm)) score += 3;
+    else if (name.includes(nameTerm)) score += 1.5;
+  }
+  return score;
+};
+const RELEVANCE_WEIGHT = 3;
+
 const seededSearchBrowseOrder = (
   stations: CatalogStation[],
   seed = Date.now(),
@@ -605,8 +636,19 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   // Typed search stays relevance/quality-first. Browse/filter-only search uses
   // a per-session seeded order inside a large healthy-quality head pool, so the
   // Search screen does not start with the same global leaders on every open.
+  // The AI/Лира path opts into genre-relevance ordering (see CatalogSearchFilters).
   const ranked = filters.q
-    ? [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
+    ? filters.relevance
+      ? filtered
+          .map((station) => ({
+            station,
+            order:
+              computeSearchRelevance(station, filters.q, filters.tag) * RELEVANCE_WEIGHT +
+              searchQualityOf(station)
+          }))
+          .sort((left, right) => right.order - left.order)
+          .map((entry) => entry.station)
+      : [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
     : seededSearchBrowseOrder(filtered, filters.seed, filters.limit);
 
   return {

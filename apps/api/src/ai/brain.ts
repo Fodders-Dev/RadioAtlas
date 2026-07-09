@@ -161,8 +161,40 @@ type CuratedSearchPlan = {
 
 const CURATED_SEARCH_DEFAULT_MIN = 3;
 
+// «Популярное/хиты, но чтобы по мозгам не било / фоном / мягко». A raw `pop`
+// search returns a global dance grab-bag (Алжир/Иран/Украина-dance) and drops the
+// «не по мозгам» nuance entirely. Route to soft / adult-contemporary / easy-
+// listening: familiar but non-aggressive. Tight guard — a mainstream token AND a
+// soft qualifier AND a request cue, never a dislike/knowledge turn — so a
+// statement like «поп-музыка стала фоновой» does not trigger a search.
+const SOFT_MAINSTREAM_POPULAR = /(популярн|хиты|хитов|поп-?музык|известн[ыаео]|мейнстрим|mainstream|топ-?40|top-?40|чарт)/i;
+const SOFT_MAINSTREAM_QUALIFIER =
+  /(по\s+мозгам\s+не|не\s+по\s+мозгам|не\s+б(?:ь[её]т|ило)|не\s+груз|фонов|фоном|ненавязчив|спокойн|расслаб|мягк|л[её]гк|неглуп|без\s+напряг|не\s+напряг|тих[оий]|чтобы\s+не\s+грузи)/i;
+const SOFT_MAINSTREAM_REQUEST_CUE =
+  /(где|хочу|можно|дай|дашь|даш|включ|постав|вруб|послуша|что-?нибудь|чего-?нибудь|посовету|порекоменд|подбер|подкин|ищ[уи]|найд|играют|крутят|радио|станци|волн)/i;
+
 const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
   const text = message.toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ');
+
+  if (
+    SOFT_MAINSTREAM_POPULAR.test(text) &&
+    SOFT_MAINSTREAM_QUALIFIER.test(text) &&
+    SOFT_MAINSTREAM_REQUEST_CUE.test(text) &&
+    !MUSIC_DISLIKE.test(text) &&
+    !isKnowledgeQuestion(text)
+  ) {
+    return {
+      note:
+        'Пользователь хочет знакомое/популярное, но мягкое и фоновое — «чтобы по мозгам не било». Веди к soft pop / adult contemporary / easy listening / lounge с узнаваемыми хитами, НЕ к жёсткому dance/EDR и НЕ к случайному набору иностранных top-40. В тексте назови этот вайб (мягкие хиты, спокойная подача).',
+      steps: [
+        { args: { query: 'soft pop', tag: 'soft', limit: 8 }, minStations: 3 },
+        { args: { query: 'adult contemporary', tag: 'adult contemporary', limit: 8 }, minStations: 3 },
+        { args: { query: 'easy listening', tag: 'easy listening', limit: 6 }, minStations: 4 },
+        { args: { query: 'lounge', tag: 'lounge', limit: 6 }, minStations: 4 }
+      ]
+    };
+  }
+
   const wantsStations = SEARCH_INTENT.test(text) || /радио|станци|волн|эфир/i.test(text);
   if (!wantsStations || isKnowledgeQuestion(text)) return null;
 
@@ -177,6 +209,25 @@ const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
         { args: { query: 'classic soul', tag: 'soul', limit: 8 }, minStations: 3 },
         { args: { query: 'yacht rock', tag: 'yacht rock', limit: 6 }, minStations: 4 },
         { args: { query: 'motown', tag: 'motown', limit: 6 }, minStations: 4 }
+      ]
+    };
+  }
+
+  // A plain soul ask («соул», «соул попсовый», «включи соул»). Without this the
+  // planner would often let a mood word («спокойное расслабляющее») win and route
+  // to chillout/ambient — «просили соул, получили сплошной эмбиент». Word-aware so
+  // «консоль»/«Seoul» never trigger; dislike turns are excluded.
+  if (
+    /(?:^|[^а-яёa-z])(?:соул|soul)(?![а-яёa-z])/i.test(text) &&
+    !MUSIC_DISLIKE.test(text)
+  ) {
+    return {
+      note:
+        'Пользователь просит соул. Веди к настоящему soul / classic soul / R&B (при «попсовом/спокойном» оттенке — мягкий поп-соул, Motown, neo-soul), а НЕ к ambient/chillout/lounge. В тексте назови именно соул-вайб.',
+      steps: [
+        { args: { query: 'soul', tag: 'soul', limit: 8 }, minStations: 3 },
+        { args: { query: 'classic soul', tag: 'soul', limit: 6 }, minStations: 4 },
+        { args: { query: 'rnb', tag: 'rnb', limit: 6 }, minStations: 4 }
       ]
     };
   }

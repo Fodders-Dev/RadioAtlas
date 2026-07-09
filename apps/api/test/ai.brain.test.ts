@@ -1440,3 +1440,82 @@ test('DESCRIPTOR DISLIKE: «не люблю транс» stays smalltalk — pla
     assert.equal(searchQueries.length, 0);
   }
 });
+
+// --- Curated routing for the two screenshot cases (соул / «по мозгам не било») --
+test('CURATED SOUL: «соул попсовый» leads with a soul search, not chillout/ambient', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      if (args.query === 'soul') {
+        return [
+          station({ stationuuid: 'soul-1', name: 'Deep Soul', tags: ['soul'] }),
+          station({ stationuuid: 'soul-2', name: 'Classic Soul FM', tags: ['soul', 'rnb'] }),
+          station({ stationuuid: 'soul-3', name: 'Soul Kitchen', tags: ['soul', 'funk'] })
+        ];
+      }
+      return [station({ stationuuid: 'wrong', name: 'Ambient Sleep', tags: ['ambient', 'chillout'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"chillout"}}'],
+    compose: 'Лови соул-вайб, мягкий и тёплый.'
+  });
+  const result = await chatWithAssistant(
+    ask('что то спокойное расслабляющее можешь включить? соул какой-нибудь попсовый'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.deepEqual(searches[0], { query: 'soul', tag: 'soul' });
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'soul curated route should not drift to chillout');
+  assert.deepEqual(result.stations.map((s) => s.stationuuid), ['soul-1', 'soul-2', 'soul-3']);
+});
+
+test('CURATED SOFT-MAINSTREAM: «популярные, но по мозгам не било» → soft pop, not a global dance grab-bag', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      if (args.query === 'soft pop') {
+        return [
+          station({ stationuuid: 'soft-1', name: 'Soft Hits', tags: ['soft', 'pop'] }),
+          station({ stationuuid: 'soft-2', name: 'Easy Pop', tags: ['soft', 'adult contemporary'] }),
+          station({ stationuuid: 'soft-3', name: 'Mellow FM', tags: ['soft'] })
+        ];
+      }
+      return [station({ stationuuid: 'dance', name: 'Hit Dance 128', tags: ['dance'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"pop"}}'],
+    compose: 'Мягкие узнаваемые хиты, спокойная подача.'
+  });
+  const result = await chatWithAssistant(
+    ask('где играют популярные песни, но чтобы по мозгам не било'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.deepEqual(searches[0], { query: 'soft pop', tag: 'soft' });
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'soft-mainstream route should not fall through to raw pop');
+  assert.deepEqual(result.stations.map((s) => s.stationuuid), ['soft-1', 'soft-2', 'soft-3']);
+});
+
+test('CURATED GUARD: «не люблю соул» does NOT trigger the soul curated route', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      return [station({ stationuuid: 'x', name: 'Something', tags: ['rock'] })];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"final","message":"Окей, соул мимо. Что тогда — рок, электроника?"}'],
+    compose: 'Окей, соул мимо.'
+  });
+  const result = await chatWithAssistant(ask('не люблю соул честно говоря'), makeDeps(fetchImpl, { tools }));
+  // The curated soul route must be bypassed on a dislike (#149: a dislike stays
+  // smalltalk) — never a forced soul search, never forced soul cards.
+  assert.ok(!searches.some((s) => s.query === 'soul' && s.tag === 'soul'), 'no forced soul search on a dislike');
+  assert.equal(result.stations.length, 0, 'a dislike must not force soul cards');
+});
