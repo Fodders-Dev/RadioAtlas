@@ -143,15 +143,16 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     }
   };
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || sending) return;
     const history: ChatHistoryTurn[] = messages
       .slice(-HISTORY_LIMIT)
       .map((message) => ({ role: message.role, text: message.text }));
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
-    setInput('');
+    // Only clear the composer for a typed send, not a one-tap reject/refresh.
+    if (override === undefined) setInput('');
     setSending(true);
     try {
       const response = await postChatMessage(text, history, { userTaste });
@@ -242,7 +243,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
               {t('chat.greeting')}
             </div>
           ) : null}
-          {messages.map((message) => (
+          {messages.map((message, messageIndex) => (
             <div key={message.id} className={`chat-row chat-row--${message.role}`}>
               {/* Plain text only — the Mini App surface returns plain (un-
                   escaped) text, so React's auto-escaping is the XSS guard.
@@ -282,6 +283,19 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                       </span>
                     </button>
                   ))}
+                  {/* One-tap «не то» — refresh the SAME vibe with fresh, non-repeated
+                      cards (the reject-refresh brain loop). Only on the latest reply,
+                      so old messages aren't cluttered with a stale action. */}
+                  {messageIndex === messages.length - 1 ? (
+                    <button
+                      type="button"
+                      className="chat-reject-btn"
+                      onClick={() => void send(t('chat.rejectQuery'))}
+                      disabled={sending}
+                    >
+                      {t('chat.reject')}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {message.serviceLinks && message.serviceLinks.length ? (

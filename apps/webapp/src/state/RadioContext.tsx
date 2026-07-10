@@ -1871,13 +1871,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const clearTrackHistory = () => setTrackHistory([]);
   const removeTrackHistoryItem = (trackId: string) =>
     setTrackHistory((items) => items.filter((item) => item.id !== trackId));
-  const createCollection = (name: string) => {
+  const createCollection = (name: string): string | null => {
     const normalized = name.trim();
-    if (!normalized) return;
+    if (!normalized) return null;
     const now = Date.now();
+    const id = `collection-${now}-${Math.random().toString(36).slice(2, 8)}`;
     setCollections((prev) => [
       {
-        id: `collection-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        id,
         name: normalized.slice(0, 48),
         description: null,
         stationIds: [],
@@ -1889,6 +1890,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       ...prev
     ]);
     setLibraryTab('collections');
+    return id;
   };
   const saveQueueAsCollection = (name: string) => {
     const queueStations = queueRef.current.items;

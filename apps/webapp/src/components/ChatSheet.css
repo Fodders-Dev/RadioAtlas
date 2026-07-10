@@ -165,6 +165,29 @@
   gap: var(--space-xs);
 }
 
+/* One-tap «не то» under the latest slate — refresh with fresh, non-repeated cards. */
+.chat-reject-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chat-reject-btn:hover:not(:disabled),
+.chat-reject-btn:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.chat-reject-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .chat-station-card {
   display: flex;
   align-items: center;

@@ -565,6 +565,8 @@ export const enDictionary = {
     "deleteCollectionConfirm": "Delete for sure?",
     "collectionDeleted": "Playlist deleted: {name}",
     "addStationsToCollection": "Add stations",
+    "addFromLibrary": "Add from your library",
+    "addStationToCollection": "Add “{station}” to playlist",
     "searchPlaceholder": "Search your library",
     "searchClear": "Clear search",
     "searchResults": "From your library",
@@ -947,7 +949,9 @@ export const enDictionary = {
     "thinking": "Lira is typing…",
     "error": "Oops, the line dropped for a second. Try again.",
     "sourceLabel": "Lira",
-    "playStation": "Play station {name}"
+    "playStation": "Play station {name}",
+    "reject": "Not these · more",
+    "rejectQuery": "не то, дай другое"
   },
   "radio": {
     "queueDefault": "Playback queue",

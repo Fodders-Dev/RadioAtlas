@@ -373,6 +373,23 @@ export const Library = () => {
       .map((stationId) => stationMap.get(stationId))
       .filter(Boolean) as StationLite[];
   }, [selectedCollection, stationMap]);
+  // Quick-picker source: stations the user already has (favorites + recent) that
+  // aren't in this playlist yet — so a new playlist is a two-tap fill, not a
+  // dead-end that sends you to Search.
+  const collectionAddCandidates = useMemo(() => {
+    if (!selectedCollection) return [];
+    const inCollection = new Set(selectedCollection.stationIds);
+    const seen = new Set<string>();
+    const out: StationLite[] = [];
+    for (const candidate of [...favorites, ...recent]) {
+      const id = candidate?.stationuuid;
+      if (!id || inCollection.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(candidate);
+      if (out.length >= 40) break;
+    }
+    return out;
+  }, [selectedCollection, favorites, recent]);
   const followedStationRows = useMemo(
     () =>
       libraryFeed.followedStationsPreview.map((follow) => {
@@ -421,9 +438,13 @@ export const Library = () => {
   const saveCollection = () => {
     const name = collectionNameDraft.trim();
     if (!name) return;
-    createCollection(name);
+    const newId = createCollection(name);
     setCollectionNotice(t('library.collectionCreated', { name }));
     cancelCreateCollection();
+    // Land the user INSIDE the new (empty) playlist, where the quick-picker below
+    // lets them fill it from favorites/recent — instead of dropping them on the
+    // collections list with an empty dead-end.
+    if (newId) openCollectionDetail(newId);
   };
   const beginSaveQueue = () => {
     const defaultName = t('library.saveQueuePrompt', {
@@ -1366,6 +1387,29 @@ export const Library = () => {
                   </div>
                 </div>
               )}
+
+              {collectionAddCandidates.length ? (
+                <div className="library-collection-picker">
+                  <div className="library-collection-picker-head">{t('library.addFromLibrary')}</div>
+                  <div className="library-collection-picker-list">
+                    {collectionAddCandidates.map((station) => (
+                      <button
+                        key={station.stationuuid}
+                        type="button"
+                        className="library-collection-picker-row"
+                        onClick={() => addStationToCollection(selectedCollection.id, station)}
+                        aria-label={t('library.addStationToCollection', { station: normalizeStationName(station.name) })}
+                      >
+                        <span className="library-collection-picker-copy">
+                          <span className="library-collection-picker-name">{normalizeStationName(station.name)}</span>
+                          <span className="library-collection-picker-meta">{stationLocation(station)}</span>
+                        </span>
+                        <span className="library-collection-picker-add" aria-hidden="true">+</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
           <div className="glass-card">
