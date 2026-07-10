@@ -2014,7 +2014,9 @@ test('mobile library keeps five equal-width non-wrapping tabs and opens collecti
   // title button (artwork + name + count) opens the detail.
   await page.locator('.library-collection-card .library-collection-title-button').first().click();
   await expect(page.locator('[data-library-collection-detail]')).toBeVisible();
-  await expect(page.locator('[data-library-collection-row]')).toHaveCount(5);
+  // The read view lists members through the shared StationTable ([data-station-row]);
+  // the [data-library-collection-row] rows exist only in reorder mode (asserted below).
+  await expect(page.locator('[data-library-collection-detail] [data-station-row]')).toHaveCount(5);
 
   const detail = page.locator('[data-library-collection-detail]');
   await detail.getByRole('button', { name: /^Слушать$|^Play$/ }).first().click();
@@ -2188,7 +2190,12 @@ test('mobile library creates collections inline without native prompt', async ({
   await page.getByRole('button', { name: /Сохранить|Save/ }).click();
 
   expect(promptCalled).toBe(false);
-  await expect(page.locator('.library-collection-card').filter({ hasText: 'Night drives' })).toBeVisible();
+  // Saving a new playlist drops you straight into its (empty) detail, ready to
+  // fill via the quick-picker — not back on the grid. Assert the detail opened
+  // titled with the new name.
+  const detail = page.locator('[data-library-collection-detail]');
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('.section-title').first()).toContainText('Night drives');
 });
 
 test('mobile library hides add-current collection action without a current station', async ({ page }) => {
@@ -3030,6 +3037,21 @@ test('mounting app does not rewrite persistent app library or player state', asy
     const trackedKeys = new Set(['radio:app:v2', 'radio:library:v2', 'radio:player:v2']);
     const writes: string[] = [];
     const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
+    const originalGetItem = window.localStorage.getItem.bind(window.localStorage);
+    // radio:app:v2 legitimately rewrites on Home mount to persist which discovery
+    // stations were surfaced (the exposure ledger that self-rotates «Для тебя»).
+    // Strip that one field so an exposure-only write isn't miscounted as a spurious
+    // shell/profile rewrite — the invariant here is "mount doesn't churn
+    // library/player/shell state", not "no write ever".
+    const stripExposure = (raw: string | null) => {
+      try {
+        const parsed = (raw ? JSON.parse(raw) : {}) as { stationExposure?: unknown };
+        delete parsed.stationExposure;
+        return JSON.stringify(parsed);
+      } catch {
+        return raw ?? '';
+      }
+    };
     Object.defineProperty(window, '__radioAtlasTrackedWrites', {
       configurable: true,
       value: writes
@@ -3046,7 +3068,13 @@ test('mounting app does not rewrite persistent app library or player state', asy
           .__radioAtlasTrackPersistentWrites &&
         trackedKeys.has(key)
       ) {
-        writes.push(key);
+        if (key === 'radio:app:v2') {
+          if (stripExposure(originalGetItem(key)) !== stripExposure(value)) {
+            writes.push(key);
+          }
+        } else {
+          writes.push(key);
+        }
       }
       return originalSetItem(key, value);
     };
