@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildStationQuery, chatWithAssistant, parseGenreTags, summarizeStationSlate } from '../src/ai/brain.js';
+import { buildStationQuery, chatWithAssistant, isRejectRefreshIntent, parseGenreTags, summarizeStationSlate } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
@@ -1607,4 +1607,50 @@ test('the grounded slate summary reaches the composer on a genre search', async 
   });
   await chatWithAssistant(ask('посоветуй deep house'), makeDeps(fetchImpl, { tools }));
   assert.ok(composeText(calls).includes('жанры — deep house'), 'grounded genre summary reached composer');
+});
+
+// --- «не то / дай другое / ещё» reject-and-refresh loop -------------------------
+test('REJECT-REFRESH classify: reject/refresh phrases match; genre asks and non-music «другой/ещё» do NOT', () => {
+  for (const yes of [
+    'не то', 'другое', 'дай другое', 'не то, дай другое', 'а ещё?', 'ещё', 'эти не нравятся',
+    'можно другое', 'давай другое', 'мимо', 'получше', 'что-нибудь другое', 'не заходит', 'по-другому'
+  ]) {
+    assert.equal(isRejectRefreshIntent(yes), true, `should be reject-refresh: "${yes}"`);
+  }
+  for (const no of [
+    'дай рок', 'включи джаз', 'другой день', 'ещё вопрос есть?', 'не люблю транс',
+    'расскажи про рок', 'дай другое джаз', 'посоветуй что-нибудь спокойное'
+  ]) {
+    assert.equal(isRejectRefreshIntent(no), false, `should NOT be reject-refresh: "${no}"`);
+  }
+});
+
+test('REJECT-REFRESH: «не то, дай другое» re-searches the PRIOR vibe, not the literal word', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'soul', compose: 'Лови другое.' });
+  const result = await chatWithAssistant(
+    ask('не то, дай другое', {
+      history: [
+        { role: 'user', text: 'хочу спокойный соул' },
+        { role: 'assistant', text: 'Лови соул-вайб.' }
+      ]
+    }),
+    makeDeps(fetchImpl, { tools })
+  );
+  const vibeUserMessage = calls
+    .find((call) => call.phase === 'vibe-tags')
+    ?.body.messages.find((message: any) => message.role === 'user')?.content;
+  assert.ok(String(vibeUserMessage || '').includes('соул'), 'prior soul vibe re-injected into the mapper');
+  assert.ok(searchQueries.includes('soul'), 'searched the mapped prior genre');
+  assert.ok(!searchQueries.includes('другое'), 'never force-searches the literal reject word');
+  assert.ok(result.stations.length > 0, 'fresh cards returned');
+});
+
+test('REJECT-REFRESH: a bare «не то» with NO prior music context stays warm-prose (no forced search)', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final","message":"Окей, а что тогда?"}'], compose: 'Окей, а что зайдёт?' });
+  const result = await chatWithAssistant(ask('не то'), makeDeps(fetchImpl, { tools }));
+  assert.ok(!calls.some((c) => c.phase === 'vibe-tags'), 'no vibe backstop without prior context');
+  assert.equal(searchQueries.length, 0, 'no forced search on a context-less reject');
+  assert.equal(result.stations.length, 0, 'no cards invented');
 });

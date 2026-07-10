@@ -145,6 +145,10 @@ const looksConcreteTopic = (query: string): boolean => {
 // vibe→tags backstop handle them.
 const explicitSearchQuery = (message: string): string | null => {
   if (!SEARCH_INTENT.test(message)) return null;
+  // A follow-up/refresh («дай ещё», «дай другое») is NOT a literal topic — force-
+  // searching the residual word «ещё»/«другое» is the old bug. Let the prior-vibe
+  // re-injection (recommendationContextMessage) + backstop handle it instead.
+  if (isFollowupRecommendationIntent(message)) return null;
   const query = buildStationQuery(message);
   return looksConcreteTopic(query) ? query : null;
 };
@@ -262,8 +266,34 @@ const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
 const FOLLOWUP_RECOMMEND_INTENT =
   /^(?:давай|ну\s+давай|дай|дашь|даш|предлагай|предложи|подбирай|подбери|погнали|лови|жги)(?:[\s,!.]+(?:предлагай|предложи|подбирай|подбери|радио|станци[а-яё]*|волн[а-яё]*|вариант[а-яё]*|что-?нибудь))*[.!?]*$/i;
 
+// «Не то / дай другое / ещё» — reject the shown slate and refresh with the SAME
+// vibe. The single most common way to steer a recommender, and it was dead: these
+// read as smalltalk (0 cards) or force-searched the literal word «другое». Matching
+// them re-injects the PRIOR music turn (recommendationContextMessage) and, with the
+// lastRecommendedStationIds the webapp already sends, drops the just-shown cards. A
+// dislike of a GENRE («не люблю транс») is deliberately NOT here — that stays
+// smalltalk (MUSIC_DISLIKE); this is "show me OTHER ones".
+//
+// A message is a reject-refresh iff it is SHORT, contains a reject TOKEN, and
+// everything else is FILLER (no genre/topic word) — so «дай другое», «не то, дай
+// другое», «эти не нравятся» match, but «дай рок», «другой день», «ещё вопрос» and
+// «не люблю транс» do NOT (they carry a topic word or aren't a reject token).
+const REJECT_REFRESH_TOKEN =
+  /(не\s+то|не\s+нрав[а-яё]*|не\s+заход[а-яё]*|не\s+хочу\s+эт[оаи]|мимо|так\s+себе|фигн[яюи]|друго[йёе]|другую|ещё|еще|получше|поинтересн[а-яё]*|по-другому|other)/i;
+const REJECT_REFRESH_FILLER =
+  /^(?:[\s,.!?—-]|а|ну|да|нет|дай|дашь|даш|давай|можно|хочу|это|эти|всё|все|вариант[а-яё]*|станци[а-яё]*|радио|что-?нибудь|чё-?нибудь|плиз|пожалуйста)+$/i;
+
+export const isRejectRefreshIntent = (message: string): boolean => {
+  const text = message.trim().toLowerCase();
+  if (!text || text.split(/\s+/).length > 6 || isKnowledgeQuestion(message)) return false;
+  if (!REJECT_REFRESH_TOKEN.test(text)) return false;
+  const residual = text.replace(new RegExp(REJECT_REFRESH_TOKEN.source, 'gi'), ' ').trim();
+  return residual === '' || REJECT_REFRESH_FILLER.test(residual);
+};
+
 const isFollowupRecommendationIntent = (message: string): boolean =>
-  FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message);
+  (FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message)) ||
+  isRejectRefreshIntent(message);
 
 const previousUserMusicContext = (history: ChatTurn[]): string => {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -1054,7 +1084,14 @@ export const chatWithAssistant = async (
   const musicContextMessage = recommendationContextMessage(history, userMessage);
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
-  const followupMusicIntent = !knowledgeQuestion && isFollowupRecommendationIntent(userMessage);
+  const followupMusicIntent =
+    !knowledgeQuestion &&
+    isFollowupRecommendationIntent(userMessage) &&
+    // A pure reject («не то», «другое») with NO prior music turn to refresh stays
+    // warm-prose — don't spin a search on the reject word. A bare-verb follow-up
+    // («давай») keeps its existing always-on behaviour. musicContextMessage differs
+    // from userMessage exactly when the prior music turn was re-injected.
+    (FOLLOWUP_RECOMMEND_INTENT.test(userMessage.trim()) || musicContextMessage !== userMessage);
   const recommendationSeed = hashValue(
     `${userMessage}|${history.map((turn) => `${turn.role}:${turn.text}`).join('|')}|${Math.floor(now / 60_000)}`
   );
