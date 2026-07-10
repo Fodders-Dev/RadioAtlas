@@ -1654,3 +1654,20 @@ test('REJECT-REFRESH: a bare «не то» with NO prior music context stays war
   assert.equal(searchQueries.length, 0, 'no forced search on a context-less reject');
   assert.equal(result.stations.length, 0, 'no cards invented');
 });
+
+test('TASTE-AWARE VIBE: a disliked genre the mapper returns is dropped before searching', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'trance, ambient', compose: 'Лови.' });
+  await chatWithAssistant(
+    ask('что-нибудь на вечер', {
+      userTaste: { tagScores: { trance: -12, ambient: 8 } } as any
+    }),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.ok(searchQueries.includes('ambient'), 'kept the liked genre');
+  assert.ok(!searchQueries.includes('trance'), 'dropped the strongly-disliked genre before searching');
+  const vibeUserMessage = calls
+    .find((call) => call.phase === 'vibe-tags')
+    ?.body.messages.find((message: any) => message.role === 'user')?.content;
+  assert.ok(String(vibeUserMessage || '').includes('избегай trance'), 'taste hint reached the mapper');
+});
