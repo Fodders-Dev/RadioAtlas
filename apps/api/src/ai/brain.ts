@@ -176,7 +176,12 @@ const SOFT_MAINSTREAM_REQUEST_CUE =
 const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
   const text = message.toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ');
 
+  // Don't fire when the user is REJECTING popular/pop («не хочу популярное, дай
+  // андеграунд») — MUSIC_DISLIKE doesn't cover the bare «не хочу», and matching
+  // the negated «популярн» would hijack a request for the opposite.
+  const rejectsPopular = /(не\s+(?:хочу|надо|люблю|нужн[оа]?)\s+популярн|не\s+популярн|без\s+попс|не\s+попс|против\s+попс)/i.test(text);
   if (
+    !rejectsPopular &&
     SOFT_MAINSTREAM_POPULAR.test(text) &&
     SOFT_MAINSTREAM_QUALIFIER.test(text) &&
     SOFT_MAINSTREAM_REQUEST_CUE.test(text) &&

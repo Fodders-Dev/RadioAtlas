@@ -1519,3 +1519,23 @@ test('CURATED GUARD: «не люблю соул» does NOT trigger the soul cura
   assert.ok(!searches.some((s) => s.query === 'soul' && s.tag === 'soul'), 'no forced soul search on a dislike');
   assert.equal(result.stations.length, 0, 'a dislike must not force soul cards');
 });
+
+test('CURATED GUARD: «не хочу популярное, хочу спокойный андеграунд» does NOT route to soft-mainstream', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      return [station({ stationuuid: 'u', name: 'Underground FM', tags: ['experimental'] })];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"underground"}}'],
+    compose: 'Окей, ухожу от попсы — лови андеграунд.'
+  });
+  await chatWithAssistant(
+    ask('не хочу популярное, хочу спокойный андеграунд'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.ok(!searches.some((s) => s.query === 'soft pop'), 'a rejection of popular must not force soft-pop');
+});
