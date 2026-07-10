@@ -4,6 +4,7 @@ import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import { buildStationFeed } from '../lib/stationFeed';
+import { prewarmStation } from '../lib/streamPrewarm';
 import {
   isStationHardHiddenByPlayability,
   isStationHardHiddenByUpstream
@@ -387,6 +388,12 @@ export const StationFeed = () => {
     if (visibleIndex < visibleFeedStations.length - FEED_PREFETCH_REMAINING) return;
     setVisibleLimit((current) => Math.min(feedStations.length, current + FEED_VISIBLE_BATCH));
   }, [feedStations.length, visibleFeedStations.length, visibleIndex, visibleLimit]);
+
+  // Pre-warm the connection to the NEXT card so swiping to it skips the cold
+  // DNS/TLS connect (direct streams only; proxied ones already hit the app origin).
+  useEffect(() => {
+    prewarmStation(visibleFeedStations[visibleIndex + 1]);
+  }, [visibleFeedStations, visibleIndex]);
 
   useEffect(() => {
     cardRefs.current = cardRefs.current.slice(0, visibleFeedStations.length);
