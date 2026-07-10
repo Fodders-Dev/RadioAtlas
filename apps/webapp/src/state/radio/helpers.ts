@@ -213,6 +213,29 @@ export const clampQueueIndex = (items: StationLite[], index: number) => {
   return Math.min(Math.max(index, 0), items.length - 1);
 };
 
+// Drag-reorder a queue: move `from` → `to`, keeping the currently-playing station
+// pinned (its numeric index is recomputed to follow the reordered array, so what's
+// playing NEVER changes — PR #86). The playing item itself can't be moved. Returns
+// null on a no-op / invalid move so the caller can skip the state update.
+export const reorderQueueItems = (
+  items: StationLite[],
+  currentIndex: number,
+  from: number,
+  to: number
+): { items: StationLite[]; currentIndex: number } | null => {
+  if (from < 0 || to < 0 || from >= items.length || to >= items.length || from === to) return null;
+  if (from === currentIndex) return null;
+  const playing = currentIndex >= 0 && currentIndex < items.length ? items[currentIndex] : null;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  if (!moved) return null;
+  next.splice(Math.min(Math.max(to, 0), next.length), 0, moved);
+  const nextCurrentIndex = playing
+    ? next.findIndex((station) => station.stationuuid === playing.stationuuid)
+    : currentIndex;
+  return { items: next, currentIndex: nextCurrentIndex };
+};
+
 export const resolveUpdater = <T,>(current: T, next: T | ((prev: T) => T)) =>
   typeof next === 'function' ? (next as (prev: T) => T)(current) : next;
 

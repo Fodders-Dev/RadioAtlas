@@ -14,6 +14,7 @@ import { shuffleStations } from '../lib/shuffleStations';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
+import { usePointerReorder } from '../lib/usePointerReorder';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
@@ -199,6 +200,11 @@ export const Library = () => {
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
+  // Drag-to-reorder the queue. The playing row is locked (#86 — never moved).
+  const queueReorder = usePointerReorder(
+    (from, to) => queue.reorderQueue(from, to),
+    { itemSelector: '[data-queue-row]', isLocked: (index) => index === queue.currentIndex }
+  );
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -955,14 +961,46 @@ export const Library = () => {
                   </button>
                 </div>
 
-                <div className="playlist-list library-queue-list">
+                <div className="playlist-list library-queue-list" ref={queueReorder.containerRef}>
                   {queue.items.map((station, index) => {
                     const active =
                       index === queue.currentIndex && player.current?.stationuuid === station.stationuuid;
                     const nextUp = !active && index === Math.max(queue.currentIndex, 0) + 1;
+                    const locked = index === queue.currentIndex;
+                    const dragging = queueReorder.draggingIndex === index;
+                    const dropTarget =
+                      queueReorder.draggingIndex !== null &&
+                      queueReorder.overIndex === index &&
+                      !dragging;
                     return (
-                      <div key={station.stationuuid} className={`playlist-row ${active ? 'active' : ''}`}>
-                        <div className="playlist-order">{index + 1}</div>
+                      <div
+                        key={station.stationuuid}
+                        data-queue-row
+                        className={`playlist-row library-queue-row ${active ? 'active' : ''} ${
+                          dragging ? 'dragging' : ''
+                        } ${dropTarget ? 'drop-target' : ''}`}
+                      >
+                        {locked ? (
+                          <div className="library-queue-grip locked" aria-hidden="true">
+                            <span className="playlist-order">{index + 1}</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="library-queue-grip"
+                            aria-label={t('library.reorderMode')}
+                            {...queueReorder.getHandleProps(index)}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <circle cx="9" cy="6" r="1.6" />
+                              <circle cx="15" cy="6" r="1.6" />
+                              <circle cx="9" cy="12" r="1.6" />
+                              <circle cx="15" cy="12" r="1.6" />
+                              <circle cx="9" cy="18" r="1.6" />
+                              <circle cx="15" cy="18" r="1.6" />
+                            </svg>
+                          </button>
+                        )}
                         <div className="playlist-body library-queue-row-copy">
                           <div className="library-queue-row-head">
                             <div className="playlist-name">{normalizeStationName(station.name)}</div>
@@ -974,7 +1012,29 @@ export const Library = () => {
                           </div>
                           <div className="playlist-meta">{stationLocation(station)}</div>
                         </div>
-                        <div className="playlist-actions">
+                        <div className="playlist-actions library-queue-row-actions">
+                          {!locked ? (
+                            <div className="library-queue-move" role="group" aria-label={t('library.reorderMode')}>
+                              <button
+                                type="button"
+                                className="icon-btn library-queue-move-btn"
+                                onClick={() => queue.moveAtIndex(index, -1)}
+                                disabled={index - 1 < 0 || index - 1 === queue.currentIndex}
+                                aria-label={t('library.moveUp')}
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8l-6 6h12z" /></svg>
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-btn library-queue-move-btn"
+                                onClick={() => queue.moveAtIndex(index, 1)}
+                                disabled={index + 1 >= queue.items.length || index + 1 === queue.currentIndex}
+                                aria-label={t('library.moveDown')}
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16l6-6H6z" /></svg>
+                              </button>
+                            </div>
+                          ) : null}
                           <button className="chip" type="button" onClick={() => queue.playAtIndex(index)}>
                             {active && player.isPlaying ? t('playlist.playing') : t('common.play')}
                           </button>

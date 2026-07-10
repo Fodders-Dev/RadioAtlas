@@ -113,6 +113,7 @@ import {
   mergeUniqueStations,
   mergeStationCache,
   normalizeStations,
+  reorderQueueItems,
   resolveUpdater,
   snapshotsEqual
 } from './radio/helpers';
@@ -2277,6 +2278,29 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           },
           {
             dedupeKey: `queue_reorder:${target.stationuuid}:${index}:${targetIndex}:${Date.now()}`
+          }
+        );
+      },
+      reorderQueue: (from, to) => {
+        const currentQueue = queueRef.current;
+        const reordered = reorderQueueItems(currentQueue.items, currentQueue.currentIndex, from, to);
+        if (!reordered) return;
+        updateQueue({
+          ...currentQueue,
+          items: reordered.items,
+          currentIndex: reordered.currentIndex
+        });
+        reportProductEvent(
+          'queue_reorder',
+          {
+            sourceId: currentQueue.sourceId || null,
+            queueCount: currentQueue.items.length,
+            fromIndex: from,
+            toIndex: to,
+            activeIndex: currentQueue.currentIndex
+          },
+          {
+            dedupeKey: `queue_reorder_drag:${from}:${to}:${Date.now()}`
           }
         );
       },

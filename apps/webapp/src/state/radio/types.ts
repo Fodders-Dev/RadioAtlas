@@ -119,6 +119,9 @@ export type QueueState = QueueSnapshot & {
   playAtIndex: (index: number) => void;
   removeAtIndex: (index: number) => void;
   moveAtIndex: (index: number, direction: -1 | 1) => void;
+  // Drag-reorder: move an item from one index to another. The playing item is
+  // never moved and keeps playing (currentIndex is recomputed to track it).
+  reorderQueue: (from: number, to: number) => void;
   shuffleQueue: () => void;
   clearUpcoming: () => void;
   clearQueue: () => void;

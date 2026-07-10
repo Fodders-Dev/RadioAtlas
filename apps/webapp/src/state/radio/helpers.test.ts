@@ -46,3 +46,43 @@ describe('latestTrackForStation', () => {
     expect(latestTrackForStation(blank, 's9')?.track).toBe('Real - Track');
   });
 });
+
+import { reorderQueueItems } from './helpers';
+import type { StationLite } from '../../types';
+
+const qs = (id: string): StationLite =>
+  ({ stationuuid: id, name: id, url_resolved: '', tags: '' }) as unknown as StationLite;
+
+describe('reorderQueueItems (#86-safe drag reorder)', () => {
+  const items = [qs('a'), qs('b'), qs('c'), qs('d')];
+
+  it('moves an item and keeps the PLAYING station pinned (currentIndex tracks it)', () => {
+    // 'b' (index 1) is playing; drag 'd' (3) to the front (0).
+    const out = reorderQueueItems(items, 1, 3, 0);
+    expect(out?.items.map((s) => s.stationuuid)).toEqual(['d', 'a', 'b', 'c']);
+    // 'b' is now at index 2 → currentIndex followed it, playback is unchanged.
+    expect(out?.currentIndex).toBe(2);
+  });
+
+  it('moves within the tail without disturbing a playing head', () => {
+    const out = reorderQueueItems(items, 0, 3, 1); // 'a' playing; move 'd'→index 1
+    expect(out?.items.map((s) => s.stationuuid)).toEqual(['a', 'd', 'b', 'c']);
+    expect(out?.currentIndex).toBe(0);
+  });
+
+  it('refuses to move the playing item itself', () => {
+    expect(reorderQueueItems(items, 1, 1, 3)).toBeNull();
+  });
+
+  it('returns null on no-op / out-of-range moves', () => {
+    expect(reorderQueueItems(items, 0, 2, 2)).toBeNull();
+    expect(reorderQueueItems(items, 0, -1, 2)).toBeNull();
+    expect(reorderQueueItems(items, 0, 2, 9)).toBeNull();
+  });
+
+  it('handles no playing item (currentIndex -1) by leaving it -1', () => {
+    const out = reorderQueueItems(items, -1, 0, 2);
+    expect(out?.items.map((s) => s.stationuuid)).toEqual(['b', 'c', 'a', 'd']);
+    expect(out?.currentIndex).toBe(-1);
+  });
+});
