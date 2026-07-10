@@ -949,7 +949,9 @@ export const enDictionary = {
     "thinking": "Lira is typing…",
     "error": "Oops, the line dropped for a second. Try again.",
     "sourceLabel": "Lira",
-    "playStation": "Play station {name}"
+    "playStation": "Play station {name}",
+    "reject": "Not these · more",
+    "rejectQuery": "не то, дай другое"
   },
   "radio": {
     "queueDefault": "Playback queue",

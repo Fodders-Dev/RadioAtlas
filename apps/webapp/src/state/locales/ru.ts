@@ -949,7 +949,9 @@ export const ruDictionary = {
     "thinking": "Лира печатает…",
     "error": "Ой, связь на секунду подвисла. Попробуй ещё разок.",
     "sourceLabel": "Лира",
-    "playStation": "Включить станцию {name}"
+    "playStation": "Включить станцию {name}",
+    "reject": "Не то · ещё",
+    "rejectQuery": "не то, дай другое"
   },
   "radio": {
     "queueDefault": "Очередь воспроизведения",
