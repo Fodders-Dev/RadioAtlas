@@ -559,6 +559,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const runtimeFailureSignatureRef = useRef('');
   const personalRadioRefillSignatureRef = useRef('');
   const listened30sRef = useRef<string | null>(null);
+  // Sleep-timer state read at signal-fire time (the sleep timer is set up far
+  // below, after the listen-signal effects) — so no listening counts as a taste
+  // preference once the user has told us they're drifting off («уснул под неё»).
+  const sleepActiveRef = useRef(false);
+  // Which sustained-listen milestones (ms) a station-play session has already
+  // credited — reset when the station changes, so the graded engagement fires
+  // once per session and stays capped.
+  const engagementRef = useRef<{ stationId: string | null; reached: Set<number> }>({
+    stationId: null,
+    reached: new Set()
+  });
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
   const libraryTab = storedShellState.libraryTab;
@@ -1033,12 +1044,44 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!station || !player.isPlaying) return;
     const stationId = station.stationuuid;
     const timer = window.setTimeout(() => {
+      if (sleepActiveRef.current) return; // asleep/background — not a preference
       if (listened30sRef.current === stationId) return;
       listened30sRef.current = stationId;
       recordTasteForStation(station, 'listened-30s');
     }, 30_000);
 
     return () => window.clearTimeout(timer);
+  }, [player.current, player.isPlaying]);
+
+  // Graded engagement: reward SUSTAINED active listening past 4/20-min milestones
+  // with diminishing weights, then STOP — a genuine long listen counts more than a
+  // 30s sample, but a marathon / background / asleep-under-it session can't
+  // runaway-inflate a station's score. Milestones fire once per station-play
+  // session; switching stations resets them. Suppressed while the sleep timer is
+  // active (the user explicitly signalled they're drifting off).
+  useEffect(() => {
+    const station = player.current;
+    if (!station || !player.isPlaying) return;
+    const stationId = station.stationuuid;
+    if (engagementRef.current.stationId !== stationId) {
+      engagementRef.current = { stationId, reached: new Set() };
+    }
+    const milestones: Array<{ ms: number; weight: number }> = [
+      { ms: 4 * 60_000, weight: 3 },
+      { ms: 20 * 60_000, weight: 3.5 }
+    ];
+    const timers = milestones
+      .filter((milestone) => !engagementRef.current.reached.has(milestone.ms))
+      .map((milestone) =>
+        window.setTimeout(() => {
+          if (sleepActiveRef.current) return;
+          if (engagementRef.current.stationId !== stationId) return;
+          if (engagementRef.current.reached.has(milestone.ms)) return;
+          engagementRef.current.reached.add(milestone.ms);
+          recordTasteForStation(station, 'sustained-listen', undefined, milestone.weight);
+        }, milestone.ms)
+      );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [player.current, player.isPlaying]);
 
   const setActiveSection = (section: AppSection) => {
@@ -2453,6 +2496,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     start: startSleepTimer,
     cancel: cancelSleepTimer
   } = useSleepTimer(pausePlayback);
+  // Expose the live sleep state to the listen-signal effects above (they run
+  // earlier in the body, so they read it through this ref).
+  sleepActiveRef.current = sleepActive;
 
   useOutputDeviceGuard({
     enabled: pauseOnHeadphoneUnplug,

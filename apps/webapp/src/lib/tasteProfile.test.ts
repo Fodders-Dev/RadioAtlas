@@ -223,3 +223,25 @@ describe('rankStationsForUser exposure demotion', () => {
     expect(withNull.map((item) => item.stationuuid).sort()).toEqual(['a', 'b']);
   });
 });
+
+describe('sustained-listen engagement signal', () => {
+  it('adds graded positive weight beyond a bare play-started, crediting station and genre', () => {
+    const s = station('s', 'jazz');
+    const afterPlay = recordTasteSignal(DEFAULT_TASTE_PROFILE_V2, s, 'play-started', { now: NOW });
+    const afterSustain = recordTasteSignal(afterPlay, s, 'sustained-listen', {
+      now: NOW,
+      weightOverride: 3.5
+    });
+    // Sustained active listening lifts the station's score above a bare play-start…
+    expect(afterSustain.stationScores.s).toBeGreaterThan(afterPlay.stationScores.s);
+    // …and builds genre preference from real listening, not just clicks.
+    expect(afterSustain.tagScores.jazz).toBeGreaterThan(afterPlay.tagScores.jazz || 0);
+  });
+
+  it('a fuller listen (bigger milestone weight) counts more than a shorter one', () => {
+    const s = station('s', 'jazz');
+    const short = recordTasteSignal(DEFAULT_TASTE_PROFILE_V2, s, 'sustained-listen', { now: NOW, weightOverride: 3 });
+    const longer = recordTasteSignal(DEFAULT_TASTE_PROFILE_V2, s, 'sustained-listen', { now: NOW, weightOverride: 6.5 });
+    expect(longer.stationScores.s).toBeGreaterThan(short.stationScores.s);
+  });
+});
