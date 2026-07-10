@@ -18,6 +18,11 @@ import { getStationExposurePenalty, type StationExposureLedger } from './station
 export type TasteSignalAction =
   | 'play-started'
   | 'listened-30s'
+  // Sustained ACTIVE listening past a milestone (4 min, 20 min). Graded via
+  // weightOverride with diminishing returns and a hard cap at the last milestone,
+  // so a genuine long listen counts more than a 30s sample but a marathon /
+  // asleep-under-it session can't runaway-inflate a station's score.
+  | 'sustained-listen'
   | 'skip-before-10s'
   | 'liked'
   | 'unliked'
@@ -82,6 +87,10 @@ const DECAY_HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 10;
 const ACTION_WEIGHTS: Record<TasteSignalAction, number> = {
   'play-started': 1.8,
   'listened-30s': 5.4,
+  // Default only; callers pass a per-milestone weightOverride (4 min ≈ +3,
+  // 20 min ≈ +3.5). A full sustained listen tops out near a `liked` (12) and
+  // stops there — no credit past the 20 min cap.
+  'sustained-listen': 3.5,
   'skip-before-10s': -5.8,
   liked: 12,
   unliked: -10,

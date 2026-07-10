@@ -60,6 +60,7 @@ export type ListenerAlert = {
 export type SyncedTasteSignalAction =
   | 'play-started'
   | 'listened-30s'
+  | 'sustained-listen'
   | 'skip-before-10s'
   | 'liked'
   | 'unliked'

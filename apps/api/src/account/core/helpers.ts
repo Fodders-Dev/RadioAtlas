@@ -224,6 +224,7 @@ export const sanitizeAlert = (value: unknown): ListenerAlert | null => {
 const TASTE_SIGNAL_ACTIONS = new Set<SyncedTasteSignalAction>([
   'play-started',
   'listened-30s',
+  'sustained-listen',
   'skip-before-10s',
   'liked',
   'unliked',

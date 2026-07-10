@@ -796,7 +796,14 @@ const normalizedCandidateRelevance = (candidate: StationSlateCandidate, minScore
 const rerankStationSlate = (
   candidates: StationSlateCandidate[],
   seed: number,
-  { preserveLead = true, allowExploration = false }: { preserveLead?: boolean; allowExploration?: boolean } = {}
+  {
+    preserveLead = true,
+    allowExploration = false,
+    // How hard MMR pushes apart similar stations. High for broad asks (spread
+    // genres/countries); LOW for a PRECISE genre/artist ask, where every result
+    // is meant to be the same genre and spreading it out is «подборка мимо».
+    similarityWeight = 0.54
+  }: { preserveLead?: boolean; allowExploration?: boolean; similarityWeight?: number } = {}
 ): VerifiedStationRef[] => {
   const pool = uniqueStationCandidates(candidates);
   if (pool.length <= 2) return pool.map((candidate) => candidate.station);
@@ -822,7 +829,7 @@ const rerankStationSlate = (
         0
       );
       const jitter = seededJitter(`${candidate.station.stationuuid}:${selected.length}`, seed) * 0.035;
-      const slateScore = relevance * 0.66 - maxSimilarity * 0.54 + jitter;
+      const slateScore = relevance * 0.66 - maxSimilarity * similarityWeight + jitter;
       if (slateScore > bestScore) {
         bestScore = slateScore;
         bestIndex = index;
@@ -896,7 +903,10 @@ const personalizedObservations = (
   observations: ToolObservation[],
   taste: UserTasteContext | null | undefined,
   seed: number,
-  { rotateLead = false }: { rotateLead?: boolean } = {}
+  // `precise`: the ask resolved to a concrete genre/artist/anchor. Keep results
+  // tight to that genre — soften MMR spreading and skip the off-genre exploration
+  // slot. Broad/vibe asks (precise=false) keep full diversity.
+  { rotateLead = false, precise = false }: { rotateLead?: boolean; precise?: boolean } = {}
 ): ToolObservation[] => {
   const hasTaste = hasUserTaste(taste);
   const favoriteIds = new Set((taste?.favoriteStationIds || []).filter(Boolean));
@@ -913,7 +923,8 @@ const personalizedObservations = (
     const pool = freshRanked.length >= Math.min(2, ranked.length) ? freshRanked : ranked;
     const diverse = rerankStationSlate(pool, seed, {
       preserveLead: true,
-      allowExploration: hasTaste && rotateLead && observation.tool === 'search_stations'
+      allowExploration: !precise && hasTaste && rotateLead && observation.tool === 'search_stations',
+      similarityWeight: precise ? 0.2 : 0.54
     });
     const fresh = hasTaste ? diverse.filter((station) => !favoriteIds.has(station.stationuuid)) : diverse;
     return fresh.length >= Math.min(2, diverse.length) ? fresh : diverse;
@@ -1215,8 +1226,14 @@ export const chatWithAssistant = async (
     observations.push(linkObservation);
   }
 
+  // A concrete genre/artist/anchor ask (curated plan, a forced literal query, an
+  // artist lookup, or a «в стиле X» anchor) is PRECISE — keep the slate tight to
+  // that genre instead of spreading it for diversity («подборка далека от идеала»
+  // on «посоветуй nu metal» / «соул»). Broad vibe asks stay diverse.
+  const preciseAsk = Boolean(preciseSearchPlan || forcedQuery || artistQuery || anchorQuery);
   const groundedObservations = personalizedObservations(observations, input.userTaste, recommendationSeed, {
-    rotateLead: musicIntent && !PLAY_INTENT.test(userMessage) && !preciseSearchPlan
+    rotateLead: musicIntent && !PLAY_INTENT.test(userMessage) && !preciseSearchPlan,
+    precise: preciseAsk
   });
   const sources = collectVerifiedSources(groundedObservations);
 
