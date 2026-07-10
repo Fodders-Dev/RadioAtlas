@@ -554,6 +554,43 @@ const CULTURAL_EXPLAINER_NOTE =
 const curatedRecommendationNote = (note: string) =>
   `Это точная музыкальная наводка, не общий вайб. ${note} Ответь живо и конкретно: 1–3 коротких предложения, назови, за что эти станции подходят. Не используй шаблон «Лучше всего начать с первой карточки» и не говори «там как раз тот самый» без конкретной причины.`;
 
+// A compact, GROUNDED descriptor of the verified slate — the dominant genres and
+// (if concentrated) region, straight from the stations' real tags. Handed to the
+// composer so it leads with concrete substance («тёплый classic soul, местами
+// funk») instead of «постных» filler like «лёгкие поп-станции». Nothing here is
+// invented — it's an aggregation of the same tags the composer already sees.
+const SLATE_SUMMARY_NOISE_TAGS = new Set([
+  'music', 'radio', 'no tags', 'online', 'fm', 'various', 'misc', 'general', 'pop music', 'hits'
+]);
+export const summarizeStationSlate = (stations: VerifiedStationRef[]): string | null => {
+  if (!stations.length) return null;
+  const norm = (value: string | null | undefined) => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const tagCounts = new Map<string, number>();
+  const countryCounts = new Map<string, number>();
+  for (const station of stations) {
+    const seen = new Set<string>();
+    for (const raw of station.tags || []) {
+      const tag = norm(raw);
+      if (tag.length < 2 || SLATE_SUMMARY_NOISE_TAGS.has(tag) || seen.has(tag)) continue;
+      seen.add(tag);
+      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    }
+    const country = norm(station.country);
+    if (country) countryCounts.set(country, (countryCounts.get(country) || 0) + 1);
+  }
+  const topTags = [...tagCounts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 4)
+    .map(([tag]) => tag);
+  if (!topTags.length) return null;
+  let summary = `жанры — ${topTags.join(', ')}`;
+  const dominantCountry = [...countryCounts.entries()].sort((left, right) => right[1] - left[1])[0];
+  if (dominantCountry && dominantCountry[1] / stations.length >= 0.6) {
+    summary += `; в основном из ${dominantCountry[0]}`;
+  }
+  return summary;
+};
+
 const composeAgentReply = async (
   deps: AssistantDeps,
   systemPrompt: string,
@@ -580,11 +617,17 @@ const composeAgentReply = async (
       )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай названия станций по памяти. Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
-  if (collectVerifiedStations(observations).length > 0) {
+  const verifiedForCompose = collectVerifiedStations(observations);
+  if (verifiedForCompose.length > 0) {
+    const slateSummary = summarizeStationSlate(verifiedForCompose);
     messages.push({
       role: 'system',
-      content:
-        'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки» — лучше коротко объясни, почему подборка попала в запрос.'
+      content: [
+        'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки».',
+        slateSummary
+          ? `Вот что РЕАЛЬНО в подборке (по тегам станций): ${slateSummary}. Оттолкнись от этой конкретики — назови жанр/эпоху/звучание живыми словами (например «тёплый classic soul, местами фанк»), НЕ обобщай до «лёгкие поп-станции». Ничего не добавляй сверх этих тегов и не называй станции по имени.`
+          : 'Коротко объясни, почему подборка попала в запрос.'
+      ].join(' ')
     });
   }
   // Artist grounding note (curated / name-match / none) — gates "plays X" claims.
