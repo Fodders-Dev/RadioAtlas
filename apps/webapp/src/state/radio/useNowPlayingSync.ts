@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { NowPlayingSnapshot } from '../../domain/contracts';
 import { getApiBase } from '../../lib/apiBase';
 import {
+  applyStoredTrackFallback,
   fetchNowPlayingSnapshot,
   shouldUseLowImpactMetadata,
+  stationSnapshotKey,
   subscribeNowPlaying
 } from '../../lib/nowPlaying';
 import { IDLE_NOW_PLAYING_STATE } from './nowPlayingDefaults';
@@ -46,6 +48,11 @@ export const useNowPlayingSync = ({
     const isPageVisible = () =>
       typeof document === 'undefined' || document.visibilityState === 'visible';
     const lowImpactMetadata = shouldUseLowImpactMetadata();
+    // Persist live titles and fall back to the last-known one when a poll comes
+    // back empty — so the dock / full player don't flicker to «трек недоступен» on
+    // a transient mobile gap (the station-table path already did this; the active
+    // player never did).
+    const nowPlayingCacheKey = stationSnapshotKey(station);
     const metadataPollOverride =
       typeof window !== 'undefined' &&
       typeof (window as typeof window & { __RA_METADATA_POLL_MS__?: number }).__RA_METADATA_POLL_MS__ === 'number'
@@ -73,7 +80,7 @@ export const useNowPlayingSync = ({
         previousSnapshot.source === 'nightride-sse' &&
         previousSnapshot.updatedAt !== null &&
         Date.now() - previousSnapshot.updatedAt < Math.max(basePollMs * 2, 12000);
-      const effectiveSnapshot: NowPlayingSnapshot = preserveFreshSseTrack
+      const ssePreserved: NowPlayingSnapshot = preserveFreshSseTrack
         ? {
             ...snapshot,
             track: previousSnapshot.track,
@@ -83,6 +90,12 @@ export const useNowPlayingSync = ({
             updatedAt: previousSnapshot.updatedAt
           }
         : snapshot;
+      // Save a live title; on an empty snapshot fall back to the last-known track
+      // (source:'cache') instead of blanking. Idle/loading with no cache is left as-is.
+      const effectiveSnapshot =
+        ssePreserved.status === 'idle'
+          ? ssePreserved
+          : applyStoredTrackFallback(nowPlayingCacheKey, ssePreserved);
       nowPlayingStateRef.current = effectiveSnapshot;
       setNowPlayingState(effectiveSnapshot);
       if (effectiveSnapshot.track) {
