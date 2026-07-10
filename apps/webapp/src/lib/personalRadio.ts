@@ -8,6 +8,7 @@ import {
   type StationPlayabilityProfile
 } from './stationPlayability';
 import type { StationHealthProfile } from './stationHealth';
+import { diversifyStationOrder } from './stationDiversity';
 import {
   getSessionExcludedStationIds,
   recordRadioSessionEvent,
@@ -17,8 +18,10 @@ import {
 import {
   isStationHiddenFromRecommendations,
   rankStationsForUser,
+  withFavoriteTasteBoosts,
   type TasteProfileV2
 } from './tasteProfile';
+import type { StationExposureLedger } from './stationExposure';
 import { stationsForRegions } from './regionRecommendations';
 
 export { recordRadioSessionEvent };
@@ -85,6 +88,7 @@ export const buildPersonalRadioQueue = ({
   tasteProfile,
   healthProfile,
   sessionEvents = [],
+  exposure = null,
   context
 }: {
   catalog: StationLite[];
@@ -101,18 +105,21 @@ export const buildPersonalRadioQueue = ({
   tasteProfile?: TasteProfileV2 | null;
   healthProfile?: StationHealthProfile | null;
   sessionEvents?: RadioSessionEvent[];
+  exposure?: StationExposureLedger | null;
   context: RecommendationContext;
 }): PersonalRadioQueue => {
   const limit = Math.max(1, Math.min(context.limit ?? PERSONAL_RADIO_QUEUE_LIMIT, 20));
   const now = context.now ?? Date.now();
-  const rankedCatalog = rankStationsForUser(catalog, tasteProfile, playabilityProfile, {
+  const effectiveTasteProfile = withFavoriteTasteBoosts(tasteProfile, favorites);
+  const rankedCatalog = rankStationsForUser(catalog, effectiveTasteProfile, playabilityProfile, {
     mode: context.mode,
     currentStation: context.currentStation,
     seed: context.seed,
     limit: catalog.length,
     now,
     healthProfile,
-    sessionEvents
+    sessionEvents,
+    exposure
   });
   const recommendationFeed = createHomeRecommendationFeed({
     catalog: rankedCatalog,
@@ -126,14 +133,16 @@ export const buildPersonalRadioQueue = ({
     followedRegions: followedRegions || [],
     behaviorProfile,
     currentStation: context.currentStation,
-    rotationSeed: context.seed
+    rotationSeed: context.seed,
+    exposure,
+    now
   });
   const collectionStations = stationsFromCollections(rankedCatalog, collections);
   const followedStationPool = stationsFromFollows(rankedCatalog, followedStations);
   const followedRegionPool = stationsForRegions(rankedCatalog, followedRegions || [], 18);
   const currentId = context.currentStation?.stationuuid || null;
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
-  const queue = mergeStations(
+  const queue = diversifyStationOrder(mergeStations(
     recommendationFeed.tunedForYou,
     recommendationFeed.becauseYouLiked,
     favorites,
@@ -147,13 +156,18 @@ export const buildPersonalRadioQueue = ({
     (station) =>
       station.stationuuid !== currentId &&
       !sessionExcludedIds.has(station.stationuuid) &&
-      !isStationHiddenFromRecommendations(tasteProfile, station)
-  );
+      !isStationHiddenFromRecommendations(effectiveTasteProfile, station)
+  ), {
+    limit,
+    maxPerCountry: 4,
+    maxPerPrimaryTag: 5,
+    maxPerNameKey: 1
+  });
 
   return {
     mode: 'personal',
     sourceId: 'personal-radio',
-    stations: queue.slice(0, limit),
+    stations: queue,
     builtAt: Date.now()
   };
 };

@@ -20,10 +20,18 @@ const hashValue = (value: string) => {
   return hash;
 };
 
+const seededJitter = (id: string, seed: number) => {
+  let h = (hashValue(id) ^ Math.imul(seed | 0, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return (h % 1000) / 1000;
+};
+
 const seededSort = <T,>(items: T[], seed: number, pickKey: (item: T) => string) =>
   [...items].sort((left, right) => {
-    const leftScore = hashValue(`${pickKey(left)}:${seed}`);
-    const rightScore = hashValue(`${pickKey(right)}:${seed}`);
+    const leftScore = seededJitter(pickKey(left), seed);
+    const rightScore = seededJitter(pickKey(right), seed);
     return leftScore - rightScore;
   });
 

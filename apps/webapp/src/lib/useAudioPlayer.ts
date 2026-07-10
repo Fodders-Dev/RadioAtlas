@@ -69,6 +69,7 @@ const VISUALIZER_WAVEFORM_SAMPLES = 24;
 const PLAYBACK_SUPERSEDED = 'playback superseded';
 const STARTUP_BUFFER_GRACE_MS = 15000;
 const REBUFFER_GRACE_MS = 6000;
+const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
 
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
@@ -346,7 +347,10 @@ export const useAudioPlayer = ({
     const context = audioContextRef.current;
     if (!context || context.state !== 'suspended') return;
     try {
-      await context.resume();
+      await Promise.race([
+        context.resume(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, AUDIO_CONTEXT_RESUME_TIMEOUT_MS))
+      ]);
     } catch (error) {
       pushEvent(`eq: resume failed (${error instanceof Error ? error.message : 'unknown'})`);
     }

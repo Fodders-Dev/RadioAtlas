@@ -8,6 +8,8 @@ import type {
   CuratedArtistHit,
   DeepseekConfig,
   ToolProvider,
+  WebSearchProvider,
+  WebSource,
   VerifiedStationRef
 } from '../src/ai/types.js';
 
@@ -136,6 +138,187 @@ test('action intent runs the planner → search tool → stations come from obse
   assert.equal(result.stations.length, 1);
   assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
   assert.equal(result.actions[0]?.kind, 'open-station');
+});
+
+test('user taste reranks verified station cards and avoids repeating favorites first', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'rock-1', name: 'Rock First', tags: ['rock'] }),
+      station({ stationuuid: 'fav-jazz', name: 'Liked Jazz', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-2', name: 'Fresh Jazz', tags: ['jazz'] })
+    ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  });
+  const result = await chatWithAssistant(
+    {
+      ...ask('посоветуй станцию'),
+      userTaste: {
+        favoriteStationIds: ['fav-jazz'],
+        tagScores: { jazz: 20 }
+      }
+    },
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.equal(result.stations[0]?.stationuuid, 'jazz-2');
+  assert.ok(!result.stations.some((item) => item.stationuuid === 'fav-jazz'), 'favorite station is not repeated when fresh matches exist');
+});
+
+test('station cards diversify same-tag runs before final rendering', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'jazz-1', name: 'Jazz 1', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-2', name: 'Jazz 2', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-3', name: 'Jazz 3', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-4', name: 'Jazz 4', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'soul-1', name: 'Soul 1', country: 'UK', tags: ['soul'] })
+    ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  });
+  const result = await chatWithAssistant(ask('посоветуй станцию'), makeDeps(fetchImpl, { tools }));
+
+  const ids = result.stations.map((item) => item.stationuuid);
+  assert.ok(ids.includes('soul-1'));
+  assert.ok(ids.indexOf('soul-1') < 4, `same-tag run was not broken: ${ids.join(', ')}`);
+});
+
+test('taste-heavy recommendations keep the best match but promote adjacent discovery', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'fav-jazz', name: 'Liked Jazz', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-2', name: 'Fresh Jazz 2', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-3', name: 'Fresh Jazz 3', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'jazz-4', name: 'Fresh Jazz 4', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'bossa-1', name: 'Bossa Coast', country: 'Brazil', tags: ['bossa nova', 'latin'] }),
+      station({ stationuuid: 'ambient-1', name: 'North Ambient', country: 'Iceland', tags: ['ambient'] })
+    ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  });
+  const result = await chatWithAssistant(
+    {
+      ...ask('посоветуй станцию'),
+      userTaste: {
+        favoriteStationIds: ['fav-jazz'],
+        tagScores: { jazz: 28 },
+        countryScores: { us: 12 }
+      }
+    },
+    makeDeps(fetchImpl, { tools })
+  );
+
+  const ids = result.stations.map((item) => item.stationuuid);
+  assert.equal(ids[0], 'jazz-2');
+  assert.ok(!ids.includes('fav-jazz'), 'already-liked station should not be repeated while fresh matches exist');
+  assert.ok(
+    ids.slice(0, 4).some((id) => id === 'bossa-1' || id === 'ambient-1'),
+    `adjacent discovery was not promoted into the early slate: ${ids.join(', ')}`
+  );
+});
+
+test('recommendations avoid recent, hidden, skipped, and already-shown station ids when fresh alternatives exist', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'old-1', name: 'Already Shown', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'recent-1', name: 'Recent Play', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'hidden-1', name: 'Hidden Station', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'negative-1', name: 'Skipped Station', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'fresh-1', name: 'Fresh Jazz 1', country: 'US', tags: ['jazz'] }),
+      station({ stationuuid: 'fresh-2', name: 'Fresh Jazz 2', country: 'France', tags: ['jazz'] }),
+      station({ stationuuid: 'fresh-3', name: 'Fresh Soul', country: 'UK', tags: ['soul'] })
+    ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  });
+  const result = await chatWithAssistant(
+    {
+      ...ask('посоветуй станцию'),
+      userTaste: {
+        tagScores: { jazz: 24 },
+        stationScores: { 'negative-1': -24 },
+        recentStationIds: ['recent-1'],
+        hiddenStationIds: ['hidden-1'],
+        negativeStationIds: ['negative-1'],
+        lastRecommendedStationIds: ['old-1']
+      }
+    },
+    makeDeps(fetchImpl, { tools })
+  );
+
+  const ids = result.stations.map((item) => item.stationuuid);
+  assert.equal(ids[0], 'fresh-1');
+  assert.ok(!ids.some((id) => ['old-1', 'recent-1', 'hidden-1', 'negative-1'].includes(id)), `avoided station leaked into slate: ${ids.join(', ')}`);
+});
+
+test('already-shown stations from an early search do not crowd out fresh planner retry cards', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) =>
+      args.query === 'smooth jazz'
+        ? [
+            station({ stationuuid: 'fresh-1', name: 'Fresh Smooth 1', country: 'France', tags: ['jazz'] }),
+            station({ stationuuid: 'fresh-2', name: 'Fresh Smooth 2', country: 'Brazil', tags: ['bossa nova'] })
+          ]
+        : [
+            station({ stationuuid: 'old-1', name: 'Already Shown 1', country: 'US', tags: ['jazz'] }),
+            station({ stationuuid: 'old-2', name: 'Already Shown 2', country: 'US', tags: ['jazz'] })
+          ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"smooth jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  });
+  const result = await chatWithAssistant(
+    {
+      ...ask('посоветуй jazz'),
+      userTaste: {
+        tagScores: { jazz: 24 },
+        lastRecommendedStationIds: ['old-1', 'old-2']
+      }
+    },
+    makeDeps(fetchImpl, { tools })
+  );
+
+  const ids = result.stations.map((item) => item.stationuuid);
+  assert.deepEqual(ids, ['fresh-1', 'fresh-2']);
+});
+
+test('station cards rotate the lead for non-play recommendations but keep play intent stable', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'a', name: 'A', tags: ['jazz'] }),
+      station({ stationuuid: 'b', name: 'B', tags: ['jazz'] }),
+      station({ stationuuid: 'c', name: 'C', tags: ['jazz'] })
+    ]
+  };
+  const recommendFetch = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови.'
+  }).fetchImpl;
+  const recommend = await chatWithAssistant(ask('посоветуй станцию'), makeDeps(recommendFetch, { tools }));
+  assert.notEqual(recommend.stations[0]?.stationuuid, 'a');
+
+  const playFetch = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Включаю.'
+  }).fetchImpl;
+  const play = await chatWithAssistant(ask('включи станцию'), makeDeps(playFetch, { tools }));
+  assert.equal(play.stations[0]?.stationuuid, 'a');
 });
 
 test('explicit play intent marks the lead station for autoplay', async () => {
@@ -430,8 +613,9 @@ test('NO FABRICATION (B): an unverifiable factual question adds the honesty guar
 
 // --- Web search (news-stack P0+P1) — the Oliver-Tree-is-dead proof ----------
 
-const webSearch = (sources: any[]) => ({
-  search: async () => (sources.length ? { status: 'ok', sources } : { status: 'empty', sources: [] })
+const webSearch = (sources: WebSource[]): WebSearchProvider => ({
+  search: async () =>
+    sources.length ? { status: 'ok', sources } : { status: 'empty', sources: [] }
 });
 const aliveSource = {
   title: 'Oliver Tree announces 2026 world tour',
@@ -467,6 +651,63 @@ test('WEB SEARCH (a): a "alive" snippet reaches the composer as grounding + surf
   // ...and the source surfaces as a citation button.
   assert.equal(result.sources.length, 1);
   assert.equal(result.sources[0]?.url, 'https://example.com/oliver-tree-tour');
+});
+
+test('WEB SEARCH cultural explainer: YMCA question grounds in sources, not random station cards', async () => {
+  const searched: string[] = [];
+  let webQuery = '';
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searched.push(args.query);
+      return [station({ stationuuid: 'uuid-disco', name: 'Random Disco FM', tags: ['disco'] })];
+    }
+  };
+  const locSource: WebSource = {
+    title: 'National Recording Registry: Victor Willis, Mr. Y.M.C.A.',
+    url: 'https://blogs.loc.gov/loc/2020/03/national-recording-registry-its-victor-willis-mr-y-m-c-a/',
+    snippet:
+      'Y.M.C.A. was released by Village People in 1978. Victor Willis explained that YMCA means Young Men’s Christian Association and discussed the song’s meaning.',
+    score: 0.95
+  };
+  const secondSource: WebSource = {
+    title: 'Village People history',
+    url: 'https://example.com/village-people-history',
+    snippet: 'Village People emerged from disco culture and were associated with gay and queer nightlife scenes.',
+    score: 0.9
+  };
+  const noisyThirdSource: WebSource = {
+    title: 'Extra source',
+    url: 'https://example.com/noisy-third',
+    snippet: 'A third link should not clutter the answer.',
+    score: 0.8
+  };
+  const { fetchImpl, calls } = makeFetch({
+    compose:
+      'Коротко: она рядом с ЛГБТ-культурой не потому, что текст прямо об этом. YMCA — Young Men’s Christian Association, а ассоциация выросла вокруг Village People и диско-сцены 70-х; при этом автор спорил с трактовкой песни как прямого gay anthem.'
+  });
+  const result = await chatWithAssistant(
+    ask('А чем песня YMCA и почему она с геями рядом мелькает?'),
+    makeDeps(fetchImpl, {
+      tools,
+      webSearch: {
+        search: async (query) => {
+          webQuery = query;
+          return { status: 'ok', sources: [locSource, secondSource, noisyThirdSource] };
+        }
+      }
+    })
+  );
+
+  assert.match(webQuery, /Library of Congress.*Y\.M\.C\.A/i);
+  assert.deepEqual(searched, [], 'no station search for a cultural explainer');
+  assert.deepEqual(result.stations, [], 'no random station cards');
+  assert.deepEqual(result.serviceLinks, [], 'no music-service buttons');
+  assert.equal(result.sources.length, 2, 'source buttons are capped to avoid noise');
+  assert.equal(result.sources[0]?.url, locSource.url);
+  const text = composeText(calls);
+  assert.ok(text.includes('Раздели ответ на три слоя'), 'cultural-explainer note reached composer');
+  assert.ok(text.includes('Young Men’s Christian Association'), 'source snippet grounded the answer');
 });
 
 test('WEB SEARCH P0: web text rides an UNTRUSTED user message — stations stay in the trusted system block', async () => {
@@ -634,6 +875,20 @@ test('ANTI-FABRICATION: the composer is told NEVER to name a station that is not
   assert.ok(guarded, 'the no-fabricated-station-names guard reached the composer');
 });
 
+test('COMPOSE: verified stations force a station-first reply instead of permission asking', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Подобрала тёплые станции.'
+  });
+  await chatWithAssistant(ask('давай радио'), makeDeps(fetchImpl));
+  const compose = calls.find((c) => c.phase === 'compose');
+  assert.ok(
+    compose?.body.messages.some(
+      (m: any) => m.role === 'system' && String(m.content).includes('station-first')
+    )
+  );
+});
+
 test('VIBE BACKSTOP (4): a factual/news question with a music keyword does NOT trigger the backstop — the honesty guard survives', async () => {
   // «что нового у группы X» matches ACTION_INTENT (группа) AND FACTUAL_QUESTION
   // (что нового). The backstop must NOT fire — it would map the news question to
@@ -733,13 +988,13 @@ test('AQ-4 the web-grounded compose note forbids embellishment and "go google it
 // --- find_stations_by_artist — curated-grounded artist search -----------------
 
 test('ARTIST ROUTING: «радио с <curated artist>» → find_stations_by_artist leads with the curated card', async () => {
-  let resolvedHit: CuratedArtistHit | null = null;
+  const resolved = { hit: null as CuratedArtistHit | null };
   const tools: ToolProvider = {
     ...stubTools,
     // generic search would return Paris Jazz — proving routing means we do NOT
     // see that; we see the curated artist station instead.
     resolveArtistStation: async (hit) => {
-      resolvedHit = hit;
+      resolved.hit = hit;
       return station({ stationuuid: 'uuid-avaria', name: 'Радио Ваня — Дискотека Авария', tags: ['russian'] });
     },
     matchStationsByArtistName: async () => []
@@ -750,7 +1005,7 @@ test('ARTIST ROUTING: «радио с <curated artist>» → find_stations_by_ar
   });
   const result = await chatWithAssistant(ask('радио с Дискотекой Авария'), makeDeps(fetchImpl, { tools }));
   // the L1 curated hit (inflected query → resolved) was handed to the provider…
-  assert.equal(resolvedHit?.artist, 'Дискотека Авария');
+  assert.equal(resolved.hit?.artist, 'Дискотека Авария');
   // …and its live card is the one that surfaced (not the generic jazz station).
   assert.equal(result.stations.length, 1);
   assert.equal(result.stations[0]?.stationuuid, 'uuid-avaria');
@@ -846,6 +1101,78 @@ test('ARTIST ROUTING: a plain genre («включи джаз») is NOT hijacked 
   const result = await chatWithAssistant(ask('включи джаз'), makeDeps(fetchImpl, { tools }));
   assert.equal(artistCalled, false); // «джаз» isn't a curated artist → normal search path
   assert.equal(result.stations[0]?.stationuuid, 'uuid-jazz');
+});
+
+test('CURATED SEARCH: Hall & Oates / Rock’n Soul asks for classic-soul cards, not broad jazz/funk/dance', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      return args.query === 'classic soul'
+        ? [
+            station({ stationuuid: 'classic-1', name: 'SOUL RADIO Only Classic Soul', tags: ['classic soul', 'soul'] }),
+            station({ stationuuid: 'classic-2', name: 'SOUL RADIO Classics', tags: ['classic soul', 'soul'] }),
+            station({ stationuuid: 'skyline', name: 'Radio Skyline Soul', tags: ['classic soul'] })
+          ]
+        : [station({ stationuuid: 'wrong', name: 'Dance Club Radio', tags: ['dance'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"funk"}}'],
+    compose: 'Подобрала именно тёплый classic soul рядом с Hall & Oates.'
+  });
+  const result = await chatWithAssistant(
+    ask('Мне очень нравится альбом Хола и Отиса - Rock n Soul. Можешь дать станции где больше подобного соула играет?'),
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.deepEqual(searches, [{ query: 'classic soul', tag: 'soul' }]);
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'curated route should not let planner drift into funk/jazz/dance');
+  assert.deepEqual(
+    result.stations.map((s) => s.stationuuid),
+    ['classic-1', 'classic-2', 'skyline']
+  );
+  assert.ok(composeText(calls).includes('Hall & Oates / Rock’n Soul'), 'specific recommendation note reached composer');
+});
+
+test('CURATED SEARCH: Russian anecdotes route to Russian humor stations before broad comedy', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      if (args.query === 'анекдот') {
+        return [station({ stationuuid: 'anekdot', name: 'анекдот фм', country: 'Russia', tags: ['анекдот', 'юмор'] })];
+      }
+      if (args.query === 'юмор') {
+        return [
+          station({ stationuuid: 'standup', name: 'Женский Stand Up', country: 'Russia', tags: ['юмор'] }),
+          station({ stationuuid: 'nonstop', name: 'Юмор Non-Stop', country: 'Russia', tags: ['юмор'] })
+        ];
+      }
+      return [station({ stationuuid: 'wrong', name: 'WALM - Old Time Radio', tags: ['comedy'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"comedy"}}'],
+    compose: 'Нашла русскоязычный юмор и анекдоты.'
+  });
+  const result = await chatWithAssistant(
+    ask('А еще дай радио с анекдотами русскими))'),
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.deepEqual(searches, [
+    { query: 'анекдот', tag: 'юмор' },
+    { query: 'юмор', tag: 'юмор' }
+  ]);
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'curated route should not drift to generic comedy');
+  assert.deepEqual(
+    result.stations.map((s) => s.stationuuid),
+    ['anekdot', 'standup', 'nonstop']
+  );
+  assert.deepEqual(result.serviceLinks, []);
 });
 
 test('CULTURAL VIBE: «GTA Vice City» → search_stations on the curated tag (synthwave), with the honesty note', async () => {
@@ -1002,6 +1329,59 @@ test('DESCRIPTOR BACKSTOP: planner defers on «электроника 90х» →
   assert.ok(result.stations.length > 0);
 });
 
+test('EMOTIONAL VIBE: «заебало всё» is a station request, not another clarifying chat', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'downtempo', compose: 'Держи мягкую волну.' });
+  const result = await chatWithAssistant(ask('Заебало все'), makeDeps(fetchImpl, { tools }));
+
+  assert.ok(calls.some((c) => c.phase === 'planner'), 'emotional mood reaches the planner');
+  assert.ok(calls.some((c) => c.phase === 'vibe-tags'), 'emotional mood triggers card backstop');
+  assert.ok(searchQueries.includes('downtempo'));
+  assert.ok(result.stations.length > 0);
+});
+
+test('FOLLOW-UP RECOMMENDATION: «давай, предлагай» reuses the previous mood for station cards', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'ambient', compose: 'Лови.' });
+  const result = await chatWithAssistant(
+    ask('Давай, предлагай', {
+      history: [
+        { role: 'user', text: 'Заебало все' },
+        { role: 'assistant', text: 'Понимаю. Подберём что-то мягкое?' }
+      ]
+    }),
+    makeDeps(fetchImpl, { tools })
+  );
+  const vibeUserMessage = calls
+    .find((call) => call.phase === 'vibe-tags')
+    ?.body.messages.find((message: any) => message.role === 'user')?.content;
+
+  assert.ok(String(vibeUserMessage || '').includes('Заебало все'), 'previous mood was passed to vibe mapper');
+  assert.ok(searchQueries.includes('ambient'));
+  assert.ok(result.stations.length > 0);
+});
+
+test('FOLLOW-UP RECOMMENDATION: typo «Даш радио?» reuses the previous mood instead of literal search', async () => {
+  const { tools, searchQueries } = makeSpyTools();
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'ambient', compose: 'Лови.' });
+  const result = await chatWithAssistant(
+    ask('Даш радио?', {
+      history: [
+        { role: 'user', text: 'Заебало все' },
+        { role: 'assistant', text: 'Понимаю. Подберём что-то мягкое?' }
+      ]
+    }),
+    makeDeps(fetchImpl, { tools })
+  );
+  const vibeUserMessage = calls
+    .find((call) => call.phase === 'vibe-tags')
+    ?.body.messages.find((message: any) => message.role === 'user')?.content;
+
+  assert.ok(String(vibeUserMessage || '').includes('Заебало все'), 'previous mood was passed to vibe mapper');
+  assert.deepEqual(searchQueries, ['ambient']);
+  assert.ok(result.stations.length > 0);
+});
+
 test('DESCRIPTOR BACKSTOP excludes trivia — «расскажи про рок 90х» keeps its honesty path (no forced cards)', async () => {
   const { tools, searchQueries } = makeSpyTools();
   const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'rock' });
@@ -1059,4 +1439,103 @@ test('DESCRIPTOR DISLIKE: «не люблю транс» stays smalltalk — pla
     assert.equal(result.stations.length, 0, `"${q}" → no forced cards`);
     assert.equal(searchQueries.length, 0);
   }
+});
+
+// --- Curated routing for the two screenshot cases (соул / «по мозгам не било») --
+test('CURATED SOUL: «соул попсовый» leads with a soul search, not chillout/ambient', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      if (args.query === 'soul') {
+        return [
+          station({ stationuuid: 'soul-1', name: 'Deep Soul', tags: ['soul'] }),
+          station({ stationuuid: 'soul-2', name: 'Classic Soul FM', tags: ['soul', 'rnb'] }),
+          station({ stationuuid: 'soul-3', name: 'Soul Kitchen', tags: ['soul', 'funk'] })
+        ];
+      }
+      return [station({ stationuuid: 'wrong', name: 'Ambient Sleep', tags: ['ambient', 'chillout'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"chillout"}}'],
+    compose: 'Лови соул-вайб, мягкий и тёплый.'
+  });
+  const result = await chatWithAssistant(
+    ask('что то спокойное расслабляющее можешь включить? соул какой-нибудь попсовый'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.deepEqual(searches[0], { query: 'soul', tag: 'soul' });
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'soul curated route should not drift to chillout');
+  assert.deepEqual(result.stations.map((s) => s.stationuuid), ['soul-1', 'soul-2', 'soul-3']);
+});
+
+test('CURATED SOFT-MAINSTREAM: «популярные, но по мозгам не било» → soft pop, not a global dance grab-bag', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      if (args.query === 'soft pop') {
+        return [
+          station({ stationuuid: 'soft-1', name: 'Soft Hits', tags: ['soft', 'pop'] }),
+          station({ stationuuid: 'soft-2', name: 'Easy Pop', tags: ['soft', 'adult contemporary'] }),
+          station({ stationuuid: 'soft-3', name: 'Mellow FM', tags: ['soft'] })
+        ];
+      }
+      return [station({ stationuuid: 'dance', name: 'Hit Dance 128', tags: ['dance'] })];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"pop"}}'],
+    compose: 'Мягкие узнаваемые хиты, спокойная подача.'
+  });
+  const result = await chatWithAssistant(
+    ask('где играют популярные песни, но чтобы по мозгам не било'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.deepEqual(searches[0], { query: 'soft pop', tag: 'soft' });
+  assert.ok(!calls.some((c) => c.phase === 'planner'), 'soft-mainstream route should not fall through to raw pop');
+  assert.deepEqual(result.stations.map((s) => s.stationuuid), ['soft-1', 'soft-2', 'soft-3']);
+});
+
+test('CURATED GUARD: «не люблю соул» does NOT trigger the soul curated route', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      return [station({ stationuuid: 'x', name: 'Something', tags: ['rock'] })];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"final","message":"Окей, соул мимо. Что тогда — рок, электроника?"}'],
+    compose: 'Окей, соул мимо.'
+  });
+  const result = await chatWithAssistant(ask('не люблю соул честно говоря'), makeDeps(fetchImpl, { tools }));
+  // The curated soul route must be bypassed on a dislike (#149: a dislike stays
+  // smalltalk) — never a forced soul search, never forced soul cards.
+  assert.ok(!searches.some((s) => s.query === 'soul' && s.tag === 'soul'), 'no forced soul search on a dislike');
+  assert.equal(result.stations.length, 0, 'a dislike must not force soul cards');
+});
+
+test('CURATED GUARD: «не хочу популярное, хочу спокойный андеграунд» does NOT route to soft-mainstream', async () => {
+  const searches: Array<{ query: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push({ query: args.query, tag: args.tag });
+      return [station({ stationuuid: 'u', name: 'Underground FM', tags: ['experimental'] })];
+    }
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"underground"}}'],
+    compose: 'Окей, ухожу от попсы — лови андеграунд.'
+  });
+  await chatWithAssistant(
+    ask('не хочу популярное, хочу спокойный андеграунд'),
+    makeDeps(fetchImpl, { tools })
+  );
+  assert.ok(!searches.some((s) => s.query === 'soft pop'), 'a rejection of popular must not force soft-pop');
 });

@@ -74,6 +74,13 @@ type CatalogSearchFilters = {
   continent: string;
   limit: number;
   cursor: number;
+  seed?: number;
+  // Opt-in (AI/Лира path only): order a typed-q search by genre RELEVANCE blended
+  // with quality, instead of quality-only. Fixes «мимо» picks where a bare-genre
+  // `q` substring-matched the whole catalog and popularity alone chose the winner
+  // (e.g. soul → generic, pop → global grab-bag). The HTTP catalog/search route
+  // leaves this unset so the Search screen's ordering is unchanged.
+  relevance?: boolean;
 };
 
 const PROFILE_CACHE_TTL_MS = 1000 * 60 * 5;
@@ -534,6 +541,43 @@ const searchTagsOf = (station: CatalogStation) =>
 const searchQualityOf = (station: CatalogStation) =>
   station.searchQuality ?? computeQualityScore(station);
 
+// AI/Лира relevance: how well a station MATCHES the intended genre/name, so a
+// bare-genre `q` returns actual genre stations instead of the most-voted row that
+// merely contains the substring. Word-aware on the comma-split tags (so `tag=soul`
+// hits «soul», «classic soul», «neo soul» but not «Seoul»/«console»). Blended with
+// quality (not replacing it) so popularity only breaks ties WITHIN a relevance tier.
+const computeSearchRelevance = (station: CatalogStation, q: string, tag: string): number => {
+  let score = 0;
+  const tags = searchTagsOf(station);
+  const tagTerm = foldCyrillic(String(tag || q || '').toLowerCase().trim());
+  if (tagTerm) {
+    if (tags.includes(tagTerm)) score += 6;
+    else if (tags.some((value) => value.split(/\s+/).includes(tagTerm))) score += 4;
+    else if (tags.some((value) => value.includes(tagTerm))) score += 2;
+  }
+  const nameTerm = foldCyrillic(String(q || '').toLowerCase().trim());
+  if (nameTerm) {
+    const name = foldCyrillic(String(station.name || '').toLowerCase());
+    if (name === nameTerm) score += 4;
+    else if (name.split(/[^0-9a-zа-я]+/i).filter(Boolean).includes(nameTerm)) score += 3;
+    else if (name.includes(nameTerm)) score += 1.5;
+  }
+  return score;
+};
+const RELEVANCE_WEIGHT = 3;
+
+const seededSearchBrowseOrder = (
+  stations: CatalogStation[],
+  seed = Date.now(),
+  limit = 50
+) => {
+  const ranked = [...stations].sort((left, right) => searchQualityOf(right) - searchQualityOf(left));
+  const headSize = Math.min(ranked.length, Math.max(600, limit * 24));
+  const head = seededOrder(ranked.slice(0, headSize), seed);
+  const tail = ranked.length > headSize ? seededOrder(ranked.slice(headSize), seed + 17) : [];
+  return [...head, ...tail];
+};
+
 // Attach the precomputed search index to every station. Runs ONCE per profiling
 // refresh inside getProfiledCatalog (cached in profiledFullCache, invalidated
 // with the catalog), and rides the #43 boot-warm path so the first search after
@@ -589,11 +633,23 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const nextCursor =
     filters.cursor + filters.limit < filtered.length ? String(filters.cursor + filters.limit) : null;
 
-  // T_station_intel P1 (v1): order the matches by quality so the slice (and Лира's
-  // limit-8 tool) leads with the best stations instead of catalog order. Facets,
-  // total and nextCursor stay on the unsorted `filtered` (counts are order-free).
-  // Stable sort (V8) keeps equal-score stations in their original order.
-  const ranked = [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left));
+  // Typed search stays relevance/quality-first. Browse/filter-only search uses
+  // a per-session seeded order inside a large healthy-quality head pool, so the
+  // Search screen does not start with the same global leaders on every open.
+  // The AI/Лира path opts into genre-relevance ordering (see CatalogSearchFilters).
+  const ranked = filters.q
+    ? filters.relevance
+      ? filtered
+          .map((station) => ({
+            station,
+            order:
+              computeSearchRelevance(station, filters.q, filters.tag) * RELEVANCE_WEIGHT +
+              searchQualityOf(station)
+          }))
+          .sort((left, right) => right.order - left.order)
+          .map((entry) => entry.station)
+      : [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
+    : seededSearchBrowseOrder(filtered, filters.seed, filters.limit);
 
   return {
     items: ranked.slice(filters.cursor, filters.cursor + filters.limit).map(toStationLite),

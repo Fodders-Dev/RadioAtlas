@@ -46,7 +46,8 @@ test('media (image) rate limit still keys on X-Forwarded-For (behaviour unchange
 const stubCatalog = {
   search: async () => ({ items: [] }),
   getStationById: async () => null,
-  getSummary: async () => ({ moodRails: [], trending: [] })
+  getSummary: async () => ({ moodRails: [], trending: [] }),
+  getCatalog: async () => []
 };
 
 const deepseek = (over: Partial<DeepseekConfig> = {}): DeepseekConfig => ({

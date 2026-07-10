@@ -102,6 +102,8 @@ export const enDictionary = {
     "favoriteColumn": "Favorite",
     "favorite": "Favorite",
     "unfavorite": "Unfavorite",
+    "addToPlaylist": "Add to playlist",
+    "addToPlaylistAria": "Add {station} to a playlist",
     "hideFromRecommendations": "Hide from recommendations",
     "unhideFromRecommendations": "Show in recommendations again",
     "verified": "Verified",
@@ -112,13 +114,6 @@ export const enDictionary = {
   },
   "stationTile": {
     "playLabel": "Play: {name}"
-  },
-  "reasons": {
-    "frequent": "Played before",
-    "favoriteTag": "Favorite genre · {tag}",
-    "favoriteCountry": "From {country}",
-    "promoted": "Sponsored",
-    "verified": "Verified"
   },
   "explore": {
     "kicker": "RadioAtlas x Winamp",
@@ -529,6 +524,7 @@ export const enDictionary = {
     "trackJournalCount": "Copied: {count}",
     "tracksSubtitle": "Track titles you've copied from the air.",
     "tracksEmptyHint": "Copy a track with the button in the player — it's saved here.",
+    "removeTrackHistoryItem": "Remove {track} from copied tracks",
     "stationHistory": "Live station history for returning to the right mood fast.",
     "tabs": {
       "favorites": "Favorites",
@@ -541,8 +537,11 @@ export const enDictionary = {
     "saveQueueAsPlaylist": "Save as playlist",
     "saveQueuePrompt": "Queue · {date}",
     "queueSavedAsPlaylist": "Queue saved as playlist: {name}",
-    "collectionsTitle": "Playlists and follows",
-    "collectionsCopy": "Build station sets, keep favorite regions nearby, and surface alerts in one place.",
+    "shuffleLibrary": "Shuffle full library",
+    "shuffleFavorites": "Shuffle",
+    "shuffleLibrarySource": "Library shuffle",
+    "collectionsTitle": "Playlists",
+    "collectionsCopy": "Build station sets for moods, countries, and favorite live sessions.",
     "createCollection": "New playlist",
     "createCollectionPrompt": "Playlist name",
     "collectionEmpty": "This playlist is still empty.",
@@ -551,6 +550,10 @@ export const enDictionary = {
     "collectionAdded": "Added {station} to {collection}",
     "collectionCreated": "Created {name}",
     "collectionRenamed": "Renamed playlist: {name}",
+    "addToPlaylistTitle": "Add to playlist",
+    "collectionAlreadyHasStation": "Already added",
+    "noPlaylistsYet": "No playlists yet — create one below.",
+    "createAndAddToPlaylist": "Create and add",
     "openCollection": "Open",
     "seeAllStations": "See all",
     "collectionOpenHint": "Open for play and remove controls.",
@@ -707,6 +710,7 @@ export const enDictionary = {
     "favoritesLabel": "Favorites",
     "favoritesDesc": "Reset saved stations.",
     "clearFavorites": "Clear favorites",
+    "clearFavoritesConfirm": "Clear all favorite stations? Saved now: {count}.",
     "recentLabel": "Recently played",
     "recentDesc": "Clear local playback history.",
     "clearRecent": "Clear recent",

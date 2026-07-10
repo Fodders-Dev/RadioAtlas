@@ -7,15 +7,23 @@ npm run dev:webapp
 npm run dev:bot
 ```
 
+Use Node.js 24+ and npm 10+. The API account and station-intelligence stores use
+`node:sqlite`, so older Node runtimes are not supported.
+
 ## Bot env
 - `BOT_TOKEN`: Telegram bot token
 - `WEBAPP_URL`: public webapp URL
+- `API_URL`: API base used by the bot for billing, reachability, and AI calls. In production use the canonical URL `https://radioatlas.ru/api`, not a redirected alias such as `https://radioatlas.duckdns.org/api`.
 - `WEBAPP_DEEPLINK`: optional deep link
 - `INTERNAL_WEBHOOK_TOKEN`: shared secret used as the `X-Internal-Token` header on the bot → API billing webhook forward. Must match the API's `INTERNAL_WEBHOOK_TOKEN` exactly. Generate with `openssl rand -hex 32`. If unset, the bot logs a warning at startup and still **always replies** to the user with the T0.2b apology copy (rather than silent disappointment) — the forward itself is skipped.
+- `AI_ENABLED`: set to `1` only when the API process also has `AI_ENABLED=1` and `DEEPSEEK_API_KEY` set. If bot AI is enabled while the API AI endpoint is missing or unreachable, private text messages degrade to the warm fallback.
 - `SUPPORT_HANDLE`: where users are directed when a billing webhook forward fails or the bot env is misconfigured (T0.2b apology copy). Format is a Telegram handle like `@ahjkuio` (the default fallback) — switch to `@radioatlas_support` once that account is live. Each failure path also emits a single-line JSON stderr log: `event: 'billing_webhook_forward_skipped' | 'billing_webhook_forward_failed' | 'billing_webhook_succeeded_no_keyboard'`, `reason: 'empty-payload' | 'api-url-missing' | 'env-missing' | 'network' | 'http-<status>' | 'webapp-url-missing'`, plus `purchaseId`, `chargeId`, and on `reason: 'network'` an `error` string (extracted via `error.message`, since `JSON.stringify(new Error('x'))` is `'{}'`).
 
 ## API env
 - `INTERNAL_WEBHOOK_TOKEN`: shared secret required on `POST /billing/telegram/webhook`. Requests without `X-Internal-Token` or with a mismatched value get 401. If the env is empty the route rejects every call (fail-closed). Must match the bot's `INTERNAL_WEBHOOK_TOKEN` exactly.
+- `AI_ENABLED` + `DEEPSEEK_API_KEY`: enable the Mini App `/ai/chat` and internal `/internal/bot/ai-chat` endpoints. `AI_ENABLED=1` without a key leaves AI disabled and the bot should not be deployed with `AI_ENABLED=1` in that state.
+- `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `AI_MAX_OUTPUT_TOKENS`, `AI_TIMEOUT_SEC`: optional AI runtime tuning.
+- `AI_WEB_SEARCH_ENABLED` + `TAVILY_API_KEY`: optional grounded web search for factual questions.
 - `BILLING_RECONCILE_ENABLED`: T0.2c reconcile sweep toggle. Defaults to enabled. Set to `0` in tests/CI (or for emergency stop) to keep the in-process `setInterval` from firing real `getStarTransactions` calls; the `/test/billing/trigger-reconcile` fixture endpoint stays available regardless and runs a single sweep cycle synchronously. Sweep needs `TELEGRAM_BOT_TOKEN`/`BOT_TOKEN` (already used by the invoice flow) — boot logs a warning and skips the sweep if the env is missing. Assumes single API instance; PM2 cluster mode would need a DB-side lease (see `billingReconciliation.ts` header). The sweep emits these structured stderr log events: `billing_reconcile_dead_letter` (`{purchaseId, attempts, lastError}` — fires once per row when `reconcile_attempts` crosses 4→5), `billing_reconcile_telegram_fetch_failed` (Telegram API outage, this tick skipped, no row state mutated), `billing_reconcile_grant_failed` (in-process `confirmBillingPurchase` threw — rare, row still attempts++ on next tick), `billing_reconcile_tick_crashed` (defensive catch around the whole tick — should never fire, indicates a bug).
 - `ALLOWED_ORIGINS`: comma-separated allow-list of origins permitted to read the API cross-origin (exact match, case-insensitive on scheme+host). Required in production - the API process exits non-zero on boot if `NODE_ENV=production` and this is empty. In dev (any other `NODE_ENV`) it falls back to `http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174`. The production value at the time of writing is:
   ```
@@ -79,7 +87,7 @@ Additionally, `apps/api/src/googleAuth.ts` and `apps/api/src/vkAuth.ts` short-ci
 4. Set `VITE_TG_BOT` in `apps/webapp/.env` and redeploy.
 
 ## Deploy (VPS)
-1. Install Node 18+, Caddy, and Python 3.
+1. Install Node 24+, Caddy, and Python 3.
 2. Build webapp:
    ```bash
    npm install

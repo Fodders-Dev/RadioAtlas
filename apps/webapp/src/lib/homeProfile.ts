@@ -1,5 +1,6 @@
 import type { FollowedRegion, FollowedStation, UserCollection } from '../domain/contracts';
 import { stationsForRegions } from './regionRecommendations';
+import { getStationExposurePenalty, type StationExposureLedger } from './stationExposure';
 import type { AppSection, StationLite } from '../types';
 
 type ScoreMap = Record<string, number>;
@@ -52,6 +53,11 @@ type CreateHomeRecommendationFeedInput = {
   behaviorProfile: BehaviorProfile;
   currentStation: StationLite | null;
   rotationSeed: number;
+  // Optional cross-session exposure ledger: recently shown/played stations are
+  // demoted within each rail's pool so «Для тебя» rotates instead of re-leading
+  // with the same picks. Absent → no demotion (backward compatible).
+  exposure?: StationExposureLedger | null;
+  now?: number;
 };
 
 const ACTION_WEIGHTS: Record<BehaviorActionKind, number> = {
@@ -195,7 +201,7 @@ const scoreStation = (station: StationLite, profile: BehaviorProfile, rotationSe
     return sum + (profile.tagScores[tag] || 0) * multiplier;
   }, 0);
   const qualityBoost = (station.isVerified ? 0.8 : 0) + (station.isClaimed ? 0.35 : 0) - (station.promoted ? 2.5 : 0);
-  const rotationJitter = (hashValue(`${station.stationuuid}:${rotationSeed}`) % 1000) / 1000;
+  const rotationJitter = seededJitter(station.stationuuid, rotationSeed);
   return stationScore * 1.3 + tagScore * 1.7 + countryScore * 1.12 + stateScore * 0.9 + qualityBoost + rotationJitter;
 };
 
@@ -205,16 +211,25 @@ const rankStations = (
   rotationSeed: number,
   predicate: (station: StationLite) => boolean,
   limit: number,
-  minScore = 1.25
+  minScore = 1.25,
+  exposure: StationExposureLedger | null = null,
+  now = Date.now()
 ) =>
   pickFreshSlice(
     stations
       .filter(predicate)
-      .map((station) => ({
-        station,
-        score: scoreStation(station, profile, rotationSeed)
-      }))
-      .filter((item) => item.score >= minScore)
+      .map((station) => {
+        const base = scoreStation(station, profile, rotationSeed);
+        // Gate rail membership on the BASE score (a well-matched station is never
+        // hard-dropped just for having been shown), but order by the DEMOTED score
+        // so a recently-seen pick sinks in the pool and a fresher peer surfaces.
+        return {
+          station,
+          base,
+          score: base - getStationExposurePenalty(exposure, station.stationuuid, now)
+        };
+      })
+      .filter((item) => item.base >= minScore)
       .sort(
         (left, right) =>
           right.score - left.score || left.station.name.localeCompare(right.station.name)
@@ -303,7 +318,9 @@ export const createHomeRecommendationFeed = ({
   followedRegions = [],
   behaviorProfile,
   currentStation,
-  rotationSeed
+  rotationSeed,
+  exposure = null,
+  now = Date.now()
 }: CreateHomeRecommendationFeedInput): HomeRecommendationFeed => {
   const stationById = new Map<string, StationLite>();
   mergeUniqueStations(catalog, favorites, recent, queuePreview, playbackHistory).forEach((station) => {
@@ -362,7 +379,9 @@ export const createHomeRecommendationFeed = ({
     rotationSeed,
     (station) => !seenIds.has(station.stationuuid),
     4,
-    2.1
+    2.1,
+    exposure,
+    now
   );
   const reservedIds = new Set(tunedForYou.map((station) => station.stationuuid));
   const becauseYouLiked = rankStations(
@@ -371,7 +390,9 @@ export const createHomeRecommendationFeed = ({
     rotationSeed + 17,
     (station) => !reservedIds.has(station.stationuuid) && !seenIds.has(station.stationuuid),
     4,
-    1.45
+    1.45,
+    exposure,
+    now
   );
   becauseYouLiked.forEach((station) => reservedIds.add(station.stationuuid));
 
@@ -384,7 +405,9 @@ export const createHomeRecommendationFeed = ({
       !seenIds.has(station.stationuuid) &&
       (!dominantCountry || normalizeKey(station.country) !== normalizeKey(dominantCountry)),
     4,
-    1.15
+    1.15,
+    exposure,
+    now
   );
 
   const returnToAir = mergeUniqueStations(

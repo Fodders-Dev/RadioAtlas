@@ -1,9 +1,14 @@
 import { defineConfig } from '@playwright/test';
-import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const PORT = Number(process.env.PLAYWRIGHT_WEBAPP_PORT || 5174);
 const API_PORT = 4311;
-const ACCOUNT_STORE_PATH = fileURLToPath(new URL('../api/data/playwright-account-store.sqlite', import.meta.url));
+const ACCOUNT_STORE_PATH = join(
+  tmpdir(),
+  'radioatlas-playwright',
+  `account-store-${process.pid}-${Date.now()}.sqlite`
+);
 const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 export default defineConfig({
@@ -39,6 +44,7 @@ export default defineConfig({
       stderr: 'pipe',
       env: {
         ...process.env,
+        VITE_API_PROXY_PORT: String(API_PORT),
         VITE_GOOGLE_CLIENT_ID: 'test-google-client'
       }
     }

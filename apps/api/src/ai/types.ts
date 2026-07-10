@@ -11,6 +11,19 @@ export type ChatInput = {
   history?: ChatTurn[];
   surface: Surface;
   locale?: string;
+  userTaste?: UserTasteContext;
+};
+
+export type UserTasteContext = {
+  favoriteStationIds?: string[];
+  recentStationIds?: string[];
+  hiddenStationIds?: string[];
+  negativeStationIds?: string[];
+  lastRecommendedStationIds?: string[];
+  stationScores?: Record<string, number>;
+  tagScores?: Record<string, number>;
+  countryScores?: Record<string, number>;
+  languageScores?: Record<string, number>;
 };
 
 // A station the model is allowed to name — ONLY ever sourced from a tool

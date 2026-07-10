@@ -2,23 +2,24 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import type { NowPlayingSnapshot } from '../domain/contracts';
+import type { NowPlayingSnapshot, UserCollection } from '../domain/contracts';
 import { observeStationNowPlaying } from '../lib/nowPlaying';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import type { StationLite } from '../types';
-import type { BehaviorProfile } from '../lib/homeProfile';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { getStationBadgeState, type StationBadgeState } from '../lib/stationStatusBadge';
 import { normalizeTrustedTrackTitle, resolveNowPlayingTrust } from '../lib/trackTrust';
 import { useLibrary, usePlayback } from '../state/RadioContext';
-import { getRecommendationReason } from '../lib/recommendationReason';
+import { useDialog } from '../lib/useDialog';
 import { useLocale } from '../state/LocaleContext';
 import { StationArtwork } from './StationArtwork';
 import { StationStatusBadge } from './StationStatusBadge';
@@ -27,6 +28,7 @@ type StationTableProps = {
   stations: StationLite[];
   compact?: boolean;
   sourceId?: string;
+  sourceLabel?: string;
   buildQueue?: boolean;
   nowPlayingMode?: 'active-only' | 'viewport';
   // Optional non-tappable per-row origin label (e.g. library search results
@@ -87,11 +89,11 @@ type StationTableRowProps = {
   hidden: boolean;
   sourceLabel?: string;
   badge?: StationBadgeState;
-  behaviorProfile: BehaviorProfile | null | undefined;
   activePlayback: ActivePlayback | null;
   // Stable callbacks (parent keeps them referentially stable via refs).
   onPlay: (station: StationLite) => void;
   onToggleFavorite: (station: StationLite) => void;
+  onAddToPlaylist: (station: StationLite) => void;
   onToggleHidden: (station: StationLite, currentlyHidden: boolean) => void;
   onShare: (station: StationLite) => void;
 };
@@ -106,10 +108,10 @@ const StationTableRow = memo(({
   hidden,
   sourceLabel,
   badge,
-  behaviorProfile,
   activePlayback,
   onPlay,
   onToggleFavorite,
+  onAddToPlaylist,
   onToggleHidden,
   onShare
 }: StationTableRowProps) => {
@@ -172,16 +174,6 @@ const StationTableRow = memo(({
   const toggleHidden = () => {
     onToggleHidden(station, hidden);
   };
-  // Why is this station here? "Часто слушаешь", "Любимый жанр · jazz",
-  // "Часто слушаешь · Russia", "Промо", "Проверено" — pick one to
-  // explain the row at a glance. null when there's no signal worth
-  // surfacing, and we just show the station's existing flag chips
-  // (verified / promoted / claimed) instead. Skipping if the row is
-  // currently active so the now-playing UI takes precedence.
-  const reason =
-    !active && !hidden
-      ? getRecommendationReason({ station, behaviorProfile, t })
-      : null;
   const isActivePlaying = Boolean(active && activePlayback?.player.isPlaying);
   const playLabel = isActivePlaying ? t('common.pause') : t('common.play');
   const locationLabel = stationLocation(station);
@@ -254,27 +246,7 @@ const StationTableRow = memo(({
                 <StationStatusBadge state={badge ?? 'none'} />
                 <span className="marquee-text">{normalizeStationName(station.name)}</span>
               </div>
-              {reason ? (
-                <span
-                  className={`station-reason-chip station-reason-chip-${reason.kind}`}
-                  title={reason.label}
-                >
-                  {reason.label}
-                </span>
-              ) : null}
-              {/* When the reason chip is showing, hide the
-                  verified / promoted catalog flags entirely.
-                  The reason ("Часто слушаешь · Russia") is
-                  always more informative than the catalog flag
-                  ("Проверено") — stacking both makes the row
-                  read as "two facts about this station" when
-                  the user just wants one quick line. Claimed
-                  has no reason equivalent, so it still renders
-                  to mark the row as user-managed.
-                  Without a reason chip, the original flag row
-                  is preserved as the secondary signal. */}
-              {!reason &&
-              (station.isVerified || station.promoted || station.isClaimed) ? (
+              {station.isVerified || station.promoted || station.isClaimed ? (
                 <div className="chip-row station-inline-flags">
                   {station.isVerified ? (
                     <span className="chip active">{t('stationTable.verified')}</span>
@@ -285,10 +257,6 @@ const StationTableRow = memo(({
                   {station.isClaimed && !station.isVerified ? (
                     <span className="chip">{t('stationTable.claimed')}</span>
                   ) : null}
-                </div>
-              ) : reason && station.isClaimed ? (
-                <div className="chip-row station-inline-flags">
-                  <span className="chip">{t('stationTable.claimed')}</span>
                 </div>
               ) : null}
               {showTrackLine ? (
@@ -329,6 +297,19 @@ const StationTableRow = memo(({
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+            <button
+              className="icon-btn station-playlist-btn"
+              onClick={() => onAddToPlaylist(station)}
+              type="button"
+              aria-label={t('stationTable.addToPlaylistAria', {
+                station: normalizeStationName(station.name)
+              })}
+              title={t('stationTable.addToPlaylist')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h11v2H4V5Zm0 5h9v2H4v-2Zm0 5h8v2H4v-2Zm12-4h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3Z" />
               </svg>
             </button>
             <button
@@ -399,24 +380,11 @@ const StationTableRow = memo(({
                     {sourceLabel}
                   </span>
                 ) : null}
-                {reason ? (
-                  <span
-                    className={`station-reason-chip station-reason-chip-${reason.kind}`}
-                    title={reason.label}
-                  >
-                    {reason.label}
-                  </span>
-                ) : null}
-                {!reason &&
-                (station.isVerified || station.promoted || station.isClaimed) ? (
+                {station.isVerified || station.promoted || station.isClaimed ? (
                   <div className="chip-row station-inline-flags">
                     {station.isVerified ? <span className="chip active">{t('stationTable.verified')}</span> : null}
                     {station.promoted ? <span className="chip">{t('stationTable.promoted')}</span> : null}
                     {station.isClaimed && !station.isVerified ? <span className="chip">{t('stationTable.claimed')}</span> : null}
-                  </div>
-                ) : reason && station.isClaimed ? (
-                  <div className="chip-row station-inline-flags">
-                    <span className="chip">{t('stationTable.claimed')}</span>
                   </div>
                 ) : null}
                 {showTrackLine ? (
@@ -438,6 +406,19 @@ const StationTableRow = memo(({
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+            <button
+              className="icon-btn station-playlist-btn"
+              onClick={() => onAddToPlaylist(station)}
+              type="button"
+              aria-label={t('stationTable.addToPlaylistAria', {
+                station: normalizeStationName(station.name)
+              })}
+              title={t('stationTable.addToPlaylist')}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h11v2H4V5Zm0 5h9v2H4v-2Zm0 5h8v2H4v-2Zm12-4h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3Z" />
               </svg>
             </button>
             <button
@@ -488,6 +469,126 @@ const StationTableRow = memo(({
   );
 });
 StationTableRow.displayName = 'StationTableRow';
+
+type StationPlaylistDialogProps = {
+  station: StationLite;
+  collections: UserCollection[];
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onClose: () => void;
+  onAddToCollection: (collection: UserCollection) => void;
+  onCreateCollection: () => void;
+};
+
+const StationPlaylistDialog = ({
+  station,
+  collections,
+  draft,
+  onDraftChange,
+  onClose,
+  onAddToCollection,
+  onCreateCollection
+}: StationPlaylistDialogProps) => {
+  const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: true, onClose });
+
+  if (typeof document === 'undefined') return null;
+
+  const normalizedName = normalizeStationName(station.name);
+  const createDisabled = !draft.trim();
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      className="station-playlist-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <button
+        className="station-playlist-dialog-scrim"
+        type="button"
+        onClick={onClose}
+        aria-label={t('common.close')}
+      />
+      <div className="station-playlist-dialog-card">
+        <div className="station-playlist-dialog-head">
+          <div>
+            <div className="bottom-sheet-kicker">{t('library.tabs.collections')}</div>
+            <div className="bottom-sheet-title" id={titleId}>
+              {t('library.addToPlaylistTitle')}
+            </div>
+          </div>
+          <button
+            className="bottom-sheet-close"
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="station-playlist-target">
+          <StationArtwork station={station} size="sm" />
+          <div>
+            <div className="station-playlist-target-name">{normalizedName}</div>
+            <div className="station-playlist-target-meta">{stationLocation(station)}</div>
+          </div>
+        </div>
+
+        <div className="station-playlist-options">
+          {collections.length ? (
+            collections.map((collection) => {
+              const alreadyAdded = collection.stationIds.includes(station.stationuuid);
+              return (
+                <button
+                  key={collection.id}
+                  className={`station-playlist-option ${alreadyAdded ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => onAddToCollection(collection)}
+                  disabled={alreadyAdded}
+                >
+                  <span>{collection.name}</span>
+                  <em>
+                    {alreadyAdded
+                      ? t('library.collectionAlreadyHasStation')
+                      : t('library.collectionCount', { count: collection.stationIds.length })}
+                  </em>
+                </button>
+              );
+            })
+          ) : (
+            <div className="station-playlist-empty">{t('library.noPlaylistsYet')}</div>
+          )}
+        </div>
+
+        <form
+          className="station-playlist-create"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!createDisabled) onCreateCollection();
+          }}
+        >
+          <input
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            placeholder={t('library.createCollectionPrompt')}
+            aria-label={t('library.createCollectionPrompt')}
+          />
+          <button className="chip active" type="submit" disabled={createDisabled}>
+            {t('library.createAndAddToPlaylist')}
+          </button>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // Window-virtualized list body. Only mounted for lists past the
 // threshold. Renders the visible window + overscan as absolutely
@@ -569,6 +670,7 @@ export const StationTable = ({
   stations,
   compact,
   sourceId,
+  sourceLabel,
   buildQueue = true,
   nowPlayingMode = 'active-only',
   sourceLabelFor
@@ -586,15 +688,19 @@ export const StationTable = ({
   // per tick. (T2.11a)
   const { player, nowPlaying, nowPlayingStatus, playStation, shareStation } = usePlayback();
   const {
+    collections,
     favorites,
-    behaviorProfile,
     playabilityProfile,
     stationHealthProfile,
     toggleFavorite,
+    addStationToCollection,
+    addStationToNewCollection,
     hideStationFromRecommendations,
     unhideStationFromRecommendations,
     isStationHiddenFromRecommendations
   } = useLibrary();
+  const [playlistStation, setPlaylistStation] = useState<StationLite | null>(null);
+  const [playlistDraft, setPlaylistDraft] = useState('');
 
   // The context action fns are recreated on every provider render;
   // closing over them directly would change the callback identity each
@@ -614,20 +720,49 @@ export const StationTable = ({
     unhideStationFromRecommendations,
     shareStation
   };
-  const queueConfigRef = useRef({ stations, sourceId, buildQueue });
-  queueConfigRef.current = { stations, sourceId, buildQueue };
+  const queueConfigRef = useRef({ stations, sourceId, sourceLabel, buildQueue });
+  queueConfigRef.current = { stations, sourceId, sourceLabel, buildQueue };
 
   const handlePlay = useCallback((station: StationLite) => {
-    const { stations: queueStations, sourceId: queueSourceId, buildQueue: queueBuild } =
+    const {
+      stations: queueStations,
+      sourceId: queueSourceId,
+      sourceLabel: queueSourceLabel,
+      buildQueue: queueBuild
+    } =
       queueConfigRef.current;
     actionsRef.current.playStation(station, {
       playlist: queueBuild ? queueStations : undefined,
-      sourceId: queueSourceId
+      sourceId: queueSourceId,
+      sourceLabel: queueSourceLabel
     });
   }, []);
   const handleToggleFavorite = useCallback((station: StationLite) => {
     actionsRef.current.toggleFavorite(station);
   }, []);
+  const handleOpenPlaylistSheet = useCallback((station: StationLite) => {
+    setPlaylistDraft('');
+    setPlaylistStation(station);
+  }, []);
+  const handleClosePlaylistSheet = useCallback(() => {
+    setPlaylistStation(null);
+    setPlaylistDraft('');
+  }, []);
+  const handleAddStationToCollection = useCallback(
+    (collection: UserCollection) => {
+      if (!playlistStation) return;
+      addStationToCollection(collection.id, playlistStation);
+      handleClosePlaylistSheet();
+    },
+    [addStationToCollection, handleClosePlaylistSheet, playlistStation]
+  );
+  const handleCreateCollectionWithStation = useCallback(() => {
+    if (!playlistStation) return;
+    const name = playlistDraft.trim();
+    if (!name) return;
+    addStationToNewCollection(name, playlistStation);
+    handleClosePlaylistSheet();
+  }, [addStationToNewCollection, handleClosePlaylistSheet, playlistDraft, playlistStation]);
   const handleToggleHidden = useCallback((station: StationLite, currentlyHidden: boolean) => {
     if (currentlyHidden) {
       actionsRef.current.unhideStationFromRecommendations(station);
@@ -665,10 +800,10 @@ export const StationTable = ({
         hidden={isStationHiddenFromRecommendations(station.stationuuid)}
         sourceLabel={sourceLabelFor?.(station.stationuuid)}
         badge={getStationBadgeState(station, { healthProfile: stationHealthProfile, playabilityProfile })}
-        behaviorProfile={behaviorProfile}
         activePlayback={active ? { player, nowPlaying, nowPlayingStatus } : null}
         onPlay={handlePlay}
         onToggleFavorite={handleToggleFavorite}
+        onAddToPlaylist={handleOpenPlaylistSheet}
         onToggleHidden={handleToggleHidden}
         onShare={handleShare}
       />
@@ -678,6 +813,18 @@ export const StationTable = ({
   if (!stations.length) {
     return <div className="empty-state">{t('stationTable.empty')}</div>;
   }
+
+  const playlistDialog = playlistStation ? (
+    <StationPlaylistDialog
+      station={playlistStation}
+      collections={collections}
+      draft={playlistDraft}
+      onDraftChange={setPlaylistDraft}
+      onClose={handleClosePlaylistSheet}
+      onAddToCollection={handleAddStationToCollection}
+      onCreateCollection={handleCreateCollectionWithStation}
+    />
+  ) : null;
 
   return (
     <div className={`station-table ${compact ? 'compact' : ''}`}>
@@ -699,6 +846,7 @@ export const StationTable = ({
       ) : (
         stations.map((station, index) => renderRow(station, index))
       )}
+      {playlistDialog}
     </div>
   );
 };

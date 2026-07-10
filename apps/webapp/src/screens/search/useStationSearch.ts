@@ -91,6 +91,7 @@ export const useStationSearch = ({
   const [recentQueries, setRecentQueries] = useState<string[]>(readSearchHistory);
 
   const searchTokenRef = useRef(0);
+  const browseSeedRef = useRef(Date.now());
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(query);
   const deferredCountryQuery = useDeferredValue(countryQuery);
@@ -116,7 +117,8 @@ export const useStationSearch = ({
           language: languageFilter !== 'All' ? languageFilter : undefined,
           continent: continentFilter !== 'All' ? continentFilter : undefined,
           limit: compactResults ? 32 : 48,
-          cursor
+          cursor,
+          seed: debounced.trim().length < 2 ? browseSeedRef.current : undefined
         });
         if (searchTokenRef.current !== token) return;
         setResults((prev) => (append ? mergeStations(prev, response.items) : response.items));
@@ -218,7 +220,7 @@ export const useStationSearch = ({
   }, [nextCursor, runSearch, searchLoading, searchLoadingMore]);
 
   useInfiniteScroll(sentinelRef, {
-    enabled: showStations && Boolean(nextCursor) && !searchLoadingMore,
+    enabled: showStations && Boolean(nextCursor) && !searchLoading && !searchLoadingMore,
     onLoadMore: loadMore
   });
 

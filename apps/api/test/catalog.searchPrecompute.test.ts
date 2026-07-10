@@ -31,6 +31,7 @@ const f = (over: Partial<Filters> = {}): Filters => ({
   continent: '',
   limit: 100,
   cursor: 0,
+  seed: 12345,
   ...over
 });
 

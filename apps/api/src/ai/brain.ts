@@ -38,6 +38,7 @@ import type {
   ChatUsage,
   ServiceLink,
   ToolObservation,
+  UserTasteContext,
   VerifiedStationRef,
   WebSource
 } from './types.js';
@@ -48,14 +49,14 @@ const PLANNER_MAX_TOKENS = 400;
 // Intent heuristics (RU). They never BLOCK a tool the planner wants — they only
 // (a) let obvious chat skip the planner call for latency, and (b) decide whether
 // a found station should auto-play.
-const ACTION_INTENT = /(включ|постав|вруб|запусти|посовету|порекоменд|найд|ищ[уи]|хочу\s+послуша|подбер|что\s+послуша|станци|радио|трек|песн|альбом|саундтрек|soundtrack|плейлист|исполнител|артист|группа)/i;
+const ACTION_INTENT = /(включ|постав|вруб|запусти|дай(?![а-яё])|дашь(?![а-яё])|даш(?![а-яё])|посовету|порекоменд|предлаг|предлож|подкин|накидай|найд|ищ[уи]|хочу\s+послуша|подбер|что\s+послуша|станци|радио|трек|песн|альбом|саундтрек|soundtrack|плейлист|исполнител|артист|группа)/i;
 const PLAY_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша)/i;
 
 // A strong "act now" intent: an explicit play verb OR a recommend/find verb.
 // When this fires AND a concrete topic survives the noise-strip, the brain
 // FORCES a station search even mid-conversation, instead of letting the planner
 // ask "which jazz?" (the live regression: «включи джаз» with history → no cards).
-const SEARCH_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша|сыграй|ставь|посовету|порекоменд|найд|покаж|подбер|хочу\s+послуша)/i;
+const SEARCH_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша|сыграй|ставь|дай(?![а-яё])|дашь(?![а-яё])|даш(?![а-яё])|посовету|порекоменд|предлаг|предлож|подкин|накидай|найд|покаж|подбер|хочу\s+послуша)/i;
 
 // A bare mood / activity / vibe / context reply (no music keyword) is still a
 // recommendation request — «для крутой прогулки», «что-нибудь для драки»,
@@ -65,6 +66,15 @@ const SEARCH_INTENT = /(включ|постав|вруб|запусти|дава
 // vibe to genre tags and calls search_stations.
 const VIBE_INTENT =
   /(прогулк|драк|спорт|трениров|пробежк|качал|работ|уч[её]б|занима|концентрац|фокус|засыпа|поспат|для\s+сна|дорог|поездк|за\s+рул|вечер|утр[оа]|ноч[ьи]|дожд|кафе|вечеринк|тусов|расслаб|релакс|медитац|романт|бодр|взбодр|груст|весел|энерги|настроени|вайб|атмосфер|чил|уют|спокойн|поора|накрич|поплак|пореве|выпустить\s+пар|агресс|ярост)/i;
+
+// Emotional shorthand after Лира asks for a mood — «заебало всё», «устал»,
+// «пиздец день». It is still a vibe cue in a radio companion, so the backstop
+// should turn it into soothing/holding stations instead of another question.
+const EMOTIONAL_VIBE_INTENT =
+  /(заебал[аои]?(?:\s+(?:вс[её]|меня|уже|это))?|достал[аои]?\s+(?:вс[её]|меня|уже|это)|устал[а-яё]*|выгор|хренов|плох[оа]|паршив|тяжел[оа]|тяжко|накрыл[оа]?|разбит|апат|тревож|нерв|стресс|пиздец|депресс)/i;
+
+const hasVibeIntent = (message: string): boolean =>
+  VIBE_INTENT.test(message) || EMOTIONAL_VIBE_INTENT.test(message);
 
 // A clear MUSIC request can carry NO play-verb and NO vibe-word — a bare genre, a
 // decade, «женский вокал», «хиты 90-х», «что-нибудь в стиле дрилл». Those read as
@@ -99,7 +109,8 @@ const CULTURAL_MUSIC_CONTEXT = /(музык|послуша|в\s+стиле|в\s+
 // are ASCII-only — so match by word-prefix, not boundary.
 const QUERY_NOISE_STEMS = [
   'включ', 'постав', 'вруб', 'запусти', 'давай', 'послуша', 'посовету', 'порекоменд',
-  'найд', 'покаж', 'подбер', 'хочу', 'дай', 'ставь', 'сыграй', 'мне', 'нам',
+  'предлаг', 'предлож', 'подкин', 'накидай', 'найд', 'покаж', 'подбер', 'хочу', 'дай', 'дашь', 'даш',
+  'ставь', 'сыграй', 'радио', 'станци', 'волн', 'мне', 'нам',
   'пожалуйста', 'плиз', 'что-ниб', 'чего-ниб', 'чё-ниб', 'какой-ниб', 'какую-ниб',
   'какое-ниб', 'каких-ниб'
 ];
@@ -136,6 +147,139 @@ const explicitSearchQuery = (message: string): string | null => {
   if (!SEARCH_INTENT.test(message)) return null;
   const query = buildStationQuery(message);
   return looksConcreteTopic(query) ? query : null;
+};
+
+type CuratedSearchStep = {
+  args: { query: string; tag?: string; limit?: number };
+  minStations?: number;
+};
+
+type CuratedSearchPlan = {
+  note: string;
+  steps: CuratedSearchStep[];
+};
+
+const CURATED_SEARCH_DEFAULT_MIN = 3;
+
+// «Популярное/хиты, но чтобы по мозгам не било / фоном / мягко». A raw `pop`
+// search returns a global dance grab-bag (Алжир/Иран/Украина-dance) and drops the
+// «не по мозгам» nuance entirely. Route to soft / adult-contemporary / easy-
+// listening: familiar but non-aggressive. Tight guard — a mainstream token AND a
+// soft qualifier AND a request cue, never a dislike/knowledge turn — so a
+// statement like «поп-музыка стала фоновой» does not trigger a search.
+const SOFT_MAINSTREAM_POPULAR = /(популярн|хиты|хитов|поп-?музык|известн[ыаео]|мейнстрим|mainstream|топ-?40|top-?40|чарт)/i;
+const SOFT_MAINSTREAM_QUALIFIER =
+  /(по\s+мозгам\s+не|не\s+по\s+мозгам|не\s+б(?:ь[её]т|ило)|не\s+груз|фонов|фоном|ненавязчив|спокойн|расслаб|мягк|л[её]гк|неглуп|без\s+напряг|не\s+напряг|тих[оий]|чтобы\s+не\s+грузи)/i;
+const SOFT_MAINSTREAM_REQUEST_CUE =
+  /(где|хочу|можно|дай|дашь|даш|включ|постав|вруб|послуша|что-?нибудь|чего-?нибудь|посовету|порекоменд|подбер|подкин|ищ[уи]|найд|играют|крутят|радио|станци|волн)/i;
+
+const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
+  const text = message.toLowerCase().replace(/[’']/g, '').replace(/\s+/g, ' ');
+
+  // Don't fire when the user is REJECTING popular/pop («не хочу популярное, дай
+  // андеграунд») — MUSIC_DISLIKE doesn't cover the bare «не хочу», and matching
+  // the negated «популярн» would hijack a request for the opposite.
+  const rejectsPopular = /(не\s+(?:хочу|надо|люблю|нужн[оа]?)\s+популярн|не\s+популярн|без\s+попс|не\s+попс|против\s+попс)/i.test(text);
+  if (
+    !rejectsPopular &&
+    SOFT_MAINSTREAM_POPULAR.test(text) &&
+    SOFT_MAINSTREAM_QUALIFIER.test(text) &&
+    SOFT_MAINSTREAM_REQUEST_CUE.test(text) &&
+    !MUSIC_DISLIKE.test(text) &&
+    !isKnowledgeQuestion(text)
+  ) {
+    return {
+      note:
+        'Пользователь хочет знакомое/популярное, но мягкое и фоновое — «чтобы по мозгам не било». Веди к soft pop / adult contemporary / easy listening / lounge с узнаваемыми хитами, НЕ к жёсткому dance/EDR и НЕ к случайному набору иностранных top-40. В тексте назови этот вайб (мягкие хиты, спокойная подача).',
+      steps: [
+        { args: { query: 'soft pop', tag: 'soft', limit: 8 }, minStations: 3 },
+        { args: { query: 'adult contemporary', tag: 'adult contemporary', limit: 8 }, minStations: 3 },
+        { args: { query: 'easy listening', tag: 'easy listening', limit: 6 }, minStations: 4 },
+        { args: { query: 'lounge', tag: 'lounge', limit: 6 }, minStations: 4 }
+      ]
+    };
+  }
+
+  const wantsStations = SEARCH_INTENT.test(text) || /радио|станци|волн|эфир/i.test(text);
+  if (!wantsStations || isKnowledgeQuestion(text)) return null;
+
+  if (
+    /(hall\s*&?\s*oates|холл?\s*(?:и|&)?\s*оу?т[еэ]с|хола\s+и\s+отиса|rock\s*n\s*soul|rock\s+and\s+soul|рок\s*н\s*соул)/i.test(text) &&
+    /(soul|соул|r&b|rnb|ритм|блюз|похож|подобн)/i.test(text)
+  ) {
+    return {
+      note:
+        'Пользователь просит станции под Hall & Oates / Rock’n Soul: тёплый blue-eyed soul, classic soul, Motown/Philly-soul и мягкий yacht-rock-соседний вайб. В тексте объясни именно эту близость; не подменяй запрос общим jazz/funk/dance.',
+      steps: [
+        { args: { query: 'classic soul', tag: 'soul', limit: 8 }, minStations: 3 },
+        { args: { query: 'yacht rock', tag: 'yacht rock', limit: 6 }, minStations: 4 },
+        { args: { query: 'motown', tag: 'motown', limit: 6 }, minStations: 4 }
+      ]
+    };
+  }
+
+  // A plain soul ask («соул», «соул попсовый», «включи соул»). Without this the
+  // planner would often let a mood word («спокойное расслабляющее») win and route
+  // to chillout/ambient — «просили соул, получили сплошной эмбиент». Word-aware so
+  // «консоль»/«Seoul» never trigger; dislike turns are excluded.
+  if (
+    /(?:^|[^а-яёa-z])(?:соул|soul)(?![а-яёa-z])/i.test(text) &&
+    !MUSIC_DISLIKE.test(text)
+  ) {
+    return {
+      note:
+        'Пользователь просит соул. Веди к настоящему soul / classic soul / R&B (при «попсовом/спокойном» оттенке — мягкий поп-соул, Motown, neo-soul), а НЕ к ambient/chillout/lounge. В тексте назови именно соул-вайб.',
+      steps: [
+        { args: { query: 'soul', tag: 'soul', limit: 8 }, minStations: 3 },
+        { args: { query: 'classic soul', tag: 'soul', limit: 6 }, minStations: 4 },
+        { args: { query: 'rnb', tag: 'rnb', limit: 6 }, minStations: 4 }
+      ]
+    };
+  }
+
+  if (/(анекдот|юмор|шутк|прикол|стендап|stand\s*up|камеди|comedy)/i.test(text)) {
+    const russian = /(рус|росси|снг|наш|анекдот|юмор)/i.test(text);
+    return {
+      note: russian
+        ? 'Пользователь просит русские анекдоты/юмор: веди к русскоязычным юмористическим и spoken-word станциям, а не к британской/американской old-time comedy.'
+        : 'Пользователь просит юмор/комедию: подбирай юмористические станции, не музыкальный жанр comedy.',
+      steps: russian
+        ? [
+            { args: { query: 'анекдот', tag: 'юмор', limit: 8 }, minStations: 2 },
+            { args: { query: 'юмор', tag: 'юмор', limit: 8 }, minStations: 3 },
+            { args: { query: 'Юмор FM', limit: 6 }, minStations: 3 }
+          ]
+        : [
+            { args: { query: 'humor', tag: 'humor', limit: 8 }, minStations: 3 },
+            { args: { query: 'comedy radio', tag: 'comedy', limit: 8 }, minStations: 3 }
+          ]
+    };
+  }
+
+  return null;
+};
+
+const FOLLOWUP_RECOMMEND_INTENT =
+  /^(?:давай|ну\s+давай|дай|дашь|даш|предлагай|предложи|подбирай|подбери|погнали|лови|жги)(?:[\s,!.]+(?:предлагай|предложи|подбирай|подбери|радио|станци[а-яё]*|волн[а-яё]*|вариант[а-яё]*|что-?нибудь))*[.!?]*$/i;
+
+const isFollowupRecommendationIntent = (message: string): boolean =>
+  FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message);
+
+const previousUserMusicContext = (history: ChatTurn[]): string => {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const turn = history[index];
+    if (turn?.role !== 'user') continue;
+    const text = turn.text.trim();
+    if (!text || text.length < 3 || isKnowledgeQuestion(text)) continue;
+    return text;
+  }
+  return '';
+};
+
+const recommendationContextMessage = (history: ChatTurn[], userMessage: string): string => {
+  if (!isFollowupRecommendationIntent(userMessage)) return userMessage;
+  const previous = previousUserMusicContext(history);
+  return previous ? `${previous}\n${userMessage}` : userMessage;
 };
 
 // Explicit "a station FOR artist X" phrasings → the artist name to resolve.
@@ -187,7 +331,7 @@ const referenceAnchorQuery = (message: string): string | null => {
 
 const isSmalltalk = (message: string): boolean =>
   !ACTION_INTENT.test(message) &&
-  !VIBE_INTENT.test(message) &&
+  !hasVibeIntent(message) &&
   // A genre word inside a DISLIKE («не люблю транс», «ненавижу рэп») is NOT a
   // request — keep it smalltalk so the planner is skipped entirely, otherwise the
   // planner sees the genre and searches it anyway (answering "I hate trance" with
@@ -221,6 +365,25 @@ const FACTUAL_QUESTION =
 // «интересное про» would never match — see the FACTUAL_QUESTION note above.)
 const TRIVIA_QUESTION =
   /(расскажи|что\s+(?:ты\s+)?знаешь|интересн[а-яё]*\s+(?:про|о|об)(?![а-яё])|факт[а-яё]*\s+(?:про|о)(?![а-яё])|кто\s+так[а-яё]+)/i;
+
+// Cultural explainers are knowledge turns, not radio recommendation turns:
+// «почему YMCA рядом с ЛГБТ-темой», «чем песня связана с queer-сценой»,
+// «откуда мем/ассоциация». They need grounding and careful framing, while the
+// station/search backstops must stay off unless the user explicitly asks for
+// radio in a separate turn.
+const CULTURAL_EXPLAINER_QUESTION =
+  /(?=.*(?:почему|зачем|чем|откуда|связ|ассоци|мелька|рядом|имеет\s+отнош|при\s+ч[её]м))(?=.*(?:песн|трек|исполнител|групп|артист|музык|ymca|y\.m\.c\.a|village\s+people))(?=.*(?:лгбт|гей|ге[яе]м|queer|квир|диско|мем|контекст|смысл|знач|культур|сообществ|сцен|ассоци|связ|мелька|рядом|ymca|y\.m\.c\.a|village\s+people))/i;
+
+const isKnowledgeQuestion = (message: string): boolean =>
+  FACTUAL_QUESTION.test(message) || TRIVIA_QUESTION.test(message) || CULTURAL_EXPLAINER_QUESTION.test(message);
+
+const culturalExplainerWebQuery = (message: string): string => {
+  const text = message.trim().replace(/\s+/g, ' ');
+  if (/ymca|y\.m\.c\.a|village\s+people/i.test(text)) {
+    return 'Library of Congress Y.M.C.A. Village People Victor Willis YMCA gay anthem';
+  }
+  return `${text.slice(0, 180)} music cultural context source`;
+};
 
 const trimHistory = (history: ChatTurn[] | undefined): ChatTurn[] =>
   (history || [])
@@ -284,7 +447,7 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
   const webSearchLines = webSearchActive
     ? [
         '',
-        'ФАКТЫ И НОВОСТИ. На вопрос о факте/новости/биографии, который нельзя выдумывать («жив ли артист», «что у него нового», даты, релизы, события, а также «расскажи/что интересного про артиста или группу») — вызови web_search_factual с коротким точным запросом, а не отвечай по памяти. Получив источники — отвечай коротко и опираясь на них; если их нет или они противоречивы — честно скажи, что не нашла, без выдумок.'
+        'ФАКТЫ И НОВОСТИ. На вопрос о факте/новости/биографии, который нельзя выдумывать («жив ли артист», «что у него нового», даты, релизы, события, а также «расскажи/что интересного про артиста или группу») — вызови web_search_factual с коротким точным запросом, а не отвечай по памяти. То же касается культурных связей и спорных трактовок песен/артистов («почему YMCA связана с ЛГБТ-культурой»): это объяснение, а НЕ повод искать станции. Получив источники — отвечай коротко и опираясь на них; если их нет или они противоречивы — честно скажи, что не нашла, без выдумок.'
       ]
     : [];
   return [
@@ -385,12 +548,24 @@ const CULTURAL_GROUNDING_NOTE =
 const FACTUAL_GUARD_NOTE =
   'Этот вопрос про факты/новости/биографию, которые ты НЕ можешь подтвердить проверенными данными. НЕ утверждай конкретику (жив/умер, даты, релизы, события, «что нового») как факт и не выдумывай новостей. НЕ называй конкретные песни, альбомы, годы, награды или события как факт — если не уверена в названии или дате, говори ОБЩО («у них заводные танцевальные хиты», «целая эпоха»), без конкретных названий и цифр. Честно скажи, что не возьмёшься утверждать и не хочешь сочинять; можешь предложить послушать самого артиста или поискать в сервисах. Мнения и впечатления о музыке при этом высказывай свободно.';
 
+const CULTURAL_EXPLAINER_NOTE =
+  'Это вопрос на культурное объяснение, а НЕ запрос на радио. Ответь коротко и аккуратно: 4–6 предложений, с коротким выводом в начале или конце. Раздели ответ на три слоя: 1) буквальный факт/текст/расшифровка ключевого термина; 2) культурная ассоциация со сценой/сообществом/мемом; 3) спорная трактовка или позиция автора, если она есть в источниках. Используй нейтральные формулировки («ЛГБТ-культура», «queer/disco-сцена»), не повторяй грубо пользовательское «с геями», кроме мягкого перефразирования. Не добавляй станции, жанровые подборки и сервисные ссылки, если человек прямо не попросил включить радио. Если есть источники, не перечисляй их в тексте: 1–2 кнопки источников уже покажутся отдельно.';
+
+const curatedRecommendationNote = (note: string) =>
+  `Это точная музыкальная наводка, не общий вайб. ${note} Ответь живо и конкретно: 1–3 коротких предложения, назови, за что эти станции подходят. Не используй шаблон «Лучше всего начать с первой карточки» и не говори «там как раз тот самый» без конкретной причины.`;
+
 const composeAgentReply = async (
   deps: AssistantDeps,
   systemPrompt: string,
   transcript: DeepseekMessage[],
   observations: ToolObservation[],
-  opts: { factualGuard?: boolean; culturalVibe?: boolean; sources?: WebSource[] } = {}
+  opts: {
+    factualGuard?: boolean;
+    culturalVibe?: boolean;
+    culturalExplainer?: boolean;
+    recommendationNote?: string | null;
+    sources?: WebSource[];
+  } = {}
 ) => {
   const messages: DeepseekMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -405,6 +580,13 @@ const composeAgentReply = async (
       )}. КРИТИЧНО: НИКОГДА не называй конкретную радиостанцию по имени в тексте ответа, если её НЕТ в списке станций выше — не выдумывай и не вспоминай названия станций по памяти. Конкретные станции пользователь увидит КАРТОЧКАМИ; в тексте рекомендуй только вайбом и жанром («что-то лёгкое инди под прогулку»), без имён станций. Если станций здесь нет, но есть ссылки на музыкальные сервисы (hasServiceLinks=true) — тепло предложи послушать там (ссылки покажутся кнопками), не извиняйся и не говори, что ничего не нашла. Если нет ни станций, ни ссылок — мягко предложи уточнить настроение.`
     }
   ];
+  if (collectVerifiedStations(observations).length > 0) {
+    messages.push({
+      role: 'system',
+      content:
+        'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки» — лучше коротко объясни, почему подборка попала в запрос.'
+    });
+  }
   // Artist grounding note (curated / name-match / none) — gates "plays X" claims.
   const artistObs = artistObservation(observations);
   if (artistObs) {
@@ -412,6 +594,12 @@ const composeAgentReply = async (
   }
   if (opts.culturalVibe) {
     messages.push({ role: 'system', content: CULTURAL_GROUNDING_NOTE });
+  }
+  if (opts.culturalExplainer) {
+    messages.push({ role: 'system', content: CULTURAL_EXPLAINER_NOTE });
+  }
+  if (opts.recommendationNote) {
+    messages.push({ role: 'system', content: curatedRecommendationNote(opts.recommendationNote) });
   }
   const sources = opts.sources || [];
   if (sources.length) {
@@ -453,6 +641,304 @@ const collectServiceLinks = (observations: ToolObservation[]): ServiceLink[] => 
     if (obs.serviceLinks && obs.serviceLinks.length) return obs.serviceLinks;
   }
   return [];
+};
+
+const hashValue = (value: string) => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 33 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+};
+
+const seededJitter = (value: string, seed: number) => {
+  let h = (hashValue(value) ^ Math.imul(seed | 0, 0x9e3779b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  h = (h ^ (h >>> 16)) >>> 0;
+  return (h % 1000) / 1000;
+};
+
+const hasUserTaste = (taste: UserTasteContext | null | undefined): taste is UserTasteContext =>
+  Boolean(
+    taste &&
+      ((taste.favoriteStationIds || []).length ||
+        (taste.recentStationIds || []).length ||
+        (taste.hiddenStationIds || []).length ||
+        (taste.negativeStationIds || []).length ||
+        (taste.lastRecommendedStationIds || []).length ||
+        Object.keys(taste.stationScores || {}).length ||
+        Object.keys(taste.tagScores || {}).length ||
+        Object.keys(taste.countryScores || {}).length ||
+        Object.keys(taste.languageScores || {}).length)
+  );
+
+const normalizeTasteLabel = (value: string | null | undefined) =>
+  String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const stationNameDiversityKey = (name: string | null | undefined) =>
+  normalizeTasteLabel(name)
+    .replace(/\b(?:hd|hq|hi-fi|hifi|opus|aac|mp3|ogg|flac|online|radio|stream)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const primaryTag = (station: VerifiedStationRef) =>
+  (station.tags || [])
+    .map(normalizeTasteLabel)
+    .find((tag) => tag && tag !== 'no tags') || '';
+
+const stationTagSet = (station: VerifiedStationRef) =>
+  new Set((station.tags || []).map(normalizeTasteLabel).filter((tag) => tag && tag !== 'no tags'));
+
+const stationSimilarity = (left: VerifiedStationRef, right: VerifiedStationRef) => {
+  const leftName = stationNameDiversityKey(left.name);
+  const rightName = stationNameDiversityKey(right.name);
+  if (leftName && rightName && leftName === rightName) return 1;
+
+  let similarity = 0;
+  const leftPrimary = primaryTag(left);
+  const rightPrimary = primaryTag(right);
+  if (leftPrimary && rightPrimary && leftPrimary === rightPrimary) similarity += 0.46;
+
+  const leftCountry = normalizeTasteLabel(left.country);
+  const rightCountry = normalizeTasteLabel(right.country);
+  if (leftCountry && rightCountry && leftCountry === rightCountry) similarity += 0.24;
+
+  const leftTags = stationTagSet(left);
+  const rightTags = stationTagSet(right);
+  let sharedTags = 0;
+  for (const tag of leftTags) {
+    if (rightTags.has(tag)) sharedTags += 1;
+  }
+  if (sharedTags > 0) similarity += Math.min(0.26, sharedTags * 0.08);
+
+  return Math.min(1, similarity);
+};
+
+const tasteScoreForStation = (station: VerifiedStationRef, taste: UserTasteContext): number => {
+  const stationScores = taste.stationScores || {};
+  const tagScores = taste.tagScores || {};
+  const countryScores = taste.countryScores || {};
+  const languageScores = taste.languageScores || {};
+  const stationScore = stationScores[station.stationuuid] ?? 0;
+  const tags = station.tags || [];
+  const tagScore = tags.reduce((sum, tag, index) => {
+    const normalized = normalizeTasteLabel(tag);
+    const score = tagScores[normalized] ?? tagScores[tag] ?? 0;
+    return sum + score * (index === 0 ? 1 : 0.58);
+  }, 0);
+  const country = normalizeTasteLabel(station.country);
+  const countryScore = countryScores[country] ?? countryScores[station.country] ?? 0;
+  const language = normalizeTasteLabel((station as VerifiedStationRef & { language?: string }).language);
+  const languageScore = languageScores[language] ?? 0;
+  return stationScore * 1.05 + tagScore * 1.4 + countryScore * 0.62 + languageScore * 0.4;
+};
+
+type StationSlateCandidate = {
+  station: VerifiedStationRef;
+  index: number;
+  score: number;
+};
+
+const stationIdSet = (ids: string[] | null | undefined) => new Set((ids || []).filter(Boolean));
+
+const stationHistoryPenalty = (station: VerifiedStationRef, taste: UserTasteContext | null | undefined) => {
+  if (!taste) return 0;
+  const stationId = station.stationuuid;
+  if (!stationId) return 0;
+  if (taste.hiddenStationIds?.includes(stationId)) return -90;
+  let penalty = 0;
+  if (taste.negativeStationIds?.includes(stationId)) penalty -= 26;
+  if (taste.lastRecommendedStationIds?.includes(stationId)) penalty -= 20;
+  if (taste.recentStationIds?.includes(stationId)) penalty -= 7;
+  return penalty;
+};
+
+const filterAvoidedCandidates = (
+  ranked: StationSlateCandidate[],
+  taste: UserTasteContext | null | undefined,
+  { allowRepeatFallback = true }: { allowRepeatFallback?: boolean } = {}
+): StationSlateCandidate[] => {
+  if (!taste) return ranked;
+  const hiddenIds = stationIdSet(taste.hiddenStationIds);
+  const repeatAvoidIds = new Set([
+    ...(taste.negativeStationIds || []),
+    ...(taste.lastRecommendedStationIds || [])
+  ].filter(Boolean));
+  const recentIds = stationIdSet(taste.recentStationIds);
+  const visible = ranked.filter((item) => !hiddenIds.has(item.station.stationuuid));
+  if (!allowRepeatFallback && hiddenIds.size > 0 && visible.length === 0) return [];
+  const visibleOrRanked = visible.length > 0 ? visible : ranked;
+  const notRepeated = visibleOrRanked.filter((item) => !repeatAvoidIds.has(item.station.stationuuid));
+  if (!allowRepeatFallback && repeatAvoidIds.size > 0 && notRepeated.length === 0) return [];
+  const repeatedOrVisible = notRepeated.length > 0 ? notRepeated : visibleOrRanked;
+  const notRecent = repeatedOrVisible.filter((item) => !recentIds.has(item.station.stationuuid));
+  return notRecent.length >= Math.min(2, repeatedOrVisible.length) ? notRecent : repeatedOrVisible;
+};
+
+const uniqueStationCandidates = (candidates: StationSlateCandidate[]): StationSlateCandidate[] => {
+  const unique: StationSlateCandidate[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (!candidate.station.stationuuid || seen.has(candidate.station.stationuuid)) continue;
+    seen.add(candidate.station.stationuuid);
+    unique.push(candidate);
+  }
+  return unique;
+};
+
+const normalizedCandidateRelevance = (candidate: StationSlateCandidate, minScore: number, maxScore: number, total: number) => {
+  const range = maxScore - minScore;
+  if (range > 0.0001) return (candidate.score - minScore) / range;
+  return total <= 1 ? 1 : 1 - candidate.index / Math.max(1, total - 1);
+};
+
+const rerankStationSlate = (
+  candidates: StationSlateCandidate[],
+  seed: number,
+  { preserveLead = true, allowExploration = false }: { preserveLead?: boolean; allowExploration?: boolean } = {}
+): VerifiedStationRef[] => {
+  const pool = uniqueStationCandidates(candidates);
+  if (pool.length <= 2) return pool.map((candidate) => candidate.station);
+
+  const scores = pool.map((candidate) => candidate.score);
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+  const remaining = [...pool];
+  const selected: StationSlateCandidate[] = [];
+
+  if (preserveLead) {
+    selected.push(remaining.shift() as StationSlateCandidate);
+  }
+
+  while (remaining.length) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    for (let index = 0; index < remaining.length; index += 1) {
+      const candidate = remaining[index] as StationSlateCandidate;
+      const relevance = normalizedCandidateRelevance(candidate, minScore, maxScore, pool.length);
+      const maxSimilarity = selected.reduce(
+        (max, item) => Math.max(max, stationSimilarity(candidate.station, item.station)),
+        0
+      );
+      const jitter = seededJitter(`${candidate.station.stationuuid}:${selected.length}`, seed) * 0.035;
+      const slateScore = relevance * 0.66 - maxSimilarity * 0.54 + jitter;
+      if (slateScore > bestScore) {
+        bestScore = slateScore;
+        bestIndex = index;
+      }
+    }
+    const [next] = remaining.splice(bestIndex, 1);
+    if (next) selected.push(next);
+  }
+
+  const slate = selected.map((candidate) => candidate.station);
+  return allowExploration ? promoteExplorationStation(slate, seed) : slate;
+};
+
+const promoteExplorationStation = (slate: VerifiedStationRef[], seed: number): VerifiedStationRef[] => {
+  if (slate.length < 5) return slate;
+  const lead = slate[0];
+  if (!lead) return slate;
+
+  let bestIndex = -1;
+  let bestScore = -Infinity;
+  for (let index = 3; index < slate.length; index += 1) {
+    const station = slate[index] as VerifiedStationRef;
+    const leadSimilarity = stationSimilarity(station, lead);
+    if (leadSimilarity >= 0.72) continue;
+    const topSimilarity = slate
+      .slice(0, 3)
+      .reduce((max, item) => Math.max(max, stationSimilarity(station, item)), 0);
+    if (topSimilarity >= 0.82) continue;
+    const score = (1 - topSimilarity) * 0.72 + (1 - leadSimilarity) * 0.2 + seededJitter(station.stationuuid, seed + 17) * 0.08 - index * 0.008;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  if (bestIndex < 4) return slate;
+  const next = [...slate];
+  const [explorer] = next.splice(bestIndex, 1);
+  if (explorer) next.splice(3, 0, explorer);
+  return next;
+};
+
+const stationOriginalRankScore = (stationCount: number, index: number) => (stationCount - index) * 0.18;
+
+const rankStationCandidates = (
+  stations: VerifiedStationRef[],
+  taste: UserTasteContext | null | undefined,
+  seed: number,
+  rotateLead: boolean
+): StationSlateCandidate[] => {
+  const hasTaste = taste ? hasUserTaste(taste) : false;
+  const candidates = stations.map((station, index) => {
+    const tasteScore = hasTaste && taste ? tasteScoreForStation(station, taste) : 0;
+    const rankScore = stationOriginalRankScore(stations.length, index);
+    const rotationScore = rotateLead
+      ? seededJitter(station.stationuuid, seed) * (hasTaste ? 0.12 : 1.5) - index * (hasTaste ? 0.01 : 0.07)
+      : 0;
+    const jitter = seededJitter(`${station.stationuuid}:taste`, seed) * (hasTaste ? 0.08 + Math.max(0, tasteScore) * 0.002 : 0.05);
+    const historyPenalty = stationHistoryPenalty(station, taste);
+    return {
+      station,
+      index,
+      score: tasteScore + rankScore + rotationScore + historyPenalty + jitter
+    };
+  });
+
+  return candidates.sort((left, right) => right.score - left.score || left.index - right.index);
+};
+
+const personalizedObservations = (
+  observations: ToolObservation[],
+  taste: UserTasteContext | null | undefined,
+  seed: number,
+  { rotateLead = false }: { rotateLead?: boolean } = {}
+): ToolObservation[] => {
+  const hasTaste = hasUserTaste(taste);
+  const favoriteIds = new Set((taste?.favoriteStationIds || []).filter(Boolean));
+  const rankObservation = (observation: ToolObservation) => {
+    const ranked = rankStationCandidates(observation.stations || [], taste, seed, rotateLead && observation.tool === 'search_stations');
+    return {
+      observation,
+      relaxedRanked: hasTaste ? filterAvoidedCandidates(ranked, taste) : ranked,
+      strictRanked: hasTaste ? filterAvoidedCandidates(ranked, taste, { allowRepeatFallback: false }) : ranked
+    };
+  };
+  const buildStations = (observation: ToolObservation, ranked: StationSlateCandidate[]) => {
+    const freshRanked = hasTaste ? ranked.filter((item) => !favoriteIds.has(item.station.stationuuid)) : ranked;
+    const pool = freshRanked.length >= Math.min(2, ranked.length) ? freshRanked : ranked;
+    const diverse = rerankStationSlate(pool, seed, {
+      preserveLead: true,
+      allowExploration: hasTaste && rotateLead && observation.tool === 'search_stations'
+    });
+    const fresh = hasTaste ? diverse.filter((station) => !favoriteIds.has(station.stationuuid)) : diverse;
+    return fresh.length >= Math.min(2, diverse.length) ? fresh : diverse;
+  };
+
+  const rankedObservations = observations.map((observation) =>
+    observation.stations?.length ? rankObservation(observation) : null
+  );
+  const strictStationTotal = rankedObservations.reduce((sum, item) => {
+    if (!item) return sum;
+    return sum + buildStations(item.observation, item.strictRanked).length;
+  }, 0);
+
+  return observations.map((observation, index) => {
+    const rankedObservation = rankedObservations[index];
+    if (!rankedObservation) return observation;
+    const stations = buildStations(
+      rankedObservation.observation,
+      strictStationTotal > 0 ? rankedObservation.strictRanked : rankedObservation.relaxedRanked
+    );
+    return {
+      ...observation,
+      stations
+    };
+  });
 };
 
 // vibe→tags: a tiny, cheap DeepSeek call that maps ANY request (incl. an abstract
@@ -511,10 +997,19 @@ export const chatWithAssistant = async (
   const systemPrompt = buildSystemPrompt(input.locale, surface);
   const history = trimHistory(input.history);
   const transcript = transcriptMessages(history, userMessage);
+  const musicContextMessage = recommendationContextMessage(history, userMessage);
+  const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
+  const knowledgeQuestion = isKnowledgeQuestion(userMessage);
+  const followupMusicIntent = !knowledgeQuestion && isFollowupRecommendationIntent(userMessage);
+  const recommendationSeed = hashValue(
+    `${userMessage}|${history.map((turn) => `${turn.role}:${turn.text}`).join('|')}|${Math.floor(now / 60_000)}`
+  );
   const usage: ChatUsage = { prompt: 0, completion: 0 };
   const observations: ToolObservation[] = [];
   const usedSignatures = new Set<string>();
-  const forcedQuery = explicitSearchQuery(userMessage);
+  const forcedQuery = knowledgeQuestion ? null : explicitSearchQuery(userMessage);
+  const preciseSearchPlan = knowledgeQuestion ? null : curatedSearchPlan(userMessage);
+  const preciseRecommendationNote = preciseSearchPlan?.note || null;
   // Cultural / franchise references («вайб GTA Vice City», «как в Cyberpunk»,
   // «радио по Наруто») → curated canonical genre tags, resolved BEFORE the artist
   // and literal-search paths (otherwise the franchise phrase gets mis-captured as
@@ -526,9 +1021,9 @@ export const chatWithAssistant = async (
   // still does.
   const culturalTags =
     (ACTION_INTENT.test(userMessage) ||
-      VIBE_INTENT.test(userMessage) ||
+      hasVibeIntent(userMessage) ||
       CULTURAL_MUSIC_CONTEXT.test(userMessage)) &&
-    !FACTUAL_QUESTION.test(userMessage)
+    !knowledgeQuestion
       ? resolveCulturalVibe(userMessage)
       : null;
   // Artist requests route to find_stations_by_artist BEFORE the substring search.
@@ -553,7 +1048,37 @@ export const chatWithAssistant = async (
       (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null) ||
       (anchorQuery && resolveAnchorGenres(anchorQuery) ? anchorQuery : null);
 
-  if (culturalTags) {
+  if (preciseSearchPlan) {
+    for (const step of preciseSearchPlan.steps) {
+      const signature = toolSignature('search_stations', step.args);
+      if (usedSignatures.has(signature)) continue;
+      usedSignatures.add(signature);
+      const observation = await runTool('search_stations', step.args, {
+        tools: deps.tools,
+        musicServices: deps.musicServices
+      });
+      observations.push(observation);
+      if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
+      const minStations = step.minStations ?? CURATED_SEARCH_DEFAULT_MIN;
+      if (collectVerifiedStations(observations).length >= minStations) break;
+    }
+    if (collectVerifiedStations(observations).length === 0) {
+      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+    }
+  } else if (culturalExplainerQuestion && deps.webSearch) {
+    const webArgs = { query: culturalExplainerWebQuery(userMessage) };
+    usedSignatures.add(toolSignature(WEB_SEARCH_TOOL, webArgs));
+    const observation = await runTool(WEB_SEARCH_TOOL, webArgs, {
+      tools: deps.tools,
+      musicServices: deps.musicServices,
+      webSearch: deps.webSearch
+    });
+    observations.push(observation);
+    if (observation.error) deps.log(`ai tool ${WEB_SEARCH_TOOL} error: ${observation.error}`);
+  } else if (culturalExplainerQuestion) {
+    // Knowledge/culture question with web off: compose with the honesty/culture
+    // guard, but never fall through to station search just because it names a song.
+  } else if (culturalTags) {
     // Search the curated tags in priority order, stopping once we have real cards;
     // then keep planning (round 1) for any refinement, like the forcedQuery path.
     for (const tag of culturalTags) {
@@ -650,13 +1175,13 @@ export const chatWithAssistant = async (
   // unaffected — the guard only narrows the descriptor-only trigger.)
   const isDescriptorRequest =
     MUSIC_DESCRIPTOR.test(userMessage) &&
-    !TRIVIA_QUESTION.test(userMessage) &&
+    !knowledgeQuestion &&
     !MUSIC_DISLIKE.test(userMessage);
   const musicIntent =
-    (ACTION_INTENT.test(userMessage) || VIBE_INTENT.test(userMessage) || isDescriptorRequest) &&
-    !FACTUAL_QUESTION.test(userMessage);
+    (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent) &&
+    !knowledgeQuestion;
   if (musicIntent && collectVerifiedStations(observations).length === 0) {
-    const { tags, usage: tagUsage } = await mapVibeToTags(deps, userMessage);
+    const { tags, usage: tagUsage } = await mapVibeToTags(deps, musicContextMessage);
     addUsage(usage, tagUsage);
     for (const tag of tags) {
       const args = { query: tag };
@@ -682,7 +1207,7 @@ export const chatWithAssistant = async (
     collectVerifiedStations(observations).length === 0 &&
     collectServiceLinks(observations).length === 0
   ) {
-    const fallbackQuery = forcedQuery || buildStationQuery(userMessage) || userMessage;
+    const fallbackQuery = forcedQuery || buildStationQuery(musicContextMessage) || musicContextMessage;
     const linkObservation = await runTool('music_service_search', { query: fallbackQuery }, {
       tools: deps.tools,
       musicServices: deps.musicServices
@@ -690,7 +1215,10 @@ export const chatWithAssistant = async (
     observations.push(linkObservation);
   }
 
-  const sources = collectVerifiedSources(observations);
+  const groundedObservations = personalizedObservations(observations, input.userTaste, recommendationSeed, {
+    rotateLead: musicIntent && !PLAY_INTENT.test(userMessage) && !preciseSearchPlan
+  });
+  const sources = collectVerifiedSources(groundedObservations);
 
   // Compose the reply. A factual/news/biography OR trivia question we couldn't
   // ground in any station — AND that web search didn't answer either — gets the
@@ -698,18 +1226,20 @@ export const chatWithAssistant = async (
   // «расскажи интересное про X»). With web sources present, she grounds in them
   // instead (the guard would wrongly tell her to refuse).
   const factualGuard =
-    (FACTUAL_QUESTION.test(userMessage) || TRIVIA_QUESTION.test(userMessage)) &&
-    collectVerifiedStations(observations).length === 0 &&
+    knowledgeQuestion &&
+    collectVerifiedStations(groundedObservations).length === 0 &&
     sources.length === 0;
-  const composed = await composeAgentReply(deps, systemPrompt, transcript, observations, {
+  const composed = await composeAgentReply(deps, systemPrompt, transcript, groundedObservations, {
     factualGuard,
     culturalVibe: Boolean(culturalTags),
+    culturalExplainer: culturalExplainerQuestion,
+    recommendationNote: preciseRecommendationNote,
     sources
   });
   addUsage(usage, composed.usage);
 
-  const stations = collectVerifiedStations(observations);
-  const serviceLinks = collectServiceLinks(observations);
+  const stations = collectVerifiedStations(groundedObservations);
+  const serviceLinks = collectServiceLinks(groundedObservations);
 
   // Compose failed / empty / off-voice → warm fallback (carrying any stations
   // we DID verify, so the answer is never a dead end).

@@ -14,6 +14,8 @@ import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
 import { rankStationsForSearch } from '../lib/stationPlayability';
+import { diversifyStationOrder } from '../lib/stationDiversity';
+import { rankStationsForUser, withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import './discover.css';
 
 const mergeStations = (left: StationLite[], right: StationLite[]) => {
@@ -22,6 +24,19 @@ const mergeStations = (left: StationLite[], right: StationLite[]) => {
   right.forEach((station) => merged.set(station.stationuuid, station));
   return Array.from(merged.values());
 };
+
+const hasPersonalSearchTaste = (
+  profile: TasteProfileV2 | null | undefined,
+  favorites: StationLite[]
+) =>
+  favorites.length > 0 ||
+  Boolean(
+    profile?.hiddenStationIds?.length ||
+      Object.keys(profile?.stationScores || {}).length ||
+      Object.keys(profile?.tagScores || {}).length ||
+      Object.keys(profile?.countryScores || {}).length ||
+      Object.keys(profile?.languageScores || {}).length
+  );
 
 type SearchResultCardProps = {
   station: StationLite;
@@ -89,7 +104,13 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
         ) : null}
       </div>
       <div className="search-card-actions">
-        <button className="play-btn search-card-play" type="button" onClick={toggleStation}>
+        <button
+          className="play-btn search-card-play"
+          type="button"
+          onClick={toggleStation}
+          data-playing={active && player.isPlaying ? 'true' : 'false'}
+          aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
+        >
           {playLabel}
         </button>
         <button
@@ -328,10 +349,12 @@ export const Discover = () => {
   const { t } = useLocale();
   const { searchStations } = useCatalog();
   const {
+    favorites,
     recent,
     playbackHistory,
     behaviorProfile,
     playabilityProfile,
+    tasteProfile,
     stationHealthProfile,
     radioSessionEvents
   } = useLibrary();
@@ -361,6 +384,7 @@ export const Discover = () => {
   // conversion as the idle rails (no-op on desktop where the grid doesn't
   // overflow).
   const quickReturnRailRef = useRailWheel();
+  const browseSeedRef = useRef(Date.now());
 
   useEffect(() => {
     const draft = searchDraft.trim();
@@ -413,24 +437,121 @@ export const Discover = () => {
   // signals from app boot, but they don't trigger re-renders.
   const behaviorProfileRef = useRef(behaviorProfile);
   const playabilityProfileRef = useRef(playabilityProfile);
+  const favoritesRef = useRef(favorites);
+  const tasteProfileRef = useRef(tasteProfile);
   const stationHealthProfileRef = useRef(stationHealthProfile);
   const radioSessionEventsRef = useRef(radioSessionEvents);
+  // Recently-played set, read through refs so it never re-triggers the snapshot
+  // memo (same freeze contract as the scoring signals above). Used to demote
+  // just-listened stations to the tail of a no-query browse so «одно и то же»
+  // that you already heard stops leading the discovery list.
+  const recentRef = useRef(recent);
+  const playbackHistoryRef = useRef(playbackHistory);
+  const playerCurrentIdRef = useRef(player.current?.stationuuid ?? null);
+  const rankedSearchSnapshotRef = useRef<{
+    signature: string;
+    rawIds: string[];
+    ranked: StationLite[];
+  } | null>(null);
   useEffect(() => {
     behaviorProfileRef.current = behaviorProfile;
     playabilityProfileRef.current = playabilityProfile;
+    favoritesRef.current = favorites;
+    tasteProfileRef.current = tasteProfile;
     stationHealthProfileRef.current = stationHealthProfile;
     radioSessionEventsRef.current = radioSessionEvents;
+    recentRef.current = recent;
+    playbackHistoryRef.current = playbackHistory;
+    playerCurrentIdRef.current = player.current?.stationuuid ?? null;
   });
 
   const rankedSearchResults = useMemo(
-    () =>
-      rankStationsForSearch(stationSearch.results, {
-        query: stationSearch.query,
-        behaviorProfile: behaviorProfileRef.current,
-        playabilityProfile: playabilityProfileRef.current,
-        healthProfile: stationHealthProfileRef.current,
-        sessionEvents: radioSessionEventsRef.current
-      }),
+    () => {
+      const query = stationSearch.query.trim();
+      const signature = [
+        query,
+        stationSearch.countryFilter,
+        stationSearch.tagFilter,
+        stationSearch.languageFilter,
+        stationSearch.continentFilter
+      ].join('\u001f');
+      const rawIds = stationSearch.results.map((station) => station.stationuuid);
+      const previous = rankedSearchSnapshotRef.current;
+      const isAppend =
+        previous?.signature === signature &&
+        rawIds.length >= previous.rawIds.length &&
+        previous.rawIds.every((stationId, index) => rawIds[index] === stationId);
+
+      // Stations the user just heard: push them to the tail of a no-query browse
+      // so discovery leads with something new instead of what's already playing /
+      // in their recents. Typed search is left untouched (relevance-first).
+      const demotedIds = new Set<string>();
+      recentRef.current.forEach((station) => demotedIds.add(station.stationuuid));
+      playbackHistoryRef.current.forEach((station) => demotedIds.add(station.stationuuid));
+      if (playerCurrentIdRef.current) demotedIds.add(playerCurrentIdRef.current);
+      const demoteRecentlyPlayed = (list: StationLite[]) => {
+        if (!demotedIds.size) return list;
+        const fresh: StationLite[] = [];
+        const played: StationLite[] = [];
+        list.forEach((station) => (demotedIds.has(station.stationuuid) ? played : fresh).push(station));
+        return played.length ? [...fresh, ...played] : list;
+      };
+
+      const rankPage = (page: StationLite[], seedOffset: number) => {
+        if (!page.length) return [];
+        if (query.length >= 2) {
+          return rankStationsForSearch(page, {
+            query: stationSearch.query,
+            behaviorProfile: behaviorProfileRef.current,
+            playabilityProfile: playabilityProfileRef.current,
+            healthProfile: stationHealthProfileRef.current,
+            sessionEvents: radioSessionEventsRef.current
+          });
+        }
+
+        const base = page;
+        if (!hasPersonalSearchTaste(tasteProfileRef.current, favoritesRef.current)) {
+          return demoteRecentlyPlayed(
+            diversifyStationOrder(base, {
+              limit: base.length,
+              maxPerCountry: 4,
+              maxPerPrimaryTag: 5,
+              maxPerNameKey: 1
+            })
+          );
+        }
+
+        const effectiveTaste = withFavoriteTasteBoosts(tasteProfileRef.current, favoritesRef.current);
+        return demoteRecentlyPlayed(
+          diversifyStationOrder(
+            rankStationsForUser(base, effectiveTaste, playabilityProfileRef.current, {
+              mode: 'search',
+              seed: browseSeedRef.current + seedOffset,
+              limit: base.length,
+              healthProfile: stationHealthProfileRef.current,
+              sessionEvents: radioSessionEventsRef.current
+            }),
+            {
+              limit: base.length,
+              maxPerCountry: 4,
+              maxPerPrimaryTag: 5,
+              maxPerNameKey: 1
+            }
+          )
+        );
+      };
+
+      const ranked =
+        isAppend && previous
+          ? mergeStations(
+              previous.ranked,
+              rankPage(stationSearch.results.slice(previous.rawIds.length), previous.rawIds.length)
+            )
+          : rankPage(stationSearch.results, 0);
+
+      rankedSearchSnapshotRef.current = { signature, rawIds, ranked };
+      return ranked;
+    },
     [
       stationSearch.query,
       stationSearch.results,
@@ -904,7 +1025,7 @@ export const Discover = () => {
               ) : hasResults ? (
                 compactResults ? (
                   <div className="search-result-grid">
-                    {rankedSearchResults.slice(0, 24).map((station) => (
+                    {rankedSearchResults.map((station) => (
                       <SearchResultCard
                         key={`search-card-${station.stationuuid}`}
                         station={station}
@@ -950,19 +1071,16 @@ export const Discover = () => {
               )}
             </div>
           </div>
-          {stationSearch.nextCursor ? (
-            <div className="section">
-              <button
-                className="chip"
-                type="button"
-                onClick={stationSearch.loadMore}
-                disabled={stationSearch.searchLoadingMore}
-              >
-                {stationSearch.searchLoadingMore ? t('common.loading') : t('discover.loadMore')}
-              </button>
+          <div
+            className="scroll-sentinel search-scroll-sentinel"
+            ref={stationSearch.sentinelRef}
+            aria-hidden="true"
+          />
+          {stationSearch.searchLoadingMore ? (
+            <div className="search-loading-more" role="status">
+              {t('common.loading')}
             </div>
           ) : null}
-          <div className="scroll-sentinel" ref={stationSearch.sentinelRef} />
         </>
       ) : !showStations ? (
         <>

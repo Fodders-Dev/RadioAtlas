@@ -33,12 +33,6 @@ vi.mock('../lib/deviceProfile', () => ({
 import { StationTable } from './StationTable';
 import { LocaleProvider } from '../state/LocaleContext';
 
-// Kept referentially stable across makeLibrary() calls so the row's
-// behaviorProfile prop never changes identity on unrelated re-renders —
-// mirrors the real library, where behaviorProfile only changes on
-// session events, never on a playback tick.
-const SHARED_BEHAVIOR_PROFILE = null;
-
 const makeStation = (i: number): StationLite =>
   ({
     stationuuid: `uuid-${i}`,
@@ -76,7 +70,6 @@ const playbackFor = (active: StationLite | null, extra: Record<string, unknown> 
 
 const makeLibrary = (favorites: StationLite[]) => ({
   favorites,
-  behaviorProfile: SHARED_BEHAVIOR_PROFILE,
   toggleFavorite: vi.fn(),
   hideStationFromRecommendations: vi.fn(),
   unhideStationFromRecommendations: vi.fn(),

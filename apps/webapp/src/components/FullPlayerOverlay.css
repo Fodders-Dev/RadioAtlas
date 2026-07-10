@@ -186,9 +186,11 @@
   background: color-mix(in srgb, var(--surface-raised) 68%, transparent);
   font: inherit;
   text-align: left;
+  overflow: hidden;
 }
 
 .full-player-track span {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -550,7 +552,12 @@
     display: grid;
     gap: var(--space-xs);
     justify-items: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: var(--space-sm) var(--space-md);
+    box-sizing: border-box;
+    overflow: hidden;
     text-align: center;
   }
 
@@ -640,10 +647,13 @@
   }
 
   .full-player-identity .full-player-track {
-    width: auto;
+    justify-self: stretch;
+    width: 100%;
     max-width: 100%;
+    min-width: 0;
     min-height: 44px;
     margin-top: var(--space-xs);
+    box-sizing: border-box;
   }
 
   /* The visualizer's auto top margin is the breathing absorber: tall screens

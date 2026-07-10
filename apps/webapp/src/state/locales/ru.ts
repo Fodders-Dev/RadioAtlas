@@ -102,6 +102,8 @@ export const ruDictionary = {
     "favoriteColumn": "Лайк",
     "favorite": "В лайки",
     "unfavorite": "Убрать лайк",
+    "addToPlaylist": "В плейлист",
+    "addToPlaylistAria": "Добавить {station} в плейлист",
     "hideFromRecommendations": "Скрыть из рекомендаций",
     "unhideFromRecommendations": "Вернуть в рекомендации",
     "verified": "Проверено",
@@ -112,13 +114,6 @@ export const ruDictionary = {
   },
   "stationTile": {
     "playLabel": "Слушать: {name}"
-  },
-  "reasons": {
-    "frequent": "Уже слушал",
-    "favoriteTag": "Любимый жанр · {tag}",
-    "favoriteCountry": "Из {country}",
-    "promoted": "Промо",
-    "verified": "Проверено"
   },
   "explore": {
     "kicker": "RadioAtlas x Winamp",
@@ -529,6 +524,7 @@ export const ruDictionary = {
     "trackJournalCount": "Скопировано: {count}",
     "tracksSubtitle": "Названия треков, которые ты скопировал из эфира.",
     "tracksEmptyHint": "Скопируй трек кнопкой в плеере — он сохранится здесь.",
+    "removeTrackHistoryItem": "Убрать трек «{track}» из списка",
     "stationHistory": "История живых станций для быстрого возврата в эфир.",
     "tabs": {
       "favorites": "Избранное",
@@ -541,8 +537,11 @@ export const ruDictionary = {
     "saveQueueAsPlaylist": "Сохранить как плейлист",
     "saveQueuePrompt": "Очередь · {date}",
     "queueSavedAsPlaylist": "Очередь сохранена как плейлист: {name}",
-    "collectionsTitle": "Плейлисты и подписки",
-    "collectionsCopy": "Собирай свои наборы станций, а рядом держи регионы и алерты возврата.",
+    "shuffleLibrary": "Всю медиатеку вперемешку",
+    "shuffleFavorites": "Вперемешку",
+    "shuffleLibrarySource": "Медиатека вперемешку",
+    "collectionsTitle": "Плейлисты",
+    "collectionsCopy": "Собирай свои наборы станций для настроения, стран и любимых эфиров.",
     "createCollection": "Новый плейлист",
     "createCollectionPrompt": "Название плейлиста",
     "collectionEmpty": "Этот плейлист пока пустой.",
@@ -551,6 +550,10 @@ export const ruDictionary = {
     "collectionAdded": "{station} добавлена в {collection}",
     "collectionCreated": "Плейлист создан: {name}",
     "collectionRenamed": "Плейлист переименован: {name}",
+    "addToPlaylistTitle": "Добавить в плейлист",
+    "collectionAlreadyHasStation": "Уже добавлена",
+    "noPlaylistsYet": "Плейлистов пока нет — создай новый ниже.",
+    "createAndAddToPlaylist": "Создать и добавить",
     "openCollection": "Открыть",
     "seeAllStations": "Все станции",
     "collectionOpenHint": "Открой, чтобы слушать и убирать станции.",
@@ -707,6 +710,7 @@ export const ruDictionary = {
     "favoritesLabel": "Избранное",
     "favoritesDesc": "Сбросить сохраненные станции.",
     "clearFavorites": "Очистить избранное",
+    "clearFavoritesConfirm": "Очистить все избранные станции? Сейчас сохранено: {count}.",
     "recentLabel": "Недавнее",
     "recentDesc": "Очистить локальную историю воспроизведения.",
     "clearRecent": "Очистить недавнее",

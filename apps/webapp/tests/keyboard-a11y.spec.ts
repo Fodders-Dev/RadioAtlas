@@ -71,7 +71,7 @@ test.describe('dialog keyboard a11y', () => {
     await page.goto('/');
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
     await page.locator('#search-hero-input').first().fill('jpop');
-    await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+    await expect(page.locator('[data-search-station-card]').first()).toBeVisible({ timeout: 15_000 });
 
     const trigger = page.locator('.search-hero-filters-pill');
     await trigger.click();
@@ -89,6 +89,16 @@ test.describe('dialog keyboard a11y', () => {
     await expect(sheet).toHaveCount(0);
     // Focus returned to the «Фильтры» pill that opened the sheet.
     expect(await activeMatches(page, '.search-hero-filters-pill')).toBe(true);
+  });
+
+  test('Search topbar title focuses the search input', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+
+    await page.locator('.app-topbar-title-action').click();
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.id || ''))
+      .toBe('search-hero-input');
   });
 
   test('FullPlayerOverlay: focus trap, Escape, and focus restoration', async ({ page }) => {

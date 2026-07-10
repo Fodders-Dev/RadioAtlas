@@ -128,6 +128,28 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 - [ ] Stage 18: marketplace, server theme publishing, currency, moderation, copyright checks.
 
+## Discovery freshness + Lira relevance (done)
+
+- [x] Cross-session exposure demotion. New `lib/stationExposure.ts` decaying
+  "shown/played" ledger; a soft rank penalty threads through the shared rankers
+  (`rankStationsForUser`, Home `scoreStation`) so Лента, Home «Для тебя» and
+  Personal Radio stop re-leading with «одно и то же» each open. The feed flushes
+  the cards you actually landed on; the play path records plays. Search browse
+  sinks recently-played stations to the tail (typed search stays relevance-first).
+- [x] Lira genre relevance. `buildSearchResponse` gains an AI-path genre-relevance
+  order (word-aware exact-tag > name > other, blended with quality) so a bare-genre
+  ask returns actual genre stations, not the most-voted substring match. The HTTP
+  Search ordering is unchanged (opt-in flag).
+- [x] Lira curated routes for the two live misses: «соул(попсовый)» → real soul
+  (not chillout/ambient); «популярное, но по мозгам не било / фоном / мягко» →
+  soft pop / adult-contemporary / easy-listening (not a global dance grab-bag).
+
 ## Next:
 
-Next: finish audit/refactor validation by keeping typecheck, API/bot tests, webapp e2e, build, and npm audit green; then run live Telegram mobile QA on low-power Android/iOS WebView for cold Home, Search, Globe, Library, and Full Player. Keep Theme Studio local-only until a separate review opens Stage 18.
+Next: live-QA in Telegram after deploy — confirm Лента / Главная / Поиск feel fresh
+across repeated opens (exposure demotion), and re-test Лира on soul and «популярное
+но мягкое» asks plus the earlier playlist-UX / clean-rows / seeded-search pass.
+Upgrade the VPS runtime from Node 22 to Node 24 so production matches the repo
+engine requirement. Known local-only e2e drift (`-win32` visual baselines, the #86
+feed-swipe IO timing flake, account/queue parallel-load flakes) is not a CI/deploy
+gate — regenerate the win32 visual baselines on the QA machine if desired.

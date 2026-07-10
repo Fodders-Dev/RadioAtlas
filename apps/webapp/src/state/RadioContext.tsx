@@ -52,6 +52,11 @@ import {
   upsertTrustedTrackHistory
 } from '../lib/trackTrust';
 import {
+  applyCuratedStationFixupsToCache,
+  applyCuratedStationFixupsToList,
+  clearCuratedStationSignals
+} from '../lib/curatedStationFixups';
+import {
   DEFAULT_NOTIFICATION_PREFERENCE,
   buildListenerAlerts,
   buildRadioDigests,
@@ -67,6 +72,11 @@ import {
   recordRadioSessionEvent,
   type RadioSessionEvent
 } from '../lib/radioSession';
+import {
+  recordStationPlayed,
+  recordStationsShown as recordStationsShownInLedger,
+  type StationExposureLedger
+} from '../lib/stationExposure';
 import type {
   TasteProfileV2,
   TasteSignalAction,
@@ -237,6 +247,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const radioSessionEvents = Array.isArray(storedAppState.radioSessionEvents)
     ? storedAppState.radioSessionEvents
     : DEFAULT_APP_STATE.radioSessionEvents;
+  const stationExposure =
+    storedAppState.stationExposure && typeof storedAppState.stationExposure === 'object'
+      ? storedAppState.stationExposure
+      : {};
   const [transientHomeState, setTransientHomeState] = useState(storedShellState.home);
   const homeState = transientHomeState;
   const searchDraft = storedShellState.searchDraft;
@@ -347,6 +361,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const radioSessionEvents = resolveUpdater(prev.radioSessionEvents || [], next);
       return Object.is(radioSessionEvents, prev.radioSessionEvents) ? prev : { ...prev, radioSessionEvents };
     });
+  const setStationExposure = (
+    next: StationExposureLedger | ((prev: StationExposureLedger) => StationExposureLedger)
+  ) =>
+    setStoredAppState((prev) => {
+      const stationExposure = resolveUpdater(prev.stationExposure || {}, next);
+      return Object.is(stationExposure, prev.stationExposure) ? prev : { ...prev, stationExposure };
+    });
+  // Discovery surfaces (the «Лента» feed) flush the ids they actually surfaced so
+  // the next open can softly demote them. One batched update per flush.
+  const recordStationsShown = (stationIds: string[]) => {
+    const ids = (stationIds || []).filter(Boolean);
+    if (!ids.length) return;
+    setStationExposure((prev) => recordStationsShownInLedger(prev, ids));
+  };
   const setFavorites = (next: StationLite[] | ((prev: StationLite[]) => StationLite[])) =>
     setStoredLibraryState((prev) => ({
       ...prev,
@@ -627,6 +655,46 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (stationHealthProfile?.version === 1) return;
     setStationHealthProfile(DEFAULT_STATION_HEALTH_PROFILE);
   }, [stationHealthProfile, setStationHealthProfile]);
+
+  useEffect(() => {
+    setStoredLibraryState((prev) => {
+      const favorites = applyCuratedStationFixupsToList(prev.favorites);
+      const recent = applyCuratedStationFixupsToList(prev.recent);
+      const playbackHistory = applyCuratedStationFixupsToList(prev.playbackHistory);
+      const stationCache = applyCuratedStationFixupsToCache(prev.stationCache);
+      if (
+        favorites === prev.favorites &&
+        recent === prev.recent &&
+        playbackHistory === prev.playbackHistory &&
+        stationCache === prev.stationCache
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        favorites,
+        recent,
+        playbackHistory,
+        stationCache
+      };
+    });
+    setStoredPlayerState((prev) => {
+      const items = applyCuratedStationFixupsToList(prev.queue.items);
+      return items === prev.queue.items ? prev : { ...prev, queue: { ...prev.queue, items } };
+    });
+    setStoredAppState((prev) => {
+      const playabilityProfile = clearCuratedStationSignals(prev.playabilityProfile);
+      const stationHealthProfile = clearCuratedStationSignals(prev.stationHealthProfile);
+      return playabilityProfile === prev.playabilityProfile &&
+        stationHealthProfile === prev.stationHealthProfile
+        ? prev
+        : {
+            ...prev,
+            playabilityProfile,
+            stationHealthProfile
+          };
+    });
+  }, [setStoredAppState, setStoredLibraryState, setStoredPlayerState]);
 
   const { syncCloudLibraryImmediately } = useCloudLibrarySync({
     alerts,
@@ -993,7 +1061,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setStoredShellState((prev) => (prev.detailsOpen === value ? prev : { ...prev, detailsOpen: value }));
 
   const openExternal = (station: Station | StationLite) => {
-    openLinkOrFallback(station.url_resolved);
+    openLinkOrFallback(toLite(station).url_resolved);
   };
 
   const addRecent = (station: Station | StationLite) => {
@@ -1133,6 +1201,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       addRecent(playedStation);
     }
     recordBehaviorForStation(playedStation, 'play');
+    if (playedStation.stationuuid) {
+      setStationExposure((prev) => recordStationPlayed(prev, playedStation.stationuuid));
+    }
     currentStartedAtRef.current = playStartedAt;
     currentStartedStationIdRef.current = playedStation.stationuuid;
     listened30sRef.current = null;
@@ -1294,6 +1365,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       tasteProfile,
       healthProfile: stationHealthProfile,
       sessionEvents: radioSessionEvents,
+      exposure: stationExposure,
       context: {
         mode: 'personal',
         currentStation: player.current,
@@ -1341,13 +1413,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const nextFavorites = alreadyFavorite
       ? favorites.filter((item) => item.stationuuid !== lite.stationuuid)
       : [lite, ...favorites];
+    const favoriteMode = sessionModeFromSourceId(queueRef.current.sourceId);
+    const nextTasteProfile = recordTasteSignal(
+      tasteProfile,
+      lite,
+      alreadyFavorite ? 'unliked' : 'liked',
+      { mode: favoriteMode }
+    );
     setFavorites(nextFavorites);
+    setTasteProfile(nextTasteProfile);
     if (!alreadyFavorite) {
       recordBehaviorForStation(lite, 'favorite');
-      recordTasteForStation(lite, 'liked');
       recordSessionEventForStation(lite, 'like');
-    } else {
-      recordTasteForStation(lite, 'unliked');
     }
     reportProductEvent(
       'like',
@@ -1369,7 +1446,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       followedStations,
       followedRegions,
       alerts,
-      tasteProfile
+      tasteProfile: nextTasteProfile
     });
   };
 
@@ -1607,12 +1684,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const shareStation = async (station: Station | StationLite) => {
+    const lite = toLite(station);
     const botName = import.meta.env.VITE_TG_BOT as string | undefined;
     const url = botName
-      ? makeDeepLink(botName, station.stationuuid)
-      : `${window.location.origin}?station=station_${station.stationuuid}`;
-    const title = station.name;
-    const text = `Listen live: ${station.name}`;
+      ? makeDeepLink(botName, lite.stationuuid)
+      : `${window.location.origin}?station=station_${lite.stationuuid}`;
+    const title = lite.name;
+    const text = `Listen live: ${lite.name}`;
 
     // T_share_1: the ordered flow lives in shareStationLink (Telegram native
     // chat-picker first, then web share sheet, then clipboard). Deep link is
@@ -1747,6 +1825,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
   const clearRecent = () => setRecent([]);
   const clearTrackHistory = () => setTrackHistory([]);
+  const removeTrackHistoryItem = (trackId: string) =>
+    setTrackHistory((items) => items.filter((item) => item.id !== trackId));
   const createCollection = (name: string) => {
     const normalized = name.trim();
     if (!normalized) return;
@@ -1783,6 +1863,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     rememberStations(queueStations);
     setCollections((prev) => [collection, ...prev]);
     setLibraryTab('collections');
+  };
+  const addStationToNewCollection = (name: string, station: Station | StationLite) => {
+    const normalized = name.trim().slice(0, 48);
+    if (!normalized) return;
+    const lite = toLite(station);
+    const now = Date.now();
+    rememberStations([lite]);
+    setCollections((prev) => [
+      {
+        id: `collection-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: normalized,
+        description: null,
+        stationIds: [lite.stationuuid],
+        isPublic: false,
+        updatedAt: now,
+        createdAt: now,
+        pinned: false
+      },
+      ...prev
+    ]);
+    recordBehaviorForStation(lite, 'collection');
   };
   const deleteCollection = (collectionId: string) => {
     // Plain filter via setCollections — the same channel every other collection
@@ -2422,6 +2523,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       tasteProfile,
       stationHealthProfile,
       radioSessionEvents,
+      stationExposure,
+      recordStationsShown,
       toggleFavorite,
       isFavorite,
       hideStationFromRecommendations,
@@ -2431,8 +2534,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearFavorites,
       clearRecent,
       clearTrackHistory,
+      removeTrackHistoryItem,
       createCollection,
       saveQueueAsCollection,
+      addStationToNewCollection,
       deleteCollection,
       toggleCollectionPinned,
       renameCollection,
@@ -2453,9 +2558,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearFavorites,
       clearRecent,
       clearTrackHistory,
+      removeTrackHistoryItem,
       collections,
       createCollection,
       saveQueueAsCollection,
+      addStationToNewCollection,
       deleteCollection,
       digests,
       favorites,
@@ -2472,6 +2579,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       playbackHistoryEntries,
       playabilityProfile,
       radioSessionEvents,
+      stationExposure,
+      recordStationsShown,
       renameCollection,
       tasteProfile,
       stationHealthProfile,

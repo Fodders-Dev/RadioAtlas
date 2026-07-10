@@ -47,7 +47,10 @@ export const useInfiniteScroll = (
   const armedRef = useRef(true);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      armedRef.current = true;
+      return;
+    }
     const target = targetRef.current;
     if (!target) return;
 

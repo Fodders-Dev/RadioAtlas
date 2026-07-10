@@ -15,11 +15,13 @@ import {
   type ChatHistoryTurn,
   type ChatServiceLink,
   type ChatSource,
-  type ChatStationRef
+  type ChatStationRef,
+  type ChatUserTaste
 } from '../lib/aiChat';
 import { useLocale } from '../state/LocaleContext';
 import { useCatalog } from '../state/CatalogContext';
-import { usePlayback } from '../state/RadioContext';
+import { useLibrary, usePlayback } from '../state/RadioContext';
+import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import './ChatSheet.css';
 
 type ChatMessage = {
@@ -34,11 +36,84 @@ type ChatMessage = {
 type ChatSheetProps = { open: boolean; onClose: () => void };
 
 const HISTORY_LIMIT = 10;
+const TASTE_SCORE_LIMIT = 24;
+const FAVORITE_ID_LIMIT = 60;
+const RECENT_ID_LIMIT = 30;
+const AVOID_ID_LIMIT = 80;
+const LAST_RECOMMENDED_ID_LIMIT = 20;
+const NEGATIVE_STATION_SCORE_THRESHOLD = -4;
+
+const compactScoreMap = (scores: Record<string, number> | null | undefined) =>
+  Object.fromEntries(
+    Object.entries(scores || {})
+      .filter(([key, value]) => key.trim() && Number.isFinite(value) && Math.abs(value) >= 0.05)
+      .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]) || left[0].localeCompare(right[0]))
+      .slice(0, TASTE_SCORE_LIMIT)
+  );
+
+const buildChatUserTaste = (
+  tasteProfile: TasteProfileV2,
+  favorites: ReturnType<typeof useLibrary>['favorites'],
+  recent: ReturnType<typeof useLibrary>['recent'],
+  messages: ChatMessage[]
+): ChatUserTaste | undefined => {
+  const effectiveTaste = withFavoriteTasteBoosts(tasteProfile, favorites);
+  const favoriteStationIds = favorites
+    .map((station) => station.stationuuid)
+    .filter(Boolean)
+    .slice(0, FAVORITE_ID_LIMIT);
+  const recentStationIds = recent
+    .map((station) => station.stationuuid)
+    .filter(Boolean)
+    .slice(0, RECENT_ID_LIMIT);
+  const hiddenStationIds = (effectiveTaste.hiddenStationIds || []).filter(Boolean).slice(0, AVOID_ID_LIMIT);
+  const negativeStationIds = Object.entries(effectiveTaste.stationScores || {})
+    .filter(([stationId, score]) => stationId && Number.isFinite(score) && score <= NEGATIVE_STATION_SCORE_THRESHOLD)
+    .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
+    .map(([stationId]) => stationId)
+    .slice(0, AVOID_ID_LIMIT);
+  const lastRecommendedStationIds = messages
+    .slice()
+    .reverse()
+    .flatMap((message) => message.stations || [])
+    .map((station) => station.stationuuid)
+    .filter((stationId, index, all) => Boolean(stationId) && all.indexOf(stationId) === index)
+    .slice(0, LAST_RECOMMENDED_ID_LIMIT);
+  const stationScores = compactScoreMap(effectiveTaste.stationScores);
+  const tagScores = compactScoreMap(effectiveTaste.tagScores);
+  const countryScores = compactScoreMap(effectiveTaste.countryScores);
+  const languageScores = compactScoreMap(effectiveTaste.languageScores);
+  if (
+    !favoriteStationIds.length &&
+    !recentStationIds.length &&
+    !hiddenStationIds.length &&
+    !negativeStationIds.length &&
+    !lastRecommendedStationIds.length &&
+    !Object.keys(stationScores).length &&
+    !Object.keys(tagScores).length &&
+    !Object.keys(countryScores).length &&
+    !Object.keys(languageScores).length
+  ) {
+    return undefined;
+  }
+  return {
+    favoriteStationIds,
+    recentStationIds,
+    hiddenStationIds,
+    negativeStationIds,
+    lastRecommendedStationIds,
+    stationScores,
+    tagScores,
+    countryScores,
+    languageScores
+  };
+};
 
 export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
   const { t } = useLocale();
   const { fetchStationById } = useCatalog();
   const { playStation } = usePlayback();
+  const { favorites, recent, tasteProfile } = useLibrary();
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -74,11 +149,12 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     const history: ChatHistoryTurn[] = messages
       .slice(-HISTORY_LIMIT)
       .map((message) => ({ role: message.role, text: message.text }));
+    const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
     setInput('');
     setSending(true);
     try {
-      const response = await postChatMessage(text, history);
+      const response = await postChatMessage(text, history, { userTaste });
       setMessages((prev) => [
         ...prev,
         {

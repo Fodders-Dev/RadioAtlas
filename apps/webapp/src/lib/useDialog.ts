@@ -34,6 +34,12 @@ const getFocusable = (root: HTMLElement): HTMLElement[] =>
     (element) => !element.hasAttribute('disabled') && element.tabIndex !== -1 && isVisible(element)
   );
 
+const focusElement = (element: HTMLElement | null | undefined) => {
+  if (!element || !element.isConnected) return false;
+  element.focus();
+  return true;
+};
+
 // Accessible modal-dialog behaviour for the project's custom slide-up
 // overlays. modern-web-guidance §11 prefers a native <dialog>, but
 // explicitly blesses applying `inert` to outside content for "custom
@@ -130,16 +136,14 @@ export const useDialog = (
       // background has re-rendered), else the captured trigger, else the
       // body as a last resort (WAI-ARIA APG).
       const explicitTarget = restoreFocusToRef.current?.() ?? null;
-      const target =
-        explicitTarget && explicitTarget.isConnected
-          ? explicitTarget
-          : previouslyFocused && previouslyFocused.isConnected
-            ? previouslyFocused
-            : null;
-      if (target) {
-        target.focus();
-      } else {
+      const restored = focusElement(explicitTarget) || focusElement(previouslyFocused);
+      if (!restored) {
         doc.body?.focus();
+      }
+      if (!explicitTarget && restoreFocusToRef.current) {
+        window.setTimeout(() => {
+          focusElement(restoreFocusToRef.current?.() ?? null);
+        }, 0);
       }
     };
   }, [isOpen, rootRef]);

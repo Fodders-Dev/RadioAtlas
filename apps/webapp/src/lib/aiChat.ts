@@ -46,6 +46,22 @@ export type ChatResponse = {
 
 export type ChatHistoryTurn = { role: ChatRole; text: string };
 
+export type ChatUserTaste = {
+  favoriteStationIds?: string[];
+  recentStationIds?: string[];
+  hiddenStationIds?: string[];
+  negativeStationIds?: string[];
+  lastRecommendedStationIds?: string[];
+  stationScores?: Record<string, number>;
+  tagScores?: Record<string, number>;
+  countryScores?: Record<string, number>;
+  languageScores?: Record<string, number>;
+};
+
+export type ChatRequestOptions = {
+  userTaste?: ChatUserTaste;
+};
+
 const readToken = (): string => {
   try {
     return localStorage.getItem(SESSION_STORAGE_KEY) || '';
@@ -59,7 +75,8 @@ export const isAiAssistantEnabled = (): boolean =>
 
 export const postChatMessage = async (
   message: string,
-  history: ChatHistoryTurn[]
+  history: ChatHistoryTurn[],
+  options: ChatRequestOptions = {}
 ): Promise<ChatResponse> => {
   const apiBase = getApiBase();
   if (!apiBase) throw new Error('assistant is unavailable');
@@ -70,7 +87,7 @@ export const postChatMessage = async (
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ message, history })
+    body: JSON.stringify({ message, history, userTaste: options.userTaste })
   });
   if (!response.ok) {
     throw new Error(`chat failed (${response.status})`);

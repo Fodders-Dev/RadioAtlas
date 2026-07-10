@@ -8,7 +8,7 @@ import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 
 export const Settings = () => {
-  const { clearFavorites, clearRecent } = useLibrary();
+  const { favorites, clearFavorites, clearRecent } = useLibrary();
   const { clearCatalogCache } = useCatalog();
   const {
     sleepTimer,
@@ -56,6 +56,12 @@ export const Settings = () => {
   const handleClearCache = () => {
     clearCatalogCache();
     clearCache();
+  };
+
+  const handleClearFavorites = () => {
+    if (!favorites.length) return;
+    if (!window.confirm(t('settings.clearFavoritesConfirm', { count: favorites.length }))) return;
+    clearFavorites();
   };
 
   return (
@@ -149,7 +155,12 @@ export const Settings = () => {
             <div className="settings-label">{t('settings.favoritesLabel')}</div>
             <div className="settings-desc">{t('settings.favoritesDesc')}</div>
           </div>
-          <button className="chip" onClick={clearFavorites} type="button">
+          <button
+            className="chip"
+            onClick={handleClearFavorites}
+            type="button"
+            disabled={!favorites.length}
+          >
             {t('settings.clearFavorites')}
           </button>
         </div>

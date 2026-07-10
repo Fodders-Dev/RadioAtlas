@@ -87,4 +87,13 @@ describe('createDiscoveryFeed server-signal rails (T2.21)', () => {
   it('returns an empty moodRails array when none are provided', () => {
     expect(createDiscoveryFeed(baseInput).moodRails).toEqual([]);
   });
+
+  it('rotates discovery picks when the showcase seed changes', () => {
+    const first = createDiscoveryFeed({ ...baseInput, showcaseSeed: 11 });
+    const second = createDiscoveryFeed({ ...baseInput, showcaseSeed: 97 });
+
+    expect(first.freshSignals.stations.map((station) => station.stationuuid)).not.toEqual(
+      second.freshSignals.stations.map((station) => station.stationuuid)
+    );
+  });
 });

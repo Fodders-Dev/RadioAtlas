@@ -126,18 +126,29 @@ export const requestAiChat = async (
 ): Promise<AiChatResult | null> => {
   if (!deps.apiUrl || !deps.internalWebhookToken) return null;
   try {
-    const response = await deps.fetch(`${deps.apiUrl}/internal/bot/ai-chat`, {
+    const endpoint = `${deps.apiUrl}/internal/bot/ai-chat`;
+    const payload = JSON.stringify({
+      telegramId: String(input.telegramId),
+      text: input.text,
+      history: input.history || []
+    });
+    const init = (): RequestInit => ({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Internal-Token': deps.internalWebhookToken
       },
-      body: JSON.stringify({
-        telegramId: String(input.telegramId),
-        text: input.text,
-        history: input.history || []
-      })
+      body: payload
     });
+    let response = await deps.fetch(endpoint, init());
+    if (
+      response.redirected &&
+      response.url &&
+      response.url !== endpoint &&
+      (response.status === 404 || response.status === 405)
+    ) {
+      response = await deps.fetch(response.url, init());
+    }
     if (!response.ok) return null;
     const body = (await response.json()) as Partial<AiChatResult> | null;
     if (!body || typeof body.reply !== 'string') return null;

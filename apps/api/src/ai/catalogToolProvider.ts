@@ -26,6 +26,7 @@ export type CatalogServiceLike = {
     continent: string;
     limit: number;
     cursor: number;
+    relevance?: boolean;
   }) => Promise<{ items: CatalogStationLite[] }>;
   getStationById: (id: string) => Promise<CatalogStationLite | null>;
   getSummary: (seed: number) => Promise<{
@@ -84,6 +85,8 @@ const TALK_FORMAT =
 // queryWantsTalk so an explicit «включи RTL» is still honored. Keep this list
 // SHORT + verified — only opaque brands with no music namesake in the catalog.
 const TALK_BRANDS = /(\brtl\b)/i;
+const HUMOR_TALK_FORMAT =
+  /(анекдот|юмор|шутк|прикол|стендап|stand\s*up|comedy|humou?r|sketch|кабаре|kabar[ée])/i;
 
 const isTalkFormat = (station: CatalogStationLite): boolean =>
   TALK_FORMAT.test(`${station.name || ''} ${station.tags || ''}`) ||
@@ -92,7 +95,9 @@ const isTalkFormat = (station: CatalogStationLite): boolean =>
 // Did the user's own query/tag ask for talk/news (or name a talk brand)? Then we
 // must NOT filter it out.
 const queryWantsTalk = (query: string, tag?: string): boolean =>
-  TALK_FORMAT.test(`${query} ${tag || ''}`) || TALK_BRANDS.test(`${query} ${tag || ''}`);
+  TALK_FORMAT.test(`${query} ${tag || ''}`) ||
+  TALK_BRANDS.test(`${query} ${tag || ''}`) ||
+  HUMOR_TALK_FORMAT.test(`${query} ${tag || ''}`);
 
 const toRef = (station: CatalogStationLite): VerifiedStationRef => ({
   stationuuid: station.stationuuid,
@@ -124,7 +129,10 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       tag: args.tag || '',
       continent: '',
       limit: fetchLimit,
-      cursor: 0
+      cursor: 0,
+      // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
+      // returns actual genre stations instead of the most-voted substring match.
+      relevance: true
     });
     return (response.items || [])
       .filter((station) => station.url_resolved)

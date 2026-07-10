@@ -10,13 +10,21 @@ import {
   type AiChatResult
 } from '../src/aiChat.js';
 
-const stubFetch = (response: { ok: boolean; status?: number; body?: unknown }) => {
+const stubFetch = (response: {
+  ok: boolean;
+  status?: number;
+  body?: unknown;
+  redirected?: boolean;
+  url?: string;
+}) => {
   const calls: Array<{ url: string; init: any }> = [];
   const fetchImpl = (async (input: string | URL | Request, init?: any) => {
     calls.push({ url: typeof input === 'string' ? input : input.toString(), init });
     return {
       ok: response.ok,
       status: response.status ?? (response.ok ? 200 : 500),
+      redirected: response.redirected ?? false,
+      url: response.url ?? (typeof input === 'string' ? input : input.toString()),
       // Loosened: a test may pass body:null to exercise the null-JSON path.
       json: async () => ('body' in response ? response.body : {})
     } as Response;
@@ -55,6 +63,45 @@ test('requestAiChat forwards conversation history in the body (so the brain has 
   await requestAiChat({ telegramId: 7, text: 'без азиатских нот', history }, deps(fetchImpl));
   const body = JSON.parse(calls[0]?.init?.body);
   assert.deepEqual(body.history, history);
+});
+
+test('requestAiChat retries POST on final URL when canonical host redirect turns POST into GET', async () => {
+  const calls: Array<{ url: string; init: any }> = [];
+  const fetchImpl = (async (input: string | URL | Request, init?: any) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    calls.push({ url, init });
+    if (calls.length === 1) {
+      return {
+        ok: false,
+        status: 404,
+        redirected: true,
+        url: 'https://radioatlas.ru/api/internal/bot/ai-chat',
+        json: async () => ({ error: 'not found' })
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      redirected: false,
+      url,
+      json: async () => ({ reply: 'На связи', stations: [], serviceLinks: [], sources: [] })
+    } as Response;
+  }) as typeof fetch;
+
+  const result = await requestAiChat(
+    { telegramId: 1, text: 'алло' },
+    {
+      fetch: fetchImpl,
+      apiUrl: 'https://radioatlas.duckdns.org/api',
+      internalWebhookToken: 'secret-token'
+    }
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1]?.url, 'https://radioatlas.ru/api/internal/bot/ai-chat');
+  assert.equal(calls[1]?.init?.method, 'POST');
+  assert.equal(JSON.parse(calls[1]?.init?.body).text, 'алло');
+  assert.equal(result?.reply, 'На связи');
 });
 
 test('requestAiChat returns null on a non-200 (bot then shows the warm fallback)', async () => {
@@ -96,7 +143,8 @@ test('buildAiButtons: station deep-links one-per-row, service links two-per-row'
       { service: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/search/x', query: 'x' },
       { service: 'youtube', label: 'YouTube', url: 'https://youtube.com/results?search_query=x', query: 'x' },
       { service: 'yandex', label: 'Яндекс Музыка', url: 'https://music.yandex.ru/search?text=x', query: 'x' }
-    ]
+    ],
+    sources: []
   };
   const rows = buildAiButtons(result, 'radioatlasbot');
   assert.equal(rows[0]?.[0]?.url, stationDeepLink('radioatlasbot', 'u1'));
@@ -111,13 +159,14 @@ test('buildAiButtons: no username → no station deep-links (avoids t.me/undefin
   const result: AiChatResult = {
     reply: 'r',
     stations: [{ stationuuid: 'u1', name: 'Jazz' }],
-    serviceLinks: []
+    serviceLinks: [],
+    sources: []
   };
   assert.deepEqual(buildAiButtons(result, ''), []);
 });
 
 test('buildAiButtons with no stations and no links → empty keyboard', () => {
-  assert.deepEqual(buildAiButtons({ reply: 'r', stations: [], serviceLinks: [] }, 'validuser'), []);
+  assert.deepEqual(buildAiButtons({ reply: 'r', stations: [], serviceLinks: [], sources: [] }, 'validuser'), []);
 });
 
 test('requestAiChat returns null on a 200 with a malformed body (reply not a string / null)', async () => {

@@ -5,8 +5,10 @@ import {
   rankStationsForUser,
   recordTasteSignal,
   tasteSignature,
+  withFavoriteTasteBoosts,
   type TasteProfileV2
 } from './tasteProfile';
+import { recordStationPlayed, recordStationsShown } from './stationExposure';
 import type { StationLite } from '../types';
 
 // T_audit_9: the tasteSignature is the churn guard for eager taste propagation.
@@ -142,5 +144,82 @@ describe('rankStationsForUser rotation (home freshness)', () => {
       const lastJazz = ranked.map((s) => s.tags).lastIndexOf('jazz');
       expect(firstPolka).toBeGreaterThan(lastJazz);
     }
+  });
+});
+
+describe('withFavoriteTasteBoosts', () => {
+  it('turns synced/legacy favorites into an effective taste signature', () => {
+    const boosted = withFavoriteTasteBoosts(DEFAULT_TASTE_PROFILE_V2, [
+      station('liked-jazz-1', 'jazz, lounge'),
+      station('liked-jazz-2', 'jazz')
+    ]);
+
+    expect(tasteSignature(boosted)).toContain('jazz');
+    expect(boosted.stationScores['liked-jazz-1']).toBeGreaterThan(0);
+  });
+
+  it('ranks stations similar to favorites above unrelated catalog rows even with an empty stored profile', () => {
+    const effective = withFavoriteTasteBoosts(DEFAULT_TASTE_PROFILE_V2, [
+      station('fav-jazz', 'jazz, lounge', 'France')
+    ]);
+    const ranked = rankStationsForUser(
+      [
+        station('polka-1', 'polka', 'Poland'),
+        station('jazz-1', 'jazz, fusion', 'France'),
+        station('noise-1', 'noise', 'Nowhere')
+      ],
+      effective,
+      null,
+      {
+        mode: 'personal',
+        seed: 1,
+        now: NOW
+      }
+    );
+
+    expect(ranked[0].stationuuid).toBe('jazz-1');
+  });
+});
+
+describe('rankStationsForUser exposure demotion', () => {
+  // Two equal no-taste stations: score reduces to (rotation − exposure penalty).
+  // Rotation is bounded by the floor (< 1.4) with no taste, and a single shown
+  // impression costs 2.4, so a just-seen station is deterministically demoted
+  // below an unseen peer — for ANY seed. This is the discovery-tier freshness
+  // behind «как ни зайдёшь, одна и та же поебота».
+  it('demotes a recently shown station below an equal unseen peer', () => {
+    const a = station('a', 'indie');
+    const b = station('b', 'indie');
+    const exposure = recordStationsShown({}, ['a'], NOW);
+    for (const seed of [1, 7, 42, 1000]) {
+      const ranked = rankStationsForUser([a, b], DEFAULT_TASTE_PROFILE_V2, null, {
+        mode: 'personal',
+        seed,
+        now: NOW,
+        exposure
+      });
+      expect(ranked.map((item) => item.stationuuid)).toEqual(['b', 'a']);
+    }
+  });
+
+  it('does not reorder when no exposure ledger is supplied (backward compatible)', () => {
+    const a = station('a', 'indie');
+    const b = station('b', 'indie');
+    const withNull = rankStationsForUser([a, b], DEFAULT_TASTE_PROFILE_V2, null, {
+      mode: 'personal',
+      seed: 7,
+      now: NOW
+    });
+    const played = recordStationPlayed({}, 'a', NOW);
+    const withExposure = rankStationsForUser([a, b], DEFAULT_TASTE_PROFILE_V2, null, {
+      mode: 'personal',
+      seed: 7,
+      now: NOW,
+      exposure: played
+    });
+    // The played station 'a' is pushed behind 'b' once exposure is supplied.
+    expect(withExposure.map((item) => item.stationuuid)).toEqual(['b', 'a']);
+    // Both stations still present in both cases (soft demotion, never a drop).
+    expect(withNull.map((item) => item.stationuuid).sort()).toEqual(['a', 'b']);
   });
 });
