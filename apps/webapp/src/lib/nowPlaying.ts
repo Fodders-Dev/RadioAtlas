@@ -189,12 +189,14 @@ const fetchAzuraCast = async (
     try {
       let response: Response | null = null;
       if (canAttemptDirectFetch(endpoint)) {
-        response = await fetch(endpoint, { cache: 'no-store', signal });
+        response = await fetchWithTimeout(endpoint, 4000, signal, { cache: 'no-store' });
       } else if (apiBase && apiAvailable) {
-        response = await fetch(`${apiBase}/fetch?url=${encodeURIComponent(endpoint)}`, {
-          cache: 'no-store',
-          signal
-        });
+        response = await fetchWithTimeout(
+          `${apiBase}/fetch?url=${encodeURIComponent(endpoint)}`,
+          4000,
+          signal,
+          { cache: 'no-store' }
+        );
       } else {
         continue;
       }
@@ -604,12 +606,12 @@ export const observeStationNowPlaying = (
   };
 };
 
-const fetchWithTimeout = async (url: string, ms = 4000, signal?: AbortSignal) => {
+const fetchWithTimeout = async (url: string, ms = 4000, signal?: AbortSignal, init?: RequestInit) => {
   const controller = new AbortController();
   const unbindAbort = bindAbort(controller, signal);
   const id = setTimeout(() => controller.abort(), ms);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { ...init, signal: controller.signal });
     return res;
   } finally {
     clearTimeout(id);
