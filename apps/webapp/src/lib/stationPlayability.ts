@@ -44,6 +44,12 @@ type RankSearchOptions = {
   healthProfile?: StationHealthProfile | null;
   now?: number;
   sessionEvents?: RadioSessionEvent[];
+  // Optional per-station personal-taste boost (owner's «примесь рекомендаций в
+  // поиск»). Passed as a callback so this module needn't import tasteProfile
+  // (which imports it back — avoids a circular dependency). Clamped below so it
+  // stays a TIE-BREAKER among near-equal matches and never overtakes the typed
+  // query's intent term.
+  tasteBoostFor?: (station: StationLite) => number;
 };
 
 export const DEFAULT_PLAYABILITY_PROFILE: StationPlayabilityProfile = {
@@ -461,11 +467,31 @@ const behaviorScore = (station: StationLite, profile: BehaviorProfile) => {
 
 export const rankStationsForSearch = (
   stations: StationLite[],
-  { query, behaviorProfile, playabilityProfile, healthProfile = null, now = Date.now(), sessionEvents = [] }: RankSearchOptions
+  {
+    query,
+    behaviorProfile,
+    playabilityProfile,
+    healthProfile = null,
+    now = Date.now(),
+    sessionEvents = [],
+    tasteBoostFor
+  }: RankSearchOptions
 ) => {
   const stationPool = uniqueStations(stations);
   const sessionExcludedIds = getSessionExcludedStationIds(sessionEvents, now);
   const explicitQuery = queryTokens(query).length > 1;
+  // Personal-taste tie-breaker: clamped to ±TASTE_SEARCH_CAP and scaled down for
+  // explicit multi-token queries, so it nudges among near-equal matches but can
+  // never move a taste-favourite above the station the user actually typed
+  // (intent scores reach 20-80).
+  const TASTE_SEARCH_CAP = 8;
+  const tasteBoost = (station: StationLite) => {
+    if (!tasteBoostFor) return 0;
+    const raw = tasteBoostFor(station);
+    if (!Number.isFinite(raw) || raw === 0) return 0;
+    const clamped = Math.max(-TASTE_SEARCH_CAP, Math.min(TASTE_SEARCH_CAP, raw));
+    return clamped * (explicitQuery ? 0.28 : 0.6);
+  };
   // Phase B-PR2: do NOT drop broken stations from search — show them (with a
   // 🚫/⚠ badge) so a user can still FIND a station they typed even if it is
   // currently unplayable. The score below already demotes broken stations
@@ -489,6 +515,7 @@ export const rankStationsForSearch = (
         sessionPenalty +
         getSessionStationScore(station, sessionEvents, stationPool, now) +
         behaviorBoost +
+        tasteBoost(station) +
         getStationPlayabilityScore(playabilityProfile, station, now) * 3.6 +
         getStationHealthScore(healthProfile, station, now) * 2.8 +
         getUpstreamHealthScore(station, now) * upstreamWeight +

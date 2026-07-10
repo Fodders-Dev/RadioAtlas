@@ -362,3 +362,46 @@ describe('getStationPlayabilityScore ageFactor clamp (backward clock skew)', () 
     expect(backwardSkew).toBeCloseTo(atEvent, 6);
   });
 });
+
+describe('rankStationsForSearch — personal taste tie-breaker (примесь рекомендаций)', () => {
+  it('lifts a taste-favored station above an equal-intent peer', () => {
+    const a = station('a', 'Jazz A', 'US', 'jazz');
+    const b = station('b', 'Jazz B', 'US', 'jazz');
+    const ranked = rankStationsForSearch([a, b], {
+      query: 'jazz',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+      tasteBoostFor: (s) => (s.stationuuid === 'b' ? 20 : 0)
+    });
+    expect(ranked[0].stationuuid).toBe('b');
+  });
+
+  it('can never outrank the station the user actually typed (clamped)', () => {
+    const exact = station('x', 'Jazz Cafe', 'US', 'jazz');
+    const favored = station('y', 'Some Other Radio', 'US', 'pop');
+    const ranked = rankStationsForSearch([favored, exact], {
+      query: 'jazz cafe',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+      tasteBoostFor: (s) => (s.stationuuid === 'y' ? 999 : 0)
+    });
+    expect(ranked[0].stationuuid).toBe('x');
+  });
+
+  it('is a no-op when no taste callback is supplied (order unchanged)', () => {
+    const a = station('a', 'Jazz A', 'US', 'jazz');
+    const b = station('b', 'Jazz B', 'US', 'jazz');
+    const withCb = rankStationsForSearch([a, b], {
+      query: 'jazz',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE,
+      tasteBoostFor: () => 0
+    }).map((s) => s.stationuuid);
+    const without = rankStationsForSearch([a, b], {
+      query: 'jazz',
+      behaviorProfile: DEFAULT_BEHAVIOR_PROFILE,
+      playabilityProfile: DEFAULT_PLAYABILITY_PROFILE
+    }).map((s) => s.stationuuid);
+    expect(withCb).toEqual(without);
+  });
+});

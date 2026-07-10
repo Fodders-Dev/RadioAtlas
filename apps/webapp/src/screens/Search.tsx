@@ -15,7 +15,7 @@ import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
 import { rankStationsForSearch } from '../lib/stationPlayability';
 import { diversifyStationOrder } from '../lib/stationDiversity';
-import { rankStationsForUser, withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
+import { rankStationsForUser, tasteScore, withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import './discover.css';
 
 const mergeStations = (left: StationLite[], right: StationLite[]) => {
@@ -497,6 +497,11 @@ export const Discover = () => {
         return played.length ? [...fresh, ...played] : list;
       };
 
+      // Effective personal taste (favorites folded in) — a small tie-breaker so a
+      // TYPED search leans toward the user's genres/countries among near-equal
+      // matches (owner's «примесь рекомендаций в поиск»), clamped in the ranker so
+      // it never outranks what the user actually typed. Zero effect with no taste.
+      const effectiveSearchTaste = withFavoriteTasteBoosts(tasteProfileRef.current, favoritesRef.current);
       const rankPage = (page: StationLite[], seedOffset: number) => {
         if (!page.length) return [];
         if (query.length >= 2) {
@@ -505,7 +510,8 @@ export const Discover = () => {
             behaviorProfile: behaviorProfileRef.current,
             playabilityProfile: playabilityProfileRef.current,
             healthProfile: stationHealthProfileRef.current,
-            sessionEvents: radioSessionEventsRef.current
+            sessionEvents: radioSessionEventsRef.current,
+            tasteBoostFor: (station) => tasteScore(station, effectiveSearchTaste)
           });
         }
 
@@ -521,10 +527,9 @@ export const Discover = () => {
           );
         }
 
-        const effectiveTaste = withFavoriteTasteBoosts(tasteProfileRef.current, favoritesRef.current);
         return demoteRecentlyPlayed(
           diversifyStationOrder(
-            rankStationsForUser(base, effectiveTaste, playabilityProfileRef.current, {
+            rankStationsForUser(base, effectiveSearchTaste, playabilityProfileRef.current, {
               mode: 'search',
               seed: browseSeedRef.current + seedOffset,
               limit: base.length,

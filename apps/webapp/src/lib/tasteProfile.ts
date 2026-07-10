@@ -474,7 +474,7 @@ export const unhideStationFromTasteProfile = (
 const TASTE_ROTATION_FLOOR = 1.4;
 const TASTE_ROTATION_TASTE_FRACTION = 0.22;
 
-const tasteScore = (station: StationLite, profile: TasteProfileV2 | null | undefined) => {
+export const tasteScore = (station: StationLite, profile: TasteProfileV2 | null | undefined) => {
   if (!profile || profile.version !== 2) return 0;
   const stationScore = profile.stationScores[station.stationuuid] || 0;
   const tagScore = firstTags(station).reduce(
