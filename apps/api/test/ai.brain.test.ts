@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildStationQuery, chatWithAssistant, parseGenreTags } from '../src/ai/brain.js';
+import { buildStationQuery, chatWithAssistant, parseGenreTags, summarizeStationSlate } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
@@ -1565,4 +1565,46 @@ test('PRECISE SLATE: a precise (soul) ask keeps an off-genre result last, not sp
     result.stations.slice(0, 3).every((s) => s.stationuuid.startsWith('soul')),
     'the top three must all be soul'
   );
+});
+
+// --- summarizeStationSlate: grounded, concrete answer substance (anti-«постно») --
+test('summarizeStationSlate names the dominant genres and a concentrated region', () => {
+  const summary = summarizeStationSlate([
+    station({ stationuuid: '1', name: 'A', tags: ['soul', 'rnb', 'music'], country: 'The United States' }),
+    station({ stationuuid: '2', name: 'B', tags: ['soul', 'funk'], country: 'The United States' }),
+    station({ stationuuid: '3', name: 'C', tags: ['soul'], country: 'The United States' })
+  ]);
+  assert.ok(summary && summary.startsWith('жанры — soul'), `soul must lead: ${summary}`);
+  assert.ok(summary!.includes('rnb') || summary!.includes('funk'), 'secondary genres surface');
+  assert.ok(summary!.includes('the united states'), 'a concentrated region is named');
+  // Noise tags never appear.
+  assert.ok(!summary!.includes('music'), 'generic noise tag dropped');
+});
+
+test('summarizeStationSlate omits region when countries are mixed, and is null on empty', () => {
+  const mixed = summarizeStationSlate([
+    station({ stationuuid: '1', name: 'A', tags: ['jazz'], country: 'France' }),
+    station({ stationuuid: '2', name: 'B', tags: ['jazz'], country: 'Japan' }),
+    station({ stationuuid: '3', name: 'C', tags: ['jazz'], country: 'Brazil' })
+  ]);
+  assert.ok(mixed && mixed.startsWith('жанры — jazz'), 'genre still summarized');
+  assert.ok(!mixed!.includes('в основном из'), 'no region when mixed');
+  assert.equal(summarizeStationSlate([]), null);
+  assert.equal(summarizeStationSlate([station({ stationuuid: 'x', name: 'X', tags: ['no tags'] })]), null);
+});
+
+test('the grounded slate summary reaches the composer on a genre search', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 's1', name: 'One', tags: ['deep house', 'house'], country: 'Germany' }),
+      station({ stationuuid: 's2', name: 'Two', tags: ['deep house', 'techno'], country: 'Germany' })
+    ]
+  };
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"deep house"}}'],
+    compose: 'Лови глубокий хаус.'
+  });
+  await chatWithAssistant(ask('посоветуй deep house'), makeDeps(fetchImpl, { tools }));
+  assert.ok(composeText(calls).includes('жанры — deep house'), 'grounded genre summary reached composer');
 });
