@@ -84,6 +84,18 @@ export const triggerHaptic = (style: TelegramHapticStyle = 'light'): void => {
   tg?.HapticFeedback?.impactOccurred?.(style);
 };
 
+// T1.2b: selection tick for moving between discrete choices — tab switch,
+// segmented control, one-tap «не то» refresh. selectionChanged is the SDK's
+// semantic haptic for "you changed which option is active", distinct from
+// impactOccurred (a physical hit, reserved for transport / play). Same strict
+// client-only gate: it silently no-ops on standalone web, so callers stay
+// branch-free.
+export const triggerSelectionHaptic = (): void => {
+  if (!isInsideTelegramClient()) return;
+  const tg = readWindowTelegram();
+  tg?.HapticFeedback?.selectionChanged?.();
+};
+
 // Telegram-specific share / login link. The chain mirrors the
 // SessionContext call site: openTelegramLink (deep link UX) wins
 // when available; otherwise openLink (generic); otherwise window.open.

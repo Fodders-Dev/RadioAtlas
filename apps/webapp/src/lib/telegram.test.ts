@@ -15,6 +15,7 @@ import {
   shareStationToStory,
   subscribeTelegramThemeChange,
   triggerHaptic,
+  triggerSelectionHaptic,
   type TelegramWebApp
 } from './telegram';
 
@@ -174,6 +175,43 @@ describe('triggerHaptic', () => {
     triggerHaptic();
     triggerHaptic('medium');
     expect(styles).toEqual(['light', 'medium']);
+  });
+});
+
+describe('triggerSelectionHaptic', () => {
+  it('is silent when window.Telegram is undefined', () => {
+    restoreTelegram();
+    expect(() => triggerSelectionHaptic()).not.toThrow();
+  });
+
+  it('does NOT fire selectionChanged when SDK loaded but initData is empty (standalone web)', () => {
+    let calls = 0;
+    installTelegram({
+      platform: 'unknown',
+      initData: '',
+      HapticFeedback: {
+        selectionChanged: () => {
+          calls += 1;
+        }
+      }
+    });
+    triggerSelectionHaptic();
+    expect(calls).toBe(0);
+  });
+
+  it('calls HapticFeedback.selectionChanged when inside Telegram', () => {
+    let calls = 0;
+    installTelegram({
+      platform: 'ios',
+      initData: 'auth_date=1746000000&hash=deadbeef',
+      HapticFeedback: {
+        selectionChanged: () => {
+          calls += 1;
+        }
+      }
+    });
+    triggerSelectionHaptic();
+    expect(calls).toBe(1);
   });
 });
 

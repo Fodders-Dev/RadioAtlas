@@ -21,6 +21,7 @@ import {
 import { useLocale } from '../state/LocaleContext';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
+import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import './ChatSheet.css';
 
@@ -256,7 +257,10 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                       key={station.stationuuid}
                       className="chat-station-card"
                       type="button"
-                      onClick={() => void playVerified(station.stationuuid)}
+                      onClick={() => {
+                        triggerHaptic('light');
+                        void playVerified(station.stationuuid);
+                      }}
                       aria-label={t('chat.playStation', { name: station.name })}
                     >
                       <span
@@ -290,7 +294,10 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                     <button
                       type="button"
                       className="chat-reject-btn"
-                      onClick={() => void send(t('chat.rejectQuery'))}
+                      onClick={() => {
+                        triggerSelectionHaptic();
+                        void send(t('chat.rejectQuery'));
+                      }}
                       disabled={sending}
                     >
                       {t('chat.reject')}

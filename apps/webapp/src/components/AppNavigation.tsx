@@ -1,5 +1,6 @@
 import type { AppSection } from '../types';
 import { useLocale } from '../state/LocaleContext';
+import { triggerSelectionHaptic } from '../lib/telegram';
 
 type NavItem = {
   id: AppSection;
@@ -67,12 +68,19 @@ export const AppNavigation = ({
 }: AppNavigationProps) => {
   const { t } = useLocale();
 
+  const selectSection = (id: AppSection) => {
+    // A selection tick only when the tab actually changes — re-tapping the
+    // current tab shouldn't buzz. No-ops off the Telegram client.
+    if (id !== active) triggerSelectionHaptic();
+    onChange(id);
+  };
+
   const renderMobileItem = (item: NavItem) => (
     <button
       key={item.id}
       className={`mobile-nav-item ${active === item.id ? 'active' : ''}`}
       type="button"
-      onClick={() => onChange(item.id)}
+      onClick={() => selectSection(item.id)}
       onTouchStart={() => onPreload?.(item.id)}
       onFocus={() => onPreload?.(item.id)}
     >
