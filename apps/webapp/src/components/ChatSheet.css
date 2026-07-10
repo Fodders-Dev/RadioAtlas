@@ -348,3 +348,23 @@
   height: 20px;
   fill: currentColor;
 }
+
+/* A soft entry for Lira's station cards — they appear once per reply (keyed by
+   uuid, so they don't re-animate on re-render). Compositor-only; off for reduced
+   motion. */
+.chat-station-card {
+  animation: chat-card-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes chat-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-station-card {
+    animation: none;
+  }
+}
