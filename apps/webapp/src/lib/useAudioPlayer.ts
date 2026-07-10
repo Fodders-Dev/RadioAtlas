@@ -70,6 +70,40 @@ const PLAYBACK_SUPERSEDED = 'playback superseded';
 const STARTUP_BUFFER_GRACE_MS = 15000;
 const REBUFFER_GRACE_MS = 6000;
 const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
+// Silent-stall watchdog. Some live MP3/ICY streams (small self-hosted
+// AzuraCast/Icecast boxes) stop sending audio WITHOUT firing 'stalled' /
+// 'waiting' / 'error' / 'ended' — the element just goes quiet and currentTime
+// stops advancing, so the event-driven recovery never triggers («играла минут
+// 5-10 и стопнулась»). This watchdog polls currentTime progress and, if it hasn't
+// advanced for the threshold while we believe we're playing and NOT paused,
+// recovers the SAME station (tryNextCandidate → scheduleReconnect) — #86-safe, it
+// never switches to a different station.
+const STALL_WATCHDOG_INTERVAL_MS = 3000;
+const STALL_WATCHDOG_THRESHOLD_MS = 9000;
+
+// Pure trigger decision for the silent-stall watchdog (extracted so the tricky
+// false-positive/negative logic is unit-testable without a DOM audio element).
+// Recover ONLY when we believe we're actively playing a station, aren't manually
+// paused, aren't already recovering, and playback position hasn't advanced for the
+// threshold. NOT during startup (before first audio), pause, error, or an in-flight
+// rebuffer/reconnect — those are handled by the event-driven path.
+export const shouldRecoverFromSilentStall = (state: {
+  paused: boolean;
+  hasPlayed: boolean;
+  hasStation: boolean;
+  recovering: boolean;
+  status: PlayerStatus;
+  msSinceProgress: number;
+  thresholdMs?: number;
+}): boolean =>
+  !state.paused &&
+  state.hasPlayed &&
+  state.hasStation &&
+  !state.recovering &&
+  state.status !== 'paused' &&
+  state.status !== 'idle' &&
+  state.status !== 'error' &&
+  state.msSinceProgress >= (state.thresholdMs ?? STALL_WATCHDOG_THRESHOLD_MS);
 
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
@@ -123,6 +157,10 @@ export const useAudioPlayer = ({
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
   const waitingTimeoutRef = useRef<number | null>(null);
+  // Last time audio playback position actually ADVANCED — the silent-stall
+  // watchdog compares against this. Reset on each 'playing'; bumped on real
+  // timeupdate progress.
+  const lastProgressRef = useRef<{ time: number; at: number }>({ time: 0, at: 0 });
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -651,6 +689,7 @@ export const useAudioPlayer = ({
     const handlePlaying = () => {
       const requestedStation = requestedStationRef.current;
       candidateHasPlayedRef.current = true;
+      lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
       if (requestedStation) {
         setCurrent((prev) =>
           prev?.stationuuid === requestedStation.stationuuid ? prev : requestedStation
@@ -694,7 +733,14 @@ export const useAudioPlayer = ({
       pushEvent('audio: pause');
     };
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime || 0);
+      const now = audio.currentTime || 0;
+      // Any real position MOVEMENT means the stream is alive (abs, not just >, so
+      // an HLS live-edge reset still counts). Flat currentTime while unpaused for
+      // STALL_WATCHDOG_THRESHOLD_MS is a silent stall the watchdog recovers.
+      if (Math.abs(now - lastProgressRef.current.time) > 0.05) {
+        lastProgressRef.current = { time: now, at: Date.now() };
+      }
+      setCurrentTime(now);
     };
     const handleWaiting = () => {
       // A manually paused element (user pause, sleep-timer, or headphone-unplug —
@@ -805,6 +851,34 @@ export const useAudioPlayer = ({
     audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleEnded);
 
+    // Silent-stall watchdog (see STALL_WATCHDOG_* above): catches streams that go
+    // quiet WITHOUT firing waiting/stalled/error/ended, which the event-driven
+    // recovery would otherwise miss entirely.
+    const stallWatchdog = window.setInterval(() => {
+      const shouldRecover = shouldRecoverFromSilentStall({
+        paused: audio.paused,
+        hasPlayed: candidateHasPlayedRef.current,
+        hasStation: Boolean(requestedStationRef.current || currentRef.current),
+        recovering: waitingTimeoutRef.current !== null || reconnectRef.current.timer !== null,
+        status: statusRef.current,
+        msSinceProgress: Date.now() - lastProgressRef.current.at
+      });
+      if (!shouldRecover) return;
+      const activeSession = playbackSessionRef.current;
+      // Re-arm so we don't re-fire every tick while recovery is in flight.
+      lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
+      pushEvent('audio: silent stall (no progress) — recovering same station');
+      reportPlaybackEvent('audio_silent_stall', {
+        dedupeKey: `audio_silent_stall:${activeSession}`,
+        dedupeMs: 5_000
+      });
+      setStatus('buffering');
+      tryNextCandidate(activeSession).then((switched) => {
+        if (!isSessionCurrent(activeSession) || (!requestedStationRef.current && !currentRef.current)) return;
+        if (!switched) scheduleReconnect(activeSession);
+      });
+    }, STALL_WATCHDOG_INTERVAL_MS);
+
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
         reportPlaybackEvent('audio_background_resume_attempt', {
@@ -832,6 +906,7 @@ export const useAudioPlayer = ({
     document.addEventListener('keydown', resumeAudioContext);
 
     return () => {
+      window.clearInterval(stallWatchdog);
       audio.pause();
       if ('srcObject' in audio) {
         try {
