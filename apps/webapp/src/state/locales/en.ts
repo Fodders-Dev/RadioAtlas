@@ -565,6 +565,8 @@ export const enDictionary = {
     "deleteCollectionConfirm": "Delete for sure?",
     "collectionDeleted": "Playlist deleted: {name}",
     "addStationsToCollection": "Add stations",
+    "addFromLibrary": "Add from your library",
+    "addStationToCollection": "Add “{station}” to playlist",
     "searchPlaceholder": "Search your library",
     "searchClear": "Clear search",
     "searchResults": "From your library",

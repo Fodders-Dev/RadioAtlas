@@ -565,6 +565,8 @@ export const ruDictionary = {
     "deleteCollectionConfirm": "Точно удалить?",
     "collectionDeleted": "Плейлист удалён: {name}",
     "addStationsToCollection": "Добавить станции",
+    "addFromLibrary": "Добавить из медиатеки",
+    "addStationToCollection": "Добавить «{station}» в плейлист",
     "searchPlaceholder": "Поиск по медиатеке",
     "searchClear": "Очистить поиск",
     "searchResults": "Из медиатеки",

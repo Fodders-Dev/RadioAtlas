@@ -8262,6 +8262,76 @@ body {
   opacity: 0.28;
 }
 
+/* Playlist quick-picker: fill a new/empty playlist from favorites + recent in two
+   taps, no detour to Search. */
+.library-collection-picker {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.library-collection-picker-head {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.library-collection-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.library-collection-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.library-collection-picker-row:hover,
+.library-collection-picker-row:focus-visible {
+  background: var(--surface-raised);
+}
+.library-collection-picker-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.library-collection-picker-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-collection-picker-meta {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.library-collection-picker-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft, var(--surface-raised));
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
 /* Decluttered queue hero: one full-width Play, then a single tidy swipe-row of
    secondary actions (was a 7-chip header + a 4-pill stat grid). */
 .library-queue-hero-play {
