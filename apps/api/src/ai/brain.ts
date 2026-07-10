@@ -1045,15 +1045,48 @@ export const parseGenreTags = (raw: string | null | undefined): string[] => {
     .slice(0, 2);
 };
 
+// A compact taste hint for the vibe→tags mapper, plus the set of genres to hard-
+// drop. tagScores accumulate real signals (a `liked` genre ≈ +11, a skipped one
+// ≈ −2.4 and down); >=5 is a clear favourite, <=-5 a clear dislike. The «избегает»
+// set is also enforced deterministically after the model answers — the safety net
+// if DeepSeek ignores the hint, so Лира never searches a genre the user hates and
+// then can only reorder within it.
+const TASTE_LOVE_THRESHOLD = 5;
+const TASTE_AVOID_THRESHOLD = -5;
+const buildVibeTasteHint = (
+  taste: UserTasteContext | null | undefined
+): { hint: string; avoid: Set<string> } => {
+  const entries = Object.entries(taste?.tagScores || {});
+  const loved = entries
+    .filter(([, score]) => score >= TASTE_LOVE_THRESHOLD)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([tag]) => normalizeTasteLabel(tag))
+    .filter(Boolean);
+  const avoidList = entries
+    .filter(([, score]) => score <= TASTE_AVOID_THRESHOLD)
+    .map(([tag]) => normalizeTasteLabel(tag))
+    .filter(Boolean);
+  const parts: string[] = [];
+  if (loved.length) parts.push(`любит ${loved.join(', ')}`);
+  if (avoidList.length) parts.push(`избегай ${avoidList.join(', ')}`);
+  return {
+    hint: parts.length ? `\n\n(вкус слушателя: ${parts.join('; ')})` : '',
+    avoid: new Set(avoidList)
+  };
+};
+
 const mapVibeToTags = async (
   deps: AssistantDeps,
-  userMessage: string
+  userMessage: string,
+  taste?: UserTasteContext | null
 ): Promise<{ tags: string[]; usage?: ChatUsage }> => {
+  const { hint, avoid } = buildVibeTasteHint(taste);
   const result = await callDeepseek(
     deps.deepseek,
     [
       { role: 'system', content: VIBE_TAG_SYSTEM },
-      { role: 'user', content: userMessage }
+      { role: 'user', content: `${userMessage}${hint}` }
     ],
     { temperature: 0.2, maxTokens: 24 },
     deps.fetch
@@ -1062,7 +1095,8 @@ const mapVibeToTags = async (
     deps.log(`ai vibe-tags error: ${result.error}`);
     return { tags: [], usage: result.usage };
   }
-  return { tags: parseGenreTags(result.content), usage: result.usage };
+  const tags = parseGenreTags(result.content).filter((tag) => !avoid.has(normalizeTasteLabel(tag)));
+  return { tags, usage: result.usage };
 };
 
 export const chatWithAssistant = async (
@@ -1272,7 +1306,7 @@ export const chatWithAssistant = async (
     (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent) &&
     !knowledgeQuestion;
   if (musicIntent && collectVerifiedStations(observations).length === 0) {
-    const { tags, usage: tagUsage } = await mapVibeToTags(deps, musicContextMessage);
+    const { tags, usage: tagUsage } = await mapVibeToTags(deps, musicContextMessage, input.userTaste);
     addUsage(usage, tagUsage);
     for (const tag of tags) {
       const args = { query: tag };

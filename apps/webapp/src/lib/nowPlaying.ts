@@ -338,7 +338,7 @@ const refreshQueue: string[] = [];
 let activeRefreshCount = 0;
 let storedTrackCache: Record<string, { track: string; updatedAt: number }> | null = null;
 
-const stationSnapshotKey = (station: StationLite) => station.stationuuid || station.url_resolved || station.name;
+export const stationSnapshotKey = (station: StationLite) => station.stationuuid || station.url_resolved || station.name;
 
 const idleSnapshot = (): NowPlayingSnapshot => ({
   track: null,
@@ -405,7 +405,7 @@ const saveStoredTrack = (key: string, track: string, updatedAt = Date.now()) => 
   persistStoredTrackCache(Object.fromEntries(nextEntries));
 };
 
-const applyStoredTrackFallback = (
+export const applyStoredTrackFallback = (
   key: string,
   snapshot: NowPlayingSnapshot
 ): NowPlayingSnapshot => {
