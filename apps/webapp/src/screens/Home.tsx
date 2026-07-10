@@ -391,6 +391,7 @@ export const Home = () => {
     stationHealthProfile,
     radioSessionEvents,
     stationExposure,
+    recordStationsShown,
     toggleFavorite,
     isFavorite
   } = useLibrary();
@@ -412,6 +413,7 @@ export const Home = () => {
   const sessionBucketPrimedRef = useRef(false);
   const dismissedSummaryErrorRef = useRef<string | null>(null);
   const homeImpressionSignatureRef = useRef('');
+  const homeExposureFlushedRef = useRef('');
 
   const catalog = useMemo(
     () => mergeStations(summary?.catalogPool || [], knownStations),
@@ -765,6 +767,26 @@ export const Home = () => {
       }
     );
   }, [denseLayout, visibleRails]);
+
+  // Record the «Для тебя» LEADERS into the exposure ledger so Home self-rotates —
+  // otherwise Home consumes the freshness penalty but never writes it, and a user
+  // who never opens the feed keeps seeing the same top picks. Only the fresh-now
+  // head (not all ~80 rail stations — that would over-demote deep rails and blow
+  // the ledger cap); those leaders are what re-appear as «одно и то же». Deduped
+  // per surface; exposure is read via a ref so this doesn't rebuild Home mid-session
+  // — the demotion lands on the NEXT build (bucket flip / «Обновить» / feed reroll).
+  useEffect(() => {
+    const leadRail = visibleRails.find((rail) => rail.id === 'fresh-now') || visibleRails[0];
+    const leaderIds = (leadRail?.stations || [])
+      .slice(0, 6)
+      .map((station) => station.stationuuid)
+      .filter(Boolean);
+    if (!leaderIds.length) return;
+    const signature = leaderIds.join('|');
+    if (homeExposureFlushedRef.current === signature) return;
+    homeExposureFlushedRef.current = signature;
+    recordStationsShown(leaderIds);
+  }, [visibleRails, recordStationsShown]);
 
   useEffect(() => {
     if (!summary || sessionBucketPrimedRef.current) return;
