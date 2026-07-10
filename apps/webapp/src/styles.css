@@ -8332,6 +8332,97 @@ body {
   line-height: 1;
 }
 
+/* ── Interaction polish ─────────────────────────────────────────────────────
+   Tappable controls (chips, nav, icon/play buttons, the pickers) had NO
+   transition — hover/press felt dead. Add a cohesive, compositor-friendly
+   feedback layer: smooth color/shadow, a subtle press-scale, and consistent
+   :focus-visible rings. Low specificity (:where) so any existing rule wins, and
+   the transform is dropped under reduced-motion. */
+:where(
+  .chip,
+  .clear-btn,
+  .link-btn,
+  .play-btn,
+  .player-btn,
+  .icon-btn,
+  .mobile-nav-item,
+  .library-collection-picker-row,
+  .chat-reject-btn,
+  .library-queue-move-btn,
+  .library-queue-grip,
+  .dock-mini-btn,
+  .dock-icon-btn,
+  .dock-next-btn,
+  .dock-explore-btn,
+  .dock-artwork-trigger,
+  .dock-more-row
+) {
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease,
+    box-shadow 0.16s ease, transform 0.11s ease;
+}
+
+:where(
+    .chip,
+    .clear-btn,
+    .link-btn,
+    .play-btn,
+    .player-btn,
+    .icon-btn,
+    .chat-reject-btn,
+    .dock-mini-btn,
+    .dock-icon-btn,
+    .dock-next-btn,
+    .dock-explore-btn
+  ):active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Primary content cards are big tap targets — a gentler press so the whole card
+   acknowledges the touch without feeling jumpy. */
+:where(.chat-station-card, .search-station-card-main) {
+  transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.11s ease;
+}
+:where(.chat-station-card, .search-station-card-main):active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.mobile-nav-item:active {
+  transform: scale(0.9);
+}
+
+.library-collection-picker-row:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* A consistent, offset focus ring for keyboard users across the tappable set,
+   only where a control doesn't already define its own :focus-visible. */
+:where(.chip, .clear-btn, .link-btn, .play-btn, .player-btn, .mobile-nav-item, .chat-reject-btn):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    .chip,
+    .clear-btn,
+    .link-btn,
+    .play-btn,
+    .player-btn,
+    .icon-btn,
+    .mobile-nav-item,
+    .library-collection-picker-row,
+    .chat-reject-btn,
+    .chat-station-card,
+    .search-station-card-main,
+    .dock-mini-btn,
+    .dock-icon-btn,
+    .dock-next-btn,
+    .dock-explore-btn
+  ):active {
+    transform: none;
+  }
+}
+
 /* Decluttered queue hero: one full-width Play, then a single tidy swipe-row of
    secondary actions (was a 7-chip header + a 4-pill stat grid). */
 .library-queue-hero-play {
