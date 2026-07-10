@@ -1539,3 +1539,30 @@ test('CURATED GUARD: «не хочу популярное, хочу спокой
   );
   assert.ok(!searches.some((s) => s.query === 'soft pop'), 'a rejection of popular must not force soft-pop');
 });
+
+test('PRECISE SLATE: a precise (soul) ask keeps an off-genre result last, not spread up for diversity', async () => {
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      if (args.query === 'soul') {
+        return [
+          station({ stationuuid: 'soul-1', name: 'Deep Soul', tags: ['soul'] }),
+          station({ stationuuid: 'soul-2', name: 'Classic Soul', tags: ['soul', 'rnb'] }),
+          station({ stationuuid: 'soul-3', name: 'Soul Kitchen', tags: ['soul'] }),
+          station({ stationuuid: 'dance-x', name: 'Dance Party', tags: ['dance'] })
+        ];
+      }
+      return [];
+    }
+  };
+  const { fetchImpl } = makeFetch({ planner: [], compose: 'Держу соул плотно.' });
+  const result = await chatWithAssistant(ask('включи соул'), makeDeps(fetchImpl, { tools }));
+  // The off-genre dance station must stay LAST — MMR diversity must not spread it
+  // up ahead of a soul station on a precise genre ask (it does at the default
+  // similarity weight; the precise path softens it).
+  assert.equal(result.stations[result.stations.length - 1]?.stationuuid, 'dance-x');
+  assert.ok(
+    result.stations.slice(0, 3).every((s) => s.stationuuid.startsWith('soul')),
+    'the top three must all be soul'
+  );
+});
