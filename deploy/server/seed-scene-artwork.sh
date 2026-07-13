@@ -31,6 +31,16 @@ if (( scene_count >= 8 )); then
   exit 0
 fi
 
+quota_count=0
+if [[ -f "$SCENE_DIR/.daily-usage.json" ]]; then
+  quota_count="$(sed -n 's/.*"count":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCENE_DIR/.daily-usage.json")"
+  quota_count="${quota_count:-0}"
+fi
+if (( quota_count >= 16 )); then
+  echo "Scene pack already reserved $quota_count attempts today; retry skipped."
+  exit 0
+fi
+
 cd "$CURRENT_LINK"
 export RADIOATLAS_API_URL="http://127.0.0.1:3001"
 export SCENE_PACK_LIMIT=16

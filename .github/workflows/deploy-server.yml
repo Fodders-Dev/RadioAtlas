@@ -91,3 +91,8 @@ jobs:
         run: |
           ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
             "APP_ROOT=$APP_ROOT bash $APP_ROOT/current/deploy/server/seed-scene-artwork.sh"
+
+      - name: Report scene generation status
+        run: |
+          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "APP_ROOT=$APP_ROOT bash $APP_ROOT/current/deploy/server/report-scene-artwork.sh"
