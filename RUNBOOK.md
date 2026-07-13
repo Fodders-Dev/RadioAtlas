@@ -213,6 +213,12 @@ endpoint returns JPEG despite its PNG schema, so the API validates both formats
 and serves the byte-derived MIME type. Repeated app views do not consume Workers
 AI quota.
 
+Production deploys read `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from
+GitHub Actions secrets, write them only to `/opt/RadioAtlas/shared/env/api.env`,
+and keep images in `/opt/RadioAtlas/shared/scene-artwork`. The deploy seeds at
+most a small 16-station starter set while the persistent cache has fewer than
+eight reusable `country + vibe` backgrounds; station logos are never replaced.
+
 Operational checks:
 
 - `GET /artwork/scene/:stationId` is read-only and returns scene status/URL.

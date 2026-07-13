@@ -35,6 +35,24 @@ jobs:
             --exclude 'node_modules' \
             ./ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$APP_ROOT/releases/$RELEASE_SHA/"
 
+      - name: Configure optional scene artwork
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [[ -z "$CLOUDFLARE_ACCOUNT_ID" || -z "$CLOUDFLARE_API_TOKEN" ]]; then
+            echo "Workers AI secrets are not configured; keeping cached scene generation disabled."
+            exit 0
+          fi
+          {
+            printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | base64 -w0
+            printf '\n'
+            printf '%s' "$CLOUDFLARE_API_TOKEN" | base64 -w0
+            printf '\n'
+          } | ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "APP_ROOT=$APP_ROOT bash $APP_ROOT/releases/$RELEASE_SHA/deploy/server/configure-scene-artwork.sh"
+
       - name: Run deploy script
         env:
           RELEASE_SHA: ${{ github.sha }}
@@ -68,3 +86,8 @@ jobs:
             cat "$body"
             exit 1
           }
+
+      - name: Seed reusable scene pack
+        run: |
+          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "APP_ROOT=$APP_ROOT bash $APP_ROOT/current/deploy/server/seed-scene-artwork.sh"
