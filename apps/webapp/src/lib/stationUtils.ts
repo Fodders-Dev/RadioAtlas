@@ -9,11 +9,13 @@ const COUNTRY_LABELS: Record<string, string> = {
   'Syrian Arab Republic': 'Syria'
 };
 
-const formatLocationPart = (value?: string) => {
+export const formatCountryLabel = (value?: string) => {
   const cleaned = value?.trim();
   if (!cleaned) return '';
   return COUNTRY_LABELS[cleaned] || cleaned;
 };
+
+const formatLocationPart = formatCountryLabel;
 
 export const toLite = (station: Station | StationLite): StationLite =>
   applyCuratedStationFixup({
@@ -46,16 +48,19 @@ export const normalizeStationName = (name?: string | null): string => {
     .replace(/^[\s_]+|[\s_]+$/g, '');
 };
 
-export const stationLocation = (station: Station | StationLite) => {
+export const stationLocation = (
+  station: Station | StationLite,
+  fallback = 'Unknown location'
+) => {
   const parts = [formatLocationPart(station.state), formatLocationPart(station.country)].filter(Boolean);
-  return parts.length ? parts.join(', ') : 'Unknown location';
+  return parts.length ? parts.join(', ') : fallback;
 };
 
-export const stationTags = (station: Station | StationLite) => {
+export const stationTags = (station: Station | StationLite, fallback = 'No tags') => {
   const tags = station.tags
     ?.split(',')
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 3);
-  return tags?.length ? tags.join(' · ') : 'No tags';
+  return tags?.length ? tags.join(' · ') : fallback;
 };

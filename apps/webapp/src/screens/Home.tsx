@@ -33,8 +33,9 @@ import {
   withFavoriteTasteBoosts
 } from '../lib/tasteProfile';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
-import { HomeRail, HomeResumeStrip } from './homeCards';
+import { HomeHeroCard, HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
+import './homeReference.css';
 
 // T_mobile_1 D: shortened from 2h to 30min. Re-opens within the bucket reuse
 // the cached snapshot (same seed → identical ordering of every rail), which the
@@ -43,9 +44,9 @@ import './home.css';
 // while still avoiding a re-rank on every tab focus inside one session.
 // Exported for the bucket unit test alongside isSameSessionBucket below.
 export const HOME_SESSION_BUCKET_MS = 1000 * 60 * 30;
-// Bumped to 5 for T2.22 (four mood shelves); invalidates cached snapshots so
-// returning users pick up the mood rails (4 for T2.21, 3 before that).
-const HOME_SURFACE_VERSION = 5;
+// Bumped to 6 after the responsive Home recovery so returning users do not keep
+// a sparse cached surface created while the local API was unavailable.
+const HOME_SURFACE_VERSION = 6;
 // T2.22: room for the full discovery set — fresh-now · Trending · country ·
 // genre · Top voted · Late night · Workout · Focus · Driving · Around the world
 // — on both layouts (dense shows all ten; desktop also fits companions/resume).
@@ -53,6 +54,17 @@ const DESKTOP_RAIL_LIMIT = 12;
 const DENSE_RAIL_LIMIT = 10;
 const DENSE_QUICK_CHIP_LIMIT = 2;
 const HOME_MIN_RAIL_STATIONS = 3;
+
+const HOME_GENRE_SHORTCUTS = [
+  { query: 'rock', titleKey: 'home.genreRock' },
+  { query: 'pop', titleKey: 'home.genrePop' },
+  { query: 'electronic', titleKey: 'home.genreElectronic' },
+  { query: 'jazz', titleKey: 'home.genreJazz' },
+  { query: 'hip-hop', titleKey: 'home.genreHipHop' },
+  { query: 'classical', titleKey: 'home.genreClassical' },
+  { query: 'metal', titleKey: 'home.genreMetal' },
+  { query: 'ambient', titleKey: 'home.genreAmbient' }
+] as const;
 
 // T2.23 variety pass — render-mode variants, looked up by rail id (no data
 // shape change, no HOME_SURFACE_VERSION bump). fresh-now leads with a featured
@@ -407,7 +419,11 @@ export const Home = () => {
   const { t } = useLocale();
   const isCompactLayout = useCompactLayout();
   const lowPower = getDeviceProfile().lowPower;
-  const denseLayout = isCompactLayout || lowPower;
+  // Low-power devices keep the same information architecture; only motion,
+  // blur and decorative effects are reduced through data-low-power styles.
+  // Coupling this flag to geometry turned wide laptops into a sparse mobile
+  // layout, which was the source of the desktop "desert" regression.
+  const denseLayout = isCompactLayout;
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const sessionBucketPrimedRef = useRef(false);
@@ -553,7 +569,7 @@ export const Home = () => {
       return null;
     }
     const live = homeRankInputsRef.current;
-    return buildSurfaceFeed({
+    const rebuiltSurface = buildSurfaceFeed({
       catalog,
       behaviorProfile: live.behaviorProfile,
       favorites,
@@ -583,6 +599,18 @@ export const Home = () => {
       summarySignature,
       tasteSignature: tasteSig
     });
+    // Likes are allowed to re-rank discovery shelves immediately, but the
+    // recommended hero must not switch under the user's finger. Preserve it
+    // inside the same seed + catalogue composition; explicit Refresh changes
+    // the seed and therefore still advances the hero deck.
+    const previousSurface = homeState.snapshot;
+    const keepHero =
+      previousSurface?.version === HOME_SURFACE_VERSION &&
+      previousSurface.seed === homeState.sessionSeed &&
+      previousSurface.summarySignature === summarySignature;
+    return keepHero
+      ? { ...rebuiltSurface, hero: previousSurface.hero }
+      : rebuiltSurface;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     catalog,
@@ -690,12 +718,14 @@ export const Home = () => {
       stations.forEach((station) => usedStationIds.add(station.stationuuid));
       rails.push({ ...rail, stations });
     });
-    if (!denseLayout || rails.length >= limit) return rails;
+    if (rails.length >= limit) return rails;
 
     const pickStations = (stations: StationLite[]) => {
       const merged = mergeStations(stations);
       const fresh = merged.filter((station) => !usedStationIds.has(station.stationuuid));
-      const picked = (fresh.length >= 3 ? fresh : merged).slice(0, 6);
+      // Fallback shelves may be shorter on a tiny/offline catalogue, but they
+      // must never republish stations already visible in an earlier shelf.
+      const picked = fresh.slice(0, 6);
       picked.forEach((station) => usedStationIds.add(station.stationuuid));
       return picked;
     };
@@ -916,6 +946,14 @@ export const Home = () => {
     Boolean(summaryError) &&
     (!summary || catalog.length === 0) &&
     dismissedSummaryErrorRef.current !== summaryError;
+  const leadRail = visibleRails[0] || null;
+  const secondaryRailsBase = leadRail
+    ? visibleRails.filter((module) => module.id !== leadRail.id)
+    : visibleRails;
+  const newStationsRail = secondaryRailsBase.find((module) => module.id === 'home-new-stations');
+  const secondaryRails = newStationsRail
+    ? [newStationsRail, ...secondaryRailsBase.filter((module) => module.id !== newStationsRail.id)]
+    : secondaryRailsBase;
 
   return (
     <section
@@ -925,52 +963,27 @@ export const Home = () => {
     >
       {showHomeHeroSkeleton ? (
         <AppScreenSkeleton section="home" scope="home-hero" />
+      ) : surfaceFeed ? (
+        <HomeHeroCard
+          dense={denseLayout}
+          module={surfaceFeed.hero}
+          isActive={currentStationId === surfaceFeed.hero.station?.stationuuid}
+          activeTrack={
+            currentStationId === surfaceFeed.hero.station?.stationuuid ? activeTrack : null
+          }
+          liked={
+            surfaceFeed.hero.station
+              ? isFavorite(surfaceFeed.hero.station.stationuuid)
+              : false
+          }
+          refreshing={refreshing}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+          onRefresh={handleRefresh}
+        />
       ) : (
-        <>
-          {/* Rank-freeze escape valve for the discovery rails below — the
-              icon-only refresh detached from the retired «Моя Волна» card. Sits
-              small and top-right so the «Лента» hero owns the slot. */}
-          <button
-            className={`home-surface-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label={t('home.refreshFeed')}
-            title={t('home.refreshFeed')}
-            data-action="refresh-feed"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
-            </svg>
-          </button>
-          {/* «Лента» is the home hero now — the big, inviting tik-tok entry takes
-              over the prominent slot the «Моя Волна» CTA used to hold. Opening it
-              re-rolls the feed seed (openFeed) for a fresh personal mix. The
-              data-home-feed-entry hook doubles as the "home content is ready"
-              sentinel: it renders only past the hero skeleton, exactly where the
-              old card did, so the e2e suite waits on it. */}
-          <button
-            type="button"
-            className="home-feed-entry"
-            data-home-feed-entry="true"
-            onClick={openFeed}
-          >
-            <span className="home-feed-entry-glyph" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
-              </svg>
-            </span>
-            <span className="home-feed-entry-copy">
-              <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
-              <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
-            </span>
-            <span className="home-feed-entry-arrow" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
-              </svg>
-            </span>
-          </button>
-        </>
+        <AppScreenSkeleton section="home" scope="home-hero" />
       )}
 
       {showSummaryErrorBanner ? (
@@ -988,44 +1001,117 @@ export const Home = () => {
         </section>
       ) : null}
 
-      {!denseLayout ? (
-        <section className="home-search-launcher is-compact">
-          <form
-            className="home-search-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              openSearch(query);
-            }}
-          >
-            <label className="home-search-field" htmlFor="home-search-launcher">
-              <input
-                id="home-search-launcher"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('explore.quickSearchPlaceholder')}
-                autoComplete="off"
-              />
-            </label>
-            <button className="home-inline-link" type="submit">
-              {t('home.openSearch')}
+      <section className="home-genre-shortcuts" data-home-genres="true">
+        <div className="home-genre-shortcuts-head">
+          <h2>{t('home.genresTitle')}</h2>
+          <button type="button" onClick={() => openSearch('')}>
+            {t('home.allGenres')}
+          </button>
+        </div>
+        <div className="home-genre-shortcuts-list">
+          {HOME_GENRE_SHORTCUTS.map((genre) => (
+            <button
+              key={genre.query}
+              type="button"
+              onClick={() => openSearch(genre.query)}
+            >
+              {t(genre.titleKey)}
             </button>
-          </form>
+          ))}
+        </div>
+      </section>
 
-          {quickSearchChips.length ? (
-            <div className="home-search-chip-row">
-              {quickSearchChips.map((chip) => (
-                <button
-                  key={chip}
-                  className="home-search-chip"
-                  type="button"
-                  onClick={() => setQuery(chip)}
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </section>
+      {/* Feed remains a first-class Home action, but no longer displaces the
+          recommended live station. Refresh is intentionally housed in the same
+          compact control, with separate sibling buttons to avoid nested actions. */}
+      <div className="home-feed-hero">
+        <button
+          type="button"
+          className="home-feed-entry"
+          data-home-feed-entry="true"
+          onClick={openFeed}
+        >
+          <span className="home-feed-entry-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
+            </svg>
+          </span>
+          <span className="home-feed-entry-copy">
+            <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
+            <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
+          </span>
+          <span className="home-feed-entry-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+            </svg>
+          </span>
+        </button>
+        <button
+          className={`home-surface-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label={t('home.refreshFeed')}
+          title={t('home.refreshFeed')}
+          data-action="refresh-feed"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
+          </svg>
+          <span>{t('home.refreshFeed')}</span>
+        </button>
+      </div>
+
+      <section className="home-search-launcher is-compact">
+        <form
+          className="home-search-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            openSearch(query);
+          }}
+        >
+          <label className="home-search-field" htmlFor="home-search-launcher">
+            <input
+              id="home-search-launcher"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('explore.quickSearchPlaceholder')}
+              autoComplete="off"
+            />
+          </label>
+          <button className="home-inline-link" type="submit">
+            {t('home.openSearch')}
+          </button>
+        </form>
+
+        {!denseLayout && quickSearchChips.length ? (
+          <div className="home-search-chip-row">
+            {quickSearchChips.map((chip) => (
+              <button
+                key={chip}
+                className="home-search-chip"
+                type="button"
+                onClick={() => setQuery(chip)}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      {leadRail ? (
+        <HomeRail
+          dense={denseLayout}
+          module={{ ...leadRail, titleKey: 'home.tryNowTitle' }}
+          variant={railVariant(leadRail.id)}
+          currentStationId={currentStationId}
+          activeTrack={activeTrack}
+          isFavorite={isFavorite}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+        />
       ) : null}
 
       {resumeModule ? (
@@ -1056,11 +1142,15 @@ export const Home = () => {
         </nav>
       ) : null}
 
-      {visibleRails.map((module) => (
+      {secondaryRails.map((module) => (
         <HomeRail
           key={module.id}
           dense={denseLayout}
-          module={module}
+          module={
+            module.id === 'home-new-stations'
+              ? { ...module, titleKey: 'home.discoverNewTitle' }
+              : module
+          }
           variant={railVariant(module.id)}
           currentStationId={currentStationId}
           activeTrack={activeTrack}

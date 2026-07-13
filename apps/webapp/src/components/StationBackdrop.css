@@ -33,6 +33,15 @@
   opacity: 0.9;
 }
 
+/* Generated atmosphere scenes are already full-bleed editorial images, not
+   tiny station favicons. Keep their composition readable instead of blurring
+   them into the colour wash used for logos. */
+.station-backdrop[data-visual-source='scene'] .station-backdrop-image {
+  filter: saturate(1.12) contrast(1.02);
+  transform: scale(1.08);
+  opacity: 0.88;
+}
+
 /* Layer A colour: the extracted (or generated-fallback) palette gradient. The
    --station-bd-* vars are set inline by StationBackdrop; the #05070d floor keeps
    the stage dark enough for light copy regardless of the cover. */
@@ -54,6 +63,10 @@
 /* No cover → the gradient IS the base, so make it fully opaque. */
 .station-backdrop[data-has-artwork='false'] .station-backdrop-color {
   opacity: 1;
+}
+
+.station-backdrop[data-visual-source='scene'] .station-backdrop-color {
+  opacity: 0.5;
 }
 
 /* Layer B glow: the station colour mixed with the theme accent, swelling with

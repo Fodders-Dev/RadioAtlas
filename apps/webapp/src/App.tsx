@@ -302,7 +302,7 @@ const App = () => {
         : nowPlayingState.status === 'loading'
           ? t('common.loading')
           : t('app.metadataUnavailable')
-    : t('app.queueCount', { count: queue.items.length });
+    : t('dock.queueCount', { count: queue.items.length });
   const primaryActionTitle =
     sessionStatus === 'authenticated' ? t('account.title') : t('account.signInAndSync');
   const topbarSignalLabel = queue.items.length
@@ -311,7 +311,7 @@ const App = () => {
       ? t('app.liveBadge')
       : t('nav.search');
   const topbarSignalValue = queue.items.length
-    ? t('app.queueCount', { count: queue.items.length })
+    ? t('dock.queueCount', { count: queue.items.length })
     : player.current
       ? nowPlaying || player.current.name || t('dock.liveNow')
       : t('app.catalogCount', { count: summary?.counts.stations || 0 });
@@ -321,9 +321,6 @@ const App = () => {
     setActiveSection('library');
   };
   const handleSectionChange = (section: AppSection) => {
-    if (section === 'library') {
-      setLibraryTab('favorites');
-    }
     setActiveSection(section);
   };
   const handleBrandGesture = () => {
@@ -532,7 +529,7 @@ const App = () => {
           <AccountSheetLazy open={accountSheetOpen} onClose={closeAccountSheet} />
         </Suspense>
       ) : null}
-      {aiAssistantEnabled ? (
+      {aiAssistantEnabled && chatOpen ? (
         <Suspense fallback={null}>
           <ChatSheetLazy open={chatOpen} onClose={() => setChatOpen(false)} />
         </Suspense>

@@ -46,6 +46,7 @@ export const SettingsSheet = ({
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        data-dialog-backdrop
       />
       <div className={cardClassName ? `settings-sheet-card ${cardClassName}` : 'settings-sheet-card'}>
         <div className="settings-sheet-head">
@@ -55,7 +56,7 @@ export const SettingsSheet = ({
               {title || t('settings.generalTitle')}
             </div>
           </div>
-          <button className="chip" type="button" onClick={onClose}>
+          <button className="chip" type="button" onClick={onClose} data-dialog-initial-focus>
             {t('common.close')}
           </button>
         </div>

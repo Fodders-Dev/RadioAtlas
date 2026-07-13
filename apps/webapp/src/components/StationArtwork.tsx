@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { createGeneratedArtworkPalette } from '../lib/artwork';
 import type { StationLite } from '../types';
@@ -7,6 +7,7 @@ type StationArtworkProps = {
   station: StationLite | null;
   size?: 'sm' | 'md' | 'card' | 'dock';
   className?: string;
+  priority?: boolean;
 };
 
 const BROKEN_ARTWORK_URLS = new Set<string>();
@@ -21,11 +22,24 @@ const toInitial = (value?: string) => {
 export const StationArtwork = ({
   station,
   size = 'md',
-  className = ''
+  className = '',
+  priority = false
 }: StationArtworkProps) => {
-  const imageSrc = getProxiedAssetUrl(station?.stationArtwork?.trim() || station?.favicon?.trim());
-  const [broken, setBroken] = useState(() => Boolean(imageSrc && BROKEN_ARTWORK_URLS.has(imageSrc)));
-  const showImage = Boolean(imageSrc) && !broken;
+  const [, rerenderBrokenSource] = useState(0);
+  const artworkCandidates = [
+    { kind: 'station-artwork', url: getProxiedAssetUrl(station?.stationArtwork?.trim()) },
+    { kind: 'favicon', url: getProxiedAssetUrl(station?.favicon?.trim()) }
+  ].filter(
+    (candidate, index, candidates) =>
+      Boolean(candidate.url) &&
+      candidates.findIndex((item) => item.url === candidate.url) === index
+  );
+  const selectedArtwork = artworkCandidates.find(
+    (candidate) => !BROKEN_ARTWORK_URLS.has(candidate.url)
+  );
+  const imageSrc = selectedArtwork?.url || '';
+  const showImage = Boolean(imageSrc);
+  const artworkSource = selectedArtwork?.kind || 'generated';
   const initial = toInitial(station?.name);
   const palette = useMemo(
     () =>
@@ -43,15 +57,11 @@ export const StationArtwork = ({
     [station?.country, station?.name, station?.stationuuid, station?.state, station?.tags]
   );
 
-  useEffect(() => {
-    setBroken(Boolean(imageSrc && BROKEN_ARTWORK_URLS.has(imageSrc)));
-  }, [imageSrc]);
-
   const handleImageError = () => {
     if (imageSrc) {
       BROKEN_ARTWORK_URLS.add(imageSrc);
     }
-    setBroken(true);
+    rerenderBrokenSource((version) => version + 1);
   };
 
   const style = showImage
@@ -67,15 +77,19 @@ export const StationArtwork = ({
     <div
       className={`station-artwork station-artwork-${size} ${className}`.trim()}
       data-has-image={showImage ? 'true' : 'false'}
+      data-artwork-source={artworkSource}
       data-artwork-pattern={palette.pattern}
       style={style}
       aria-hidden="true"
     >
       {showImage ? (
         <img
+          key={imageSrc}
           src={imageSrc || ''}
           alt=""
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          {...(priority ? { fetchpriority: 'high' } : {})}
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={handleImageError}
         />

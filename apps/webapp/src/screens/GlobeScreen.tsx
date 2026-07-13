@@ -50,8 +50,7 @@ const sheetIcon = {
   share: (
     <path d="M18 16.1c-.76 0-1.44.3-1.96.77L8.9 12.7c.06-.23.1-.46.1-.7s-.04-.47-.1-.7l7.06-4.12A2.99 2.99 0 1 0 15 5c0 .24.04.47.1.7L8.04 9.82A3 3 0 1 0 8.04 14.2l7.13 4.18c-.05.2-.08.41-.08.62A2.91 2.91 0 1 0 18 16.1Z" />
   ),
-  collapse: <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />,
-  expand: <path d="M16.6 15.4 12 10.8l-4.6 4.6L6 14l6-6 6 6-1.4 1.4Z" />
+  collapse: <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />
 };
 
 type GlobeStationSheetProps = {
@@ -113,6 +112,8 @@ const GlobeStationSheet = ({
       <button
         className="bottom-sheet-scrim"
         type="button"
+        tabIndex={-1}
+        data-dialog-backdrop
         onClick={onClose}
         aria-label={t('common.close')}
       />
@@ -206,8 +207,9 @@ export const GlobeScreen = () => {
   const { player, playStation, shareStation } = usePlayback();
   const { globeFocusRegionId, setGlobeFocusRegionId } = useShell();
   const isMobileLayout = useMobileLayout();
-  // The compact now-bar's details sheet (mobile only). Opening it must NOT
-  // re-trigger playStation — the bar's station is already resolved/playing.
+  // The selection preview's details sheet (mobile only). The persistent dock
+  // already owns the current station, so this sheet is only for a different
+  // station selected under the reticle.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [points, setPoints] = useState<CatalogStationPoint[]>([]);
@@ -223,6 +225,7 @@ export const GlobeScreen = () => {
   const [externalFocus, setExternalFocus] = useState<{ lat: number; lon: number } | null>(null);
   const debouncedZoom = useDebounce(zoomLevel, 200);
   const overviewRequestRef = useRef(0);
+  const pickRequestRef = useRef(0);
 
   useEffect(() => {
     if (!globeFocusRegionId) return;
@@ -378,27 +381,54 @@ export const GlobeScreen = () => {
     ? resolveStationCoords(pickedStation)
     : externalFocus || initialFocus;
 
-  const handlePick = (id: string) => {
+  const startStation = (station: StationLite) => {
+    setPickError(null);
+    setPickedStation(null);
+    setSheetOpen(false);
+    if (player.current?.stationuuid === station.stationuuid) {
+      if (!player.isPlaying) void player.toggle();
+      return;
+    }
+    playStation(station, {
+      sourceId: 'globe-station',
+      sourceLabel: station.country || station.name
+    });
+  };
+
+  const resolvePointStation = (id: string, playImmediately: boolean) => {
     if (!id.startsWith('station:')) return;
     const stationId = id.slice('station:'.length);
+    const requestId = pickRequestRef.current + 1;
+    pickRequestRef.current = requestId;
     setPickError(null);
     void (async () => {
       try {
         const station = await fetchStationById(stationId);
+        if (pickRequestRef.current !== requestId) return;
         if (!station) {
           setPickError(t('globe.pickFailed'));
           return;
         }
+        if (playImmediately) {
+          startStation(station);
+          return;
+        }
+        // Settling on the station that is already in the global dock should
+        // not create a second copy of the same now-playing surface.
+        if (player.current?.stationuuid === station.stationuuid) {
+          setPickedStation(null);
+          return;
+        }
         setPickedStation(station);
-        playStation(station, {
-          sourceId: 'globe-station',
-          sourceLabel: station.country || station.name
-        });
       } catch {
+        if (pickRequestRef.current !== requestId) return;
         setPickError(t('globe.pickFailed'));
       }
     })();
   };
+
+  // A direct point tap/click is explicit playback intent.
+  const handlePick = (id: string) => resolvePointStation(id, true);
 
   // While dragging, just light up the candidate dot under the reticle.
   // No fetch, no network, no playback — purely visual feedback so the
@@ -407,23 +437,20 @@ export const GlobeScreen = () => {
     setReticleStationId(stationId);
   };
 
-  // Camera has been still for ~450 ms; if the candidate the reticle
-  // landed on isn't already what's playing, route through the same
-  // pick pipeline a tap would use.
+  // Camera has been still for ~450 ms. Resolve a preview only — moving the
+  // map never starts or switches audio.
   const handleReticleSettle = (stationId: string) => {
     if (!stationId.startsWith('station:')) return;
-    const rawId = stationId.slice('station:'.length);
-    if (player.current?.stationuuid === rawId) return;
-    handlePick(stationId);
+    resolvePointStation(stationId, false);
   };
 
-  // The selected station card collapses if the user pans away or stops a
-  // station. Treat the dock player as the source of truth for "what's
-  // currently playing" — `pickedStation` is just our last-tapped entry.
-  const visibleStation = pickedStation || player.current || null;
   const isSatelliteMode = zoomLevel >= SATELLITE_THRESHOLD;
   const activeStationId = player.current?.stationuuid;
   const activePointId = activeStationId ? `station:${activeStationId}` : undefined;
+  // This surface is a selection preview, not another now-playing controller.
+  // Once the selected station becomes current, the global dock is sufficient.
+  const previewStation =
+    pickedStation && pickedStation.stationuuid !== activeStationId ? pickedStation : null;
 
   // O(1) lookup so the reticle context pill can pull country / state /
   // name without re-walking the 54k points array on every hover tick.
@@ -445,19 +472,18 @@ export const GlobeScreen = () => {
     const localTime =
       typeof point.lon === 'number' ? formatLocalTime(point.lon, new Date()) : null;
     return {
+      id: rawId,
       country: point.country || '',
       state: point.state || '',
       name: point.name || '',
       localTime
     };
   }, [reticleStationId, pointsById]);
-  // Highlight priority: explicitly tapped > reticle candidate > now
-  // playing. The reticle hover wins over now-playing so the user gets
-  // immediate visual feedback while panning, even if they're still
-  // hearing the previous station before the settle fires.
+  // The live reticle candidate wins while panning; the committed preview then
+  // remains highlighted over empty space, with now-playing as the fallback.
   const selectedPointId =
-    (pickedStation && pickedStation.stationuuid && `station:${pickedStation.stationuuid}`) ||
     reticleStationId ||
+    (pickedStation && pickedStation.stationuuid && `station:${pickedStation.stationuuid}`) ||
     activePointId;
 
   return (
@@ -478,13 +504,12 @@ export const GlobeScreen = () => {
             onPick={handlePick}
             onReticleHover={handleReticleHover}
             onReticleSettle={handleReticleSettle}
-            playbackActive={Boolean(player.isPlaying)}
             hintText=""
             statusText=""
             immersive
           />
         </Suspense>
-        {!visibleStation ? (
+        {!player.current && !pickedStation ? (
           // Discoverability: tap-to-play isn't obvious. A clear cue over the
           // globe, dismissed once the user picks/plays their first station.
           <div className="globe-tap-hint" role="note">
@@ -510,8 +535,15 @@ export const GlobeScreen = () => {
                     .join(' · ')}
                 </div>
               ) : null}
-              {reticleContext.name && !visibleStation ? (
-                <div className="globe-aim-cta">{t('globe.aimTapCta')}</div>
+              {reticleContext.name && pickedStation?.stationuuid !== reticleContext.id ? (
+                <button
+                  className="globe-aim-cta"
+                  type="button"
+                  onClick={() => handlePick(`station:${reticleContext.id}`)}
+                  aria-label={`${t('common.play')}: ${normalizeStationName(reticleContext.name)}`}
+                >
+                  {t('globe.aimTapCta')}
+                </button>
               ) : null}
             </div>
           ) : (
@@ -535,6 +567,16 @@ export const GlobeScreen = () => {
                   ≈ {reticleContext.localTime}
                 </div>
               ) : null}
+              {reticleContext.name && pickedStation?.stationuuid !== reticleContext.id ? (
+                <button
+                  className="globe-aim-cta"
+                  type="button"
+                  onClick={() => handlePick(`station:${reticleContext.id}`)}
+                  aria-label={`${t('common.play')}: ${normalizeStationName(reticleContext.name)}`}
+                >
+                  {t('globe.aimTapCta')}
+                </button>
+              ) : null}
             </div>
           )
         ) : null}
@@ -556,79 +598,96 @@ export const GlobeScreen = () => {
             −
           </button>
         </div>
-        {visibleStation ? (
-          isMobileLayout ? (
-            // Full-width thin now-bar — replaces the cramped corner card. The
-            // zoom stack moved to the right edge's vertical centre, so the bar
-            // owns the whole bottom width. Tap opens the details sheet.
-            <button
-              className="globe-now-bar"
-              type="button"
-              data-globe-now-bar
-              onClick={() => setSheetOpen(true)}
-              aria-label={`${t('winamp.stationDetails')}: ${normalizeStationName(visibleStation.name)}`}
-            >
-              <StationArtwork station={visibleStation} size="sm" className="globe-now-art" />
-              <span className="globe-now-copy">
-                <span className="globe-now-name">
-                  {normalizeStationName(visibleStation.name)}
-                </span>
-                <span className="globe-now-meta">
-                  {[
-                    visibleStation.language?.split(',')[0]?.trim(),
-                    visibleStation.country || visibleStation.state
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || t('globe.unknownLocation')}
-                </span>
-              </span>
-              <span className="globe-now-chevron" aria-hidden="true">
-                <svg viewBox="0 0 24 24">{sheetIcon.expand}</svg>
-              </span>
-            </button>
-          ) : (
-            <div className="globe-now-playing" data-globe-now>
-              <StationArtwork station={visibleStation} size="sm" className="globe-now-art" />
-              <div className="globe-now-copy">
-                <div className="globe-now-name" title={visibleStation.name}>
-                  {visibleStation.name}
-                </div>
-                <div className="globe-now-meta">
-                  {[
-                    visibleStation.language?.split(',')[0]?.trim(),
-                    visibleStation.country || visibleStation.state
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || t('globe.unknownLocation')}
-                </div>
-              </div>
+        {previewStation ? (
+          <div
+            className={isMobileLayout ? 'globe-now-bar' : 'globe-now-playing'}
+            data-globe-selection-preview
+            data-globe-now-bar={isMobileLayout ? 'selection' : undefined}
+            data-globe-now={isMobileLayout ? undefined : 'selection'}
+          >
+            {isMobileLayout ? (
               <button
-                className="globe-now-close"
+                className="globe-selection-summary"
                 type="button"
-                onClick={() => setPickedStation(null)}
-                aria-label={t('globe.clearSelection')}
-                hidden={!pickedStation}
+                onClick={() => setSheetOpen(true)}
+                aria-label={`${t('winamp.stationDetails')}: ${normalizeStationName(previewStation.name)}`}
               >
-                ✕
+                <StationArtwork station={previewStation} size="sm" className="globe-now-art" />
+                <span className="globe-now-copy">
+                  <span className="globe-now-name">
+                    {normalizeStationName(previewStation.name)}
+                  </span>
+                  <span className="globe-now-meta">
+                    {[
+                      previewStation.language?.split(',')[0]?.trim(),
+                      previewStation.country || previewStation.state
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || t('globe.unknownLocation')}
+                  </span>
+                </span>
               </button>
-            </div>
-          )
+            ) : (
+              <>
+                <StationArtwork station={previewStation} size="sm" className="globe-now-art" />
+                <div className="globe-now-copy">
+                  <div className="globe-now-name" title={previewStation.name}>
+                    {normalizeStationName(previewStation.name)}
+                  </div>
+                  <div className="globe-now-meta">
+                    {[
+                      previewStation.language?.split(',')[0]?.trim(),
+                      previewStation.country || previewStation.state
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || t('globe.unknownLocation')}
+                  </div>
+                </div>
+              </>
+            )}
+            <button
+              className="globe-selection-play"
+              type="button"
+              onClick={() => startStation(previewStation)}
+              aria-label={`${t('common.play')}: ${normalizeStationName(previewStation.name)}`}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {sheetIcon.play}
+              </svg>
+              <span>{t('common.play')}</span>
+            </button>
+            <button
+              className="globe-now-close"
+              type="button"
+              onClick={() => {
+                pickRequestRef.current += 1;
+                setPickedStation(null);
+                setSheetOpen(false);
+              }}
+              aria-label={t('globe.clearSelection')}
+            >
+              ✕
+            </button>
+          </div>
         ) : null}
         {pickError ? <div className="globe-error">{pickError}</div> : null}
       </div>
-      {isMobileLayout && sheetOpen && visibleStation ? (
+      {isMobileLayout && sheetOpen && previewStation ? (
         <GlobeStationSheet
-          station={visibleStation}
+          station={previewStation}
           picked={Boolean(pickedStation)}
-          isPlaying={Boolean(player.isPlaying)}
-          onToggle={() => void player.toggle()}
+          isPlaying={
+            player.current?.stationuuid === previewStation.stationuuid && Boolean(player.isPlaying)
+          }
+          onToggle={() => startStation(previewStation)}
           onClear={() => {
+            pickRequestRef.current += 1;
             setPickedStation(null);
             setSheetOpen(false);
           }}
           onShare={
-            Boolean(import.meta.env.VITE_TG_BOT) && visibleStation
-              ? () => shareStation(visibleStation)
+            Boolean(import.meta.env.VITE_TG_BOT)
+              ? () => shareStation(previewStation)
               : null
           }
           onClose={() => setSheetOpen(false)}

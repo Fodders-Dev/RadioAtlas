@@ -81,7 +81,7 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 ## Discovery Feed Primary Surface (done)
 
 - [x] Retire the Home `Моя волна` CTA as a user-facing surface.
-  - Home now uses a large `Лента` entry in the primary slot with the refresh affordance detached above it.
+  - Home now uses one large `Лента` hero in the primary slot with Feed and refresh as non-overlapping sibling actions.
   - The internal personal-radio/taste engines remain available for ranking and queue continuity.
 - [x] Make Feed personal-fresh on every open.
   - Feed excludes favorites, recent stations, and the currently playing station before weighting.
@@ -144,12 +144,72 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   (not chillout/ambient); «популярное, но по мозгам не било / фоном / мягко» →
   soft pop / adult-contemporary / easy-listening (not a global dance grab-bag).
 
+## UI/UX polish pass (done)
+
+- [x] Home and Search interaction cleanup.
+  - Whole station cards use one dedicated primary Play action instead of nested or duplicate Play targets; like/share remain independent keyboard actions.
+  - Mobile Search is denser without horizontal overflow, has localized result counts, readable 44px quick actions, and case-insensitive country facets.
+  - Home Feed entry and refresh are non-overlapping sibling actions inside one hero card; the complete subtitle remains visible at 360px and reduced-motion paths cover refresh/loading states.
+- [x] Predictable discovery playback.
+  - Globe drag/settle selects a preview but never surprise-switches audio; direct point taps and the visible Play CTA remain explicit tune actions.
+  - Globe no longer duplicates the active station beside the persistent dock.
+  - Feed exposes play/pause on the active card, restores focus to Home/navigation on close, and falls back to the snap-scroll index when an embedded Chromium misses an IntersectionObserver callback.
+- [x] Player, Library, and Settings clarity.
+  - Live dock can collapse to a one-row controller and restores that presentation after Full Player closes.
+  - Full Player surfaces the next queue item, keeps complete action labels, and can jump directly to recent tracks.
+  - Library preserves its selected tab and implements the native tab keyboard pattern; Settings groups destructive data actions into one divided card with inline confirmation and collapses developer diagnostics.
+- [x] Shared visual and accessibility hardening.
+  - Ordinary Home, station-row, and Settings content surfaces are flat and blur-free; topbar, dock, navigation, sheets, and immersive player/globe treatments retain glass where it helps hierarchy.
+  - Mobile topbar and compact-dock controls are locked to at least 44px; navigation labels are 10px and station names remain 13–14px.
+  - Dialogs skip backdrop controls for initial focus, restore focus consistently, and playback changes use one debounced polite live region.
+  - Added mobile Settings, destructive-confirmation, developer-panel, compact-dock, and single-dock Globe visual coverage; refreshed affected 360px baselines.
+
+## Responsive checkpoint before design reference (done)
+
+- [x] Removed the 431–600px topbar breakpoint gap and the oversized mobile
+  `fresh-now` grid; every compact discovery rail is now a bounded peek lane.
+- [x] Restored compact Home search, added stable genre shortcuts, and made sparse
+  catalog fallback rails available on wide layouts too.
+- [x] Restored Lira in ordinary local Vite navigation and documented the separate
+  API process needed for proxy images and real AI replies.
+
+## Generated station atmosphere foundation (done)
+
+- [x] Add a free-first Cloudflare Workers AI provider using FLUX.2 Klein 4B,
+  with secrets confined to the API process.
+- [x] Derive reusable scene keys from country, controlled station vibe, and a
+  versioned art direction instead of generating per station view.
+- [x] Add persistent PNG/JPEG caching with byte-derived MIME, single-flight
+  generation, a daily cap, bounded concurrency/queueing, and an
+  internal-token-protected batch command.
+- [x] Keep the public scene endpoint read-only and preserve existing station
+  logos/procedural gradients as fail-soft fallbacks.
+- [x] Opt only immersive editorial surfaces (Home hero, active Feed backdrop,
+  and Full Player backdrop) into cached scenes; station tiles, dock, Media
+  Session, and all identity artwork keep the owner logo → favicon → procedural
+  fallback chain.
+- [x] Document local/VPS configuration and cover provider, auth, caching, and
+  browser-client behavior with focused tests.
+
+## Designer-reference Home (done)
+
+- [x] Restore the computed live recommendation as a full-bleed Home hero with
+  explicit Play/Pause, LIVE state, location/tags/current track, waveform, and a
+  separate real station-logo badge.
+- [x] Rebuild the first Home journey around 44px genre quick choices, compact
+  Feed + refresh, search, `Попробуйте сейчас`, `Продолжить слушать`, and
+  `Открой новые станции` rails.
+- [x] Use the approved cyan night-radio hierarchy on mobile while giving wide
+  Home a filled hero + utility side column instead of a narrow central desert.
+- [x] Keep Lira centered between Search and Globe on mobile and in the matching
+  position on desktop; keep the Home dock's volume/more/play controls usable.
+- [x] Freeze the hero during play/like bursts, retain rail taste re-ranking,
+  preserve reduced-motion/focus contracts, and refresh Home/search/library
+  visual baselines.
+
 ## Next:
 
-Next: live-QA in Telegram after deploy — confirm Лента / Главная / Поиск feel fresh
-across repeated opens (exposure demotion), and re-test Лира on soul and «популярное
-но мягкое» asks plus the earlier playlist-UX / clean-rows / seeded-search pass.
-Upgrade the VPS runtime from Node 22 to Node 24 so production matches the repo
-engine requirement. Known local-only e2e drift (`-win32` visual baselines, the #86
-feed-swipe IO timing flake, account/queue parallel-load flakes) is not a CI/deploy
-gate — regenerate the win32 visual baselines on the QA machine if desired.
+Next: smoke-test the deployed reference Home during a real Telegram listening
+session at 360/390px, collect designer feedback for the remaining screens, and
+upgrade the VPS runtime from Node 22 to Node 24 so production matches the repo
+engine requirement.

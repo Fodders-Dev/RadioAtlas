@@ -4,6 +4,7 @@
 .screen-search-v3 {
   display: grid;
   gap: 14px;
+  min-width: 0;
   /* PR-2 safe-area: --dock-offset-v2 already carries the inset when the dock
      writes it from JS, but the static fallback doesn't — keep the explicit
      term so the last row clears the home-indicator either way. */
@@ -13,7 +14,22 @@
 .screen-search-v3 .search-hero-card {
   display: grid;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   padding: 14px;
+  box-sizing: border-box;
+}
+
+.screen-search-v3 .search-hero-card > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.screen-search-v3[data-query-active='true'] .search-hero-card {
+  gap: 8px;
+  padding-block: 10px;
 }
 
 .screen-search-v3 .search-hero-input-row {
@@ -24,6 +40,7 @@
 
 .screen-search-v3 .search-hero-input {
   flex: 1 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -71,6 +88,13 @@
   color: rgba(180, 215, 235, 0.55);
 }
 
+.screen-search-v3 .search-hero-input input::-webkit-search-cancel-button,
+.screen-search-v3 .search-hero-input input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 /* Warm Light: the hardcoded light-blue placeholder + icon wash out on the cream
    glass. Re-point to the theme's muted ink so they read on the light surface
    (dark theme keeps the blue tint above). */
@@ -84,8 +108,8 @@
 
 .screen-search-v3 .search-hero-clear {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 0;
   background: rgba(255, 255, 255, 0.08);
@@ -167,12 +191,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding-top: 6px;
+  padding-top: 4px;
   border-top: 1px solid rgba(170, 220, 240, 0.08);
 }
 
 .screen-search-v3 .search-hero-result-count {
   display: inline-flex;
+  min-width: 0;
   align-items: baseline;
   gap: 6px;
   font-size: 0.86rem;
@@ -723,6 +748,7 @@
 }
 
 .search-result-grid .search-station-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 72px) minmax(0, 1fr);
   gap: 8px;
@@ -736,19 +762,16 @@
   contain-intrinsic-size: 92px;
 }
 
-.search-station-card-main {
+.search-station-card-media {
   position: relative;
   min-width: 0;
   min-height: 72px;
-  padding: 0;
-  border: 0;
   border-radius: 12px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.search-station-card-main .station-artwork-card {
+.search-station-card-media .station-artwork-card {
   width: 100%;
   height: 100%;
   min-height: 72px;
@@ -771,10 +794,29 @@
 }
 
 .search-station-card-copy {
+  position: relative;
   min-width: 0;
   display: grid;
   align-content: start;
   gap: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-station-card-primary-action {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.search-station-card-primary-action:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .search-card-title,
@@ -806,10 +848,12 @@
 }
 
 .search-card-actions {
+  position: relative;
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 42px 42px;
   gap: 6px;
+  z-index: 2;
 }
 
 .search-card-actions .play-btn,
@@ -1453,17 +1497,18 @@
   }
 
   .search-result-grid .search-station-card {
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
     align-items: center;
-    min-height: 66px;
+    min-height: 72px;
+    min-width: 0;
     padding: 7px 8px;
     border-radius: 12px;
-    contain-intrinsic-size: 66px;
+    contain-intrinsic-size: 72px;
   }
 
-  .search-station-card-main,
-  .search-station-card-main .station-artwork-card {
-    min-height: 52px;
+  .search-station-card-media,
+  .search-station-card-media .station-artwork-card {
+    min-height: 56px;
     border-radius: 10px;
   }
 
@@ -1476,7 +1521,8 @@
 
   .search-card-title {
     display: -webkit-box;
-    font-size: 11.5px;
+    font-size: 0.8125rem;
+    line-height: 1.25;
     white-space: normal;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
@@ -1484,11 +1530,12 @@
   }
 
   .search-card-meta {
-    font-size: 10px;
+    font-size: 0.71875rem;
   }
 
   .search-card-tags {
     display: -webkit-box;
+    font-size: 0.6875rem;
     white-space: normal;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
@@ -1500,42 +1547,26 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 5px;
+    gap: 4px;
   }
 
   .search-card-actions .play-btn,
   .search-card-actions .icon-btn {
-    width: 34px;
-    min-width: 34px;
-    height: 34px;
-    min-height: 34px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
     padding: 0;
     border-radius: 11px;
   }
 
   .search-card-play {
-    font-size: 0;
-  }
-
-  .search-card-play::before {
-    content: '▶';
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  .search-card-play[data-playing='true']::before {
-    content: 'Ⅱ';
+    display: none;
   }
 
   .search-card-actions .icon-btn svg {
     width: 16px;
     height: 16px;
-  }
-
-  @container (max-width: 300px) {
-    .search-card-share {
-      display: none;
-    }
   }
 
   .search-command-card .chip,
@@ -1647,10 +1678,7 @@
   min-width: 200px;
   max-width: min(82vw, 460px);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(28, 50, 70, 0.78), rgba(8, 16, 30, 0.74));
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: linear-gradient(180deg, rgba(28, 50, 70, 0.94), rgba(8, 16, 30, 0.92));
   border: 1px solid rgba(170, 220, 240, 0.16);
   box-shadow:
     0 6px 28px rgba(0, 0, 0, 0.35),
@@ -1766,17 +1794,13 @@
   z-index: 24;
   display: flex;
   align-items: center;
-  gap: 10px;
-  max-width: min(340px, calc(100vw - 96px));
+  gap: var(--space-sm);
+  max-width: min(460px, calc(100vw - 96px));
   padding: 8px 12px 8px 8px;
   border-radius: 18px;
   border: 1px solid rgba(188, 231, 251, 0.18);
-  background:
-    linear-gradient(180deg, rgba(237, 247, 255, 0.14), rgba(22, 40, 60, 0.78)),
-    rgba(13, 24, 38, 0.72);
+  background: linear-gradient(180deg, rgba(29, 49, 68, 0.96), rgba(12, 23, 37, 0.96));
   box-shadow: 0 18px 34px rgba(2, 8, 16, 0.34);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
   animation: globe-now-rise 220ms ease-out both;
 }
 
@@ -1800,6 +1824,7 @@
 }
 
 .screen-globe-v3 .globe-now-copy {
+  flex: 1 1 auto;
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -1824,9 +1849,8 @@
 
 .screen-globe-v3 .globe-now-close {
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  margin-left: 4px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1843,8 +1867,44 @@
   transform: scale(1.06);
 }
 
-.screen-globe-v3 .globe-now-close[hidden] {
-  display: none;
+.screen-globe-v3 .globe-selection-play {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-width: 44px;
+  min-height: 40px;
+  padding: 0 var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #06131c;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 140ms ease, filter 140ms ease;
+}
+
+.screen-globe-v3 .globe-selection-play svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.screen-globe-v3 .globe-selection-play:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.screen-globe-v3 .globe-selection-play:active {
+  transform: scale(0.97);
+}
+
+.screen-globe-v3 :is(.globe-selection-play, .globe-now-close):focus-visible {
+  outline: 2px solid #f5fbff;
+  outline-offset: 2px;
 }
 
 .screen-globe-v3 .globe-error {
@@ -1867,8 +1927,8 @@
 
 /* ============================================================================
    Globe mobile stage (≤720px) — the canvas stays the immersive fixed primary
-   surface; the cramped corner now-playing card becomes a full-width thin
-   now-bar (tap → details bottom sheet), the reticle context card becomes a
+   surface; a selected (not currently playing) station becomes a full-width
+   preview with explicit Play, the reticle context card becomes a
    compact aim-readout pill, and the zoom stack moves to the right edge's
    vertical centre (44px taps, clear of the bottom bar).
    ========================================================================== */
@@ -1887,10 +1947,8 @@
     padding: var(--space-xs) var(--space-lg);
     border: 1px solid rgba(170, 220, 240, 0.16);
     border-radius: var(--radius-full);
-    background: linear-gradient(180deg, rgba(28, 50, 70, 0.78), rgba(8, 16, 30, 0.74));
+    background: linear-gradient(180deg, rgba(28, 50, 70, 0.94), rgba(8, 16, 30, 0.92));
     box-shadow: 0 6px 28px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
     pointer-events: none;
     text-align: center;
     animation: globe-context-fade 220ms ease both;
@@ -1927,7 +1985,8 @@
     transform: translateY(-50%);
   }
 
-  /* Full-width thin now-bar — replaces the corner card; tap opens the sheet. */
+  /* Full-width selection preview. The persistent dock remains the sole
+     now-playing surface; this card appears only for another station. */
   .screen-globe-v3 .globe-now-bar {
     position: fixed;
     right: max(12px, var(--shell-safe-right));
@@ -1936,22 +1995,37 @@
     z-index: 26;
     display: flex;
     align-items: center;
-    gap: var(--space-md);
-    min-height: 60px;
+    gap: var(--space-sm);
+    min-height: 64px;
     padding: var(--space-sm);
     border: 1px solid rgba(188, 231, 251, 0.18);
     border-radius: var(--radius-lg);
-    background:
-      linear-gradient(180deg, rgba(237, 247, 255, 0.14), rgba(22, 40, 60, 0.78)),
-      rgba(13, 24, 38, 0.72);
+    background: linear-gradient(180deg, rgba(29, 49, 68, 0.97), rgba(12, 23, 37, 0.97));
     box-shadow: 0 18px 34px rgba(2, 8, 16, 0.34);
     color: var(--text);
+    animation: globe-now-rise 220ms ease-out both;
+  }
+
+  .screen-globe-v3 .globe-selection-summary {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+    min-height: 48px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
     font: inherit;
     text-align: left;
     cursor: pointer;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    animation: globe-now-rise 220ms ease-out both;
+  }
+
+  .screen-globe-v3 .globe-selection-summary:focus-visible {
+    border-radius: var(--radius-md);
+    outline: 2px solid #f5fbff;
+    outline-offset: 2px;
   }
 
   .screen-globe-v3 .globe-now-bar .globe-now-art {
@@ -1973,19 +2047,15 @@
     font-size: var(--text-sm);
   }
 
-  .screen-globe-v3 .globe-now-chevron {
-    display: grid;
-    flex: 0 0 auto;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    color: var(--text-strong);
+  .screen-globe-v3 .globe-selection-play {
+    min-height: 44px;
+    padding-inline: var(--space-sm);
   }
 
-  .screen-globe-v3 .globe-now-chevron svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+  .screen-globe-v3 .globe-now-close {
+    width: 44px;
+    height: 44px;
+    margin: 0;
   }
 
   /* Details-sheet content (rides the shared .bottom-sheet-card). */
@@ -2097,6 +2167,17 @@
 :root[data-theme-mode='light'] .screen-globe-v3 .globe-zoom-btn {
   --text-strong: #f5fbff;
   --muted: rgba(225, 238, 249, 0.74);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-search-v3 *,
+  .screen-globe-minimal *,
+  .screen-globe-v3 * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ============================================================================

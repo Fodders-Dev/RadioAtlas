@@ -337,6 +337,15 @@
   -webkit-backdrop-filter: blur(22px) saturate(150%);
 }
 
+.full-player-panel[data-full-player-recent] {
+  scroll-margin-block-start: var(--space-sm);
+}
+
+.full-player-panel[data-full-player-recent]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 76%, white 24%);
+  outline-offset: 3px;
+}
+
 .full-player-panel-head {
   display: flex;
   align-items: baseline;
@@ -665,6 +674,59 @@
     margin: auto auto 0;
   }
 
+  .full-player-main--stage[data-has-next='true'] .full-player-visualizer {
+    margin: 0 auto;
+  }
+
+  .full-player-next-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-sm);
+    width: min(100%, 360px);
+    min-height: 38px;
+    margin: auto auto 0;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+    border-radius: var(--theme-icon-radius, 14px);
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface-raised) 52%, transparent);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease;
+  }
+
+  .full-player-next-row:hover,
+  .full-player-next-row:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    background: color-mix(in srgb, var(--accent) 13%, var(--surface-raised));
+  }
+
+  .full-player-next-row span {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .full-player-next-row strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-strong);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .full-player-next-row svg {
+    width: 17px;
+    height: 17px;
+    fill: currentColor;
+  }
+
   .full-player-main--stage .full-player-controls {
     grid-template-columns: 64px minmax(0, 1fr) 64px;
     justify-items: center;
@@ -712,6 +774,13 @@
 
   .full-player-main--stage .full-player-action-chip span {
     max-width: 100%;
+    overflow: visible;
+    text-align: center;
+    text-overflow: clip;
+    white-space: normal;
+    font-size: clamp(9px, 2.65vw, 11px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
   }
 
   .full-player-action-badge {
@@ -767,6 +836,7 @@
     color: var(--text);
     overflow: auto;
     overscroll-behavior: contain;
+    scroll-padding-block-start: var(--space-sm);
     backdrop-filter: blur(22px) saturate(150%);
     -webkit-backdrop-filter: blur(22px) saturate(150%);
   }
@@ -1006,6 +1076,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .full-player-next-row {
+    transition: none;
+  }
+
   .full-player-visualizer-bar {
     transition: none;
   }

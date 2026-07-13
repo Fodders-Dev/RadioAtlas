@@ -1,0 +1,100 @@
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { createGeneratedArtworkPalette } from '../lib/artwork';
+import { resolveSceneArtworkUrl } from '../lib/sceneArtwork';
+import type { StationLite } from '../types';
+import './StationScene.css';
+
+type StationSceneProps = {
+  station: StationLite | null;
+  className?: string;
+  priority?: boolean;
+};
+
+const BROKEN_SCENE_URLS = new Set<string>();
+
+const seedOf = (station: StationLite | null) =>
+  [station?.stationuuid, station?.name, station?.country, station?.state, station?.tags]
+    .filter(Boolean)
+    .join(':') || 'radio';
+
+/**
+ * Opt-in decorative atmosphere for large editorial surfaces.
+ *
+ * This component never represents the station's identity: owner-provided logos
+ * belong in StationArtwork. A missing, unavailable, or broken cached scene
+ * degrades to a deterministic procedural composition without starting any
+ * generation request from the browser.
+ */
+export const StationScene = ({
+  station,
+  className = '',
+  priority = false
+}: StationSceneProps) => {
+  const [resolvedScene, setResolvedScene] = useState({ stationId: '', url: '' });
+  const [, rerenderBrokenSource] = useState(0);
+  const seed = seedOf(station);
+  const sceneUrl = resolvedScene.stationId === station?.stationuuid &&
+    !BROKEN_SCENE_URLS.has(resolvedScene.url)
+    ? resolvedScene.url
+    : '';
+  const palette = useMemo(() => createGeneratedArtworkPalette(seed), [seed]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!station?.stationuuid) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    const stationId = station.stationuuid;
+    void resolveSceneArtworkUrl(stationId)
+      .then((url) => {
+        if (alive && url) setResolvedScene({ stationId, url });
+      })
+      .catch(() => {
+        // Optional scene lookup is fail-soft; the procedural layer stays visible.
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [station?.stationuuid]);
+
+  const style = {
+    '--station-scene-primary': palette.primary,
+    '--station-scene-secondary': palette.secondary,
+    '--station-scene-tertiary': palette.tertiary,
+    '--station-scene-angle': palette.angle
+  } as CSSProperties;
+
+  const handleImageError = () => {
+    if (sceneUrl) BROKEN_SCENE_URLS.add(sceneUrl);
+    rerenderBrokenSource((version) => version + 1);
+  };
+
+  return (
+    <div
+      className={`station-scene ${className}`.trim()}
+      data-scene-source={sceneUrl ? 'scene' : 'generated'}
+      data-scene-pattern={palette.pattern}
+      style={style}
+      aria-hidden="true"
+    >
+      {sceneUrl ? (
+        <img
+          key={sceneUrl}
+          className="station-scene-image"
+          src={sceneUrl}
+          alt=""
+          loading={priority ? 'eager' : 'lazy'}
+          {...(priority ? { fetchpriority: 'high' } : {})}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={handleImageError}
+        />
+      ) : null}
+      <span className="station-scene-tint" />
+    </div>
+  );
+};

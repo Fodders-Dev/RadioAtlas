@@ -141,6 +141,15 @@ test('home shell mobile visual baseline', async ({ page }) => {
   });
 });
 
+test('home shell compact-wide visual baseline', async ({ page }) => {
+  await page.setViewportSize({ width: 540, height: 900 });
+  await openHome(page);
+  await expect(page).toHaveScreenshot('home-shell-compact-wide.png', {
+    animations: 'disabled',
+    fullPage: true
+  });
+});
+
 test('home shell populated visual baseline', async ({ page }) => {
   await openHome(page, {
     favorites: [stations[4], stations[8]],
@@ -167,7 +176,11 @@ test('home surface stays stable during like and play actions', async ({ page }) 
   const before = await readHomeSurfaceSignature(page);
 
   await page.locator('[data-home-rail] .home-action-btn-like').first().click();
-  await page.locator('[data-home-rail] [data-home-station]').first().locator('.home-action-btn-play').click();
+  await page
+    .locator('[data-home-rail] [data-home-station]')
+    .first()
+    .locator('.home-station-primary-action')
+    .click();
   await expect(page.locator('[data-home-resume]')).toBeVisible();
 
   const after = await readHomeSurfaceSignature(page);
@@ -207,6 +220,75 @@ test('library screen visual baseline', async ({ page }) => {
     animations: 'disabled',
     fullPage: true
   });
+});
+
+test('settings sheet mobile visual baseline', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+  await page.locator('.mobile-settings-trigger').click();
+
+  const sheet = page.locator('.settings-sheet');
+  await expect(sheet).toBeVisible();
+  await expect(page.locator('[data-dialog-initial-focus]')).toBeFocused();
+  await waitForStableMetrics(page, '.settings-sheet-card');
+  const shot = await page.screenshot({ animations: 'disabled' });
+  expect(shot).toMatchSnapshot('settings-sheet-mobile.png', { maxDiffPixelRatio: 0.04 });
+
+  const clearCache = page.getByRole('button', { name: /Очистить кэш|Clear cache/ });
+  await clearCache.scrollIntoViewIfNeeded();
+  await clearCache.click();
+  const confirmation = page.getByText(/Очистить кэш каталога|Clear the catalog and globe cache/i);
+  await expect(confirmation).toBeVisible();
+  await confirmation.scrollIntoViewIfNeeded();
+  const confirmationShot = await page.screenshot({ animations: 'disabled' });
+  expect(confirmationShot).toMatchSnapshot('settings-data-confirmation-mobile.png', {
+    maxDiffPixelRatio: 0.04
+  });
+
+  await page.getByRole('button', { name: /Отмена|Cancel/ }).click();
+  const developerSection = page.locator('details.settings-developer-section');
+  await developerSection.locator('summary').scrollIntoViewIfNeeded();
+  await developerSection.locator('summary').click();
+  await expect(developerSection).toHaveAttribute('open', '');
+  const developerShot = await page.screenshot({ animations: 'disabled' });
+  expect(developerShot).toMatchSnapshot('settings-developer-mobile.png', {
+    maxDiffPixelRatio: 0.04
+  });
+});
+
+test('compact live dock mobile visual baseline', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { activeSection: 'search' });
+  await page.goto('/?api=/api');
+  await page.locator('#search-hero-input').first().fill('Tokyo');
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await page.locator('.dock-collapse-btn').click();
+  await expect(page.locator('.player-dock-compact')).toBeVisible();
+  await page.addStyleTag({
+    content: '.player-dock-compact-artwork { --ra-energy: 0 !important; }'
+  });
+  await waitForStableMetrics(page, '.player-dock-compact');
+
+  const compactControlSizes = await page.locator('.player-dock-compact button').evaluateAll(
+    (buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    })
+  );
+  expect(compactControlSizes).toHaveLength(4);
+  compactControlSizes.forEach(({ width, height }) => {
+    expect(width).toBeGreaterThanOrEqual(44);
+    expect(height).toBeGreaterThanOrEqual(44);
+  });
+
+  const shot = await page.locator('.player-dock-compact').screenshot({
+    animations: 'disabled'
+  });
+  expect(shot).toMatchSnapshot('compact-live-dock-mobile.png', { maxDiffPixelRatio: 0.04 });
 });
 
 test('full player overlay visual baseline', async ({ page }) => {
@@ -281,12 +363,12 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
   expect(sheetShot).toMatchSnapshot('full-player-queue-sheet-mobile.png');
 });
 
-// Globe mobile rebuild: pin the new chrome (full-width now-bar, right-centred
-// zoom stack, details sheet) at the canonical 360x780. The full-bleed MapLibre
+// Globe mobile rebuild: pin the selection-only chrome and single global dock
+// at the canonical 360x780. The full-bleed MapLibre
 // canvas is HIDDEN for the shot (its tiles/projection are not deterministic
 // across runs, and masking it would cover the whole frame) — what remains is
 // the fixed ::before gradient plus exactly the overlay chrome this PR owns.
-test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) => {
+test('globe mobile visual baseline (single global dock)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, { activeSection: 'search' });
   await page.goto('/?api=/api');
@@ -294,11 +376,15 @@ test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) 
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
+  await page.locator('.dock-collapse-btn').click();
+  await expect(page.locator('.player-dock-compact')).toBeVisible();
+  await page.addStyleTag({
+    content: '.player-dock-compact-artwork { --ra-energy: 0 !important; }'
+  });
 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
   await expect(page.locator('.globe canvas')).toBeVisible();
-  const nowBar = page.locator('[data-globe-now-bar]');
-  await expect(nowBar).toBeVisible();
+  await expect(page.locator('[data-globe-selection-preview]')).toHaveCount(0);
   // The reticle pulse is JS-driven (masking it flakes too — its bbox breathes
   // with the pulse), so hide it alongside the canvas for the shot.
   await page.addStyleTag({
@@ -307,23 +393,10 @@ test('globe mobile visual baseline (now-bar + details sheet)', async ({ page }) 
   });
   await page.waitForTimeout(450);
 
-  // The dock's audio-reactive artwork glow (--ra-energy) is written per-frame
-  // from JS while a station plays — animations:'disabled' can't freeze it, so
-  // the dock is masked. The small ratio absorbs sub-pixel text shifts under
-  // parallel-suite load.
-  const liveMasks = [page.locator('.player-dock')];
-  const stageShot = await page.screenshot({ animations: 'disabled', mask: liveMasks });
-  expect(stageShot).toMatchSnapshot('globe-mobile-now-bar.png', { maxDiffPixelRatio: 0.04 });
-
-  await nowBar.click();
-  await expect(page.locator('[data-globe-sheet]')).toBeVisible();
-  const sheetShot = await page.screenshot({
-    animations: 'disabled',
-    // The readout carries the live ≈local-time — mask it or the baseline
-    // changes every minute.
-    mask: [page.locator('.globe-sheet-readout'), ...liveMasks]
+  const stageShot = await page.screenshot({ animations: 'disabled' });
+  expect(stageShot).toMatchSnapshot('globe-mobile-single-dock.png', {
+    maxDiffPixelRatio: 0.04
   });
-  expect(sheetShot).toMatchSnapshot('globe-mobile-sheet.png', { maxDiffPixelRatio: 0.04 });
 });
 
 // Search mobile rebuild: pin the @360x780 result view (count|filters row,

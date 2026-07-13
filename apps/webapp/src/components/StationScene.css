@@ -1,0 +1,96 @@
+.station-scene {
+  --station-scene-primary: rgba(31, 166, 210, 0.9);
+  --station-scene-secondary: rgba(48, 225, 180, 0.62);
+  --station-scene-tertiary: rgba(130, 116, 255, 0.54);
+  --station-scene-angle: 145deg;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 22%, var(--station-scene-tertiary), transparent 24%),
+    radial-gradient(circle at 16% 86%, var(--station-scene-secondary), transparent 42%),
+    linear-gradient(
+      var(--station-scene-angle),
+      color-mix(in srgb, var(--station-scene-primary) 88%, #031427),
+      color-mix(in srgb, var(--station-scene-tertiary) 72%, #020b18)
+    );
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.station-scene::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(
+      calc(var(--station-scene-angle) + 18deg),
+      transparent 0 34%,
+      rgba(255, 255, 255, 0.16) 35% 43%,
+      transparent 44%
+    ),
+    radial-gradient(circle at 68% 36%, rgba(255, 255, 255, 0.22), transparent 20%);
+  opacity: 0.72;
+}
+
+.station-scene[data-scene-pattern='dial']::before {
+  background:
+    repeating-conic-gradient(
+      from var(--station-scene-angle),
+      rgba(255, 255, 255, 0.13) 0 7deg,
+      transparent 7deg 20deg
+    ),
+    radial-gradient(circle, transparent 0 26%, rgba(255, 255, 255, 0.14) 27% 30%, transparent 31%);
+}
+
+.station-scene[data-scene-pattern='grid']::before {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.13) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.station-scene[data-scene-pattern='wave']::before {
+  background:
+    radial-gradient(ellipse at 8% 38%, transparent 0 24%, rgba(255, 255, 255, 0.14) 25% 30%, transparent 31%),
+    radial-gradient(ellipse at 82% 76%, transparent 0 26%, rgba(255, 255, 255, 0.12) 27% 32%, transparent 33%);
+}
+
+.station-scene-image,
+.station-scene-tint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.station-scene-image {
+  z-index: 1;
+  display: block;
+  object-fit: cover;
+}
+
+.station-scene-tint {
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 9, 20, 0.02),
+    color-mix(in srgb, var(--station-scene-primary) 14%, transparent) 58%,
+    rgba(2, 8, 18, 0.38)
+  );
+}
+
+@media (forced-colors: active) {
+  .station-scene {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  .station-scene-tint {
+    display: none;
+  }
+}

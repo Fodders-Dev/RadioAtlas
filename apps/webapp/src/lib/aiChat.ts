@@ -70,8 +70,14 @@ const readToken = (): string => {
   }
 };
 
-export const isAiAssistantEnabled = (): boolean =>
-  String(import.meta.env.VITE_AI_ENABLED || '') === '1';
+export const isAiAssistantEnabled = (): boolean => {
+  const configured = String(import.meta.env.VITE_AI_ENABLED || '').trim();
+  if (configured) return configured === '1';
+  // Local UI work should never silently lose the Lira navigation entry just
+  // because a developer started Vite without copying an env file. Production
+  // remains opt-in and still requires the API-side AI settings.
+  return Boolean(import.meta.env.DEV);
+};
 
 export const postChatMessage = async (
   message: string,

@@ -83,8 +83,24 @@ export const AppNavigation = ({
       onClick={() => selectSection(item.id)}
       onTouchStart={() => onPreload?.(item.id)}
       onFocus={() => onPreload?.(item.id)}
+      aria-current={active === item.id ? 'page' : undefined}
     >
       <span className="mobile-nav-icon">{item.icon}</span>
+      <span>{t(`nav.${item.id}`)}</span>
+    </button>
+  );
+
+  const renderDesktopItem = (item: NavItem) => (
+    <button
+      key={item.id}
+      className={`nav-rail-item ${active === item.id ? 'active' : ''}`}
+      type="button"
+      onClick={() => onChange(item.id)}
+      onMouseEnter={() => onPreload?.(item.id)}
+      onFocus={() => onPreload?.(item.id)}
+      aria-current={active === item.id ? 'page' : undefined}
+    >
+      <span className="nav-rail-icon">{item.icon}</span>
       <span>{t(`nav.${item.id}`)}</span>
     </button>
   );
@@ -101,25 +117,18 @@ export const AppNavigation = ({
         </div>
 
         <nav className="nav-list">
-          {NAV_ITEMS.map((item) => (
-            <button
-            key={item.id}
-            className={`nav-rail-item ${active === item.id ? 'active' : ''}`}
-            type="button"
-            onClick={() => onChange(item.id)}
-            onMouseEnter={() => onPreload?.(item.id)}
-            onFocus={() => onPreload?.(item.id)}
-          >
-              <span className="nav-rail-icon">{item.icon}</span>
-              <span>{t(`nav.${item.id}`)}</span>
-            </button>
-          ))}
           {onOpenChat ? (
-            <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
-              <span className="nav-rail-icon">{CHAT_ICON}</span>
-              <span>{t('chat.launch')}</span>
-            </button>
-          ) : null}
+            <>
+              {NAV_ITEMS.slice(0, 2).map(renderDesktopItem)}
+              <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
+                <span className="nav-rail-icon">{CHAT_ICON}</span>
+                <span>{t('chat.launch')}</span>
+              </button>
+              {NAV_ITEMS.slice(2).map(renderDesktopItem)}
+            </>
+          ) : (
+            NAV_ITEMS.map(renderDesktopItem)
+          )}
         </nav>
 
         <button className="nav-utility-btn" type="button" onClick={onSettings}>

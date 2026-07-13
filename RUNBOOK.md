@@ -31,6 +31,19 @@ Use Node.js 24+ and npm 10+. The API account and station-intelligence stores use
   ```
   Requests with no `Origin` header (curl, server-to-server, liveness probes) pass through with no CORS headers attached. Browsers receiving a response without `Access-Control-Allow-Origin` for a non-allow-listed origin will refuse the response automatically; the API does **not** 403 on a mismatched origin so that legitimate same-origin POSTs that happen to include an `Origin` header are not broken.
 - `NODE_ENV`: set to `production` on every production deploy. Drives the `ALLOWED_ORIGINS` requirement above (and future production-only guards).
+- `SCENE_ARTWORK_ENABLED`: optional cached station-atmosphere generator. Keep `0`
+  until the Cloudflare account and token below are configured. Public web clients
+  can only read cached scenes; they cannot start generation.
+- `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN`: Cloudflare Workers AI REST
+  credentials for `@cf/black-forest-labs/flux-2-klein-4b`. The token needs only
+  Workers AI Read and Edit permissions and must never use a `VITE_*` name.
+- `SCENE_ARTWORK_DIR`: persistent absolute cache directory. Production should use
+  `/opt/RadioAtlas/shared/scene-artwork`; do not store generated files inside a
+  release directory because old releases are pruned.
+- `SCENE_ARTWORK_DAILY_CAP`, `SCENE_ARTWORK_CONCURRENCY`,
+  `SCENE_ARTWORK_QUEUE_MAX`, `SCENE_ARTWORK_STYLE_VERSION`: optional safety and
+  cache-version controls. Defaults are deliberately conservative for the free
+  Workers AI daily allowance.
 
 ### Test fixtures
 `ENABLE_TEST_AUTH_FIXTURES=1` exists only for dev / CI / contract tests. It MUST NOT be set in production:
@@ -50,7 +63,12 @@ Additionally, `apps/api/src/googleAuth.ts` and `apps/api/src/vkAuth.ts` short-ci
 ## Webapp env
 - `VITE_TG_BOT`: bot username used to build share deep links
 - `VITE_API_URL`: optional API base for catalog/proxy (empty by default)
+- `VITE_AI_ENABLED`: Lira navigation flag. Vite dev defaults it on unless explicitly set to `0`; production requires `1`. Replies additionally require API `AI_ENABLED=1` plus `DEEPSEEK_API_KEY`.
 - `VITE_GLOBE_SATELLITE_TILE_URL`: optional satellite tile template for close Globe zoom (`{z}/{x}/{y}` placeholders). Defaults to Esri World Imagery; leave empty only if you want the bundled Blue Marble fallback at every zoom level.
+
+For local browser QA, run `npm run dev:webapp` and `npm run dev:api` in separate
+terminals. If only Vite is running, `/api/image` proxy `ECONNREFUSED` messages are
+expected; they do not mean the webapp command was wrong.
 
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
@@ -58,6 +76,9 @@ Additionally, `apps/api/src/googleAuth.ts` and `apps/api/src/vkAuth.ts` short-ci
 ## Audio troubleshooting
 - If stream fails, confirm `https://` and test with browser.
 - For HLS streams, ensure `hls.js` loads (check console).
+- Globe QA: dragging/settling may select a preview but must not switch audio; use a direct point tap or the visible Play action to tune.
+- Feed QA: opening Feed while a station is already current must not auto-switch it; the active card play/pause control owns manual transport.
+- Dock QA: collapse to the one-row live controller, open/close Full Player, and confirm the collapsed presentation is restored.
 - Telegram WebView may block mixed content; keep https-only or add proxy.
 - Track metadata is best-effort and depends on CORS/ICY support.
 - Heavy metadata/fetch probing is protected server-side with rate limiting, in-flight dedupe, caching, and shared concurrency caps.
@@ -172,6 +193,37 @@ Deploy flow:
    - `VITE_API_URL=https://your-domain/api`
 4. Runtime override:
    - Settings screen can override API base (saved to localStorage).
+
+## Generated station atmosphere
+
+Generation is an operator action, never a public browser action. Start the API
+with scene artwork enabled, then seed a pack through the existing internal token:
+
+```powershell
+$env:RADIOATLAS_API_URL='http://127.0.0.1:3001'
+$env:INTERNAL_WEBHOOK_TOKEN='same-value-as-apps-api-env'
+npm run artwork:generate
+```
+
+Append one or more Radio Browser station UUIDs to generate only those scenes.
+Without arguments the helper selects up to `SCENE_PACK_LIMIT` stations from the
+catalog summary (default and hard maximum: 50). Stations sharing the same
+country, vibe, and style version share one cached image. The current FLUX REST
+endpoint returns JPEG despite its PNG schema, so the API validates both formats
+and serves the byte-derived MIME type. Repeated app views do not consume Workers
+AI quota.
+
+Operational checks:
+
+- `GET /artwork/scene/:stationId` is read-only and returns scene status/URL.
+- `POST /internal/artwork/scenes/generate` requires the exact
+  `X-Internal-Token`; missing or wrong tokens fail closed.
+- Keep `SCENE_ARTWORK_DAILY_CAP=60` and concurrency `1` for the initial free
+  rollout. A failed provider request leaves the existing station artwork or
+  procedural gradient intact.
+- Changing the prompt art direction requires a new
+  `SCENE_ARTWORK_STYLE_VERSION`; do not overwrite an approved visual pack in
+  place.
 
 ## Extractor service (NewPipe-style, YouTube blocked)
 1. Install Java 17 + Gradle.

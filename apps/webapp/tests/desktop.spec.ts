@@ -231,6 +231,7 @@ test('metadata state recovers from unavailable to live track without losing play
 test('home discovery modules stay non-duplicative across main station shelves', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+  await expect(page.locator('[data-home-genres]')).toBeVisible();
 
   const modules = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('[data-home-rail]')).map((module) =>
@@ -239,6 +240,10 @@ test('home discovery modules stay non-duplicative across main station shelves', 
         .filter(Boolean)
     );
   });
+
+  // The test summary intentionally has no server-signal rails. Desktop must
+  // still add a useful fresh fallback shelf instead of stopping after one row.
+  expect(modules.length).toBeGreaterThanOrEqual(2);
 
   const seen = new Set<string>();
   for (const list of modules) {

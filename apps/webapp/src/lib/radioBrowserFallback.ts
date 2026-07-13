@@ -214,6 +214,18 @@ const normalizeCountrySlug = (country: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
+const preferCountryDisplay = (current: string, candidate: string) => {
+  if (!current) return candidate;
+  if (/^\p{Ll}/u.test(current) && /^\p{Lu}/u.test(candidate)) return candidate;
+  if (
+    current === current.toLocaleUpperCase() &&
+    candidate !== candidate.toLocaleUpperCase()
+  ) {
+    return candidate;
+  }
+  return current;
+};
+
 const bucketSizeForZoom = (zoomLevel: number) => {
   if (zoomLevel >= 7) return 0.35;
   if (zoomLevel >= 5) return 0.55;
@@ -440,7 +452,28 @@ export const searchRadioBrowserFallback = async (
   });
 
   const items = filtered.slice(cursor, cursor + limit);
-  const countries = [...new Set(dataset.stations.map((station) => station.country).filter(Boolean))];
+  const countryBuckets = new Map<
+    string,
+    { country: string; continent: string; count: number }
+  >();
+  dataset.stations.forEach((station) => {
+    const countryName = clean(station.country);
+    if (!countryName) return;
+    const key = countryName.toLocaleLowerCase();
+    const current = countryBuckets.get(key) || {
+      country: countryName,
+      continent: continentFor(station),
+      count: 0
+    };
+    current.country = preferCountryDisplay(current.country, countryName);
+    current.count += 1;
+    countryBuckets.set(key, current);
+  });
+  const rankedCountries = [...countryBuckets.entries()].sort(
+    (left, right) =>
+      right[1].count - left[1].count || left[1].country.localeCompare(right[1].country)
+  );
+  const countries = rankedCountries.map(([, value]) => value.country);
   const tags = [...new Set(dataset.stations.flatMap(tagList))];
   const languages = [
     ...new Set(
@@ -453,11 +486,11 @@ export const searchRadioBrowserFallback = async (
     id,
     count: dataset.stations.filter((station) => continentFor(station) === id).length
   }));
-  const featuredCountries = dataset.areas.slice(0, 8).map((area) => ({
-    key: normalizeCountrySlug(area.label),
-    country: area.label,
-    continent: area.subtitle,
-    count: area.count
+  const featuredCountries = rankedCountries.slice(0, 12).map(([key, value]) => ({
+    key,
+    country: value.country,
+    continent: value.continent,
+    count: value.count
   }));
 
   return {

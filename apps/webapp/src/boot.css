@@ -438,3 +438,12 @@ a {
     opacity: 1;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash__meter > span {
+    width: 72%;
+    animation: none;
+    transform: none;
+    opacity: 0.9;
+  }
+}

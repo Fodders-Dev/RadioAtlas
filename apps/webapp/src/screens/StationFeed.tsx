@@ -69,15 +69,19 @@ type FeedCardProps = {
   station: StationLite;
   active: boolean;
   isCurrent: boolean;
+  isPlaying: boolean;
   isLive: boolean;
   trackLine: string;
   favorite: boolean;
   subscribe: (callback: (frame: VisualizerFrame) => void) => () => void;
+  onTogglePlayback: () => void;
   onToggleFavorite: () => void;
   onEnqueue: () => void;
   onOpenPlayer: () => void;
   labels: {
     live: string;
+    play: string;
+    pause: string;
     like: string;
     unlike: string;
     addToQueue: string;
@@ -103,14 +107,26 @@ const ExpandIcon = () => (
   </svg>
 );
 
+const PlayPauseIcon = ({ playing }: { playing: boolean }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    {playing ? (
+      <path d="M6.5 5h4v14h-4V5Zm7 0h4v14h-4V5Z" />
+    ) : (
+      <path d="M8 5v14l11-7L8 5Z" />
+    )}
+  </svg>
+);
+
 const FeedCard = ({
   station,
   active,
   isCurrent,
+  isPlaying,
   isLive,
   trackLine,
   favorite,
   subscribe,
+  onTogglePlayback,
   onToggleFavorite,
   onEnqueue,
   onOpenPlayer,
@@ -122,6 +138,17 @@ const FeedCard = ({
       <StationBackdrop station={station} active={active} subscribe={subscribe} />
 
       <div className="station-feed-card-actions">
+        {active ? (
+          <button
+            type="button"
+            className={`station-feed-action station-feed-action--play ${isPlaying ? 'is-playing' : ''}`.trim()}
+            onClick={onTogglePlayback}
+            aria-label={`${isPlaying ? labels.pause : labels.play}: ${station.name}`}
+            data-feed-playback-action
+          >
+            <PlayPauseIcon playing={isPlaying} />
+          </button>
+        ) : null}
         <button
           type="button"
           className={`station-feed-action ${favorite ? 'is-on' : ''}`.trim()}
@@ -350,12 +377,40 @@ export const StationFeed = () => {
     setActiveSection('home');
   }, [settler, setActiveSection]);
 
+  const resolveFeedReturnFocus = useCallback((): HTMLElement | null => {
+    if (typeof document === 'undefined') return null;
+    const candidates = document.querySelectorAll<HTMLElement>(
+      [
+        '.home-feed-entry',
+        '.app-navigation-mobile .mobile-nav-item:first-child',
+        '.app-navigation-desktop .nav-rail-item:first-child',
+        '.app-brand-pill'
+      ].join(',')
+    );
+    return (
+      Array.from(candidates).find((element) => {
+        const style = window.getComputedStyle(element);
+        return (
+          element.isConnected &&
+          !element.hidden &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          element.getClientRects().length > 0
+        );
+      }) ?? null
+    );
+  }, []);
+
   // Accessible modal: focus-trap + Escape-to-close + #root inerting + focus
   // restoration, the project's portal-overlay contract (FullPlayerOverlay /
   // Globe / Library). The scroll-snap pager is unaffected — useDialog only
   // governs Tab / Escape / inert.
   const rootRef = useRef<HTMLDivElement>(null);
-  useDialog(rootRef, { isOpen: true, onClose: handleClose });
+  useDialog(rootRef, {
+    isOpen: true,
+    onClose: handleClose,
+    restoreFocusTo: resolveFeedReturnFocus
+  });
 
   // Kickstart: settle the OPENING card once the feed has content. The
   // IntersectionObserver's INITIAL callback can race with layout (report ratio 0
@@ -399,6 +454,45 @@ export const StationFeed = () => {
     cardRefs.current = cardRefs.current.slice(0, visibleFeedStations.length);
   }, [visibleFeedStations.length]);
 
+  const commitLandedIndex = useCallback(
+    (landed: number) => {
+      const station = feedRef.current[landed];
+      if (!station) return;
+      setVisibleIndex(landed);
+      settler.notify(landed);
+      shownIdsRef.current.add(station.stationuuid);
+    },
+    [settler]
+  );
+
+  // IntersectionObserver is the high-accuracy signal below, but some embedded
+  // Chromium builds occasionally miss its callback after a CSS snap. A passive
+  // scroll fallback derives the same full-height card index from scrollTop. The
+  // shared settler still debounces fast swipes to one final play request.
+  useEffect(() => {
+    const root = scrollerRef.current;
+    if (!root || visibleFeedStations.length === 0) return undefined;
+    let frame: number | null = null;
+    const handleScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        const cardHeight = root.clientHeight;
+        if (cardHeight <= 0) return;
+        const landed = Math.max(
+          0,
+          Math.min(visibleFeedStations.length - 1, Math.round(root.scrollTop / cardHeight))
+        );
+        commitLandedIndex(landed);
+      });
+    };
+    root.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      root.removeEventListener('scroll', handleScroll);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
+  }, [commitLandedIndex, visibleFeedStations.length]);
+
   // Track which card has "landed" (≥60% visible). The immediate signal drives the
   // ±2 render window; the SAME signal, debounced through the settler, drives the
   // autoplay so a fast swipe doesn't thrash playback.
@@ -422,17 +516,14 @@ export const StationFeed = () => {
           }
         });
         if (landed >= 0) {
-          setVisibleIndex(landed);
-          settler.notify(landed);
-          const landedId = feedRef.current[landed]?.stationuuid;
-          if (landedId) shownIdsRef.current.add(landedId);
+          commitLandedIndex(landed);
         }
       },
       { root, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] }
     );
     cardRefs.current.forEach((node) => node && observer.observe(node));
     return () => observer.disconnect();
-  }, [visibleFeedStations, settler]);
+  }, [commitLandedIndex, visibleFeedStations]);
 
   const handleOpenPlayer = (station: StationLite) => {
     if (player.current?.stationuuid !== station.stationuuid) {
@@ -446,10 +537,25 @@ export const StationFeed = () => {
     winamp.setExpanded(true);
   };
 
+  const handleTogglePlayback = (station: StationLite) => {
+    settler.cancel();
+    if (player.current?.stationuuid === station.stationuuid) {
+      void player.toggle();
+      return;
+    }
+    playStation(station, {
+      playlist: visibleFeedStations,
+      sourceId: FEED_SOURCE_ID,
+      sourceLabel
+    });
+  };
+
   if (typeof document === 'undefined') return null;
 
   const labels = {
     live: t('feed.live'),
+    play: t('common.play'),
+    pause: t('common.pause'),
     like: t('feed.like'),
     unlike: t('feed.unlike'),
     addToQueue: t('feed.addToQueue'),
@@ -508,10 +614,12 @@ export const StationFeed = () => {
                     station={station}
                     active={index === visibleIndex}
                     isCurrent={isCurrent}
+                    isPlaying={isCurrent && player.isPlaying}
                     isLive={Boolean(liveTrack) || (isCurrent && player.isPlaying)}
                     trackLine={liveTrack || lastTrack}
                     favorite={isFavorite(station.stationuuid)}
                     subscribe={player.subscribeVisualizer}
+                    onTogglePlayback={() => handleTogglePlayback(station)}
                     onToggleFavorite={() => toggleFavorite(station)}
                     onEnqueue={() => queue.enqueue(station)}
                     onOpenPlayer={() => handleOpenPlayer(station)}

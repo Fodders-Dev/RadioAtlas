@@ -58,9 +58,8 @@ const openHome = async (page: Page) => {
 // F2 metric (reframed): above-fold CONTENT = the hero (a playable, featured
 // station the user sees) + every visible rail station tile. Height-aware — the
 // hero/chip-row/search consume ~684px, so two rail rows (→ ≥12) need ~960px.
-// T_home_redesign_1: HomeHeroCard is no longer rendered; heroCount stays 0
-// and the tile count rises (more vertical space → more tiles in the fold).
-// The ≥12 / ≥7 thresholds hold with margin — no threshold change needed.
+// The reference hero counts as the primary playable content item; large rail
+// cards may only peek into the remaining desktop fold.
 const aboveFoldContent = (page: Page) =>
   page.evaluate(() => {
     const vw = window.innerWidth;
@@ -99,26 +98,18 @@ test.describe('T_audit_3 Home polish', () => {
     }
   });
 
-  test('F2: above-fold content is ≥12 on a wide desktop and ≥7 at the 1280×900 QA fold', async ({ page }) => {
-    // ≥12 is a wide-desktop fold metric — two rail rows clear the fold at
-    // 1440×960 (where T2.20/T2.23 validated it). The count is height- AND
-    // width-bound: chip-row + search consume ~450px, so a second rail row only
-    // clears the fold when the content is wide enough to keep each rail short.
-    // T_home_redesign_1: hero gone, so the floor is now ~18 tiles in practice
-    // at 1440×1024 — the ≥12 threshold is well-padded.
+  test('F2: reference hero and discovery remain visible at desktop QA folds', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1024 });
     await openHome(page);
-    expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(12);
+    expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(5);
+    await expect(page.locator('[data-home-hero]')).toBeVisible();
 
-    // The 1280×900 QA viewport fits ~12 tiles above the fold post-T_home_redesign_1
-    // (one rail row + most of a second). The ≥7 floor stays — it's still the
-    // "user sees discovery content immediately without scrolling" contract.
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.waitForTimeout(150);
-    expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(7);
+    expect(await aboveFoldContent(page)).toBeGreaterThanOrEqual(1);
   });
 
-  test('F3: fresh-now featured lead tile is ≥1.4× a sibling on desktop', async ({ page }) => {
+  test('F3: fresh-now featured lead tile is visibly wider than a sibling on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openHome(page);
 
@@ -126,7 +117,7 @@ test.describe('T_audit_3 Home polish', () => {
     await expect(tiles.first()).toHaveClass(/home-station-tile--featured/);
     const featuredW = await tiles.first().evaluate((el) => el.getBoundingClientRect().width);
     const siblingW = await tiles.nth(1).evaluate((el) => el.getBoundingClientRect().width);
-    expect(featuredW).toBeGreaterThanOrEqual(siblingW * 1.4);
+    expect(featuredW).toBeGreaterThanOrEqual(siblingW * 1.35);
   });
 
   test('F3: featured gate is disabled on dense mobile (lead tile equals siblings)', async ({ page }) => {

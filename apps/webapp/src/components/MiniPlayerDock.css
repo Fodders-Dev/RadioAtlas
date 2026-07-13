@@ -14,6 +14,47 @@
   background-size: auto, cover;
 }
 
+.player-dock.player-dock-compact {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) repeat(3, 44px);
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.14));
+  border-radius: 18px;
+  box-shadow: 0 14px 30px rgba(2, 10, 18, 0.16);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+.player-dock-compact-artwork {
+  width: 44px;
+  height: 44px;
+}
+
+.player-dock-compact-copy {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+.player-dock.player-dock-compact .player-dock-title {
+  display: block;
+  color: var(--text-strong, var(--text));
+}
+
+.player-dock.player-dock-compact .dock-icon-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.player-dock-compact-expand {
+  color: var(--accent);
+}
+
 .player-dock.player-dock-bar::before,
 .player-dock.player-dock-peek::before {
   background:
@@ -129,7 +170,15 @@
   order: 5;
 }
 
+.dock-collapse-btn {
+  order: 6;
+}
+
 @media (max-width: 430px) {
+  .player-dock.player-dock-compact {
+    grid-template-columns: 44px minmax(0, 1fr) repeat(3, 44px);
+  }
+
   .player-dock.player-dock-bar .player-dock-title,
   .player-dock.player-dock-peek .player-dock-title {
     font-size: var(--text-sm);
@@ -167,6 +216,26 @@
 
   .dock-play-btn {
     flex-grow: 1.24;
+  }
+}
+
+@media (max-width: 340px) {
+  .player-dock.player-dock-compact {
+    grid-template-columns: 44px minmax(0, 1fr) repeat(3, 44px);
+    gap: 4px;
+  }
+
+  .player-dock-compact-artwork,
+  .player-dock.player-dock-compact .dock-icon-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .player-dock-compact-artwork .station-artwork-dock {
+    width: 40px;
+    height: 40px;
   }
 }
 

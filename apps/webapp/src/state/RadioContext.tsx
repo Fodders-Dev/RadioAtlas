@@ -16,7 +16,7 @@ import type {
   Station,
   StationLite
 } from '../types';
-import { toLite } from '../lib/stationUtils';
+import { normalizeStationName, toLite } from '../lib/stationUtils';
 import { useSleepTimer } from '../lib/sleepTimer';
 import { useOutputDeviceGuard } from '../lib/outputDeviceGuard';
 import {
@@ -170,7 +170,6 @@ const PLAYBACK_OUTCOME_MESSAGES: Record<string, PlaybackOutcomeKind> = {
   'playback superseded': 'superseded',
   'stream blocked/mixed content': 'mixed-content'
 };
-
 const normalizePlaybackOutcome = (error?: string): PlaybackOutcomeKind => {
   const normalized = error?.trim().toLowerCase() || '';
   if (!normalized) return 'unknown';
@@ -228,6 +227,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
   );
   const [toast, setToast] = useState<string | null>(null);
+  const [playbackAnnouncement, setPlaybackAnnouncement] = useState('');
   const storedShellState = storedAppState.shell;
   const behaviorProfile =
     storedAppState.behaviorProfile?.version === 1
@@ -552,6 +552,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const nowPlayingState = playbackRuntime.nowPlayingState;
   const fullscreenRetryRef = useRef<number | null>(null);
   const manualPresentationRef = useRef(false);
+  const playerPresentationBeforeExpandedRef = useRef<'peek' | 'bar'>('bar');
   const queueRef = useRef<QueueSnapshot>(storedQueue);
   const historyEntriesRef = useRef<StationLite[]>(playbackHistoryEntries);
   const historyCursorRef = useRef(playbackHistoryCursor);
@@ -560,6 +561,13 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const runtimeFailureSignatureRef = useRef('');
   const personalRadioRefillSignatureRef = useRef('');
   const listened30sRef = useRef<string | null>(null);
+  const playbackAnnouncementStateRef = useRef({
+    stationId: '',
+    status: 'idle',
+    track: ''
+  });
+  const lastPlaybackAnnouncementRef = useRef('');
+  const playbackAnnouncementTimerRef = useRef<number | null>(null);
   // Sleep-timer state read at signal-fire time (the sleep timer is set up far
   // below, after the listen-signal effects) — so no listening counts as a taste
   // preference once the user has told us they're drifting off («уснул под неё»).
@@ -910,12 +918,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, [player.isPlaying]);
 
   useEffect(() => {
-    if (player.current && playerPresentation === 'peek') {
-      setStoredShellState((prev) => ({
-        ...prev,
-        playerPresentation: 'bar'
-      }));
-    }
     if (!player.current && playerPresentation === 'expanded' && !manualPresentationRef.current) {
       setStoredShellState((prev) => ({
         ...prev,
@@ -924,6 +926,95 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       }));
     }
   }, [player.current, playerPresentation, setStoredShellState]);
+
+  // One centralized, debounced polite status keeps station, transport, and
+  // trusted track changes available to assistive technology without turning
+  // short buffering → playing transitions into a stream of interruptions.
+  useEffect(() => {
+    const previous = playbackAnnouncementStateRef.current;
+    const stationId = player.current?.stationuuid || '';
+    const stationName = normalizeStationName(player.current?.name);
+    const reconnecting =
+      player.status === 'buffering' && player.transport.recentFailures.length > 0;
+    const status = reconnecting ? 'reconnecting' : player.status;
+    const trustedTrack =
+      nowPlayingStatus === 'ready'
+        ? normalizeTrustedTrackTitle(nowPlaying, player.current) || ''
+        : '';
+    const track = trustedTrack;
+
+    if (
+      stationId === previous.stationId &&
+      status === previous.status &&
+      track === previous.track
+    ) {
+      return;
+    }
+
+    playbackAnnouncementStateRef.current = { stationId, status, track };
+    if (playbackAnnouncementTimerRef.current !== null) {
+      window.clearTimeout(playbackAnnouncementTimerRef.current);
+      playbackAnnouncementTimerRef.current = null;
+    }
+
+    let message = '';
+    const trackOnlyChange =
+      Boolean(track) &&
+      stationId === previous.stationId &&
+      status === previous.status &&
+      track !== previous.track;
+    const trackClearedOnly =
+      !track &&
+      Boolean(previous.track) &&
+      stationId === previous.stationId &&
+      status === previous.status;
+
+    if (trackClearedOnly) {
+      return;
+    } else if (trackOnlyChange) {
+      message = `${t('dock.trackLive')}: ${track}`;
+    } else if (!stationId) {
+      if (previous.stationId) message = t('dock.stopped');
+    } else {
+      const statusLabel =
+        status === 'playing'
+          ? t('playlist.playing')
+          : status === 'paused'
+            ? t('common.pause')
+            : status === 'buffering'
+              ? t('dock.buffering')
+              : status === 'reconnecting'
+                ? t('dock.reconnecting')
+                : status === 'error'
+                  ? t('app.playbackIssue')
+                  : t('dock.ready');
+      message = `${statusLabel}: ${stationName || t('common.unknown')}`;
+      if (track) message += ` · ${t('dock.trackLive')}: ${track}`;
+    }
+
+    if (!message || message === lastPlaybackAnnouncementRef.current) return;
+    playbackAnnouncementTimerRef.current = window.setTimeout(() => {
+      playbackAnnouncementTimerRef.current = null;
+      lastPlaybackAnnouncementRef.current = message;
+      setPlaybackAnnouncement(message);
+    }, 600);
+  }, [
+    nowPlaying,
+    nowPlayingStatus,
+    player.current,
+    player.status,
+    player.transport.recentFailures.length,
+    t
+  ]);
+
+  useEffect(
+    () => () => {
+      if (playbackAnnouncementTimerRef.current !== null) {
+        window.clearTimeout(playbackAnnouncementTimerRef.current);
+      }
+    },
+    []
+  );
 
   const sessionModeFromSourceId = (sourceId?: string | null): TasteSessionMode => {
     if (!sourceId) return 'resume';
@@ -1093,6 +1184,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const setPlayerPresentation = (presentation: PlayerPresentation) =>
     {
       manualPresentationRef.current = true;
+      if (presentation !== 'expanded') {
+        playerPresentationBeforeExpandedRef.current = presentation;
+      }
       setStoredShellState((prev) =>
         prev.playerPresentation === presentation ? prev : { ...prev, playerPresentation: presentation }
       );
@@ -2433,10 +2527,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           window.clearTimeout(fullscreenRetryRef.current);
           fullscreenRetryRef.current = null;
         }
-        setStoredShellState((prev) => ({
-          ...prev,
-          playerPresentation: value ? 'expanded' : 'bar'
-        }));
+        setStoredShellState((prev) => {
+          if (value && prev.playerPresentation !== 'expanded') {
+            playerPresentationBeforeExpandedRef.current =
+              prev.playerPresentation === 'peek' ? 'peek' : 'bar';
+          }
+          return {
+            ...prev,
+            playerPresentation: value
+              ? 'expanded'
+              : playerPresentationBeforeExpandedRef.current
+          };
+        });
         if (!value) {
           return;
         }
@@ -2729,6 +2831,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     <PlaybackContext.Provider value={playbackValue}>
       <LibraryContext.Provider value={libraryValue}>
         <ShellContext.Provider value={shellValue}>
+          <span
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            data-playback-live-status
+            className="visually-hidden"
+          >
+            {playbackAnnouncement}
+          </span>
           {playbackRuntimeMounted ? (
             <Suspense fallback={null}>
               <PlaybackRuntimeLazy

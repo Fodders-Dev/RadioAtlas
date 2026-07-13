@@ -140,6 +140,7 @@ const BuilderSubSheet = ({ name, title, onClose, children }: BuilderSubSheetProp
         onClick={onClose}
         aria-label={t('common.close')}
         tabIndex={-1}
+        data-dialog-backdrop
       />
       <div className="bottom-sheet-card theme-builder-subsheet-card">
         <div className="bottom-sheet-handle" aria-hidden="true" />

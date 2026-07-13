@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
 // T1.4: keyboard users can open an overlay, Tab stays trapped inside,
 // Escape closes it, and focus returns to the element that opened it.
@@ -24,8 +24,10 @@ test.describe('dialog keyboard a11y', () => {
 
     const sheet = page.locator('.settings-sheet');
     await expect(sheet).toBeVisible();
-    // Focus landed inside the sheet.
+    // Focus lands on the visible close control, never the full-screen backdrop.
     expect(await focusIsInside(page, '.settings-sheet')).toBe(true);
+    expect(await activeMatches(page, '[data-dialog-initial-focus]')).toBe(true);
+    expect(await activeMatches(page, '[data-dialog-backdrop]')).toBe(false);
 
     // Tab stays trapped inside.
     for (let i = 0; i < 4; i += 1) {
@@ -33,10 +35,34 @@ test.describe('dialog keyboard a11y', () => {
       expect(await focusIsInside(page, '.settings-sheet')).toBe(true);
     }
 
+    const clearCache = sheet.getByRole('button', { name: /Очистить кэш|Clear cache/ });
+    await clearCache.click();
+    const confirmation = sheet.getByRole('group', {
+      name: /Очистить кэш каталога и глобуса|Clear the catalog and globe cache/
+    });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: /Отмена|Cancel/ }).click();
+    await expect(clearCache).toBeFocused();
+
     await page.keyboard.press('Escape');
     await expect(sheet).toHaveCount(0);
     // Focus returned to the trigger that opened the sheet.
     expect(await activeMatches(page, '.mobile-settings-trigger')).toBe(true);
+  });
+
+  test('Lira stays in local navigation and opens its chat sheet', async ({ page }) => {
+    await page.goto('/');
+    const trigger = page.locator('.mobile-nav-chat');
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+
+    const sheet = page.locator('[data-chat-sheet]');
+    await expect(sheet).toBeVisible();
+    expect(await focusIsInside(page, '[data-chat-sheet]')).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    expect(await activeMatches(page, '.mobile-nav-chat')).toBe(true);
   });
 
   // PR-4b: the theme builder's mobile sub-sheets portal to <body> with their
@@ -99,6 +125,11 @@ test.describe('dialog keyboard a11y', () => {
     await expect
       .poll(() => page.evaluate(() => document.activeElement?.id || ''))
       .toBe('search-hero-input');
+
+    await page.locator('#search-hero-input').fill('jazz');
+    await expect(page.locator('#search-hero-input')).toHaveAccessibleName(
+      /Название, жанр, страна, язык|Name, genre, country, language/
+    );
   });
 
   test('FullPlayerOverlay: focus trap, Escape, and focus restoration', async ({ page }) => {
@@ -148,11 +179,65 @@ test.describe('dialog keyboard a11y', () => {
 
     await page.keyboard.press('Escape');
     await expect(overlay).toHaveCount(0);
-    // Escape closes the feed back to Home. (The feed swaps the active section, so
-    // the Home-entry trigger unmounts while the feed is open — focus releases to
-    // the document on close rather than the detached trigger node. The focus
-    // TRAP and Escape-to-close above are the load-bearing a11y guarantees.)
-    expect(await focusIsInside(page, '.station-feed-overlay')).toBe(false);
+    // The original trigger unmounts while Feed is open; the dialog now resolves
+    // the newly-mounted Home entry (or the Home nav fallback) before restoring.
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.activeElement?.matches(
+            '.home-feed-entry, .app-navigation-mobile .mobile-nav-item:first-child'
+          )
+        )
+      )
+      .toBe(true);
+  });
+
+  test('Home like is a standalone keyboard action and does not start playback', async ({ page }) => {
+    await page.goto('/');
+    const firstCard = page.locator('[data-home-station]').first();
+    const stationId = await firstCard.getAttribute('data-home-station');
+    expect(stationId).toBeTruthy();
+    const like = firstCard.locator('.home-action-btn-like');
+
+    await like.focus();
+    await expect(like).toBeFocused();
+    await like.press('Space');
+
+    await expect
+      .poll(() =>
+        page.evaluate((id) => {
+          const raw = window.localStorage.getItem('radio:library:v2');
+          if (!raw) return false;
+          const stored = JSON.parse(raw) as { favorites?: Array<{ stationuuid?: string }> };
+          return stored.favorites?.some((station) => station.stationuuid === id) || false;
+        }, stationId)
+      )
+      .toBe(true);
+    await expect(page.locator('.player-dock').first()).toHaveAttribute('data-empty', 'true');
+  });
+
+  test('Library tabs support arrow keys and keep the selected tab after navigation', async ({ page }) => {
+    await seedRadioState(page, {
+      activeSection: 'library',
+      libraryTab: 'queue',
+      queue: stations.slice(0, 3)
+    });
+    await page.goto('/');
+
+    const queueTab = page.getByRole('tab', { name: /Очередь|Queue/ });
+    await expect(queueTab).toHaveAttribute('aria-selected', 'true');
+    await queueTab.focus();
+    await page.keyboard.press('ArrowRight');
+
+    const recentTab = page.getByRole('tab', { name: /Недавнее|Recent/ });
+    await expect(recentTab).toHaveAttribute('aria-selected', 'true');
+
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Медиатека|Library/ }).click();
+    await expect(page.getByRole('tab', { name: /Недавнее|Recent/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
   });
 
   test('T1.8: visible focus indicator + <html lang> reflects locale', async ({ page }) => {

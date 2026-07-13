@@ -59,16 +59,10 @@ type GlobeProps = {
   // soft-highlight the candidate station as the globe moves under the
   // crosshair.
   onReticleHover?: (stationId: string | null) => void;
-  // Fires after the camera has been still for ~900 ms with the same
-  // station as `onReticleHover` reported. The parent treats this as a
-  // "play it" signal — Radio Garden style auto-tune.
+  // Fires after a drag has settled with the same station as
+  // `onReticleHover` reported. This is selection-only: the parent may
+  // resolve a preview, but must not start audio without an explicit action.
   onReticleSettle?: (stationId: string) => void;
-  // Lets the reticle drop out of its `tuning` state the moment audio
-  // actually starts. When the parent flips this to true while the
-  // reticle is mid-tune the ring snaps to `idle` immediately instead
-  // of waiting for the fallback timer. False during streaming /
-  // buffering / paused.
-  playbackActive?: boolean;
   totalCount?: number;
   geoCount?: number;
   zoomLevel?: number;
@@ -592,7 +586,6 @@ export const Globe = ({
   onPick,
   onReticleHover,
   onReticleSettle,
-  playbackActive,
   zoomLevel,
   onZoomChange,
   hintText,
@@ -605,6 +598,7 @@ export const Globe = ({
   const lastEmittedScaleRef = useRef<number>(1);
   // Callbacks referenced from event handlers attached once on the map;
   // refs keep them current without re-attaching on every render.
+  const onPickRef = useRef(onPick);
   const onReticleHoverRef = useRef(onReticleHover);
   const onReticleSettleRef = useRef(onReticleSettle);
   // Reticle nearest-search reads the live point set without re-attaching
@@ -612,6 +606,7 @@ export const Globe = ({
   // per-station sprinkle). (T2.13)
   const pointsRef = useRef(points);
   useEffect(() => {
+    onPickRef.current = onPick;
     onReticleHoverRef.current = onReticleHover;
     onReticleSettleRef.current = onReticleSettle;
     pointsRef.current = points;
@@ -623,6 +618,7 @@ export const Globe = ({
     if (!node) return;
     if (mapRef.current) return;
 
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const initialZoom = SCALE_TO_ZOOM(typeof zoomLevel === 'number' ? zoomLevel : 1);
     const map = new maplibregl.Map({
       container: node,
@@ -635,7 +631,7 @@ export const Globe = ({
       dragRotate: false,
       maxPitch: 0,
       renderWorldCopies: true,
-      fadeDuration: 200,
+      fadeDuration: reduceMotion ? 0 : 200,
       // A finger tap on a dot jitters several px; the 3px default made those
       // taps register as a drag (so the tap-to-play click never fired and the
       // gesture fell through to a pan). 10px lets a slightly-imprecise tap still
@@ -738,7 +734,7 @@ export const Globe = ({
         (lon, lat) => map.project([lon, lat]),
         TAP_PICK_RADIUS_PX
       );
-      if (nearest) onPick?.(nearest);
+      if (nearest) onPickRef.current?.(nearest);
     });
 
     map.on('mouseenter', 'stations-dot', () => {
@@ -760,15 +756,11 @@ export const Globe = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reticle-snap: while the camera moves, highlight whichever
+  // Reticle selection: while the camera moves, highlight whichever
   // station's rendered dot is closest to the viewport centre. When
-  // the user finishes a *drag pan* (not a zoom, not a programmatic
-  // flyTo) and stays still for ~900 ms, emit a settle so the parent
-  // can auto-tune. Zoom-only gestures never trigger settle — those
-  // are pure exploration and shouldn't hijack playback. Auto-tune
-  // also stays off below MapLibre zoom 3.5 (~continent view) where
-  // the reticle covers half a continent and "nearest" is meaningless.
-  const [reticleState, setReticleState] = useState<'idle' | 'aiming' | 'tuning'>(
+  // a deliberate drag settles, emit a selection-only event. Zoom-only
+  // gestures and programmatic flights never commit a selection.
+  const [reticleState, setReticleState] = useState<'idle' | 'aiming' | 'selected'>(
     'idle'
   );
   // Use a ref so the state-machine inside the once-mounted map
@@ -780,26 +772,15 @@ export const Globe = ({
     setReticleState(next);
   };
 
-  // When the parent reports playback has actually started while
-  // we're mid-tune, snap straight out — the user just heard the
-  // stream connect, no point in waiting out the fallback timer.
-  useEffect(() => {
-    if (!playbackActive) return;
-    if (reticleStateRef.current !== 'tuning') return;
-    setReticle('idle');
-  }, [playbackActive]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
 
-    const SETTLE_DELAY_MS = 900;
-    // Aim-to-play floor. The default planet view is scale 1 = map zoom 2.4,
-    // so the old 3.5 floor (≈ scale 2.1) meant the crosshair only auto-tuned
-    // after the user had zoomed well past the natural view — Artem's "only
-    // works when I zoom in a lot". Drop it below the default so aiming a dot
-    // under the crosshair tunes from the normal globe view down; the lock
-    // radius + the empty-aim null-relax below keep world-view aims honest.
-    const AUTO_TUNE_MIN_ZOOM = 1.5;
+    const SETTLE_DELAY_MS = 450;
+    // At very wide world views the reticle spans too much geography for a
+    // committed selection to feel honest. The default view is map zoom 2.4,
+    // so this floor still allows selection from the normal globe view.
+    const RETICLE_SELECT_MIN_ZOOM = 1.5;
 
     let lastHoverId: string | null = null;
     let userHasDragged = false;
@@ -808,7 +789,7 @@ export const Globe = ({
     // Returns the station whose rendered dot is *visually* closest to
     // the reticle right now. The pixel cap means we only commit when
     // a dot is within the lock radius of the crosshair — beyond that the
-    // user clearly aimed at empty space and we should not auto-tune.
+      // user clearly aimed at empty space and we should not commit a selection.
     // The radius tapers at the newly-enabled low zoom levels (small planet,
     // dense dots) so a far-off dot can't snap under the crosshair, while the
     // zoom range that already worked (≥ ~2.5) keeps the proven 140 px cap.
@@ -891,7 +872,7 @@ export const Globe = ({
         }
         const id = findNearestStation();
         if (!id) {
-          // Aimed at empty space — don't tune, just relax the
+          // Aimed at empty space — don't select, just relax the
           // reticle back to idle so the user can try again.
           userHasDragged = false;
           setReticle('idle');
@@ -902,36 +883,33 @@ export const Globe = ({
     };
 
     const fireSettle = (target: string) => {
-      // Reticle "tunes in": dashed → solid green pulse while the
-      // camera animates toward the chosen station and the stream
-      // loads. The parent receives the settle event in the same
-      // tick so it can fire the easeTo + playStation pipeline.
-      setReticle('tuning');
+      // Briefly confirm the lock. The parent resolves a selection preview;
+      // audio remains untouched until the user taps a point or Play CTA.
+      setReticle('selected');
       onReticleSettleRef.current?.(target);
-      // After ~900 ms the easeTo (700 ms) and the loading pulse
-      // are done. Drop into the steady "idle" state — solid green
-      // ring around the centred station — until the user starts
-      // another drag.
       window.setTimeout(() => {
-        if (reticleStateRef.current === 'tuning') setReticle('idle');
-      }, 900);
+        if (reticleStateRef.current === 'selected') setReticle('idle');
+      }, 520);
       userHasDragged = false;
     };
 
-    // Auto-tune-on-settle is OFF: a drag PANS the globe and never surprise-plays
-    // whatever ends up under the crosshair (Artem's "выбираю одно радио, а меня
-    // переносит к другому повыше"). Tap a dot to play it. The reticle stays a
-    // visual aim guide + the aim-pill's "tap to play" cue; the settle machinery
-    // above is retained (unused) so re-enabling it later is a one-line change.
+    // Dragging selects the station under the reticle after inertia ends. It does
+    // not play it; the resolved preview exposes a native, keyboard-focusable
+    // Play button. A direct click/tap on a dot remains an explicit play intent.
     const handleDragEnd = () => {
-      cancelSettle();
-      userHasDragged = false;
-      if (reticleStateRef.current === 'aiming') setReticle('idle');
+      if (!userHasDragged || map.getZoom() < RETICLE_SELECT_MIN_ZOOM) {
+        cancelSettle();
+        userHasDragged = false;
+        if (reticleStateRef.current === 'aiming') setReticle('idle');
+        return;
+      }
+      scheduleSettle();
     };
 
     const handleZoomEnd = () => {
       cancelSettle();
       userHasDragged = false;
+      if (reticleStateRef.current === 'aiming') setReticle('idle');
     };
 
     map.on('dragstart', handleDragStart);
@@ -1011,10 +989,11 @@ export const Globe = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !focusPoint) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     map.easeTo({
       center: [focusPoint.lon, focusPoint.lat],
-      duration: 700,
-      essential: true
+      duration: reduceMotion ? 0 : 700,
+      essential: false
     });
   }, [focusPoint?.lat, focusPoint?.lon, ready]);
 
@@ -1031,7 +1010,8 @@ export const Globe = ({
     }
     const targetZoom = SCALE_TO_ZOOM(zoomLevel);
     if (Math.abs(map.getZoom() - targetZoom) < 0.02) return;
-    map.easeTo({ zoom: targetZoom, duration: 320 });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    map.easeTo({ zoom: targetZoom, duration: reduceMotion ? 0 : 320, essential: false });
   }, [ready, zoomLevel]);
 
   return (

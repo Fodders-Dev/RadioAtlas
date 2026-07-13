@@ -105,6 +105,38 @@ describe('Home cards density (T2.20)', () => {
     expect(container.querySelector('.home-metric-pill')).toBeNull();
   });
 
+  it('reference hero exposes one semantic play action without polluting rail tile counts', () => {
+    const station = makeStation(7);
+    const onPlay = vi.fn();
+    const onToggleFavorite = vi.fn();
+    mount(
+      createElement(HomeHeroCard, {
+        module: heroModule(station),
+        isActive: false,
+        activeTrack: null,
+        liked: false,
+        refreshing: false,
+        onPlay,
+        onToggleFavorite,
+        onExplore: vi.fn(),
+        onRefresh: vi.fn()
+      })
+    );
+
+    const hero = container.querySelector<HTMLElement>('[data-home-hero="uuid-7"]');
+    expect(hero).not.toBeNull();
+    expect(hero!.querySelectorAll('.home-hero-play')).toHaveLength(1);
+    expect(hero!.querySelectorAll('[data-home-station]')).toHaveLength(0);
+
+    act(() => hero!.querySelector<HTMLButtonElement>('.home-hero-play')!.click());
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onPlay.mock.calls[0]?.[0]?.stationuuid).toBe('uuid-7');
+
+    act(() => hero!.querySelector<HTMLButtonElement>('.home-icon-btn')!.click());
+    expect(onToggleFavorite).toHaveBeenCalledTimes(1);
+    expect(onPlay).toHaveBeenCalledTimes(1);
+  });
+
   it('HomeRail renders one data-home-station tile per station', () => {
     const stations = [1, 2, 3, 4, 5].map(makeStation);
     mount(
@@ -124,7 +156,7 @@ describe('Home cards density (T2.20)', () => {
     expect(container.querySelectorAll('[data-home-station]')).toHaveLength(stations.length);
   });
 
-  it('T_mobile_1 B: a click anywhere on the tile triggers onPlay, the heart only toggles favourite', () => {
+  it('T_mobile_1 B: the full-tile primary action plays, while the heart only toggles favourite', () => {
     const stations = [1, 2, 3].map(makeStation);
     const onPlay = vi.fn();
     const onToggleFavorite = vi.fn();
@@ -143,30 +175,39 @@ describe('Home cards density (T2.20)', () => {
     const tiles = container.querySelectorAll<HTMLElement>('[data-home-station]');
     expect(tiles.length).toBe(3);
 
-    // Click the tile root (not the inner buttons) → onPlay once with this station.
-    act(() => tiles[0]!.click());
+    // The generous tile-sized hit area is a real sibling button, avoiding
+    // nested controls while still making the visual card the play target.
+    const primaryAction = tiles[0]!.querySelector<HTMLButtonElement>(
+      '.home-station-primary-action'
+    );
+    expect(primaryAction).not.toBeNull();
+    act(() => primaryAction!.click());
     expect(onPlay).toHaveBeenCalledTimes(1);
     expect(onPlay.mock.calls[0]?.[0]?.stationuuid).toBe('uuid-1');
     expect(onToggleFavorite).not.toHaveBeenCalled();
 
-    // Click the heart inside the next tile — favourite toggles, play does NOT fire
-    // (the like button stopPropagation prevents the tile-level onPlay from firing).
+    // Click the heart inside the next tile — favourite toggles, play does NOT fire.
     const heart = tiles[1]!.querySelector<HTMLButtonElement>('.home-action-btn-like');
     expect(heart).not.toBeNull();
     act(() => heart!.click());
     expect(onToggleFavorite).toHaveBeenCalledTimes(1);
     expect(onPlay).toHaveBeenCalledTimes(1); // still 1 — no double-fire from the heart
 
-    // Click the visible play icon inside the third tile — onPlay called once
-    // (not twice — stopPropagation prevents the article handler from re-firing).
-    const playBtn = tiles[2]!.querySelector<HTMLButtonElement>('.home-action-btn-play');
-    expect(playBtn).not.toBeNull();
-    act(() => playBtn!.click());
+    // The visible play glyph is decorative: the tile has one play control,
+    // while Favorite remains the only independent sibling action.
+    const playGlyph = tiles[2]!.querySelector<HTMLElement>('.home-action-btn-play');
+    const thirdPrimaryAction = tiles[2]!.querySelector<HTMLButtonElement>(
+      '.home-station-primary-action'
+    );
+    expect(playGlyph?.tagName).toBe('SPAN');
+    expect(playGlyph?.getAttribute('aria-hidden')).toBe('true');
+    expect(thirdPrimaryAction).not.toBeNull();
+    act(() => thirdPrimaryAction!.click());
     expect(onPlay).toHaveBeenCalledTimes(2);
     expect(onPlay.mock.calls[1]?.[0]?.stationuuid).toBe('uuid-3');
   });
 
-  it('T_mobile_1 B: tile root is keyboard-actionable (role=button, tabIndex=0, aria-label)', () => {
+  it('T_mobile_1 B: the tile play target uses native button semantics and an accessible name', () => {
     const stations = [1].map(makeStation);
     mount(
       createElement(HomeRail, {
@@ -180,11 +221,15 @@ describe('Home cards density (T2.20)', () => {
       })
     );
     const tile = container.querySelector<HTMLElement>('[data-home-station]')!;
-    expect(tile.getAttribute('role')).toBe('button');
-    expect(tile.getAttribute('tabindex')).toBe('0');
+    const primaryAction = tile.querySelector<HTMLButtonElement>('.home-station-primary-action')!;
+    expect(tile.tagName).toBe('ARTICLE');
+    expect(tile.getAttribute('role')).toBeNull();
+    expect(primaryAction.tagName).toBe('BUTTON');
+    expect(primaryAction.type).toBe('button');
+    expect(primaryAction.tabIndex).toBe(0);
     // aria-label carries the station name (locale fallback to key in jsdom is OK,
     // the important contract is "the name is in the accessible name").
-    const ariaLabel = tile.getAttribute('aria-label') || '';
+    const ariaLabel = primaryAction.getAttribute('aria-label') || '';
     expect(ariaLabel).toContain('Station 1');
   });
 

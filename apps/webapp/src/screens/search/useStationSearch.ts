@@ -30,6 +30,39 @@ const CONTINENT_ORDER: Array<ContinentId | 'Other'> = [
 const SEARCH_HISTORY_KEY = 'radio:search-history:v1';
 const MAX_SEARCH_HISTORY = 6;
 
+const dedupeCountryLabels = (values: string[]) => {
+  const labels = new Map<string, string>();
+  values.forEach((value) => {
+    const label = value.trim();
+    if (!label || label === 'All') return;
+    const key = label.toLocaleLowerCase();
+    const current = labels.get(key);
+    if (!current || (/^\p{Ll}/u.test(current) && /^\p{Lu}/u.test(label))) {
+      labels.set(key, label);
+    }
+  });
+  return [...labels.values()];
+};
+
+const mergeCountryBuckets = (buckets: CatalogCountryBucket[]) => {
+  const merged = new Map<string, CatalogCountryBucket>();
+  buckets.forEach((bucket) => {
+    const country = bucket.country.trim();
+    if (!country) return;
+    const key = country.toLocaleLowerCase();
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, { ...bucket, key, country });
+      return;
+    }
+    current.count += bucket.count;
+    if (/^\p{Ll}/u.test(current.country) && /^\p{Lu}/u.test(country)) {
+      current.country = country;
+    }
+  });
+  return [...merged.values()];
+};
+
 const readSearchHistory = () => {
   if (typeof window === 'undefined') return [];
   try {
@@ -124,7 +157,7 @@ export const useStationSearch = ({
         setResults((prev) => (append ? mergeStations(prev, response.items) : response.items));
         setSearchTotal(response.total);
         setNextCursor(response.nextCursor);
-        setCountries(['All', ...response.facets.countries]);
+        setCountries(['All', ...dedupeCountryLabels(response.facets.countries)]);
         setTags(['All', ...response.facets.tags]);
         setLanguages(['All', ...response.facets.languages]);
         setContinentCounts(
@@ -133,7 +166,7 @@ export const useStationSearch = ({
             count: response.facets.continentCounts.find((item) => item.id === id)?.count || 0
           })).filter((item) => item.count > 0)
         );
-        setFeaturedCountries(response.facets.featuredCountries);
+        setFeaturedCountries(mergeCountryBuckets(response.facets.featuredCountries));
         setSearchError(null);
       } catch (error) {
         if (searchTokenRef.current !== token) return;
@@ -234,7 +267,6 @@ export const useStationSearch = ({
   const featuredTags = useMemo(() => tags.filter((tag) => tag !== 'All').slice(0, 8), [tags]);
 
   const activeFilterCount =
-    Number(Boolean(debounced.trim())) +
     Number(countryFilter !== 'All') +
     Number(tagFilter !== 'All') +
     Number(languageFilter !== 'All') +
@@ -243,13 +275,6 @@ export const useStationSearch = ({
   const activeFilters = useMemo(
     () =>
       [
-        debounced.trim()
-          ? {
-              id: 'query',
-              label: `"${debounced.trim()}"`,
-              clear: () => setQuery('')
-            }
-          : null,
         countryFilter !== 'All'
           ? {
               id: 'country',
@@ -279,7 +304,7 @@ export const useStationSearch = ({
             }
           : null
       ].filter(Boolean) as SearchActiveFilter[],
-    [continentFilter, countryFilter, debounced, languageFilter, tagFilter]
+    [continentFilter, countryFilter, languageFilter, tagFilter]
   );
 
   const resetSearchScope = useCallback(() => {

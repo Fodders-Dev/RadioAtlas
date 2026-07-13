@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeStationName } from './stationUtils';
+import type { StationLite } from '../types';
+import {
+  formatCountryLabel,
+  normalizeStationName,
+  stationLocation,
+  stationTags
+} from './stationUtils';
 
 describe('normalizeStationName', () => {
   it('trims leading underscores and spaces', () => {
@@ -39,5 +45,26 @@ describe('normalizeStationName', () => {
 
   it('leaves an already-clean name unchanged', () => {
     expect(normalizeStationName('BBC Radio 6 Music')).toBe('BBC Radio 6 Music');
+  });
+});
+
+describe('station display fallbacks', () => {
+  const station = {
+    stationuuid: 'station',
+    name: 'Station',
+    country: '',
+    state: '',
+    tags: ''
+  } as StationLite;
+
+  it('lets localized callers supply empty-state copy', () => {
+    expect(stationLocation(station, 'Локация не указана')).toBe('Локация не указана');
+    expect(stationTags(station, '')).toBe('');
+  });
+
+  it('shortens verbose catalog country names for display', () => {
+    expect(formatCountryLabel('The United Kingdom Of Great Britain And Northern Ireland')).toBe(
+      'United Kingdom'
+    );
   });
 });

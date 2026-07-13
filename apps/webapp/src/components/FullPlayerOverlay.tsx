@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject
+} from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
@@ -106,6 +114,7 @@ type FullPlayerSheetProps = {
   kicker: string;
   title: string;
   children: ReactNode;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 // PR-6: bottom-anchored sheet for the mobile player (queue / overflow actions).
@@ -115,11 +124,29 @@ type FullPlayerSheetProps = {
 // inerts siblings, so nesting one dialog root inside another would double-handle
 // every Tab. As a sibling (the StationDetails pattern) the sheet inerts the
 // overlay underneath and restores focus to the control that opened it on close.
-const FullPlayerSheet = ({ open, onClose, kicker, title, children }: FullPlayerSheetProps) => {
+const FullPlayerSheet = ({
+  open,
+  onClose,
+  kicker,
+  title,
+  children,
+  initialFocusRef
+}: FullPlayerSheetProps) => {
   const { t } = useLocale();
   const rootRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useDialog(rootRef, { isOpen: open, onClose });
+
+  useEffect(() => {
+    if (!open || !initialFocusRef) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const target = initialFocusRef.current;
+      if (!target) return;
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialFocusRef, open]);
 
   if (!open) {
     return null;
@@ -138,6 +165,7 @@ const FullPlayerSheet = ({ open, onClose, kicker, title, children }: FullPlayerS
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        data-dialog-backdrop
       />
       <div className="full-player-sheet-card">
         <span className="full-player-sheet-handle" aria-hidden="true" />
@@ -191,9 +219,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   } = useLibrary();
   const { setActiveSection, setLibraryTab, winamp } = useShell();
   const rootRef = useRef<HTMLDivElement>(null);
+  const recentPanelRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobilePlayerLayout();
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
-  const [queueSheetOpen, setQueueSheetOpen] = useState(false);
+  const [queueSheetTarget, setQueueSheetTarget] = useState<'queue' | 'recent' | null>(null);
   const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
   const [dialMinutes, setDialMinutes] = useState(30);
   const sleepLabel = sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : t('settings.off');
@@ -247,6 +276,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     const start = Math.max(activeQueueIndex, 0);
     return queue.items.slice(start, start + 13);
   }, [activeQueueIndex, queue.items]);
+  const nextQueueIndex = queue.items.length
+    ? activeQueueIndex >= 0
+      ? activeQueueIndex + 1
+      : 0
+    : -1;
+  const nextQueueStation = queue.items[nextQueueIndex] || null;
   const recentTracks = useMemo(
     () =>
       (current
@@ -305,7 +340,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const openActionsSheet = () => setActionsSheetOpen(true);
   const openQueueSheet = () => {
     setActionsSheetOpen(false);
-    setQueueSheetOpen(true);
+    setQueueSheetTarget('queue');
+  };
+  const openRecentTracksSheet = () => {
+    setActionsSheetOpen(false);
+    setQueueSheetTarget('recent');
   };
 
   const renderQueueItem = (station: StationLite, index: number) => {
@@ -440,6 +479,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
       }}
       disabled={!current}
       aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+      aria-pressed={liked}
     >
       <ThemeActionIcon name="like">{actionIcon.like}</ThemeActionIcon>
       <span>{liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}</span>
@@ -511,7 +551,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   );
 
   const renderRecentPanel = () => (
-    <div className="full-player-panel">
+    <div
+      ref={recentPanelRef}
+      className="full-player-panel"
+      data-full-player-recent
+      tabIndex={-1}
+    >
       <div className="full-player-panel-head">
         <h3>{t('winamp.recentTracks')}</h3>
         <span>{current ? current.country || t('common.unknown') : t('common.unknown')}</span>
@@ -568,7 +613,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               </button>
             </header>
 
-            <main className="full-player-main full-player-main--stage">
+            <main
+              className="full-player-main full-player-main--stage"
+              data-has-next={nextQueueStation ? 'true' : 'false'}
+            >
               <div className="full-player-hero">
                 <StationArtwork station={current} size="card" className="full-player-artwork" />
               </div>
@@ -590,6 +638,22 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
                 active={player.visualizer.active}
                 subscribe={player.subscribeVisualizer}
               />
+
+              {nextQueueStation ? (
+                <button
+                  className="full-player-next-row"
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    queue.playAtIndex(nextQueueIndex);
+                  }}
+                  aria-label={`${t('common.play')}: ${normalizeStationName(nextQueueStation.name)}`}
+                >
+                  <span>{t('winamp.upNext')}</span>
+                  <strong>{normalizeStationName(nextQueueStation.name)}</strong>
+                  <Icon>{actionIcon.next}</Icon>
+                </button>
+              ) : null}
 
               {renderTransport()}
 
@@ -796,7 +860,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               <Icon>{actionIcon.hide}</Icon>
               <span>{stationHidden ? t('details.showInRecommendations') : t('details.hideFromRecommendations')}</span>
             </button>
-            <button className="full-player-action-row" type="button" onClick={openQueueSheet}>
+            <button
+              className="full-player-action-row"
+              type="button"
+              onClick={openRecentTracksSheet}
+            >
               <Icon>{actionIcon.copy}</Icon>
               <span>{t('winamp.recentTracks')}</span>
             </button>
@@ -806,10 +874,13 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
 
       {isMobileLayout ? (
         <FullPlayerSheet
-          open={queueSheetOpen}
-          onClose={() => setQueueSheetOpen(false)}
+          open={queueSheetTarget !== null}
+          onClose={() => setQueueSheetTarget(null)}
           kicker={queueLabel}
-          title={t('playlist.title')}
+          title={
+            queueSheetTarget === 'recent' ? t('winamp.recentTracks') : t('playlist.title')
+          }
+          initialFocusRef={queueSheetTarget === 'recent' ? recentPanelRef : undefined}
         >
           <div className="full-player-sheet-panels">
             {renderQueuePanel()}

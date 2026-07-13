@@ -31,7 +31,11 @@ const isVisible = (element: HTMLElement) => {
 
 const getFocusable = (root: HTMLElement): HTMLElement[] =>
   Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => !element.hasAttribute('disabled') && element.tabIndex !== -1 && isVisible(element)
+    (element) =>
+      !element.hasAttribute('disabled') &&
+      element.tabIndex !== -1 &&
+      !element.closest('[data-dialog-backdrop]') &&
+      isVisible(element)
   );
 
 const focusElement = (element: HTMLElement | null | undefined) => {
@@ -47,8 +51,9 @@ const focusElement = (element: HTMLElement | null | undefined) => {
 // with the design" — which is exactly these themed, swipe-driven sheets
 // (and <dialog closedby> isn't in Safari / the iOS Telegram WebView).
 //
-// On open: capture the trigger, focus the first focusable element (or the
-// dialog itself), make every sibling of the dialog root `inert` so the
+// On open: capture the trigger, focus `[data-dialog-initial-focus]` when
+// provided, then the first focusable element that is not marked as a
+// `[data-dialog-backdrop]` (or the dialog itself), make every sibling of the dialog root `inert` so the
 // background is unreachable by pointer / keyboard / assistive tech, trap
 // Tab within the dialog, and close on Escape. On close/unmount: undo the
 // inerting, drop the listener, and restore focus to the trigger (falling
@@ -86,10 +91,24 @@ export const useDialog = (
       });
     }
 
-    // Initial focus: first focusable, else the dialog root itself.
+    // Backdrop buttons remain available to pointer users, but are deliberately
+    // excluded from both initial focus and the dialog's keyboard cycle. A
+    // visible close button or another preferred control can opt in explicitly.
     const initialFocusable = getFocusable(root);
-    if (initialFocusable.length > 0) {
-      initialFocusable[0]?.focus();
+    const preferredInitialFocus = root.querySelector<HTMLElement>(
+      '[data-dialog-initial-focus]'
+    );
+    const preferredIsUsable =
+      preferredInitialFocus &&
+      !preferredInitialFocus.hasAttribute('disabled') &&
+      !preferredInitialFocus.closest('[data-dialog-backdrop]') &&
+      isVisible(preferredInitialFocus);
+    const initialTarget = preferredIsUsable ? preferredInitialFocus : initialFocusable[0];
+    if (initialTarget) {
+      initialTarget.focus();
+      // A misplaced marker on a non-focusable node should not strand focus in
+      // the background; fall back to the first known focusable control.
+      if (doc.activeElement !== initialTarget) initialFocusable[0]?.focus();
     } else {
       if (!root.hasAttribute('tabindex')) root.setAttribute('tabindex', '-1');
       root.focus();

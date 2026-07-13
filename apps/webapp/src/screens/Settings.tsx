@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { clearApiBase, getApiBase, setApiBase } from '../lib/apiBase';
 import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
@@ -7,8 +7,10 @@ import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 
+type ClearAction = 'cache' | 'favorites' | 'recent';
+
 export const Settings = () => {
-  const { favorites, clearFavorites, clearRecent } = useLibrary();
+  const { favorites, recent, clearFavorites, clearRecent } = useLibrary();
   const { clearCatalogCache } = useCatalog();
   const {
     sleepTimer,
@@ -26,6 +28,8 @@ export const Settings = () => {
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
+  const [pendingClearAction, setPendingClearAction] = useState<ClearAction | null>(null);
+  const clearActionTriggerRefs = useRef<Partial<Record<ClearAction, HTMLButtonElement | null>>>({});
   const apiBase = getApiBase();
 
   useEffect(() => {
@@ -58,10 +62,82 @@ export const Settings = () => {
     clearCache();
   };
 
-  const handleClearFavorites = () => {
-    if (!favorites.length) return;
-    if (!window.confirm(t('settings.clearFavoritesConfirm', { count: favorites.length }))) return;
-    clearFavorites();
+  const restoreClearActionFocus = (action: ClearAction) => {
+    window.requestAnimationFrame(() => {
+      const trigger = clearActionTriggerRefs.current[action];
+      if (trigger && !trigger.disabled) {
+        trigger.focus();
+        return;
+      }
+      document.querySelector<HTMLElement>('[data-dialog-initial-focus]')?.focus();
+    });
+  };
+
+  const handleCancelClear = (action: ClearAction) => {
+    setPendingClearAction(null);
+    restoreClearActionFocus(action);
+  };
+
+  const handleConfirmClear = (action: ClearAction) => {
+    if (action === 'cache') {
+      handleClearCache();
+    } else if (action === 'favorites') {
+      clearFavorites();
+    } else {
+      clearRecent();
+    }
+    setPendingClearAction(null);
+    restoreClearActionFocus(action);
+  };
+
+  const renderClearAction = (
+    action: ClearAction,
+    label: string,
+    confirmation: string,
+    disabled = false
+  ) => {
+    const confirmationId = `settings-clear-${action}-confirmation`;
+    const isPending = pendingClearAction === action;
+
+    return (
+      <>
+        <button
+          ref={(element) => {
+            clearActionTriggerRefs.current[action] = element;
+          }}
+          className="chip"
+          onClick={() => setPendingClearAction(action)}
+          type="button"
+          disabled={disabled}
+          aria-expanded={isPending}
+          aria-controls={isPending ? confirmationId : undefined}
+        >
+          {label}
+        </button>
+        {isPending ? (
+          <div
+            className="settings-actions"
+            id={confirmationId}
+            role="group"
+            aria-label={confirmation}
+          >
+            <span className="settings-desc" aria-live="polite">
+              {confirmation}
+            </span>
+            <button
+              className="chip active"
+              type="button"
+              onClick={() => handleConfirmClear(action)}
+            >
+              {t('settings.confirmClear')}
+            </button>
+            <button className="chip" type="button" onClick={() => handleCancelClear(action)}>
+              {t('common.cancel')}
+            </button>
+          </div>
+        ) : null}
+      </>
+    );
   };
 
   return (
@@ -120,58 +196,52 @@ export const Settings = () => {
             </button>
           </div>
         </div>
-        <div className="settings-card stack">
-          <div>
-            <div className="settings-label">{t('settings.apiBaseLabel')}</div>
-            <div className="settings-desc">{t('settings.apiBaseDesc')}</div>
+      </div>
+
+      <div className="section">
+        <div className="section-title">{t('settings.dataTitle')}</div>
+        <div className="settings-card stack settings-data-card">
+          <div className="settings-data-row">
+            <div>
+              <div className="settings-label">{t('settings.cacheLabel')}</div>
+              <div className="settings-desc">{t('settings.cacheDesc')}</div>
+            </div>
+            <div className="settings-data-action">
+              {renderClearAction(
+                'cache',
+                t('settings.clearCache'),
+                t('settings.clearCacheConfirm')
+              )}
+            </div>
           </div>
-          <input
-            className="settings-input"
-            value={apiUrl}
-            onChange={(event) => setApiUrl(event.target.value)}
-            placeholder={t('settings.apiPlaceholder')}
-            type="url"
-          />
-          <div className="settings-actions">
-            <button className="chip" onClick={handleSaveApi} type="button">
-              {t('common.saveReload')}
-            </button>
-            <button className="chip" onClick={handleResetApi} type="button">
-              {t('common.reset')}
-            </button>
+          <div className="settings-data-row">
+            <div>
+              <div className="settings-label">{t('settings.favoritesLabel')}</div>
+              <div className="settings-desc">{t('settings.favoritesDesc')}</div>
+            </div>
+            <div className="settings-data-action">
+              {renderClearAction(
+                'favorites',
+                t('settings.clearFavorites'),
+                t('settings.clearFavoritesConfirm', { count: favorites.length }),
+                !favorites.length
+              )}
+            </div>
           </div>
-        </div>
-        <div className="settings-card">
-          <div>
-            <div className="settings-label">{t('settings.cacheLabel')}</div>
-            <div className="settings-desc">{t('settings.cacheDesc')}</div>
+          <div className="settings-data-row">
+            <div>
+              <div className="settings-label">{t('settings.recentLabel')}</div>
+              <div className="settings-desc">{t('settings.recentDesc')}</div>
+            </div>
+            <div className="settings-data-action">
+              {renderClearAction(
+                'recent',
+                t('settings.clearRecent'),
+                t('settings.clearRecentConfirm', { count: recent.length }),
+                !recent.length
+              )}
+            </div>
           </div>
-          <button className="chip" onClick={handleClearCache} type="button">
-            {t('settings.clearCache')}
-          </button>
-        </div>
-        <div className="settings-card">
-          <div>
-            <div className="settings-label">{t('settings.favoritesLabel')}</div>
-            <div className="settings-desc">{t('settings.favoritesDesc')}</div>
-          </div>
-          <button
-            className="chip"
-            onClick={handleClearFavorites}
-            type="button"
-            disabled={!favorites.length}
-          >
-            {t('settings.clearFavorites')}
-          </button>
-        </div>
-        <div className="settings-card">
-          <div>
-            <div className="settings-label">{t('settings.recentLabel')}</div>
-            <div className="settings-desc">{t('settings.recentDesc')}</div>
-          </div>
-          <button className="chip" onClick={clearRecent} type="button">
-            {t('settings.clearRecent')}
-          </button>
         </div>
       </div>
 
@@ -225,24 +295,52 @@ export const Settings = () => {
         </div>
       </div>
 
-      <div className="section">
-        <div className="section-title">{t('settings.diagnosticsTitle')}</div>
+      <details className="section settings-developer-section">
+        <summary className="section-title">{t('settings.developerTitle')}</summary>
+        <div className="settings-card stack">
+          <div>
+            <label className="settings-label" htmlFor="settings-api-base">
+              {t('settings.apiBaseLabel')}
+            </label>
+            <div className="settings-desc">{t('settings.apiBaseDesc')}</div>
+          </div>
+          <input
+            id="settings-api-base"
+            className="settings-input"
+            value={apiUrl}
+            onChange={(event) => setApiUrl(event.target.value)}
+            placeholder={t('settings.apiPlaceholder')}
+            type="url"
+          />
+          <div className="settings-actions">
+            <button className="chip" onClick={handleSaveApi} type="button">
+              {t('common.saveReload')}
+            </button>
+            <button className="chip" onClick={handleResetApi} type="button">
+              {t('common.reset')}
+            </button>
+          </div>
+        </div>
+
         <div className="settings-card stack">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div>
-              <div className="settings-label">{t('settings.debugLabel')}</div>
+              <div className="settings-label">{t('settings.diagnosticsTitle')}</div>
               <div className="settings-desc">{t('settings.debugDesc')}</div>
             </div>
             <button
               className="chip"
               onClick={() => setShowDebug(!showDebug)}
               type="button"
+              aria-expanded={showDebug}
+              aria-controls="settings-debug-details"
             >
               {showDebug ? t('common.hide') : t('common.show')}
             </button>
           </div>
-          {showDebug && (
+          {showDebug ? (
             <div
+              id="settings-debug-details"
               style={{
                 marginTop: 12,
                 display: 'flex',
@@ -295,15 +393,13 @@ export const Settings = () => {
                 }}
               >
                 {debugLogs?.length
-                  ? debugLogs.map((log: string, i: number) => (
-                    <div key={i}>{log}</div>
-                  ))
+                  ? debugLogs.map((log: string, i: number) => <div key={i}>{log}</div>)
                   : t('settings.noLogs')}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
-      </div>
+      </details>
     </div>
   );
 };

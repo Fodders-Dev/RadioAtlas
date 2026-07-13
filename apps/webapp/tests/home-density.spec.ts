@@ -91,14 +91,12 @@ test.describe('T2.20 Home density', () => {
     await seedBigCatalog(page);
   });
 
-  test('desktop: ≥12 station tiles above the fold + decorations dropped', async ({ page }) => {
+  test('desktop: hero plus one large-card row reach the first fold', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await openHome(page);
 
-    // Density target: dropping the decorations + fixing the rail over-blocking
-    // (so multiple shelves form) puts at least a dozen stations above the fold
-    // on first paint, where the old layout showed ~5.
-    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(12);
+    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(4);
+    await expect(page.locator('[data-home-hero]')).toBeVisible();
 
     // Dropped decorations: the live search-preview list, the footer nav-promo
     // card, and the hero catalogue-stats row are all gone.
@@ -124,10 +122,11 @@ test.describe('T2.20 Home density', () => {
   // covers in view). That deliberately trades the old packed density (≥6 above
   // fold) for a calmer rhythm with bigger, finger-friendly cards, so a handful of
   // large tiles sit above the fold rather than a dozen small ones.
-  test('mobile: a few large station tiles sit above the fold (calm rhythm)', async ({ page }) => {
+  test('mobile: full-bleed hero owns the first fold and rails remain present', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openHome(page);
 
-    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('[data-home-hero]')).toBeVisible();
+    expect(await page.locator('[data-home-rail] [data-home-station]').count()).toBeGreaterThanOrEqual(3);
   });
 });

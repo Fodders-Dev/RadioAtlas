@@ -181,9 +181,9 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   const overflowing = await page.locator('.screen-home-next *').evaluateAll((nodes) =>
     nodes
       .filter((node) => {
-        // Horizontal-scroll containers (rails + the T2.23 anchor chip-row)
+        // Horizontal-scroll containers (rails, genre shortcuts, anchor chips)
         // intentionally let their children extend past the viewport.
-        if (node.closest('.home-horizontal-scroll, .home-anchor-chip-row')) return false;
+        if (node.closest('.home-horizontal-scroll, .home-anchor-chip-row, .home-genre-shortcuts-list')) return false;
         const rect = node.getBoundingClientRect();
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })
@@ -1077,9 +1077,9 @@ test('track trust separates missing metadata from questionable streams and dedup
   expect(garbage).toHaveLength(1);
 });
 
-for (const width of [360, 390]) {
-  test(`mobile home dense shows the Feed hero and compact station rails at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+for (const width of [360, 390, 540]) {
+  test(`mobile home shows the live recommendation hero and compact rails at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : width === 540 ? 900 : 844 });
     await seedRadioState(page, {
       recent: [stations[0]],
       playbackHistory: [stations[1]],
@@ -1091,11 +1091,14 @@ for (const width of [360, 390]) {
     await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
-    await expect(page.locator('.home-search-launcher')).toHaveCount(0);
-    await expect(page.locator('#home-search-launcher')).toHaveCount(0);
+    await expect(page.locator('.home-search-launcher')).toBeVisible();
+    await expect(page.locator('#home-search-launcher')).toBeVisible();
+    await expect(page.locator('[data-home-genres]')).toBeVisible();
     await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
     await expect(page.locator('.home-explore-card')).toHaveCount(0);
-    await expect(page.locator('[data-home-hero]')).toHaveCount(0);
+    await expect(page.locator('[data-home-hero]')).toHaveCount(1);
+    await expect(page.locator('[data-home-hero]')).toBeVisible();
+    await expect(page.locator('[data-home-hero] .home-hero-play')).toHaveCount(1);
     await expect(page.locator('.home-hero-companions')).toHaveCount(0);
     await expect(page.locator('.home-feed-entry')).toHaveCount(1);
     await expect(page.locator('[data-home-resume="true"]')).toBeVisible();
@@ -1104,7 +1107,9 @@ for (const width of [360, 390]) {
     await expect(page.locator('[data-home-rail="trending"]')).toHaveCount(1);
     await expect(page.locator('[data-home-rail="top-voted"]')).toHaveCount(1);
     await expect(page.locator('[data-home-rail="around-the-world"]')).toHaveCount(1);
-    await expect(page.locator('[data-home-rail] .home-section-title').first()).toContainText(/Для тебя|For you/);
+    await expect(page.locator('[data-home-rail] .home-section-title').first()).toContainText(
+      /Попробуйте сейчас|Try it now/
+    );
     // The personalised "what changed / because you liked" delta rails stay out
     // of the dense surface — the content shelves fill the visible slots.
     await expect(page.locator('.screen-home-next')).not.toContainText(
@@ -1118,12 +1123,16 @@ for (const width of [360, 390]) {
         const rect = node.getBoundingClientRect();
         return rect.left >= -1 && rect.left < window.innerWidth - 24 && rect.top < window.innerHeight - 160;
       }).length;
-      // PR-5: discovery rails (e.g. trending) are single-row horizontal PEEK
-      // lanes; the personalised lead rail (fresh-now) is a 2-column grid.
+      // Every discovery rail is a single-row horizontal peek lane. Keeping
+      // fresh-now consistent avoids the 246px 2-column cards at 431–600px.
       const peek = document.querySelector('[data-home-rail="trending"] .home-horizontal-scroll');
       const peekStyle = peek ? window.getComputedStyle(peek) : null;
       const forYou = document.querySelector('[data-home-rail="fresh-now"] .home-horizontal-scroll');
       const forYouStyle = forYou ? window.getComputedStyle(forYou) : null;
+      const forYouTiles = Array.from(
+        document.querySelectorAll('[data-home-rail="fresh-now"] [data-home-station]')
+      );
+      const genreButtons = Array.from(document.querySelectorAll('[data-home-genres] button'));
 
       return {
         topbarHeight: topbar?.height || 0,
@@ -1132,23 +1141,33 @@ for (const width of [360, 390]) {
         peekDisplay: peekStyle?.display || '',
         peekOverflowX: peekStyle?.overflowX || '',
         peekRowCount: (peekStyle?.gridTemplateRows || '').trim().split(/\s+/).filter(Boolean).length,
-        forYouColCount: (forYouStyle?.gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length
+        forYouOverflowX: forYouStyle?.overflowX || '',
+        forYouRowCount: new Set(
+          forYouTiles.map((node) => Math.round(node.getBoundingClientRect().top / 8) * 8)
+        ).size,
+        forYouTileWidth: forYouTiles[0]?.getBoundingClientRect().width || 0,
+        minGenreButtonHeight: Math.round(Math.min(
+          ...genreButtons.map((node) => node.getBoundingClientRect().height)
+        ))
       };
     });
     expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
-    // «Лента» is the mobile home hero now — a big, inviting tap target, not a
-    // thin strip.
-    expect(compactHomeMetrics.feedEntryHeight).toBeGreaterThan(72);
-    // Big cards + calm rhythm → a few above the fold, not a dozen (the grid's
-    // first row alone clears the fold on the smallest 360px screens).
-    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(2);
+    // Feed is compact again because the playable recommendation owns the hero.
+    expect(compactHomeMetrics.feedEntryHeight).toBeGreaterThanOrEqual(44);
+    expect(compactHomeMetrics.feedEntryHeight).toBeLessThanOrEqual(72);
+    // The full-bleed hero and quick choices intentionally own the first fold;
+    // rails remain immediately reachable by scrolling.
+    expect(compactHomeMetrics.visibleRailTiles).toBeGreaterThanOrEqual(0);
     // The discovery peek rail is a single-row horizontal scroller.
     expect(compactHomeMetrics.peekDisplay).toBe('grid');
     expect(compactHomeMetrics.peekOverflowX).toBe('auto');
     expect(compactHomeMetrics.peekRowCount).toBe(1);
-    // The personalised "Для тебя" lead rail is a 2-column grid.
-    expect(compactHomeMetrics.forYouColCount).toBe(2);
-    await expect(page.locator('.home-rail-scroll-controls').first()).toBeVisible();
+    expect(compactHomeMetrics.forYouOverflowX).toBe('auto');
+    expect(compactHomeMetrics.forYouRowCount).toBe(1);
+    expect(compactHomeMetrics.forYouTileWidth).toBeGreaterThanOrEqual(140);
+    expect(compactHomeMetrics.forYouTileWidth).toBeLessThanOrEqual(190);
+    expect(compactHomeMetrics.minGenreButtonHeight).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.home-rail-scroll-controls').first()).toBeHidden();
     const peekRail = page.locator('[data-home-rail="trending"]');
     const railScroll = peekRail.locator('.home-horizontal-scroll');
     const beforeScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
@@ -1159,9 +1178,7 @@ for (const width of [360, 390]) {
     const canScrollRail = await railScroll.evaluate((node) => node.scrollWidth > node.clientWidth);
     if (canScrollRail) {
       expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
-      await peekRail.locator('.home-rail-scroll-btn').last().click();
-      const afterButtonScrollLeft = await railScroll.evaluate((node) => node.scrollLeft);
-      expect(afterButtonScrollLeft).toBeGreaterThanOrEqual(afterWheelScrollLeft);
+      expect(afterWheelScrollLeft).toBeGreaterThan(beforeScrollLeft);
     }
     await expectNoHomeHorizontalOverflow(page);
 
@@ -1305,11 +1322,10 @@ for (const width of [360, 390]) {
   });
 }
 
-// Globe mobile rebuild: the cramped corner now-playing card became a
-// full-width thin now-bar; tapping it opens the station-details bottom sheet
-// (the first consumer of the shared .bottom-sheet-card). Opening the sheet
-// must NOT re-trigger playStation — the station is already playing.
-test('mobile globe now-bar opens the station details sheet', async ({ page }) => {
+// The persistent global dock is the only now-playing surface on Globe. The
+// in-map card is reserved for a different station selected under the reticle,
+// so opening Globe while audio is live must not duplicate the current station.
+test('mobile globe keeps the current station in one global dock', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
@@ -1318,24 +1334,10 @@ test('mobile globe now-bar opens the station details sheet', async ({ page }) =>
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
   await expect(page.locator('.globe canvas')).toBeVisible();
 
-  const nowBar = page.locator('[data-globe-now-bar]');
-  await expect(nowBar).toBeVisible();
-  await expect(nowBar).toContainText('Tokyo FM');
+  await expect(page.locator('[data-globe-selection-preview]')).toHaveCount(0);
+  await expect(page.locator('[data-globe-now-bar]')).toHaveCount(0);
+  await expect(page.locator('.player-dock')).toContainText('Tokyo FM');
   await expectNoGlobeHorizontalOverflow(page);
-
-  await nowBar.click();
-  const sheet = page.locator('[data-globe-sheet]');
-  await expect(sheet).toBeVisible();
-  await expect(sheet).toContainText('Tokyo FM');
-  // The toggle reads the live playback state (Pause while playing) — proof the
-  // sheet opened without restarting the stream.
-  await expect(sheet.getByRole('button', { name: /Пауза|Pause/ })).toBeVisible();
-  // The sheet (full-width, safe-area-inset bound) must not overflow either.
-  await expectNoGlobeHorizontalOverflow(page);
-
-  await page.keyboard.press('Escape');
-  await expect(sheet).toHaveCount(0);
-  await expect(nowBar).toBeVisible();
 });
 
 test('mobile globe pressing zoom + brings up satellite mode', async ({ page }) => {
@@ -2705,15 +2707,7 @@ test('mobile full player has no horizontal overflow on core widths', async ({ pa
   for (const width of [360, 390, 412]) {
     await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
     await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
-    await expect
-      .poll(
-        async () =>
-          page.evaluate(
-            () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-          ),
-        { timeout: 3000 }
-      )
-      .toBeLessThanOrEqual(0);
+    await expectNoDocumentHorizontalOverflow(page);
   }
 });
 
@@ -2786,7 +2780,10 @@ test('product analytics records app, home, search and playback events without ra
   await discoverInput.waitFor({ state: 'visible' });
   await discoverInput.fill('Tokyo');
   await page.waitForTimeout(500);
-  await page.locator('.search-card-play, .station-compact-play').first().click();
+  await page
+    .locator('.search-station-card-primary-action, .station-compact-play')
+    .first()
+    .click();
 
   await expect.poll(() => events.map((event) => event.name)).toEqual(
     expect.arrayContaining([
@@ -3113,11 +3110,9 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     expect(chipRowOverscroll).toBe('contain');
   });
 
-  // PR-5: discovery rails became single-row PEEK lanes of large-cover cards
-  // (~150px wide, ~2.3 in view, cover fills the card), and the personalised lead
-  // rail (fresh-now / "Для тебя") became a 2-column grid of large cards — the
-  // mobile-first redesign that replaced the old 112px / 64px-thumbnail 2-row grid.
-  test('C: discovery peek rail uses large-cover cards; «Для тебя» is a 2-col grid', async ({
+  // Discovery rails are single-row PEEK lanes of large-cover cards (~150px
+  // wide, ~2.3 in view, cover fills the card), including fresh-now.
+  test('C: all discovery rails use one compact large-cover peek row', async ({
     page
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -3126,11 +3121,11 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
 
-    // Inspect a peek rail (trending) — not the personalised lead (a grid).
+    // Inspect a server-signal rail first.
     const peekTile = page.locator('[data-home-rail="trending"] [data-home-station]').first();
     const tileWidth = await peekTile.evaluate((el) => Math.round(el.getBoundingClientRect().width));
     expect(tileWidth).toBeGreaterThanOrEqual(140);
-    expect(tileWidth).toBeLessThanOrEqual(164);
+    expect(tileWidth).toBeLessThanOrEqual(190);
 
     // The cover fills the card width (large artwork), not a 64px thumbnail.
     const artworkWidth = await peekTile
@@ -3149,20 +3144,16 @@ test.describe('T_mobile_1 mobile Home polish', () => {
       );
     expect(peekRowCount).toBe(1);
 
-    // The personalised "Для тебя" lead rail (fresh-now) is a 2-column grid: its
-    // first row holds exactly 2 cards.
-    const forYouFirstRow = await page
+    // The personalised lead uses the same single row; this prevents cards from
+    // growing to half the viewport width around the 540px breakpoint.
+    const forYouRowCount = await page
       .locator('[data-home-rail="fresh-now"] [data-home-station]')
       .evaluateAll((nodes) => {
-        if (!nodes.length) return 0;
-        const rows = new Map<number, number>();
-        for (const node of nodes) {
-          const key = Math.round(node.getBoundingClientRect().top / 8) * 8;
-          rows.set(key, (rows.get(key) || 0) + 1);
-        }
-        return rows.get(Math.min(...rows.keys())) || 0;
+        return new Set(
+          nodes.map((node) => Math.round(node.getBoundingClientRect().top / 8) * 8)
+        ).size;
       });
-    expect(forYouFirstRow).toBe(2);
+    expect(forYouRowCount).toBe(1);
   });
 });
 

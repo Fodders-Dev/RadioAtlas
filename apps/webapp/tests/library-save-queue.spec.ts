@@ -102,7 +102,9 @@ test('saving the queue creates a playlist whose stations resolve and are visible
 
   // Open the detail and confirm all three stations are listed.
   await card.locator('.library-collection-title-button').click();
-  await expect(page.locator('[data-library-collection-row]')).toHaveCount(3);
+  await expect(
+    page.locator('.library-detail-station-table [data-station-row]')
+  ).toHaveCount(3);
 
   // never-auto-switch: the save is a pure data-op — playback never moved.
   expect(await distinctPlayedStations(page)).toBe(1);

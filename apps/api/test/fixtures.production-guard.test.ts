@@ -39,6 +39,12 @@ const spawnApiProcess = async (
           WEBAPP_URL: 'https://radioatlas.test',
           ACCOUNT_STORE_PATH: join(storeDir, 'account-store.sqlite'),
           INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token',
+          // This suite verifies auth-fixture production guards, so it must not
+          // inherit an unrelated local Workers AI setup from apps/api/.env.
+          SCENE_ARTWORK_ENABLED: '0',
+          CLOUDFLARE_ACCOUNT_ID: '',
+          CLOUDFLARE_API_TOKEN: '',
+          SCENE_ARTWORK_DIR: '',
           ...envOverrides
         }
       }
@@ -120,7 +126,11 @@ test('NODE_ENV=production with fixtures disabled boots normally', async () => {
         VK_REDIRECT_URI: '',
         WEBAPP_URL: 'https://radioatlas.test',
         ACCOUNT_STORE_PATH: join(storeDir, 'account-store.sqlite'),
-        INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token'
+        INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token',
+        SCENE_ARTWORK_ENABLED: '0',
+        CLOUDFLARE_ACCOUNT_ID: '',
+        CLOUDFLARE_API_TOKEN: '',
+        SCENE_ARTWORK_DIR: ''
       }
     });
     child.stderr.on('data', (chunk) => {
@@ -163,7 +173,11 @@ test('production + fixtures disabled does not register /test/* fixture routes', 
         VK_REDIRECT_URI: '',
         WEBAPP_URL: 'https://radioatlas.test',
         ACCOUNT_STORE_PATH: join(storeDir, 'account-store.sqlite'),
-        INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token'
+        INTERNAL_WEBHOOK_TOKEN: 'production-guard-test-token',
+        SCENE_ARTWORK_ENABLED: '0',
+        CLOUDFLARE_ACCOUNT_ID: '',
+        CLOUDFLARE_API_TOKEN: '',
+        SCENE_ARTWORK_DIR: ''
       }
     });
     child.stderr.on('data', (chunk) => {

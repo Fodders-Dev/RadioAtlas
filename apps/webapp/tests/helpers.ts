@@ -744,6 +744,16 @@ export const mockStations = async (
   await page.route('**/catalog-fast.json', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
   );
+  // Home performs one read-only lookup for its decorative hero atmosphere.
+  // Keep visual tests deterministic and prove that no browser-side generation
+  // endpoint is required for a complete surface.
+  await page.route('**/artwork/scene/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'unavailable' })
+    })
+  );
   await page.route('**/catalog-full.json', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body })
   );
@@ -880,7 +890,7 @@ export const playHomeStation = async (page: Page, name: string) => {
   // fall through to the Search screen below.
   const homeRow = page.locator('[data-home-station]').filter({ hasText: name }).first();
   if (await homeRow.isVisible().catch(() => false)) {
-    await homeRow.locator('.home-action-btn-play').click();
+    await homeRow.locator('.home-station-primary-action').click();
     return;
   }
 

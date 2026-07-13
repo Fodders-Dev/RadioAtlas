@@ -152,6 +152,27 @@
   color: #fff;
 }
 
+.station-feed-action--play {
+  background: #baf7df;
+  color: #071b18;
+  box-shadow: 0 8px 24px rgba(69, 235, 176, 0.24);
+}
+
+.station-feed-action--play:hover {
+  background: #d6ffef;
+}
+
+.station-feed-action--play.is-playing {
+  background: rgba(246, 250, 255, 0.92);
+  color: #09111d;
+}
+
+.station-feed-action:focus-visible,
+.station-feed-close:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
+}
+
 .station-feed-action svg [data-filled='true'],
 .station-feed-action svg path[data-filled='true'] {
   fill: currentColor;
@@ -261,11 +282,25 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .station-feed-scroller {
+    scroll-behavior: auto;
+    scroll-snap-type: y proximity;
+  }
+
+  .station-feed-card {
+    scroll-snap-stop: normal;
+  }
+
   .station-feed-live-dot {
     animation: none;
   }
+
   .station-feed-action {
     transition: none;
+  }
+
+  .station-feed-action:active {
+    transform: none;
   }
 }
 

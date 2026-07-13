@@ -210,6 +210,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
         onClick={onClose}
         aria-label={t('common.close')}
         tabIndex={-1}
+        data-dialog-backdrop
       />
       <div className="bottom-sheet-card chat-sheet-card">
         <div className="bottom-sheet-handle" aria-hidden="true" />

@@ -54,7 +54,7 @@ test('home rails do NOT re-shuffle after a click → play burst', async ({ page 
   // ("click play → list shuffles under my finger").
   const firstRail = page.locator('[data-home-rail]').first();
   const firstTile = firstRail.locator('[data-home-station]').first();
-  await firstTile.locator('.home-action-btn-play').click();
+  await firstTile.locator('.home-station-primary-action').click();
   await page.waitForTimeout(600);
 
   const after = await captureRailFingerprint(page);
@@ -138,7 +138,7 @@ test('explicit "refresh feed" button still wires through to handleRefresh', asyn
   // "frozen post-play" shape — exactly what refresh is supposed to
   // fold the bias into.
   const firstRail = page.locator('[data-home-rail]').first();
-  await firstRail.locator('[data-home-station]').first().locator('.home-action-btn-play').click();
+  await firstRail.locator('[data-home-station]').first().locator('.home-station-primary-action').click();
   await page.waitForTimeout(300);
 
   const refreshButton = page.locator('.home-surface-refresh').first();

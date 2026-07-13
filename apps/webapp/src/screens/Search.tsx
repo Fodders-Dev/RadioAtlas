@@ -8,7 +8,12 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
-import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import {
+  formatCountryLabel,
+  normalizeStationName,
+  stationLocation,
+  stationTags
+} from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
@@ -57,8 +62,8 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
     playabilityProfile
   });
   const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
-  const tags = stationTags(station);
-  const location = stationLocation(station);
+  const tags = stationTags(station, '');
+  const location = stationLocation(station, t('explore.unknownLocation'));
 
   const toggleStation = () => {
     if (active) {
@@ -78,17 +83,12 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
       data-search-station-card
       data-station-id={station.stationuuid}
     >
-      <button
-        className="search-station-card-main"
-        type="button"
-        onClick={toggleStation}
-        aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
-      >
+      <div className="search-station-card-media">
         <StationArtwork station={station} size="card" />
         <span className="search-card-play-overlay" aria-hidden="true">
           {active && player.isPlaying ? 'II' : '>'}
         </span>
-      </button>
+      </div>
       <div className="search-station-card-copy">
         <div className="search-card-title" title={normalizeStationName(station.name)}>
           <StationStatusBadge state={badge} />
@@ -103,6 +103,12 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
           </div>
         ) : null}
       </div>
+      <button
+        className="search-station-card-primary-action"
+        type="button"
+        onClick={toggleStation}
+        aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
+      />
       <div className="search-card-actions">
         <button
           className="play-btn search-card-play"
@@ -118,6 +124,7 @@ const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps
           type="button"
           onClick={() => toggleFavorite(station)}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+          aria-pressed={liked}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
@@ -221,6 +228,7 @@ const SearchFiltersSheet = ({ stationSearch, onClose }: SearchFiltersSheetProps)
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        data-dialog-backdrop
       />
       <div className="bottom-sheet-card">
         <span className="bottom-sheet-handle" aria-hidden="true" />
@@ -603,7 +611,10 @@ export const Discover = () => {
                 to it, which users mistook for a "search" submit
                 button. The URL importer now lives as a quiet
                 tertiary link at the bottom of the idle screen. */}
-            <label className="search-hero-input" htmlFor="search-hero-input">
+            <label className="visually-hidden" htmlFor="search-hero-input">
+              {t('discover.searchPlaceholder')}
+            </label>
+            <div className="search-hero-input">
               <svg
                 className="search-hero-icon"
                 viewBox="0 0 24 24"
@@ -635,7 +646,7 @@ export const Discover = () => {
                   ✕
                 </button>
               ) : null}
-            </label>
+            </div>
           </div>
 
           {!queryActive && stationSearch.recentQueries.length ? (
@@ -664,12 +675,11 @@ export const Discover = () => {
               <>
                 <div className="search-hero-result-bar search-hero-result-bar--compact">
                   <div className="search-hero-result-count">
-                    <strong>
-                      {rankedSearchResults.length}
-                      {stationSearch.nextCursor ? '+' : ''}
-                    </strong>
                     <span>
-                      / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
+                      {t('search.resultsShown', {
+                        shown: `${rankedSearchResults.length}${stationSearch.nextCursor ? '+' : ''}`,
+                        total: stationSearch.searchTotal
+                      })}
                     </span>
                   </div>
                   <button
@@ -697,12 +707,11 @@ export const Discover = () => {
             ) : (
               <div className="search-hero-result-bar">
                 <div className="search-hero-result-count">
-                  <strong>
-                    {rankedSearchResults.length}
-                    {stationSearch.nextCursor ? '+' : ''}
-                  </strong>
                   <span>
-                    / {stationSearch.searchTotal} {t('search.resultsMetric').toLowerCase()}
+                    {t('search.resultsShown', {
+                      shown: `${rankedSearchResults.length}${stationSearch.nextCursor ? '+' : ''}`,
+                      total: stationSearch.searchTotal
+                    })}
                   </span>
                 </div>
                 <div className="search-hero-result-actions">
@@ -934,7 +943,9 @@ export const Discover = () => {
                       )
                     }
                   >
-                    <span className="search-rail-chip-label">{item.id}</span>
+                    <span className="search-rail-chip-label">
+                      {item.id === 'Other' ? t('common.unknown') : item.id}
+                    </span>
                     <strong className="search-rail-chip-count">{item.count}</strong>
                   </button>
                 ))}
@@ -963,7 +974,9 @@ export const Discover = () => {
                       )
                     }
                   >
-                    <span className="search-rail-chip-label">{bucket.country}</span>
+                    <span className="search-rail-chip-label">
+                      {formatCountryLabel(bucket.country)}
+                    </span>
                     <strong className="search-rail-chip-count">{bucket.count}</strong>
                   </button>
                 ))}

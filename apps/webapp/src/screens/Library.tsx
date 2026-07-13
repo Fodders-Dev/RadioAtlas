@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode
+} from 'react';
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
 import { RegionArtwork } from '../components/RegionArtwork';
@@ -21,7 +29,10 @@ import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
 
 const TAB_ORDER = ['favorites', 'queue', 'recent', 'tracks', 'collections'] as const;
+type VisibleLibraryTab = (typeof TAB_ORDER)[number];
 const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
+const isVisibleLibraryTab = (tab: LibraryTab): tab is VisibleLibraryTab =>
+  VISIBLE_LIBRARY_TABS.has(tab);
 
 // Per-tab glyphs (Artem ask) — inline SVG in the AppNavigation style, tinted via
 // `fill: currentColor`. Favorites=heart, Queue=queue-list, Recent=clock,
@@ -53,6 +64,39 @@ const TAB_ICONS: Record<(typeof TAB_ORDER)[number], JSX.Element> = {
       <path d="M12 2 1 8l11 6 11-6-11-6Zm7.5 6L12 12.2 4.5 8 12 3.8 19.5 8ZM1 16l11 6 11-6-2.1-1.15L12 19.7 3.1 14.85 1 16Zm0-4 11 6 11-6-2.1-1.15L12 15.7 3.1 10.85 1 12Z" />
     </svg>
   )
+};
+
+type LibraryTabPanelProps = {
+  activeTab: VisibleLibraryTab;
+  tab: VisibleLibraryTab;
+  tabId: string;
+  panelId: string;
+  className: string;
+  children: ReactNode;
+};
+
+const LibraryTabPanel = ({
+  activeTab,
+  tab,
+  tabId,
+  panelId,
+  className,
+  children
+}: LibraryTabPanelProps) => {
+  const active = activeTab === tab;
+
+  return (
+    <div
+      className={active ? className : undefined}
+      id={panelId}
+      role="tabpanel"
+      aria-labelledby={tabId}
+      tabIndex={0}
+      hidden={!active}
+    >
+      {active ? children : null}
+    </div>
+  );
 };
 
 type LibrarySheetProps = {
@@ -91,6 +135,7 @@ const LibrarySheet = ({ sheetId, kicker, title, onClose, children }: LibraryShee
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        data-dialog-backdrop
       />
       <div className="bottom-sheet-card">
         <span className="bottom-sheet-handle" aria-hidden="true" />
@@ -106,6 +151,7 @@ const LibrarySheet = ({ sheetId, kicker, title, onClose, children }: LibraryShee
             type="button"
             onClick={onClose}
             aria-label={t('common.close')}
+            data-dialog-initial-focus
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />
@@ -197,6 +243,10 @@ export const Library = () => {
   // follows). Empty query = the tabs render exactly as before.
   const [librarySearch, setLibrarySearch] = useState('');
   const librarySearchInputRef = useRef<HTMLInputElement>(null);
+  const libraryTabsId = useId();
+  const libraryTabRefs = useRef<
+    Partial<Record<VisibleLibraryTab, HTMLButtonElement | null>>
+  >({});
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
@@ -415,7 +465,42 @@ export const Library = () => {
       }),
     [libraryFeed.followedStationsPreview, stationMap]
   );
-  const activeLibraryTab = VISIBLE_LIBRARY_TABS.has(libraryTab) ? libraryTab : 'recent';
+  const activeLibraryTab: VisibleLibraryTab = isVisibleLibraryTab(libraryTab)
+    ? libraryTab
+    : 'recent';
+  const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
+  const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
+  const handleLibraryTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentTab: VisibleLibraryTab
+  ) => {
+    const currentIndex = TAB_ORDER.indexOf(currentTab);
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+        break;
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1) % TAB_ORDER.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = TAB_ORDER.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = TAB_ORDER[nextIndex] ?? currentTab;
+    setLibraryTab(nextTab);
+    libraryTabRefs.current[nextTab]?.focus();
+  };
   const tabCounts: Record<LibraryTab, number> = {
     favorites: favorites.length,
     tracks: trackHistory.length,
@@ -774,14 +859,11 @@ export const Library = () => {
 
       {!librarySearchQuery ? (
         <div className="library-header-actions library-quick-actions">
-          <button
-            className="chip active"
-            type="button"
-            onClick={playLibraryShuffle}
-            disabled={!libraryShuffleStations.length}
-          >
-            {t('library.shuffleLibrary')}
-          </button>
+          {libraryShuffleStations.length ? (
+            <button className="chip active" type="button" onClick={playLibraryShuffle}>
+              {t('library.shuffleLibrary')}
+            </button>
+          ) : null}
           <button
             className="chip"
             type="button"
@@ -846,9 +928,18 @@ export const Library = () => {
         {TAB_ORDER.map((tab) => (
           <button
             key={tab}
+            ref={(element) => {
+              libraryTabRefs.current[tab] = element;
+            }}
             className={`chip library-tab-chip ${activeLibraryTab === tab ? 'active' : ''}`}
             type="button"
+            id={libraryTabId(tab)}
+            role="tab"
+            aria-selected={activeLibraryTab === tab}
+            aria-controls={libraryPanelId(tab)}
+            tabIndex={activeLibraryTab === tab ? 0 : -1}
             onClick={() => setLibraryTab(tab)}
+            onKeyDown={(event) => handleLibraryTabKeyDown(event, tab)}
           >
             <span className="library-tab-icon" aria-hidden="true">{TAB_ICONS[tab]}</span>
             <span className="library-tab-label">{t(`library.tabs.${tab}`)}</span>
@@ -857,21 +948,23 @@ export const Library = () => {
         ))}
       </div>
 
-      {activeLibraryTab === 'favorites' ? (
-        <div className="glass-card">
-          <div className="library-tab-toolbar">
-            <span className="library-tab-toolbar-lead" />
-            <div className="chip-row">
-              <button
-                className="chip active"
-                type="button"
-                onClick={playFavoritesShuffle}
-                disabled={!favorites.length}
-              >
-                {t('library.shuffleFavorites')}
-              </button>
+      <LibraryTabPanel
+        activeTab={activeLibraryTab}
+        tab="favorites"
+        tabId={libraryTabId('favorites')}
+        panelId={libraryPanelId('favorites')}
+        className="glass-card"
+      >
+          {favorites.length ? (
+            <div className="library-tab-toolbar">
+              <span className="library-tab-toolbar-lead" />
+              <div className="chip-row">
+                <button className="chip active" type="button" onClick={playFavoritesShuffle}>
+                  {t('library.shuffleFavorites')}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
           {favorites.length ? (
             <StationTable
               stations={favorites}
@@ -898,11 +991,15 @@ export const Library = () => {
               ) : null}
             </div>
           )}
-        </div>
-      ) : null}
+      </LibraryTabPanel>
 
-      {activeLibraryTab === 'queue' ? (
-        <div className="glass-card library-queue-shell">
+      <LibraryTabPanel
+        activeTab={activeLibraryTab}
+        tab="queue"
+        tabId={libraryTabId('queue')}
+        panelId={libraryPanelId('queue')}
+        className="glass-card library-queue-shell"
+      >
           <div className="library-section-head">
             <div>
               <div className="section-title">{t('playlist.title')}</div>
@@ -945,39 +1042,39 @@ export const Library = () => {
                       (queueLeadStation ? stationLocation(queueLeadStation) : t('playlist.empty'))}
                   </div>
                   <div className="hero-chip-row library-queue-hero-actions">
-                    <button
-                      className="chip active library-queue-hero-play"
-                      type="button"
-                      onClick={() => {
-                        if (queueLeadStation) {
+                    {queueLeadStation ? (
+                      <button
+                        className="chip active library-queue-hero-play"
+                        type="button"
+                        onClick={() =>
                           playStation(queueLeadStation, {
-                            playlist: queue.items.length ? queue.items : [queueLeadStation],
+                            playlist: queue.items,
                             sourceId: queue.sourceId || 'queue',
                             sourceLabel: queueSourceLabel
-                          });
+                          })
                         }
-                      }}
-                      disabled={!queueLeadStation}
-                    >
-                      {player.current && player.isPlaying ? t('playlist.playing') : t('common.play')}
-                    </button>
+                      >
+                        {player.current && player.isPlaying ? t('playlist.playing') : t('common.play')}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="chip-row library-queue-actions">
-                  <button
-                    className="chip"
-                    type="button"
-                    onClick={() => queue.shuffleQueue()}
-                    disabled={queue.items.length <= 1}
-                    aria-label={t('library.shuffleQueueAria')}
-                  >
-                    {t('library.shuffleQueue')}
-                  </button>
-                  <button className="chip" type="button" onClick={beginSaveQueue} disabled={!queue.items.length}>
+                  {queue.items.length > 1 ? (
+                    <button
+                      className="chip"
+                      type="button"
+                      onClick={() => queue.shuffleQueue()}
+                      aria-label={t('library.shuffleQueueAria')}
+                    >
+                      {t('library.shuffleQueue')}
+                    </button>
+                  ) : null}
+                  <button className="chip" type="button" onClick={beginSaveQueue}>
                     {t('library.saveQueueAsPlaylist')}
                   </button>
-                  <button className="chip" type="button" onClick={() => queue.clearQueue()} disabled={!queue.items.length}>
+                  <button className="chip" type="button" onClick={() => queue.clearQueue()}>
                     {t('playlist.clearQueue')}
                   </button>
                 </div>
@@ -1088,29 +1185,32 @@ export const Library = () => {
                 <button className="chip" type="button" onClick={() => setActiveSection('globe')}>
                   {t('home.openGlobe')}
                 </button>
-                <button
-                  className="chip"
-                  type="button"
-                  onClick={playLast}
-                disabled={!returnToAirStations.length && !recentStations.length && !player.current}
-                >
-                  {t('common.resume')}
-                </button>
+                {returnToAirStations.length || recentStations.length || player.current ? (
+                  <button className="chip" type="button" onClick={playLast}>
+                    {t('common.resume')}
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
-        </div>
-      ) : null}
+      </LibraryTabPanel>
 
-      {activeLibraryTab === 'recent' ? (
-        <div className="glass-card">
+      <LibraryTabPanel
+        activeTab={activeLibraryTab}
+        tab="recent"
+        tabId={libraryTabId('recent')}
+        panelId={libraryPanelId('recent')}
+        className="glass-card"
+      >
           {/* Curated: «Недавнее» is recent STATIONS only now — the copied-track
               journal lives solely in «Треки». Unified toolbar (subtitle + Clear). */}
           <div className="library-tab-toolbar">
             <div className="section-subtitle">{t('explore.recentSubtitle')}</div>
-            <button className="chip" type="button" onClick={clearRecent} disabled={!recent.length}>
-              {t('settings.clearRecent')}
-            </button>
+            {recent.length ? (
+              <button className="chip" type="button" onClick={clearRecent}>
+                {t('settings.clearRecent')}
+              </button>
+            ) : null}
           </div>
           {recentStations.length ? (
             <StationTable
@@ -1133,11 +1233,15 @@ export const Library = () => {
               </div>
             </div>
           )}
-        </div>
-      ) : null}
+      </LibraryTabPanel>
 
-      {activeLibraryTab === 'tracks' ? (
-        <div className="glass-card">
+      <LibraryTabPanel
+        activeTab={activeLibraryTab}
+        tab="tracks"
+        tabId={libraryTabId('tracks')}
+        panelId={libraryPanelId('tracks')}
+        className="glass-card"
+      >
           {/* Unified toolbar (subtitle + Clear) — the tab strip already labels
               this «Треки», so no duplicate section title. */}
           <div className="library-tab-toolbar">
@@ -1151,11 +1255,15 @@ export const Library = () => {
               <div className="section-subtitle">{t('library.tracksEmptyHint')}</div>
             </div>
           )}
-        </div>
-      ) : null}
+      </LibraryTabPanel>
 
-      {activeLibraryTab === 'collections' ? (
-        <div className="library-collections-stack">
+      <LibraryTabPanel
+        activeTab={activeLibraryTab}
+        tab="collections"
+        tabId={libraryTabId('collections')}
+        panelId={libraryPanelId('collections')}
+        className="library-collections-stack"
+      >
           {collectionNotice ? (
             <div className="library-inline-toast" role="status">
               {collectionNotice}
@@ -1218,22 +1326,24 @@ export const Library = () => {
                     </button>
                   ) : (
                     <>
-                      <button
-                        className="chip active library-collection-detail-play"
-                        type="button"
-                        onClick={() => playCollection(selectedCollection)}
-                        disabled={!selectedCollectionStations.length}
-                      >
-                        {t('library.playCollection')}
-                      </button>
-                      <button
-                        className="chip"
-                        type="button"
-                        onClick={() => playCollection(selectedCollection, true)}
-                        disabled={!selectedCollectionStations.length}
-                      >
-                        {t('library.shuffleCollection')}
-                      </button>
+                      {selectedCollectionStations.length ? (
+                        <>
+                          <button
+                            className="chip active library-collection-detail-play"
+                            type="button"
+                            onClick={() => playCollection(selectedCollection)}
+                          >
+                            {t('library.playCollection')}
+                          </button>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => playCollection(selectedCollection, true)}
+                          >
+                            {t('library.shuffleCollection')}
+                          </button>
+                        </>
+                      ) : null}
                       {/* Mobile collapses the rest into «Ещё» → a bottom sheet; the
                           sheet's CSS is phone-only, so on desktop (>720px, where there
                           is room) render the same actions INLINE as chips instead —
@@ -1279,15 +1389,17 @@ export const Library = () => {
                               {t('library.addCurrentToCollection')}
                             </button>
                           ) : null}
-                          <button
-                            className={`chip ${collectionReorderMode ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => setCollectionReorderMode((value) => !value)}
-                          >
-                            {collectionReorderMode
-                              ? t('library.reorderDone')
-                              : t('library.reorderMode')}
-                          </button>
+                          {selectedCollectionStations.length > 1 ? (
+                            <button
+                              className={`chip ${collectionReorderMode ? 'active' : ''}`}
+                              type="button"
+                              onClick={() => setCollectionReorderMode((value) => !value)}
+                            >
+                              {collectionReorderMode
+                                ? t('library.reorderDone')
+                                : t('library.reorderMode')}
+                            </button>
+                          ) : null}
                           <button
                             className={`chip library-delete-chip ${
                               deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
@@ -1493,22 +1605,24 @@ export const Library = () => {
                           (full action set); «···» opens the S3 sheet (same
                           actions). */}
                       <div className="chip-row library-collection-card-actions">
-                        <button
-                          className="chip active"
-                          type="button"
-                          onClick={() => playCollection(collection)}
-                          disabled={!collection.stationIds.length}
-                        >
-                          {t('library.playCollection')}
-                        </button>
-                        <button
-                          className="chip"
-                          type="button"
-                          onClick={() => playCollection(collection, true)}
-                          disabled={!collection.stationIds.length}
-                        >
-                          {t('library.shuffleCollection')}
-                        </button>
+                        {collection.stationIds.length ? (
+                          <>
+                            <button
+                              className="chip active"
+                              type="button"
+                              onClick={() => playCollection(collection)}
+                            >
+                              {t('library.playCollection')}
+                            </button>
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => playCollection(collection, true)}
+                            >
+                              {t('library.shuffleCollection')}
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           className="chip library-collection-more"
                           type="button"
@@ -1735,8 +1849,7 @@ export const Library = () => {
               </div>
             </>
           ) : null}
-        </div>
-      ) : null}
+      </LibraryTabPanel>
         </>
       )}
 
@@ -1794,16 +1907,18 @@ export const Library = () => {
                 {t('library.addCurrentToCollection')}
               </button>
             ) : null}
-            <button
-              className={`library-sheet-action ${collectionReorderMode ? 'active' : ''}`}
-              type="button"
-              onClick={() => {
-                setCollectionReorderMode((value) => !value);
-                setDetailActionsOpen(false);
-              }}
-            >
-              {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
-            </button>
+            {selectedCollectionStations.length > 1 ? (
+              <button
+                className={`library-sheet-action ${collectionReorderMode ? 'active' : ''}`}
+                type="button"
+                onClick={() => {
+                  setCollectionReorderMode((value) => !value);
+                  setDetailActionsOpen(false);
+                }}
+              >
+                {collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}
+              </button>
+            ) : null}
             <button
               className={`library-sheet-action library-sheet-action-danger ${
                 deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''
@@ -1833,28 +1948,30 @@ export const Library = () => {
           }}
         >
           <div className="library-sheet-rows">
-            <button
-              className="library-sheet-action"
-              type="button"
-              onClick={() => {
-                playCollection(collectionActionsSheet);
-                setCollectionActionsId(null);
-              }}
-              disabled={!collectionActionsSheet.stationIds.length}
-            >
-              {t('library.playCollection')}
-            </button>
-            <button
-              className="library-sheet-action"
-              type="button"
-              onClick={() => {
-                playCollection(collectionActionsSheet, true);
-                setCollectionActionsId(null);
-              }}
-              disabled={!collectionActionsSheet.stationIds.length}
-            >
-              {t('library.shuffleCollection')}
-            </button>
+            {collectionActionsSheet.stationIds.length ? (
+              <>
+                <button
+                  className="library-sheet-action"
+                  type="button"
+                  onClick={() => {
+                    playCollection(collectionActionsSheet);
+                    setCollectionActionsId(null);
+                  }}
+                >
+                  {t('library.playCollection')}
+                </button>
+                <button
+                  className="library-sheet-action"
+                  type="button"
+                  onClick={() => {
+                    playCollection(collectionActionsSheet, true);
+                    setCollectionActionsId(null);
+                  }}
+                >
+                  {t('library.shuffleCollection')}
+                </button>
+              </>
+            ) : null}
             <button
               className="library-sheet-action"
               type="button"

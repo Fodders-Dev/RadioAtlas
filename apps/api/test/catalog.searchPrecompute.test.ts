@@ -106,3 +106,25 @@ test('precompute fields are present on the indexed catalog (server-internal)', (
   // The raw fixture is untouched (attachSearchIndex returns new objects).
   assert.equal(fixture[0]!.searchHaystack, undefined);
 });
+
+test('country facets collapse case variants and country filtering stays case-insensitive', () => {
+  const indexed = attachSearchIndex([
+    station({ stationuuid: 'spain-title', name: 'Madrid One', country: 'Spain' }),
+    station({ stationuuid: 'spain-lower', name: 'Madrid Two', country: 'spain' }),
+    station({ stationuuid: 'france', name: 'Paris One', country: 'France' })
+  ]);
+
+  const browse = buildSearchResponse(indexed, f());
+  const spainFacets = browse.facets.featuredCountries.filter(
+    (bucket) => bucket.country.toLocaleLowerCase() === 'spain'
+  );
+  assert.equal(spainFacets.length, 1);
+  assert.equal(spainFacets[0]?.country, 'Spain');
+  assert.equal(spainFacets[0]?.count, 2);
+
+  const filtered = buildSearchResponse(indexed, f({ country: 'SPAIN' }));
+  assert.deepEqual(
+    filtered.items.map((item) => item.stationuuid).sort(),
+    ['spain-lower', 'spain-title']
+  );
+});

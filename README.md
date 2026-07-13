@@ -17,8 +17,15 @@ Monorepo with Telegram bot + webapp MVP.
 ```bash
 npm install
 npm run dev:webapp
-npm run dev:bot
 ```
+
+For the complete local web stack, run the API in a second terminal:
+```bash
+npm run dev:api
+```
+Without it the UI still opens, but Vite will log expected `/api/image` proxy
+errors and API-backed images/features will use their fallbacks. Run
+`npm run dev:bot` separately only when testing Telegram bot flows.
 
 ## Tests
 ```bash
@@ -52,6 +59,39 @@ VITE_API_URL=https://your-domain/api
 ```
 This enables catalog proxying and http stream playback via `/api/stream`.
 If `VITE_API_URL` is not set, webapp runs without API proxy by default.
+
+## Optional generated station atmosphere
+
+RadioAtlas can fill selected immersive backgrounds (the Home hero, active Feed,
+and Full Player) with cached `country + vibe` scenes from Cloudflare Workers AI.
+Station cards, the dock, Media Session, and every identity/avatar surface keep
+the station owner's logo (then favicon, then procedural fallback). Generation
+never runs in the browser and never blocks playback.
+
+Configure `apps/api/.env`:
+
+```env
+SCENE_ARTWORK_ENABLED=1
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_workers_ai_token
+SCENE_ARTWORK_DIR=/absolute/persistent/path/scene-artwork
+SCENE_ARTWORK_DAILY_CAP=60
+INTERNAL_WEBHOOK_TOKEN=your_existing_internal_token
+```
+
+The Cloudflare token needs Workers AI Read and Edit permissions. Start the API,
+then seed up to 50 high-value scenes through the protected batch command:
+
+```powershell
+$env:RADIOATLAS_API_URL='http://127.0.0.1:3001'
+$env:INTERNAL_WEBHOOK_TOKEN='same-value-as-apps-api-env'
+npm run artwork:generate
+```
+
+Pass station UUIDs after the command to generate a specific set. Cached images
+(JPEG from the current FLUX endpoint, with PNG compatibility) are reused across
+stations with the same country/vibe key; repeated app views do not call the
+generation provider again.
 
 ## Optional extractor (NewPipe-style, YouTube blocked)
 The extractor resolves non-direct URLs (SoundCloud, Bandcamp, PeerTube, MediaCCC)
@@ -89,7 +129,12 @@ DEEPSEEK_API_KEY=
 ```
 VITE_TG_BOT=your_bot_username
 VITE_API_URL=https://your-domain/api
+VITE_AI_ENABLED=1
 ```
+
+Lira is visible by default in Vite development. Production builds require
+`VITE_AI_ENABLED=1`; actual replies also require the API process with
+`AI_ENABLED=1` and `DEEPSEEK_API_KEY` configured.
 
 ## Notes
 - Webapp pulls stations from Radio Browser and filters https streams.

@@ -137,7 +137,7 @@ test('logged-in navigation and visibility recovery stay responsive', async ({ pa
   await page.locator('#search-hero-input').first().fill('Tokyo');
   const stationRow = page.locator('.station-row').filter({ hasText: 'Tokyo FM' }).first();
   await expect(stationRow).toBeVisible();
-  await stationRow.locator('.play-btn').click();
+  await stationRow.locator('.search-station-card-primary-action').click();
   await expect(page.locator('.player-dock-title')).toContainText('Tokyo FM');
 
   await page.evaluate(() => {

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
+import { StationScene } from '../components/StationScene';
 import type {
   HomeHeroModule,
   HomeRailModule,
@@ -16,6 +17,13 @@ import type { StationLite } from '../types';
 type PlayHandler = (station: StationLite, playlist: StationLite[], sourceId: string) => void;
 type ToggleFavoriteHandler = (station: StationLite) => void;
 type ExploreHandler = (query: string) => void;
+
+const HERO_WAVEFORM_BARS = [9, 19, 13, 27, 16, 32, 11, 24, 38, 17, 29, 12, 21, 34, 14, 25].map(
+  (height, index) => ({
+    key: `${height}-${index}`,
+    style: { '--wave-height': `${height}px` } as CSSProperties
+  })
+);
 
 type HomeStationTileProps = {
   station: StationLite;
@@ -90,38 +98,25 @@ const HomeStationTile = ({
     );
   }
 
-  // T_mobile_1 B: the whole tile is the play target — live mobile feedback
-  // wanted a tap anywhere on the card to start the station, not just the play
-  // icon. Article gets role/aria/keyboard semantics; inner play+like buttons
-  // stopPropagation so a tap on the heart toggles favourite without also
-  // firing play, and the visible play icon stays as a tap-affordance hint
-  // without double-firing onPlay.
+  // The whole tile remains a generous play target, but the hit area is now a
+  // real sibling <button>. The previous article[role=button] wrapped Play/Like
+  // buttons, which created nested interactive controls and let keyboard events
+  // from the heart bubble into playback.
   const playStation = () => onPlay(station, playlist, sourceId);
-  const onTileKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      playStation();
-    }
-  };
 
   return (
     <article
       className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''} ${featured ? 'home-station-tile--featured' : ''}`.trim()}
       data-home-station={station.stationuuid}
-      role="button"
-      tabIndex={0}
-      aria-label={t(isActive ? 'common.pause' : 'stationTile.playLabel', {
-        name: normalizeStationName(station.name)
-      })}
-      onClick={playStation}
-      onKeyDown={onTileKeyDown}
     >
       <div className="home-station-main">
-        <StationArtwork
-          station={station}
-          size={tone === 'resume' ? 'sm' : 'card'}
-          className="home-station-artwork"
-        />
+        <div className="home-station-visual">
+          <StationArtwork
+            station={station}
+            size={tone === 'resume' ? 'sm' : 'card'}
+            className="home-station-artwork"
+          />
+        </div>
         <div className="home-station-copy">
           <div className="home-station-title" title={normalizeStationName(station.name)}>
             <StationStatusBadge state={badge} />
@@ -135,15 +130,18 @@ const HomeStationTile = ({
           </div>
         </div>
       </div>
+      <button
+        className="home-station-primary-action"
+        type="button"
+        onClick={playStation}
+        aria-label={t(isActive ? 'common.pause' : 'stationTile.playLabel', {
+          name: normalizeStationName(station.name)
+        })}
+      />
       <div className="home-station-actions">
-        <button
+        <span
           className="home-action-btn home-action-btn-play"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            playStation();
-          }}
-          aria-label={isActive ? t('common.pause') : t('common.play')}
+          aria-hidden="true"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {isActive ? (
@@ -152,7 +150,7 @@ const HomeStationTile = ({
               <path d="M8 5v14l11-7z" />
             )}
           </svg>
-        </button>
+        </span>
         <button
           className={`home-action-btn home-action-btn-like ${liked ? 'is-liked' : ''}`.trim()}
           type="button"
@@ -161,6 +159,7 @@ const HomeStationTile = ({
             onToggleFavorite(station);
           }}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+          aria-pressed={liked}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
@@ -221,6 +220,11 @@ export const HomeHeroCard = ({
     );
   }
 
+  const stationName = normalizeStationName(station.name);
+  const longStationName = Array.from(stationName).length > 24;
+  const heroTrack =
+    (isActive && activeTrack) || station.description?.trim() || t(module.copyKey);
+
   return (
     <section
       className={`home-hero-card ${dense ? 'is-dense' : ''}`.trim()}
@@ -230,6 +234,10 @@ export const HomeHeroCard = ({
         <div className="home-hero-eyebrow">
           <span className="home-surface-kicker">{t(module.titleKey)}</span>
           {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
+          <span className="home-hero-live-dot">
+            <span aria-hidden="true" />
+            {t('app.liveBadge')}
+          </span>
         </div>
         <button
           className={`home-refresh-chip ${refreshing ? 'is-loading' : ''}`.trim()}
@@ -250,42 +258,37 @@ export const HomeHeroCard = ({
         </button>
       </div>
 
-      <div className="home-hero-body">
-        <div className="home-hero-poster">
-          <StationArtwork station={station} size="card" className="home-hero-artwork" />
-          <div className="home-hero-poster-glow" />
-        </div>
+      <StationScene station={station} className="home-hero-scene" priority />
+      <div className="home-hero-scrim" aria-hidden="true" />
 
+      <div className="home-hero-body">
         <div className="home-hero-copy">
-          <h2 className="home-hero-title" title={normalizeStationName(station.name)}>
-            {normalizeStationName(station.name)}
+          <StationArtwork
+            station={station}
+            size="sm"
+            className="home-hero-station-logo"
+            priority
+          />
+          <h2
+            className={`home-hero-title ${longStationName ? 'is-long' : ''}`.trim()}
+            title={stationName}
+          >
+            {stationName}
           </h2>
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
 
           <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
-            <strong>{isActive && activeTrack ? activeTrack : stationTags(station)}</strong>
-            {isActive ? <span>{t('app.liveBadge')}</span> : null}
+            <span>{stationTags(station) || t('app.metadataUnavailable')}</span>
+            <strong>{heroTrack}</strong>
           </div>
 
-          <div className="home-hero-actions">
-            <button
-              className="home-primary-btn"
-              type="button"
-              onClick={() => onPlay(station, [station, ...companionStations], module.sourceId)}
-              aria-label={isActive ? t('common.pause') : t('common.play')}
-            >
-              {dense ? (
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  {isActive ? (
-                    <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
-                  ) : (
-                    <path d="M8 5v14l11-7z" />
-                  )}
-                </svg>
-              ) : (
-                isActive ? t('common.pause') : t('common.play')
-              )}
-            </button>
+          <div className="home-hero-waveform" aria-hidden="true">
+            {HERO_WAVEFORM_BARS.map((bar) => (
+              <span key={bar.key} style={bar.style} />
+            ))}
+          </div>
+
+          <div className="home-hero-secondary-actions">
             {!dense ? (
               <button
                 className="home-secondary-btn"
@@ -300,9 +303,32 @@ export const HomeHeroCard = ({
               type="button"
               onClick={() => onToggleFavorite(station)}
               aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+              aria-pressed={liked}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="home-hero-play-zone">
+          <div className="home-hero-poster" aria-hidden="true">
+            <div className="home-hero-poster-glow" />
+          </div>
+          <div className="home-hero-actions">
+            <button
+              className="home-primary-btn home-hero-play"
+              type="button"
+              onClick={() => onPlay(station, [station, ...companionStations], module.sourceId)}
+              aria-label={`${isActive ? t('common.pause') : t('common.play')}: ${stationName}`}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {isActive ? (
+                  <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
+                ) : (
+                  <path d="M8 5v14l11-7z" />
+                )}
               </svg>
             </button>
           </div>
@@ -357,7 +383,7 @@ export const HomeResumeStrip = ({
       <div className="home-section-head">
         <div>
           <div className="home-section-title">
-            {t(dense ? 'home.resumeShelfTitleCompact' : module.titleKey)}
+            {t('home.continueListeningTitle')}
           </div>
           <div className="home-section-copy">
             {module.queueCount > 0
@@ -417,15 +443,6 @@ export const HomeRail = ({
   const { t } = useLocale();
   const railRef = useRef<HTMLDivElement | null>(null);
   const visibleStations = module.stations.slice(0, dense ? 6 : module.stations.length);
-  // PR-5: on mobile the personalised "Для тебя" rail (fresh-now) becomes a
-  // 2-column grid of large cards instead of a peek rail — shown 4-up with a
-  // "Показать все" expander (the personalised pool is capped at 6). Desktop is
-  // unchanged (keeps its featured-lead peek rail).
-  const [showAll, setShowAll] = useState(false);
-  const forYouGrid = dense && module.id === 'fresh-now';
-  const renderedStations =
-    forYouGrid && !showAll ? visibleStations.slice(0, 4) : visibleStations;
-  const canShowAll = forYouGrid && !showAll && visibleStations.length > 4;
   const scrollRail = (direction: -1 | 1) => {
     const node = railRef.current;
     if (!node) return;
@@ -456,7 +473,7 @@ export const HomeRail = ({
     node.addEventListener('wheel', handler, { passive: false });
     return () => node.removeEventListener('wheel', handler);
   }, []);
-  const showScrollControls = !forYouGrid && visibleStations.length > (dense ? 3 : 4);
+  const showScrollControls = visibleStations.length > (dense ? 3 : 4);
   const scrollButtonIcon = (direction: -1 | 1) => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d={direction < 0 ? 'M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1z' : 'M8.3 18.7 15 12 8.3 5.3l1.4-1.4 8.1 8.1-8.1 8.1z'} />
@@ -466,7 +483,7 @@ export const HomeRail = ({
   return (
     <section
       id={`home-rail-${module.id}`}
-      className={`home-rail-card ${dense ? 'is-dense' : ''} ${variant === 'logo-strip' ? 'home-rail--logo-strip' : ''} ${forYouGrid ? 'home-rail-card--grid' : ''}`.trim()}
+      className={`home-rail-card ${dense ? 'is-dense' : ''} ${variant === 'logo-strip' ? 'home-rail--logo-strip' : ''}`.trim()}
       data-home-rail={module.id}
       data-home-rail-variant={variant === 'default' ? undefined : variant}
     >
@@ -510,7 +527,7 @@ export const HomeRail = ({
         className="home-horizontal-scroll home-rail-list"
         ref={railRef}
       >
-        {renderedStations.map((station, index) => (
+        {visibleStations.map((station, index) => (
           <HomeStationTile
             key={station.stationuuid}
             station={station}
@@ -532,15 +549,6 @@ export const HomeRail = ({
         ))}
       </div>
 
-      {canShowAll ? (
-        <button
-          className="home-rail-show-all"
-          type="button"
-          onClick={() => setShowAll(true)}
-        >
-          {t('home.showAll')}
-        </button>
-      ) : null}
     </section>
   );
 };

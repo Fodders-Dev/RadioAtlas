@@ -4,6 +4,7 @@ import type { StationLite } from '../types';
 import { createGeneratedArtworkPalette } from '../lib/artwork';
 import { extractArtworkPalette, type ExtractedPalette } from '../lib/artworkColor';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
+import { resolveSceneArtworkUrl } from '../lib/sceneArtwork';
 import './StationBackdrop.css';
 
 // Phase 1 station-backdrop engine (generalizes the old FullPlayerBackdrop). A
@@ -25,7 +26,7 @@ type StationBackdropProps = {
   subscribe: (callback: (frame: VisualizerFrame) => void) => () => void;
 };
 
-const artworkUrlOf = (station: StationLite | null) =>
+const stationArtworkUrlOf = (station: StationLite | null) =>
   station?.stationArtwork?.trim() || station?.favicon?.trim() || '';
 
 // Identity seed for the generated fallback palette — same fields/shape as
@@ -38,8 +39,27 @@ const seedOf = (station: StationLite | null) =>
 export const StationBackdrop = ({ station, active, subscribe }: StationBackdropProps) => {
   const energyRef = useRef<HTMLDivElement>(null);
 
-  const artworkUrl = artworkUrlOf(station);
+  const stationArtworkUrl = stationArtworkUrlOf(station);
+  const [sceneImage, setSceneImage] = useState({ stationId: '', url: '' });
+  const sceneUrl = sceneImage.stationId === station?.stationuuid ? sceneImage.url : '';
+  const artworkUrl = sceneUrl || stationArtworkUrl;
   const seed = seedOf(station);
+
+  useEffect(() => {
+    let alive = true;
+    if (!station?.stationuuid) {
+      return () => {
+        alive = false;
+      };
+    }
+    const stationId = station.stationuuid;
+    void resolveSceneArtworkUrl(stationId).then((url) => {
+      if (alive && url) setSceneImage({ stationId, url });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [station?.stationuuid]);
 
   // Immediate, never-empty palette from station identity; upgraded below.
   const generated = useMemo(() => createGeneratedArtworkPalette(seed), [seed]);
@@ -98,6 +118,7 @@ export const StationBackdrop = ({ station, active, subscribe }: StationBackdropP
       className="station-backdrop"
       data-active={active ? 'true' : 'false'}
       data-has-artwork={blurSrc ? 'true' : 'false'}
+      data-visual-source={sceneUrl ? 'scene' : artworkUrl ? 'station' : 'generated'}
       data-palette-source={extracted ? 'artwork' : 'generated'}
       data-full-player-backdrop
       aria-hidden="true"
@@ -109,7 +130,8 @@ export const StationBackdrop = ({ station, active, subscribe }: StationBackdropP
           src={blurSrc}
           alt=""
           aria-hidden="true"
-          loading="lazy"
+          loading={active ? 'eager' : 'lazy'}
+          {...(active ? { fetchpriority: 'high' } : {})}
           decoding="async"
           referrerPolicy="no-referrer"
         />

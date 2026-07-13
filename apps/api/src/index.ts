@@ -15,6 +15,8 @@ import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js'
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
+import { createSceneArtworkService } from './sceneArtwork.js';
+import { registerSceneArtworkRoutes } from './sceneArtworkRoutes.js';
 import { registerShareRoutes } from './shareRoutes.js';
 import { installObservability, recordCatalogFallback } from './observability.js';
 import { registerStationProfileRoutes } from './stationProfileRoutes.js';
@@ -42,6 +44,14 @@ const VK_CLIENT_ID = process.env.VK_CLIENT_ID || '';
 const VK_CLIENT_SECRET = process.env.VK_CLIENT_SECRET || '';
 const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || '';
 const INTERNAL_WEBHOOK_TOKEN = process.env.INTERNAL_WEBHOOK_TOKEN || '';
+const SCENE_ARTWORK_ENABLED = process.env.SCENE_ARTWORK_ENABLED === '1';
+const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
+const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
+const SCENE_ARTWORK_DIR_RAW = (process.env.SCENE_ARTWORK_DIR || '').trim();
+const SCENE_ARTWORK_STYLE_VERSION = process.env.SCENE_ARTWORK_STYLE_VERSION || undefined;
+const SCENE_ARTWORK_DAILY_CAP = Number(process.env.SCENE_ARTWORK_DAILY_CAP);
+const SCENE_ARTWORK_CONCURRENCY = Number(process.env.SCENE_ARTWORK_CONCURRENCY);
+const SCENE_ARTWORK_QUEUE_MAX = Number(process.env.SCENE_ARTWORK_QUEUE_MAX);
 // «Лира» AI companion. The DeepSeek key lives in EXACTLY one place — this
 // process — and is read here only. AI_ENABLED defaults OFF so a deploy without
 // the AI envs behaves byte-identically to today.
@@ -112,6 +122,11 @@ if (NODE_ENV === 'production' && AI_ENABLED && AI_WEB_SEARCH_ENABLED && !TAVILY_
     'AI_WEB_SEARCH_ENABLED=1 but TAVILY_API_KEY is missing — web search will stay OFF until the key is set.'
   );
 }
+if (SCENE_ARTWORK_ENABLED && (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_API_TOKEN)) {
+  console.error(
+    'SCENE_ARTWORK_ENABLED=1 but Cloudflare credentials are incomplete — cached scenes remain readable, generation stays disabled.'
+  );
+}
 // station-intelligence DB (harvested by the manual script). A set-but-RELATIVE
 // path resolves inside the release dir and is wiped by the deploy prune (~5th
 // deploy) — silently losing the DB, like ACCOUNT_STORE_PATH would. Fail fast.
@@ -119,6 +134,18 @@ const STATION_INTEL_DB_PATH = process.env.STATION_INTEL_DB_PATH || '';
 if (STATION_INTEL_DB_PATH && !isAbsolute(STATION_INTEL_DB_PATH)) {
   console.error(
     'STATION_INTEL_DB_PATH must be an ABSOLUTE path (a release-relative path is wiped by the deploy prune).'
+  );
+  process.exit(1);
+}
+if (SCENE_ARTWORK_DIR_RAW && !isAbsolute(SCENE_ARTWORK_DIR_RAW)) {
+  console.error(
+    'SCENE_ARTWORK_DIR must be an ABSOLUTE path (a release-relative path is wiped by the deploy prune).'
+  );
+  process.exit(1);
+}
+if (NODE_ENV === 'production' && SCENE_ARTWORK_ENABLED && !SCENE_ARTWORK_DIR_RAW) {
+  console.error(
+    'SCENE_ARTWORK_DIR is required when scene generation is enabled in production.'
   );
   process.exit(1);
 }
@@ -178,12 +205,28 @@ const CATALOG_ARTIFACT_FULL_URL = new URL('../../../artifacts/catalog-full.json'
 // resolves to apps/api/assets/ from BOTH src/index.ts (dev, tsx) and
 // dist/index.js (prod, tsup bundle) — src and dist are siblings under apps/api.
 const ASSETS_DIR = new URL('../assets/', import.meta.url);
+const DEFAULT_SCENE_ARTWORK_DIR = new URL('../data/scene-artwork/', import.meta.url);
 const API_URLS = String(process.env.RADIO_BROWSER_URLS || '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
 
 const RADIO_BROWSER_URLS = API_URLS.length ? API_URLS : DEFAULT_API_URLS;
+
+const sceneArtworkService = createSceneArtworkService({
+  enabled: SCENE_ARTWORK_ENABLED,
+  accountId: CLOUDFLARE_ACCOUNT_ID,
+  apiToken: CLOUDFLARE_API_TOKEN,
+  cacheDir: SCENE_ARTWORK_DIR_RAW || DEFAULT_SCENE_ARTWORK_DIR,
+  styleVersion: SCENE_ARTWORK_STYLE_VERSION,
+  dailyCap: SCENE_ARTWORK_DAILY_CAP,
+  maxConcurrency: SCENE_ARTWORK_CONCURRENCY,
+  maxQueueSize: SCENE_ARTWORK_QUEUE_MAX,
+  log: (message, error) => {
+    const detail = error instanceof Error ? error.message : error;
+    console.warn(`[scene-artwork] ${message}`, detail || '');
+  }
+});
 
 export type Station = {
   stationuuid: string;
@@ -482,6 +525,11 @@ registerStationProfileRoutes(app);
 const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles
+});
+registerSceneArtworkRoutes(app, {
+  artwork: sceneArtworkService,
+  getStationById: (id) => catalogService.getStationById(id),
+  internalToken: INTERNAL_WEBHOOK_TOKEN
 });
 // Build the assistant runtime BEFORE registerBotRoutes so the internal bot
 // AI endpoint can share the same warm in-process catalog + the single DeepSeek

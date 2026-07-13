@@ -117,7 +117,10 @@ test.describe('T2.21 discovery rails', () => {
       nodes.map((node) => node.getAttribute('data-home-rail'))
     );
     expect(railIds[0]).toBe('fresh-now');
-    expect(railIds.indexOf('trending')).toBe(1);
+    // The reference-led order brings the dedicated new-stations shelf directly
+    // after the lead recommendation rail.
+    expect(railIds[1]).toBe('home-new-stations');
+    expect(railIds.indexOf('trending')).toBe(2);
     expect(railIds.indexOf('mood-late-night')).toBeGreaterThan(railIds.indexOf('top-voted'));
     expect(railIds.indexOf('mood-driving')).toBeLessThan(railIds.indexOf('around-the-world'));
     // Fixed mood display order.
@@ -125,8 +128,9 @@ test.describe('T2.21 discovery rails', () => {
     expect(railIds.indexOf('mood-workout')).toBeLessThan(railIds.indexOf('mood-focus'));
     expect(railIds.indexOf('mood-focus')).toBeLessThan(railIds.indexOf('mood-driving'));
 
-    // T2.20 density is not regressed by the T2.23 chip-row: still ≥12 above fold.
-    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(12);
+    // The reference hero owns most of the first fold, while one useful row of
+    // large station cards still peeks into view on desktop.
+    expect(await aboveFoldTileCount(page)).toBeGreaterThanOrEqual(4);
   });
 
   test('mobile: discovery + mood rails present in the dense surface', async ({ page }) => {
@@ -158,15 +162,8 @@ test.describe('T2.23 variety pass', () => {
 
     const chipRow = page.locator('.home-anchor-chip-row');
     await expect(chipRow).toBeVisible();
-    // Chip-row sits above the first rail.
-    const chipTop = await chipRow.evaluate((el) => el.getBoundingClientRect().top);
-    const firstRailTop = await page
-      .locator('[data-home-rail]')
-      .first()
-      .evaluate((el) => el.getBoundingClientRect().top);
-    expect(chipTop).toBeLessThan(firstRailTop);
-
-    // Clicking the Driving chip scrolls that (initially below-fold) rail into view.
+    // The compact rail index lives below the editorial lead/resume blocks.
+    // Clicking Driving still jump-scrolls that below-fold rail into view.
     await page.locator('.home-anchor-chip', { hasText: /За рулём|Driving/ }).click();
     await expect
       .poll(async () =>
@@ -207,16 +204,67 @@ test.describe('T2.23 variety pass', () => {
     expect((label || '').length).toBeGreaterThan(0);
   });
 
-  test('mobile: anchor chip-row is present and scrollable', async ({ page }) => {
+  test('mobile: genre quick-choice row is present and scrollable', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openHome(page);
-    await expect(page.locator('.home-anchor-chip-row')).toBeVisible();
-    expect(await page.locator('.home-anchor-chip').count()).toBeGreaterThanOrEqual(2);
+    const genres = page.locator('[data-home-genres] .home-genre-shortcuts-list');
+    await expect(genres).toBeVisible();
+    expect(await genres.locator('button').count()).toBeGreaterThanOrEqual(6);
+    expect(
+      await genres.evaluate((element) => element.scrollWidth > element.clientWidth)
+    ).toBe(true);
   });
 
-  // T_mobile_1 B: a click anywhere on the tile starts the station — not only
+  test('mobile: Feed copy stays complete and station cards expose one play action', async ({ page }) => {
+    for (const width of [360, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await openHome(page);
+
+      const feedCopy = page.locator('.home-feed-entry-sub');
+      await expect(feedCopy).toBeVisible();
+      const copyMetrics = await feedCopy.evaluate((element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        lineClamp: window.getComputedStyle(element).webkitLineClamp
+      }));
+      expect(copyMetrics.scrollHeight).toBeLessThanOrEqual(copyMetrics.clientHeight + 1);
+      expect(copyMetrics.lineClamp).toBe('none');
+
+      const firstTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').first();
+      await expect(firstTile.locator('.home-station-primary-action')).toHaveCount(1);
+      await expect(firstTile.locator('button.home-action-btn-play')).toHaveCount(0);
+      await expect(firstTile.locator('.home-action-btn-like')).toHaveCount(1);
+
+      const mobileMetrics = await page.evaluate(() => {
+        const rect = (selector: string) => {
+          const box = document.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+          return box ? { width: box.width, height: box.height } : null;
+        };
+        const fontSize = (selector: string) => {
+          const element = document.querySelector<HTMLElement>(selector);
+          return element ? Number.parseFloat(window.getComputedStyle(element).fontSize) : null;
+        };
+        return {
+          settings: rect('.mobile-settings-trigger'),
+          account: rect('.app-topbar-primary-cta'),
+          navLabelFont: fontSize('.mobile-nav-item span:last-child'),
+          stationTitleFont: fontSize('.home-station-title')
+        };
+      });
+      expect(Math.round(mobileMetrics.settings?.width ?? 0)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(mobileMetrics.settings?.height ?? 0)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(mobileMetrics.account?.width ?? 0)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(mobileMetrics.account?.height ?? 0)).toBeGreaterThanOrEqual(44);
+      expect(mobileMetrics.navLabelFont).toBeGreaterThanOrEqual(10);
+      expect(mobileMetrics.navLabelFont).toBeLessThanOrEqual(11);
+      expect(mobileMetrics.stationTitleFont).toBeGreaterThanOrEqual(13);
+      expect(mobileMetrics.stationTitleFont).toBeLessThanOrEqual(15);
+    }
+  });
+
+  // T_mobile_1 B: the tile-sized primary button starts the station — not only
   // the small play-icon button (live mobile feedback "играй на клик по квадратику").
-  test('T_mobile_1 B: clicking the tile root plays that station; heart does not', async ({ page }) => {
+  test('T_mobile_1 B: clicking the tile play target starts that station; heart does not', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await openHome(page);
 
@@ -224,8 +272,8 @@ test.describe('T2.23 variety pass', () => {
     const stationName = await firstTile.locator('.home-station-title').textContent();
     expect(stationName).toBeTruthy();
 
-    // Click the artwork area (outside the inner play/like buttons) → station plays.
-    await firstTile.locator('.home-station-artwork').click();
+    // Click the semantic overlay that makes the whole visual tile a play target.
+    await firstTile.locator('.home-station-primary-action').click();
     await expect(page.locator('.player-dock-bar')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
 
@@ -237,16 +285,15 @@ test.describe('T2.23 variety pass', () => {
     await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
   });
 
-  // T_home_redesign_1: HomeHeroCard is gone; fresh-now is now the visual top
-  // of the content area. The companions rail that used to ride above it (one
-  // per `${heroModule.sourceId}-companions`) is also dropped.
-  test('T_home_redesign_1: HomeHeroCard is not rendered; fresh-now leads the rails', async ({ page }) => {
+  // Reference-led Home restores the computed recommendation hero while keeping
+  // companions inside that hero (never as an orphan discovery rail).
+  test('reference Home renders one playable hero; fresh-now still leads the rails', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1024 });
     await openHome(page);
 
-    // No HomeHeroCard in the DOM, and no orphan companions rail.
-    await expect(page.locator('.home-hero-card')).toHaveCount(0);
-    await expect(page.locator('[data-home-hero]')).toHaveCount(0);
+    await expect(page.locator('.home-hero-card')).toHaveCount(1);
+    await expect(page.locator('[data-home-hero]')).toBeVisible();
+    await expect(page.locator('[data-home-hero] .home-hero-play')).toHaveCount(1);
     await expect(page.locator('[data-home-rail$="-companions"]')).toHaveCount(0);
 
     // fresh-now is the very first rail in document order.

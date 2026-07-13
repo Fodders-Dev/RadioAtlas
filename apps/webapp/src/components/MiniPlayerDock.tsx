@@ -267,6 +267,75 @@ export const MiniPlayerDock = () => {
   }
 
   if (playerPresentation === 'peek') {
+    if (current) {
+      return (
+        <div
+          className="player-dock player-dock-peek player-dock-compact"
+          data-empty="false"
+          data-track-trust={trackTrust.kind}
+        >
+          <button
+            ref={artworkRef}
+            className="player-dock-artwork-trigger player-dock-compact-artwork"
+            data-dock-reactive
+            data-active={visualizerActive ? 'true' : 'false'}
+            type="button"
+            onClick={openFullPlayer}
+            aria-label={t('dock.openWinamp')}
+            title={t('dock.openWinamp')}
+          >
+            <StationArtwork station={current} size="dock" />
+          </button>
+          <div className="player-dock-compact-copy" title={stationLocation(current)}>
+            <span className="player-dock-title">{stationTitle}</span>
+          </div>
+          <button
+            className={`dock-icon-btn player-dock-compact-play ${player.isPlaying ? 'active' : ''}`}
+            type="button"
+            onClick={() => {
+              triggerHaptic();
+              void player.toggle();
+            }}
+            aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
+          >
+            <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
+              {player.isPlaying ? (
+                <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
+              ) : (
+                <path d="M8 5v14l11-7z" />
+              )}
+            </ThemeActionIcon>
+          </button>
+          <button
+            className={`dock-icon-btn player-dock-compact-like ${liked ? 'active' : ''}`}
+            type="button"
+            onClick={() => {
+              triggerHaptic();
+              toggleFavorite(current);
+            }}
+            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+            aria-pressed={liked}
+          >
+            <ThemeActionIcon name="like">
+              <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+            </ThemeActionIcon>
+          </button>
+          <button
+            className="dock-icon-btn player-dock-compact-expand"
+            type="button"
+            onClick={() => setPlayerPresentation('bar')}
+            aria-label={t('dock.peekHint')}
+            aria-expanded="false"
+            title={t('dock.peekHint')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6 1.4 1.4Z" />
+            </svg>
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="player-dock player-dock-peek" data-empty={isDormantDock ? 'true' : 'false'}>
         <button
@@ -275,7 +344,7 @@ export const MiniPlayerDock = () => {
           onClick={() => setPlayerPresentation('bar')}
         >
           <span className="player-peek-pill" />
-          <span className="player-peek-label">{current ? current.name : t('dock.peekLabel')}</span>
+          <span className="player-peek-label">{t('dock.peekLabel')}</span>
           {!isDormantDock ? (
             <span className="player-peek-meta">
               {queueCount ? t('dock.queueCount', { count: queueCount }) : t('dock.peekHint')}
@@ -694,10 +763,26 @@ export const MiniPlayerDock = () => {
           }}
           disabled={!current}
           aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+          aria-pressed={liked}
         >
           <ThemeActionIcon name="like">
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
           </ThemeActionIcon>
+        </button>
+        <button
+          className="dock-icon-btn dock-collapse-btn"
+          type="button"
+          onClick={() => {
+            setTrayMode(null);
+            setPlayerPresentation('peek');
+          }}
+          aria-label={t('winamp.collapse')}
+          aria-expanded="true"
+          title={t('winamp.collapse')}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />
+          </svg>
         </button>
       </div>
     </div>

@@ -109,6 +109,7 @@ const toStationLite = (station: CatalogStation) => ({
   homepage: station.homepage || '',
   favicon: station.favicon || '',
   country: station.country || '',
+  countrycode: station.countrycode || '',
   state: station.state || '',
   tags: station.tags || '',
   geo_lat: station.geo_lat ?? null,
@@ -132,6 +133,18 @@ const normalizeText = (value?: string | null) =>
     .trim() || '';
 
 const normalizeKey = (value?: string | null) => normalizeText(value).toLowerCase();
+
+const preferDisplayLabel = (current: string, candidate: string) => {
+  if (!current) return candidate;
+  if (!candidate) return current;
+  const currentStartsLower = /^\p{Ll}/u.test(current);
+  const candidateStartsUpper = /^\p{Lu}/u.test(candidate);
+  if (currentStartsLower && candidateStartsUpper) return candidate;
+  const currentAllCaps = current === current.toLocaleUpperCase();
+  const candidateAllCaps = candidate === candidate.toLocaleUpperCase();
+  if (currentAllCaps && !candidateAllCaps) return candidate;
+  return current;
+};
 
 // Fold the Cyrillic ё (U+0451) onto е so «ёлка»/«елка» and «весёлый»/«веселый»
 // match regardless of which the user typed. Cyrillic-only by design — Latin is
@@ -600,14 +613,19 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const filtered = stations.filter((station) => {
     // q-haystack stays gated behind the && — a no-q browse never touches it.
     if (filters.q && !searchHaystackOf(station).includes(filters.q)) return false;
-    if (filters.country && searchCountryOf(station) !== filters.country) return false;
+    if (filters.country && normalizeKey(searchCountryOf(station)) !== normalizeKey(filters.country)) {
+      return false;
+    }
     if (filters.language && searchLanguageOf(station) !== filters.language) return false;
     if (filters.tag && !searchTagTextOf(station).includes(filters.tag)) return false;
     if (filters.continent && searchContinentOf(station) !== filters.continent) return false;
     return true;
   });
 
-  const countryCounts = new Map<string, { count: number; continent: string }>();
+  const countryCounts = new Map<
+    string,
+    { count: number; continent: string; label: string }
+  >();
   const tagCounts = new Map<string, number>();
   const languageCounts = new Map<string, number>();
   const continentCounts = new Map<string, number>();
@@ -616,9 +634,11 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
     const country = searchCountryOf(station);
     const continent = searchContinentOf(station);
     if (country) {
-      const current = countryCounts.get(country) || { count: 0, continent };
+      const countryKey = normalizeKey(country);
+      const current = countryCounts.get(countryKey) || { count: 0, continent, label: country };
       current.count += 1;
-      countryCounts.set(country, current);
+      current.label = preferDisplayLabel(current.label, country);
+      countryCounts.set(countryKey, current);
     }
     const language = searchLanguageOf(station);
     if (language) {
@@ -657,9 +677,12 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
     nextCursor,
     facets: {
       countries: Array.from(countryCounts.entries())
-        .sort((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0]))
+        .sort(
+          (left, right) =>
+            right[1].count - left[1].count || left[1].label.localeCompare(right[1].label)
+        )
         .slice(0, 80)
-        .map(([country]) => country),
+        .map(([, value]) => value.label),
       tags: Array.from(tagCounts.entries())
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .slice(0, 80)
@@ -672,11 +695,14 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .map(([id, count]) => ({ id, count })),
       featuredCountries: Array.from(countryCounts.entries())
-        .sort((left, right) => right[1].count - left[1].count || left[0].localeCompare(right[0]))
+        .sort(
+          (left, right) =>
+            right[1].count - left[1].count || left[1].label.localeCompare(right[1].label)
+        )
         .slice(0, 12)
-        .map(([country, value]) => ({
-          key: country.toLowerCase(),
-          country,
+        .map(([countryKey, value]) => ({
+          key: countryKey,
+          country: value.label,
           continent: value.continent,
           count: value.count
         }))

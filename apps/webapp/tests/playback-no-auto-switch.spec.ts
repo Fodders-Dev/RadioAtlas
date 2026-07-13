@@ -83,6 +83,18 @@ const queueCurrentIndex = (page: Page) =>
     }
   });
 
+const currentQueueStationId = (page: Page) =>
+  page.evaluate(() => {
+    try {
+      const raw = window.localStorage.getItem('radio:player:v2');
+      if (!raw) return null;
+      const queue = JSON.parse(raw)?.queue;
+      return queue?.items?.[queue?.currentIndex]?.stationuuid ?? null;
+    } catch {
+      return null;
+    }
+  });
+
 const openSearch = async (page: Page) => {
   const mobileSearchNav = page
     .locator('.app-navigation-mobile')
@@ -210,6 +222,9 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   // A station is playing (first search result).
   await startSearchResultsRadio(page);
   await expect.poll(() => distinctPlayedStations(page)).toBe(1);
+  await expect.poll(() => currentQueueStationId(page)).not.toBeNull();
+  const stationBeforeFeed = await currentQueueStationId(page);
+  expect(stationBeforeFeed).toBeTruthy();
 
   // Open «Лента» from its Home entry (it's not in the bottom dock). Mounting it
   // is NOT a swipe → ZERO new plays past the settle.
@@ -219,11 +234,29 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
   await page.waitForTimeout(700); // well past the 220ms settle window
-  expect(await distinctPlayedStations(page)).toBe(1); // never auto-switched on open
+  expect(await currentQueueStationId(page)).toBe(stationBeforeFeed); // never auto-switched on open
 
-  // A DELIBERATE swipe to the next card DOES play (autoplay-on-landing).
-  await page.locator('.station-feed-scroller').evaluate((el) => {
-    el.scrollTop += el.clientHeight;
-  });
-  await expect.poll(() => distinctPlayedStations(page), { timeout: 4000 }).toBeGreaterThanOrEqual(2);
+  // A DELIBERATE swipe to a different card DOES play (autoplay-on-landing).
+  // Resolve the active snap point first: the feed can open on the currently
+  // playing station at any index, including the end of a personalised mix.
+  const scroller = page.locator('.station-feed-scroller');
+  const cards = scroller.locator('.station-feed-card');
+  const activeCard = cards.filter({ has: page.locator('[data-feed-playback-action]') });
+  await expect(activeCard).toHaveCount(1);
+  const activeIndex = Number(await activeCard.getAttribute('data-feed-index'));
+  const cardCount = await cards.count();
+  const targetIndex = activeIndex < cardCount - 1 ? activeIndex + 1 : activeIndex - 1;
+  const scrollDistance = await scroller.evaluate((element) => element.clientHeight);
+  await scroller.hover();
+  await page.mouse.wheel(0, targetIndex > activeIndex ? scrollDistance : -scrollDistance);
+  await expect
+    .poll(() =>
+      scroller.evaluate((element) =>
+        Math.round(element.scrollTop / Math.max(element.clientHeight, 1))
+      )
+    )
+    .toBe(targetIndex);
+  await expect
+    .poll(() => currentQueueStationId(page), { timeout: 4000 })
+    .not.toBe(stationBeforeFeed);
 });

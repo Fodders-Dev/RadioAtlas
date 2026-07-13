@@ -157,6 +157,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
         onClick={onClose}
         type="button"
         aria-label={t('details.closeAria')}
+        data-dialog-backdrop
       />
       <div className="details-card">
         <div className="details-header details-identity">

@@ -512,6 +512,7 @@ const StationPlaylistDialog = ({
         type="button"
         onClick={onClose}
         aria-label={t('common.close')}
+        data-dialog-backdrop
       />
       <div className="station-playlist-dialog-card">
         <div className="station-playlist-dialog-head">
