@@ -168,6 +168,7 @@ export const ruDictionary = {
     "catalogUnavailableTitle": "Каталог сейчас не отвечает",
     "catalogUnavailableCopy": "Поиск и плеер всё ещё доступны. Попробуй обновить витрину.",
     "personalTitle": "Для тебя",
+    "heroKicker": "Рекомендуем",
     "newStationsTitle": "Новые станции",
     "newStationsCopy": "Свежие playable-варианты из каталога.",
     "worldStationsTitle": "По странам",

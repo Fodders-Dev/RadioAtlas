@@ -203,8 +203,11 @@ export const HomeHeroCard = ({
 
   const stationName = normalizeStationName(station.name);
   const longStationName = Array.from(stationName).length > 24;
-  const heroTrack =
-    (isActive && activeTrack) || station.description?.trim() || t(module.copyKey);
+  // Only a REAL now-playing track (when this station is the one on air). No
+  // "Подборка на сейчас — обнови" filler: the hero should read like the
+  // reference — station · location · genre, and the live track once it plays.
+  const heroTrack = isActive ? activeTrack : null;
+  const heroGenre = stationTags(station) || stationLocation(station);
 
   return (
     <section
@@ -213,7 +216,7 @@ export const HomeHeroCard = ({
     >
       <div className="home-hero-topline">
         <div className="home-hero-eyebrow">
-          <span className="home-surface-kicker">{t(module.titleKey)}</span>
+          <span className="home-surface-kicker">{t('home.heroKicker')}</span>
           {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
           <span className="home-hero-live-dot">
             <span aria-hidden="true" />
@@ -259,8 +262,8 @@ export const HomeHeroCard = ({
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
 
           <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
-            <span>{stationTags(station) || t('app.metadataUnavailable')}</span>
-            <strong>{heroTrack}</strong>
+            <span>{heroGenre}</span>
+            {heroTrack ? <strong>{heroTrack}</strong> : null}
           </div>
 
           <div className="home-hero-waveform" aria-hidden="true">
