@@ -5532,6 +5532,19 @@ button.app-brand-pill {
   -webkit-backdrop-filter: none;
 }
 
+/* iPhone-style liquid glass on the top-bar icon buttons (settings / account) —
+   deliberately override the flatten-policy above for these two focal circles
+   (negligible GPU): they refract the hero scene behind them like the reference. */
+.app-topbar-actions .nav-utility-btn.nav-utility-btn-icon {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 8px 20px rgba(0, 7, 20, 0.32);
+  backdrop-filter: blur(18px) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(165%) !important;
+}
+
 .app-navigation-desktop {
   background:
     linear-gradient(180deg, rgba(132, 220, 214, 0.18), rgba(17, 51, 92, 0.08) 22%, rgba(9, 20, 38, 0.3) 100%);
