@@ -342,8 +342,11 @@
     inset 0 -14px 34px rgba(0, 59, 110, 0.3),
     inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   color: #f7fdff;
-  backdrop-filter: blur(16px) saturate(165%);
-  -webkit-backdrop-filter: blur(16px) saturate(165%);
+  /* !important overrides the global "content surfaces stay flat" policy that
+     strips backdrop-filter from buttons — this orb is a deliberate liquid-glass
+     focal point (one element, negligible GPU cost) and needs the refraction. */
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
 }
 
 .screen-home-next .home-primary-btn.home-hero-play svg {
