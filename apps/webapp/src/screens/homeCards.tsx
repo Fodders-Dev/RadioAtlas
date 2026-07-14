@@ -42,16 +42,6 @@ type HomeStationTileProps = {
   logoOnly?: boolean;
 };
 
-const captionForStation = (
-  station: StationLite,
-  isActive: boolean,
-  activeTrack: string | null,
-  t: ReturnType<typeof useLocale>['t']
-) => {
-  if (isActive && activeTrack) return activeTrack;
-  return station.description || stationTags(station) || t('app.metadataUnavailable');
-};
-
 const HomeStationTile = ({
   station,
   playlist,
@@ -59,7 +49,6 @@ const HomeStationTile = ({
   tone,
   dense = false,
   isActive,
-  activeTrack,
   liked,
   onPlay,
   onToggleFavorite,
@@ -68,7 +57,6 @@ const HomeStationTile = ({
 }: HomeStationTileProps) => {
   const { t } = useLocale();
   const { playabilityProfile, stationHealthProfile } = useLibrary();
-  const caption = captionForStation(station, isActive, activeTrack, t);
   // Phase B-PR2: a broken station that survives into a rail (demoted, not
   // dropped) shows the shared 🚫/⚠ badge instead of looking healthy. Computed
   // inline (the tile is not memoised, so this adds no re-render cost).
@@ -109,27 +97,12 @@ const HomeStationTile = ({
       className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''} ${featured ? 'home-station-tile--featured' : ''}`.trim()}
       data-home-station={station.stationuuid}
     >
-      <div className="home-station-main">
-        <div className="home-station-visual">
-          <StationArtwork
-            station={station}
-            size={tone === 'resume' ? 'sm' : 'card'}
-            className="home-station-artwork"
-          />
-        </div>
-        <div className="home-station-copy">
-          <div className="home-station-title" title={normalizeStationName(station.name)}>
-            <StationStatusBadge state={badge} />
-            {normalizeStationName(station.name)}
-          </div>
-          <div className="home-station-caption" title={caption}>
-            {caption}
-          </div>
-          <div className="home-station-meta" title={stationLocation(station)}>
-            {stationLocation(station)}
-          </div>
-        </div>
-      </div>
+      {/* Reference cards are scene-first: the generated country+vibe scene fills
+          the card and fails soft to a deterministic procedural gradient — never
+          the raw station logo, which is frequently a generic placeholder. Name +
+          location overlay the bottom; the whole tile is the play target. */}
+      <StationScene station={station} className="home-station-scene" priority={featured} />
+      <span className="home-station-scrim" aria-hidden="true" />
       <button
         className="home-station-primary-action"
         type="button"
@@ -138,11 +111,19 @@ const HomeStationTile = ({
           name: normalizeStationName(station.name)
         })}
       />
+      <div className="home-station-overlay">
+        <div className="home-station-copy">
+          <div className="home-station-title" title={normalizeStationName(station.name)}>
+            <StationStatusBadge state={badge} />
+            {normalizeStationName(station.name)}
+          </div>
+          <div className="home-station-meta" title={stationLocation(station)}>
+            {stationLocation(station)}
+          </div>
+        </div>
+      </div>
       <div className="home-station-actions">
-        <span
-          className="home-action-btn home-action-btn-play"
-          aria-hidden="true"
-        >
+        <span className="home-action-btn home-action-btn-play" aria-hidden="true">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {isActive ? (
               <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
@@ -289,15 +270,8 @@ export const HomeHeroCard = ({
           </div>
 
           <div className="home-hero-secondary-actions">
-            {!dense ? (
-              <button
-                className="home-secondary-btn"
-                type="button"
-                onClick={() => onExplore(module.querySuggestion)}
-              >
-                {t('home.heroExploreAction')}
-              </button>
-            ) : null}
+            {/* Reference hero is clean — only play + favorite. The «изучить рядом»
+                explore CTA was removed; discovery lives in the rails below. */}
             <button
               className={`home-icon-btn ${liked ? 'is-liked' : ''}`.trim()}
               type="button"

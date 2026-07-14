@@ -547,159 +547,163 @@
   scroll-snap-type: x proximity;
 }
 
+/* Reference station cards: scene-first. The generated country+vibe scene fills
+   the tile (fail-soft to a procedural gradient — never the raw station logo,
+   which is frequently a generic placeholder). Name + location overlay the
+   bottom; the whole tile is the play target. */
 .screen-home-next .home-station-tile,
 .screen-home-next .home-station-tile.is-dense {
+  position: relative;
   flex: 0 0 clamp(176px, 16vw, 224px);
   min-width: clamp(176px, 16vw, 224px);
-  display: grid;
-  gap: 0;
+  aspect-ratio: 4 / 3;
+  display: block;
   padding: 0;
-  border: 0;
+  overflow: hidden;
+  border: 1px solid rgba(179, 227, 255, 0.18);
   border-radius: 20px;
-  background: transparent;
-  box-shadow: none;
+  background: linear-gradient(145deg, rgba(25, 65, 91, 0.9), rgba(5, 18, 37, 0.95));
+  box-shadow:
+    0 14px 30px rgba(0, 7, 21, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   scroll-snap-align: start;
 }
 
-.screen-home-next .home-station-main,
-.screen-home-next .home-rail-card.is-dense .home-station-main {
-  display: grid;
-  align-items: start;
-  gap: 10px;
+.screen-home-next .home-station-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
 }
 
-.screen-home-next .home-station-visual {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  aspect-ratio: 1;
-  overflow: hidden;
-  border: 1px solid rgba(179, 227, 255, 0.21);
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at 24% 12%, rgba(124, 233, 255, 0.22), transparent 38%),
-    linear-gradient(145deg, rgba(25, 65, 91, 0.88), rgba(5, 18, 37, 0.94));
-  box-shadow:
-    0 14px 30px rgba(0, 7, 21, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.11);
-}
-
-.screen-home-next .home-station-visual::after {
-  content: '';
+.screen-home-next .home-station-scrim {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background:
-    linear-gradient(180deg, transparent 58%, rgba(1, 8, 20, 0.44)),
-    radial-gradient(circle at 72% 18%, rgba(95, 225, 255, 0.16), transparent 28%);
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 8, 20, 0) 32%,
+    rgba(1, 6, 16, 0.5) 70%,
+    rgba(1, 5, 14, 0.84)
+  );
   pointer-events: none;
 }
 
-.screen-home-next .home-station-visual .station-artwork-card,
-.screen-home-next .home-rail-card.is-dense .home-station-visual .station-artwork-card {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: inherit;
-  box-shadow: none;
-}
-
-.screen-home-next .home-station-visual .station-artwork[data-has-image='true'] img {
-  object-fit: contain;
-  padding: 10%;
-  background: linear-gradient(145deg, rgba(22, 54, 78, 0.82), rgba(4, 17, 34, 0.92));
+.screen-home-next .home-station-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  padding: 12px 13px;
+  pointer-events: none;
 }
 
 .screen-home-next .home-station-copy,
 .screen-home-next .home-rail-card.is-dense .home-station-copy {
   display: grid;
-  gap: 3px;
-  padding-inline: 2px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .screen-home-next .home-station-title,
 .screen-home-next .home-rail-card.is-dense .home-station-title {
-  color: rgba(247, 250, 255, 0.96);
-  font-size: 0.94rem;
-  font-weight: 640;
-  line-height: 1.28;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 12px rgba(0, 6, 16, 0.6);
 }
 
-.screen-home-next .home-station-caption,
-.screen-home-next .home-rail-card.is-dense .home-station-caption,
 .screen-home-next .home-station-meta,
 .screen-home-next .home-rail-card.is-dense .home-station-meta {
-  color: rgba(207, 224, 240, 0.62);
-  font-size: 0.78rem;
-  line-height: 1.3;
-}
-
-.screen-home-next .home-station-caption {
-  order: 3;
-}
-
-.screen-home-next .home-station-meta {
-  order: 2;
+  overflow: hidden;
+  color: rgba(228, 239, 251, 0.85);
+  font-size: 0.79rem;
+  line-height: 1.28;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 10px rgba(0, 6, 16, 0.55);
 }
 
 .screen-home-next .home-station-primary-action {
+  position: absolute;
+  inset: 0;
   z-index: 2;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .screen-home-next .home-station-primary-action:focus-visible {
   outline: 3px solid var(--home-cyan);
-  outline-offset: 3px;
+  outline-offset: -4px;
 }
 
 .screen-home-next .home-station-actions,
 .screen-home-next .home-rail-card.is-dense .home-station-actions {
   position: absolute;
-  inset: 10px 10px auto;
-  z-index: 3;
+  inset: 10px 10px auto auto;
+  z-index: 4;
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  width: auto;
-  aspect-ratio: 1;
+  align-items: center;
+  gap: 8px;
   pointer-events: none;
 }
 
 .screen-home-next .home-action-btn,
 .screen-home-next .home-station-tile.is-dense .home-action-btn,
 .screen-home-next .home-rail-card.is-dense button.home-action-btn {
-  width: 46px;
-  min-width: 46px;
-  height: 46px;
-  min-height: 46px;
-  border: 1px solid rgba(207, 239, 255, 0.28);
+  display: grid;
+  place-items: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border: 1px solid rgba(207, 239, 255, 0.3);
   border-radius: 50%;
-  background: rgba(3, 16, 33, 0.72);
+  background: rgba(3, 16, 33, 0.58);
   color: rgba(248, 252, 255, 0.96);
-  box-shadow: 0 8px 20px rgba(0, 7, 20, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 7, 20, 0.32);
   backdrop-filter: blur(10px);
+}
+
+.screen-home-next .home-action-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
 }
 
 .screen-home-next .home-action-btn-like,
 .screen-home-next .home-rail-card.is-dense .home-action-btn-like {
-  position: absolute;
-  top: 0;
-  right: 0;
   pointer-events: auto;
+  cursor: pointer;
+}
+
+.screen-home-next .home-action-btn-like.is-liked {
+  border-color: rgba(255, 140, 170, 0.6);
+  background: rgba(214, 51, 92, 0.44);
+  color: #ffdbe4;
 }
 
 .screen-home-next .home-action-btn-play,
 .screen-home-next .home-rail-card.is-dense .home-action-btn-play {
-  display: grid;
   pointer-events: none;
 }
 
-.screen-home-next .home-station-tile.is-active .home-station-visual {
-  border-color: rgba(103, 231, 255, 0.68);
+.screen-home-next .home-station-tile.is-active {
+  border-color: rgba(103, 231, 255, 0.7);
   box-shadow:
-    0 0 0 2px rgba(103, 231, 255, 0.12),
-    0 18px 42px rgba(0, 13, 30, 0.38),
-    0 0 28px rgba(80, 220, 255, 0.16);
+    0 0 0 2px rgba(103, 231, 255, 0.14),
+    0 18px 42px rgba(0, 13, 30, 0.4),
+    0 0 28px rgba(80, 220, 255, 0.18);
 }
 
 .screen-home-next .home-station-tile--featured {
@@ -707,59 +711,18 @@
   min-width: clamp(230px, 22vw, 310px);
 }
 
-/* Resume cards intentionally stay radio-native: there is no fake duration for
-   a live stream. The actual logo, current track/location and play action remain. */
+/* Resume cards share the scene-card shape, wider and a touch shorter. No fake
+   progress bar — a live stream has no duration. */
 .screen-home-next .home-resume-list .home-station-tile,
 .screen-home-next .home-resume-strip.is-dense .home-station-tile {
-  flex: 0 0 min(390px, 82vw);
-  min-width: min(390px, 82vw);
-  min-height: 108px;
-  padding: 9px;
-  border: 1px solid rgba(177, 225, 255, 0.16);
-  border-radius: 22px;
-  background: linear-gradient(145deg, rgba(18, 42, 67, 0.76), rgba(4, 18, 35, 0.84));
-}
-
-.screen-home-next .home-resume-list .home-station-main,
-.screen-home-next .home-resume-strip.is-dense .home-station-main {
-  grid-template-columns: 88px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-}
-
-.screen-home-next .home-resume-list .home-station-visual,
-.screen-home-next .home-resume-strip.is-dense .home-station-visual {
-  width: 88px;
-  height: 88px;
-  aspect-ratio: 1;
-  border-radius: 17px;
-}
-
-.screen-home-next .home-resume-list .station-artwork-sm,
-.screen-home-next .home-resume-strip.is-dense .station-artwork-sm {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: inherit;
-}
-
-.screen-home-next .home-resume-list .home-station-actions,
-.screen-home-next .home-resume-strip.is-dense .home-station-actions {
-  inset: 50% 13px auto auto;
-  width: 46px;
-  height: 46px;
-  aspect-ratio: 1;
-  transform: translateY(-50%);
+  flex: 0 0 min(320px, 82vw);
+  min-width: min(320px, 82vw);
+  aspect-ratio: 16 / 10;
 }
 
 .screen-home-next .home-resume-list .home-action-btn-like,
 .screen-home-next .home-resume-strip.is-dense .home-action-btn-like {
   display: none;
-}
-
-.screen-home-next .home-resume-list .home-station-copy,
-.screen-home-next .home-resume-strip.is-dense .home-station-copy {
-  padding-right: 52px;
 }
 
 .screen-home-next .home-rail--logo-strip .home-horizontal-scroll {

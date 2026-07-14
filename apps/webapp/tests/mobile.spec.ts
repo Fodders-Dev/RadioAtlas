@@ -3090,12 +3090,13 @@ test.describe('T_mobile_1 mobile Home polish', () => {
     expect(tileWidth).toBeGreaterThanOrEqual(140);
     expect(tileWidth).toBeLessThanOrEqual(190);
 
-    // The cover fills the card width (large artwork), not a 64px thumbnail.
-    const artworkWidth = await peekTile
-      .locator('.station-artwork-card')
+    // The generated scene cover fills the card width (large cover, not a 64px
+    // thumbnail). Reference cards are scene-first — the raw station logo is gone.
+    const coverWidth = await peekTile
+      .locator('.home-station-scene')
       .first()
       .evaluate((el) => Math.round(el.getBoundingClientRect().width));
-    expect(artworkWidth).toBeGreaterThanOrEqual(120);
+    expect(coverWidth).toBeGreaterThanOrEqual(120);
 
     // The peek rail is a single row (peek lane, not a 2-row grid): every tile
     // shares one top coordinate.
