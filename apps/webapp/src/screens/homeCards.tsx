@@ -13,6 +13,69 @@ import { useLibrary } from '../state/RadioContext';
 import { getStationBadgeState } from '../lib/stationStatusBadge';
 import { StationStatusBadge } from '../components/StationStatusBadge';
 import type { StationLite } from '../types';
+import type { VisualizerFrame } from '../lib/useAudioPlayer';
+
+type VisualizerSubscribe = (callback: (frame: VisualizerFrame) => void) => () => void;
+
+// The hero "equalizer" bars react to the REAL audio spectrum while this station
+// is on air: it subscribes to the shared audio-pump (the same analyser the full
+// player uses) and writes each bar's live level through `--ra-level` via direct
+// DOM (no React state per frame). When the hero station isn't the one playing —
+// or the stream produces no readable analyser data — it hands back to the CSS
+// idle bounce (data-live='false').
+const HomeHeroEqualizer = ({
+  active,
+  subscribe
+}: {
+  active: boolean;
+  subscribe?: VisualizerSubscribe;
+}) => {
+  const barsRef = useRef<Array<HTMLSpanElement | null>>([]);
+  const levelsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (!active || !subscribe) return undefined;
+    const levels = levelsRef.current;
+    const unsubscribe = subscribe((frame) => {
+      const bars = barsRef.current;
+      const { spectrum } = frame;
+      for (let index = 0; index < bars.length; index += 1) {
+        const bar = bars[index];
+        if (!bar) continue;
+        const bin = Math.floor((index * spectrum.length) / bars.length);
+        const target = Math.min(1, spectrum[bin] ?? 0);
+        const prev = levels[index] ?? 0;
+        // Fast attack, gentle release — the bars pop on transients and fall back
+        // smoothly, so a heavily-smoothed analyser still reads as a lively meter.
+        const next = target >= prev ? target : prev * 0.82 + target * 0.18;
+        levels[index] = next;
+        bar.style.setProperty('--ra-level', Math.max(0.06, next).toFixed(3));
+      }
+    });
+    return () => {
+      unsubscribe();
+      for (const bar of barsRef.current) bar?.style.removeProperty('--ra-level');
+    };
+  }, [active, subscribe]);
+
+  return (
+    <div
+      className="home-hero-waveform"
+      data-live={active ? 'true' : 'false'}
+      aria-hidden="true"
+    >
+      {HERO_WAVEFORM_BARS.map((bar, index) => (
+        <span
+          key={bar.key}
+          style={bar.style}
+          ref={(element) => {
+            barsRef.current[index] = element;
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 type PlayHandler = (station: StationLite, playlist: StationLite[], sourceId: string) => void;
 type ToggleFavoriteHandler = (station: StationLite) => void;
@@ -162,6 +225,10 @@ type HomeHeroCardProps = {
   onToggleFavorite: ToggleFavoriteHandler;
   onExplore: ExploreHandler;
   onRefresh: () => void;
+  // Real-audio equalizer: the shared pump subscribe + whether the analyser is
+  // currently producing data for the on-air station.
+  subscribeVisualizer?: VisualizerSubscribe;
+  visualizerActive?: boolean;
 };
 
 export const HomeHeroCard = ({
@@ -174,7 +241,9 @@ export const HomeHeroCard = ({
   onPlay,
   onToggleFavorite,
   onExplore,
-  onRefresh
+  onRefresh,
+  subscribeVisualizer,
+  visualizerActive = false
 }: HomeHeroCardProps) => {
   const { t } = useLocale();
   const compactLayout = useCompactLayout();
@@ -266,11 +335,10 @@ export const HomeHeroCard = ({
             {heroTrack ? <strong>{heroTrack}</strong> : null}
           </div>
 
-          <div className="home-hero-waveform" aria-hidden="true">
-            {HERO_WAVEFORM_BARS.map((bar) => (
-              <span key={bar.key} style={bar.style} />
-            ))}
-          </div>
+          <HomeHeroEqualizer
+            active={visualizerActive}
+            subscribe={subscribeVisualizer}
+          />
 
           <div className="home-hero-secondary-actions">
             {/* Reference hero is clean — only play + favorite. The «изучить рядом»

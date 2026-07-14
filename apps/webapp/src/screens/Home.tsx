@@ -939,6 +939,8 @@ export const Home = () => {
           onToggleFavorite={toggleFavorite}
           onExplore={openSearch}
           onRefresh={handleRefresh}
+          subscribeVisualizer={player.subscribeVisualizer}
+          visualizerActive={player.visualizer.active}
         />
       ) : (
         <AppScreenSkeleton section="home" scope="home-hero" />
