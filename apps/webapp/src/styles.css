@@ -4644,14 +4644,16 @@ button.app-brand-pill {
     margin-top: -26px;
     border-radius: var(--radius-full);
     border: 1.5px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.85));
+    /* Tinted glass: keep the accent hue but lower the white + accent alphas so
+       the orb reads as see-through liquid glass, not a solid pill. Glow kept. */
     background:
-      radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 48%),
-      linear-gradient(140deg, color-mix(in srgb, var(--accent) 82%, transparent), color-mix(in srgb, var(--accent) 44%, transparent));
+      radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 46%),
+      linear-gradient(140deg, color-mix(in srgb, var(--accent) 52%, transparent), color-mix(in srgb, var(--accent) 24%, transparent));
     color: var(--accent-ink, #08121d);
     box-shadow:
       0 16px 32px color-mix(in srgb, var(--accent) 44%, transparent),
       0 0 34px color-mix(in srgb, var(--accent) 40%, transparent),
-      inset 0 2px 2px rgba(255, 255, 255, 0.7),
+      inset 0 2px 2px rgba(255, 255, 255, 0.55),
       inset 0 -10px 22px rgba(0, 45, 84, 0.28);
     /* !important: this FAB is a deliberate liquid-glass focal point; override the
        button-flattening policy so the orb refracts what's behind it. */
@@ -5536,13 +5538,16 @@ button.app-brand-pill {
    deliberately override the flatten-policy above for these two focal circles
    (negligible GPU): they refract the hero scene behind them like the reference. */
 .app-topbar-actions .nav-utility-btn.nav-utility-btn-icon {
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* Transparent liquid glass — low bg alpha + light blur so the scene behind
+     shows through (not matte). !important beats the flatten policy above. */
+  background: rgba(255, 255, 255, 0.06);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 8px 20px rgba(0, 7, 20, 0.32);
-  backdrop-filter: blur(18px) saturate(165%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(165%) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 22px rgba(0, 7, 20, 0.28);
+  backdrop-filter: blur(7px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
 }
 
 .app-navigation-desktop {

@@ -186,12 +186,12 @@ describe('Home cards density (T2.20)', () => {
     expect(onPlay.mock.calls[0]?.[0]?.stationuuid).toBe('uuid-1');
     expect(onToggleFavorite).not.toHaveBeenCalled();
 
-    // Click the heart inside the next tile — favourite toggles, play does NOT fire.
+    // Cards no longer render a favourite heart — reference cards show only play
+    // (the favourite lives on the hero, not on every tile).
     const heart = tiles[1]!.querySelector<HTMLButtonElement>('.home-action-btn-like');
-    expect(heart).not.toBeNull();
-    act(() => heart!.click());
-    expect(onToggleFavorite).toHaveBeenCalledTimes(1);
-    expect(onPlay).toHaveBeenCalledTimes(1); // still 1 — no double-fire from the heart
+    expect(heart).toBeNull();
+    expect(onToggleFavorite).not.toHaveBeenCalled();
+    expect(onPlay).toHaveBeenCalledTimes(1);
 
     // The visible play glyph is decorative: the tile has one play control,
     // while Favorite remains the only independent sibling action.

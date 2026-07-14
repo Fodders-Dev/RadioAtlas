@@ -203,7 +203,8 @@ test.describe('T2.23 variety pass', () => {
       const firstTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').first();
       await expect(firstTile.locator('.home-station-primary-action')).toHaveCount(1);
       await expect(firstTile.locator('button.home-action-btn-play')).toHaveCount(0);
-      await expect(firstTile.locator('.home-action-btn-like')).toHaveCount(1);
+      // Cards no longer render a like/favorite button — only the play target.
+      await expect(firstTile.locator('.home-action-btn-like')).toHaveCount(0);
 
       const mobileMetrics = await page.evaluate(() => {
         const rect = (selector: string) => {
@@ -232,9 +233,9 @@ test.describe('T2.23 variety pass', () => {
     }
   });
 
-  // T_mobile_1 B: the tile-sized primary button starts the station — not only
-  // the small play-icon button (live mobile feedback "играй на клик по квадратику").
-  test('T_mobile_1 B: clicking the tile play target starts that station; heart does not', async ({ page }) => {
+  // T_mobile_1 B: the tile-sized primary button starts the station — the small
+  // play-icon glyph is decorative (live mobile feedback "играй на клик по квадратику").
+  test('T_mobile_1 B: clicking the tile play target starts that station', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await openHome(page);
 
@@ -247,12 +248,8 @@ test.describe('T2.23 variety pass', () => {
     await expect(page.locator('.player-dock-bar')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
 
-    // Click the heart on a DIFFERENT tile → favourite toggles, dock title does NOT change.
-    const otherTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').nth(1);
-    const heart = otherTile.locator('.home-action-btn-like');
-    await heart.click();
-    // The currently-playing station in the dock is still the first one we clicked.
-    await expect(page.locator('.player-dock-title')).toContainText(stationName!.trim());
+    // Cards no longer expose a like button — the play target is the only control.
+    await expect(firstTile.locator('.home-action-btn-like')).toHaveCount(0);
   });
 
   // Reference-led Home restores the computed recommendation hero while keeping

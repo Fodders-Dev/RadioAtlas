@@ -57,12 +57,66 @@ const HOME_MIN_RAIL_STATIONS = 3;
 // «Быстрый выбор» — curated glass quick-pick chips under the hero (the reference
 // look). Each opens the Поиск tab pre-filled with a mood/genre query.
 const HOME_QUICK_CHIPS = [
-  { key: 'trending', icon: '🔥', labelKey: 'home.chipTrending', query: 'hits' },
-  { key: 'night', icon: '🌙', labelKey: 'home.chipNight', query: 'lofi chillout' },
-  { key: 'workout', icon: '💪', labelKey: 'home.chipWorkout', query: 'workout dance' },
-  { key: 'driving', icon: '🚗', labelKey: 'home.chipDriving', query: 'rock classic' },
-  { key: 'focus', icon: '📚', labelKey: 'home.chipFocus', query: 'ambient piano' },
-  { key: 'news', icon: '📰', labelKey: 'home.chipNews', query: 'news' }
+  {
+    key: 'trending',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z" />
+      </svg>
+    ),
+    labelKey: 'home.chipTrending',
+    query: 'hits'
+  },
+  {
+    key: 'night',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M9.5 2c-1.82 0-3.53.5-5 1.35 2.99 1.73 5 4.95 5 8.65s-2.01 6.92-5 8.65C5.97 21.5 7.68 22 9.5 22c5.52 0 10-4.48 10-10S15.02 2 9.5 2z" />
+      </svg>
+    ),
+    labelKey: 'home.chipNight',
+    query: 'lofi chillout'
+  },
+  {
+    key: 'workout',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z" />
+      </svg>
+    ),
+    labelKey: 'home.chipWorkout',
+    query: 'workout dance'
+  },
+  {
+    key: 'driving',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+      </svg>
+    ),
+    labelKey: 'home.chipDriving',
+    query: 'rock classic'
+  },
+  {
+    key: 'focus',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z" />
+      </svg>
+    ),
+    labelKey: 'home.chipFocus',
+    query: 'ambient piano'
+  },
+  {
+    key: 'news',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M22 3l-1.67 1.67L18.67 3 17 4.67 15.33 3l-1.66 1.67L12 3l-1.67 1.67L8.67 3 7 4.67 5.33 3 3.67 4.67 2 3v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V3zM11 19H4v-6h7v6zm9 0h-7v-2h7v2zm0-4h-7v-2h7v2zm0-4H4V8h16v3z" />
+      </svg>
+    ),
+    labelKey: 'home.chipNews',
+    query: 'news'
+  }
 ] as const;
 
 // T2.23 variety pass — render-mode variants, looked up by rail id (no data
@@ -957,21 +1011,36 @@ export const Home = () => {
         <AppScreenSkeleton section="home" scope="home-hero" />
       )}
 
-      <nav className="home-quick-chips" aria-label={t('home.quickChipsLabel')}>
-        {HOME_QUICK_CHIPS.map((chip) => (
+      <section className="home-quick-chips-section">
+        <div className="home-quick-chips-head">
+          <h2>{t('home.quickChipsLabel')}</h2>
           <button
-            key={chip.key}
-            className="home-quick-chip"
+            className="home-section-see-all"
             type="button"
-            onClick={() => openSearch(chip.query)}
+            onClick={() => openSearch('')}
           >
-            <span className="home-quick-chip-icon" aria-hidden="true">
-              {chip.icon}
-            </span>
-            {t(chip.labelKey)}
+            {t('home.seeAll')}
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+            </svg>
           </button>
-        ))}
-      </nav>
+        </div>
+        <nav className="home-quick-chips" aria-label={t('home.quickChipsLabel')}>
+          {HOME_QUICK_CHIPS.map((chip) => (
+            <button
+              key={chip.key}
+              className="home-quick-chip"
+              type="button"
+              onClick={() => openSearch(chip.query)}
+            >
+              <span className="home-quick-chip-glyph" aria-hidden="true">
+                {chip.icon}
+              </span>
+              {t(chip.labelKey)}
+            </button>
+          ))}
+        </nav>
+      </section>
 
       {showSummaryErrorBanner ? (
         <section
@@ -1054,6 +1123,7 @@ export const Home = () => {
           isFavorite={isFavorite}
           onPlay={handlePlayStation}
           onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
         />
       ) : null}
 

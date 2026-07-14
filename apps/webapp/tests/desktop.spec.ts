@@ -36,8 +36,8 @@ test('desktop shell keeps navigation, queue, and expanded player flow intact', a
   });
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Медиатека' }).first().click();
-  await expect(page.locator('.app-topbar-title')).toHaveText('Медиатека');
+  await page.getByRole('button', { name: 'Моё' }).first().click();
+  await expect(page.locator('.app-topbar-title')).toHaveText('Моё');
   await page.locator('.library-tab-chip').filter({ hasText: 'Очередь' }).first().click();
   await expect(page.locator('.playlist-row.active')).toContainText('Tokyo FM');
 });
