@@ -296,6 +296,21 @@
   }
 }
 
+/* Live audio-reactive mode: the shared analyser drives each bar's height via
+   --ra-level (0–1). The idle bounce is off; bars grow from the baseline like a
+   real equalizer, smoothed between the ~32ms analyser frames. */
+.screen-home-next .home-hero-waveform[data-live='true'] {
+  align-items: flex-end;
+}
+
+.screen-home-next .home-hero-waveform[data-live='true'] > span {
+  height: 100%;
+  transform-origin: bottom;
+  transform: scaleY(var(--ra-level, 0.12));
+  transition: transform 70ms linear;
+  animation: none;
+}
+
 .screen-home-next .home-hero-secondary-actions {
   display: flex;
   align-items: center;
