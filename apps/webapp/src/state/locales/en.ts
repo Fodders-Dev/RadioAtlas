@@ -168,6 +168,7 @@ export const enDictionary = {
     "catalogUnavailableTitle": "Catalog is not responding right now",
     "catalogUnavailableCopy": "Search and playback still work. Refresh the front page and try again.",
     "personalTitle": "For you",
+    "heroKicker": "Recommended",
     "newStationsTitle": "New stations",
     "newStationsCopy": "Fresh playable picks from the catalog.",
     "worldStationsTitle": "Around the world",
