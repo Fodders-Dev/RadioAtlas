@@ -72,6 +72,20 @@ export default defineConfig({
     modulePreload: false,
     rollupOptions: {
       output: {
+        // CSS assets in this toolchain get a filename hash that is NOT derived
+        // from their content — CSS-only edits reuse the same `Name-<hash>.css`
+        // filename. Served `Cache-Control: immutable` (1 year), returning
+        // browsers (incl. the Telegram WebView) therefore keep the OLD cached
+        // CSS forever and never see a style change. Stamp the build commit into
+        // CSS filenames so every release busts the cache; JS chunks and other
+        // assets keep their content hash (they already bust correctly).
+        assetFileNames: (assetInfo: { names?: string[]; name?: string }) => {
+          const names = assetInfo.names ?? (assetInfo.name ? [assetInfo.name] : []);
+          const isCss = names.some((name) => name?.endsWith('.css'));
+          return isCss
+            ? `assets/[name]-[hash]-${commitHash}[extname]`
+            : 'assets/[name]-[hash][extname]';
+        },
         manualChunks(id) {
           const normalizedId = id.replace(/\\/g, '/');
           if (normalizedId.includes('vite/preload-helper')) {
