@@ -112,9 +112,7 @@ const HomeStationTile = ({
   tone,
   dense = false,
   isActive,
-  liked,
   onPlay,
-  onToggleFavorite,
   featured = false,
   logoOnly = false
 }: HomeStationTileProps) => {
@@ -195,20 +193,6 @@ const HomeStationTile = ({
             )}
           </svg>
         </span>
-        <button
-          className={`home-action-btn home-action-btn-like ${liked ? 'is-liked' : ''}`.trim()}
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleFavorite(station);
-          }}
-          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-          aria-pressed={liked}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-          </svg>
-        </button>
       </div>
     </article>
   );
@@ -329,11 +313,13 @@ export const HomeHeroCard = ({
             {stationName}
           </h2>
           <div className="home-hero-subtitle">{stationLocation(station)}</div>
+          <div className="home-hero-tags">{heroGenre}</div>
 
-          <div className="home-hero-trackline" data-active={isActive ? 'true' : 'false'}>
-            <span>{heroGenre}</span>
-            {heroTrack ? <strong>{heroTrack}</strong> : null}
-          </div>
+          {heroTrack ? (
+            <div className="home-hero-trackline">
+              <strong>{heroTrack}</strong>
+            </div>
+          ) : null}
 
           <HomeHeroEqualizer
             active={visualizerActive}
@@ -407,6 +393,7 @@ type HomeResumeStripProps = {
   isFavorite: (stationId: string) => boolean;
   onPlay: PlayHandler;
   onToggleFavorite: ToggleFavoriteHandler;
+  onExplore?: ExploreHandler;
 };
 
 export const HomeResumeStrip = ({
@@ -416,7 +403,8 @@ export const HomeResumeStrip = ({
   activeTrack,
   isFavorite,
   onPlay,
-  onToggleFavorite
+  onToggleFavorite,
+  onExplore
 }: HomeResumeStripProps) => {
   const { t } = useLocale();
 
@@ -439,6 +427,16 @@ export const HomeResumeStrip = ({
         <div className="home-section-badge">
           {module.activeStationId ? t('app.liveBadge') : t('common.resume')}
         </div>
+        <button
+          className="home-section-see-all"
+          type="button"
+          onClick={() => onExplore?.('')}
+        >
+          {t('home.seeAll')}
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+          </svg>
+        </button>
       </div>
 
       <div className="home-horizontal-scroll home-resume-list">
@@ -566,6 +564,16 @@ export const HomeRail = ({
             </button>
           </div>
         ) : null}
+        <button
+          className="home-section-see-all"
+          type="button"
+          onClick={() => onExplore?.('')}
+        >
+          {t('home.seeAll')}
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
+          </svg>
+        </button>
       </div>
 
       <div

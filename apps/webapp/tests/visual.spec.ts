@@ -171,11 +171,12 @@ test('home shell populated visual baseline', async ({ page }) => {
   });
 });
 
-test('home surface stays stable during like and play actions', async ({ page }) => {
+test('home surface stays stable during play actions', async ({ page }) => {
   await openHome(page);
   const before = await readHomeSurfaceSignature(page);
 
-  await page.locator('[data-home-rail] .home-action-btn-like').first().click();
+  // Cards no longer render a like button; a normal rail play must not reshape
+  // the discovery surface.
   await page
     .locator('[data-home-rail] [data-home-station]')
     .first()
@@ -215,7 +216,7 @@ test('search screen visual baseline', async ({ page }) => {
 
 test('library screen visual baseline', async ({ page }) => {
   await openHome(page);
-  await page.locator('.nav-rail-item').filter({ hasText: 'Медиатека' }).first().click();
+  await page.locator('.nav-rail-item').filter({ hasText: 'Моё' }).first().click();
   await expect(page).toHaveScreenshot('library-screen.png', {
     animations: 'disabled',
     fullPage: true

@@ -181,9 +181,9 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   const overflowing = await page.locator('.screen-home-next *').evaluateAll((nodes) =>
     nodes
       .filter((node) => {
-        // Horizontal-scroll rail containers intentionally let their children
-        // extend past the viewport.
-        if (node.closest('.home-horizontal-scroll')) return false;
+        // Horizontal-scroll rail containers (and the «Быстрый выбор» chip
+        // scroller) intentionally let their children extend past the viewport.
+        if (node.closest('.home-horizontal-scroll, .home-quick-chips')) return false;
         const rect = node.getBoundingClientRect();
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })
@@ -2775,7 +2775,7 @@ test('mobile library queue survives navigation after playback starts', async ({ 
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
-  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Медиатека' }).evaluate((node) => {
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё' }).evaluate((node) => {
     (node as HTMLButtonElement).click();
   });
   await page
@@ -2921,7 +2921,7 @@ test('core mobile screens have no document overflow on 360 390 and 412 widths', 
     await expect(page.locator('.screen-globe-v3')).toBeVisible();
     await expectNoDocumentHorizontalOverflow(page);
 
-    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Медиатека|Library/ }).click();
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Моё|Library|Mine/ }).click();
     await expect(page.locator('.library-tab-strip')).toBeVisible();
     await expectNoDocumentHorizontalOverflow(page);
   }

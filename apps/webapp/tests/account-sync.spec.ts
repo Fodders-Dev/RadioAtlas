@@ -35,7 +35,7 @@ test('favorites sync to another logged-in device right after like', async ({ pag
   await stationRow.getByRole('button', { name: 'В лайки' }).click();
   await cloudSyncResponse;
 
-  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await page.getByRole('button', { name: 'Моё' }).first().click();
   await expect(page.locator('.screen-library-v2')).toContainText(stationName);
 
   const secondContext = await browser.newContext();
@@ -53,7 +53,7 @@ test('favorites sync to another logged-in device right after like', async ({ pag
   await signInThroughOnboarding(secondPage, ACCOUNT_FIXTURE_API_BASE);
   await expect(secondPage.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
-  await secondPage.getByRole('button', { name: 'Медиатека' }).first().click();
+  await secondPage.getByRole('button', { name: 'Моё' }).first().click();
   await expect(secondPage.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'library');
   await expect(secondPage.locator('.screen-library-v2')).toContainText(stationName);
 
@@ -107,7 +107,7 @@ test('logged-in playback bursts coalesce cloud library sync writes', async ({ pa
   expect(syncedLibrary.tasteProfile?.signals?.length || 0).toBeGreaterThan(0);
   expect(syncedLibrary.tasteProfile?.signals?.some((signal) => signal.stationId === 'uuid-kyoto')).toBe(true);
 
-  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await page.getByRole('button', { name: 'Моё' }).first().click();
   await expect(page.locator('.screen-library-v2')).toBeVisible();
   await page.getByRole('button', { name: 'Поиск' }).first().click();
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'search');
@@ -128,7 +128,7 @@ test('logged-in navigation and visibility recovery stay responsive', async ({ pa
   await page.goto(`/?api=${encodeURIComponent(ACCOUNT_FIXTURE_API_BASE)}`);
   await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
-  await page.getByRole('button', { name: 'Медиатека' }).first().click();
+  await page.getByRole('button', { name: 'Моё' }).first().click();
   await expect(page.locator('.screen-library-v2')).toBeVisible();
 
   await page.getByRole('button', { name: 'Поиск' }).first().click();

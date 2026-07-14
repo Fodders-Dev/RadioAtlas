@@ -33,8 +33,8 @@
   isolation: isolate;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: clamp(440px, 54vh, 570px);
-  gap: 22px;
+  min-height: clamp(360px, 46vh, 480px);
+  gap: 18px;
   overflow: hidden;
   padding: clamp(22px, 3vw, 42px);
   border: 1px solid rgba(176, 228, 255, 0.24);
@@ -217,6 +217,19 @@
   line-height: 1.35;
 }
 
+/* Single muted line of genre tags under the hero subtitle (reference look). */
+.screen-home-next .home-hero-tags,
+.screen-home-next .home-hero-card.is-dense .home-hero-tags {
+  overflow: hidden;
+  max-width: min(100%, 40ch);
+  color: rgba(219, 233, 247, 0.6);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .screen-home-next .home-hero-trackline,
 .screen-home-next .home-hero-card.is-dense .home-hero-trackline {
   display: grid;
@@ -311,6 +324,32 @@
   animation: none;
 }
 
+/* «Быстрый выбор» head: section title + right-aligned "see all" above the chips. */
+/* The wrapper is a grid/flex item on the Home column: without min-width:0 it
+   defaults to its content width, so the horizontal chip scroller can't clip and
+   it drags the whole surface wide (page overflow). */
+.screen-home-next .home-quick-chips-section {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.screen-home-next .home-quick-chips-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.screen-home-next .home-quick-chips-head h2 {
+  margin: 0;
+  color: rgba(246, 250, 255, 0.96);
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
 /* «Быстрый выбор» — glass quick-pick chips under the hero (reference look). A
    new class (not the flattened `.chip`), so the frosted backdrop applies. */
 .screen-home-next .home-quick-chips {
@@ -336,8 +375,8 @@
   min-height: 40px;
   padding: 8px 15px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
   color: rgba(247, 251, 255, 0.96);
   font-size: 0.86rem;
   font-weight: 640;
@@ -345,15 +384,34 @@
   cursor: pointer;
   scroll-snap-align: start;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 8px 20px rgba(0, 8, 22, 0.24);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 22px rgba(0, 7, 20, 0.28);
+  /* Transparent liquid glass: low bg alpha + light blur so the hero scene shows
+     through. !important out-specifies the "content surfaces stay flat" policy. */
+  backdrop-filter: blur(7px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
 }
 
 .screen-home-next .home-quick-chip-icon {
   font-size: 1rem;
   line-height: 1;
+}
+
+/* Inline svg glyph inside each quick-pick chip (replaces the old emoji span). */
+.screen-home-next .home-quick-chip-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.screen-home-next .home-quick-chip-glyph svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 .screen-home-next .home-hero-secondary-actions {
@@ -428,7 +486,7 @@
   border-radius: 50%;
   background:
     radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 40%),
-    linear-gradient(150deg, rgba(96, 205, 255, 0.66), rgba(16, 92, 160, 0.66));
+    linear-gradient(150deg, rgba(96, 205, 255, 0.54), rgba(16, 92, 160, 0.5));
   box-shadow:
     0 22px 52px rgba(0, 13, 36, 0.5),
     0 0 48px rgba(91, 224, 255, 0.42),
@@ -448,6 +506,27 @@
   height: 46px;
   fill: #ffffff;
   filter: drop-shadow(0 2px 6px rgba(0, 20, 45, 0.45));
+}
+
+/* Denser hero → smaller focal orb + poster so the hero doesn't eat the screen.
+   Scoped to >720px: the ≤720 mobile block sets its own (smaller) orb/poster. */
+@media (min-width: 721px) {
+  .screen-home-next .home-hero-card.is-dense .home-primary-btn.home-hero-play {
+    width: 84px;
+    min-width: 84px;
+    height: 84px;
+    min-height: 84px;
+  }
+
+  .screen-home-next .home-hero-card.is-dense .home-primary-btn.home-hero-play svg {
+    width: 38px;
+    height: 38px;
+  }
+
+  .screen-home-next .home-hero-card.is-dense .home-hero-poster {
+    width: 114px;
+    min-height: 114px;
+  }
 }
 
 .screen-home-next .home-hero-companions {
@@ -632,6 +711,33 @@
   gap: 2px;
 }
 
+/* Small right-aligned "see all" text + chevron at the end of a section head. */
+.screen-home-next .home-section-see-all {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  min-height: 44px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: rgba(210, 225, 245, 0.7);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.screen-home-next .home-section-see-all:hover {
+  color: rgba(238, 246, 255, 0.95);
+}
+
+.screen-home-next .home-section-see-all svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
 .screen-home-next .home-section-copy {
   max-width: 58ch;
   color: rgba(208, 225, 241, 0.58);
@@ -773,12 +879,17 @@
   min-width: 42px;
   height: 42px;
   min-height: 42px;
-  border: 1px solid rgba(207, 239, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  background: rgba(3, 16, 33, 0.58);
+  background: rgba(255, 255, 255, 0.06);
   color: rgba(248, 252, 255, 0.96);
-  box-shadow: 0 8px 20px rgba(0, 7, 20, 0.32);
-  backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 22px rgba(0, 7, 20, 0.28);
+  /* Transparent liquid glass — see-through play/like circles (see recipe). */
+  backdrop-filter: blur(7px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
 }
 
 .screen-home-next .home-action-btn svg {
@@ -880,7 +991,7 @@
   .screen-home-next > .screen-skeleton-home {
     grid-column: 1 / span 8;
     grid-row: 1 / span 3;
-    min-height: 560px;
+    min-height: 500px;
   }
 
   .screen-home-next > .home-genre-shortcuts {
@@ -954,7 +1065,9 @@
 
 .app-shell-v2[data-active-section='home'] .mobile-nav-chat-fab {
   border-color: rgba(112, 231, 255, 0.48);
-  background: linear-gradient(145deg, rgba(29, 108, 143, 0.96), rgba(6, 32, 59, 0.98));
+  /* Tinted glass — keep the accent hue but far lower alpha so it reads as
+     see-through liquid glass (the base rule's blur carries the refraction). */
+  background: linear-gradient(145deg, rgba(29, 108, 143, 0.42), rgba(6, 32, 59, 0.32));
   box-shadow:
     0 0 0 6px rgba(4, 17, 34, 0.88),
     0 0 34px rgba(74, 224, 255, 0.22);
@@ -1018,15 +1131,18 @@
     height: 48px;
     min-height: 48px;
     padding: 0;
-    border: 1px solid rgba(201, 236, 255, 0.24);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    background: rgba(4, 18, 37, 0.5);
+    /* Transparent liquid glass — the circles refract the hero scene behind them
+       (low bg alpha + light blur; see recipe). */
+    background: rgba(255, 255, 255, 0.06);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      0 8px 24px rgba(0, 7, 22, 0.24);
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 8px 22px rgba(0, 7, 20, 0.28);
     color: rgba(246, 251, 255, 0.96);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(7px) saturate(170%) !important;
+    -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
@@ -1050,12 +1166,20 @@
 
   .screen-home-next .home-hero-card,
   .screen-home-next .home-hero-card.is-dense {
-    min-height: min(590px, max(500px, 68svh));
+    /* Dense hero ≈ 45% of a 812px viewport so chips + first rail sit above the
+       fold (was ~68svh, which ate the whole first screen). */
+    min-height: clamp(340px, 46svh, 400px);
+    gap: 14px;
     margin-inline: -14px;
-    padding: calc(var(--shell-safe-top, 0px) + 88px) 20px 26px;
+    padding: calc(var(--shell-safe-top, 0px) + 74px) 20px 22px;
     border-inline: 0;
     border-top: 0;
     border-radius: 0 0 32px 32px;
+  }
+
+  .screen-home-next .home-hero-copy,
+  .screen-home-next .home-hero-card.is-dense .home-hero-copy {
+    gap: 7px;
   }
 
   .screen-home-next .home-hero-scrim {
@@ -1324,7 +1448,7 @@
 @media (max-width: 420px) {
   .screen-home-next .home-hero-card,
   .screen-home-next .home-hero-card.is-dense {
-    min-height: min(560px, max(490px, 66svh));
+    min-height: clamp(320px, 44svh, 380px);
     padding-inline: 16px;
   }
 

@@ -192,29 +192,10 @@ test.describe('dialog keyboard a11y', () => {
       .toBe(true);
   });
 
-  test('Home like is a standalone keyboard action and does not start playback', async ({ page }) => {
-    await page.goto('/');
-    const firstCard = page.locator('[data-home-station]').first();
-    const stationId = await firstCard.getAttribute('data-home-station');
-    expect(stationId).toBeTruthy();
-    const like = firstCard.locator('.home-action-btn-like');
-
-    await like.focus();
-    await expect(like).toBeFocused();
-    await like.press('Space');
-
-    await expect
-      .poll(() =>
-        page.evaluate((id) => {
-          const raw = window.localStorage.getItem('radio:library:v2');
-          if (!raw) return false;
-          const stored = JSON.parse(raw) as { favorites?: Array<{ stationuuid?: string }> };
-          return stored.favorites?.some((station) => station.stationuuid === id) || false;
-        }, stationId)
-      )
-      .toBe(true);
-    await expect(page.locator('.player-dock').first()).toHaveAttribute('data-empty', 'true');
-  });
+  // Removed: 'Home like is a standalone keyboard action…' — station cards no
+  // longer render a like button (only the play target), so there is no card-level
+  // like control on Home to keyboard-activate. The hero favorite stays but is a
+  // separate sibling button, not the nested-in-play-target case this guarded.
 
   test('Library tabs support arrow keys and keep the selected tab after navigation', async ({ page }) => {
     await seedRadioState(page, {
@@ -233,7 +214,7 @@ test.describe('dialog keyboard a11y', () => {
     await expect(recentTab).toHaveAttribute('aria-selected', 'true');
 
     await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
-    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Медиатека|Library/ }).click();
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Моё|Library|Mine/ }).click();
     await expect(page.getByRole('tab', { name: /Недавнее|Recent/ })).toHaveAttribute(
       'aria-selected',
       'true'
