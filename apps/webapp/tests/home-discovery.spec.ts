@@ -156,25 +156,6 @@ test.describe('T2.23 variety pass', () => {
     await seedSummary(page);
   });
 
-  test('desktop: anchor chip-row jump-scrolls to a below-fold rail', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 960 });
-    await openHome(page);
-
-    const chipRow = page.locator('.home-anchor-chip-row');
-    await expect(chipRow).toBeVisible();
-    // The compact rail index lives below the editorial lead/resume blocks.
-    // Clicking Driving still jump-scrolls that below-fold rail into view.
-    await page.locator('.home-anchor-chip', { hasText: /За рулём|Driving/ }).click();
-    await expect
-      .poll(async () =>
-        page.locator('[data-home-rail="mood-driving"]').evaluate((el) => {
-          const r = el.getBoundingClientRect();
-          return r.top >= 0 && r.top < window.innerHeight;
-        })
-      )
-      .toBe(true);
-  });
-
   test('desktop: fresh-now leads with a featured tile wider than its siblings', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
     await openHome(page);
@@ -202,17 +183,6 @@ test.describe('T2.23 variety pass', () => {
     await expect(logoButton).toBeVisible();
     const label = await logoButton.getAttribute('aria-label');
     expect((label || '').length).toBeGreaterThan(0);
-  });
-
-  test('mobile: genre quick-choice row is present and scrollable', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openHome(page);
-    const genres = page.locator('[data-home-genres] .home-genre-shortcuts-list');
-    await expect(genres).toBeVisible();
-    expect(await genres.locator('button').count()).toBeGreaterThanOrEqual(6);
-    expect(
-      await genres.evaluate((element) => element.scrollWidth > element.clientWidth)
-    ).toBe(true);
   });
 
   test('mobile: Feed copy stays complete and station cards expose one play action', async ({ page }) => {

@@ -181,9 +181,9 @@ const expectNoHomeHorizontalOverflow = async (page: Page) => {
   const overflowing = await page.locator('.screen-home-next *').evaluateAll((nodes) =>
     nodes
       .filter((node) => {
-        // Horizontal-scroll containers (rails, genre shortcuts, anchor chips)
-        // intentionally let their children extend past the viewport.
-        if (node.closest('.home-horizontal-scroll, .home-anchor-chip-row, .home-genre-shortcuts-list')) return false;
+        // Horizontal-scroll rail containers intentionally let their children
+        // extend past the viewport.
+        if (node.closest('.home-horizontal-scroll')) return false;
         const rect = node.getBoundingClientRect();
         return rect.left < -1 || rect.right > document.documentElement.clientWidth + 1;
       })
@@ -1091,9 +1091,10 @@ for (const width of [360, 390, 540]) {
     await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
-    await expect(page.locator('.home-search-launcher')).toBeVisible();
-    await expect(page.locator('#home-search-launcher')).toBeVisible();
-    await expect(page.locator('[data-home-genres]')).toBeVisible();
+    // Reference Home: the on-Home search launcher + genre shortcuts were removed
+    // (search + genres live in the Поиск tab now).
+    await expect(page.locator('.home-search-launcher')).toHaveCount(0);
+    await expect(page.locator('[data-home-genres]')).toHaveCount(0);
     await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
     await expect(page.locator('.home-explore-card')).toHaveCount(0);
     await expect(page.locator('[data-home-hero]')).toHaveCount(1);
@@ -1132,7 +1133,6 @@ for (const width of [360, 390, 540]) {
       const forYouTiles = Array.from(
         document.querySelectorAll('[data-home-rail="fresh-now"] [data-home-station]')
       );
-      const genreButtons = Array.from(document.querySelectorAll('[data-home-genres] button'));
 
       return {
         topbarHeight: topbar?.height || 0,
@@ -1145,10 +1145,7 @@ for (const width of [360, 390, 540]) {
         forYouRowCount: new Set(
           forYouTiles.map((node) => Math.round(node.getBoundingClientRect().top / 8) * 8)
         ).size,
-        forYouTileWidth: forYouTiles[0]?.getBoundingClientRect().width || 0,
-        minGenreButtonHeight: Math.round(Math.min(
-          ...genreButtons.map((node) => node.getBoundingClientRect().height)
-        ))
+        forYouTileWidth: forYouTiles[0]?.getBoundingClientRect().width || 0
       };
     });
     expect(compactHomeMetrics.topbarHeight).toBeLessThanOrEqual(72);
@@ -1166,7 +1163,6 @@ for (const width of [360, 390, 540]) {
     expect(compactHomeMetrics.forYouRowCount).toBe(1);
     expect(compactHomeMetrics.forYouTileWidth).toBeGreaterThanOrEqual(140);
     expect(compactHomeMetrics.forYouTileWidth).toBeLessThanOrEqual(190);
-    expect(compactHomeMetrics.minGenreButtonHeight).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.home-rail-scroll-controls').first()).toBeHidden();
     const peekRail = page.locator('[data-home-rail="trending"]');
     const railScroll = peekRail.locator('.home-horizontal-scroll');
@@ -1497,34 +1493,6 @@ test('home cold load shows hero skeleton while summary is pending', async ({ pag
   await page.goto('/');
   await expect(page.locator('.screen-skeleton-home-hero')).toBeVisible();
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
-});
-
-test('home search launcher does not fire catalog search on type, and submits to Search', async ({ page }) => {
-  // T2.20 turned the Home search launcher into a compact form: typing no longer
-  // renders an inline preview list (that decoration was dropped), and crucially
-  // it still must not fire catalog-search network requests on keystroke. Submit
-  // hands off to the Search screen, so search-on-Home stays a real affordance.
-  await page.setViewportSize({ width: 760, height: 900 });
-  const searchRequests: string[] = [];
-  page.on('request', (request) => {
-    const url = request.url();
-    if (url.includes('/catalog/search') || url.includes('/json/stations/search')) {
-      searchRequests.push(url);
-    }
-  });
-
-  await page.goto('/');
-  await expect(page.locator('#home-search-launcher')).toBeVisible();
-  await page.locator('#home-search-launcher').fill('Tokyo');
-  await page.waitForTimeout(450);
-
-  // No network on type, and no inline preview list anymore.
-  expect(searchRequests).toEqual([]);
-  await expect(page.locator('[data-home-search-preview]')).toHaveCount(0);
-
-  // Submitting the form navigates to the Search screen with the query carried over.
-  await page.locator('#home-search-launcher').press('Enter');
-  await expect(page.locator('#search-hero-input')).toBeVisible();
 });
 
 test('search ranks playable tag matches above failed matches', async ({ page }) => {
@@ -3103,11 +3071,6 @@ test.describe('T_mobile_1 mobile Home polish', () => {
       .first()
       .evaluate((el) => getComputedStyle(el).overscrollBehaviorX);
     expect(railOverscroll).toBe('contain');
-
-    const chipRowOverscroll = await page
-      .locator('.home-anchor-chip-row')
-      .evaluate((el) => getComputedStyle(el).overscrollBehaviorX);
-    expect(chipRowOverscroll).toBe('contain');
   });
 
   // Discovery rails are single-row PEEK lanes of large-cover cards (~150px
