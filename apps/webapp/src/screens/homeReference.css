@@ -1216,9 +1216,11 @@
   }
 
   .app-shell-v2[data-active-section='home'] .mobile-nav-chat-fab {
+    /* Slightly smaller orb on the dense Home surface. The raise comes solely
+       from the base rule's margin-top (-26px); no extra translate here or it
+       would double-stack and poke too far. */
     width: 54px;
     height: 54px;
-    transform: translateY(-8px);
   }
 }
 

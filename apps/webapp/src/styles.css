@@ -4562,7 +4562,11 @@ button.app-brand-pill {
     left: 10px;
     right: 10px;
     bottom: calc(10px + var(--shell-safe-bottom));
-    z-index: 85;
+    /* Above the player dock (z-90) so the raised «Лира» FAB — trapped in this
+       nav's stacking context — can poke over the dock instead of being painted
+       under it. Stays below the full-player overlay (z-120). The nav and dock
+       only meet at a ~2px seam, so this doesn't hide any dock control. */
+    z-index: 91;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
