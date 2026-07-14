@@ -4653,8 +4653,10 @@ button.app-brand-pill {
       0 0 34px color-mix(in srgb, var(--accent) 40%, transparent),
       inset 0 2px 2px rgba(255, 255, 255, 0.7),
       inset 0 -10px 22px rgba(0, 45, 84, 0.28);
-    backdrop-filter: blur(14px) saturate(175%);
-    -webkit-backdrop-filter: blur(14px) saturate(175%);
+    /* !important: this FAB is a deliberate liquid-glass focal point; override the
+       button-flattening policy so the orb refracts what's behind it. */
+    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
   }
 
   .mobile-nav-chat-fab svg {
