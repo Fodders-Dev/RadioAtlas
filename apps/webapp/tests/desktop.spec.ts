@@ -15,9 +15,9 @@ test('desktop shell keeps navigation, queue, and expanded player flow intact', a
 
   await expect(page.locator('.app-navigation-desktop')).toBeVisible();
   await expect(page.locator('.app-topbar-title')).toHaveText('Главная');
-  // T2.20 density pass: the search launcher is now a compact form (no section
-  // head), the topbar kicker is blanked, and the footer nav-promo card is gone.
-  await expect(page.locator('.home-search-launcher.is-compact #home-search-launcher')).toBeVisible();
+  // Reference Home: search-on-Home + genre shortcuts were removed (they live in
+  // the Поиск tab now); the topbar kicker is blanked, and the nav-promo card is gone.
+  await expect(page.locator('.home-search-launcher')).toHaveCount(0);
   await expect(page.locator('.home-explore-card')).toHaveCount(0);
   await expect(page.locator('.home-hero-metrics')).toHaveCount(0);
   expect(((await page.locator('.shell-kicker').first().textContent()) || '').trim()).toBe('');
@@ -231,7 +231,6 @@ test('metadata state recovers from unavailable to live track without losing play
 test('home discovery modules stay non-duplicative across main station shelves', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
-  await expect(page.locator('[data-home-genres]')).toBeVisible();
 
   const modules = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('[data-home-rail]')).map((module) =>

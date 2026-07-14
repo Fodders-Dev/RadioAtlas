@@ -52,37 +52,13 @@ const HOME_SURFACE_VERSION = 6;
 // — on both layouts (dense shows all ten; desktop also fits companions/resume).
 const DESKTOP_RAIL_LIMIT = 12;
 const DENSE_RAIL_LIMIT = 10;
-const DENSE_QUICK_CHIP_LIMIT = 2;
 const HOME_MIN_RAIL_STATIONS = 3;
-
-const HOME_GENRE_SHORTCUTS = [
-  { query: 'rock', titleKey: 'home.genreRock' },
-  { query: 'pop', titleKey: 'home.genrePop' },
-  { query: 'electronic', titleKey: 'home.genreElectronic' },
-  { query: 'jazz', titleKey: 'home.genreJazz' },
-  { query: 'hip-hop', titleKey: 'home.genreHipHop' },
-  { query: 'classical', titleKey: 'home.genreClassical' },
-  { query: 'metal', titleKey: 'home.genreMetal' },
-  { query: 'ambient', titleKey: 'home.genreAmbient' }
-] as const;
 
 // T2.23 variety pass — render-mode variants, looked up by rail id (no data
 // shape change, no HOME_SURFACE_VERSION bump). fresh-now leads with a featured
 // first tile; the "most-voted" lane renders as an artwork-only logo strip.
 const railVariant = (railId: string): 'default' | 'featured-lead' | 'logo-strip' =>
   railId === 'fresh-now' ? 'featured-lead' : railId === 'top-voted' ? 'logo-strip' : 'default';
-
-// Anchor chips jump-scroll to a rail. Only the fixed-title discovery shelves get
-// a chip — fresh-now is the lead, and country/genre carry dynamic labels.
-const ANCHOR_RAIL_IDS = new Set([
-  'trending',
-  'mood-late-night',
-  'mood-workout',
-  'mood-focus',
-  'mood-driving',
-  'top-voted',
-  'around-the-world'
-]);
 
 const mergeStations = (...collections: StationLite[][]) => {
   const merged = new Map<string, StationLite>();
@@ -424,7 +400,6 @@ export const Home = () => {
   // Coupling this flag to geometry turned wide laptops into a sparse mobile
   // layout, which was the source of the desktop "desert" regression.
   const denseLayout = isCompactLayout;
-  const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const sessionBucketPrimedRef = useRef(false);
   const dismissedSummaryErrorRef = useRef<string | null>(null);
@@ -630,11 +605,6 @@ export const Home = () => {
   const surfaceFeed = surfaceFeedBase;
   const currentStationId = player.current?.stationuuid || null;
   const activeTrack = currentStationId ? nowPlaying : null;
-  const quickSearchChips = surfaceFeed?.quickSearchChips?.length
-    ? surfaceFeed.quickSearchChips
-    : [summary?.countrySpotlight?.label, summary?.genreSpotlight?.label]
-        .filter((value): value is string => Boolean(value))
-        .slice(0, denseLayout ? DENSE_QUICK_CHIP_LIMIT : 4);
   const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
   // Note: rankedCatalogRails uses the same homeRankInputsRef snapshot
   // above. The post-rank `isStationHiddenFromRecommendations` filter
@@ -762,18 +732,6 @@ export const Home = () => {
     // homeState.sessionSeed change which is implicit through surfaceRails.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, denseLayout, rankedCatalogRails, surfaceRails]);
-
-  // T2.23: jump-scroll chips, one per visible discovery shelf.
-  const anchorChips = useMemo(
-    () => visibleRails.filter((rail) => ANCHOR_RAIL_IDS.has(rail.id)),
-    [visibleRails]
-  );
-  const scrollToRail = (railId: string) => {
-    if (typeof document === 'undefined') return;
-    document
-      .querySelector(`[data-home-rail="${railId}"]`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   useEffect(() => {
     const stationIds = mergeStations(
@@ -1001,29 +959,11 @@ export const Home = () => {
         </section>
       ) : null}
 
-      <section className="home-genre-shortcuts" data-home-genres="true">
-        <div className="home-genre-shortcuts-head">
-          <h2>{t('home.genresTitle')}</h2>
-          <button type="button" onClick={() => openSearch('')}>
-            {t('home.allGenres')}
-          </button>
-        </div>
-        <div className="home-genre-shortcuts-list">
-          {HOME_GENRE_SHORTCUTS.map((genre) => (
-            <button
-              key={genre.query}
-              type="button"
-              onClick={() => openSearch(genre.query)}
-            >
-              {t(genre.titleKey)}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Feed remains a first-class Home action, but no longer displaces the
-          recommended live station. Refresh is intentionally housed in the same
-          compact control, with separate sibling buttons to avoid nested actions. */}
+      {/* Reference Home (owner design): the surface is intentionally a clean
+          hero → «Продолжить слушать» → discovery rails. Genre shortcuts and the
+          quick-search launcher were removed from Home — both already live in the
+          Поиск tab (its genres rail + search field). Only the compact Лента entry
+          and the recommendation refresh remain as first-class Home actions. */}
       <div className="home-feed-hero">
         <button
           type="button"
@@ -1062,44 +1002,6 @@ export const Home = () => {
         </button>
       </div>
 
-      <section className="home-search-launcher is-compact">
-        <form
-          className="home-search-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            openSearch(query);
-          }}
-        >
-          <label className="home-search-field" htmlFor="home-search-launcher">
-            <input
-              id="home-search-launcher"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t('explore.quickSearchPlaceholder')}
-              autoComplete="off"
-            />
-          </label>
-          <button className="home-inline-link" type="submit">
-            {t('home.openSearch')}
-          </button>
-        </form>
-
-        {!denseLayout && quickSearchChips.length ? (
-          <div className="home-search-chip-row">
-            {quickSearchChips.map((chip) => (
-              <button
-                key={chip}
-                className="home-search-chip"
-                type="button"
-                onClick={() => setQuery(chip)}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
       {leadRail ? (
         <HomeRail
           dense={denseLayout}
@@ -1124,22 +1026,6 @@ export const Home = () => {
           onPlay={handlePlayStation}
           onToggleFavorite={toggleFavorite}
         />
-      ) : null}
-
-      {anchorChips.length ? (
-        <nav className="home-anchor-chip-row" aria-label={t('home.sectionsNav')}>
-          {anchorChips.map((module) => (
-            <button
-              key={module.id}
-              className="home-anchor-chip"
-              type="button"
-              aria-controls={`home-rail-${module.id}`}
-              onClick={() => scrollToRail(module.id)}
-            >
-              {t(module.titleKey)}
-            </button>
-          ))}
-        </nav>
       ) : null}
 
       {secondaryRails.map((module) => (

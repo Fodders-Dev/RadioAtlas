@@ -105,11 +105,12 @@ test.describe('T2.20 Home density', () => {
     await expect(page.locator('.home-explore-card')).toHaveCount(0);
     await expect(page.locator('.home-hero-metrics')).toHaveCount(0);
 
-    // Search-on-Home is preserved (it's a real search, not a promo): the
-    // compact form + its input + quick-search chips stay.
-    await expect(page.locator('.home-search-launcher.is-compact')).toHaveCount(1);
-    await expect(page.locator('#home-search-launcher')).toBeVisible();
-    await expect(page.locator('.home-search-chip').first()).toBeVisible();
+    // Reference Home (owner design): the on-Home search launcher was removed —
+    // search + genres live in the Поиск tab now, so the Home is a clean
+    // hero → «Продолжить слушать» → discovery rails.
+    await expect(page.locator('.home-search-launcher')).toHaveCount(0);
+    await expect(page.locator('#home-search-launcher')).toHaveCount(0);
+    await expect(page.locator('[data-home-genres]')).toHaveCount(0);
 
     // Topbar kicker is blanked (B): the decorative "Твой эфирный атлас" line is
     // empty while the "Главная" title and topbar height stay put.
