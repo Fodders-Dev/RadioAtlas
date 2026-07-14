@@ -54,6 +54,17 @@ const DESKTOP_RAIL_LIMIT = 12;
 const DENSE_RAIL_LIMIT = 10;
 const HOME_MIN_RAIL_STATIONS = 3;
 
+// «Быстрый выбор» — curated glass quick-pick chips under the hero (the reference
+// look). Each opens the Поиск tab pre-filled with a mood/genre query.
+const HOME_QUICK_CHIPS = [
+  { key: 'trending', icon: '🔥', labelKey: 'home.chipTrending', query: 'hits' },
+  { key: 'night', icon: '🌙', labelKey: 'home.chipNight', query: 'lofi chillout' },
+  { key: 'workout', icon: '💪', labelKey: 'home.chipWorkout', query: 'workout dance' },
+  { key: 'driving', icon: '🚗', labelKey: 'home.chipDriving', query: 'rock classic' },
+  { key: 'focus', icon: '📚', labelKey: 'home.chipFocus', query: 'ambient piano' },
+  { key: 'news', icon: '📰', labelKey: 'home.chipNews', query: 'news' }
+] as const;
+
 // T2.23 variety pass — render-mode variants, looked up by rail id (no data
 // shape change, no HOME_SURFACE_VERSION bump). fresh-now leads with a featured
 // first tile; the "most-voted" lane renders as an artwork-only logo strip.
@@ -945,6 +956,22 @@ export const Home = () => {
       ) : (
         <AppScreenSkeleton section="home" scope="home-hero" />
       )}
+
+      <nav className="home-quick-chips" aria-label={t('home.quickChipsLabel')}>
+        {HOME_QUICK_CHIPS.map((chip) => (
+          <button
+            key={chip.key}
+            className="home-quick-chip"
+            type="button"
+            onClick={() => openSearch(chip.query)}
+          >
+            <span className="home-quick-chip-icon" aria-hidden="true">
+              {chip.icon}
+            </span>
+            {t(chip.labelKey)}
+          </button>
+        ))}
+      </nav>
 
       {showSummaryErrorBanner ? (
         <section
