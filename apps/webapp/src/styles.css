@@ -4568,14 +4568,18 @@ button.app-brand-pill {
     gap: 6px;
     padding: 6px;
     height: var(--mobile-nav-height-v2);
-    border-radius: 20px;
-    border: 1px solid var(--glass-border);
+    border-radius: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
     background:
-      radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.22), transparent 34%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
-      rgba(19, 32, 48, 0.12);
-    backdrop-filter: blur(36px) saturate(180%);
-    box-shadow: var(--glass-shadow);
+      radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.3), transparent 48%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05) 46%, rgba(10, 20, 34, 0.06)),
+      rgba(16, 28, 44, 0.26);
+    backdrop-filter: blur(42px) saturate(190%);
+    -webkit-backdrop-filter: blur(42px) saturate(190%);
+    box-shadow:
+      0 22px 46px rgba(3, 10, 20, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .mobile-nav-item {
@@ -4624,30 +4628,36 @@ button.app-brand-pill {
   }
 
   .mobile-nav-chat-fab {
-    /* Compact in-nav FAB: sits just inside the nav row instead of poking ~22px
-       above it, so the player dock-bar (whose bottom edge meets the nav top)
-       can no longer clip/overpaint it. z-index is insurance for safe-area
-       rounding on real devices; stays below the full-player overlay (120). */
+    /* Raised «Лира» hero FAB — a liquid-glass orb that pokes above the nav bar
+       (the reference look). z-index 96 keeps it above the dock-bar that meets
+       the nav top; stays below the full-player overlay (120). */
     position: relative;
-    z-index: 95;
+    z-index: 96;
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
-    margin-top: -6px;
+    width: 58px;
+    height: 58px;
+    margin-top: -26px;
     border-radius: var(--radius-full);
-    border: 2px solid color-mix(in srgb, var(--accent) 30%, #ffffff);
-    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, #ffffff));
+    border: 1.5px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.85));
+    background:
+      radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 48%),
+      linear-gradient(140deg, color-mix(in srgb, var(--accent) 82%, transparent), color-mix(in srgb, var(--accent) 44%, transparent));
     color: var(--accent-ink, #08121d);
     box-shadow:
-      0 8px 18px color-mix(in srgb, var(--accent) 42%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      0 16px 32px color-mix(in srgb, var(--accent) 44%, transparent),
+      0 0 34px color-mix(in srgb, var(--accent) 40%, transparent),
+      inset 0 2px 2px rgba(255, 255, 255, 0.7),
+      inset 0 -10px 22px rgba(0, 45, 84, 0.28);
+    backdrop-filter: blur(14px) saturate(175%);
+    -webkit-backdrop-filter: blur(14px) saturate(175%);
   }
 
   .mobile-nav-chat-fab svg {
-    width: 22px;
-    height: 22px;
+    width: 27px;
+    height: 27px;
     fill: currentColor;
+    filter: drop-shadow(0 1px 2px rgba(0, 26, 52, 0.3));
   }
 
   .mobile-nav-chat-label {
@@ -9428,11 +9438,19 @@ button.player-dock-status-pill:active {
 }
 
 .app-navigation-mobile {
-  overflow: hidden;
+  /* visible (not hidden) so the raised «Лира» FAB can poke above the bar; the
+     frosted glass still self-clips via border-radius + backdrop-filter, and the
+     gloss pseudo-layers below inherit the radius so the corners stay rounded. */
+  overflow: visible;
   box-sizing: border-box;
 }
 
-.app-navigation-mobile > * {
+.app-navigation-mobile::before,
+.app-navigation-mobile::after {
+  border-radius: inherit;
+}
+
+.app-navigation-mobile > *:not(.mobile-nav-chat) {
   min-width: 0;
   max-width: 100%;
 }
