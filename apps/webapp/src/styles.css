@@ -2547,8 +2547,8 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.065) 20%, rgba(255, 255, 255, 0.02) 56%, rgba(255, 255, 255, 0.006)),
     var(--glass-bg);
   box-shadow: 0 12px 28px rgba(3, 10, 20, 0.05);
-  backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
 }
 
 .glass-card::before {
@@ -4063,8 +4063,8 @@ button.app-brand-pill {
   color: var(--text);
   border-radius: 16px;
   padding: 7px 12px;
-  backdrop-filter: blur(34px) saturate(190%);
   -webkit-backdrop-filter: blur(34px) saturate(190%);
+  backdrop-filter: blur(34px) saturate(190%);
   cursor: pointer;
   min-width: 0;
   box-shadow: 0 14px 30px rgba(2, 10, 18, 0.08);
@@ -4122,8 +4122,8 @@ button.app-brand-pill {
     linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05)),
     var(--glass-bg-strong);
   box-shadow: 0 16px 36px rgba(2, 10, 16, 0.09);
-  backdrop-filter: blur(32px) saturate(185%);
   -webkit-backdrop-filter: blur(32px) saturate(185%);
+  backdrop-filter: blur(32px) saturate(185%);
   position: fixed;
 }
 
@@ -4196,8 +4196,8 @@ button.app-brand-pill {
   color: rgba(226, 237, 249, 0.92);
   text-align: left;
   cursor: pointer;
-  backdrop-filter: blur(16px) saturate(170%);
   -webkit-backdrop-filter: blur(16px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(170%);
 }
 
 .player-dock-track-button.active {
@@ -4293,8 +4293,8 @@ button.app-brand-pill {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     0 6px 16px rgba(0, 7, 20, 0.28);
-  backdrop-filter: blur(8px) saturate(175%) !important;
   -webkit-backdrop-filter: blur(8px) saturate(175%) !important;
+  backdrop-filter: blur(8px) saturate(175%) !important;
 }
 
 .dock-icon-btn.active,
@@ -4354,8 +4354,8 @@ button.app-brand-pill {
   box-shadow:
     0 18px 40px rgba(2, 10, 16, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(30px) saturate(175%);
   -webkit-backdrop-filter: blur(30px) saturate(175%);
+  backdrop-filter: blur(30px) saturate(175%);
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -4475,8 +4475,8 @@ button.app-brand-pill {
   box-shadow: 0 28px 60px rgba(2, 8, 12, 0.2);
   /* P2-2a: 38px was doing redundant work behind the now-unblurred scrim; 24px
      keeps the frosted-glass read at a lower fill-rate cost. */
-  backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
   padding: 22px;
 }
 
@@ -4586,8 +4586,8 @@ button.app-brand-pill {
       radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.3), transparent 48%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05) 46%, rgba(10, 20, 34, 0.06)),
       rgba(16, 28, 44, 0.26);
-    backdrop-filter: blur(42px) saturate(190%);
     -webkit-backdrop-filter: blur(42px) saturate(190%);
+    backdrop-filter: blur(42px) saturate(190%);
     box-shadow:
       0 22px 46px rgba(3, 10, 20, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
@@ -4665,8 +4665,8 @@ button.app-brand-pill {
       inset 0 -10px 22px rgba(0, 45, 84, 0.28);
     /* !important: this FAB is a deliberate liquid-glass focal point; override the
        button-flattening policy so the orb refracts what's behind it. */
-    backdrop-filter: blur(16px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+    backdrop-filter: blur(16px) saturate(180%) !important;
   }
 
   .mobile-nav-chat-fab svg {
@@ -5497,8 +5497,8 @@ button.app-brand-pill {
 .player-dock-peek,
 .player-dock-bar,
 .player-dock-tray-panel {
-  backdrop-filter: blur(28px) saturate(155%);
   -webkit-backdrop-filter: blur(28px) saturate(155%);
+  backdrop-filter: blur(28px) saturate(155%);
   border-color: rgba(210, 234, 255, 0.16);
   box-shadow:
     0 24px 60px rgba(2, 9, 18, 0.42),
@@ -5538,8 +5538,8 @@ button.app-brand-pill {
 .dock-icon-btn,
 .dock-expand-btn,
 .player-dock-track-button {
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* iPhone-style liquid glass on the top-bar icon buttons (settings / account) —
@@ -5554,8 +5554,8 @@ button.app-brand-pill {
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06),
     0 8px 22px rgba(0, 7, 20, 0.28);
-  backdrop-filter: blur(7px) saturate(170%) !important;
   -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
+  backdrop-filter: blur(7px) saturate(170%) !important;
 }
 
 .app-navigation-desktop {
@@ -5706,8 +5706,8 @@ body {
     var(--glass-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(118, 181, 255, 0.08);
-  backdrop-filter: blur(34px) saturate(180%);
   -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
 }
 
 .app-navigation-desktop::before,
@@ -5740,8 +5740,8 @@ body {
   border: 1px solid color-mix(in srgb, var(--text) 10%, var(--border));
   background: color-mix(in srgb, var(--surface-base) 98%, var(--bg));
   box-shadow: none;
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .glass-card::before {
@@ -5783,8 +5783,8 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 10px 20px rgba(5, 12, 22, 0.16);
-  backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
 }
 
 .nav-rail-item.active,
@@ -5918,8 +5918,8 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 12px 22px rgba(5, 11, 20, 0.14);
-  backdrop-filter: blur(24px) saturate(165%);
   -webkit-backdrop-filter: blur(24px) saturate(165%);
+  backdrop-filter: blur(24px) saturate(165%);
 }
 
 .globe-selection-pill span,
@@ -6296,8 +6296,8 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     0 12px 22px rgba(5, 11, 20, 0.12);
-  backdrop-filter: blur(22px) saturate(165%);
   -webkit-backdrop-filter: blur(22px) saturate(165%);
+  backdrop-filter: blur(22px) saturate(165%);
 }
 
 .search-bar input::placeholder {
@@ -8984,8 +8984,8 @@ button.player-dock-status-pill:active {
   border: none;
   background: transparent;
   color: rgba(216, 229, 244, 0.7);
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .player-dock-track-button.active {
@@ -9224,8 +9224,8 @@ button.player-dock-status-pill:active {
   background: transparent;
   box-shadow: none;
   overflow: visible;
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .home-search-card-hero::before,
@@ -9839,8 +9839,8 @@ button.player-dock-status-pill:active {
 .app-shell-v2[data-low-power='true'] .mobile-nav-item,
 .app-shell-v2[data-low-power='true'] .app-navigation-mobile,
 .app-shell-v2[data-low-power='true'] .nav-utility-btn {
-  backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   box-shadow: 0 8px 16px rgba(3, 9, 18, 0.12) !important;
 }
 
@@ -10161,8 +10161,8 @@ button.player-dock-status-pill:active {
   background-position: center;
   background-size: auto, cover;
   box-shadow: 0 24px 64px rgba(2, 8, 18, 0.42);
-  backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
 }
 
 .station-playlist-dialog-head {
@@ -10623,8 +10623,8 @@ button.player-dock-status-pill:active {
     color: var(--text);
     overflow: auto;
     overscroll-behavior: contain;
-    backdrop-filter: blur(22px) saturate(150%);
     -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
   }
 
   .bottom-sheet-handle {
@@ -10695,8 +10695,8 @@ button.player-dock-status-pill:active {
   border-color: color-mix(in srgb, var(--text) 10%, var(--border));
   background: color-mix(in srgb, var(--surface-raised) 96%, var(--bg));
   box-shadow: none;
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .settings-card.stack > div:first-child {
@@ -10953,8 +10953,8 @@ button.player-dock-status-pill:active {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     0 6px 16px rgba(0, 7, 20, 0.28);
-  backdrop-filter: blur(8px) saturate(175%) !important;
   -webkit-backdrop-filter: blur(8px) saturate(175%) !important;
+  backdrop-filter: blur(8px) saturate(175%) !important;
 }
 
 :is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-icon-btn.active,

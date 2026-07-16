@@ -24,8 +24,8 @@
   border: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.14));
   border-radius: 18px;
   box-shadow: 0 14px 30px rgba(2, 10, 18, 0.16);
-  backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
 }
 
 .player-dock-compact-artwork {
@@ -92,8 +92,8 @@
   padding: 0;
   border-color: transparent;
   background: transparent;
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .player-dock .player-dock-track-button.active {

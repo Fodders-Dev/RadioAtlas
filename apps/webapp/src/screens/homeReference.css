@@ -389,8 +389,8 @@
     0 8px 22px rgba(0, 7, 20, 0.28);
   /* Transparent liquid glass: low bg alpha + light blur so the hero scene shows
      through. !important out-specifies the "content surfaces stay flat" policy. */
-  backdrop-filter: blur(7px) saturate(170%) !important;
   -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
+  backdrop-filter: blur(7px) saturate(170%) !important;
 }
 
 .screen-home-next .home-quick-chip-icon {
@@ -450,8 +450,8 @@
   border-radius: 50%;
   background: transparent;
   box-shadow: 0 0 70px 6px rgba(76, 220, 255, 0.28);
-  backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .screen-home-next .home-hero-poster-glow {
@@ -497,8 +497,8 @@
   /* !important overrides the global "content surfaces stay flat" policy that
      strips backdrop-filter from buttons — this orb is a deliberate liquid-glass
      focal point (one element, negligible GPU cost) and needs the refraction. */
-  backdrop-filter: blur(18px) saturate(160%) !important;
   -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
 }
 
 .screen-home-next .home-primary-btn.home-hero-play svg {
@@ -615,8 +615,8 @@
     radial-gradient(120% 90% at 18% -18%, rgba(255, 255, 255, 0.14), transparent 50%),
     rgba(12, 30, 52, 0.28);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
-  backdrop-filter: blur(10px) saturate(160%);
   -webkit-backdrop-filter: blur(10px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(160%);
 }
 
 .screen-home-next .home-feed-entry {
@@ -898,8 +898,8 @@
     inset 0 -6px 12px rgba(0, 45, 92, 0.16),
     0 6px 18px rgba(0, 7, 20, 0.35),
     0 0 16px rgba(120, 220, 255, 0.16);
-  backdrop-filter: blur(6px) saturate(170%) !important;
   -webkit-backdrop-filter: blur(6px) saturate(170%) !important;
+  backdrop-filter: blur(6px) saturate(170%) !important;
 }
 
 .screen-home-next .home-action-btn svg {
@@ -1121,8 +1121,8 @@
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card::before,
@@ -1167,8 +1167,8 @@
       inset 0 0 0 1px rgba(255, 255, 255, 0.06),
       0 8px 22px rgba(0, 7, 20, 0.28);
     color: rgba(246, 251, 255, 0.96);
-    backdrop-filter: blur(7px) saturate(170%) !important;
     -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
+    backdrop-filter: blur(7px) saturate(170%) !important;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
