@@ -12,7 +12,7 @@
   --home-line: rgba(181, 231, 255, 0.18);
   width: min(100%, 1480px);
   margin-inline: auto;
-  gap: clamp(18px, 2.1vw, 30px);
+  gap: clamp(13px, 1.6vw, 22px);
   padding-bottom: calc(var(--screen-bottom-safe-v2, 180px) + 24px);
   color: var(--text);
   container-type: inline-size;
@@ -33,7 +33,7 @@
   isolation: isolate;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  min-height: clamp(360px, 46vh, 480px);
+  min-height: clamp(340px, 42vh, 440px);
   gap: 18px;
   overflow: hidden;
   padding: clamp(22px, 3vw, 42px);
@@ -372,25 +372,25 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 8px 15px;
+  min-height: 36px;
+  padding: 6px 13px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.035);
   color: rgba(247, 251, 255, 0.96);
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   font-weight: 640;
   white-space: nowrap;
   cursor: pointer;
   scroll-snap-align: start;
+  /* Apple liquid glass pill: lens edge (bright top-left, faint bottom-right). */
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.9),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
     0 8px 22px rgba(0, 7, 20, 0.28);
-  /* Transparent liquid glass: low bg alpha + light blur so the hero scene shows
-     through. !important out-specifies the "content surfaces stay flat" policy. */
-  -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
-  backdrop-filter: blur(7px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
 }
 
 .screen-home-next .home-quick-chip-icon {
@@ -607,7 +607,7 @@
   align-items: stretch;
   gap: 0;
   overflow: hidden;
-  min-height: 68px;
+  min-height: 54px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 22px;
   /* Transparent glass row (was a matte 0.78/0.86 slab). */
@@ -621,8 +621,8 @@
 
 .screen-home-next .home-feed-entry {
   min-width: 0;
-  min-height: 68px;
-  padding: 10px 14px;
+  min-height: 54px;
+  padding: 7px 12px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -884,22 +884,19 @@
   min-width: 44px;
   height: 44px;
   min-height: 44px;
-  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 50%;
-  /* Liquid-glass orb — the reference card button: a see-through bubble with a
-     bright rim, a top-left specular droplet and a soft cool glow. Mini version
-     of the hero play orb. */
-  background:
-    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 46%),
-    rgba(255, 255, 255, 0.08);
+  /* Apple liquid glass: near-zero fill, frost does the work, edge reads as a
+     lens (bright top-left arc + faint bottom-right arc). */
+  background: rgba(255, 255, 255, 0.035);
   color: #ffffff;
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.65),
-    inset 0 -6px 12px rgba(0, 45, 92, 0.16),
-    0 6px 18px rgba(0, 7, 20, 0.35),
-    0 0 16px rgba(120, 220, 255, 0.16);
-  -webkit-backdrop-filter: blur(6px) saturate(170%) !important;
-  backdrop-filter: blur(6px) saturate(170%) !important;
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+    0 6px 18px rgba(0, 7, 20, 0.35);
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
 }
 
 .screen-home-next .home-action-btn svg {
@@ -1139,15 +1136,22 @@
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-title {
+    overflow: hidden;
     color: #f8fbff;
-    font-size: clamp(2rem, 9vw, 2.8rem);
+    font-size: clamp(1.85rem, 5vw + 10px, 2.5rem);
     font-weight: 520;
     line-height: 1;
     letter-spacing: -0.045em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     text-shadow: 0 3px 18px rgba(0, 5, 18, 0.5);
   }
 
+  /* Never wrap the two action circles into a column (the base rule wraps;
+     a squeezed row stacked them and the 104px-tall topbar covered the hero). */
   .app-shell-v2[data-active-section='home'] .app-topbar-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
     gap: 8px;
   }
 
@@ -1157,18 +1161,23 @@
     height: 48px;
     min-height: 48px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    /* The base .nav-utility-btn is a [20px icon | label] grid — with the label
+       hidden the icon sat 14px off-centre. Single centred cell instead. */
+    grid-template-columns: none;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 50%;
-    /* Transparent liquid glass — the circles refract the hero scene behind them
-       (low bg alpha + light blur; see recipe). */
-    background: rgba(255, 255, 255, 0.06);
+    /* Apple liquid glass: near-zero fill, the frost does the work, and the
+       edge reads as a lens — a bright top-left arc + faint bottom-right arc. */
+    background: rgba(255, 255, 255, 0.035);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.55),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 8px 22px rgba(0, 7, 20, 0.28);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+      inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+      inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+      0 8px 24px rgba(0, 8, 20, 0.35);
     color: rgba(246, 251, 255, 0.96);
-    -webkit-backdrop-filter: blur(7px) saturate(170%) !important;
-    backdrop-filter: blur(7px) saturate(170%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+    backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
@@ -1194,7 +1203,7 @@
   .screen-home-next .home-hero-card.is-dense {
     /* Dense hero ≈ 45% of a 812px viewport so chips + first rail sit above the
        fold (was ~68svh, which ate the whole first screen). */
-    min-height: clamp(340px, 46svh, 400px);
+    min-height: clamp(300px, 38svh, 356px);
     gap: 14px;
     margin-inline: -14px;
     padding: calc(var(--shell-safe-top, 0px) + 74px) 20px 22px;
@@ -1354,11 +1363,21 @@
     scroll-padding-inline: 14px;
   }
 
+  /* The peek lanes mix grid (tracks) and flex (basis) per rail variant. Cards
+     OVERLAPPED because the grid tracks were fixed at 150px while tiles carried
+     a larger min-width. Single sizing token used by BOTH: the grid track and
+     the tile min-width/flex-basis are the same clamp, so grid tiles fill their
+     track exactly and flex tiles keep a real basis. */
+  .screen-home-next .home-rail-card.is-dense .home-horizontal-scroll {
+    grid-auto-columns: clamp(150px, 41vw, 182px);
+  }
+
   .screen-home-next .home-station-tile,
   .screen-home-next .home-station-tile.is-dense,
   .screen-home-next .home-station-tile--featured {
-    flex-basis: clamp(152px, 43vw, 186px);
-    min-width: clamp(152px, 43vw, 186px);
+    flex-basis: clamp(150px, 41vw, 182px);
+    min-width: clamp(150px, 41vw, 182px);
+    max-width: clamp(150px, 41vw, 182px);
   }
 
   .screen-home-next .home-station-title,
@@ -1493,7 +1512,7 @@
 @media (max-width: 420px) {
   .screen-home-next .home-hero-card,
   .screen-home-next .home-hero-card.is-dense {
-    min-height: clamp(320px, 44svh, 380px);
+    min-height: clamp(285px, 36svh, 330px);
     padding-inline: 16px;
   }
 
@@ -1566,5 +1585,75 @@
 
   .screen-home-next .home-hero-scrim {
     display: none;
+  }
+}
+
+/* ============================================================
+   Reference density pass (owner side-by-side): the Home topbar is a GRID
+   whose narrow actions column stacked the two circles vertically (a 102px
+   topbar covering the hero eyebrow) — flatten it to a flex row. Then compress
+   the hero's CONTENT so the card lands near the reference's ~40% of viewport:
+   smaller title/logo/waveform and tighter gaps.
+   ============================================================ */
+@media (max-width: 720px) {
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-actions {
+    display: inline-flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .screen-home-next .home-hero-card,
+  .screen-home-next .home-hero-card.is-dense {
+    gap: 8px;
+    padding-top: 70px;
+  }
+
+  .screen-home-next .home-hero-topline {
+    min-height: 38px;
+  }
+
+  .screen-home-next .home-hero-copy,
+  .screen-home-next .home-hero-card.is-dense .home-hero-copy {
+    gap: 6px;
+  }
+
+  .screen-home-next .home-hero-station-logo,
+  .screen-home-next .home-hero-card.is-dense .home-hero-station-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+  }
+
+  .screen-home-next .home-hero-title,
+  .screen-home-next .home-hero-card.is-dense .home-hero-title {
+    font-size: clamp(1.9rem, 7.2vw, 2.6rem);
+    line-height: 1.02;
+  }
+
+  .screen-home-next .home-hero-title.is-long {
+    font-size: clamp(1.6rem, 5.8vw, 2.2rem);
+  }
+
+  .screen-home-next .home-hero-subtitle,
+  .screen-home-next .home-hero-card.is-dense .home-hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .screen-home-next .home-hero-waveform {
+    height: 28px;
+    margin-top: 2px;
   }
 }
