@@ -4275,8 +4275,13 @@ button.app-brand-pill {
 .dock-icon-btn,
 .dock-expand-btn,
 .dock-mini-btn {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  /* Liquid-glass transport buttons (reference look): see-through bubble with a
+     bright rim + specular droplet. !important beats the button-flattening
+     policy below for .dock-icon-btn. */
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 48%),
+    rgba(255, 255, 255, 0.06);
   color: var(--text);
   border-radius: 999px;
   /* PR-3: 44px tap target (was 32px); icon glyphs unchanged. <360px → 40px. */
@@ -4285,8 +4290,11 @@ button.app-brand-pill {
   display: grid;
   place-items: center;
   cursor: pointer;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 6px 16px rgba(0, 7, 20, 0.28);
+  backdrop-filter: blur(8px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(175%) !important;
 }
 
 .dock-icon-btn.active,
@@ -10924,4 +10932,48 @@ button.player-dock-status-pill:active {
     min-width: 44px;
     min-height: 44px;
   }
+}
+
+/* ============================================================
+   Liquid-glass enforcement (reference look). The dock/nav button styling is
+   spread across many later theme blocks (~5571, ~5774, ~6364, ~9017) that
+   re-matte the buttons with opaque dark backgrounds — this end-of-file,
+   higher-specificity layer wins over all of them so the transport buttons and
+   the active nav tab stay see-through glass bubbles: low-alpha background +
+   bright rim + top-left specular droplet + light blur (the blur carries
+   !important to beat the "content surfaces stay flat" policy).
+   ============================================================ */
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-icon-btn,
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-mini-btn,
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-expand-btn {
+  border-color: rgba(255, 255, 255, 0.34);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 48%),
+    rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 6px 16px rgba(0, 7, 20, 0.28);
+  backdrop-filter: blur(8px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(175%) !important;
+}
+
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-icon-btn.active,
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-mini-btn.active {
+  border-color: rgba(174, 240, 228, 0.5);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 48%),
+    rgba(174, 240, 228, 0.14);
+  color: #dffff9;
+}
+
+/* Active bottom-nav tab: a lit glass well (inset ring instead of a border so
+   the tap target doesn't shift). Light theme keeps its own higher-specificity
+   active rule. */
+.app-navigation-mobile .mobile-nav-item.active {
+  background:
+    radial-gradient(circle at 32% 16%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%),
+    rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
