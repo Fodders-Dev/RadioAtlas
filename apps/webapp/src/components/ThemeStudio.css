@@ -42,8 +42,8 @@
   background: rgba(5, 10, 18, 0.44);
   box-shadow: 0 22px 48px rgba(3, 10, 20, 0.22);
   /* P2-2a: trimmed from 20px — this sits inside the already-blurred sheet card. */
-  backdrop-filter: blur(14px) saturate(150%);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
 }
 
 .theme-studio-preview-card span,
@@ -387,8 +387,8 @@
   border: 1px solid var(--border);
   border-radius: 18px;
   background: color-mix(in srgb, var(--panel) 88%, transparent);
-  backdrop-filter: blur(14px) saturate(150%);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
 }
 
 .theme-studio-builder-preview-label {
@@ -950,8 +950,8 @@
     padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + var(--shell-safe-bottom));
     border-top: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface-overlay-strong) 94%, transparent);
-    backdrop-filter: blur(18px) saturate(150%);
     -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
   }
 
   .settings-sheet-card--bottom .theme-studio-builder .settings-actions .chip {
