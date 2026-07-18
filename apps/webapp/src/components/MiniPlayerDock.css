@@ -4,14 +4,77 @@
   overflow: hidden;
 }
 
-.player-dock.player-dock-bar,
+/* The peek keeps its original shorthand and its original alphas on purpose —
+   NOT because it is unpainted. It has two render branches (MiniPlayerDock.tsx
+   ~271): with no current station it is the dormant pill and .player-peek-handle
+   carries the visible paint, but with a station it also takes .player-dock-compact
+   and THIS rule is the surface under the artwork, title and three transport
+   buttons. Restructuring its paint is deferred rather than dismissed: the
+   desktop visual baselines (helpers.ts seeds playerPresentation:'peek') shoot
+   this element, and two of them — search-screen and library-screen — are
+   zero-tolerance, so a 1px background-origin shift is a gate risk that belongs
+   in its own change, not in a dock-overlap fix.
+   The one thing done here is free: the `, none` fallback. Without it an
+   undefined --theme-bg-image makes the whole shorthand invalid at
+   computed-value time and the pill goes fully transparent; with it the gradient
+   survives. Identical pixels whenever the property is defined, which is always
+   today. */
 .player-dock.player-dock-peek {
   border-color: color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.14));
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--surface-overlay-strong) 86%, transparent), color-mix(in srgb, var(--surface-raised) 76%, transparent)),
-    var(--theme-bg-image);
+    var(--theme-bg-image, none);
   background-position: center;
   background-size: auto, cover;
+}
+
+/* Non-Home dock bar. The scrim strength here (0.86/0.76 of two already-dark
+   surface tokens) was always adequate — this is the value Home was measured
+   against and found to be ~3x too weak — so the alphas are unchanged. What is
+   fixed is the STRUCTURE, which had the same two latent faults as Home:
+     1. the fill lived entirely inside the `background` shorthand whose last
+        component is an <image>, so background-color reset to transparent. If
+        --theme-bg-image (written at runtime by ThemeContext) ever fails to
+        resolve, the whole declaration is invalid at computed-value time → the
+        dock goes fully transparent, with no fall-through to the rule this one
+        already beat. A separate background-COLOR longhand is immune, and the
+        `, none` fallback removes the merely-undefined case outright.
+     2. `background-size: auto, cover` is a 2-entry list for a stack that expands
+        to 1 + N layers (--theme-bg-image is itself multi-layer), so the list
+        cycled and `cover` landed on an arbitrary layer per theme. One `cover`
+        applies to all of them.
+   var(--theme-bg-image) stays in background-image — tests/mobile.spec.ts asserts
+   the computed backgroundImage contains 'blob:' for Theme Studio prints.
+   The floor is a dark LITERAL, not var(--bg). It is only ever visible when the
+   background-image above has died, which is exactly when it must be legible,
+   and every glyph on this dock is a hardcoded near-white (#eef7ff at the
+   enforcer layer, styles.css ~11033). var(--bg) resolves to #f3ece4 under
+   :root[data-theme-mode='light'], i.e. the safety floor would be cream under
+   near-white glyphs — worse than the transparent dock it replaces. The scrim
+   above it does track the theme; the floor deliberately does not. */
+.player-dock.player-dock-bar {
+  border-color: color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.14));
+  background-color: color-mix(in srgb, #08111c 94%, var(--accent, #94f0ea) 6%);
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-overlay-strong) 86%, transparent), color-mix(in srgb, var(--surface-raised) 76%, transparent)),
+    var(--theme-bg-image, none);
+  background-position: center;
+  background-size: cover;
+  /* Size/position against the BORDER box. background-clip already defaults to
+     border-box so the layers painted under the 1px rim regardless; what this
+     fixes is the `cover` tile being 2px smaller than the area it was painted
+     into, which background-repeat:repeat wrapped as a 1px perimeter band. */
+  background-origin: border-box;
+  /* No backdrop blur: var(--theme-bg-image) is an opaque full-cover layer (the
+     default value ends in an opaque linear-gradient, a Theme Studio print is an
+     opaque photo) and it is required in this stack by the blob: assertion in
+     tests/mobile.spec.ts. Nothing behind this element is ever visible through
+     it, so the blur inherited from .player-dock-bar (styles.css ~4154) and the
+     glass block (~5769) is a per-frame filter pass with no rendered output.
+     The button orbs keep their glass via the enforcer layer (~11033).
+     -webkit- FIRST, standard LAST (bug #175). */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .player-dock.player-dock-compact {
