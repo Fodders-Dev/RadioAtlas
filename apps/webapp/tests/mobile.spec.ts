@@ -1753,6 +1753,9 @@ test('home summary error banner is one-shot and clears after summary succeeds', 
 
 test('player peek label clamps long station names', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
+  // Needs something in the queue: the dormant dock (nothing playing, empty
+  // queue) renders nothing, and this test is about the label's clamp CSS.
+  await seedRadioState(page, { queue: stations.slice(0, 1) });
   await page.goto('/');
   await expect(page.locator('.player-peek-label')).toBeVisible();
   const styles = await page.locator('.player-peek-label').evaluate((node) => {
@@ -1775,25 +1778,30 @@ test('player peek label clamps long station names', async ({ page }) => {
 
 test('mobile cold load mounts the peek dock immediately', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
+  // The dock is lazy-loaded; this test guards that its chunk mounts fast on a
+  // cold load. It needs something on air, because the dormant dock (no station,
+  // empty queue) deliberately renders nothing.
+  await seedRadioState(page, { queue: stations.slice(0, 1) });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();
-  await expect(page.locator('.player-dock-peek')).toBeVisible({ timeout: 1000 });
+  await expect(page.locator('.player-dock')).toBeVisible({ timeout: 1000 });
 });
 
-test('dock separates empty explore from queue controls', async ({ page }) => {
+test('dormant dock renders nothing at all (no empty player bar on Home)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
+  await expect(page.locator('.app-navigation-mobile')).toBeVisible();
 
-  await page.locator('.player-peek-handle').click();
-  await expect(page.locator('.player-dock-bar')).toBeVisible();
-  // Dormant dock (no station, empty queue): only the explore shortcut — no
-  // more-menu button, since there is nothing to act on yet.
-  await expect(page.locator('.dock-more-btn')).toHaveCount(0);
-  await expect(page.locator('.dock-explore-btn')).toBeVisible();
+  // Nothing playing and an empty queue → no dock in any presentation. It used
+  // to render a permanent «Выбери станцию» prompt that covered the station
+  // rails; the reference only shows a player while something is on air.
+  await expect(page.locator('.player-dock')).toHaveCount(0);
+  await expect(page.locator('.player-peek-handle')).toHaveCount(0);
 
-  await page.locator('.dock-explore-btn').click();
-  await expect(page.locator('.screen-search-v2')).toBeVisible();
+  // …and it comes back as soon as a station starts.
+  await playHomeStation(page, 'Tokyo FM');
+  await expect(page.locator('.player-dock')).toBeVisible();
 });
 
 test('dock more-menu surfaces the queue when queue has items', async ({ page }) => {
@@ -2411,7 +2419,9 @@ test('mobile shell keeps dock and bottom nav separately tappable', async ({ page
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();
-  await expect(page.locator('.player-dock-peek')).toBeVisible();
+  // Nothing playing yet → no dock at all (dormant dock renders nothing), so the
+  // nav owns the bottom on its own.
+  await expect(page.locator('.player-dock')).toHaveCount(0);
 
   await playHomeStation(page, 'Tokyo FM');
 

@@ -63,7 +63,9 @@ const openHome = async (page: Page) => {
   await seedRadioState(page, { favorites: bigCatalog.slice(0, 4) });
   await page.goto('/?api=/api');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
-  await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
+  // (No dock wait here: with nothing playing the dormant dock renders nothing,
+  // and the feed-entry assertion above is already the load anchor. Do NOT use
+  // .app-navigation-mobile — it is display:none at >=960, where these suites run.)
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
   await page.waitForTimeout(150);

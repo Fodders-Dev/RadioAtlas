@@ -81,7 +81,9 @@ const openHome = async (
   await seedRadioState(page, options);
   await page.goto('/?api=/api');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
-  await page.locator('.player-dock').first().waitFor({ state: 'visible', timeout: 5000 });
+  // (No dock wait here: with nothing playing the dormant dock renders nothing,
+  // and the feed-entry assertion above is already the load anchor. Do NOT use
+  // .app-navigation-mobile — it is display:none at >=960, where these suites run.)
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(180);
   await waitForStableMetrics(page);
@@ -129,7 +131,10 @@ test('home renders without window.Telegram (standalone web fallback)', async ({ 
   expect(tgPresence.telegram).toBe('undefined');
   expect(tgPresence.webApp).toBe('undefined');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
-  await expect(page.locator('.player-dock').first()).toBeVisible();
+  // Shell chrome still renders without the SDK. This suite runs at 1440, so the
+  // desktop rail is the visible navigation (.app-navigation-mobile is
+  // display:none there), and the dock is absent by design while nothing plays.
+  await expect(page.locator('.nav-rail-item').first()).toBeVisible();
 });
 
 test('home shell mobile visual baseline', async ({ page }) => {

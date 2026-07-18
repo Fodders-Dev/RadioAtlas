@@ -1774,6 +1774,9 @@ input {
   box-shadow:
     0 16px 40px rgba(6, 11, 19, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  /* -webkit- alias FIRST, standard LAST (bug #175); alias was missing → no
+     frost on Safari/Telegram iOS. */
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
   font-weight: 650;
   font-size: 12px;
@@ -1824,6 +1827,8 @@ input {
   flex-direction: column;
   gap: 12px;
   z-index: 1;
+  /* -webkit- alias FIRST, standard LAST (bug #175); alias was missing. */
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 
@@ -2485,6 +2490,24 @@ input {
 :root {
   --sidebar-width-v2: 244px;
   --mobile-nav-height-v2: 68px;
+  /* Bottom-chrome geometry, single source of truth.
+     The dock used to overlap the tab bar because --dock-offset-v2 was written as
+     `nav-height + 10px` where that 10px was ALREADY the nav's own bottom inset
+     (:4572) — i.e. the formula budgeted ZERO clearance and landed the dock's
+     bottom edge exactly on the nav's top edge, after which three separate rules
+     subtracted another 2-3px "optically" and pushed it INTO the nav.
+     The two terms are now named and separate: --nav-inset-bottom-v2 is how far
+     the nav floats off the viewport bottom, --dock-gap-v2 is the visible air
+     between nav and dock. Change the gap here, nowhere else.
+     NOTE: this :root --dock-offset-v2 is the DESKTOP (>=960px) value only —
+     there the mobile nav is display:none (:4544) so there is nothing to clear
+     and the legacy 14px is pure breathing room. Every width that actually
+     renders the tab bar re-declares the offset on .app-shell-v2 (:4560, :10756)
+     using the derived formula. That restatement is mandatory, not redundant: a
+     custom property's var()s are substituted against the declaring element, so
+     an offset inherited from :root would still carry :root's nav height. */
+  --nav-inset-bottom-v2: 10px;
+  --dock-gap-v2: 12px;
   --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + var(--shell-safe-bottom));
   --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 96px);
   --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
@@ -3215,6 +3238,9 @@ button.app-brand-pill {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(16, 28, 42, 0.12);
+  /* -webkit- alias FIRST, standard LAST (bug #175). It was missing entirely, so
+     this glass was dead on Telegram iOS / Safari. */
+  -webkit-backdrop-filter: blur(22px);
   backdrop-filter: blur(22px);
 }
 
@@ -3269,6 +3295,9 @@ button.app-brand-pill {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.034);
+  /* -webkit- alias FIRST, standard LAST (bug #175); the alias was missing, so
+     this pill had no frost on Safari/Telegram iOS. */
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   display: grid;
   gap: 3px;
@@ -4531,6 +4560,9 @@ button.app-brand-pill {
       linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08) 30%, rgba(255, 255, 255, 0.025)),
       rgba(19, 32, 48, 0.12);
     box-shadow: var(--glass-shadow);
+    /* -webkit- alias FIRST, standard LAST (bug #175); alias was missing → the
+       desktop rail had no frost on Safari. */
+    -webkit-backdrop-filter: blur(36px) saturate(180%);
     backdrop-filter: blur(36px) saturate(180%);
     padding: 12px;
     flex-direction: column;
@@ -4558,6 +4590,16 @@ button.app-brand-pill {
 
 @media (max-width: 959px) {
   .app-shell-v2 {
+    /* Below 960px the mobile tab bar is rendered, so the dock has to clear it.
+       Both vars live on .app-shell-v2 (not :root) because that is the nearest
+       ancestor of the nav AND the dock — a :root copy would be shadowed by this
+       one and silently ignored (that is exactly what happened to the dead :root
+       block at ~6026). --mobile-nav-height-v2 mirrors the real nav height for
+       this band (:5945). */
+    --mobile-nav-height-v2: 72px;
+    --dock-offset-v2: calc(
+      var(--nav-inset-bottom-v2) + var(--mobile-nav-height-v2) + var(--dock-gap-v2) + var(--shell-safe-bottom)
+    );
     padding: calc(10px + var(--shell-safe-top)) calc(10px + var(--shell-safe-right)) calc(var(--dock-offset-v2) + 10px) calc(10px + var(--shell-safe-left));
   }
 
@@ -4569,11 +4611,16 @@ button.app-brand-pill {
     position: fixed;
     left: 10px;
     right: 10px;
-    bottom: calc(10px + var(--shell-safe-bottom));
+    /* Shared with --dock-offset-v2's formula above: this inset is one of the two
+       terms the dock has to clear. Never hardcode it again — the old literal
+       10px here and the literal 10px inside the offset were the same number
+       written twice, which is how they drifted apart at <=430px. */
+    bottom: calc(var(--nav-inset-bottom-v2) + var(--shell-safe-bottom));
     /* Above the player dock (z-90) so the raised «Лира» FAB — trapped in this
        nav's stacking context — can poke over the dock instead of being painted
-       under it. Stays below the full-player overlay (z-120). The nav and dock
-       only meet at a ~2px seam, so this doesn't hide any dock control. */
+       under it. Stays below the full-player overlay (z-120). Nav and dock no
+       longer touch at all (--dock-gap-v2 of air between them), so this can't
+       hide any dock control. */
     z-index: 91;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4592,6 +4639,17 @@ button.app-brand-pill {
       0 22px 46px rgba(3, 10, 20, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
       inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* Both dock variants sit on the derived offset — no per-breakpoint "optical"
+     nudges. The unscoped base rules (:4111 bar, :4045 peek) still carry the
+     legacy -2px/+2px, but they only reach >=960px where the tab bar is hidden;
+     keeping them pins the desktop dock byte-identical. Every width that renders
+     the tab bar lands here instead, so the gap is exactly --dock-gap-v2 and
+     cannot drift. */
+  .player-dock-peek,
+  .player-dock-bar {
+    bottom: var(--dock-offset-v2);
   }
 
   .mobile-nav-item {
@@ -4836,7 +4894,9 @@ button.app-brand-pill {
   }
 
   .player-dock-bar {
-    bottom: calc(var(--dock-offset-v2) - 3px);
+    /* `bottom` deliberately absent: the -3px optical nudge that used to live
+       here is what produced the measured 3px dock-over-nav overlap at 477px.
+       The derived offset in the @<=959px block owns vertical placement now. */
     padding: 7px 8px;
     border-radius: 18px;
   }
@@ -5943,7 +6003,12 @@ body {
 }
 
 .app-navigation-mobile {
-  height: 72px;
+  /* Was a hardcoded 72px — the last literal copy of the nav height. It is the
+     live height only in the 721-959px band (the @<=720px rule at :10761 wins
+     below that, and the nav is display:none above 959px), and --dock-offset-v2
+     must be computed from the SAME number or the gap silently changes in that
+     band. Reading the var keeps them locked together. */
+  height: var(--mobile-nav-height-v2);
   padding: 7px;
   gap: 7px;
 }
@@ -6023,6 +6088,13 @@ body {
 
 @media (max-width: 430px) {
   :root {
+    /* CAREFUL: these two are DEAD for the dock and the nav — both live inside
+       .app-shell-v2, which re-declares them (:4560, :10756) and is a nearer
+       ancestor, and custom properties resolve from the nearest declaring
+       ancestor regardless of media/source order. They are kept only because
+       --fixed-bottom-stack-v2 / --screen-bottom-safe-v2 below are computed from
+       them and are NOT re-declared on the shell; deleting them would shift every
+       screen's scroll padding. Edit bottom-chrome geometry at :4560 / :10756. */
     --mobile-nav-height-v2: 60px;
     --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + var(--shell-safe-bottom));
     --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 132px);
@@ -6030,6 +6102,12 @@ body {
   }
 
   .app-shell-v2 {
+    /* Small phones hug the edges (nav/dock left+right drop to 8px), so the nav
+       floats 8px off the bottom too. Declared HERE, on the same element that
+       carries --dock-offset-v2, so the derived offset picks it up — a :root copy
+       would be shadowed (see the note above). This is the only place the 8px
+       exists now; the nav's own `bottom` reads it. */
+    --nav-inset-bottom-v2: 8px;
     padding: calc(8px + var(--shell-safe-top)) calc(8px + var(--shell-safe-right)) calc(var(--dock-offset-v2) + 8px) calc(8px + var(--shell-safe-left));
     gap: 10px;
   }
@@ -6063,7 +6141,10 @@ body {
   .app-navigation-mobile {
     left: 8px;
     right: 8px;
-    bottom: calc(8px + var(--shell-safe-bottom));
+    /* `bottom` deliberately absent: the base @<=959px rule derives it from
+       --nav-inset-bottom-v2, which the shell narrows to 8px just above. Writing
+       the literal here again is what let the nav inset (8px) and the dock's
+       clearance budget (10px) drift apart. */
     height: var(--mobile-nav-height-v2);
     gap: 5px;
     padding: 5px;
@@ -6086,9 +6167,8 @@ body {
     right: 8px;
   }
 
-  .player-dock-peek {
-    bottom: calc(var(--dock-offset-v2) + 1px);
-  }
+  /* `.player-dock-peek { bottom }` removed — the derived offset in the @<=959px
+     block places both dock variants on one baseline. */
 
   .player-peek-handle,
   .player-peek-handle.dormant {
@@ -6115,7 +6195,7 @@ body {
   }
 
   .player-dock-bar {
-    bottom: calc(var(--dock-offset-v2) - 2px);
+    /* `bottom` deliberately absent — see the @<=959px derived offset. */
     gap: 6px;
     padding: 6px 7px;
     border-radius: 20px;
@@ -10755,7 +10835,14 @@ button.player-dock-status-pill:active {
 @media (max-width: 720px) {
   .app-shell-v2 {
     --mobile-nav-height-v2: 64px;
-    --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + var(--shell-safe-bottom));
+    /* The formula MUST be restated wherever the nav height is restated: a
+       custom property's var()s are substituted against the element that
+       declares it, so an offset inherited from :root/@<=959px would still carry
+       that block's nav height. This is the one unavoidable duplication —
+       the terms themselves stay shared. */
+    --dock-offset-v2: calc(
+      var(--nav-inset-bottom-v2) + var(--mobile-nav-height-v2) + var(--dock-gap-v2) + var(--shell-safe-bottom)
+    );
   }
 
   .app-navigation-mobile {
@@ -10956,7 +11043,13 @@ button.player-dock-status-pill:active {
     inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.9),
     inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
     0 6px 16px rgba(0, 7, 20, 0.28);
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  /* -webkit- FIRST, standard LAST (bug #175: the minifier keeps the last of two
+     duplicate logical properties and Chrome does not parse the -webkit- alias).
+     Both lines carry !important or neither: with it on the standard line only,
+     any later normal-weight `-webkit-backdrop-filter: none` (the flatten policy
+     at ~5541 is exactly that) would win for Safari while Chrome kept the blur —
+     glass in Chrome, flat in Telegram iOS, and no error anywhere. */
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
   backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
 }
 
