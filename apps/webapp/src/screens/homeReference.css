@@ -1777,3 +1777,92 @@
     display: none;
   }
 }
+
+/* ============================================================
+   Top-right action circles: same corner at EVERY zoom level.
+   Owner: «кнопки блять по центру, а не в правом верхнем углу… это чинится
+   изменением масштаба окна» — i.e. the breakage was width-dependent, which is
+   exactly what browser zoom changes.
+
+   Measured before this block (settings/profile circles on Home):
+     <=719 : topbar 54px tall, buttons top=18-21, 15px from the right edge  ✅
+     721-959: topbar 80px tall, buttons top=43-46, 38-49px from the right   ❌ adrift
+     >=1100 : the two circles STACK vertically                              ❌
+
+   Cause: the compact Home topbar treatment was scoped to `max-width: 720px`,
+   so from 721px up the generic grid topbar came back — taller, more padded,
+   and with an actions column narrow enough to wrap the pair into a column.
+   721-959 is precisely the band that still renders the bottom tab bar (the nav
+   is display:none only from 960), so it should use the mobile shell chrome.
+   ============================================================ */
+@media (max-width: 959px) {
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card {
+    position: absolute;
+    inset: calc(var(--shell-safe-top, 0px) + 12px) 14px auto;
+    z-index: 20;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 54px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card::before,
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card::after,
+  .app-shell-v2[data-active-section='home'] .app-topbar-brandline,
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2 .shell-kicker,
+  .app-shell-v2[data-active-section='home'] .app-topbar-utility-row {
+    display: none;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-title {
+    overflow: hidden;
+    color: #f8fbff;
+    font-size: clamp(1.85rem, 5vw + 10px, 2.5rem);
+    font-weight: 520;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-shadow: 0 3px 18px rgba(0, 5, 18, 0.5);
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    grid-template-columns: none;
+    place-items: center;
+    border-radius: 50%;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
+    display: none;
+  }
+}
+
+/* Unconditional, every width including desktop: the action circles are a single
+   nowrap row pinned to the end. Several late blocks make .app-topbar-actions a
+   grid, which is what let the pair stack into a column at >=1100. */
+.app-topbar-v2 .app-topbar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+}
