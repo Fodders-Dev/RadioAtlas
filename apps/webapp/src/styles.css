@@ -4709,28 +4709,39 @@ button.app-brand-pill {
     height: 58px;
     margin-top: -26px;
     border-radius: var(--radius-full);
-    border: 1.5px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.85));
-    /* Tinted glass: keep the accent hue but lower the white + accent alphas so
-       the orb reads as see-through liquid glass, not a solid pill. Glow kept. */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    /* Light collected in glass, not paint on a pill: a cyan bloom rising from
+       below the disc, a soft key light top-left, over an almost-empty white
+       wash. Mirrored verbatim in homeReference.css — that copy ties on
+       specificity and loads later, so it wins on Home; change both together. */
     background:
-      radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 46%),
-      linear-gradient(140deg, color-mix(in srgb, var(--accent) 52%, transparent), color-mix(in srgb, var(--accent) 24%, transparent));
-    color: var(--accent-ink, #08121d);
+      radial-gradient(130% 96% at 50% 122%, rgba(111, 234, 255, 0.3), transparent 64%),
+      radial-gradient(86% 72% at 33% 18%, rgba(255, 255, 255, 0.16), transparent 70%),
+      rgba(255, 255, 255, 0.05);
+    color: #eafeff;
     box-shadow:
-      0 16px 32px color-mix(in srgb, var(--accent) 44%, transparent),
-      0 0 34px color-mix(in srgb, var(--accent) 40%, transparent),
-      inset 0 2px 2px rgba(255, 255, 255, 0.55),
-      inset 0 -10px 22px rgba(0, 45, 84, 0.28);
+      /* lens edge: bright top-left arc, faint cool bottom return */
+      inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+      inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+      inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+      /* cyan pooling in the belly of the lens */
+      inset 0 -12px 20px -12px rgba(111, 234, 255, 0.6),
+      /* dark seating ring so the orb detaches from the nav pill it overlaps */
+      0 0 0 4px rgba(6, 16, 28, 0.42),
+      0 10px 24px -8px rgba(0, 0, 0, 0.55),
+      0 0 30px -6px rgba(111, 234, 255, 0.34);
     /* !important: this FAB is a deliberate liquid-glass focal point; override the
        button-flattening policy so the orb refracts what's behind it. */
-    -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-    backdrop-filter: blur(16px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(185%) brightness(1.1) !important;
+    backdrop-filter: blur(14px) saturate(185%) brightness(1.1) !important;
   }
 
   .mobile-nav-chat-fab svg {
     width: 27px;
     height: 27px;
-    fill: currentColor;
+    /* The lyre is an OPEN outline — filling it would produce a solid blob. The
+       paths carry fill="none" themselves, but keep this honest too. */
+    fill: none;
     filter: drop-shadow(0 1px 2px rgba(0, 26, 52, 0.3));
   }
 

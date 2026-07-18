@@ -1236,18 +1236,32 @@
 }
 
 .app-shell-v2[data-active-section='home'] .mobile-nav-chat-fab {
-  border-color: rgba(190, 245, 255, 0.7);
-  /* Tinted liquid glass with a WHITE lyre — the glyph was --accent-ink (dark
-     navy) on a now-transparent orb = an invisible black circle. */
-  color: #f2fbff;
+  /* Home's copy of the orb. It ties with the base rule on specificity and this
+     file loads later, so it WINS — any change to the base orb must be mirrored
+     here or Home keeps the old look. Kept byte-identical to the base recipe on
+     purpose. */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  /* The lyre stays near-white: it used to be --accent-ink (dark navy) on a
+     transparent orb, i.e. an invisible black circle. */
+  color: #eafeff;
+  /* Light collected in glass, not paint on a pill: a cyan bloom rising from
+     below the disc, a soft key light top-left, over an almost-empty white
+     wash. The accent reads as something glowing inside the orb. */
   background:
-    radial-gradient(circle at 33% 22%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 46%),
-    linear-gradient(145deg, rgba(86, 196, 240, 0.42), rgba(16, 70, 118, 0.3));
+    radial-gradient(130% 96% at 50% 122%, rgba(111, 234, 255, 0.3), transparent 64%),
+    radial-gradient(86% 72% at 33% 18%, rgba(255, 255, 255, 0.16), transparent 70%),
+    rgba(255, 255, 255, 0.05);
   box-shadow:
-    0 0 0 5px rgba(8, 26, 48, 0.3),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.75),
-    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
-    0 0 34px rgba(74, 224, 255, 0.32);
+    /* lens edge: bright top-left arc, faint cool bottom return */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+    /* cyan pooling in the belly of the lens */
+    inset 0 -12px 20px -12px rgba(111, 234, 255, 0.6),
+    /* dark seating ring so the orb detaches from the nav pill it overlaps */
+    0 0 0 4px rgba(6, 16, 28, 0.42),
+    0 10px 24px -8px rgba(0, 0, 0, 0.55),
+    0 0 30px -6px rgba(111, 234, 255, 0.34);
 }
 
 @media (max-width: 720px) {
