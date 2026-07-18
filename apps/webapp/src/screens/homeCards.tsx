@@ -167,6 +167,13 @@ const HomeStationTile = ({
           location overlay the bottom; the whole tile is the play target. */}
       <StationScene station={station} className="home-station-scene" priority={featured} />
       <span className="home-station-scrim" aria-hidden="true" />
+      {/* Owner ask: show the station's own emblem ON TOP of the generated scene —
+          "симбиоз" between the two — for the stations that actually have one.
+          StationArtwork already resolves stationArtwork → favicon → generated
+          initial and reports which it used via data-has-image, so the CSS hides
+          this badge whenever there is no real logo (or the URL turns out to be
+          broken at runtime). No placeholder letters on the cards. */}
+      <StationArtwork station={station} size="sm" className="home-station-logo" />
       <button
         className="home-station-primary-action"
         type="button"
