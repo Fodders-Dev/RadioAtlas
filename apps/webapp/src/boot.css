@@ -253,7 +253,14 @@ a {
   position: fixed;
   left: var(--space-md);
   right: var(--space-md);
-  bottom: calc(72px + var(--shell-safe-bottom));
+  /* Pre-hydration skeleton offset. This literal MUST track the real dock
+     offset that styles.css derives from --mobile-nav-height-v2 +
+     --nav-inset-bottom-v2 + --dock-gap-v2 (see the :root block near
+     styles.css:2499 and the .app-shell-v2 restatements); boot.css loads before
+     that stylesheet, so it cannot use those custom properties. When they were
+     72px vs 84px the dock visibly jumped on cold open — keep the pair in sync
+     if the gap ever changes. 84px = 64px nav + 8px nav inset + 12px gap. */
+  bottom: calc(84px + var(--shell-safe-bottom));
   z-index: 30;
 }
 

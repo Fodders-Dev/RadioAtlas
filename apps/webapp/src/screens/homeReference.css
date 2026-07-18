@@ -95,6 +95,9 @@
   font-weight: 650;
   letter-spacing: 0.01em;
   text-transform: none;
+  /* -webkit- alias FIRST, standard LAST (bug #175); the alias was missing, so
+     this label had no frost on Safari / Telegram iOS. */
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 
@@ -396,7 +399,10 @@
     inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.9),
     inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
     0 8px 22px rgba(0, 7, 20, 0.28);
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  /* -webkit- FIRST, standard LAST (bug #175) — and !important on BOTH: with it
+     on the standard line only, the normal-weight `-webkit-backdrop-filter: none`
+     flatten policy in styles.css wins for Safari while Chrome keeps the blur. */
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
   backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
 }
 
@@ -434,6 +440,8 @@
   border: 1px solid rgba(194, 232, 255, 0.2);
   background: rgba(3, 14, 31, 0.42);
   color: rgba(243, 249, 255, 0.9);
+  /* -webkit- alias FIRST, standard LAST (bug #175); the alias was missing. */
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 
@@ -902,7 +910,10 @@
     inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
     inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
     0 6px 18px rgba(0, 7, 20, 0.35);
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  /* -webkit- FIRST, standard LAST (bug #175) — and !important on BOTH: with it
+     on the standard line only, the normal-weight `-webkit-backdrop-filter: none`
+     flatten policy in styles.css wins for Safari while Chrome keeps the blur. */
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
   backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
 }
 
@@ -1184,7 +1195,9 @@
       inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
       0 8px 24px rgba(0, 8, 20, 0.35);
     color: rgba(246, 251, 255, 0.96);
-    -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+    /* !important on BOTH lines — see the note at ~399: a one-sided !important
+       leaves Safari on the flatten policy's `none` while Chrome keeps glass. */
+    -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
     backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
   }
 
@@ -1430,21 +1443,105 @@
     max-width: 620px;
     min-height: 66px;
     padding: 8px;
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.28);
     border-radius: 24px;
-    /* Transparent glass dock (was a near-opaque 0.92/0.96 slab): the page shows
-       through; the shared chrome rule's backdrop blur carries the frost. The
-       theme's custom print (--theme-bg-image, may be a blob:) stays as the
-       bottom layer — Theme Studio paints the dock with the user's print. */
-    background:
-      radial-gradient(120% 90% at 20% -20%, rgba(255, 255, 255, 0.18), transparent 50%),
-      linear-gradient(145deg, rgba(9, 24, 44, 0.42), rgba(9, 24, 44, 0.24)),
-      var(--theme-bg-image);
-    background-position: center, center, center;
-    background-size: auto, auto, cover;
+    /* THE DOCK MUST READ AS A RAISED PLATE, not a hole in the card flow.
+       The previous 0.42→0.24 scrim was roughly a THIRD of what every non-Home
+       section ships (MiniPlayerDock.css: 0.846→0.675) — over the theme print it
+       painted a squashed miniature of the page's own wallpaper, so the dock's
+       luminance matched the page to within ~3/255 and the transport buttons read
+       as floating loose over the station cards («кнопки улетают в центр»).
+       Three separate jobs below, in layer order:
+         1. specular lift + 2. corner sheen — make the plate BRIGHTER than the
+            page at its top edge; on a near-black backdrop you cannot separate a
+            surface by darkening it, only by lifting it (Apple dark-mode
+            materials sit above the wallpaper, never below).
+         3. scrim — the load-bearing layer. At 0.76→0.90 it holds the theme
+            print below it to ~17% contribution, so a bright custom print (or
+            the default wallpaper) tints the plate instead of reprinting the
+            page on it. That is what separates dock from page; the previous
+            0.42→0.24 left ~67% of the print through, which is why the plate
+            and the page measured the same luminance.
+         4. theme print — Theme Studio's blob: MUST stay in background-image
+            (tests/mobile.spec.ts asserts the computed backgroundImage contains
+            'blob:').
+       THIS PLATE IS OPAQUE BY CONSTRUCTION — see the backdrop-filter note at the
+       bottom of the rule. It always was; that is not new here. */
+    /* Floor: a dark LITERAL, deliberately not var(--bg). This declaration only
+       ever becomes visible when background-image below dies (see its note), and
+       that is precisely the moment it has to be legible: every glyph in this
+       dock is a hardcoded near-white (#eef7ff at the enforcer layer ~11030,
+       #f4f9ff on .player-dock-title, #ffffff on the play orb). var(--bg) is
+       var(--theme-bg,#08111c) and :root[data-theme-mode='light'] sets
+       --theme-bg:#f3ece4, so a theme-derived floor would be CREAM under those
+       near-white glyphs — ~1.05:1, an invisible dock. A theme-coloured safety
+       floor is a contradiction: the thing that guarantees legibility must not
+       be the thing that varies. The 6% accent keeps it from reading as flat
+       black without moving it off the scrim's own navy.
+       LIGHT MODE, deliberately: there is no :root[data-theme-mode='light']
+       counterpart, so the dock is a dark plate on a cream shell. That is the
+       readable option, not an oversight — re-theming it cream means re-theming
+       those near-white glyphs across half a dozen late theme blocks. */
+    background-color: color-mix(in srgb, #08111c 94%, var(--accent, #94f0ea) 6%);
+    /* background-IMAGE, split out of the shorthand on purpose. --theme-bg-image
+       is written at runtime (ThemeContext); if it ever resolves to nothing the
+       whole background-image declaration is invalid at computed-value time and
+       computes to `none` — the cascade does NOT fall through to the rule it
+       already beat, so a shorthand-only dock would go fully transparent. That
+       exact failure already shipped once on the play orb (see the note ~40
+       lines below). Two defences: the `none` fallback below makes the merely-
+       undefined case valid, and the background-COLOR above is a separate
+       declaration that survives regardless — including under [data-low-power]
+       where backdrop-filter is force-disabled with !important (styles.css
+       ~9900). */
+    background-image:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.02) 44%, rgba(255, 255, 255, 0) 72%),
+      radial-gradient(120% 90% at 20% -20%, rgba(255, 255, 255, 0.16), transparent 52%),
+      linear-gradient(170deg, rgba(10, 22, 38, 0.76), rgba(5, 13, 24, 0.9)),
+      var(--theme-bg-image, none);
+    background-position: center;
+    /* ONE size value, applied to every layer. An explicit list would have to be
+       maintained in lockstep with the layer count, and the count is not knowable
+       here: --theme-bg-image is itself multi-layer (4 layers by default, 1 for a
+       Theme Studio print), so any fixed list cycles and lands `cover` on a
+       different layer per theme. */
+    background-size: cover;
+    /* Size/position the layers against the BORDER box. background-clip already
+       defaults to border-box, so the layers always painted under the 1px rim —
+       but with the default padding-box ORIGIN the `cover` tile was 2px smaller
+       than the area it was painted into and background-repeat:repeat wrapped it
+       as a 1px band around the perimeter. */
+    background-origin: border-box;
     box-shadow:
-      0 18px 48px rgba(0, 6, 19, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.42);
+      /* lens edge: bright top arc + faint cool bottom return — same visual
+         language as the button orbs, scaled up for a large surface */
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(150, 200, 255, 0.1),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+      /* two-stop detach shadow: the tight stop draws the edge, the wide stop
+         lifts the plate off the artwork scrolling behind it */
+      0 2px 8px rgba(0, 6, 19, 0.38),
+      0 16px 40px rgba(0, 6, 19, 0.5);
+    /* NO backdrop blur, on purpose — it would render zero pixels here.
+       Constraint: Theme Studio's print must stay in this element's layer stack
+       (the blob: assertion in tests/mobile.spec.ts), and --theme-bg-image is
+       ALWAYS an opaque full-cover image — the default value's bottom layer is
+       `linear-gradient(180deg,#07111c 0%,…,#07111b 100%)` (styles.css ~32) and
+       a user print is an opaque photo. Gradients have no intrinsic size, so it
+       fills the positioning area under every background-size. background-clip
+       is border-box, so it covers the 1px rim too. There is therefore no pixel
+       of this element through which a filtered backdrop can appear, at any
+       width or section. Declaring the filter anyway still costs a per-frame
+       blur pass over a fixed element above a scrolling list in Telegram's
+       WebView, so it is switched off explicitly rather than inherited from
+       .player-dock-bar (styles.css ~4154) / the glass block (~5769).
+       This is NOT a rollback of #174's liquid glass: the pre-fix rule carried
+       the same opaque var(--theme-bg-image) tail, so its blur(34px) was already
+       painting nothing. The glass that users actually see on this dock is the
+       button orbs, and the enforcer layer (styles.css ~11033) keeps their blur
+       with !important — untouched. -webkit- FIRST, standard LAST (bug #175). */
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .app-shell-v2[data-active-section='home'] .player-dock-media {

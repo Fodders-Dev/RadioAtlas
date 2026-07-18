@@ -262,6 +262,16 @@ export const MiniPlayerDock = () => {
     setTrayMode(null);
   };
 
+  // Owner call (reference parity): with nothing playing and an empty queue the
+  // dock has nothing to control — it was rendering a permanent «Выбери станцию»
+  // prompt that ate ~66px and covered the station rails. The reference shows a
+  // player bar only while something is on air, so the dormant dock renders
+  // nothing at all. Playback starts from the hero/cards, which then mounts it.
+  // NB: this sits after every hook, so the hook order stays stable.
+  if (isDormantDock) {
+    return null;
+  }
+
   if (playerPresentation === 'expanded' && winamp.expanded) {
     return null;
   }
