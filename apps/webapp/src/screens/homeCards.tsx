@@ -81,7 +81,10 @@ type PlayHandler = (station: StationLite, playlist: StationLite[], sourceId: str
 type ToggleFavoriteHandler = (station: StationLite) => void;
 type ExploreHandler = (query: string) => void;
 
-const HERO_WAVEFORM_BARS = [9, 19, 13, 27, 16, 32, 11, 24, 38, 17, 29, 12, 21, 34, 14, 25].map(
+const HERO_WAVEFORM_BARS = [
+  9, 19, 13, 27, 16, 32, 11, 24, 38, 17, 29, 12, 21, 34, 14, 25, 10, 22, 31, 15, 26, 12, 35, 18,
+  28, 13, 23, 16
+].map(
   (height, index) => ({
     key: `${height}-${index}`,
     style: { '--wave-height': `${height}px` } as CSSProperties
@@ -260,7 +263,21 @@ export const HomeHeroCard = ({
   // "Подборка на сейчас — обнови" filler: the hero should read like the
   // reference — station · location · genre, and the live track once it plays.
   const heroTrack = isActive ? activeTrack : null;
-  const heroGenre = stationTags(station) || stationLocation(station);
+  // Reference genre line: «J-Pop • News • Talk» — at most three tags, Title
+  // Case, bullet-separated. Raw tags arrive as one lowercase run («club dance
+  // electronic house trance») or ·-joined; split on both and prettify.
+  const heroGenre = (() => {
+    const raw = stationTags(station);
+    if (!raw) return stationLocation(station);
+    const parts = raw
+      .split(/·|,/)
+      .flatMap((chunk) => (chunk.trim().length > 18 ? chunk.trim().split(/\s+/) : [chunk.trim()]))
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((tag) => tag.replace(/(^|[\s-])(\p{L})/gu, (m) => m.toUpperCase()));
+    return parts.join(' • ');
+  })();
 
   return (
     <section
