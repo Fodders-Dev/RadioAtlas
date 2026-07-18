@@ -10948,10 +10948,11 @@ button.player-dock-status-pill:active {
 :is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-expand-btn {
   /* Apple liquid glass: near-zero fill; lens edge (bright top-left arc + faint
      bottom-right); frost carries the body. */
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.055);
+  color: #eef7ff;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
     inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.9),
     inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
     0 6px 16px rgba(0, 7, 20, 0.28);
@@ -10974,6 +10975,44 @@ button.player-dock-status-pill:active {
     radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 48%),
     rgba(174, 240, 228, 0.14);
   color: #dffff9;
+}
+
+/* Reference bottom nav: tabs are chrome-less labels inside the one glass
+   pill — no per-tab boxes (a late theme block gave every tab a border+card
+   background, which read as separate buttons). Only the active tab gets a lit
+   glass well; icons a touch larger. */
+.app-navigation-mobile .mobile-nav-item {
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.app-navigation-mobile .mobile-nav-icon {
+  width: 21px;
+  height: 21px;
+}
+
+/* The lyre glyph must stay light on the tinted-glass FAB (base rule paints it
+   --accent-ink, dark navy — invisible on transparent glass). */
+.app-navigation-mobile .mobile-nav-chat-fab {
+  color: #f2fbff;
+}
+
+/* The dock's primary play/pause: a BRIGHT glass orb with a white glyph (the
+   reference look). Cascade sprawl left it a transparent circle with a dark
+   glyph — an invisible "black button". Highest class-specificity + end of
+   file so no theme block can re-break it. */
+:is(.player-dock, .player-dock-tray, .player-dock-tray-panel) .dock-icon-btn.dock-play-btn {
+  border-color: rgba(214, 246, 255, 0.65);
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 44%),
+    linear-gradient(150deg, rgba(110, 210, 255, 0.5), rgba(24, 100, 165, 0.42));
+  color: #ffffff;
+  box-shadow:
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.8),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.35),
+    0 8px 20px rgba(0, 10, 24, 0.4),
+    0 0 22px rgba(96, 214, 255, 0.3);
 }
 
 /* Active bottom-nav tab: a lit glass well (inset ring instead of a border so
