@@ -1751,41 +1751,30 @@ test('home summary error banner is one-shot and clears after summary succeeds', 
   await expect(page.locator('.home-status-banner')).toHaveCount(0);
 });
 
-test('player peek label clamps long station names', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 780 });
-  // Needs something in the queue: the dormant dock (nothing playing, empty
-  // queue) renders nothing, and this test is about the label's clamp CSS.
-  await seedRadioState(page, { queue: stations.slice(0, 1) });
-  await page.goto('/');
-  await expect(page.locator('.player-peek-label')).toBeVisible();
-  const styles = await page.locator('.player-peek-label').evaluate((node) => {
-    node.textContent = 'Very long station name aaa aaa aaa aaa aaa aaa aaa aaa aaa';
-    const computed = window.getComputedStyle(node);
-    return {
-      maxWidth: computed.maxWidth,
-      overflow: computed.overflow,
-      textOverflow: computed.textOverflow,
-      whiteSpace: computed.whiteSpace
-    };
-  });
+// REMOVED: 'player peek label clamps long station names'.
+// `.player-peek-label` lives in the `playerPresentation === 'peek' && !current`
+// branch of MiniPlayerDock — the handle-with-label peek. That branch is now
+// unreachable: the dock returns null whenever nothing is on air, and starting
+// playback forces the bar presentation, so a peek WITH a station always renders
+// the compact variant instead. The clamp CSS it guarded therefore has no
+// user-reachable surface left; the dead branch itself is flagged for cleanup
+// rather than deleted here, to avoid colliding with the in-flight dead-code
+// pass on this same file.
 
-  expect(styles.maxWidth).toBe('216px');
-  expect(styles.overflow).toBe('hidden');
-  expect(styles.textOverflow).toBe('ellipsis');
-  expect(styles.whiteSpace).toBe('nowrap');
-  await expectNoDocumentHorizontalOverflow(page);
-});
-
-test('mobile cold load mounts the peek dock immediately', async ({ page }) => {
+test('the lazy dock chunk mounts promptly once a station goes on air', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  // The dock is lazy-loaded; this test guards that its chunk mounts fast on a
-  // cold load. It needs something on air, because the dormant dock (no station,
-  // empty queue) deliberately renders nothing.
-  await seedRadioState(page, { queue: stations.slice(0, 1) });
+  // Was "cold load mounts the peek dock immediately". Nothing auto-resumes on a
+  // cold load, and the dock now only exists while something is on air, so there
+  // is no such thing as a dock on cold load any more. What still matters — and
+  // what this guards — is that the lazily-loaded dock chunk appears promptly
+  // once playback actually starts, rather than after a visible delay.
+  await seedRadioState(page);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();
-  await expect(page.locator('.player-dock')).toBeVisible({ timeout: 1000 });
+  await expect(page.locator('.player-dock')).toHaveCount(0);
+
+  await playHomeStation(page, 'Tokyo FM');
+  await expect(page.locator('.player-dock')).toBeVisible({ timeout: 1500 });
 });
 
 test('dormant dock renders nothing at all (no empty player bar on Home)', async ({ page }) => {
@@ -1793,15 +1782,29 @@ test('dormant dock renders nothing at all (no empty player bar on Home)', async 
   await page.goto('/');
   await expect(page.locator('.app-navigation-mobile')).toBeVisible();
 
-  // Nothing playing and an empty queue → no dock in any presentation. It used
-  // to render a permanent «Выбери станцию» prompt that covered the station
-  // rails; the reference only shows a player while something is on air.
+  // Nothing on air → no dock in any presentation. It used to render a permanent
+  // «Выбери станцию» prompt that covered the station rails; the reference only
+  // shows a player while something is actually playing.
   await expect(page.locator('.player-dock')).toHaveCount(0);
   await expect(page.locator('.player-peek-handle')).toHaveCount(0);
 
   // …and it comes back as soon as a station starts.
   await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.player-dock')).toBeVisible();
+});
+
+test('a leftover queue does not resurrect the empty player bar', async ({ page }) => {
+  // Regression: the first version of the hide gated on "no station AND empty
+  // queue", so anyone carrying a queue from a previous session still got the
+  // «Выбери станцию» bar on Home — which is what the owner reported seeing.
+  // Nothing is ON AIR here, so there must be no dock, queue or not.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { queue: stations.slice(0, 3) });
+  await page.goto('/');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  await expect(page.locator('.player-dock')).toHaveCount(0);
+  await expect(page.getByText('Выбери станцию')).toHaveCount(0);
 });
 
 test('dock more-menu surfaces the queue when queue has items', async ({ page }) => {
@@ -1811,10 +1814,15 @@ test('dock more-menu surfaces the queue when queue has items', async ({ page }) 
   });
 
   await page.goto('/');
-  await page.locator('.player-peek-handle').click();
+  // The dock only exists while something is on air, so put a station on air
+  // first — the queue alone no longer renders a bar.
+  await playHomeStation(page, 'Tokyo FM');
+  const peekHandle = page.locator('.player-peek-handle');
+  if (await peekHandle.count()) {
+    await peekHandle.click();
+  }
   await expect(page.locator('.player-dock-bar')).toBeVisible();
   await expect(page.locator('.dock-more-btn')).toBeVisible();
-  await expect(page.locator('.dock-explore-btn')).toHaveCount(0);
 
   // ☰ now opens the extra-functions menu (not the queue directly)…
   await page.locator('.dock-more-btn').click();
