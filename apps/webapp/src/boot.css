@@ -57,6 +57,26 @@ body,
   min-height: 100%;
 }
 
+/* Suppresses the browser's own rubber-band (iOS) and pull-to-refresh (Chrome
+   Android), which claim exactly the gesture the Home hero's pull-to-expand uses
+   — a downward drag at scrollTop 0. Undesirable in a Mini App regardless: there
+   is nothing to refresh.
+
+   Scope note, measured rather than assumed: this does NOT keep the pointer
+   stream alive. Chromium still fires `pointercancel` ~26px into a downward touch
+   drag with `overscroll-behavior-y: contain` set (verified with CDP touch
+   dispatch — identical stream with and without). Only the non-passive
+   `touchmove` preventDefault in useHeroPullToExpand does that. This rule is
+   purely about not racing the native refresh affordance during the dead zone,
+   before we have claimed the gesture.
+
+   NOTE: the existing `.app-main { overscroll-behavior-y: contain }` in
+   styles.css is dead — that element is never rendered; the page scroller here is
+   the document. */
+html {
+  overscroll-behavior-y: contain;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

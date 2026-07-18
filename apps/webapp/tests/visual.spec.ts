@@ -92,7 +92,14 @@ const openHome = async (
 const readHomeSurfaceSignature = async (page: Page) =>
   page.evaluate(() => ({
     feedEntry: Boolean(document.querySelector('[data-home-feed-entry]')),
+    // The RENDERED hero — it follows playback by design now (owner ask #1).
     hero: document.querySelector('[data-home-hero]')?.getAttribute('data-home-hero') || null,
+    // 'recommendation' | 'now-playing'.
+    heroMode: document.querySelector('[data-home-hero]')?.getAttribute('data-home-hero-mode') || null,
+    // The FROZEN recommendation behind the override — this is the id the
+    // rank-freeze invariant actually lives on.
+    heroRecommended:
+      document.querySelector('[data-home-hero]')?.getAttribute('data-home-hero-recommended') || null,
     rails: Array.from(document.querySelectorAll('[data-home-rail]')).map((node) => ({
       id: node.getAttribute('data-home-rail'),
       stations: Array.from(node.querySelectorAll('[data-home-station]')).map((item) =>
@@ -182,20 +189,33 @@ test('home surface stays stable during play actions', async ({ page }) => {
 
   // Cards no longer render a like button; a normal rail play must not reshape
   // the discovery surface.
-  await page
-    .locator('[data-home-rail] [data-home-station]')
-    .first()
-    .locator('.home-station-primary-action')
-    .click();
+  const playedTile = page.locator('[data-home-rail] [data-home-station]').first();
+  const playedStationId = await playedTile.getAttribute('data-home-station');
+  expect(playedStationId).toBeTruthy();
+  await playedTile.locator('.home-station-primary-action').click();
   await expect(page.locator('[data-home-resume]')).toBeVisible();
 
   const after = await readHomeSurfaceSignature(page);
-  // Hero and rail composition stay the same after a normal rail play; the
-  // discovery surface should keep its shape and never drop a rail or swap the
-  // Feed entry while playback state updates.
+  // Rail composition stays the same after a normal rail play; the discovery
+  // surface should keep its shape and never drop a rail or swap the Feed entry
+  // while playback state updates.
   expect(after.feedEntry).toBe(before.feedEntry);
-  expect(after.hero).toBe(before.hero);
   expect(after.rails.map((rail) => rail.id)).toEqual(before.rails.map((rail) => rail.id));
+
+  // The RENDERED hero deliberately follows playback now (owner ask #1: «Рекомендуем»
+  // becomes «Сейчас играет»), so `after.hero === before.hero` is false BY DESIGN
+  // and is no longer the invariant to assert. The invariant this test actually
+  // guards — the recommendation deck must not advance under the user's finger
+  // (Home.tsx's keepHero clause + the surfaceFeedBase memo that deliberately
+  // excludes player.current) — now lives on the frozen id, which stays observable
+  // while the on-air override is rendered.
+  expect(before.heroMode).toBe('recommendation');
+  expect(after.heroMode).toBe('now-playing');
+  expect(after.heroRecommended).toBe(before.heroRecommended);
+  // Pinned to the station we actually played rather than merely "not the
+  // recommendation": the weaker form would fail for an unrelated reason the day
+  // the ranking happens to surface the played station as the recommendation.
+  expect(after.hero).toBe(playedStationId);
 });
 
 test('home refresh rebuilds the discovery surface', async ({ page }) => {

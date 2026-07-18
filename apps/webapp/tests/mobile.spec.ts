@@ -1178,8 +1178,12 @@ for (const width of [360, 390, 540]) {
     }
     await expectNoHomeHorizontalOverflow(page);
 
-    // Tapping the «Лента» hero re-rolls the feed seed and opens the discovery
-    // feed (the prominent entry that replaced the «Моя Волна» CTA).
+    // The standalone «Лента» block is retired: what remains is the hero's
+    // grabber handle — the drag affordance AND the keyboard/pointer-click path
+    // into the feed. It still re-rolls the feed seed and opens the same overlay.
+    await expect(page.locator('.home-feed-entry .home-feed-entry-grip')).toHaveCount(1);
+    await expect(page.locator('.home-feed-entry-glyph')).toHaveCount(0);
+    await expect(page.locator('.home-feed-entry-arrow')).toHaveCount(0);
     await page.locator('.home-feed-entry').click();
     await expect(page.locator('.station-feed-overlay')).toBeVisible();
   });

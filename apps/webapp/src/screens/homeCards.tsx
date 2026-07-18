@@ -216,6 +216,24 @@ type HomeHeroCardProps = {
   // currently producing data for the on-air station.
   subscribeVisualizer?: VisualizerSubscribe;
   visualizerActive?: boolean;
+  // True when the hero is showing the LOADED station rather than the frozen
+  // recommendation (owner ask #1). Survives pause: the card must not flip back
+  // to a recommendation every time the user hits pause.
+  nowPlaying?: boolean;
+  // True only while that station is actually producing audio. Splits the honest
+  // claims («Сейчас играет», the LIVE dot) from mere identity — a paused or
+  // errored station keeps `nowPlaying` but loses `onAir`.
+  onAir?: boolean;
+  // The FROZEN recommended station id, surfaced as a data attribute even while
+  // the on-air override is rendered. The rank-freeze e2e asserts on this: the
+  // rendered hero may follow playback, but the recommendation deck must never
+  // advance under the user's finger.
+  recommendedStationId?: string | null;
+  // NOTE: the pull-to-expand gesture used to arrive here as four pointer props.
+  // It is now bound once on the Home screen root and hit-tested against
+  // `.home-hero-card, .home-feed-hero` (see useHeroPullToExpand) — the hero does
+  // not participate, which is also what makes the sibling grabber handle
+  // draggable at all.
 };
 
 export const HomeHeroCard = ({
@@ -230,7 +248,10 @@ export const HomeHeroCard = ({
   onExplore,
   onRefresh,
   subscribeVisualizer,
-  visualizerActive = false
+  visualizerActive = false,
+  nowPlaying = false,
+  onAir = false,
+  recommendedStationId = null
 }: HomeHeroCardProps) => {
   const { t } = useLocale();
   const compactLayout = useCompactLayout();
@@ -283,15 +304,32 @@ export const HomeHeroCard = ({
     <section
       className={`home-hero-card ${dense ? 'is-dense' : ''}`.trim()}
       data-home-hero={station.stationuuid}
+      data-home-hero-mode={nowPlaying ? 'now-playing' : 'recommendation'}
+      data-home-hero-recommended={recommendedStationId ?? undefined}
+      data-home-hero-air={nowPlaying ? (onAir ? 'playing' : 'paused') : 'idle'}
     >
       <div className="home-hero-topline">
         <div className="home-hero-eyebrow">
-          <span className="home-surface-kicker">{t('home.heroKicker')}</span>
-          {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
-          <span className="home-hero-live-dot">
-            <span aria-hidden="true" />
-            {t('app.liveBadge')}
+          <span className="home-surface-kicker">
+            {t(
+              nowPlaying
+                ? onAir
+                  ? 'home.heroKickerNowPlaying'
+                  : 'home.heroKickerPaused'
+                : 'home.heroKicker'
+            )}
           </span>
+          {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
+          {/* The LIVE dot used to render unconditionally — it claimed "LIVE" over
+              a mere recommendation with nothing playing. It now means what it
+              says: this station is on air RIGHT NOW, which is why it hangs off
+              `onAir` and not off `nowPlaying` (that one survives pause). */}
+          {onAir ? (
+            <span className="home-hero-live-dot">
+              <span aria-hidden="true" />
+              {t('app.liveBadge')}
+            </span>
+          ) : null}
         </div>
         <button
           className={`home-refresh-chip ${refreshing ? 'is-loading' : ''}`.trim()}

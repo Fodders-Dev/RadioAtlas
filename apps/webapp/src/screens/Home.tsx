@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CatalogMoodRail,
   CatalogSpotlight,
@@ -15,6 +15,7 @@ import {
   type HomeSurfaceFeed
 } from '../lib/homeSurface';
 import { getDeviceProfile } from '../lib/deviceProfile';
+import { useHeroPullToExpand } from '../lib/useHeroPullToExpand';
 import { reportProductEvent } from '../lib/productAnalytics';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useCatalog } from '../state/CatalogContext';
@@ -455,6 +456,7 @@ export const Home = () => {
     setHomeSnapshot,
     refreshHomeSurface,
     rerollFeedSeed,
+    setFeedEntryStation,
     setSearchDraft
   } = useShell();
   const { t } = useLocale();
@@ -670,6 +672,41 @@ export const Home = () => {
   const surfaceFeed = surfaceFeedBase;
   const currentStationId = player.current?.stationuuid || null;
   const activeTrack = currentStationId ? nowPlaying : null;
+  // Owner ask #1: «Рекомендуем» shows what is ON AIR whenever anything is
+  // loaded, and falls back to the frozen recommendation only when the player is
+  // idle.
+  //
+  // Deliberately a PRESENTATION override, computed AFTER surfaceFeedBase and
+  // never fed back into it. Putting player.current into buildSurfaceFeed would
+  // re-run rankStationsForUser with a new currentStation bias and reshuffle
+  // every rail under the user's finger — the exact regression
+  // tests/home-rank-freeze.spec.ts guards, and the whole reason
+  // homeRankInputsRef exists (see the essay above).
+  // IDENTITY: the hero renders the loaded station. Deliberately NOT gated on
+  // isPlaying — the card must not flip back to the recommendation every time the
+  // user pauses.
+  const heroNowPlaying = Boolean(player.current);
+  // HONESTY: «Сейчас играет» and the LIVE dot are claims about the air, so they
+  // are gated on real playback. A paused (or errored) station is still the hero,
+  // but it reads «На паузе» and drops the LIVE badge — `player.current` outlives
+  // both pause and failure, so presence alone would make the badge lie.
+  const heroOnAir = heroNowPlaying && player.isPlaying;
+  const recommendedHeroId = surfaceFeed?.hero.station?.stationuuid ?? null;
+  const heroModule = useMemo(() => {
+    const recommended = surfaceFeed?.hero ?? null;
+    if (!recommended || !player.current) return recommended;
+    // companionStations dropped: the on-air station has no "3 like it" set, and
+    // HomeHeroCard's playlist becomes [current] — which handlePlayStation
+    // short-circuits into a pause toggle before it ever reaches playStation, so
+    // the hero's play button is a correct play/pause for the on-air station and
+    // rewrites no queue.
+    return {
+      ...recommended,
+      station: player.current,
+      companionStations: [],
+      sourceId: 'home-now-playing'
+    };
+  }, [surfaceFeed?.hero, player.current]);
   const surfaceRails = useMemo(() => surfaceFeed?.rails || [], [surfaceFeed?.rails]);
   // Note: rankedCatalogRails uses the same homeRankInputsRef snapshot
   // above. The post-rank `isStationHiddenFromRecommendations` filter
@@ -959,12 +996,27 @@ export const Home = () => {
     });
   };
   const showHomeHeroSkeleton = summaryLoading && !surfaceFeed && !homeState.snapshot;
-  const openFeed = () => {
-    // Re-roll the feed seed on the gesture (StrictMode-safe — a click, not an
-    // effect) so each open gets a fresh personal-fresh mix, then navigate.
+  // THE single feed-open path. The «Лента» button, the keyboard/screen-reader
+  // activation of that same button, and the hero pull-down gesture all call this
+  // one function — so they are #86-identical by construction and there is no
+  // second, gesture-only route into StationFeed to reason about.
+  //
+  // Everything here must stay inside a user-gesture handler and out of any
+  // effect: rerollFeedSeed would double-fire under StrictMode from an effect,
+  // re-rolling the mix twice per open.
+  const openFeed = useCallback(() => {
+    // Pin the hero as feed card 0 — this is what makes «свайпнул героя, он вырос
+    // в ленту» literally true (the expanded feed opens ON the same station the
+    // card was showing) instead of a cross-fade into an unrelated station.
+    setFeedEntryStation(heroModule?.station ?? null);
     rerollFeedSeed();
     setActiveSection('feed');
-  };
+  }, [heroModule?.station, rerollFeedSeed, setActiveSection, setFeedEntryStation]);
+
+  // Pull-down-to-expand. Touch drag, mouse drag and trackpad/wheel all commit
+  // through openFeed above; the button remains the canonical, keyboard-reachable
+  // path (a11y constraint C — the gesture is strictly additive).
+  const { surfaceRef, pullPhase } = useHeroPullToExpand(openFeed);
   const showSummaryErrorBanner =
     Boolean(summaryError) &&
     (!summary || catalog.length === 0) &&
@@ -980,36 +1032,88 @@ export const Home = () => {
 
   return (
     <section
+      ref={surfaceRef}
       className="screen screen-home-next"
       data-density={denseLayout ? 'dense' : 'default'}
       data-low-power={lowPower ? 'true' : 'false'}
+      data-hero-pull={pullPhase}
     >
       {showHomeHeroSkeleton ? (
         <AppScreenSkeleton section="home" scope="home-hero" />
-      ) : surfaceFeed ? (
+      ) : surfaceFeed && heroModule ? (
         <HomeHeroCard
           dense={denseLayout}
-          module={surfaceFeed.hero}
-          isActive={currentStationId === surfaceFeed.hero.station?.stationuuid}
-          activeTrack={
-            currentStationId === surfaceFeed.hero.station?.stationuuid ? activeTrack : null
-          }
-          liked={
-            surfaceFeed.hero.station
-              ? isFavorite(surfaceFeed.hero.station.stationuuid)
-              : false
-          }
+          module={heroModule}
+          nowPlaying={heroNowPlaying}
+          onAir={heroOnAir}
+          recommendedStationId={recommendedHeroId}
+          isActive={heroNowPlaying}
+          activeTrack={heroNowPlaying ? activeTrack : null}
+          liked={heroModule.station ? isFavorite(heroModule.station.stationuuid) : false}
           refreshing={refreshing}
           onPlay={handlePlayStation}
           onToggleFavorite={toggleFavorite}
           onExplore={openSearch}
           onRefresh={handleRefresh}
           subscribeVisualizer={player.subscribeVisualizer}
-          visualizerActive={player.visualizer.active}
+          // Was passed unconditionally: a recommendation hero rendered a live
+          // audio-reactive equalizer for audio it was not producing. The bars are
+          // only honest when THIS station is the one on air.
+          visualizerActive={player.visualizer.active && heroOnAir}
         />
       ) : (
         <AppScreenSkeleton section="home" scope="home-hero" />
       )}
+
+      {/* The standalone «Лента» BLOCK is retired (owner ask #3): the hero IS the
+          feed entry now — pull it down and it grows into the fullscreen Лента.
+          What survives here is a slim grabber handle welded under the hero: the
+          drag affordance, and — critically — the keyboard/screen-reader path,
+          since a gesture-only entry point would be an a11y regression.
+
+          The `home-feed-entry` class and the `data-home-feed-entry` attribute are
+          preserved VERBATIM and rendered unconditionally (outside the skeleton /
+          empty-hero branches): ~65 e2e anchors across 12 spec files use this
+          element as the "Home is hydrated" sentinel, and StationFeed's
+          resolveFeedReturnFocus restores focus to it by that exact selector.
+          `[data-home-hero]` cannot serve either role — it is absent in the
+          skeleton and empty states, which mobile.spec.ts asserts happens.
+
+          `.home-surface-refresh` stays a sibling inside this wrapper — three
+          specs depend on it and it has no second instance. */}
+      <div className="home-feed-hero">
+        <button
+          type="button"
+          className="home-feed-entry"
+          data-home-feed-entry="true"
+          onClick={openFeed}
+          // Action-shaped, NOT the visible «Потяни вниз» copy: aria-label
+          // replaces the element's text for a screen reader, and describing a
+          // gesture is useless to someone activating this with Enter/Space. The
+          // pull affordance stays in the visible subtitle where it is relevant.
+          aria-label={t('home.feedEntryOpen')}
+        >
+          <span className="home-feed-entry-grip" aria-hidden="true" />
+          <span className="home-feed-entry-copy">
+            <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
+            <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
+          </span>
+        </button>
+        <button
+          className={`home-surface-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label={t('home.refreshFeed')}
+          title={t('home.refreshFeed')}
+          data-action="refresh-feed"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
+          </svg>
+          <span>{t('home.refreshFeed')}</span>
+        </button>
+      </div>
 
       <section className="home-quick-chips-section">
         <div className="home-quick-chips-head">
@@ -1056,49 +1160,6 @@ export const Home = () => {
           </button>
         </section>
       ) : null}
-
-      {/* Reference Home (owner design): the surface is intentionally a clean
-          hero → «Продолжить слушать» → discovery rails. Genre shortcuts and the
-          quick-search launcher were removed from Home — both already live in the
-          Поиск tab (its genres rail + search field). Only the compact Лента entry
-          and the recommendation refresh remain as first-class Home actions. */}
-      <div className="home-feed-hero">
-        <button
-          type="button"
-          className="home-feed-entry"
-          data-home-feed-entry="true"
-          onClick={openFeed}
-        >
-          <span className="home-feed-entry-glyph" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M7 3h10a2 2 0 0 1 2 2v1H5V5a2 2 0 0 1 2-2Zm-2 5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Zm2 6h10a3 3 0 0 1 3 3v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z" />
-            </svg>
-          </span>
-          <span className="home-feed-entry-copy">
-            <span className="home-feed-entry-title">{t('home.feedEntryTitle')}</span>
-            <span className="home-feed-entry-sub">{t('home.feedEntrySub')}</span>
-          </span>
-          <span className="home-feed-entry-arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M9 5l1.4-1.4L18.8 12l-8.4 8.4L9 19l7-7-7-7Z" />
-            </svg>
-          </span>
-        </button>
-        <button
-          className={`home-surface-refresh ${refreshing ? 'is-loading' : ''}`.trim()}
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          aria-label={t('home.refreshFeed')}
-          title={t('home.refreshFeed')}
-          data-action="refresh-feed"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
-          </svg>
-          <span>{t('home.refreshFeed')}</span>
-        </button>
-      </div>
 
       {leadRail ? (
         <HomeRail

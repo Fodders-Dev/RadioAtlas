@@ -12,7 +12,11 @@
   --home-line: rgba(181, 231, 255, 0.18);
   width: min(100%, 1480px);
   margin-inline: auto;
-  gap: clamp(13px, 1.6vw, 22px);
+  /* Routed through a custom property so the hero↔grabber weld below can cancel
+     the CURRENT gap exactly. It is overridden per-breakpoint (see the ≤720
+     block), and hardcoding one value in the weld silently left a 9px seam. */
+  --home-screen-gap: clamp(13px, 1.6vw, 22px);
+  gap: var(--home-screen-gap);
   padding-bottom: calc(var(--screen-bottom-safe-v2, 180px) + 24px);
   color: var(--text);
   container-type: inline-size;
@@ -622,7 +626,7 @@
   align-items: stretch;
   gap: 0;
   overflow: hidden;
-  min-height: 54px;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 22px;
   /* Transparent glass row (was a matte 0.78/0.86 slab). */
@@ -636,19 +640,30 @@
 
 .screen-home-next .home-feed-entry {
   min-width: 0;
-  min-height: 54px;
-  padding: 7px 12px;
+  min-height: 44px;
+  gap: 12px;
+  padding: 5px 12px;
   border: 0;
   border-radius: 0;
   background: transparent;
+  /* Vertical panning only — this strip has nothing to scroll sideways. The pull
+     gesture does NOT depend on this value: it is claimed by a non-passive
+     touchmove preventDefault (see heroPullExpand.ts), which is why the hero card
+     itself can keep `touch-action: auto` and stay a normal scroll surface. */
+  touch-action: pan-y;
 }
 
-.screen-home-next .home-feed-entry-glyph {
-  width: 44px;
-  height: 44px;
-  border-radius: 15px;
-  background: rgba(83, 217, 239, 0.18);
-  color: var(--home-cyan);
+/* Drag affordance: the handle you pull to grow the hero into the «Лента». */
+.screen-home-next .home-feed-entry-grip {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--home-cyan-strong, #bdf8ff) 46%, transparent);
+}
+
+.screen-home-next[data-hero-pull='ready'] .home-feed-entry-grip {
+  background: var(--home-cyan, #6feaff);
 }
 
 .screen-home-next .home-feed-entry-title {
@@ -665,13 +680,124 @@
 
 .screen-home-next .home-surface-refresh {
   align-self: stretch;
-  min-width: 54px;
-  min-height: 54px;
-  margin: 7px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 5px;
   padding-inline: 14px;
   border-color: rgba(177, 231, 255, 0.18);
   background: rgba(2, 15, 31, 0.58);
 }
+
+/* — Hero pull-to-expand ---------------------------------------------------
+ *
+ * `--hero-pull` is a 0..1 rubber-banded progress written from JS (one
+ * requestAnimationFrame-coalesced style write per frame, never React state) and
+ * `data-hero-pull` carries the discrete phase. The hero GROWS and its corners
+ * straighten while everything below it recedes — the strongest "this is becoming
+ * fullscreen" cue available without a shared-element morph (Home unmounts the
+ * instant activeSection flips to 'feed', so no live cross-fade is possible).
+ *
+ * Transform / opacity / border-radius ONLY — never height or top — so the drag
+ * stays off the layout thread.
+ *
+ * NOTE the transforms below resolve to translateY(0) at rest, which is NOT
+ * `none`, so every direct child of Home carries a stacking context and a
+ * containing block for `position: fixed` descendants even when idle. That is
+ * deliberate and must stay: gating the transform on [data-hero-pull='tracking']
+ * would make it vanish the instant the phase returns to 'idle' on release,
+ * killing the spring-back animation this transition exists for. The cost is a
+ * standing constraint instead — HOME MUST NOT RENDER A `position: fixed`
+ * DESCENDANT. Today nothing does (the dock, nav, toasts and every sheet are
+ * portalled or live outside .screen-home-next); anything new that needs fixed
+ * positioning inside Home has to be portalled to document.body.
+ */
+/* A mouse pull is a DRAG over text and artwork, so without this every pull on
+   Telegram Desktop leaves a blue selection highlight behind (and the artwork can
+   start a native HTML5 image drag). Suppressing selection here is what lets the
+   gesture stay preventDefault-free on the mouse path. */
+.screen-home-next .home-hero-card,
+.screen-home-next .home-feed-hero {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.screen-home-next .home-hero-card img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.screen-home-next .home-hero-card {
+  transform: translateY(calc(var(--hero-pull, 0) * 14px))
+    scale(calc(1 + var(--hero-pull, 0) * 0.03));
+  transform-origin: 50% 0;
+  border-radius: calc(clamp(26px, 3vw, 40px) * (1 - var(--hero-pull, 0) * 0.5));
+  transition:
+    transform 240ms cubic-bezier(0.22, 0.9, 0.24, 1),
+    border-radius 240ms cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+.screen-home-next > .home-feed-hero {
+  transform: translateY(calc(var(--hero-pull, 0) * 16px));
+  transition: transform 240ms cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+.screen-home-next > :not(.home-hero-card):not(.home-feed-hero) {
+  transform: translateY(calc(var(--hero-pull, 0) * 20px));
+  opacity: calc(1 - var(--hero-pull, 0) * 0.5);
+  transition:
+    transform 240ms cubic-bezier(0.22, 0.9, 0.24, 1),
+    opacity 240ms cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+/* While the finger (or wheel) is driving it, track 1:1 — easing here would read
+   as lag. The transition above is only for the spring-back on release. */
+.screen-home-next[data-hero-pull='tracking'] .home-hero-card,
+.screen-home-next[data-hero-pull='ready'] .home-hero-card,
+.screen-home-next[data-hero-pull='tracking'] > *,
+.screen-home-next[data-hero-pull='ready'] > * {
+  transition: none;
+}
+
+/* Weld the grabber to the hero in the STACKED layout: cancel the screen gap and
+   square off the shared edge so it reads as the hero's handle, not a separate
+   «Лента» block. Deliberately NOT applied at >=1100px, where the 12-column grid
+   puts .home-feed-hero in the right sidebar column (grid-column 9/-1, row 2),
+   nowhere near the hero's bottom edge. */
+@media (max-width: 1099px) {
+  .screen-home-next > .home-feed-hero {
+    margin-top: calc(-1 * var(--home-screen-gap, 0px));
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top-color: transparent;
+  }
+}
+
+/* Constraint D. The blanket prefers-reduced-motion rule further down only zeroes
+   transition/animation DURATIONS — it cannot undo a transform, so the follow has
+   to be switched off explicitly here (and the hook stops writing --hero-pull at
+   all, so nothing can be left stranded). The gesture still COMMITS: reduced
+   motion asks for less motion, not less function, and the `ready` grip colour
+   change stays as non-motion feedback. */
+@media (prefers-reduced-motion: reduce) {
+  .screen-home-next .home-hero-card,
+  .screen-home-next > .home-feed-hero,
+  .screen-home-next > :not(.home-hero-card):not(.home-feed-hero) {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+
+  .screen-home-next .home-hero-card {
+    border-radius: clamp(26px, 3vw, 40px);
+  }
+}
+
+/* NOTE: deliberately NOT gated on [data-low-power]. That flag is true for any
+   4-core / 4GB phone — i.e. most real phones, including the owner's — and it
+   only governs decorative animation elsewhere. Killing the drag-follow there
+   would leave the gesture with no visual feedback at all on exactly the devices
+   it matters most on. Two composited transforms per frame is not the expensive
+   part of this screen. prefers-reduced-motion above remains the real switch. */
 
 .screen-home-next .home-search-launcher.is-compact {
   display: grid;
@@ -1215,7 +1341,8 @@
 
   .screen-home-next,
   .screen-home-next[data-density='dense'] {
-    gap: 22px;
+    --home-screen-gap: 22px;
+    gap: var(--home-screen-gap);
     width: 100%;
     padding: 0 14px calc(var(--screen-bottom-safe-v2, 180px) + 16px);
   }

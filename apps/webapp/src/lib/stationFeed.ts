@@ -82,6 +82,17 @@ export type BuildStationFeedInput = {
   // would otherwise autoplay). Defaults to "everything is live" so the pure unit
   // tests and any caller without a health profile keep working.
   isLive?: (station: StationLite) => boolean;
+  // The station the feed was ENTERED from — the Home hero the user just pulled
+  // down. It becomes card 0 unconditionally and BYPASSES collect()'s
+  // exclude / eligibility / liveness gates: those gates exist to keep DISCOVERY
+  // cards good, and must never veto the very card the expand gesture is morphing
+  // from (the current station is always in `exclude`, so without this the hero
+  // would visibly turn into a different station mid-expand).
+  //
+  // The CALLER validates an idle pin — see StationFeed.tsx. When nothing is
+  // playing, resolveFeedEntry returns autoplayInitial:true and card 0 IS played
+  // on open, so an idle pin must clear the same liveness bar as any other card.
+  pinFirst?: StationLite | null;
 };
 
 const DEFAULT_LIMIT = 40;
@@ -103,10 +114,16 @@ export const buildStationFeed = ({
   limit = DEFAULT_LIMIT,
   randomRatio = DEFAULT_RANDOM_RATIO,
   exclude,
-  isLive = ALWAYS_LIVE
+  isLive = ALWAYS_LIVE,
+  pinFirst
 }: BuildStationFeedInput): StationLite[] => {
   const excludeSet = exclude instanceof Set ? exclude : new Set(exclude ?? []);
   const seen = new Set<string>();
+  // Seeding the pin into `seen` BEFORE any collect() call de-dupes it out of
+  // every source at once (collect skips on `seen` as well as `exclude`), so it
+  // can never appear twice. `exclude` itself is left untouched.
+  const pin = pinFirst && pinFirst.stationuuid && pinFirst.url_resolved ? pinFirst : null;
+  if (pin) seen.add(pin.stationuuid);
   // Priority order for de-dup: taste → trending → random pool. Every source is
   // exclude- and liveness-filtered HERE, before any weighting, so the mix only
   // ever positions stations that are genuinely new and playable.
@@ -130,12 +147,17 @@ export const buildStationFeed = ({
   // even though the tail reshuffled. Rotating among the top few keeps the first
   // card personal while making repeat opens feel fresh.
   const leadPool = taste.slice(0, PERSONAL_LEAD_POOL);
-  const lead = leadPool.length
+  const rotatedLead = leadPool.length
     ? [...leadPool].sort(
         (left, right) =>
           seededJitter(left.stationuuid, seed + 911) - seededJitter(right.stationuuid, seed + 911)
       )[0] ?? null
     : null;
+  // An entry pin always wins card 0 — «герой ЕСТЬ первая карточка ленты».
+  // `preserveFirst: Boolean(lead)` below is therefore true whenever a pin
+  // exists, and diversifyStationOrder pushes stations[0] into the result before
+  // any diversity rule can displace it.
+  const lead = pin ?? rotatedLead;
   const tasteRest = lead ? taste.filter((station) => station.stationuuid !== lead.stationuuid) : taste;
 
   const hasPersonalSource = taste.length > 0;
