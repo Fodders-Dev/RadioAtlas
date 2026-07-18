@@ -222,6 +222,80 @@ describe('buildStationFeed', () => {
     expect(feed[0].stationuuid).toBe('t2');
   });
 
+  // ---------------------------------------------------------------------
+  // pinFirst — the Home hero expanded into the feed. These four cases are the
+  // cheapest guard against the one silent way this feature can violate #86: if
+  // the pin is ever dropped, resolveFeedEntry's findIndex returns -1, seedPlayed
+  // seeds the WRONG card, and the observer's first fire plays a different
+  // station on a passive open.
+  // ---------------------------------------------------------------------
+  it('pins the entry station at index 0 even though it is in `exclude`', () => {
+    // This is the normal now-playing case: StationFeed always puts the current
+    // station in `exclude`, and the hero the user pulled IS the current station.
+    const hero = station('hero');
+    const feed = buildStationFeed({
+      tasteStations: range('t', 5),
+      trending: range('r', 3),
+      pool: range('p', 3),
+      seed: 11,
+      exclude: ['hero'],
+      pinFirst: hero
+    });
+    expect(feed[0].stationuuid).toBe('hero');
+  });
+
+  it('pins the entry station even when the liveness gate would reject it', () => {
+    const hero = station('hero');
+    const feed = buildStationFeed({
+      tasteStations: range('t', 4),
+      trending: [],
+      pool: [],
+      seed: 3,
+      isLive: (s) => s.stationuuid !== 'hero',
+      pinFirst: hero
+    });
+    expect(feed[0].stationuuid).toBe('hero');
+  });
+
+  it('pins the entry station even when it fails the feed eligibility filter', () => {
+    // A talk/news station is normally denied a feed card; the card the gesture is
+    // morphing FROM is not up for debate.
+    const hero = station('hero', { name: 'City News Talk', tags: 'news,talk' });
+    const feed = buildStationFeed({
+      tasteStations: range('t', 4),
+      trending: [],
+      pool: [],
+      seed: 5,
+      pinFirst: hero
+    });
+    expect(feed[0].stationuuid).toBe('hero');
+  });
+
+  it('never lets the pinned station appear twice, whichever source also holds it', () => {
+    const hero = station('hero');
+    const feed = buildStationFeed({
+      tasteStations: [hero, ...range('t', 4)],
+      trending: [hero, ...range('r', 3)],
+      pool: [hero, ...range('p', 3)],
+      seed: 13,
+      pinFirst: hero
+    });
+    expect(ids(feed).filter((id) => id === 'hero')).toHaveLength(1);
+    expect(feed[0].stationuuid).toBe('hero');
+  });
+
+  it('ignores an unplayable pin rather than seating a dead card at index 0', () => {
+    const feed = buildStationFeed({
+      tasteStations: range('t', 4),
+      trending: [],
+      pool: [],
+      seed: 9,
+      pinFirst: station('hero', { url_resolved: '' })
+    });
+    expect(ids(feed)).not.toContain('hero');
+    expect(feed.length).toBeGreaterThan(0);
+  });
+
   it('handles empty sources without throwing', () => {
     expect(buildStationFeed({ tasteStations: [], trending: [], pool: [], seed: 1 })).toEqual([]);
     const tasteOnly = buildStationFeed({

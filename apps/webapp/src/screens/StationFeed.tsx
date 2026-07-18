@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { createHomeRecommendationFeed } from '../lib/homeProfile';
-import { buildStationFeed } from '../lib/stationFeed';
+import { buildStationFeed, isFeedStationEligible } from '../lib/stationFeed';
 import { prewarmStation } from '../lib/streamPrewarm';
 import {
   isStationHardHiddenByPlayability,
@@ -217,7 +217,7 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, feedSeed, winamp } = useShell();
+  const { setActiveSection, feedSeed, feedEntryStation, winamp } = useShell();
   const isMobile = useMobileLayout();
 
   // The feed re-rolls on EVERY open: rerollFeedSeed runs from the «Лента» entry's
@@ -254,6 +254,28 @@ export const StationFeed = () => {
     favorites.forEach((s) => exclude.add(s.stationuuid));
     recent.forEach((s) => exclude.add(s.stationuuid));
     if (player.current) exclude.add(player.current.stationuuid);
+
+    // The Home hero the feed was expanded FROM becomes card 0 (owner ask #2 —
+    // the hero IS the first feed card). It bypasses `exclude` (which always
+    // contains the playing station) via buildStationFeed's `pinFirst`.
+    //
+    // #86 accounting, both branches:
+    //   • a station IS current → the pin is that station → resolveFeedEntry
+    //     finds it at index 0 → autoplayInitial:false → settler.seedPlayed(0).
+    //     The feed opens ON the playing card, plays nothing, switches nothing.
+    //   • nothing is playing  → resolveFeedEntry returns autoplayInitial:true and
+    //     card 0 IS played on open (unchanged from today's idle behaviour). So an
+    //     IDLE pin must clear the same liveness + eligibility bar as any other
+    //     card, or we would autoplay a dead stream. Hence the asymmetric guard.
+    const pinCandidate =
+      feedEntryStation?.stationuuid && feedEntryStation.url_resolved ? feedEntryStation : null;
+    const pinIsCurrent = Boolean(
+      pinCandidate && pinCandidate.stationuuid === player.current?.stationuuid
+    );
+    const pinPlayableWhenIdle = Boolean(
+      pinCandidate && isLive(pinCandidate) && isFeedStationEligible(pinCandidate)
+    );
+    const pinFirst = pinIsCurrent || pinPlayableWhenIdle ? pinCandidate : null;
 
     const rankedCatalog = rankStationsForUser(pool, effectiveTasteProfile, playabilityProfile, {
       mode: 'personal',
@@ -295,10 +317,14 @@ export const StationFeed = () => {
       seed,
       limit: Math.min(FEED_MAX_ITEMS, rankedCatalog.length || FEED_MAX_ITEMS),
       exclude,
-      isLive
+      isLive,
+      pinFirst
     });
+    // `feedEntryStation` is safe to depend on: it is written in the SAME gesture
+    // handler that flips activeSection to 'feed', i.e. strictly before this
+    // screen mounts, and never mutates while the feed is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary, seed]);
+  }, [summary, seed, feedEntryStation]);
 
   const [visibleIndex, setVisibleIndex] = useState(0);
   const [visibleLimit, setVisibleLimit] = useState(FEED_INITIAL_VISIBLE);
@@ -604,6 +630,10 @@ export const StationFeed = () => {
                 key={station.stationuuid}
                 className="station-feed-card"
                 data-feed-index={index}
+                // Makes "the Home hero IS feed card 0" a directly assertable
+                // contract (playback-no-auto-switch.spec.ts) rather than
+                // something inferred from the rendered station name.
+                data-feed-station={station.stationuuid}
                 aria-label={station.name}
                 ref={(node) => {
                   cardRefs.current[index] = node;

@@ -172,4 +172,17 @@ describe('resolveFeedEntry', () => {
   it('starts at 0 with NO mount play when the current station is not in the feed', () => {
     expect(resolveFeedEntry(feed, 'zzz')).toEqual({ index: 0, autoplayInitial: false });
   });
+
+  it('hero-as-card-0: the current station pinned at index 0 opens there and does NOT autoplay', () => {
+    // This branch is NEW in production. Until the hero became the feed entry,
+    // StationFeed always EXCLUDED the current station from the mix, so the
+    // findIndex-hit path above could never fire with index 0 — the guarantee was
+    // "excluded, therefore unplayable". Now the pull gesture pins the playing
+    // station AT index 0 and the guarantee moves to "seeded as played, therefore
+    // not replayed". That makes this assertion the load-bearing #86 unit test.
+    const pinned = [{ stationuuid: 'hero' }, ...feed];
+    expect(resolveFeedEntry(pinned, 'hero')).toEqual({ index: 0, autoplayInitial: false });
+    // Bonus consequence: index 0 means the kickstart's
+    // `scroller.scrollTop = index * clientHeight` never runs — no scroll jump.
+  });
 });

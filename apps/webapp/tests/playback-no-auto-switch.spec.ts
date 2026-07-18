@@ -230,9 +230,33 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   // is NOT a swipe → ZERO new plays past the settle.
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  // The hero must ALREADY be showing the on-air station (owner ask #1) — that is
+  // what makes the pin below meaningful.
+  await expect(page.locator('[data-home-hero]')).toHaveAttribute(
+    'data-home-hero-mode',
+    'now-playing'
+  );
+  await expect(page.locator('[data-home-hero]')).toHaveAttribute(
+    'data-home-hero',
+    stationBeforeFeed as string
+  );
+
   await page.locator('[data-home-feed-entry]').click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+
+  // The hero IS feed card 0 (owner ask #2): the expanded feed opens ON the same
+  // station the hero was showing, not on some other pick. This is a real #86
+  // hazard as well as a UX contract — the pin makes resolveFeedEntry's
+  // findIndex-hit branch live in production for the first time, and if the pin
+  // were ever silently dropped, seedPlayed would seed the WRONG card and the
+  // observer's first fire would switch the player on a passive open.
+  await expect(page.locator('.station-feed-card[data-feed-index="0"]')).toHaveAttribute(
+    'data-feed-station',
+    stationBeforeFeed as string
+  );
+
   await page.waitForTimeout(700); // well past the 220ms settle window
   expect(await currentQueueStationId(page)).toBe(stationBeforeFeed); // never auto-switched on open
 
@@ -259,4 +283,275 @@ test('FEED #86: opening «Лента» while a station plays does NOT switch it;
   await expect
     .poll(() => currentQueueStationId(page), { timeout: 4000 })
     .not.toBe(stationBeforeFeed);
+});
+
+// Drag the Home hero downward until it commits, i.e. the gesture the owner
+// actually asked for. This is a SECOND route into resolveFeedEntry / the
+// kickstart and would otherwise be entirely uncovered — the click test above
+// cannot catch a gesture path that pins the wrong station (or no station).
+const pullHeroDown = async (page: Page, distance = 190) => {
+  const hero = page.locator('[data-home-hero]');
+  await expect(hero).toBeVisible();
+  const box = await hero.boundingBox();
+  if (!box) throw new Error('hero has no box');
+  // Start in the copy area (title / location / tags): inside the hero, but not
+  // on the refresh chip, the favourite button or the play button — a pointerdown
+  // that lands on a control is deliberately ignored by the gesture.
+  const startX = box.x + box.width * 0.3;
+  const startY = box.y + 60;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  // Several intermediate moves: the tracker needs a real trail (dead zone →
+  // engage → commit) and samples velocity from it.
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(startX, startY + (distance * step) / 8);
+  }
+  await page.mouse.up();
+};
+
+test('FEED #86 (gesture): pulling the hero down opens «Лента» on the playing card without switching it', async ({
+  page
+}) => {
+  await installPlayProbe(page);
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  await startSearchResultsRadio(page);
+  await expect.poll(() => distinctPlayedStations(page)).toBe(1);
+  await expect.poll(() => currentQueueStationId(page)).not.toBeNull();
+  const stationBeforeFeed = await currentQueueStationId(page);
+  expect(stationBeforeFeed).toBeTruthy();
+  const playsBeforeFeed = await distinctPlayedStations(page);
+  const indexBeforeFeed = await queueCurrentIndex(page);
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+  // The gesture only arms at the top of the page — make that explicit.
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  await pullHeroDown(page);
+
+  await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  // Same two contracts as the click path: opens ON the hero's station, and
+  // expanding is not a swipe, so nothing may be played or switched.
+  await expect(page.locator('.station-feed-card[data-feed-index="0"]')).toHaveAttribute(
+    'data-feed-station',
+    stationBeforeFeed as string
+  );
+  await page.waitForTimeout(700); // past the 220ms settle window
+  expect(await currentQueueStationId(page)).toBe(stationBeforeFeed);
+  expect(await queueCurrentIndex(page)).toBe(indexBeforeFeed);
+  expect(await distinctPlayedStations(page)).toBe(playsBeforeFeed);
+});
+
+test('MOUSE: dragging the grabber handle opens «Лента» (Telegram Desktop path)', async ({
+  page
+}) => {
+  // The hero body is covered by the gesture test above; this pins the OTHER
+  // half of the same fix — the grabber is a <button>, and the pull deliberately
+  // exempts it from the "starts on a control" bail so the thing that says
+  // «Потяни вниз» can actually be pulled. Mouse-specific because that path has
+  // its own pointerType gate and window-level move/up listeners.
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  const grip = page.locator('[data-home-feed-entry]');
+  await expect(grip).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const box = await grip.boundingBox();
+  if (!box) throw new Error('feed entry has no box');
+  const x = box.x + box.width * 0.5;
+  const y = box.y + box.height * 0.5;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(x, y + (190 * step) / 8);
+  }
+  await page.mouse.up();
+
+  await expect(page.locator('.station-feed-overlay')).toBeVisible();
+});
+
+test('the hero pull does NOT fire on a normal downward scroll or an upward flick back to the top', async ({
+  page
+}) => {
+  // Constraint E, the failure mode that would make Home feel broken. Both of
+  // these are ordinary scrolling and must leave Home exactly where it is.
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  const hero = page.locator('[data-home-hero]');
+  const box = await hero.boundingBox();
+  if (!box) throw new Error('hero has no box');
+
+  // 1. A drag that goes UP is a page scroll, never a pull.
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6);
+  await page.mouse.down();
+  for (let step = 1; step <= 6; step += 1) {
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.6 - step * 30);
+  }
+  await page.mouse.up();
+  await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+
+  // 2. Wheel-scroll to the bottom of Home, then flick back up past the top —
+  //    the inertia tail arrives at scrollY 0 with negative deltaY. Its sequence
+  //    began mid-page, so it must be ignored wholesale.
+  await hero.hover();
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  for (let i = 0; i < 12; i += 1) {
+    await page.mouse.wheel(0, -160);
+  }
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.waitForTimeout(400);
+  await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+  // Home is still the active screen and still scrollable.
+  await expect(page.locator('.screen-home-next')).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// TOUCH. Everything above drives page.mouse, which the compositor never steals,
+// so it is structurally incapable of catching the failure that made this feature
+// dead on a phone: Chromium fires `pointercancel` ~16px into any vertical touch
+// drag, whether or not the page can scroll that way. A passive pointer observer
+// therefore never reaches the commit threshold on a touchscreen while passing
+// every mouse test. These run the REAL touch pipeline (CDP Input.dispatchTouchEvent
+// against a hasTouch context) so that regression cannot come back green.
+// ---------------------------------------------------------------------------
+test.describe('hero pull on a touchscreen', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  const touchDrag = async (
+    page: Page,
+    from: { x: number; y: number },
+    dy: number,
+    steps = 14
+  ) => {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: from.x, y: from.y }]
+    });
+    for (let step = 1; step <= steps; step += 1) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: from.x, y: from.y + (dy * step) / steps }]
+      });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  };
+
+  const centreOf = async (page: Page, selector: string) => {
+    const box = await page.locator(selector).boundingBox();
+    if (!box) throw new Error(`${selector} has no box`);
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+
+  // A deterministic catalogue (mockStations) plus favourites, then an EXPLICIT
+  // wait for the hero. Without the mock these tests only found a hero when an
+  // earlier test in the file had already warmed the real dev catalogue — they
+  // passed by suite ordering and rendered a bare skeleton in isolation, which is
+  // exactly the shape of a test that proves nothing.
+  const openTouchHome = async (page: Page) => {
+    await installPlayProbe(page);
+    await installMediaMocks(page);
+    await mockStations(page);
+    await seedRadioState(page, { favorites: stations.slice(0, 4) });
+    await page.goto('/?api=/api');
+    await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-home-hero]')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForFunction(() => window.scrollY === 0);
+  };
+
+  test('a downward TOUCH drag on the hero opens «Лента» (the owner ask, on a phone)', async ({
+    page
+  }) => {
+    await openTouchHome(page);
+
+    await touchDrag(page, await centreOf(page, '[data-home-hero]'), 190);
+
+    await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  });
+
+  test('the grabber handle is itself draggable — the element that says «Потяни вниз»', async ({
+    page
+  }) => {
+    // The affordance and the drag target were once different elements: the grip
+    // lived in a sibling of the hero and received no handlers at all, so the one
+    // thing that looked like a handle was the one thing that could not be pulled
+    // (and a drag off a button fires no click either, so it did nothing at all).
+    await openTouchHome(page);
+
+    await touchDrag(page, await centreOf(page, '[data-home-feed-entry]'), 190);
+
+    await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  });
+
+  test('a TOUCH drag still scrolls Home normally in both directions (constraint E)', async ({
+    page
+  }) => {
+    await openTouchHome(page);
+
+    // UP on the hero at page top = an ordinary scroll down. Never a pull.
+    const hero = await centreOf(page, '[data-home-hero]');
+    await touchDrag(page, hero, -200);
+    await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    // DOWN while scrolled = an ordinary scroll back up. Still never a pull: the
+    // gesture is refused at touchstart unless the page is already at the top.
+    await touchDrag(page, { x: 195, y: 300 }, 200);
+    await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+  });
+
+  test('a tap on the grabber still opens the feed (a tap is not a pull)', async ({ page }) => {
+    await openTouchHome(page);
+
+    // The pull exempts `.home-feed-entry` from the "starts on a control" bail so
+    // the handle can be dragged; that must not cost the button its tap.
+    await page.locator('[data-home-feed-entry]').tap();
+    await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  });
+});
+
+test('wheeling up at the top of Home never opens the feed or starts audio', async ({ page }) => {
+  // The wheel path is GONE (see heroPullExpand.ts). It used to commit at 260px —
+  // three ordinary wheel notches — for any sequence that merely began at scrollY
+  // 0, so "I am at the top of Home and I keep wheeling up" opened a fullscreen
+  // surface, and on an idle player resolveFeedEntry's autoplayInitial branch
+  // started audio out of nowhere. Both patterns that reproduced it are pinned
+  // here: a cold wheel-up at rest, and the flick-to-top-pause-flick-again beat.
+  await installPlayProbe(page);
+  await seedRadioState(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+  await page.setViewportSize({ width: 515, height: 800 }); // the owner's Telegram Desktop window
+
+  await page.locator('[data-home-hero]').hover();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  for (let i = 0; i < 6; i += 1) {
+    await page.mouse.wheel(0, -120);
+  }
+  await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+  expect(await distinctPlayedStations(page)).toBe(0);
+
+  // Scroll down, flick back to the top, take a human beat, then keep wheeling up.
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  for (let i = 0; i < 12; i += 1) {
+    await page.mouse.wheel(0, -160);
+  }
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.waitForTimeout(600);
+  for (let i = 0; i < 4; i += 1) {
+    await page.mouse.wheel(0, -160);
+  }
+  await expect(page.locator('.station-feed-overlay')).toHaveCount(0);
+  expect(await distinctPlayedStations(page)).toBe(0);
 });

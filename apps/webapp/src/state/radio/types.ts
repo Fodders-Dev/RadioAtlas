@@ -248,6 +248,13 @@ export type ShellContextValue = {
   // so the feed mix is fresh each time, independent of the frozen Home seed.
   feedSeed: number;
   rerollFeedSeed: () => void;
+  // The station the «Лента» was opened FROM — the Home hero the user pulled down
+  // (or tapped). StationFeed pins it as card 0 so the hero literally IS the first
+  // feed card. TRANSIENT by design: `activeSection` IS persisted, so a reload
+  // landing straight in the feed must degrade to "the feed picks its own card 0"
+  // rather than resurrect a stale pin.
+  feedEntryStation: StationLite | null;
+  setFeedEntryStation: (station: StationLite | null) => void;
   searchDraft: string;
   setSearchDraft: (value: string) => void;
   clearSearchDraft: () => void;

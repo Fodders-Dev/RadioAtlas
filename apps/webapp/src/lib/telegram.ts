@@ -286,6 +286,21 @@ export const isVersionAtLeast = (version: string | undefined, minimum: string): 
   return true;
 };
 
+// Telegram's OWN vertical swipe-to-minimise eats a downward drag inside the
+// WebView. RadioContext disables it once at mount via `tg.disableVerticalSwipes()`
+// — but that call silently no-ops below Bot API 7.7: the SDK method EXISTS on
+// every version of telegram-web-app.js and only console.warns internally
+// (`toggleVerticalSwipes` is gated on `versionAtLeast('7.7')`). So the method's
+// PRESENCE is not a support check; the version is.
+//
+// Used to gate the hero pull-to-expand TOUCH path only. Outside the Telegram
+// client there is no conflict, so this returns true there. Never call
+// enableVerticalSwipes() anywhere — it would re-arm the conflict app-wide.
+export const supportsSwipeControl = (): boolean => {
+  if (!isInsideTelegramClient()) return true;
+  return isVersionAtLeast(readWindowTelegram()?.version, '7.7');
+};
+
 // shareToStory needs Bot API 7.8+ and a real Telegram client. Feature-detect so
 // the UI hides the button on older clients / standalone web — never errors.
 export const canShareToStory = (): boolean => {

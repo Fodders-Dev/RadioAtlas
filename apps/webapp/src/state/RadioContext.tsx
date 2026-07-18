@@ -302,6 +302,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   // mints a new seed, which is the desired "fresh feed on open" behaviour.
   const [feedSeed, setFeedSeed] = useState(() => homeState.sessionSeed);
   const rerollFeedSeed = useCallback(() => setFeedSeed(Date.now()), []);
+  // The Home hero the «Лента» was expanded FROM. Set in the same user-gesture
+  // handler as rerollFeedSeed (never an effect) and read once by StationFeed,
+  // which pins it as card 0 — that is what makes «свайпнул героя → он вырос в
+  // ленту» literally true instead of a cross-fade to some other station.
+  // Transient on purpose: see the ShellApi comment in state/radio/types.ts.
+  const [feedEntryStation, setFeedEntryStation] = useState<StationLite | null>(null);
   const setSearchDraft = (value: string) =>
     setStoredShellState((prev) =>
       prev.searchDraft === value
@@ -2790,6 +2796,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       refreshHomeSurface,
       feedSeed,
       rerollFeedSeed,
+      feedEntryStation,
+      setFeedEntryStation,
       searchDraft,
       setSearchDraft,
       clearSearchDraft,
@@ -2806,6 +2814,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearSearchDraft,
       debugLogs,
       detailsOpen,
+      feedEntryStation,
       feedSeed,
       globeFocusRegionId,
       homeState,
