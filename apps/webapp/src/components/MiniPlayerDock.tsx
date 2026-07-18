@@ -102,7 +102,13 @@ export const MiniPlayerDock = () => {
     ? isStationHiddenFromRecommendations(current.stationuuid)
     : false;
   const queueCount = Math.max(queue.items.length, 0);
-  const isDormantDock = !current && queueCount === 0;
+  // "Dormant" = nothing is on air. The dock is the NOW-PLAYING bar, so with no
+  // current station there is nothing to control and it renders nothing (see the
+  // early return below). A queued-but-not-playing station does NOT keep it
+  // alive: that still showed the owner a permanent «Выбери станцию» prompt
+  // covering the rails, which is exactly what we removed it for. The queue stays
+  // reachable from «Моё».
+  const isDormantDock = !current;
   const resolvedQueueIndex =
     queue.currentIndex >= 0
       ? queue.currentIndex
