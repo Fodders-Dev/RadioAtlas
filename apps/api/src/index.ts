@@ -14,6 +14,7 @@ import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
+import { registerListeningRoutes, startPresenceSweeper } from './listeningRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
 import { createSceneArtworkService } from './sceneArtwork.js';
 import { registerSceneArtworkRoutes } from './sceneArtworkRoutes.js';
@@ -522,6 +523,9 @@ registerBillingRoutes(app, {
   nodeEnv: NODE_ENV
 });
 registerStationProfileRoutes(app);
+// Live listener presence: in-memory only, nothing about anybody is persisted.
+registerListeningRoutes(app);
+startPresenceSweeper(30_000);
 const catalogService = registerCatalogRoutes(app, {
   getCatalog,
   withStationProfiles

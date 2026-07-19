@@ -8,6 +8,8 @@ import {
   type RefObject
 } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import { formatListenerLine } from '../lib/listenerPresence';
+import { useListenerPresence } from '../lib/useListenerPresence';
 import { useDialog } from '../lib/useDialog';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { SleepTimerDial } from './SleepTimerDial';
@@ -238,6 +240,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   });
 
   const current = player.current;
+  // Live co-listeners, counted by us. Renders only at 2+ (see formatListenerLine):
+  // at 1 the only listener is the viewer, which is not information.
+  const liveListeners = useListenerPresence(current, player.isPlaying);
+  const listenerLine = formatListenerLine(liveListeners);
   const liked = current ? isFavorite(current.stationuuid) : false;
   const stationHidden = current ? isStationHiddenFromRecommendations(current.stationuuid) : false;
   const queueLabel = queue.sourceLabel || t('radio.queueDefault');
@@ -714,6 +720,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
                   <p>{formatStationMeta(current, t('winamp.buildQueue'))}</p>
                   <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
                   {renderTrackButton()}
+                  {listenerLine ? (
+                    <p className="full-player-listeners" data-live-listeners={liveListeners}>
+                      {listenerLine}
+                    </p>
+                  ) : null}
                 </div>
               </section>
 
