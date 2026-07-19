@@ -235,6 +235,11 @@ type SeedRadioStateOptions = {
   tasteProfile?: TasteProfileV2;
   stationHealthProfile?: StationHealthProfile;
   radioSessionEvents?: RadioSessionEvent[];
+  // Shown-but-unplayed impressions (lib/stationExposure). The «Новое для тебя»
+  // feed chip is gated on this being non-empty — its predicate is "not shown to
+  // you recently", so with an empty ledger it excludes nothing and would rebuild
+  // the identical deck.
+  stationExposure?: Record<string, { lastShownAt: number; shownCount: number }>;
   favorites?: SeedStation[];
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
@@ -334,6 +339,7 @@ export const seedRadioState = async (
     tasteProfile = DEFAULT_TASTE_PROFILE_V2,
     stationHealthProfile = DEFAULT_STATION_HEALTH_PROFILE,
     radioSessionEvents = [],
+    stationExposure = {},
     favorites = [],
     recent = [],
     playbackHistory = [],
@@ -396,7 +402,8 @@ export const seedRadioState = async (
         playabilityProfile,
         tasteProfile,
         stationHealthProfile,
-        radioSessionEvents
+        radioSessionEvents,
+        stationExposure
       },
       libraryState: {
         version: 2,

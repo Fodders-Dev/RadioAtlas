@@ -64,7 +64,11 @@ type CandidatePlan = ReturnType<typeof buildCandidates>;
 
 const EQ_CENTER = 50;
 const EQ_RANGE_DB = 12;
-const VISUALIZER_BARS = 24;
+// Exported so visualiser components size themselves off the pump instead of
+// guessing: `spectrum` is a Float32Array of exactly this length, and a consumer
+// that renders more bars than this silently paints the extras at a dead zero
+// forever (FeedWaveform shipped 28 against 24 and had a permanently flat tail).
+export const VISUALIZER_BARS = 24;
 const VISUALIZER_WAVEFORM_SAMPLES = 24;
 const PLAYBACK_SUPERSEDED = 'playback superseded';
 const STARTUP_BUFFER_GRACE_MS = 15000;

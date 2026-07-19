@@ -8,17 +8,86 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  color: #f6faff;
+  color: var(--feed-ink);
   background: #05070d;
   overflow: hidden;
   isolation: isolate;
+
+  --feed-gutter: 18px;
+  /* The band each card stops short of, filled by the fixed «Дальше» strip. This
+     is the reference's "next card peeks below the fold" — see the geometry note
+     on .station-feed-card. */
+  --feed-peek-h: calc(74px + env(safe-area-inset-bottom));
+  --feed-rail-orb: 72px;
+  --feed-rail-btn: 48px;
+  --feed-rail-gap: 14px;
+  /* The band the topbar owns: 10px top padding (+ safe area), the 44px control
+     row, the 60px chip row, 10px bottom padding. The action rail is capped
+     against this so nothing inside the card can be laid out underneath it —
+     see .station-feed-card-actions. Deliberately the CHIPS-OPEN height, i.e.
+     the tallest state: it is the conservative bound, and it is inert on any
+     viewport tall enough to fit the whole rail anyway. */
+  --feed-topbar-h: calc(124px + env(safe-area-inset-top));
+  --feed-ink: #f6faff;
+  --feed-ink-muted: rgba(238, 245, 252, 0.62);
+
   /* Continuation of the Home hero's pull: the hero grows, Home unmounts, and the
      overlay lands out of the same upward-scaling motion. Home's DOM is already
      gone by the time this mounts (activeSection swaps the whole screen), so this
      is a mount animation, not a shared-element morph — the repo has no
-     startViewTransition prior art and this is not the place to introduce one.
-     Adds no persistent chrome, so the station-feed visual baselines stay valid. */
+     startViewTransition prior art and this is not the place to introduce one. */
   animation: station-feed-expand 240ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+@media (max-height: 700px) {
+  .station-feed-overlay {
+    --feed-peek-h: calc(58px + env(safe-area-inset-bottom));
+  }
+}
+
+/* The rail is bottom-anchored and its natural height is fixed (orb + 4 buttons +
+   gaps), so on a SHORT viewport its top rises into the topbar and the orb sits
+   over the third filter chip. Measured at 360×480 (a real Telegram compact-mode
+   viewport) with «Популярное» rendered: a 71×30px overlap, and elementFromPoint
+   inside it returned the ORB — the chip was untappable. Giving the topbar its
+   z-index only swapped which of the two lost the hit test, so the rail has to
+   stop growing into that band: these steps shrink it, and the hard cap on
+   .station-feed-card-actions is the guarantee for what the steps cannot reach.
+   Every control keeps clearing the 44px touch floor at every step — the orb and
+   the gaps give way, never the buttons. */
+@media (max-height: 640px) {
+  .station-feed-overlay {
+    --feed-rail-orb: 58px;
+    --feed-rail-btn: 44px;
+    --feed-rail-gap: 9px;
+  }
+
+  .station-feed-action--play svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* Landscape phones and Telegram's compact mode. Rail = 52 + 4 + 4×44 + 4×6 =
+   256px, against 264px of free band at 470px tall (470 − 58 peek − 124 topbar −
+   24 of clearance). Below this the five controls simply do not fit a vertical
+   rail at 44px each, and the cap scrolls them rather than shrinking them under
+   the touch floor. */
+@media (max-height: 470px) {
+  .station-feed-overlay {
+    --feed-rail-orb: 52px;
+    --feed-rail-gap: 6px;
+  }
+
+  .station-feed-action--play svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .station-feed-action svg {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 @keyframes station-feed-expand {
@@ -33,49 +102,94 @@
   }
 }
 
-/* Fixed chrome: close + title. pointer-events are off on the wrapper so a swipe
-   that starts up here still reaches the pager; only the button opts back in. */
+/* ------------------------------------------------------------------ */
+/* Glass — ONE recipe, five consumers. This is the app's liquid-glass
+   surface (styles.css): a near-transparent fill plus a three-inset lens
+   edge, which is why the veil below has to do the legibility work rather
+   than the fill being thickened. */
+/* ------------------------------------------------------------------ */
+.station-feed-close,
+.station-feed-filter-toggle,
+.station-feed-action,
+.station-feed-chip,
+.station-feed-next {
+  border: none;
+  color: var(--feed-ink);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+    0 8px 22px rgba(0, 7, 20, 0.28);
+  /* -webkit- FIRST, standard LAST (bug #175: the minifier keeps the LAST of two
+     duplicate logical properties and Chrome does not parse the -webkit- alias,
+     so std-last is mandatory — getting it backwards silently kills all glass in
+     production). No !important needed: the feed is portaled onto <body>, outside
+     .app-shell-v2, and no `backdrop-filter: none` flatten selector in styles.css
+     matches .station-feed-*. If you ever add !important, add it to BOTH lines. */
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+}
+
+.station-feed-close svg,
+.station-feed-filter-toggle svg,
+.station-feed-action svg {
+  fill: currentColor;
+  /* Glyph legibility over an arbitrary neon photograph. */
+  filter: drop-shadow(0 1px 2px rgba(0, 5, 14, 0.6));
+}
+
+/* ------------------------------------------------------------------ */
+/* Top bar: close · heading · filter toggle, with the chip row beneath.  */
+/* ------------------------------------------------------------------ */
 .station-feed-topbar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 3;
-  display: flex;
+  /* Above the card's action rail (z-3) and the peek strip (z-4): on a short
+     viewport the rail's top edge can reach the chip row, and when two boxes
+     overlap the CHIP must win the hit test — the topbar itself is
+     pointer-events: none, so this only ever hands a tap to the control the user
+     can actually see. */
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'close heading filter'
+    'chips chips chips';
   align-items: center;
-  gap: 12px;
+  column-gap: 12px;
   padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  /* PRESERVE: a swipe that starts up here must still reach the pager. Every
+     control below opts back in with pointer-events: auto individually. */
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(3, 7, 14, 0.62), transparent);
+  background: linear-gradient(
+    180deg,
+    rgba(3, 7, 14, 0.72),
+    rgba(3, 7, 14, 0.26) 62%,
+    transparent
+  );
 }
 
 .station-feed-close {
+  grid-area: close;
   pointer-events: auto;
-  flex: 0 0 auto;
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
-  border: none;
   border-radius: 999px;
-  background: rgba(8, 12, 20, 0.5);
-  color: #f6faff;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-}
-
-.station-feed-close:hover {
-  background: rgba(8, 12, 20, 0.72);
 }
 
 .station-feed-close svg {
   width: 20px;
   height: 20px;
-  fill: currentColor;
 }
 
 .station-feed-heading {
+  grid-area: heading;
   display: flex;
   flex-direction: column;
   line-height: 1.15;
@@ -92,8 +206,116 @@
   color: rgba(238, 245, 252, 0.72);
 }
 
-/* The snap pager. One card = one viewport; mandatory snap + snap-stop so a flick
-   advances exactly one station. */
+.station-feed-filter-toggle {
+  grid-area: filter;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.station-feed-filter-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.station-feed-filters {
+  grid-area: chips;
+  display: flex;
+  gap: 8px;
+  /* `overflow-x: auto` forces computed `overflow-y: auto`, so this row CLIPS
+     its children's outlines — and a focused chip's ring is 6px tall (3px
+     outline at a 3px offset). With 2px/4px of padding the ring was sliced flat
+     on both edges: measured y 60..116 against a scroll box of y 64..114, i.e. a
+     partially visible focus indicator on a brand-new control (WCAG 2.4.11 /
+     2.4.7). 8px of vertical padding clears the ring; the margins give the
+     padding back so the row occupies the same 60px it always did. */
+  margin: 4px -14px -4px;
+  padding: 8px 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* Gaps between chips stay swipe-through. */
+  pointer-events: none;
+}
+
+/* `display: flex` above outranks the UA sheet's `[hidden] { display: none }`, so
+   without this the collapsed row stays rendered AND keyboard-reachable — the
+   chips would remain in the dialog's tab cycle while claiming to be hidden. */
+.station-feed-filters[hidden] {
+  display: none;
+}
+
+.station-feed-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.station-feed-chip {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  /* 44px beats the reference's ~36px pill: touch target minimum. */
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 660;
+  white-space: nowrap;
+  cursor: pointer;
+  color: rgba(240, 247, 255, 0.8);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+/* "Brighter, filled glass" for the active chip.
+   The fill alone does NOT carry this: over an arbitrary neon photograph, and
+   through the shared brightness(1.15) saturate(190%) backdrop, a 14%-vs-3.5%
+   white delta reads as the same pill. So the selection also gets the cyan accent
+   the play orb uses (a ring + a leading dot) — a non-colour-only cue that
+   survives any backdrop. */
+.station-feed-chip[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.26);
+  color: #ffffff;
+  font-weight: 760;
+  box-shadow:
+    inset 0 0 0 1px rgba(160, 246, 255, 0.55),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(120, 236, 255, 0.22),
+    0 8px 22px rgba(0, 7, 20, 0.34);
+}
+
+.station-feed-chip[aria-pressed='true']::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: #a0f6ff;
+  box-shadow: 0 0 8px rgba(120, 236, 255, 0.85);
+}
+
+/* Screen-reader-only announcement of a filter change (focus stays on the chip). */
+.station-feed-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* The snap pager. One card = one viewport; mandatory snap + snap-stop so a
+   flick advances exactly one station. */
+/* ------------------------------------------------------------------ */
 .station-feed-scroller {
   position: absolute;
   inset: 0;
@@ -110,6 +332,12 @@
   display: none;
 }
 
+/* ⚠ GEOMETRY INVARIANT: the card box must remain exactly 100svh, i.e. equal to
+   scroller.clientHeight. It is the divisor in the production scroll fallback
+   (StationFeed.tsx), in the kickstart scroll jump, and in
+   playback-no-auto-switch.spec.ts's own Math.round(scrollTop / clientHeight)
+   arithmetic. The "next card peeks" effect is achieved by insetting the CONTENT
+   (below), never by shrinking the snap unit. */
 .station-feed-card {
   position: relative;
   width: 100%;
@@ -123,37 +351,99 @@
 .station-feed-card-content {
   position: absolute;
   inset: 0;
+  /* The stage stops short — THIS is the peek. */
+  bottom: var(--feed-peek-h);
+  /* Clips StationBackdrop's inset:-8% overscan to the rounded stage. */
+  overflow: hidden;
+  border-radius: 0 0 26px 26px;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* Right-hand action rail (tik-tok style): 48px round taps, light glyphs on a
-   translucent dark chip so they read over any cover. */
+/* Feed-scoped darkening on top of StationBackdrop's own scrim (which is shared
+   with the full player and must not be edited for this surface). The radial
+   sits behind the right-hand rail: it is what makes the near-transparent glass
+   recipe legible over a neon photograph without thickening its fill. */
+.station-feed-card-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 46% at 96% 76%, rgba(3, 7, 14, 0.44), transparent 62%),
+    linear-gradient(
+      180deg,
+      rgba(3, 7, 14, 0.5) 0%,
+      rgba(3, 7, 14, 0.06) 26%,
+      rgba(3, 7, 14, 0.44) 62%,
+      rgba(3, 7, 14, 0.88) 100%
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Right-hand vertical action rail.                                     */
+/* ------------------------------------------------------------------ */
 .station-feed-card-actions {
   position: absolute;
-  right: 12px;
-  bottom: calc(28px + env(safe-area-inset-bottom));
-  z-index: 2;
+  /* right/bottom are the true 14px/18px inset MINUS the padding below, so the
+     buttons land exactly where they always did. */
+  right: 8px;
+  bottom: 12px;
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: var(--feed-rail-gap);
+  /* Room for a focused control's 3px outline at its 3px offset: the rail is a
+     scroll container below, and a scroll container clips its children's
+     outlines the way the chip row used to. */
+  padding: 6px;
+  /* ⚠ THE HARD CAP on a bottom-anchored rail of fixed natural height. Without
+     it the rail simply grew upward past the topbar: at 474px and shorter the
+     play orb — the screen's PRIMARY action — was laid out under the chip row,
+     which wins the hit test at z-index 5, and below ~350px the top of the rail
+     was clipped off the card altogether. Landscape phones (~700×360) and
+     Telegram compact mode are squarely in that range. The steps above keep the
+     rail small enough to fit for the common short viewports; this is what
+     holds when they run out.
+     Overflow SCROLLS rather than clips, and a scroll container starts at the
+     top — so the orb stays visible and it is the last, least important control
+     that goes below the fold. Scroll chaining is left at its default so a
+     vertical swipe that starts on the rail still reaches the pager whenever the
+     rail itself has nothing to scroll. */
+  max-height: calc(100% - var(--feed-topbar-h) - 24px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.station-feed-card-actions::-webkit-scrollbar {
+  display: none;
+}
+
+/* A non-active card's rail is painted at opacity 0 by the entrance rule below,
+   yet it stayed clickable — and DURING a swipe the incoming card is on screen,
+   so a tap could land on an invisible control (two of which start playback).
+   With aria-hidden and tabIndex -1 already on it, this makes a non-active rail
+   unreachable by every input, which is what those two claim. */
+.station-feed-card-content[data-focus='false'] .station-feed-card-actions {
+  pointer-events: none;
 }
 
 .station-feed-action {
-  width: 48px;
-  height: 48px;
+  /* No shrinking: the rail is a flex column, and flex items shrink by default
+     once it is capped — which would squash 44px circles into ellipses instead
+     of scrolling them. */
+  flex: 0 0 auto;
+  width: var(--feed-rail-btn);
+  height: var(--feed-rail-btn);
+  border-radius: 999px;
   display: grid;
   place-items: center;
-  border: none;
-  border-radius: 999px;
-  background: rgba(10, 14, 22, 0.46);
-  color: #ffffff;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
   transition: transform 120ms ease, background 120ms ease;
 }
 
 .station-feed-action:hover {
-  background: rgba(10, 14, 22, 0.66);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .station-feed-action:active {
@@ -161,33 +451,59 @@
 }
 
 .station-feed-action svg {
-  width: 24px;
-  height: 24px;
-  fill: currentColor;
+  width: 22px;
+  height: 22px;
 }
 
 .station-feed-action.is-on {
-  background: rgba(255, 76, 124, 0.92);
+  background: rgba(255, 76, 124, 0.88);
   color: #fff;
 }
 
+/* The primary action: a large glowing cyan glass orb. */
 .station-feed-action--play {
-  background: #baf7df;
-  color: #071b18;
-  box-shadow: 0 8px 24px rgba(69, 235, 176, 0.24);
+  width: var(--feed-rail-orb);
+  height: var(--feed-rail-orb);
+  margin-bottom: 4px;
+  color: #ecfeff;
+  background:
+    radial-gradient(72% 72% at 50% 32%, rgba(120, 236, 255, 0.3), transparent 70%),
+    rgba(255, 255, 255, 0.035);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
+    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(120, 236, 255, 0.26),
+    0 12px 34px rgba(34, 190, 232, 0.3);
 }
 
 .station-feed-action--play:hover {
-  background: #d6ffef;
+  background:
+    radial-gradient(72% 72% at 50% 32%, rgba(140, 244, 255, 0.42), transparent 70%),
+    rgba(255, 255, 255, 0.07);
 }
 
+.station-feed-action--play svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* background-COLOR, never the `background` shorthand: the shorthand resets
+   background-image and would delete the cyan radial from the base rule above,
+   leaving the orb a flat grey circle in the state it spends most of its life in
+   — i.e. the reference's "large glowing cyan orb" stops glowing exactly while
+   it is playing. Verified: with the shorthand, computed backgroundImage was
+   `none` while playing and the radial only returned on pause. */
 .station-feed-action--play.is-playing {
-  background: rgba(246, 250, 255, 0.92);
-  color: #09111d;
+  background-color: rgba(180, 250, 255, 0.22);
 }
 
 .station-feed-action:focus-visible,
-.station-feed-close:focus-visible {
+.station-feed-close:focus-visible,
+.station-feed-filter-toggle:focus-visible,
+.station-feed-chip:focus-visible,
+.station-feed-next:focus-visible,
+.station-feed-next-reset:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 3px;
 }
@@ -197,28 +513,41 @@
   fill: currentColor;
 }
 
-/* Bottom-left identity block. Kept clear of the action rail on the right. */
+/* ------------------------------------------------------------------ */
+/* Bottom-left identity stack.
+   All vertical rhythm comes from the flex `gap` — there is deliberately NOT a
+   single per-line margin-top in here, because every line except the name and
+   the waveform is INDEPENDENTLY optional and the common case is that several
+   are missing. Gap-only rhythm means an absent line costs exactly zero pixels
+   and no subset needs a :first-child special case. */
+/* ------------------------------------------------------------------ */
 .station-feed-card-info {
   position: absolute;
-  left: 18px;
-  right: 78px;
-  bottom: calc(28px + env(safe-area-inset-bottom));
-  z-index: 2;
-  text-shadow: 0 1px 16px rgba(3, 7, 14, 0.66);
+  left: var(--feed-gutter);
+  /* Clears the orb. */
+  right: calc(var(--feed-rail-orb) + 24px);
+  bottom: 18px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-shadow: 0 1px 16px rgba(3, 7, 14, 0.7);
 }
 
 .station-feed-live {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin: 0 0 2px;
   padding: 3px 9px;
   border-radius: 999px;
   background: rgba(255, 76, 124, 0.92);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  /* «В ЭФИРЕ» is this, not a second locale string. */
   text-transform: uppercase;
 }
 
@@ -242,32 +571,169 @@
 
 .station-feed-card-name {
   margin: 0;
-  font-size: clamp(22px, 6.6vw, 30px);
+  font-size: clamp(28px, 8.4vw, 38px);
   font-weight: 800;
-  line-height: 1.12;
-  overflow: hidden;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* ⚠ BOTH are load-bearing, because the info stack is a flex column with
+     `align-items: flex-start` — every child shrink-wraps to fit-content, and for
+     a name with one long unbreakable token fit-content resolves to min-content,
+     i.e. WIDER than the column. `overflow: hidden` above cannot save it: the h2
+     clips against its own oversized box, not against the container. Without
+     these, «Радиовещательнаястанциямеждународная» measured 607px wide inside a
+     205px column at 320px — painting straight through the action rail and off
+     the viewport. Every sibling line already carries max-width: 100% below. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .station-feed-card-track {
-  margin: 8px 0 0;
+  margin: 0;
   font-size: 14px;
+  font-weight: 650;
+  color: var(--feed-ink);
+}
+
+.station-feed-card-place {
+  margin: 0;
+  font-size: 13.5px;
   font-weight: 600;
-  color: #f6faff;
+  color: rgba(238, 245, 252, 0.88);
+}
+
+.station-feed-card-genres {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(238, 245, 252, 0.66);
+}
+
+.station-feed-card-geo {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--feed-ink-muted);
+}
+
+.station-feed-card-track,
+.station-feed-card-place,
+.station-feed-card-genres,
+.station-feed-card-geo {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.station-feed-card-meta {
-  margin: 6px 0 0;
-  font-size: 12.5px;
-  color: rgba(238, 245, 252, 0.74);
+/* Sparse stations must look INTENTIONAL, not empty: with few or no optional
+   lines the name takes the space back rather than hanging over dead scrim.
+   `data-lines` is a plain count computed in FeedCard (not :has()). */
+.station-feed-card-info[data-lines='0'] .station-feed-card-name {
+  font-size: clamp(34px, 10.5vw, 48px);
+}
+
+.station-feed-card-info[data-lines='1'] .station-feed-card-name {
+  font-size: clamp(31px, 9.4vw, 43px);
+}
+
+/* ------------------------------------------------------------------ */
+/* Waveform strip — the constant floor of the info stack.
+   Cyan on purpose rather than var(--visualizer-*): the feed stage is dark in
+   BOTH themes (see the file header), so the pastel theme's accent would read
+   wrong here. */
+/* ------------------------------------------------------------------ */
+.station-feed-wave {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+  height: 26px;
+  margin-top: 6px;
+  pointer-events: none;
+}
+
+.station-feed-wave-bar {
+  flex: 1 1 auto;
+  min-width: 2px;
+  height: calc(8% + (var(--ra-level, 0) * 92%));
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(160, 246, 255, 0.95), rgba(56, 190, 232, 0.55));
+  box-shadow: 0 0 8px rgba(96, 226, 255, 0.28);
+  transition: height 70ms linear;
+}
+
+/* Not playing → a flat, honest resting strip. NEVER a fake animated amplitude:
+   there is no audio to visualise for a station nobody is listening to. */
+.station-feed-wave[data-active='false'] .station-feed-wave-bar {
+  height: 10%;
+  opacity: 0.38;
+  box-shadow: none;
+  transition: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Peek strip — fixed chrome filling the band the cards stop short of.
+   Doubles as the first KEYBOARD route through the pager. */
+/* ------------------------------------------------------------------ */
+.station-feed-next {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(9px + env(safe-area-inset-bottom));
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 16px;
+  border-radius: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.station-feed-next--dry {
+  cursor: default;
+}
+
+.station-feed-next-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(238, 245, 252, 0.62);
+}
+
+.station-feed-next-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.station-feed-next--dry .station-feed-next-title {
+  font-weight: 600;
+  color: rgba(238, 245, 252, 0.78);
+}
+
+.station-feed-next-reset {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 720;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .station-feed-empty {
@@ -293,11 +759,50 @@
   color: rgba(238, 245, 252, 0.72);
 }
 
-@keyframes station-feed-pulse-still {
-  from,
-  to {
-    opacity: 1;
-  }
+/* ------------------------------------------------------------------ */
+/* Entrance. Transitions rather than keyframes with fill:both, so the geo line
+   arriving ~100ms after the lazy geoResolver import enters on the same curve
+   instead of popping — and it reverses for free on swipe-away. Playwright's
+   animations:'disabled' resolves transitions to their END state, and
+   data-focus='true' is set at screenshot time, so the baselines stay
+   deterministic. */
+/* ------------------------------------------------------------------ */
+.station-feed-card-info > *,
+.station-feed-card-actions > * {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 260ms ease, transform 320ms cubic-bezier(0.18, 0.9, 0.24, 1);
+}
+
+.station-feed-card-content[data-focus='true'] .station-feed-card-info > *,
+.station-feed-card-content[data-focus='true'] .station-feed-card-actions > * {
+  opacity: 1;
+  transform: none;
+}
+
+.station-feed-card-info > :nth-child(1) {
+  transition-delay: 20ms;
+}
+.station-feed-card-info > :nth-child(2) {
+  transition-delay: 55ms;
+}
+.station-feed-card-info > :nth-child(3) {
+  transition-delay: 90ms;
+}
+.station-feed-card-info > :nth-child(4) {
+  transition-delay: 120ms;
+}
+.station-feed-card-info > :nth-child(5) {
+  transition-delay: 145ms;
+}
+.station-feed-card-info > :nth-child(n + 6) {
+  transition-delay: 165ms;
+}
+.station-feed-card-actions > :nth-child(1) {
+  transition-delay: 40ms;
+}
+.station-feed-card-actions > :nth-child(n + 2) {
+  transition-delay: 90ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -325,6 +830,22 @@
   .station-feed-action:active {
     transform: none;
   }
+
+  .station-feed-card-info > *,
+  .station-feed-card-actions > * {
+    transition: none;
+    transition-delay: 0s;
+    opacity: 1;
+    transform: none;
+  }
+
+  .station-feed-chip,
+  .station-feed-filters,
+  .station-feed-filter-toggle,
+  .station-feed-next,
+  .station-feed-wave-bar {
+    transition: none;
+  }
 }
 
 /* Desktop (>720px) — not a priority surface: a centred narrow column over a
@@ -339,7 +860,11 @@
   box-shadow: 0 0 120px rgba(0, 0, 0, 0.6);
 }
 
-.station-feed-overlay--desktop .station-feed-topbar {
+.station-feed-overlay--desktop .station-feed-topbar,
+.station-feed-overlay--desktop .station-feed-next {
   max-width: 460px;
-  margin: 0 auto;
+  left: 50%;
+  right: auto;
+  width: 100%;
+  transform: translateX(-50%);
 }

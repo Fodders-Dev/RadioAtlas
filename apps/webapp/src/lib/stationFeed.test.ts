@@ -75,6 +75,47 @@ describe('buildStationFeed', () => {
     expect(feed.length).toBeLessThanOrEqual(40);
   });
 
+  // randomRatio: 0 means EXACTLY zero — it outranks both the 2-item floor and
+  // the poolIsPrimary widening. «Популярное» relies on this to guarantee that
+  // every card it shows carries a real popularity signal (lib/feedFilters).
+  it('randomRatio: 0 admits no random discovery at all', () => {
+    const withTrending = buildStationFeed({
+      tasteStations: [],
+      trending: range('r', 5),
+      pool: range('p', 200),
+      seed: 5,
+      limit: 40,
+      randomRatio: 0
+    });
+    expect(ids(withTrending).filter((id) => id.startsWith('p'))).toHaveLength(0);
+    expect(ids(withTrending).every((id) => id.startsWith('r'))).toBe(true);
+
+    // Even with NO named source left — where the pool would normally be
+    // promoted to primary and used whole — zero still means zero, so the caller
+    // gets an honestly empty deck rather than a random one under its label.
+    const nothingNamed = buildStationFeed({
+      tasteStations: [],
+      trending: [],
+      pool: range('p', 200),
+      seed: 5,
+      limit: 40,
+      randomRatio: 0
+    });
+    expect(nothingNamed).toEqual([]);
+  });
+
+  // The default and any positive ratio must be untouched by the above.
+  it('leaves the default random tail exactly as it was', () => {
+    const feed = buildStationFeed({
+      tasteStations: range('t', 30),
+      trending: range('r', 30),
+      pool: range('p', 200),
+      seed: 5,
+      limit: 40
+    });
+    expect(ids(feed).filter((id) => id.startsWith('p')).length).toBeGreaterThan(0);
+  });
+
   it('drops non-music/generalist stations from every feed source', () => {
     const feed = buildStationFeed({
       tasteStations: [
@@ -294,6 +335,75 @@ describe('buildStationFeed', () => {
     });
     expect(ids(feed)).not.toContain('hero');
     expect(feed.length).toBeGreaterThan(0);
+  });
+
+  // ---------------------------------------------------------------------
+  // `include` — the single seam the «Лента» filter chips run through
+  // (lib/feedFilters.ts). It must gate DISCOVERY cards only; card 0 is the
+  // station the feed was entered from and no filter may displace it.
+  // ---------------------------------------------------------------------
+  it('applies `include` to every source', () => {
+    const feed = buildStationFeed({
+      tasteStations: [station('keep-t'), station('drop-t')],
+      trending: [station('keep-r'), station('drop-r')],
+      pool: [station('keep-p'), station('drop-p')],
+      seed: 21,
+      include: (s) => s.stationuuid.startsWith('keep')
+    });
+    expect(ids(feed).every((id) => id.startsWith('keep'))).toBe(true);
+    expect(ids(feed)).toContain('keep-t');
+    expect(ids(feed)).not.toContain('drop-t');
+  });
+
+  it('composes `include` with isLive and the eligibility filter (all must pass)', () => {
+    const feed = buildStationFeed({
+      tasteStations: [
+        station('ok'),
+        station('not-included'),
+        station('dead'),
+        station('talky', { name: 'Morning News Talk', tags: 'news' })
+      ],
+      trending: [],
+      pool: [],
+      seed: 4,
+      isLive: (s) => s.stationuuid !== 'dead',
+      include: (s) => s.stationuuid !== 'not-included'
+    });
+    expect(ids(feed)).toEqual(['ok']);
+  });
+
+  it('does NOT let `include` veto pinFirst', () => {
+    // #86 keystone: the pin is passed in every filter branch, so a chip tap can
+    // never move the user off the card they entered on — even a filter whose
+    // predicate rejects that very station.
+    const hero = station('hero');
+    const feed = buildStationFeed({
+      tasteStations: range('t', 4),
+      trending: [],
+      pool: [],
+      seed: 17,
+      include: (s) => s.stationuuid !== 'hero',
+      pinFirst: hero
+    });
+    expect(feed[0].stationuuid).toBe('hero');
+    expect(ids(feed).filter((id) => id === 'hero')).toHaveLength(1);
+  });
+
+  it('defaults `include` to "everything passes"', () => {
+    const withDefault = buildStationFeed({
+      tasteStations: range('t', 5),
+      trending: range('r', 3),
+      pool: range('p', 3),
+      seed: 33
+    });
+    const withExplicitAllow = buildStationFeed({
+      tasteStations: range('t', 5),
+      trending: range('r', 3),
+      pool: range('p', 3),
+      seed: 33,
+      include: () => true
+    });
+    expect(ids(withDefault)).toEqual(ids(withExplicitAllow));
   });
 
   it('handles empty sources without throwing', () => {
