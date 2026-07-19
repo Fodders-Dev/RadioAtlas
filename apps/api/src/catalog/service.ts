@@ -112,6 +112,12 @@ const toStationLite = (station: CatalogStation) => ({
   countrycode: station.countrycode || '',
   state: station.state || '',
   tags: station.tags || '',
+  // Search result rows render «128 kbps» when this is truthy and omit the
+  // element entirely when it is 0/absent. It already exists on every catalog
+  // artifact; only this whitelist was dropping it. Deliberately NOT adding
+  // votes/clickcount — they are not a listener count and must not be relabelled
+  // as one.
+  bitrate: station.bitrate ?? null,
   geo_lat: station.geo_lat ?? null,
   geo_long: station.geo_long ?? null,
   lastcheckok: station.lastcheckok,

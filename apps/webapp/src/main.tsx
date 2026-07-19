@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BootstrapApp } from './BootstrapApp';
+import { getDeviceProfile } from './lib/deviceProfile';
 import './boot.css';
 // styles.css (the ~150KB app shell + layout) is imported EAGERLY so Vite emits
 // it as a render-blocking <link> in <head>. It used to be lazy-loaded via a
@@ -19,6 +20,14 @@ if (typeof window !== 'undefined') {
       preloadEvent.preventDefault();
     }
   });
+}
+
+// Glass budget. backdrop-filter is the single most expensive effect in this UI
+// on a mid-range Android WebView; low-power devices get a flat translucent fill
+// instead. Stamped once at boot (getDeviceProfile caches), read by CSS via
+// :root[data-glass='lite'].
+if (typeof document !== 'undefined') {
+  document.documentElement.dataset.glass = getDeviceProfile().lowPower ? 'lite' : 'full';
 }
 
 const rootElement = document.getElementById('root');

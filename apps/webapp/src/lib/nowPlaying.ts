@@ -32,7 +32,19 @@ type FetchNowPlayingOptions = {
 };
 
 type ObserveStationNowPlayingOptions = {
+  /**
+   * Display-only. Never fetches, never subscribes, never polls — renders
+   * whatever is already in memory or seeded from the 14-day localStorage
+   * cache. Used by the desktop StationTable's viewport mode.
+   */
   passive?: boolean;
+  /**
+   * List surfaces: resolve AT MOST ONCE if nothing fresh is cached, then stop.
+   * Never subscribes to SSE and never joins the polling set, so a screenful of
+   * search rows cannot turn into a permanent metadata heartbeat. A search row
+   * does not need 60-second freshness; one attempt is the correct budget.
+   */
+  resolveOnce?: boolean;
 };
 
 const buildSnapshot = (
@@ -321,7 +333,26 @@ type StationSnapshotEntry = {
   station: StationLite;
   snapshot: NowPlayingSnapshot;
   listeners: Set<StationSnapshotListener>;
+  /**
+   * The subset of `listeners` that actually wants ongoing freshness — i.e.
+   * neither `passive` nor `resolveOnce`. `scheduleStationRefresh` no-ops while
+   * this is empty, so resolved search rows do not become a permanent polling
+   * heartbeat.
+   *
+   * This MUST be a per-listener set and not a per-entry boolean: entries are
+   * keyed by station, and the currently-playing station is essentially always
+   * also present in the search results. A flag would let a search row switch
+   * off the player's own metadata polling.
+   */
+  pollingListeners: Set<StationSnapshotListener>;
   inFlight: Promise<void> | null;
+  /**
+   * Aborts the in-flight probe chain. A single fetch is a serial chain of up to
+   * ~6 probes (~15-25s) holding one of only two global concurrency slots, so an
+   * entry whose last listener left must be able to release the slot instead of
+   * blocking rows that are actually on screen.
+   */
+  abortController: AbortController | null;
   timer: number | null;
   cleanupTimer: number | null;
   liveUnsubscribe: (() => void) | null;
@@ -446,6 +477,11 @@ const clearCleanupTimer = (entry: StationSnapshotEntry) => {
 const scheduleStationRefresh = (entry: StationSnapshotEntry, delayMs?: number) => {
   clearScheduledRefresh(entry);
   if (!entry.listeners.size) return;
+  // Only consumers that asked for ongoing freshness get a repoll. Passive and
+  // resolveOnce listeners never join this set, so 24 resolved search rows do
+  // not become 24 requests a minute forever. Polling resumes the instant a real
+  // consumer (the player) attaches.
+  if (!entry.pollingListeners.size) return;
   const baseDelay = delayMs ?? entry.snapshot.recommendedPollMs ?? 15_000;
   const waitMs = isDocumentVisible()
     ? Math.max(baseDelay, 60_000)
@@ -477,7 +513,9 @@ const getStationEntry = (station: StationLite) => {
     station,
     snapshot: applyStoredTrackFallback(key, idleSnapshot()),
     listeners: new Set(),
+    pollingListeners: new Set(),
     inFlight: null,
+    abortController: null,
     timer: null,
     cleanupTimer: null,
     liveUnsubscribe: null
@@ -499,10 +537,14 @@ const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
     emitStationSnapshot(entry);
   }
 
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  entry.abortController = controller;
+
   entry.inFlight = (async () => {
     try {
       const snapshot = await fetchNowPlayingSnapshot(entry.station, undefined, {
-        lowImpact
+        lowImpact,
+        signal: controller?.signal
       });
       entry.snapshot = applyStoredTrackFallback(entry.key, snapshot);
       emitStationSnapshot(entry);
@@ -520,6 +562,9 @@ const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
       scheduleStationRefresh(entry);
     } finally {
       entry.inFlight = null;
+      if (entry.abortController === controller) {
+        entry.abortController = null;
+      }
     }
   })();
 
@@ -550,6 +595,25 @@ function queueStationSnapshotRefresh(key: string) {
   pumpStationSnapshotQueue();
 }
 
+/**
+ * A track is only "now playing" if it is live, or if the cached copy is recent
+ * enough that presenting it as current is not a lie. `applyStoredTrackFallback`
+ * resurrects tracks up to 14 DAYS old and stamps them `status:'ready'`,
+ * `source:'cache'` — rendering that under a «сейчас играет» affordance is
+ * fabrication, not staleness. Shared by the render path and by the resolveOnce
+ * admission check so both agree on what "already known" means.
+ */
+export const FRESH_NOW_PLAYING_MAX_AGE_MS = 10 * 60_000;
+
+export const isFreshNowPlayingTrack = (
+  snapshot: NowPlayingSnapshot,
+  maxAgeMs: number = FRESH_NOW_PLAYING_MAX_AGE_MS
+) => {
+  if (!snapshot.track) return false;
+  if (snapshot.source !== 'cache') return true;
+  return snapshot.updatedAt !== null && Date.now() - snapshot.updatedAt < maxAgeMs;
+};
+
 export const observeStationNowPlaying = (
   station: StationLite,
   onSnapshot: StationSnapshotListener,
@@ -558,9 +622,18 @@ export const observeStationNowPlaying = (
   const entry = getStationEntry(station);
   clearCleanupTimer(entry);
   entry.listeners.add(onSnapshot);
+  // Only full consumers keep the entry polling; passive/resolveOnce listeners
+  // read but never sustain freshness.
+  const wantsPolling = !options.passive && !options.resolveOnce;
+  if (wantsPolling) {
+    entry.pollingListeners.add(onSnapshot);
+  }
   onSnapshot(entry.snapshot);
 
-  if (!options.passive && !entry.liveUnsubscribe) {
+  // resolveOnce deliberately stays out of the SSE branch: a live subscription is
+  // an open connection plus a repoll schedule, which is the opposite of "one
+  // attempt".
+  if (wantsPolling && !entry.liveUnsubscribe) {
     const liveUnsubscribe = subscribeNowPlaying(entry.station, (track) => {
       if (track) {
         saveStoredTrack(entry.key, track);
@@ -581,7 +654,16 @@ export const observeStationNowPlaying = (
     }
   }
 
-  if (!options.passive) {
+  if (options.resolveOnce) {
+    // Exactly one attempt, and only when nothing presentable is already known.
+    // The stale-cache case matters: applyStoredTrackFallback marks a 14-day-old
+    // track 'ready', which a status-only check would read as "already resolved"
+    // while the render path correctly refuses to show it — the row would then
+    // render nothing forever without ever probing.
+    if (!isFreshNowPlayingTrack(entry.snapshot)) {
+      queueStationSnapshotRefresh(entry.key);
+    }
+  } else if (!options.passive) {
     if (
       entry.snapshot.status === 'idle' ||
       entry.snapshot.status === 'unavailable' ||
@@ -596,8 +678,19 @@ export const observeStationNowPlaying = (
 
   return () => {
     entry.listeners.delete(onSnapshot);
-    if (entry.listeners.size) return;
+    entry.pollingListeners.delete(onSnapshot);
+    if (entry.listeners.size) {
+      // A polling consumer may have just left while a passive one stayed —
+      // stop the heartbeat but keep the entry and its cached snapshot alive.
+      if (!entry.pollingListeners.size) clearScheduledRefresh(entry);
+      return;
+    }
     clearScheduledRefresh(entry);
+    // Nobody is watching: release the concurrency slot instead of letting a
+    // ~20s probe chain run to completion. Safe by construction — the playing
+    // station always has a listener, so its fetch can never be aborted here.
+    entry.abortController?.abort();
+    entry.abortController = null;
     entry.liveUnsubscribe?.();
     entry.liveUnsubscribe = null;
     entry.cleanupTimer = window.setTimeout(() => {

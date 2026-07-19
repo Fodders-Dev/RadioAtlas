@@ -3,6 +3,14 @@
  * --------------------------------------------------------------- */
 .screen-search-v3 {
   display: grid;
+  /* EXPLICIT minmax(0, 1fr), not the implicit `auto` track. Children carry
+     `width: 100%`, and a percentage width against an indefinite auto track
+     resolves cyclically — browsers fall back to a content-based measure, so the
+     track grows to the widest child's MAX-content. The horizontally-scrolling
+     filter chip row therefore pushed the whole screen 68px wide at 360px even
+     though it sets overflow-x:auto and min-width:0. A 1fr track is capped by the
+     container and cannot do that. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   min-width: 0;
   /* PR-2 safe-area: --dock-offset-v2 already carries the inset when the dock
@@ -13,6 +21,8 @@
 
 .screen-search-v3 .search-hero-card {
   display: grid;
+  /* Same reason as .screen-search-v3 above — the chip row lives here. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   min-width: 0;
@@ -38,20 +48,256 @@
   align-items: stretch;
 }
 
+/* ⚠ GLASS PREFIX ORDER — every single occurrence in this file writes
+   `-webkit-backdrop-filter` BEFORE the standard `backdrop-filter`. A CSS
+   minifier keeps the LAST of two duplicate declarations and Chrome ignores the
+   prefixed one, so the reverse order silently kills all glass in the production
+   bundle — and the entire Playwright suite runs `npm run dev` (unminified),
+   where the ordering is irrelevant, so no test and no visual baseline can catch
+   it. scripts/assertBackdropFilterOrder.mjs enforces this mechanically. */
 .screen-search-v3 .search-hero-input {
   flex: 1 1 auto;
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  min-height: 48px;
-  border-radius: 14px;
+  gap: 10px;
+  padding: 0 12px;
+  min-height: 52px;
+  border-radius: 16px;
   /* PR-1 contrast norm: themed surface under themed text — the old dark
      hardcode went black-on-dark-ink the moment Warm Light's tokens applied. */
-  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  background: rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
   border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06);
   transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+/* Round glass mic, beside the field. Hidden entirely (not disabled) when speech
+   recognition is unavailable — see useVoiceSearch. */
+.screen-search-v3 .search-hero-mic {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-strong);
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.screen-search-v3 .search-hero-mic[data-listening='true'] {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+}
+
+.screen-search-v3 .search-hero-mic:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.screen-search-v3 .search-hero-voice-error {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* Filter chip row — horizontal peek rail. The CONTAINER carries real glass; the
+   chips themselves are simulated (see .search-card-orb for the reasoning). */
+.screen-search-v3 .search-filter-chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  background: rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.screen-search-v3 .search-filter-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.screen-search-v3 .search-filter-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  scroll-snap-align: start;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03) 58%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.screen-search-v3 .search-filter-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.screen-search-v3 .search-filter-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent) 46%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-strong);
+}
+
+.screen-search-v3 .search-filter-chip-caret {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* Results header — count left, sort right. */
+.screen-search-v3 .search-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.screen-search-v3 .search-results-count {
+  margin: 0;
+  /* The count is the fixed side of this row: it is short, and truncating it to
+     «Найдено ст…» destroys the only number on the screen. The sort trigger
+     shrinks instead. */
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.screen-search-v3 .search-sort {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Below 430px «Сортировка: По релевантности» plus the count overflows the row.
+   Drop the prefix — the caret and the value still read as a sort control, and
+   the button's aria-label keeps the full phrase at every width. */
+@media (max-width: 430px) {
+  .screen-search-v3 .search-sort-trigger-prefix {
+    display: none;
+  }
+}
+
+.screen-search-v3 .search-sort-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03) 58%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.screen-search-v3 .search-sort-trigger:focus-visible,
+.screen-search-v3 .search-sort-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.screen-search-v3 .search-sort-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-search-v3 .search-sort-caret {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.screen-search-v3 .search-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+}
+
+.screen-search-v3 .search-sort-option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.screen-search-v3 .search-sort-option.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+/* Low-power devices drop the real backdrop layers for a flat translucent fill.
+   getDeviceProfile() already computes this once at boot. */
+:root[data-glass='lite'] .screen-search-v3 .search-hero-input,
+:root[data-glass='lite'] .screen-search-v3 .search-hero-mic,
+:root[data-glass='lite'] .screen-search-v3 .search-filter-chip-row {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .screen-search-v3 .search-hero-input:focus-within {
@@ -182,6 +428,43 @@
   border-color: rgba(120, 220, 255, 0.5);
   background: rgba(20, 32, 50, 0.62);
   transform: translateY(-1px);
+}
+
+/* Recent query + its remove control read as one chip. */
+.screen-search-v3 .search-hero-recent-chip-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 64%, transparent);
+}
+
+.screen-search-v3 .search-hero-recent-chip-wrap .search-hero-recent-chip {
+  border: 0;
+  background: transparent;
+}
+
+.screen-search-v3 .search-hero-recent-dismiss {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  padding: 0 10px 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.screen-search-v3 .search-hero-recent-dismiss:hover {
+  color: var(--text-strong);
+}
+
+.screen-search-v3 .search-hero-recent-dismiss:focus-visible,
+.screen-search-v3 .search-hero-recent-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Result-bar sits inside the hero card while a query is active. */
@@ -741,32 +1024,44 @@
   min-width: 0;
 }
 
+/* Single column at every compact width. The reference is unambiguously one
+   full-width row per station; the old 2-up grid only collapsed at ≤430px. */
 .search-result-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 
 .search-result-grid .search-station-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 72px) minmax(0, 1fr);
-  gap: 8px;
-  align-items: stretch;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
   min-width: 0;
   padding: 8px;
-  border-radius: 14px;
+  border-radius: 16px;
   container-type: inline-size;
   content-visibility: auto;
   contain: layout paint style;
-  contain-intrinsic-size: 92px;
+  /* ⚠ contain-intrinsic-size describes the CONTENT box, not the border box.
+     The measured content height of this row is ~76px; with 7-8px of vertical
+     padding that is the ~90px row you actually see. Setting the border-box
+     figure here (96px) inflated every rendered row to 110px — 20px of dead
+     space per row, on screen, at all times.
+     The `auto` keyword makes the browser prefer each element's last really-
+     rendered size, so this fallback mainly governs rows that have never been
+     painted; an estimate that is wrong in EITHER direction distorts document
+     height and therefore where the infinite-scroll sentinel fires. */
+  contain-intrinsic-size: auto 76px;
 }
 
 .search-station-card-media {
   position: relative;
+  width: 64px;
   min-width: 0;
-  min-height: 72px;
-  border-radius: 12px;
+  min-height: 64px;
+  border-radius: 14px;
   overflow: hidden;
   pointer-events: none;
 }
@@ -774,23 +1069,8 @@
 .search-station-card-media .station-artwork-card {
   width: 100%;
   height: 100%;
-  min-height: 72px;
-  border-radius: 12px;
-}
-
-.search-card-play-overlay {
-  position: absolute;
-  inset: auto 6px 6px auto;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: rgba(204, 255, 247, 0.88);
-  color: #06202c;
-  font-size: 12px;
-  font-weight: 900;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+  min-height: 64px;
+  border-radius: 14px;
 }
 
 .search-station-card-copy {
@@ -798,9 +1078,14 @@
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: 3px;
+  /* pointer-events:none so the whole copy column stays a pass-through to the
+     full-card play overlay — EXCEPT the share button, which re-enables them.
+     z-index must beat the overlay's 1: this block creates a stacking context,
+     so the share button's own z-index is scoped inside it, and at z-index 1 the
+     overlay (later in DOM order) won every click on share. */
   pointer-events: none;
-  z-index: 1;
+  z-index: 3;
 }
 
 .search-station-card-primary-action {
@@ -821,7 +1106,8 @@
 
 .search-card-title,
 .search-card-meta,
-.search-card-tags {
+.search-card-tags,
+.search-card-track {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -830,35 +1116,177 @@
 
 .search-card-title {
   color: var(--text-strong);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.16;
+  line-height: 1.2;
 }
 
 .search-card-meta {
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 650;
+  line-height: 1.35;
 }
 
 .search-card-tags {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Line 3 when a track is known. Occupies the SAME slot as the genre line —
+   never an extra one — so a track arriving mid-scroll cannot shift the rows
+   below it. */
+.search-card-track {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  opacity: 0.92;
+}
+
+/* Metrics line: a flex row of independently-conditional children. Separators
+   come from ::before on non-first children, NOT from hardcoded «·» characters —
+   removing any child then leaves no orphan punctuation, which is what makes the
+   future listeners element a one-line addition. */
+.search-card-metrics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.search-card-metrics > span + span::before {
+  content: '·';
+  margin-right: 8px;
+  opacity: 0.55;
+}
+
+.search-card-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.search-card-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.search-card-bitrate {
+  white-space: nowrap;
+}
+
+/* Share rides the trailing edge of the metrics line rather than the actions
+   column: the reference draws exactly two round buttons (heart, play), and at
+   360px a third 44px control leaves the title column too narrow to read.
+   .search-station-card-copy is pointer-events:none and the full-card overlay
+   sits at z-index 1, so this needs both re-enabling and a higher stack. */
+.search-card-metrics .search-card-share {
+  margin-left: auto;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 10px;
+  margin-right: -8px;
+  margin-block: -10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.search-card-metrics .search-card-share::before {
+  content: none;
+}
+
+.search-card-metrics .search-card-share svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 .search-card-actions {
   position: relative;
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px 42px;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   z-index: 2;
 }
 
-.search-card-actions .play-btn,
-.search-card-actions .icon-btn {
-  min-height: 34px;
+/* Round glass orbs. SIMULATED glass, not backdrop-filter: 45 mounted rows x 2
+   orbs would be ~90 compositing layers each doing a backdrop readback per
+   frame, which is how a mid-range Android WebView drops from 60fps to 12. It is
+   also visually moot — a backdrop-filter inside a paint-contained ancestor
+   (these cards set `contain: layout paint style`) samples a clipped backdrop
+   and reads as a flat tint anyway. */
+.search-card-orb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  border: 0;
+  color: var(--text-strong);
+  cursor: pointer;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 58%),
+    rgba(255, 255, 255, 0.035);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset -1px 0 0 rgba(255, 255, 255, 0.07),
+    0 6px 14px rgba(0, 0, 0, 0.22);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.search-card-orb svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.search-card-orb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-card-fav.active {
+  color: var(--accent);
+}
+
+/* The playing row's play button becomes the bright cyan orb. Pure CSS off
+   data-playing — no extra JS state. */
+.search-card-play[data-playing='true'] {
+  background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent-2) 70%, white));
+  color: var(--bg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 6px 20px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-card-orb {
+    transition: none;
+  }
 }
 
 .search-scroll-sentinel {
@@ -1491,82 +1919,15 @@
     min-height: 42px;
   }
 
-  .search-result-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
+  /* The ≤430px result-card overrides are gone: the base rule is now already
+     single-column, 64px media, centre-aligned, with 44px round orbs. The
+     `.search-card-play { display: none }` that used to live here hid the play
+     button entirely at phone widths — the reference requires it at all widths,
+     and playHomeStation (23 call sites) clicks `.play-btn` inside `.station-row`
+     for exactly this list. */
   .search-result-grid .search-station-card {
-    grid-template-columns: 56px minmax(0, 1fr) auto;
-    align-items: center;
-    min-height: 72px;
-    min-width: 0;
     padding: 7px 8px;
-    border-radius: 12px;
-    contain-intrinsic-size: 72px;
-  }
-
-  .search-station-card-media,
-  .search-station-card-media .station-artwork-card {
-    min-height: 56px;
-    border-radius: 10px;
-  }
-
-  .search-card-play-overlay {
-    width: 22px;
-    height: 22px;
-    inset: auto 4px 4px auto;
-    font-size: 10px;
-  }
-
-  .search-card-title {
-    display: -webkit-box;
-    font-size: 0.8125rem;
-    line-height: 1.25;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-  }
-
-  .search-card-meta {
-    font-size: 0.71875rem;
-  }
-
-  .search-card-tags {
-    display: -webkit-box;
-    font-size: 0.6875rem;
-    white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-  }
-
-  .search-card-actions {
-    grid-column: auto;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-  }
-
-  .search-card-actions .play-btn,
-  .search-card-actions .icon-btn {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
-    border-radius: 11px;
-  }
-
-  .search-card-play {
-    display: none;
-  }
-
-  .search-card-actions .icon-btn svg {
-    width: 16px;
-    height: 16px;
+    gap: 8px;
   }
 
   .search-command-card .chip,
@@ -2288,11 +2649,9 @@
     min-height: 40px;
   }
 
-  .search-card-actions .play-btn,
-  .search-card-actions .icon-btn {
-    /* Dense 3-up cluster inside the result card — the PR-3 40px floor. */
-    min-height: 40px;
-  }
+  /* (The old 40px floor for the dense 3-up in-card cluster is gone — the row
+     now carries exactly two 44px round orbs, and share moved onto the metrics
+     line with its own 44px hit area.) */
 
   /* Quick-return: collapsing grid → ~2.3-card peek rail (home resume-strip
      pattern), wheel-converted via the existing useRailWheel ref. */
