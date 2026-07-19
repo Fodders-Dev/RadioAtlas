@@ -507,10 +507,32 @@ test('discovery feed mobile visual baseline (card + actions)', async ({ page }) 
   // Opening the feed no longer auto-plays when a station is already current (the
   // #86 fix), so we pin the card chrome rather than waiting on a live pill (which
   // reflects playback state, not the render under test).
+  // The waveform's bar heights are written from JS at 30Hz through --ra-level,
+  // exactly like the backdrop's energy glow — animations:'disabled' cannot reach
+  // either, so both are hidden for the shot. visibility:hidden rather than
+  // display:none keeps every box in place, so the baseline still pins full
+  // layout geometry.
+  // The geo line needs no freezing: it is the fixture's stored coordinates and
+  // nothing else. It used to carry a live wall clock as well — removed, because
+  // it was solar time from the longitude rather than the station's real zone.
   const freezeStage = {
-    content: '.station-backdrop-energy, .station-backdrop-image { visibility: hidden !important; }'
+    content:
+      '.station-backdrop-energy, .station-backdrop-image, .station-feed-wave { visibility: hidden !important; }'
   };
   await page.addStyleTag(freezeStage);
+  // ⚠ waitForStableMetrics CANNOT see this one. It samples document scroll
+  // dimensions and the target's bounding rect — and the target here is
+  // `.station-feed-overlay`, which is `position: fixed; inset: 0` and therefore
+  // has a CONSTANT rect from first paint. It is structurally blind to whether
+  // the geo line has landed inside the card. That line needs the lazily-imported
+  // geoResolver chunk (d3-geo + topojson + a ~107KB topology) to download, parse
+  // and build its country index before a re-render adds it, so without an
+  // explicit wait whichever side of the race won would become the committed
+  // baseline. Every fixture station carries real coordinates, so the focused
+  // card must end up with a geo line.
+  await expect(
+    page.locator('.station-feed-card-content[data-focus="true"] .station-feed-card-geo')
+  ).toBeVisible();
   await waitForStableMetrics(page, '.station-feed-overlay');
   const darkShot = await page.screenshot({ animations: 'disabled' });
   expect(darkShot).toMatchSnapshot('station-feed-mobile.png', { maxDiffPixelRatio: 0.04 });
@@ -522,6 +544,9 @@ test('discovery feed mobile visual baseline (card + actions)', async ({ page }) 
   await page.reload();
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
   await page.addStyleTag(freezeStage);
+  await expect(
+    page.locator('.station-feed-card-content[data-focus="true"] .station-feed-card-geo')
+  ).toBeVisible();
   await waitForStableMetrics(page, '.station-feed-overlay');
   const lightShot = await page.screenshot({ animations: 'disabled' });
   expect(lightShot).toMatchSnapshot('station-feed-mobile-light.png', { maxDiffPixelRatio: 0.04 });

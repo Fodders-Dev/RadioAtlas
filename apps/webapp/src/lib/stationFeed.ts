@@ -52,7 +52,8 @@ const collect = (
   stations: Array<StationLite | null | undefined>,
   seen: Set<string>,
   exclude: Set<string>,
-  isLive: (station: StationLite) => boolean
+  isLive: (station: StationLite) => boolean,
+  include: (station: StationLite) => boolean
 ) => {
   const out: StationLite[] = [];
   for (const station of stations) {
@@ -61,6 +62,7 @@ const collect = (
     if (seen.has(station.stationuuid)) continue;
     if (!isFeedStationEligible(station)) continue;
     if (!isLive(station)) continue;
+    if (!include(station)) continue;
     seen.add(station.stationuuid);
     out.push(station);
   }
@@ -93,12 +95,24 @@ export type BuildStationFeedInput = {
   // playing, resolveFeedEntry returns autoplayInitial:true and card 0 IS played
   // on open, so an idle pin must clear the same liveness bar as any other card.
   pinFirst?: StationLite | null;
+  // Extra per-candidate predicate, applied inside collect() beside
+  // isFeedStationEligible / isLive. This is the ONE seam the «Лента» filter
+  // chips need (see lib/feedFilters.ts) — deliberately a bare predicate rather
+  // than a filter enum, so this module keeps knowing only about stations and a
+  // seed instead of growing summary/exposure knowledge. Defaults to "everything
+  // passes" so every existing caller is byte-identical.
+  //
+  // `pinFirst` bypasses it, exactly as it bypasses exclude / eligibility /
+  // isLive: card 0 is the station the feed was entered from, and a filter must
+  // never morph the card the expand gesture is coming out of.
+  include?: (station: StationLite) => boolean;
 };
 
 const DEFAULT_LIMIT = 40;
 const DEFAULT_RANDOM_RATIO = 0.1;
 const PERSONAL_LEAD_POOL = 4;
 const ALWAYS_LIVE = () => true;
+const ALWAYS_INCLUDE = () => true;
 
 // Proportional weighted interleave: each source's items keep their internal order
 // but are positioned by `(indexInSource + jitter) / weight`, so a higher-weight
@@ -115,7 +129,8 @@ export const buildStationFeed = ({
   randomRatio = DEFAULT_RANDOM_RATIO,
   exclude,
   isLive = ALWAYS_LIVE,
-  pinFirst
+  pinFirst,
+  include = ALWAYS_INCLUDE
 }: BuildStationFeedInput): StationLite[] => {
   const excludeSet = exclude instanceof Set ? exclude : new Set(exclude ?? []);
   const seen = new Set<string>();
@@ -127,10 +142,10 @@ export const buildStationFeed = ({
   // Priority order for de-dup: taste → trending → random pool. Every source is
   // exclude- and liveness-filtered HERE, before any weighting, so the mix only
   // ever positions stations that are genuinely new and playable.
-  const taste = collect(tasteStations, seen, excludeSet, isLive);
-  const trend = collect(trending, seen, excludeSet, isLive);
+  const taste = collect(tasteStations, seen, excludeSet, isLive, include);
+  const trend = collect(trending, seen, excludeSet, isLive, include);
 
-  const randomCandidates = collect(pool, seen, excludeSet, isLive).sort(
+  const randomCandidates = collect(pool, seen, excludeSet, isLive, include).sort(
     (left, right) => seededJitter(left.stationuuid, seed) - seededJitter(right.stationuuid, seed)
   );
   // «редкие случайные»: normally the random pool is capped to a small slice so
@@ -139,8 +154,18 @@ export const buildStationFeed = ({
   // the feed — use it whole (capped only by `limit` below) instead of the ~7-item
   // budget, so the feed isn't near-empty.
   const poolIsPrimary = taste.length === 0 && trend.length === 0;
-  const randomBudget = Math.max(2, Math.round(limit * randomRatio));
-  const random = poolIsPrimary ? randomCandidates : randomCandidates.slice(0, randomBudget);
+  // randomRatio <= 0 means "no random discovery, at all" and OUTRANKS both the
+  // 2-item floor and the poolIsPrimary widening below. It is what lets a caller
+  // build a deck that is exactly its named sources — «Популярное» must not pad
+  // itself with stations that carry no popularity signal (see lib/feedFilters).
+  // Any positive ratio keeps the old behaviour byte-for-byte.
+  const randomBudget = randomRatio <= 0 ? 0 : Math.max(2, Math.round(limit * randomRatio));
+  const random =
+    randomBudget === 0
+      ? []
+      : poolIsPrimary
+        ? randomCandidates
+        : randomCandidates.slice(0, randomBudget);
 
   // Card 0 rotates inside the strongest personal mini-pool. The old invariant
   // pinned `taste[0]` forever, so every Feed open started with the same station

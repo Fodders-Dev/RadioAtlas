@@ -22,11 +22,40 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+// A control belongs in the tab cycle only if NOTHING between it and the document
+// root is display:none.
+//
+// Checking the element's OWN computed style is not enough, and the gap is a real
+// keyboard trap (WCAG 2.1.2), hit live by the discovery feed's collapsible
+// filter-chip row: an element inside a display:none ANCESTOR still computes its
+// own `display` normally (a chip in a collapsed row reported `inline-flex`,
+// while offsetParent was null and getClientRects() was empty). getFocusable
+// therefore kept enumerating the chips, focus() on a non-rendered element
+// silently no-ops so activeElement never moved, and nextIndex recomputed to the
+// same dead chip on every keypress — Tab wedged and every control after it
+// became unreachable.
+//
+// Browsers expose Element.checkVisibility() for exactly this, but jsdom
+// implements neither it nor layout (getClientRects() is always empty there), so
+// an ancestor walk over computed `display` is the one test that is correct in
+// the browser AND unit-testable. Depth is small and this runs per Tab, not per
+// frame.
 const isVisible = (element: HTMLElement) => {
-  if (element.hidden) return false;
-  const style = element.ownerDocument.defaultView?.getComputedStyle(element);
-  if (!style) return true;
-  return style.display !== 'none' && style.visibility !== 'hidden';
+  const view = element.ownerDocument.defaultView;
+  if (!view) return !element.hidden;
+  let node: HTMLElement | null = element;
+  while (node) {
+    // Explicit, because a stylesheet can override the UA's `[hidden]{display:none}`
+    // — which is precisely how the chip row started rendering while "hidden".
+    if (node.hidden) return false;
+    const style = view.getComputedStyle(node);
+    if (style.display === 'none') return false;
+    // `visibility` inherits, so the element's own computed value already
+    // reflects any ancestor's `hidden` — testing it once is sufficient.
+    if (node === element && style.visibility === 'hidden') return false;
+    node = node.parentElement;
+  }
+  return true;
 };
 
 const getFocusable = (root: HTMLElement): HTMLElement[] =>
@@ -115,6 +144,37 @@ export const useDialog = (
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // ⚠ BOUND TO THE DOCUMENT, NOT TO `root` — deliberately (see the
+      // addEventListener call below). A root-bound listener only fires while
+      // focus is INSIDE the dialog, and focus leaves it more easily than it
+      // looks: any focused control that unmounts under the user drops
+      // activeElement to <body>, and from there Escape was simply dead until
+      // they blindly pressed Tab to re-enter. Measured on the discovery feed:
+      // Tab to the play orb, ArrowDown (the orb belongs to the card you just
+      // left, so it unmounts), Escape — the overlay stayed open. Clicking any
+      // non-focusable part of a dialog does the same thing.
+      //
+      // The two guards below are what keep document-binding safe for STACKED
+      // dialogs, which this app really has (the theme-builder sub-sheet over
+      // the settings sheet, the details sheet over the full player). Both
+      // listeners sit on the same node, so `stopPropagation` cannot separate
+      // them — only these can:
+      //   1. a dialog whose root is inert is covered by a dialog above it (the
+      //      one on top inerts its siblings on open) and must stay silent;
+      //   2. an event that happened inside ANOTHER dialog belongs to that
+      //      dialog. Every useDialog root in this codebase carries
+      //      role="dialog", so `closest` identifies the owner exactly, and a
+      //      nested dialog inside this root wins over this one — which is the
+      //      correct precedence.
+      // With focus on <body> neither guard matches for the topmost dialog, so
+      // exactly one dialog acts.
+      if (root.closest('[inert]')) return;
+      const eventTarget = event.target;
+      if (eventTarget instanceof Element) {
+        const owner = eventTarget.closest('[role="dialog"]');
+        if (owner && owner !== root) return;
+      }
+
       if (event.key === 'Escape') {
         // IME composition uses Escape to cancel a candidate; don't treat
         // that as a dialog dismiss.
@@ -146,10 +206,12 @@ export const useDialog = (
       focusable[nextIndex]?.focus();
     };
 
-    root.addEventListener('keydown', handleKeyDown);
+    // The Tab-cycle computation inside stays scoped to `root` — only the
+    // LISTENING surface widens, so the trap's semantics are unchanged.
+    doc.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      root.removeEventListener('keydown', handleKeyDown);
+      doc.removeEventListener('keydown', handleKeyDown);
       inerted.forEach((element) => element.removeAttribute('inert'));
       // Restore focus: an explicit target (resolved now, after the
       // background has re-rendered), else the captured trigger, else the

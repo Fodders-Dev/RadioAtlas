@@ -6,6 +6,7 @@ import {
   resolveStationCoords,
   setStateAnchors
 } from '../lib/geoResolver';
+import { formatLocalTime } from '../lib/localTime';
 import { normalizeStationName } from '../lib/stationUtils';
 import { useDebounce } from '../lib/useDebounce';
 import { useDialog } from '../lib/useDialog';
@@ -25,21 +26,6 @@ const Globe = lazy(() => import('../components/Globe').then((mod) => ({ default:
 // you get street-level imagery. We keep the threshold low so the soft
 // fallback only shows on the cold "see the whole planet" view.
 const SATELLITE_THRESHOLD = 1.4;
-
-// Roughly approximate local time at a longitude. lon / 15° ≈ UTC
-// offset hours. Inaccurate for political timezones in countries
-// that span many longitudes (Russia, US, China) but good enough
-// for "what time of day is it there?" — the user can look at the
-// map and read "≈ 03:42" rather than guessing whether they're
-// probably waking the locals up.
-const formatLocalTime = (lon: number, now: Date): string => {
-  const offsetMinutes = (lon / 15) * 60;
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const target = new Date(utcMs + offsetMinutes * 60_000);
-  const hh = String(target.getHours()).padStart(2, '0');
-  const mm = String(target.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
-};
 
 const sheetIcon = {
   play: <path d="M8 5v14l11-7L8 5Z" />,

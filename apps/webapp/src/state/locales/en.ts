@@ -44,10 +44,20 @@ export const enDictionary = {
     "unlike": "Remove from favorites",
     "live": "Live",
     "loading": "Tuning in…",
-    "swipeHint": "Swipe up",
     "emptyTitle": "Nothing to flip through yet",
     "emptyBody": "Play a few stations and the feed will fill up with what you like.",
-    "close": "Close feed"
+    "close": "Close feed",
+    "share": "Share station",
+    "filters": "Feed filters",
+    "filterPicks": "For you",
+    "filterFresh": "New to you",
+    "filterPopular": "Popular",
+    "filterStatus": "{filter}: {count} stations",
+    "nextLabel": "Up next",
+    "nextUp": "Next: {name}",
+    "emptyFilterTitle": "Nothing here yet",
+    "emptyFilterBody": "Go back to the picks — the full mix lives there.",
+    "emptyFilterReset": "Back to picks"
   },
   "common": {
     "play": "Play",

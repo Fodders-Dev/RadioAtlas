@@ -44,10 +44,20 @@ export const ruDictionary = {
     "unlike": "Убрать из избранного",
     "live": "В эфире",
     "loading": "Подбираю поток…",
-    "swipeHint": "Листай вверх",
     "emptyTitle": "Пока нечего листать",
     "emptyBody": "Послушай пару станций — и лента наполнится тем, что тебе по душе.",
-    "close": "Закрыть ленту"
+    "close": "Закрыть ленту",
+    "share": "Поделиться станцией",
+    "filters": "Фильтры ленты",
+    "filterPicks": "Подборка",
+    "filterFresh": "Новое для тебя",
+    "filterPopular": "Популярное",
+    "filterStatus": "{filter}: {count} станций",
+    "nextLabel": "Дальше",
+    "nextUp": "Дальше: {name}",
+    "emptyFilterTitle": "Здесь пока пусто",
+    "emptyFilterBody": "Вернись к подборке — там весь микс.",
+    "emptyFilterReset": "К подборке"
   },
   "common": {
     "play": "Слушать",
