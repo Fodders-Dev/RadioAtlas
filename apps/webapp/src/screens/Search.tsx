@@ -1,23 +1,20 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StationTable } from '../components/StationTable';
 import { StationArtwork } from '../components/StationArtwork';
-import { StationStatusBadge } from '../components/StationStatusBadge';
-import { getStationBadgeState } from '../lib/stationStatusBadge';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import type { StationLite } from '../types';
-import {
-  formatCountryLabel,
-  normalizeStationName,
-  stationLocation,
-  stationTags
-} from '../lib/stationUtils';
+import { formatCountryLabel, normalizeStationName } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { toExternalStation } from './search/linkUtils';
 import { useExternalLinks } from './search/useExternalLinks';
 import { useStationSearch } from './search/useStationSearch';
+import { SearchResultRow } from './search/SearchResultRow';
+import { useSearchNowPlayingSession } from './search/useSearchNowPlaying';
+import { useVoiceSearch } from './search/useVoiceSearch';
+import { SORT_LABEL_KEY, SORT_MODES, applySearchSort, type SearchSortMode } from './search/searchSort';
 import { rankStationsForSearch } from '../lib/stationPlayability';
 import { diversifyStationOrder } from '../lib/stationDiversity';
 import { rankStationsForUser, tasteScore, withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
@@ -43,109 +40,114 @@ const hasPersonalSearchTaste = (
       Object.keys(profile?.languageScores || {}).length
   );
 
-type SearchResultCardProps = {
-  station: StationLite;
-  stations: StationLite[];
-  sourceId: string;
+type SearchSortMenuProps = {
+  sortMode: SearchSortMode;
+  onSelect: (mode: SearchSortMode) => void;
+  t: ReturnType<typeof useLocale>['t'];
 };
 
-const SearchResultCard = ({ station, stations, sourceId }: SearchResultCardProps) => {
-  const { t } = useLocale();
-  const { playStation, player, shareStation } = usePlayback();
-  const { toggleFavorite, isFavorite, playabilityProfile, stationHealthProfile } = useLibrary();
-  const active = player.current?.stationuuid === station.stationuuid;
-  const liked = isFavorite(station.stationuuid);
-  // Phase B-PR2: broken stations are now shown in search (demoted, not hidden) —
-  // mark them with the shared 🚫/⚠ corner badge so the user knows before tapping.
-  const badge = getStationBadgeState(station, {
-    healthProfile: stationHealthProfile,
-    playabilityProfile
-  });
-  const playLabel = active && player.isPlaying ? t('common.pause') : t('common.play');
-  const tags = stationTags(station, '');
-  const location = stationLocation(station, t('explore.unknownLocation'));
+// Deliberately NOT built on useDialog. useDialog is a MODAL primitive: it marks
+// every sibling of its root `inert` while open. For a sort dropdown that means
+// the trigger itself becomes inert, so tapping it a second time to dismiss the
+// menu does nothing — a real bug for a non-modal popover. This is the standard
+// lightweight listbox instead: Escape closes, an outside pointerdown closes,
+// arrow keys move, and focus returns to the always-mounted trigger.
+const SearchSortMenu = ({ sortMode, onSelect, t }: SearchSortMenuProps) => {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
-  const toggleStation = () => {
-    if (active) {
-      void player.toggle();
-      return;
-    }
-    playStation(station, {
-      playlist: stations,
-      sourceId,
-      sourceLabel: t('radio.searchResults')
-    });
-  };
+  const close = useCallback(
+    (restoreFocus = true) => {
+      setOpen(false);
+      if (restoreFocus) triggerRef.current?.focus();
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (listRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        close();
+        return;
+      }
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const options = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') || []
+      );
+      if (!options.length) return;
+      event.preventDefault();
+      const current = options.indexOf(document.activeElement as HTMLElement);
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const next = (current + delta + options.length) % options.length;
+      options[next]?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    // Move focus into the menu so keyboard users are not stranded on the trigger.
+    listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [close, open]);
 
   return (
-    <article
-      className={`search-station-card station-row ${active ? 'active' : ''}`}
-      data-search-station-card
-      data-station-id={station.stationuuid}
-    >
-      <div className="search-station-card-media">
-        <StationArtwork station={station} size="card" />
-        <span className="search-card-play-overlay" aria-hidden="true">
-          {active && player.isPlaying ? 'II' : '>'}
-        </span>
-      </div>
-      <div className="search-station-card-copy">
-        <div className="search-card-title" title={normalizeStationName(station.name)}>
-          <StationStatusBadge state={badge} />
-          {normalizeStationName(station.name)}
-        </div>
-        <div className="search-card-meta" title={location}>
-          {location}
-        </div>
-        {tags ? (
-          <div className="search-card-tags" title={tags}>
-            {tags}
-          </div>
-        ) : null}
-      </div>
+    <div className="search-sort">
       <button
-        className="search-station-card-primary-action"
+        ref={triggerRef}
+        className="search-sort-trigger"
         type="button"
-        onClick={toggleStation}
-        aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
-      />
-      <div className="search-card-actions">
-        <button
-          className="play-btn search-card-play"
-          type="button"
-          onClick={toggleStation}
-          data-playing={active && player.isPlaying ? 'true' : 'false'}
-          aria-label={`${playLabel}: ${normalizeStationName(station.name)}`}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${t('search.sortLabel')}: ${t(SORT_LABEL_KEY[sortMode])}`}
+      >
+        {/* The «Сортировка:» prefix is hidden below 430px (CSS) so the results
+            count beside it never ellipsizes — at 390px the two together
+            overflow the row. It stays in the accessible name at every width,
+            so nothing is lost for assistive tech. */}
+        <span className="search-sort-trigger-label">
+          <span className="search-sort-trigger-prefix">{t('search.sortLabel')}: </span>
+          {t(SORT_LABEL_KEY[sortMode])}
+        </span>
+        <span className="search-sort-caret" aria-hidden="true">
+          ⌄
+        </span>
+      </button>
+      {open ? (
+        <div
+          ref={listRef}
+          className="search-sort-menu"
+          role="listbox"
+          aria-label={t('search.sortLabel')}
         >
-          {playLabel}
-        </button>
-        <button
-          className={`icon-btn search-card-fav ${liked ? 'active' : ''}`}
-          type="button"
-          onClick={() => toggleFavorite(station)}
-          aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-          aria-pressed={liked}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-          </svg>
-        </button>
-        <button
-          className="icon-btn search-card-share"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            void shareStation(station);
-          }}
-          aria-label={t('common.share')}
-          title={t('common.share')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
-          </svg>
-        </button>
-      </div>
-    </article>
+          {SORT_MODES.map((mode) => (
+            <button
+              key={mode}
+              className={`search-sort-option ${mode === sortMode ? 'active' : ''}`}
+              type="button"
+              role="option"
+              aria-selected={mode === sortMode}
+              onClick={() => {
+                onSelect(mode);
+                close();
+              }}
+            >
+              {t(SORT_LABEL_KEY[mode])}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 };
 
@@ -315,6 +317,30 @@ const SearchFiltersSheet = ({ stationSearch, onClose }: SearchFiltersSheetProps)
             </select>
           </label>
 
+          {/* Continent goes LAST. Country must remain the FIRST <select> in
+              this sheet — mobile.spec.ts selects it positionally. Until now
+              continentFilter was clearable via the active-filter pills but had
+              no control in either filter UI. */}
+          <label className="search-filters-field">
+            <span className="search-filters-label">{t('search.filterContinent')}</span>
+            <select
+              className="filter-select search-filters-select"
+              value={stationSearch.continentFilter}
+              onChange={(event) =>
+                stationSearch.setContinentFilter(
+                  event.target.value as typeof stationSearch.continentFilter
+                )
+              }
+            >
+              <option value="All">{t('discover.regionAll')}</option>
+              {stationSearch.continentCounts.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.id === 'Other' ? t('common.unknown') : item.id}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button
             className="search-filters-clear-all"
             type="button"
@@ -354,7 +380,7 @@ const useRailWheel = () => {
 };
 
 export const Discover = () => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { searchStations } = useCatalog();
   const {
     favorites,
@@ -392,6 +418,8 @@ export const Discover = () => {
   // conversion as the idle rails (no-op on desktop where the grid doesn't
   // overflow).
   const quickReturnRailRef = useRailWheel();
+  // 5th rail: the filter chip row scrolls horizontally like the others.
+  const filterChipRailRef = useRailWheel();
   const browseSeedRef = useRef(Date.now());
 
   useEffect(() => {
@@ -575,9 +603,18 @@ export const Discover = () => {
       stationSearch.continentFilter
     ]
   );
+  // Sort is a PURE DOWNSTREAM PASS over the frozen ranking — deliberately not
+  // part of the snapshot signature above. Nothing inside the rank-freeze memo
+  // changed: it still recomputes only on query/filter change, so the list still
+  // cannot reshuffle under the user's finger. 'relevance' returns the same array
+  // reference, making the default path byte-identical to the previous render.
+  const sortedSearchResults = useMemo(
+    () => applySearchSort(rankedSearchResults, stationSearch.sortMode),
+    [rankedSearchResults, stationSearch.sortMode]
+  );
   const searchQueue = useMemo(
-    () => rankedSearchResults.slice(0, compactResults ? 18 : 24),
-    [compactResults, rankedSearchResults]
+    () => sortedSearchResults.slice(0, compactResults ? 18 : 24),
+    [compactResults, sortedSearchResults]
   );
   const startSearchRadio = () => {
     if (!searchQueue.length) return;
@@ -593,6 +630,65 @@ export const Discover = () => {
   const hasResults = rankedSearchResults.length > 0;
   const showSkeleton = stationSearch.searchLoading && !stationSearch.results.length;
   const filterCount = stationSearch.activeFilterCount;
+
+  // Per-search probe budget for the now-playing lookup. Resets when the user
+  // changes what they are searching for, not when they scroll within a search.
+  useSearchNowPlayingSession(
+    [
+      trimmedQuery,
+      stationSearch.countryFilter,
+      stationSearch.tagFilter,
+      stationSearch.languageFilter,
+      stationSearch.continentFilter
+    ].join('')
+  );
+
+  const voice = useVoiceSearch({
+    // Fills the query and nothing else — the mic can never start playback (#86).
+    onTranscript: (value) => {
+      stationSearch.setQuery(value);
+      if (typeof document !== 'undefined') {
+        document.getElementById('search-hero-input')?.focus();
+      }
+    },
+    locale
+  });
+
+  // One chip per filter dimension, in a fixed order so chips never
+  // unmount/remount as filters toggle (which would break focus and animation).
+  // Continent has no chip until it is active: the reference does not draw one,
+  // but activeFilterCount counts it, so an active continent MUST still produce a
+  // `.search-hero-filter-pill` or the badge/pill-count equality breaks.
+  const filterDimensions = [
+    {
+      id: 'country',
+      titleKey: 'search.filterCountry',
+      value: stationSearch.countryFilter !== 'All' ? stationSearch.countryFilter : null,
+      clear: () => stationSearch.setCountryFilter('All'),
+      alwaysShow: true
+    },
+    {
+      id: 'tag',
+      titleKey: 'search.filterGenre',
+      value: stationSearch.tagFilter !== 'All' ? stationSearch.tagFilter : null,
+      clear: () => stationSearch.setTagFilter('All'),
+      alwaysShow: true
+    },
+    {
+      id: 'language',
+      titleKey: 'search.filterLanguage',
+      value: stationSearch.languageFilter !== 'All' ? stationSearch.languageFilter : null,
+      clear: () => stationSearch.setLanguageFilter('All'),
+      alwaysShow: true
+    },
+    {
+      id: 'continent',
+      titleKey: 'search.filterContinent',
+      value: stationSearch.continentFilter !== 'All' ? stationSearch.continentFilter : null,
+      clear: () => stationSearch.setContinentFilter('All'),
+      alwaysShow: false
+    }
+  ].filter((dimension) => dimension.alwaysShow || dimension.value);
 
   return (
     <section
@@ -647,21 +743,125 @@ export const Discover = () => {
                 </button>
               ) : null}
             </div>
+            {/* Voice search sits beside the field, NOT in .app-topbar-actions —
+                that cluster is global chrome shared by every section, and this
+                control belongs to Search only. Renders nothing at all when the
+                platform cannot actually do speech recognition; see
+                useVoiceSearch for why a constructor check alone is not enough. */}
+            {voice.supported ? (
+              <button
+                className="search-hero-mic"
+                type="button"
+                onClick={voice.start}
+                aria-label={voice.listening ? t('search.voiceListening') : t('search.voiceSearch')}
+                aria-pressed={voice.listening}
+                title={voice.listening ? t('search.voiceListening') : t('search.voiceSearch')}
+                data-listening={voice.listening ? 'true' : 'false'}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 14a3 3 0 003-3V6a3 3 0 10-6 0v5a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"
+                  />
+                </svg>
+              </button>
+            ) : null}
           </div>
+
+          {voice.denied ? (
+            <p className="search-hero-voice-error" role="status">
+              {t('search.voiceDenied')}
+            </p>
+          ) : null}
+
+          {/* Filter chips — compact only. At ≥720px the desktop drawer toggle
+              already owns the /Показать фильтры/ accessible name, and a second
+              match there would make desktop.spec's strict locator ambiguous. */}
+          {showStations && compactResults ? (
+            <div
+              className="search-filter-chip-row"
+              role="group"
+              aria-label={t('search.filtersGroup')}
+              ref={filterChipRailRef}
+            >
+              {filterDimensions.map((dimension) =>
+                dimension.value ? (
+                  <button
+                    key={dimension.id}
+                    className="search-hero-filter-pill search-filter-chip is-active"
+                    type="button"
+                    onClick={dimension.clear}
+                    aria-label={`${t('search.removeFilter')}: ${dimension.value}`}
+                  >
+                    <span>{dimension.value}</span>
+                    <span className="search-hero-filter-pill-x" aria-hidden="true">
+                      ✕
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    key={dimension.id}
+                    className="search-filter-chip"
+                    type="button"
+                    onClick={() => stationSearch.setFiltersOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-expanded={stationSearch.filtersOpen}
+                  >
+                    {t(dimension.titleKey)}
+                    <span className="search-filter-chip-caret" aria-hidden="true">
+                      ⌄
+                    </span>
+                  </button>
+                )
+              )}
+              {/* «Ещё» — exactly ONE .search-hero-filters-pill in the DOM, always
+                  mounted so useDialog can restore focus to it after the sheet
+                  closes. aria-label wins over visible text, so the compound
+                  label still matches /Показать фильтры/ while satisfying WCAG
+                  2.5.3 (the visible «Ещё» is contained in the accessible name). */}
+              <button
+                className="search-hero-filters-pill search-filter-chip"
+                type="button"
+                onClick={() => stationSearch.setFiltersOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={stationSearch.filtersOpen}
+                aria-label={`${t('search.moreFilters')} · ${t('search.showFilters')}`}
+              >
+                {t('search.moreFilters')}
+                <span className="search-filter-chip-caret" aria-hidden="true">
+                  ⌄
+                </span>
+                {filterCount > 0 ? (
+                  <em className="search-hero-filters-badge">{filterCount}</em>
+                ) : null}
+              </button>
+            </div>
+          ) : null}
 
           {!queryActive && stationSearch.recentQueries.length ? (
             <div className="search-hero-recent">
               <span className="search-hero-recent-label">{t('search.recentQueryHint')}</span>
               <div className="search-hero-recent-row">
+                {/* dismissRecentQuery was exported and consumed nowhere, so a
+                    remembered query could not be deleted. Wired up here. */}
                 {stationSearch.recentQueries.slice(0, 6).map((recentQuery) => (
-                  <button
-                    key={`recent-query-${recentQuery}`}
-                    className="search-hero-recent-chip"
-                    type="button"
-                    onClick={() => stationSearch.applyRecentQuery(recentQuery)}
-                  >
-                    {recentQuery}
-                  </button>
+                  <span className="search-hero-recent-chip-wrap" key={`recent-query-${recentQuery}`}>
+                    <button
+                      className="search-hero-recent-chip"
+                      type="button"
+                      onClick={() => stationSearch.applyRecentQuery(recentQuery)}
+                    >
+                      {recentQuery}
+                    </button>
+                    <button
+                      className="search-hero-recent-dismiss"
+                      type="button"
+                      onClick={() => stationSearch.dismissRecentQuery(recentQuery)}
+                      aria-label={`${t('search.removeRecentQuery')}: ${recentQuery}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
                 ))}
               </div>
             </div>
@@ -672,38 +872,18 @@ export const Discover = () => {
               // ≤720: fixed count-left / filters-pill-right row instead of the
               // wrapping chip pile; play-all becomes a full-width primary
               // button below. "Clear all" lives in the filters sheet footer.
-              <>
-                <div className="search-hero-result-bar search-hero-result-bar--compact">
-                  <div className="search-hero-result-count">
-                    <span>
-                      {t('search.resultsShown', {
-                        shown: `${rankedSearchResults.length}${stationSearch.nextCursor ? '+' : ''}`,
-                        total: stationSearch.searchTotal
-                      })}
-                    </span>
-                  </div>
-                  <button
-                    className="search-hero-filters-pill"
-                    type="button"
-                    onClick={() => stationSearch.setFiltersOpen(true)}
-                    aria-expanded={stationSearch.filtersOpen}
-                    aria-haspopup="dialog"
-                  >
-                    {t('search.showFilters')}
-                    {filterCount > 0 ? (
-                      <em className="search-hero-filters-badge">{filterCount}</em>
-                    ) : null}
-                  </button>
-                </div>
-                <button
-                  className="search-hero-play-all-wide"
-                  type="button"
-                  onClick={startSearchRadio}
-                  disabled={!searchQueue.length}
-                >
-                  ▶ {t('search.playAllResults')}
-                </button>
-              </>
+              // The count moved to the results header (which also carries the
+              // sort control), and the filters pill moved into the chip row
+              // above — both are now single-instance elements. Play-all stays
+              // here, still gated on an active query.
+              <button
+                className="search-hero-play-all-wide"
+                type="button"
+                onClick={startSearchRadio}
+                disabled={!searchQueue.length}
+              >
+                ▶ {t('search.playAllResults')}
+              </button>
             ) : (
               <div className="search-hero-result-bar">
                 <div className="search-hero-result-count">
@@ -751,7 +931,10 @@ export const Discover = () => {
             )
           ) : null}
 
-          {queryActive && stationSearch.activeFilters.length ? (
+          {/* Desktop only. On compact the chip row above already renders one
+              `.search-hero-filter-pill` per active filter; rendering both would
+              double the pill count and break its equality with the badge. */}
+          {!compactResults && queryActive && stationSearch.activeFilters.length ? (
             <div className="search-hero-active-filters">
               {stationSearch.activeFilters.map((filter) => (
                 <button
@@ -1029,6 +1212,22 @@ export const Discover = () => {
             {stationSearch.searchError ? (
               <div className="error">{stationSearch.searchError}</div>
             ) : null}
+            {/* «Найдено станций: 124» — the colon form, because t() is a plain
+                {token} replace with NO pluralization; «124 станции» would be
+                wrong for 121/122/125. Rendered only once a real total exists, so
+                there is no «Найдено станций: 0» flash while loading. */}
+            {compactResults && stationSearch.searchTotal > 0 ? (
+              <header className="search-results-header">
+                <p className="search-results-count">
+                  {t('search.resultsFound', { total: stationSearch.searchTotal })}
+                </p>
+                <SearchSortMenu
+                  sortMode={stationSearch.sortMode}
+                  onSelect={stationSearch.setSortMode}
+                  t={t}
+                />
+              </header>
+            ) : null}
             <div className="search-results-shell">
               {showSkeleton ? (
                 <div
@@ -1043,16 +1242,20 @@ export const Discover = () => {
               ) : hasResults ? (
                 compactResults ? (
                   <div className="search-result-grid">
-                    {rankedSearchResults.map((station) => (
-                      <SearchResultCard
+                    {sortedSearchResults.map((station) => (
+                      <SearchResultRow
                         key={`search-card-${station.stationuuid}`}
                         station={station}
-                        stations={rankedSearchResults}
+                        stations={sortedSearchResults}
                         sourceId="search-results"
+                        nowPlayingEnabled
                       />
                     ))}
                   </div>
                 ) : (
+                  // Desktop keeps the frozen ranking: the sort control is
+                  // compact-only, so desktop order must not move (its visual
+                  // baseline is an exact-match, full-page shot).
                   <StationTable
                     stations={rankedSearchResults}
                     sourceId="discover-stations"
@@ -1172,7 +1375,9 @@ export const Discover = () => {
           ) : null}
         </>
       ) : null}
-      {queryActive && stationSearch.filtersOpen && compactResults ? (
+      {/* Un-gated from queryActive to match the chip row: filters are reachable
+          on the idle screen too (which already renders a full result grid). */}
+      {stationSearch.filtersOpen && compactResults ? (
         <SearchFiltersSheet
           stationSearch={stationSearch}
           onClose={() => stationSearch.setFiltersOpen(false)}

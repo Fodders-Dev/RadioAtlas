@@ -1612,8 +1612,16 @@ test('mobile search lazily appends results without a load-more button', async ({
   await expect(cards.nth(32)).toContainText('JPop Page 33');
   expect(searchRequests.some((query) => query.includes('cursor=32'))).toBe(true);
 
+  // Density guard for the search result row. The pre-redesign 88px reflected a
+  // 3-line card; the rebuilt row is name / location / genre-or-track / metrics
+  // beside a 64px thumbnail and 44px round controls. Measured at 360/390/412
+  // with the fixture's bitrate:128 present (so the metrics line renders): 91.4px
+  // → rounded up to the next multiple of 4. Cross-checked against the live
+  // catalog in a real browser (90.5px laid out, 91.1px reported).
+  // This is a CEILING, not a budget: if a future change pushes the row past
+  // ~100px, remove a line instead of raising this number again.
   const firstCardHeight = await cards.first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(firstCardHeight).toBeLessThanOrEqual(88);
+  expect(firstCardHeight).toBeLessThanOrEqual(92);
 });
 
 // Search mobile rebuild: the native-select filter drawer moved into the shared
@@ -3183,3 +3191,221 @@ test('T_share_1: search card share is reachable in one tap, does not play, no ov
   );
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+/* ===========================================================================
+   Search screen rebuild (reference mockup): filter chips, results header +
+   sort, the LIVE dot, and the per-visible-row now-playing lookup.
+   =========================================================================== */
+
+const openMobileSearch = async (page: Page, query = 'jpop') => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await seedRadioState(page, { activeSection: 'search', stationCache: stations });
+  await page.goto('/');
+  await expect(page.locator('.screen-search-v3')).toBeVisible({ timeout: 15_000 });
+  if (query) await page.locator('#search-hero-input').first().fill(query);
+  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+};
+
+test('T_search_chips: the filter chip row is a single set of controls and clears a filter in one tap', async ({
+  page
+}) => {
+  await openMobileSearch(page);
+
+  // Exactly ONE «Ещё» pill and one badge host in the DOM — several specs use
+  // strict locators on these, and a duplicate presents as an opaque timeout.
+  await expect(page.locator('.search-hero-filters-pill')).toHaveCount(1);
+  // Its accessible name still matches /Показать фильтры/ even though the
+  // visible text is «Ещё» (aria-label wins, and it contains the visible label).
+  await expect(page.getByRole('button', { name: /Показать фильтры|Show filters/ })).toHaveCount(1);
+
+  // A dimension chip opens the shared, focus-trapped sheet rather than a
+  // bespoke dropdown.
+  await page.getByRole('button', { name: /^Страна|^Country/ }).first().click();
+  const sheet = page.locator('[data-search-filters-sheet]');
+  await expect(sheet).toBeVisible();
+  await sheet.locator('select').first().selectOption('Japan');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+
+  // The active filter becomes a cyan chip carrying a remove ✕, and the badge
+  // agrees with the number of active pills.
+  const activePills = page.locator('.search-hero-filter-pill');
+  await expect(activePills.filter({ hasText: 'Japan' })).toBeVisible();
+  await expect(page.locator('.search-hero-filters-badge')).toHaveText(
+    String(await activePills.count())
+  );
+
+  // One tap on the chip clears it — and never starts playback (#86).
+  await activePills.filter({ hasText: 'Japan' }).click();
+  await expect(page.locator('.search-hero-filter-pill')).toHaveCount(0);
+  await expect(page.locator('.search-hero-filters-badge')).toHaveCount(0);
+  await expect(page.locator('.player-dock-bar')).toHaveCount(0);
+});
+
+test('T_search_sort: the sort control reorders the DOM and starts nothing', async ({ page }) => {
+  await openMobileSearch(page, 'a');
+
+  const names = () =>
+    page.locator('[data-search-station-card] .search-card-title').allTextContents();
+
+  await expect(page.locator('.search-results-count')).toContainText(/Найдено станций: \d+/);
+  const relevanceOrder = await names();
+  expect(relevanceOrder.length).toBeGreaterThan(1);
+
+  await page.locator('.search-sort-trigger').click();
+  await page.getByRole('option', { name: /По названию|Name/ }).click();
+
+  const nameOrder = await names();
+  expect(nameOrder).toHaveLength(relevanceOrder.length);
+  // Actually sorted, and actually different from the relevance blend.
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+  expect(nameOrder).toEqual([...nameOrder].sort(collator.compare));
+  expect(nameOrder).not.toEqual(relevanceOrder);
+
+  // Sorting is a presentation pass — it must not touch playback (#86).
+  await expect(page.locator('.player-dock-bar')).toHaveCount(0);
+  await expect(page.locator('.search-sort-trigger')).toContainText(/По названию|Name/);
+});
+
+test('T_search_live: the LIVE dot renders only on the row that is actually playing', async ({
+  page
+}) => {
+  await openMobileSearch(page);
+
+  // Nothing is playing: every station in the catalog is a live stream, so a dot
+  // on all of them would be tautological. None may render.
+  await expect(page.locator('.search-card-live')).toHaveCount(0);
+
+  const row = page.locator('[data-search-station-card]').first();
+  await row.locator('.play-btn').click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+
+  // Exactly one row claims LIVE, and it is the one that is playing.
+  await expect(page.locator('.search-card-live')).toHaveCount(1);
+  await expect(row.locator('.search-card-live')).toBeVisible();
+  await expect(row.locator('.search-card-play')).toHaveAttribute('data-playing', 'true');
+});
+
+test('T_search_track: the now-playing line resolves per visible row, supersedes the genre line, and never leaves a placeholder', async ({
+  page
+}) => {
+  // The metadata mock answers with a title, so rows the admission controller
+  // actually probes DO resolve — this exercises the real pipeline end to end.
+  // In production most rows will never resolve; both halves of the contract are
+  // asserted below.
+  await openMobileSearch(page);
+  // Generous: resolution is deliberately not instant — the admission controller
+  // waits ~400ms for the scroll to settle, then probes through a 3-slot gate on
+  // top of a global metadata concurrency of 2.
+  await expect
+    .poll(async () => page.locator('.search-card-track').count(), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(800);
+
+  const perRow = await page.locator('[data-search-station-card]').evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      track: Boolean(node.querySelector('.search-card-track')),
+      tags: Boolean(node.querySelector('.search-card-tags')),
+      text: (node as HTMLElement).innerText
+    }))
+  );
+  expect(perRow.length).toBeGreaterThan(1);
+
+  for (const row of perRow) {
+    // Line 3 is ONE slot: a resolved track REPLACES the genre line. Both at once
+    // would mean the row grows when a track lands, shifting everything below it.
+    expect(row.track && row.tags).toBe(false);
+    // A row without a track shows nothing at all in its place — no skeleton, no
+    // spinner, no "—", no "unknown". This is the failure mode that killed the
+    // previous attempt at this feature (dead copy on 47 of 48 rows).
+    expect(row.text).not.toMatch(/недоступ|unavailable|Трек ещё|загруж|loading/i);
+  }
+
+  // Rows that did not resolve still show their genre line, so the layout is
+  // stable regardless of which rows win the metadata lottery.
+  expect(perRow.some((row) => row.tags)).toBe(true);
+});
+
+test('T_search_row: the play button is visible at phone widths and the row keeps its contract', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await seedRadioState(page, { activeSection: 'search', stationCache: stations });
+  await page.goto('/');
+  await page.locator('#search-hero-input').first().fill('jpop');
+
+  const row = page.locator('[data-search-station-card]').first();
+  await expect(row).toBeVisible();
+
+  // `.search-card-play { display: none }` used to hide this at ≤430px, which
+  // made playHomeStation's `.station-row .play-btn` click unsatisfiable here.
+  const play = row.locator('.play-btn');
+  await expect(play).toBeVisible();
+  // Polled: the screen-enter transform is still animating right after
+  // navigation, so a single early read measures the scaled box (≈43.94) rather
+  // than the laid-out one.
+  await expect
+    .poll(async () => {
+      const box = await play.boundingBox();
+      return Math.min(box?.width ?? 0, box?.height ?? 0);
+    })
+    .toBeGreaterThanOrEqual(44);
+
+  // Heart exposes its state, not just its label.
+  await expect(row.locator('.search-card-fav')).toHaveAttribute('aria-pressed', 'false');
+  await row.locator('.search-card-fav').click();
+  await expect(row.locator('.search-card-fav')).toHaveAttribute('aria-pressed', 'true');
+  // Favouriting is not a play request (#86).
+  await expect(page.locator('.player-dock-bar')).toHaveCount(0);
+
+  // Bitrate renders from the serialized field; the fixture carries 128.
+  await expect(row.locator('.search-card-bitrate')).toHaveText('128 kbps');
+});
+
+// The locale dictionary is loose-typed: a MISSING key does not fail typecheck,
+// it renders the raw key string at runtime (this already shipped once as
+// `library.more`). So the only real check is reading the DOM — in both
+// dictionaries, since ru and en are separate files.
+for (const locale of ['ru', 'en'] as const) {
+  test(`T_search_i18n_${locale}: the Search screen renders no raw dictionary keys`, async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installMediaMocks(page);
+    await mockStations(page);
+    await seedRadioState(page, { activeSection: 'search', stationCache: stations });
+    await page.addInitScript((value) => {
+      window.localStorage.setItem('radio:locale', JSON.stringify(value));
+    }, locale);
+    await page.goto('/');
+    await expect(page.locator('.screen-search-v3')).toBeVisible({ timeout: 15_000 });
+    await page.locator('#search-hero-input').first().fill('jpop');
+    await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
+
+    // Open the filters sheet too, so the sheet's labels are in the sample.
+    await page.locator('.search-hero-filters-pill').click();
+    await expect(page.locator('[data-search-filters-sheet]')).toBeVisible();
+
+    const text = await page.evaluate(() => document.body.innerText);
+    // A raw key looks like `search.sortRelevance` / `common.share`.
+    const rawKeys = text.match(/\b(search|common|stationTable|discover|explore)\.[a-zA-Z]{3,}\b/g);
+    expect(rawKeys, `raw i18n keys leaked in ${locale}`).toBeNull();
+
+    // Spot-check that the new keys resolved to real copy rather than empty
+    // strings (an empty string would also produce no raw-key match).
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.search-results-count')).toHaveText(
+      locale === 'ru' ? /Найдено станций: \d+/ : /Stations found: \d+/
+    );
+    await expect(page.locator('.search-sort-trigger')).toHaveText(
+      locale === 'ru' ? /Сортировка: По релевантности/ : /Sort: Relevance/
+    );
+    await expect(page.locator('.search-hero-filters-pill')).toHaveText(
+      locale === 'ru' ? /Ещё/ : /More/
+    );
+  });
+}

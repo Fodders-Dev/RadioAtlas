@@ -15,6 +15,7 @@ import type {
   SearchStationsFn,
   TranslateFn
 } from './types';
+import type { SearchSortMode } from './searchSort';
 
 const CONTINENT_ORDER: Array<ContinentId | 'Other'> = [
   'Europe',
@@ -104,6 +105,11 @@ export const useStationSearch = ({
   t
 }: UseStationSearchOptions) => {
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Purely a downstream presentation pass — deliberately NOT part of the rank
+  // snapshot signature in Search.tsx. The frozen ranking is recomputed only on
+  // query/filter change; the sort is applied to its output by a separate memo,
+  // so changing the sort reorders without disturbing the freeze.
+  const [sortMode, setSortMode] = useState<SearchSortMode>('relevance');
   const [query, setQuery] = useState('');
   const [countryFilter, setCountryFilter] = useState('All');
   const [tagFilter, setTagFilter] = useState('All');
@@ -254,6 +260,13 @@ export const useStationSearch = ({
 
   useInfiniteScroll(sentinelRef, {
     enabled: showStations && Boolean(nextCursor) && !searchLoading && !searchLoadingMore,
+    // Explicit, larger than the 200px default. Rows are `content-visibility:
+    // auto`, so off-screen rows report their `contain-intrinsic-size` estimate
+    // rather than their real height; if that estimate runs low the document is
+    // shorter than it should be and the sentinel drifts into range earlier than
+    // intended. Stating the trigger distance makes it a deliberate choice
+    // instead of a side effect of estimate error.
+    rootMargin: '400px',
     onLoadMore: loadMore
   });
 
@@ -332,6 +345,8 @@ export const useStationSearch = ({
   return {
     filtersOpen,
     setFiltersOpen,
+    sortMode,
+    setSortMode,
     query,
     setQuery,
     countryFilter,
