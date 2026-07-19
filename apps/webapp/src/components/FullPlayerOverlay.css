@@ -1163,3 +1163,15 @@
 .full-player-sleep-start:active {
   filter: brightness(1.08);
 }
+
+/* Live co-listener line («Ещё N слушателей»). Quiet by design: it is a small
+   social signal under the station name, not a metric badge. Rendered only when
+   the real count is 2+, so it simply is not in the DOM most of the time — no
+   reserved space, nothing to collapse. */
+.full-player-listeners {
+  margin: 6px 0 0;
+  color: rgba(214, 236, 255, 0.62);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
