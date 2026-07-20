@@ -2077,3 +2077,79 @@
     border-radius: 10px;
   }
 }
+
+/* ============================================================
+   LIGHT THEME — Home legibility.
+   Owner: «на телефонах со светлой темой ничего не понятно». Confirmed by eye on
+   a light phone: section headings, «Смотреть все», the quick-pick chips and the
+   «Лента» row were near-white on cream — present in the DOM, invisible in
+   practice.
+
+   Cause: this file was authored dark-first. Its type is hardcoded around
+   rgba(246,250,255,.96) with no light counterpart, so when the shell went light
+   the text stayed white.
+
+   Fix: re-point at the theme's ink tokens instead of new literals, so it holds
+   for any mode:'light' theme including custom ones from Theme Studio. Text that
+   sits OVER artwork (station tiles, the hero) is deliberately left white — it
+   has its own dark scrim and is readable in both modes.
+   ============================================================ */
+:root[data-theme-mode='light'] .screen-home-next .home-section-title,
+:root[data-theme-mode='light'] .screen-home-next .home-section-head h2,
+:root[data-theme-mode='light'] .screen-home-next .home-quick-chips-head h2,
+:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-title {
+  color: var(--theme-text, #241a17);
+  text-shadow: none;
+}
+
+:root[data-theme-mode='light'] .screen-home-next .home-section-see-all,
+:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-sub,
+:root[data-theme-mode='light'] .screen-home-next .home-section-copy,
+:root[data-theme-mode='light'] .screen-home-next .home-section-head p {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
+
+:root[data-theme-mode='light'] .screen-home-next .home-section-see-all:hover {
+  color: var(--theme-text, #241a17);
+}
+
+/* The quick-pick chips: glass tuned for a dark backdrop turns into a pale ghost
+   on cream. Give them an ink border and dark type so they read as controls. */
+:root[data-theme-mode='light'] .screen-home-next .home-quick-chip {
+  border-color: rgba(60, 45, 38, 0.22);
+  background: rgba(255, 252, 248, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 6px 16px rgba(58, 44, 38, 0.12);
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .screen-home-next .home-quick-chip-glyph svg {
+  fill: var(--theme-text, #241a17);
+}
+
+/* «Лента» row — same glass problem, same treatment. */
+:root[data-theme-mode='light'] .screen-home-next .home-feed-hero {
+  border-color: rgba(60, 45, 38, 0.18);
+  background: rgba(255, 252, 248, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 20px rgba(58, 44, 38, 0.1);
+}
+
+/* The refresh chip: it sits on the PAGE (below the hero), not on artwork, so on
+   light it needs ink and a visible edge — as glass it was a pale ghost. */
+:root[data-theme-mode='light'] .screen-home-next .home-refresh-chip,
+:root[data-theme-mode='light'] .screen-home-next .home-surface-refresh {
+  border-color: rgba(60, 45, 38, 0.22);
+  background: rgba(255, 252, 248, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 16px rgba(58, 44, 38, 0.12);
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .screen-home-next .home-refresh-chip svg,
+:root[data-theme-mode='light'] .screen-home-next .home-surface-refresh svg {
+  fill: var(--theme-text, #241a17);
+}

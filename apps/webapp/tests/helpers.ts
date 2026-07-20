@@ -606,6 +606,18 @@ export const readTelegramSpyState = (page: Page): Promise<TelegramSpyState> =>
   });
 
 export const installMediaMocks = async (page: Page) => {
+  // Live listener presence: the e2e run beats against the REAL dev API, and the
+  // store is process-global, so counts accumulate across tests and leak into
+  // visual baselines («Ещё 1 слушатель» appearing under the station name).
+  // Pin it to "nobody else is here", which is also the honest default: these
+  // fixtures have exactly one listener, and at 1 the UI renders nothing.
+  await page.route('**/listening/beat', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ listeners: 1 }) })
+  );
+  await page.route('**/listening/bye', (route) => route.fulfill({ status: 204, body: '' }));
+  await page.route('**/listening/live', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ stations: [], minListeners: 3 }) })
+  );
   // T1.1 added a synchronous <script src="https://telegram.org/js/
   // telegram-web-app.js"> at the top of index.html so the SDK is
   // available before React boots in production. In e2e we DON'T want

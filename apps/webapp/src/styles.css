@@ -11130,3 +11130,136 @@ button.player-dock-status-pill:active {
     inset 0 0 0 1px rgba(255, 255, 255, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
+
+/* ============================================================
+   LIGHT THEME — bottom nav ink, and the Home chrome that overrides it.
+   The nav PANEL already goes light (:146) but its LABELS and GLYPHS stayed
+   near-white, so on a light phone the tab strip read as pale-on-pale. The Home
+   screen additionally re-skins the nav from homeReference.css, which is dark-only
+   and wins on order — hence the Home-scoped copies here.
+   Placed at the end of the file so nothing later can undo them.
+   ============================================================ */
+:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item,
+:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile .mobile-nav-item {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
+
+:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item svg,
+:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile .mobile-nav-item svg {
+  fill: currentColor;
+}
+
+/* The selected tab earns full ink, not just a tinted pill. */
+:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item.active,
+:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item[aria-current='page'],
+:root[data-theme-mode='light']
+  .app-shell-v2[data-active-section='home']
+  .app-navigation-mobile
+  .mobile-nav-item[aria-current='page'] {
+  color: var(--theme-text, #241a17);
+}
+
+/* «Лира» keeps its accent orb, but the label under it lives on the light panel. */
+:root[data-theme-mode='light'] .mobile-nav-chat-label,
+:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .mobile-nav-chat-label {
+  color: var(--theme-text, #241a17);
+}
+
+/* The Home-scoped nav panel/FAB come from homeReference.css and are dark-only;
+   restate them here for light so the panel itself is not a dark slab. */
+:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile {
+  border-color: rgba(60, 45, 38, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.26)),
+    var(--theme-surface-2, rgba(255, 250, 244, 0.82));
+  box-shadow:
+    0 -12px 44px rgba(58, 44, 38, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Top-bar action circles: glass built for a dark scene, invisible on cream. */
+:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn {
+  border-color: rgba(60, 45, 38, 0.2);
+  background: rgba(255, 252, 248, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 16px rgba(58, 44, 38, 0.12);
+  color: var(--theme-text, #241a17);
+}
+
+/* NOT darkening .app-topbar-title on Home: it is positioned OVER the hero
+   artwork, which stays dark in every theme, so ink-on-artwork would be the same
+   invisibility in reverse. It keeps its light colour and its shadow. */
+
+/* ============================================================
+   LIGHT THEME — «Моё» (library).
+   Its empty state and tab strip were authored dark-first: the title is a
+   hardcoded #f4f9ff and the tab chips carry dark-glass fills, so on a light
+   phone the whole screen read as grey-on-grey with an invisible heading.
+   ============================================================ */
+:root[data-theme-mode='light'] .library-empty-title,
+:root[data-theme-mode='light'] .library-tab-chip {
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .library-empty-state p,
+:root[data-theme-mode='light'] .library-empty-state small,
+:root[data-theme-mode='light'] .library-tab-count {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
+
+/* Tab chips: give them a light surface with a real edge so the strip reads as
+   a set of controls rather than grey blocks. */
+:root[data-theme-mode='light'] .library-tab-chip {
+  border-color: rgba(60, 45, 38, 0.18);
+  background: rgba(255, 252, 248, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme-mode='light'] .library-tab-chip[aria-selected='true'],
+:root[data-theme-mode='light'] .library-tab-chip.active {
+  border-color: color-mix(in srgb, var(--accent) 46%, rgba(60, 45, 38, 0.2));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 24%, white),
+      color-mix(in srgb, var(--accent) 10%, white)
+    );
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .library-tab-icon svg {
+  fill: currentColor;
+}
+
+/* Empty-state body copy and its action chips. `.empty-state` paints itself from
+   --muted, which the light token block does define — but `.chip` is a shared
+   control whose dark-glass fill turns into a grey-on-grey lozenge here, and the
+   body text needs the light muted ink rather than the dark one. */
+:root[data-theme-mode='light'] .empty-state,
+/* .section-subtitle is the app-wide explanatory line (library empty states,
+   sheet headers, collection copy). It reads from a dark-tuned muted colour, so
+   it survived every screen-scoped fix by being global. */
+:root[data-theme-mode='light'] .section-subtitle {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
+
+:root[data-theme-mode='light'] .empty-state .chip,
+:root[data-theme-mode='light'] .hero-chip-row .chip {
+  border-color: rgba(60, 45, 38, 0.2);
+  background: rgba(255, 252, 248, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .empty-state .chip.active,
+:root[data-theme-mode='light'] .hero-chip-row .chip.active {
+  border-color: color-mix(in srgb, var(--accent) 48%, rgba(60, 45, 38, 0.2));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 26%, white),
+      color-mix(in srgb, var(--accent) 12%, white)
+    );
+  color: var(--theme-text, #241a17);
+}
