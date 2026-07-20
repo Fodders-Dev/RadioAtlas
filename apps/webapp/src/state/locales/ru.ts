@@ -214,6 +214,8 @@ export const ruDictionary = {
     "feedEntrySub": "Потяни вниз — станции одна за другой",
     "feedEntryOpen": "Открыть Ленту",
     "genresTitle": "Жанры",
+    "liveNowTitle": "Слушают сейчас",
+    "liveNowCopy": "Живой эфир: станции, которые слушают прямо сейчас",
     "tryNowTitle": "Попробуйте сейчас",
     "continueListeningTitle": "Продолжить слушать",
     "discoverNewTitle": "Открой новые станции",

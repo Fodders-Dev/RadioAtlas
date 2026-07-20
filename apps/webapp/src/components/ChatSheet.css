@@ -48,8 +48,12 @@
   background-size: auto, cover;
   color: var(--text);
   overflow: hidden;
-  backdrop-filter: blur(22px) saturate(150%);
+  /* -webkit- FIRST: the minifier keeps the LAST of two duplicate logical
+     properties, and Chrome does not parse the -webkit- alias — written the
+     other way round, the standard property is dropped from the bundle and this
+     sheet ships with NO glass at all in Chrome/Android/Telegram Android. */
   -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
 }
 
 .chat-sheet .bottom-sheet-handle {
