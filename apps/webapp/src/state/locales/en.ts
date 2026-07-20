@@ -214,6 +214,8 @@ export const enDictionary = {
     "feedEntrySub": "Pull down — stations one after another",
     "feedEntryOpen": "Open the feed",
     "genresTitle": "Genres",
+    "liveNowTitle": "Listening now",
+    "liveNowCopy": "Live: stations people are on right now",
     "tryNowTitle": "Try it now",
     "continueListeningTitle": "Continue listening",
     "discoverNewTitle": "Discover new stations",

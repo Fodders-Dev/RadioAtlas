@@ -19,6 +19,7 @@ import { useHeroPullToExpand } from '../lib/useHeroPullToExpand';
 import { reportProductEvent } from '../lib/productAnalytics';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useCatalog } from '../state/CatalogContext';
+import { useLiveNow } from '../lib/useLiveNow';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
@@ -430,6 +431,7 @@ const rotateSurfaceFeed = (surface: HomeSurfaceFeed): HomeSurfaceFeed => {
 
 export const Home = () => {
   const { summary, summaryLoading, summaryError, refreshSummary } = useCatalog();
+
   const {
     knownStations,
     favorites,
@@ -477,6 +479,11 @@ export const Home = () => {
     () => mergeStations(summary?.catalogPool || [], knownStations),
     [knownStations, summary?.catalogPool]
   );
+  // «Что слушают сейчас»: real presence from our own counting. The server
+  // already withholds any station below its privacy floor, so an empty list is
+  // the honest common case while the app is small — and an empty list renders
+  // NO block at all rather than a placeholder.
+  const liveNow = useLiveNow(catalog);
   const effectiveTasteProfile = useMemo(
     () => withFavoriteTasteBoosts(tasteProfile, favorites),
     [favorites, tasteProfile]
@@ -1166,6 +1173,28 @@ export const Home = () => {
           dense={denseLayout}
           module={{ ...leadRail, titleKey: 'home.tryNowTitle' }}
           variant={railVariant(leadRail.id)}
+          currentStationId={currentStationId}
+          activeTrack={activeTrack}
+          isFavorite={isFavorite}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+        />
+      ) : null}
+
+      {liveNow.length ? (
+        <HomeRail
+          dense={denseLayout}
+          module={{
+            id: 'home-live-now',
+            titleKey: 'home.liveNowTitle',
+            copyKey: 'home.liveNowCopy',
+            sourceId: 'live-now',
+            accent: 'primary',
+            label: null,
+            stations: liveNow.map((entry) => entry.station)
+          }}
+          variant="default"
           currentStationId={currentStationId}
           activeTrack={activeTrack}
           isFavorite={isFavorite}
