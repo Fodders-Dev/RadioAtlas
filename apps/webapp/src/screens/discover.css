@@ -2769,3 +2769,66 @@
     opacity: 0.48;
   }
 }
+
+/* ============================================================
+   LIGHT THEME — Search & Globe legibility.
+   Owner: «на телефонах со светлой темой тема радио выглядит как хуйня и ничего
+   не понятно». Measured before this block, on a light-mode phone: 75 text
+   elements on Search below the WCAG AA contrast floor, the worst at ratio 1.22
+   — and on Home, station names at ratio 1.00, i.e. white on white.
+
+   Cause: these screens were authored dark-first. Their text colours are
+   hardcoded near-white (21 rules in this file alone) against just 2 light
+   overrides, so when the shell went light the type stayed white and vanished.
+
+   Fix: re-point the type at the theme's own ink tokens rather than inventing
+   new literals, so this holds for any mode:'light' theme, including custom
+   ones from Theme Studio. Placed at the end of the file so nothing that comes
+   earlier can win.
+   ============================================================ */
+:root[data-theme-mode='light'] .screen-search-v3 .search-hero-link-btn:hover,
+:root[data-theme-mode='light'] .screen-search-v3 .search-empty-state strong,
+:root[data-theme-mode='light'] .screen-search-v3 .search-import-link:hover {
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .screen-search-v3 .search-empty-state,
+:root[data-theme-mode='light'] .screen-search-v3 .search-import-link,
+:root[data-theme-mode='light'] .screen-search-v3 .search-hero-play-all:disabled,
+:root[data-theme-mode='light'] .search-results-meta span,
+:root[data-theme-mode='light'] .search-mini-chip-label {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
+
+/* The result rows: name, meta, and the now-playing track line. These are the
+   75 failures — the whole reason the screen read as noise. */
+:root[data-theme-mode='light'] .screen-search-v3 .station-row .station-name,
+:root[data-theme-mode='light'] .screen-search-v3 .search-result-name,
+:root[data-theme-mode='light'] .screen-search-v3 .search-station-card-title {
+  color: var(--theme-text, #241a17);
+  text-shadow: none;
+}
+
+:root[data-theme-mode='light'] .screen-search-v3 .station-row .station-meta,
+:root[data-theme-mode='light'] .screen-search-v3 .search-result-meta,
+:root[data-theme-mode='light'] .screen-search-v3 .search-result-track,
+:root[data-theme-mode='light'] .screen-search-v3 .search-result-bitrate,
+:root[data-theme-mode='light'] .screen-search-v3 .search-station-card-meta {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+  text-shadow: none;
+}
+
+/* Globe chrome — same dark-first origin, same fix. */
+:root[data-theme-mode='light'] .globe-breadcrumb,
+:root[data-theme-mode='light'] .globe-breadcrumb-meta strong,
+:root[data-theme-mode='light'] .globe-breadcrumb-back,
+:root[data-theme-mode='light'] .globe-focus-copy,
+:root[data-theme-mode='light'] .globe-focus-card .section-title,
+:root[data-theme-mode='light'] .screen-globe-minimal .globe-zoom-btn {
+  color: var(--theme-text, #241a17);
+}
+
+:root[data-theme-mode='light'] .globe-breadcrumb-meta,
+:root[data-theme-mode='light'] .globe-command-card .globe-hint {
+  color: var(--theme-muted, rgba(58, 44, 38, 0.62));
+}
