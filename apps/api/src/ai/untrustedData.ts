@@ -11,6 +11,7 @@
 import type { WebSource } from './types.js';
 
 const SNIPPET_MAX = 700;
+const SOURCE_CONTENT_HARD_MAX = 12_000;
 
 // Line-level prompt-injection markers (RU + EN). A matching line is removed
 // entirely; the rest of the snippet survives so a legit headline stays intact.
@@ -43,9 +44,10 @@ const truncate = (text: string, max: number): string =>
 // Build the fenced, sanitized untrusted block for the composer. Each source is
 // sanitized then truncated to ~SNIPPET_MAX; the fence makes it unmistakable that
 // the content is DATA, not instructions.
-export const wrapSnippet = (sources: WebSource[]): string => {
+export const wrapSnippet = (sources: WebSource[], maxPerSource = SNIPPET_MAX): string => {
+  const boundedMax = Math.min(SOURCE_CONTENT_HARD_MAX, Math.max(SNIPPET_MAX, maxPerSource));
   const blocks = sources.map((source, index) => {
-    const snippet = truncate(sanitizeSnippet(source.snippet), SNIPPET_MAX);
+    const snippet = truncate(sanitizeSnippet(source.snippet), boundedMax);
     const date = source.publishedDate ? ` — ${source.publishedDate}` : '';
     return `[${index + 1}] ${source.title}${date}\n${snippet}`;
   });

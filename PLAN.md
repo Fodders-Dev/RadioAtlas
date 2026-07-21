@@ -203,13 +203,41 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   Home a filled hero + utility side column instead of a narrow central desert.
 - [x] Keep Lira centered between Search and Globe on mobile and in the matching
   position on desktop; keep the Home dock's volume/more/play controls usable.
-- [x] Freeze the hero during play/like bursts, retain rail taste re-ranking,
-  preserve reduced-motion/focus contracts, and refresh Home/search/library
-  visual baselines.
+- [x] Finish the mobile density/readability recovery after the first reference
+  pass: bound the hero to 276–310px, restore visible genre shortcuts, separate
+  station artwork/actions from two-line copy, and replace the stale ~300px Home
+  bottom reserve with the measured dock/navigation stack.
+- [x] Freeze the hero during play/like bursts, retain rail taste re-ranking, and
+  preserve reduced-motion/focus contracts; add 360/390/426px geometry coverage
+  for touch targets and non-overlapping card rows.
+
+## Lira track intelligence (done)
+
+- [x] Resolve explicitly named and trusted current now-playing tracks for lyrics,
+  meaning, and creation-context questions.
+- [x] Ground factual history and author intent in web sources while keeping
+  interpretation clearly separate.
+- [x] Keep copyrighted lyrics out of full-text responses: return a source link
+  and at most a brief excerpt; analyze pasted text without repeating it at length.
+- [x] Cover lyrics, meaning, current-track, and no-search fail-soft behavior with
+  focused API/client tests.
+
+## Lira Liquid Glass companion (done)
+
+- [x] Replace the compact utility sheet with an immersive full-screen Liquid
+  Glass conversation surface, quick prompts, persistent local thread, rich
+  station/source cards, and a fixed keyboard-safe composer.
+- [x] Retune Lira as a lively, confident music friend with light friendly
+  flirting and explicit non-reciprocal romantic boundaries.
+- [x] Send trusted now-playing metadata from the Mini App and make song-meaning
+  turns read cleaned lyrics-page content before analysis when Tavily can provide
+  it; keep output to one short excerpt plus the attributed full-text link.
+- [x] Cover now-playing transport, raw-content search gating/cache separation,
+  prompt-injection fencing, and the song-analysis path with focused tests.
 
 ## Next:
 
-Next: smoke-test the deployed reference Home during a real Telegram listening
-session at 360/390px, collect designer feedback for the remaining screens, and
-upgrade the VPS runtime from Node 22 to Node 24 so production matches the repo
-engine requirement.
+Next: owner review the new Lira Liquid Glass screen at 390/426px; smoke-test the
+deployed lyrics analysis on a real current track in Telegram (cleaned text read,
+short excerpt, source link, cited creation context), then refresh the approved
+Lira/Home visual baselines and upgrade the VPS runtime from Node 22 to Node 24.

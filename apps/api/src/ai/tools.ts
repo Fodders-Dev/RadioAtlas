@@ -157,7 +157,15 @@ export const runTool = async (
         if (!ctx.webSearch) return { ...base, found: false, error: 'web search disabled' };
         const query = asString(args.query);
         if (!query) return { ...base, found: false };
-        const outcome = await ctx.webSearch.search(query, { fresh: VOLATILE_FACT.test(query) });
+        // Full cleaned page content is expensive and may contain copyrighted
+        // material. Only the deterministic lyrics-analysis lane may request it;
+        // the free-form planner cannot turn arbitrary factual searches into a
+        // raw-content crawl.
+        const includeContent = args.includeContent === true && /lyrics/i.test(query);
+        const outcome = await ctx.webSearch.search(query, {
+          fresh: VOLATILE_FACT.test(query),
+          includeContent
+        });
         return {
           ...base,
           found: outcome.sources.length > 0,

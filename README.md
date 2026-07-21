@@ -123,6 +123,8 @@ WEBAPP_DEEPLINK=https://t.me/your_bot?startapp=radio
 ```
 AI_ENABLED=0
 DEEPSEEK_API_KEY=
+AI_WEB_SEARCH_ENABLED=0
+TAVILY_API_KEY=
 ```
 
 `apps/webapp/.env`:
@@ -135,6 +137,14 @@ VITE_AI_ENABLED=1
 Lira is visible by default in Vite development. Production builds require
 `VITE_AI_ENABLED=1`; actual replies also require the API process with
 `AI_ENABLED=1` and `DEEPSEEK_API_KEY` configured.
+Grounded song history, documented author intent, and direct lyrics-page
+resolution additionally require `AI_WEB_SEARCH_ENABLED=1` plus
+`TAVILY_API_KEY`; without it Lira still provides a safe external lyrics search.
+For meaning questions Lira first requests cleaned lyrics-page content as private
+analysis context, then returns her explanation, at most one excerpt up to 10
+words, and the attributed source link. Lira does not copy full copyrighted
+lyrics; user-supplied text can still be analyzed. Full in-app lyrics require an
+explicit display licence from a lyrics provider.
 
 ## Notes
 - Webapp pulls stations from Radio Browser and filters https streams.
