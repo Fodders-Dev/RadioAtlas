@@ -44,14 +44,23 @@ if [[ -f "$SCENE_DIR/.daily-usage.json" ]]; then
   quota_count="$(sed -n 's/.*"count":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCENE_DIR/.daily-usage.json")"
   quota_count="${quota_count:-0}"
 fi
-if (( quota_count >= 44 )); then
-  echo "Scene pack already reserved $quota_count attempts today; keeping 16 attempts in reserve."
+daily_cap="${SCENE_ARTWORK_DAILY_CAP:-60}"
+if [[ ! "$daily_cap" =~ ^[0-9]+$ ]]; then
+  daily_cap=60
+fi
+remaining=$(( daily_cap - quota_count ))
+if (( remaining <= 0 )); then
+  echo "Scene pack exhausted today's $daily_cap-attempt allowance; seeding skipped."
   exit 0
+fi
+pack_limit=16
+if (( remaining < pack_limit )); then
+  pack_limit="$remaining"
 fi
 
 cd "$CURRENT_LINK"
 export RADIOATLAS_API_URL="http://127.0.0.1:3001"
-export SCENE_PACK_LIMIT=16
+export SCENE_PACK_LIMIT="$pack_limit"
 # The first slot is the concrete regression station from the music-identity
 # rollout. The helper fills the remaining slots from the normal catalog summary.
 export SCENE_PACK_STATION_IDS="74884688-e3a7-41f8-8105-bc249a37963e"
