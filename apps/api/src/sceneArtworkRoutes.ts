@@ -10,6 +10,9 @@ import {
 export type SceneArtworkRouteDeps = {
   artwork: SceneArtworkService;
   getStationById: (stationId: string) => Promise<SceneArtworkStation | null>;
+  getTrackSignals?: (
+    stationIds: readonly string[]
+  ) => Promise<Map<string, Pick<SceneArtworkStation, 'recentTracks' | 'topArtists'>>>;
   internalToken?: string | null;
 };
 
@@ -98,6 +101,20 @@ export const registerSceneArtworkRoutes = (
         }
       })
     );
+    let trackSignals = new Map<
+      string,
+      Pick<SceneArtworkStation, 'recentTracks' | 'topArtists'>
+    >();
+    if (deps.getTrackSignals) {
+      try {
+        trackSignals = await deps.getTrackSignals(
+          stations.flatMap((entry) => (entry ? [entry.stationId] : []))
+        );
+      } catch {
+        // History is enrichment only. A missing/corrupt intelligence DB must not
+        // block generation from the station name and curated catalog genres.
+      }
+    }
     const items = await Promise.all(
       stations
         .filter(
@@ -105,7 +122,10 @@ export const registerSceneArtworkRoutes = (
         )
         .map(async ({ stationId, station }) => ({
           stationId,
-          ...(await deps.artwork.resolve(station, { generate: true }))
+          ...(await deps.artwork.resolve(
+            { ...station, ...(trackSignals.get(stationId) || {}) },
+            { generate: true }
+          ))
         }))
     );
     res.status(items.some((item) => item.status === 'queued') ? 202 : 200).json({ items });

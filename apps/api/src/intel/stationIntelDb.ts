@@ -69,6 +69,7 @@ export type StationIntelStore = {
   // least-recently-harvested-first rotation. Never-probed stations are absent.
   harvestedAtMap: () => Map<string, number>;
   topArtists: (stationUuid: string, limit?: number) => ArtistIndexRow[];
+  recentTracks: (stationUuid: string, limit?: number) => string[];
   pruneObservations: (now: number, retentionMs?: number) => number;
   close: () => void;
 };
@@ -161,6 +162,10 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
     `SELECT artist, obs_count, last_seen FROM station_artist_index
      WHERE station_uuid = ? ORDER BY obs_count DESC, last_seen DESC LIMIT ?`
   );
+  const recentTracksStmt = db.prepare(
+    `SELECT raw_title FROM track_observations
+     WHERE station_uuid = ? ORDER BY observed_at DESC, id DESC LIMIT ?`
+  );
   const pruneStmt = db.prepare(`DELETE FROM track_observations WHERE observed_at < ?`);
 
   const lastRawTitle = (stationUuid: string): string | null => {
@@ -200,6 +205,10 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
         obsCount: Number(row.obs_count),
         lastSeen: Number(row.last_seen)
       })),
+    recentTracks: (stationUuid, limit = 5) =>
+      recentTracksStmt
+        .all(stationUuid, Math.max(1, Math.min(20, Math.floor(limit))))
+        .map((row) => String(row.raw_title)),
     pruneObservations: (now, retentionMs = OBSERVATION_RETENTION_MS) => {
       const result = pruneStmt.run(now - retentionMs) as { changes?: number } | undefined;
       return Number(result?.changes ?? 0);

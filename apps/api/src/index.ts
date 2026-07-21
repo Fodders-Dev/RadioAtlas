@@ -21,6 +21,7 @@ import { registerSceneArtworkRoutes } from './sceneArtworkRoutes.js';
 import { registerShareRoutes } from './shareRoutes.js';
 import { installObservability, recordCatalogFallback } from './observability.js';
 import { registerStationProfileRoutes } from './stationProfileRoutes.js';
+import { openStationIntelStore } from './intel/stationIntelDb.js';
 
 const DEFAULT_API_URLS = [
   'https://de1.api.radio-browser.info/json/stations/search',
@@ -533,6 +534,22 @@ const catalogService = registerCatalogRoutes(app, {
 registerSceneArtworkRoutes(app, {
   artwork: sceneArtworkService,
   getStationById: (id) => catalogService.getStationById(id),
+  getTrackSignals: async (stationIds) => {
+    const store = await openStationIntelStore();
+    try {
+      return new Map(
+        stationIds.map((stationId) => [
+          stationId,
+          {
+            recentTracks: store.recentTracks(stationId, 4),
+            topArtists: store.topArtists(stationId, 4).map((entry) => entry.artist)
+          }
+        ])
+      );
+    } finally {
+      store.close();
+    }
+  },
   internalToken: INTERNAL_WEBHOOK_TOKEN
 });
 // Build the assistant runtime BEFORE registerBotRoutes so the internal bot

@@ -63,7 +63,10 @@ If `VITE_API_URL` is not set, webapp runs without API proxy by default.
 ## Optional generated station atmosphere
 
 RadioAtlas can fill selected immersive backgrounds (the Home hero, active Feed,
-and Full Player) with cached `country + vibe` scenes from Cloudflare Workers AI.
+and Full Player) with station-specific music scenes from Cloudflare Workers AI.
+The prompt leads with the station name and curated genres, enriches it with a
+bounded snapshot of harvested tracks/artists when available, and treats country
+as secondary atmosphere rather than the subject.
 Station cards, the dock, Media Session, and every identity/avatar surface keep
 the station owner's logo (then favicon, then procedural fallback). Generation
 never runs in the browser and never blocks playback.
@@ -89,9 +92,10 @@ npm run artwork:generate
 ```
 
 Pass station UUIDs after the command to generate a specific set. Cached images
-(JPEG from the current FLUX endpoint, with PNG compatibility) are reused across
-stations with the same country/vibe key; repeated app views do not call the
-generation provider again.
+(JPEG from the current FLUX endpoint, with PNG compatibility) are stable per
+station/music identity and style version. Track changes enrich a generation
+snapshot but do not mint a new paid image; repeated app views never call the
+generation provider.
 
 ## Optional extractor (NewPipe-style, YouTube blocked)
 The extractor resolves non-direct URLs (SoundCloud, Bandcamp, PeerTube, MediaCCC)

@@ -235,8 +235,11 @@ npm run artwork:generate
 
 Append one or more Radio Browser station UUIDs to generate only those scenes.
 Without arguments the helper selects up to `SCENE_PACK_LIMIT` stations from the
-catalog summary (default and hard maximum: 50). Stations sharing the same
-country, vibe, and style version share one cached image. The current FLUX REST
+catalog summary (default and hard maximum: 50). Each station gets a stable
+music-identity key from its UUID, safe name cue, curated genre profile, location,
+and style version. Harvested recent tracks/top artists enrich the prompt when
+available but stay out of the key, so an ordinary song transition does not spend
+quota. The current FLUX REST
 endpoint returns JPEG despite its PNG schema, so the API validates both formats
 and serves the byte-derived MIME type. Repeated app views do not consume Workers
 AI quota.
@@ -244,8 +247,11 @@ AI quota.
 Production deploys read `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` from
 GitHub Actions secrets, write them only to `/opt/RadioAtlas/shared/env/api.env`,
 and keep images in `/opt/RadioAtlas/shared/scene-artwork`. The deploy seeds at
-most a small 16-station starter set while the persistent cache has fewer than
-eight reusable `country + vibe` backgrounds; station logos are never replaced.
+most a small 16-station starter set while the active style has fewer than eight
+station-specific backgrounds. Old style versions coexist for rollback and do
+not suppress seeding after a version bump. `SCENE_PACK_STATION_IDS` may prepend
+comma-separated priority UUIDs; production currently reserves the first slot
+for Yumi Co. Radio. Station logos are never replaced.
 
 Operational checks:
 

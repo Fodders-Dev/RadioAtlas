@@ -3,16 +3,26 @@ set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/RadioAtlas}"
 SCENE_DIR="$APP_ROOT/shared/scene-artwork"
+API_ENV="$APP_ROOT/shared/env/api.env"
+
+if [[ -f "$API_ENV" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$API_ENV"
+  set +a
+fi
+style_version="${SCENE_ARTWORK_STYLE_VERSION:-atlas-music-v3}"
 
 scene_count="$(find "$SCENE_DIR" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' \) | wc -l)"
+active_count="$(find "$SCENE_DIR" -maxdepth 1 -type f \( -name "*-${style_version}-*.jpg" -o -name "*-${style_version}-*.png" \) | wc -l)"
 quota_count=0
 if [[ -f "$SCENE_DIR/.daily-usage.json" ]]; then
   quota_count="$(sed -n 's/.*"count":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$SCENE_DIR/.daily-usage.json")"
   quota_count="${quota_count:-0}"
 fi
 
-echo "Scene artwork status: ready=$scene_count reserved_today=$quota_count"
-if (( scene_count > 0 )); then
+echo "Scene artwork status: active_style=$style_version active_ready=$active_count total_ready=$scene_count reserved_today=$quota_count"
+if (( active_count > 0 )); then
   exit 0
 fi
 

@@ -51,7 +51,7 @@ upsert_env SCENE_ARTWORK_CONCURRENCY 1
 upsert_env SCENE_ARTWORK_QUEUE_MAX 100
 # THIS value — not DEFAULT_SCENE_STYLE_VERSION in apps/api/src/sceneArtwork.ts —
 # is what actually reaches production scene keys. Bump both together or the new
-# location-derived prompts silently keep serving the old night-palette images.
-upsert_env SCENE_ARTWORK_STYLE_VERSION atlas-daylight-v2
+# music-profile prompts silently keep serving old shared country+vibe images.
+upsert_env SCENE_ARTWORK_STYLE_VERSION atlas-music-v3
 
 echo "Persistent Workers AI scene cache configured."
