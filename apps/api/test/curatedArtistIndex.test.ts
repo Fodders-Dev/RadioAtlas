@@ -35,6 +35,12 @@ test('artistTokensMatch: every KEY token needs a query token sharing a ≥4 pref
   assert.ok(!artistTokensMatch('ас', 'asti'));
 });
 
+test('artistTokensMatch: Latin artist tokens are exact, not loose prefixes', () => {
+  assert.ok(artistTokensMatch('exclusively the weeknd', 'the weeknd'));
+  assert.ok(!artistTokensMatch('oui fm top of the week', 'the weeknd'));
+  assert.ok(!artistTokensMatch('classic hits on the weekend', 'the weeknd'));
+});
+
 // --- resolveCuratedArtist (the cases from the brief) -------------------------
 
 const expectArtist = (query: string, artist: string, uuid: string) => {
