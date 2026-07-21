@@ -286,7 +286,10 @@ export const HomeHeroCard = ({
   }
 
   const stationName = normalizeStationName(station.name);
-  const longStationName = Array.from(stationName).length > 24;
+  // 15, not 24: the mobile title is capped at 12ch, so a name well under 24
+  // characters already wraps into a cramped two-line block at full size. This is
+  // the point where stepping the type down reads better than stacking it.
+  const longStationName = Array.from(stationName).length > 15;
   // Only a REAL now-playing track (when this station is the one on air). No
   // "Подборка на сейчас — обнови" filler: the hero should read like the
   // reference — station · location · genre, and the live track once it plays.
@@ -315,6 +318,11 @@ export const HomeHeroCard = ({
       data-home-hero-recommended={recommendedStationId ?? undefined}
       data-home-hero-air={nowPlaying ? (onAir ? 'playing' : 'paused') : 'idle'}
     >
+      {/* Topline is the eyebrow ALONE. The refresh control that used to sit here
+          called the very same handleRefresh as `.home-surface-refresh` on the
+          «Лента» row, with the same aria-label — a duplicate that rendered as a
+          third circle stacked under the settings/profile pair and read as an
+          accident. The reference has no refresh in the hero. */}
       <div className="home-hero-topline">
         <div className="home-hero-eyebrow">
           <span className="home-surface-kicker">
@@ -338,23 +346,6 @@ export const HomeHeroCard = ({
             </span>
           ) : null}
         </div>
-        <button
-          className={`home-refresh-chip ${refreshing ? 'is-loading' : ''}`.trim()}
-          type="button"
-          onClick={onRefresh}
-          aria-label={t('home.refreshFeed')}
-          title={t('home.refreshFeed')}
-        >
-          {refreshing ? (
-            t('common.loading')
-          ) : dense ? (
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h8V3z" />
-            </svg>
-          ) : (
-            t('home.refreshFeed')
-          )}
-        </button>
       </div>
 
       <StationScene station={station} className="home-hero-scene" priority />
