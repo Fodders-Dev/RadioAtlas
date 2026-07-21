@@ -208,6 +208,14 @@
   max-width: 15ch;
   overflow: visible;
   color: #f7fbff;
+  /* The one place the app leaves Manrope. Manrope is a geometric grotesque: at
+     display size its round, even bowls read as generic web type. `-apple-system`
+     resolves to SF Pro Display on the iPhone this app actually lives on — an
+     optical display cut with tighter, better-fitted letterforms — and falls back
+     to the platform's own display face everywhere else. Body copy stays Manrope;
+     only the headline changes. */
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI Variable Display',
+    system-ui, var(--theme-font-family);
   font-size: clamp(2.6rem, 6.4vw, 5.9rem);
   /* 700/-0.02em, was 560/-0.055em: at display sizes that tracking pulled the
      letters into each other and the half-weight read as neither text nor
@@ -285,8 +293,11 @@
   height: var(--wave-height);
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 5px rgba(111, 234, 255, 0.3);
-  opacity: 0.85;
+  /* Silent bars should look silent: no glow, lower presence. The neon bloom made
+     a still equalizer look like it was mid-beat. The glow returns with the
+     analyser under [data-live='true']. */
+  box-shadow: none;
+  opacity: 0.5;
   transform-origin: center;
   /* AT REST BY DEFAULT. This used to bounce on `home-eq` forever, so the hero
      showed a dancing equalizer with nothing playing — the owner rightly called
@@ -332,6 +343,9 @@
 
 .screen-home-next .home-hero-waveform[data-live='true'] > span {
   height: 100%;
+  /* Sound is playing — the bars earn their presence and their glow back. */
+  box-shadow: 0 0 5px rgba(111, 234, 255, 0.3);
+  opacity: 0.85;
   transform-origin: bottom;
   transform: scaleY(var(--ra-level, 0.12));
   transition: transform 70ms linear;
@@ -465,22 +479,24 @@
   position: absolute;
   width: 140px;
   min-height: 140px;
-  border: 1px solid rgba(150, 232, 255, 0.4);
+  /* The visible cyan ring and the 70px neon bloom are GONE. Together they drew a
+     second circle around the lens and fogged its edge — and a fogged edge is
+     precisely what stops glass from reading as glass. What remains is only a
+     faint ambient lift so the lens does not float in a void. */
+  border: 0;
   border-radius: 50%;
   background: transparent;
-  box-shadow: 0 0 70px 6px rgba(76, 220, 255, 0.28);
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
 .screen-home-next .home-hero-poster-glow {
-  /* A clean soft halo behind the orb — no ring or busy conic pattern (that read
-     as "что-то на фоне пузыря"). */
   display: block;
   position: absolute;
   inset: -6px;
   border-radius: inherit;
-  background: radial-gradient(circle, rgba(90, 220, 255, 0.28), rgba(90, 220, 255, 0) 68%);
+  background: radial-gradient(circle, rgba(120, 205, 255, 0.14), rgba(120, 205, 255, 0) 62%);
 }
 
 .screen-home-next .home-hero-actions,
@@ -507,27 +523,101 @@
      0.54/0.50 fill covered the scene, so the blur behind it did nothing and the
      result read as flat paint. Now it is genuinely a lens: an almost-empty
      fill, a bright specular droplet, a cool rim, and the glow doing the work. */
+  /* A DISC of glass, not a ball.
+     Broad radial shading (bright top-left fading to a dark bottom-right) is the
+     universal cue for a sphere — that is exactly what made this read as a soap
+     bubble / marble. Apple's material is a flat slab: near-uniform body, and all
+     the drama concentrated in a hairline edge. So the body below is almost
+     perfectly even, and the only highlight is a short specular sliver riding the
+     top-left EDGE rather than sitting in the middle of the face. */
   background:
-    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 42%),
-    radial-gradient(circle at 62% 84%, rgba(120, 226, 255, 0.28), rgba(120, 226, 255, 0) 58%),
-    rgba(255, 255, 255, 0.07);
+    linear-gradient(158deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07) 52%, rgba(255, 255, 255, 0.1));
   box-shadow:
-    0 20px 46px rgba(0, 13, 36, 0.46),
-    0 0 42px rgba(91, 224, 255, 0.34),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 1.5px 2px 2px -1.5px rgba(255, 255, 255, 0.98),
-    inset -1.5px -2px 2px -1.5px rgba(150, 225, 255, 0.5);
+    /* Contact shadow: tight and close. This is what makes the lens SIT on the
+       photo instead of hovering in fog. */
+    0 2px 6px rgba(0, 8, 22, 0.34),
+    0 16px 34px rgba(0, 10, 28, 0.4),
+    /* The edge is where glass is read. A bright specular arc top-left, a cooler
+       dimmer arc bottom-right, and a hairline so the boundary never dissolves.
+       The old neon `0 0 42px cyan` bloom smeared exactly this away. */
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.55),
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.4),
+    /* A dark filament just inside the bright edge. Glass has TWO edges — the lit
+       front face and the refracting back face — and it is that pairing, not
+       shading across the face, that says "this is a solid transparent thing". */
+    inset 0 0 5px -2px rgba(2, 14, 34, 0.5);
   color: #ffffff;
   /* !important overrides the global "content surfaces stay flat" policy that
      strips backdrop-filter from buttons — this orb is a deliberate liquid-glass
-     focal point (one element, negligible GPU cost) and needs the refraction. */
-  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
-  backdrop-filter: blur(18px) saturate(160%) !important;
+     focal point (one element, negligible GPU cost) and needs the refraction.
+     blur is 9px, NOT 18px: 18px on a 104px disc erases every edge behind it, and
+     a lens with nothing left to refract is just grey paint. Glass concentrates
+     the backdrop (saturate/contrast), it does not delete it. */
+  -webkit-backdrop-filter: blur(4px) saturate(190%) brightness(1.04) contrast(1.05) !important;
+  backdrop-filter: blur(4px) saturate(190%) brightness(1.04) contrast(1.05) !important;
+}
+
+/* THE RIM.
+   Apple's liquid glass is CLEAREST in the middle and refracts hardest at the
+   edge — that gradient of distortion is what the eye reads as a solid piece of
+   glass rather than a frosted sticker. CSS cannot displace pixels, but it can
+   reproduce the gradient: the orb itself blurs gently, and this masked ring
+   blurs and saturates much harder over just the outer band.
+
+   The mask is what keeps it a RING: an opaque outer annulus fading to fully
+   transparent before the centre, so the middle of the lens stays readable. */
+.screen-home-next .home-primary-btn.home-hero-play::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(7px) saturate(240%) brightness(1.06) !important;
+  backdrop-filter: blur(7px) saturate(240%) brightness(1.06) !important;
+  /* A NARROW band hugging the rim (transparent until 76%). Wider than this and
+     the annulus itself becomes the object — a frosted ring — instead of reading
+     as the thicker glass at the edge of a slab. */
+  -webkit-mask-image: radial-gradient(circle, transparent 76%, #000 92%);
+  mask-image: radial-gradient(circle, transparent 76%, #000 92%);
+}
+
+/* THE SPECULAR ARC.
+   A short, bright sliver of reflected light riding the top-left of the rim and
+   dying out before it reaches the sides — the single most Apple detail on the
+   whole element. A conic gradient gives the falloff; the same annular mask
+   keeps it on the edge instead of washing across the face. */
+.screen-home-next .home-primary-btn.home-hero-play::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(
+    from 214deg,
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0.9) 46deg,
+    rgba(255, 255, 255, 0.24) 88deg,
+    rgba(255, 255, 255, 0) 132deg,
+    rgba(255, 255, 255, 0) 250deg,
+    rgba(196, 236, 255, 0.34) 296deg,
+    rgba(255, 255, 255, 0) 340deg
+  );
+  -webkit-mask-image: radial-gradient(circle, transparent 84%, #000 95%);
+  mask-image: radial-gradient(circle, transparent 84%, #000 95%);
 }
 
 .screen-home-next .home-primary-btn.home-hero-play svg {
-  width: 46px;
-  height: 46px;
+  position: relative;
+  z-index: 1;
+  /* 38px on a 104px lens, not 46px: the glyph is a passenger inside the glass,
+     not the button itself. Nudged 2px right — a triangle's optical centre sits
+     left of its bounding box. */
+  width: 38px;
+  height: 38px;
+  margin-left: 2px;
   fill: #ffffff;
   filter: drop-shadow(0 2px 6px rgba(0, 20, 45, 0.45));
 }
@@ -1046,15 +1136,22 @@
   background: rgba(255, 255, 255, 0.035);
   color: #ffffff;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
-    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
-    0 6px 18px rgba(0, 7, 20, 0.35);
+    /* Same material law as the hero lens: the EDGE carries the glass. Hairline,
+       bright top-left filament, cooler bottom-right, and a dark inner filament
+       for the far face. */
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.4),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.5),
+    inset 0 0 4px -2px rgba(2, 14, 34, 0.45),
+    0 1px 3px rgba(0, 7, 20, 0.3),
+    0 8px 20px rgba(0, 7, 20, 0.32);
   /* -webkit- FIRST, standard LAST (bug #175) — and !important on BOTH: with it
      on the standard line only, the normal-weight `-webkit-backdrop-filter: none`
-     flatten policy in styles.css wins for Safari while Chrome keeps the blur. */
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
-  backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
+     flatten policy in styles.css wins for Safari while Chrome keeps the blur.
+     blur 6px, not 12px: on a 44px disc a 12px blur wipes out everything behind
+     it, and glass with nothing left to refract is just a pale grey coin. */
+  -webkit-backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
+  backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
 }
 
 .screen-home-next .home-action-btn svg {
@@ -1394,9 +1491,25 @@
   }
 
   .screen-home-next .home-hero-scrim {
+    /* Legibility is carried by ONE wedge under the copy (bottom-left), not by a
+       full-card wash. The old pair covered the whole photo at 0.8-0.92, which
+       left the top-right — where the lens sits — as flat murk with no structure
+       to refract. Glass needs a real backdrop; this keeps that corner open. */
     background:
-      linear-gradient(180deg, rgba(1, 8, 21, 0.22) 0%, rgba(1, 9, 24, 0.22) 36%, rgba(1, 9, 24, 0.92) 100%),
-      linear-gradient(90deg, rgba(1, 9, 24, 0.8), rgba(2, 13, 31, 0.12) 80%);
+      /* Anchored to the BOTTOM-LEFT corner, which is exactly where the copy
+         lives — so the title, location and genre line always sit on their own
+         shadow no matter how bright that part of the photo is, while the
+         top-right corner (the lens) stays open. A linear wedge could not do
+         both: it either underlit the copy or flattened the corner the glass
+         needs to refract. */
+      radial-gradient(
+        126% 104% at 0% 100%,
+        rgba(1, 8, 21, 0.94) 0%,
+        rgba(1, 9, 24, 0.68) 36%,
+        rgba(1, 9, 24, 0.2) 64%,
+        rgba(1, 9, 24, 0) 82%
+      ),
+      linear-gradient(180deg, rgba(1, 8, 21, 0) 34%, rgba(1, 8, 21, 0.44) 78%, rgba(1, 8, 21, 0.74) 100%);
   }
 
   .screen-home-next .home-hero-topline {
