@@ -16,6 +16,7 @@ import {
   type CatalogServiceLike
 } from './ai/catalogToolProvider.js';
 import { buildFallbackResult } from './ai/fallbacks.js';
+import { publicWebSources } from './ai/publicSources.js';
 import { createRollingVolumeCap } from './ai/volumeCap.js';
 import type {
   AssistantDeps,
@@ -24,6 +25,7 @@ import type {
   ChatTurn,
   DeepseekConfig,
   MusicService,
+  NowPlayingContext,
   UserTasteContext,
   WebSearchProvider
 } from './ai/types.js';
@@ -113,6 +115,25 @@ export const parseChatHistory = (raw: unknown): ChatTurn[] => {
     }
   }
   return turns.slice(-MAX_HISTORY_TURNS);
+};
+
+const MAX_TRACK_CHARS = 180;
+const MAX_STATION_NAME_CHARS = 120;
+
+const parsePlaybackLabel = (raw: unknown, maxChars: number): string => {
+  if (typeof raw !== 'string') return '';
+  const value = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (value.length < 2) return '';
+  return value.slice(0, maxChars);
+};
+
+export const parseNowPlayingContext = (raw: unknown): NowPlayingContext | undefined => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  const track = parsePlaybackLabel(value.track, MAX_TRACK_CHARS);
+  if (!track) return undefined;
+  const stationName = parsePlaybackLabel(value.stationName, MAX_STATION_NAME_CHARS);
+  return { track, ...(stationName ? { stationName } : {}) };
 };
 
 const MAX_TASTE_IDS = 80;
@@ -247,14 +268,17 @@ export const registerAiRoutes = (
         history,
         surface: 'miniapp',
         locale,
-        userTaste: parseUserTasteContext(req.body?.userTaste)
+        userTaste: parseUserTasteContext(req.body?.userTaste),
+        nowPlaying: parseNowPlayingContext(req.body?.nowPlaying)
       });
       recordChatTelemetry('miniapp', startedAt, result);
       res.json({
         reply: result.reply,
         stations: result.stations,
         serviceLinks: result.serviceLinks,
-        sources: result.sources,
+        // Snippets/raw page content are private grounding context. Never send
+        // them to the browser; the UI only needs attribution metadata.
+        sources: publicWebSources(result.sources),
         actions: result.actions
       });
     } catch {

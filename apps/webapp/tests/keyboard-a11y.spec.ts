@@ -65,6 +65,44 @@ test.describe('dialog keyboard a11y', () => {
     expect(await activeMatches(page, '.mobile-nav-chat')).toBe(true);
   });
 
+  test('Lira keeps one conversation after closing, reopening, and reloading', async ({ page }) => {
+    await page.route('**/ai/chat', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          reply: 'Помню. Мы остановились на ночном джазе.',
+          stations: [],
+          serviceLinks: [],
+          sources: [],
+          actions: []
+        })
+      });
+    });
+
+    await page.goto('/?api=http://127.0.0.1:4311');
+    const trigger = page.locator('.mobile-nav-chat');
+    await trigger.click();
+
+    const sheet = page.locator('[data-chat-sheet]');
+    await sheet.locator('textarea').fill('Запомни: сегодня слушаем ночной джаз.');
+    await sheet.getByRole('button', { name: /Отправить|Send/ }).click();
+    await expect(sheet.getByText('Запомни: сегодня слушаем ночной джаз.')).toBeVisible();
+    await expect(sheet.getByText('Помню. Мы остановились на ночном джазе.')).toBeVisible();
+
+    await sheet.locator('.chat-close-btn').click();
+    await expect(sheet).toHaveCount(0);
+    await trigger.click();
+    await expect(sheet.getByText('Запомни: сегодня слушаем ночной джаз.')).toBeVisible();
+    await expect(sheet.getByText('Помню. Мы остановились на ночном джазе.')).toBeVisible();
+
+    await sheet.locator('.chat-close-btn').click();
+    await page.reload();
+    await page.locator('.mobile-nav-chat').click();
+    await expect(sheet.getByText('Запомни: сегодня слушаем ночной джаз.')).toBeVisible();
+    await expect(sheet.getByText('Помню. Мы остановились на ночном джазе.')).toBeVisible();
+  });
+
   // PR-4b: the theme builder's mobile sub-sheets portal to <body> with their
   // own useDialog — trap, Escape, and focus restoration must hold even with
   // the SettingsSheet dialog still open underneath.

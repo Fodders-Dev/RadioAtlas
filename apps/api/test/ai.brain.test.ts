@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildStationQuery, chatWithAssistant, isRejectRefreshIntent, parseGenreTags, summarizeStationSlate } from '../src/ai/brain.js';
+import {
+  buildStationQuery,
+  chatWithAssistant,
+  classifySongKnowledgeIntent,
+  isRejectRefreshIntent,
+  parseGenreTags,
+  summarizeStationSlate
+} from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type {
   AssistantDeps,
@@ -708,6 +715,167 @@ test('WEB SEARCH cultural explainer: YMCA question grounds in sources, not rando
   const text = composeText(calls);
   assert.ok(text.includes('Раздели ответ на три слоя'), 'cultural-explainer note reached composer');
   assert.ok(text.includes('Young Men’s Christian Association'), 'source snippet grounded the answer');
+});
+
+test('SONG KNOWLEDGE classifier keeps lyrics/meaning/context out of radio search intent', () => {
+  assert.deepEqual(classifySongKnowledgeIntent('дай текст песни Numb Linkin Park'), {
+    lyrics: true,
+    meaning: false,
+    context: false,
+    translation: false,
+    referencesCurrentTrack: false,
+    any: true
+  });
+  const analysis = classifySongKnowledgeIntent(
+    'О чём этот трек, что хотел рассказать автор и каков контекст создания песни?'
+  );
+  assert.equal(analysis.meaning, true);
+  assert.equal(analysis.context, true);
+  assert.equal(analysis.referencesCurrentTrack, true);
+  assert.equal(classifySongKnowledgeIntent('включи радио в стиле Linkin Park').any, false);
+});
+
+test('SONG LYRICS: returns a source link deterministically and never searches stations or composes lyrics', async () => {
+  let webQuery = '';
+  let stationSearches = 0;
+  const lyricSource: WebSource = {
+    title: 'Numb Lyrics | Musixmatch',
+    url: 'https://www.musixmatch.com/lyrics/Linkin-Park/Numb',
+    snippet: 'Lyrics page for Numb by Linkin Park.',
+    score: 0.97
+  };
+  const { fetchImpl, calls } = makeFetch({ compose: 'This must never run.' });
+  const result = await chatWithAssistant(
+    ask('дай текст песни Numb Linkin Park'),
+    makeDeps(fetchImpl, {
+      tools: {
+        ...stubTools,
+        searchStations: async () => {
+          stationSearches += 1;
+          return [station()];
+        }
+      },
+      webSearch: {
+        search: async (query) => {
+          webQuery = query;
+          return { status: 'ok', sources: [lyricSource] };
+        }
+      }
+    })
+  );
+
+  assert.match(webQuery, /Numb Linkin Park.*lyrics.*Musixmatch.*Genius/i);
+  assert.equal(stationSearches, 0);
+  assert.equal(calls.length, 0, 'pure lyrics lane never asks the model to reproduce lyrics');
+  assert.deepEqual(result.stations, []);
+  assert.deepEqual(result.serviceLinks, []);
+  assert.equal(result.sources[0]?.url, lyricSource.url);
+  assert.match(result.reply, /Полный текст.*не копирую.*ссылка под сообщением/i);
+});
+
+test('SONG LYRICS without Tavily still returns a free external lyrics search link', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'This must never run.' });
+  const result = await chatWithAssistant(
+    ask('найди текст песни Space Oddity David Bowie'),
+    makeDeps(fetchImpl)
+  );
+  assert.equal(calls.length, 0);
+  assert.equal(result.sources.length, 1);
+  assert.match(result.sources[0]?.url || '', /^https:\/\/genius\.com\/search\?q=/);
+  assert.match(decodeURIComponent(result.sources[0]?.url || ''), /Space Oddity David Bowie/i);
+  assert.match(result.reply, /нашла страницу|ссылка под сообщением/i);
+});
+
+test('SONG MEANING: resolves «этот трек» from bounded now-playing and separates sourced facts from interpretation', async () => {
+  const webCalls: Array<{ query: string; includeContent?: boolean }> = [];
+  const lyricSource: WebSource = {
+    title: 'Numb Lyrics | Musixmatch',
+    url: 'https://www.musixmatch.com/lyrics/Linkin-Park/Numb',
+    snippet: `CLEANED LYRICS CONTENT\n${'verse image and emotional turn '.repeat(40)}`,
+    score: 0.97
+  };
+  const contextSource: WebSource = {
+    title: 'Linkin Park discuss Numb',
+    url: 'https://example.com/linkin-park-numb-interview',
+    snippet: 'The band discussed pressure and failing to meet another person’s expectations.',
+    score: 0.94
+  };
+  const { fetchImpl, calls } = makeFetch({
+    compose: 'Буквально это песня о давлении чужих ожиданий. Я бы прочитала её как попытку вернуть себе собственный голос.'
+  });
+  const result = await chatWithAssistant(
+    ask('О чём этот трек, какой смысл и контекст создания?', {
+      nowPlaying: { track: 'Linkin Park - Numb', stationName: 'Rock Wave' }
+    }),
+    makeDeps(fetchImpl, {
+      webSearch: {
+        search: async (query, opts) => {
+          webCalls.push({ query, includeContent: opts.includeContent });
+          return {
+            status: 'ok',
+            sources: /lyrics/i.test(query) ? [lyricSource] : [contextSource]
+          };
+        }
+      }
+    })
+  );
+
+  assert.match(webCalls[0]?.query || '', /"Linkin Park - Numb".*lyrics.*Musixmatch.*Genius/i);
+  assert.equal(webCalls[0]?.includeContent, true, 'lyrics source requests cleaned page content');
+  assert.match(webCalls[1]?.query || '', /"Linkin Park - Numb".*meaning.*creation context.*interview/i);
+  assert.equal(webCalls[1]?.includeContent, false);
+  assert.deepEqual(result.stations, []);
+  assert.deepEqual(result.sources.map((source) => source.url), [lyricSource.url, contextSource.url]);
+  const text = composeText(calls);
+  assert.ok(text.includes('текущие метаданные плеера: «Linkin Park - Numb»'));
+  assert.ok(text.includes('Документированное намерение автора'));
+  assert.ok(text.includes('не более 10 слов'));
+  assert.ok(text.includes('Сначала прочитай его целиком'));
+  assert.ok(text.includes('CLEANED LYRICS CONTENT'));
+  assert.ok(text.includes(contextSource.snippet));
+});
+
+test('SONG MEANING without web search stays interpretive and does not invent creation history', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    compose: 'Я бы прочитала эту песню как разговор о потере связи; историю записи без источников придумывать не стану.'
+  });
+  const result = await chatWithAssistant(
+    ask('Разбери смысл песни Space Oddity и расскажи контекст создания'),
+    makeDeps(fetchImpl)
+  );
+  assert.deepEqual(result.sources, []);
+  assert.deepEqual(result.stations, []);
+  assert.equal(calls.filter((call) => call.phase === 'planner').length, 0);
+  assert.ok(composeText(calls).includes('Источников сейчас нет'));
+  assert.ok(composeText(calls).includes('историю создания и авторский замысел подтвердить не можешь'));
+});
+
+test('SONG LYRICS + MEANING: keeps the free lyrics link but does not mistake it for factual grounding', async () => {
+  const { fetchImpl, calls } = makeFetch({
+    compose: 'Ссылку на текст оставила ниже. Я бы прочитала песню как разговор о давлении чужих ожиданий.'
+  });
+  const result = await chatWithAssistant(
+    ask('Найди текст песни Numb Linkin Park и объясни её смысл'),
+    makeDeps(fetchImpl)
+  );
+  assert.equal(result.sources.length, 1);
+  assert.match(result.sources[0]?.url || '', /^https:\/\/genius\.com\/search\?q=/);
+  const text = composeText(calls);
+  assert.ok(text.includes('Человек также просил текст'));
+  assert.ok(text.includes('Источников сейчас нет'));
+  assert.ok(!text.includes('ИСТОЧНИК-ДАННЫЕ'), 'navigation-only fallback is not factual grounding');
+});
+
+test('SONG CURRENT TRACK: asks for artist/title when live metadata is unavailable', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'This must not run.' });
+  const result = await chatWithAssistant(
+    ask('О чём этот трек?'),
+    makeDeps(fetchImpl, { webSearch: webSearch([]) })
+  );
+  assert.equal(calls.length, 0);
+  assert.deepEqual(result.sources, []);
+  assert.deepEqual(result.stations, []);
+  assert.match(result.reply, /не вижу названия текущего трека.*исполнителя и название/i);
 });
 
 test('WEB SEARCH P0: web text rides an UNTRUSTED user message — stations stay in the trusted system block', async () => {

@@ -6,12 +6,21 @@ export type Surface = 'miniapp' | 'telegram';
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
+// Bounded, client-verified playback metadata. It lets a question such as
+// «о чём этот трек?» resolve against the live player without exposing stream
+// URLs or treating stale cached metadata as current.
+export type NowPlayingContext = {
+  track: string;
+  stationName?: string;
+};
+
 export type ChatInput = {
   userMessage: string;
   history?: ChatTurn[];
   surface: Surface;
   locale?: string;
   userTaste?: UserTasteContext;
+  nowPlaying?: NowPlayingContext;
 };
 
 export type UserTasteContext = {
@@ -172,7 +181,10 @@ export type WebSearchOutcome =
 // DI seam: the api binds this to the Tavily client; tests bind a stub. Absent
 // (undefined) ⇒ web search is OFF and the tool is never offered to the planner.
 export type WebSearchProvider = {
-  search: (query: string, opts: { fresh: boolean }) => Promise<WebSearchOutcome>;
+  search: (
+    query: string,
+    opts: { fresh: boolean; includeContent?: boolean }
+  ) => Promise<WebSearchOutcome>;
 };
 
 export type PlannerDecision = {

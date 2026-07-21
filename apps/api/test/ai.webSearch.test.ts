@@ -32,6 +32,29 @@ test('webSearch: maps Tavily results, drops below the 0.5 score floor', async ()
   assert.equal(out.sources[0]?.score, 0.9);
 });
 
+test('webSearch: lyrics analysis can request cleaned page content without poisoning snippet cache', async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body || '{}')) as Record<string, unknown>);
+    return okResponse([
+      result({
+        content: 'Short search snippet.',
+        raw_content: 'Cleaned full page content for private analysis.'
+      })
+    ]);
+  }) as unknown as typeof fetch;
+  const ws = createTavilyWebSearch({ apiKey: 'k', dailyCap: 300, fetch: fetchImpl, now: () => 0 });
+
+  const content = await ws.search('Song lyrics', { fresh: false, includeContent: true });
+  const snippet = await ws.search('Song lyrics', { fresh: false });
+
+  assert.equal(content.sources[0]?.snippet, 'Cleaned full page content for private analysis.');
+  assert.equal(snippet.sources[0]?.snippet, 'Short search snippet.');
+  assert.equal(bodies[0]?.include_raw_content, 'text');
+  assert.equal(bodies[1]?.include_raw_content, false);
+  assert.equal(bodies.length, 2, 'content and snippet modes use separate cache keys');
+});
+
 test('webSearch (d): the daily cap refuses WITHOUT calling fetch', async () => {
   let fetchCalls = 0;
   const fetchImpl = (async () => {
