@@ -58,6 +58,9 @@ test.describe('dialog keyboard a11y', () => {
 
     const sheet = page.locator('[data-chat-sheet]');
     await expect(sheet).toBeVisible();
+    await expect(sheet.locator('[data-lira-mark]').first()).toBeVisible();
+    await expect(sheet.locator('.chat-now-playing')).toHaveCount(0);
+    await expect(sheet.getByText(/один постоянный чат|one persistent chat/i)).toBeVisible();
     expect(await focusIsInside(page, '[data-chat-sheet]')).toBe(true);
 
     await page.keyboard.press('Escape');
@@ -89,12 +92,14 @@ test.describe('dialog keyboard a11y', () => {
     await sheet.getByRole('button', { name: /Отправить|Send/ }).click();
     await expect(sheet.getByText('Запомни: сегодня слушаем ночной джаз.')).toBeVisible();
     await expect(sheet.getByText('Помню. Мы остановились на ночном джазе.')).toBeVisible();
+    await expect(sheet.getByText(/единый чат · сохранён|single chat · saved/i)).toBeVisible();
 
     await sheet.locator('.chat-close-btn').click();
     await expect(sheet).toHaveCount(0);
     await trigger.click();
     await expect(sheet.getByText('Запомни: сегодня слушаем ночной джаз.')).toBeVisible();
     await expect(sheet.getByText('Помню. Мы остановились на ночном джазе.')).toBeVisible();
+    await expect(sheet.getByText(/единый чат · сохранён|single chat · saved/i)).toBeVisible();
 
     await sheet.locator('.chat-close-btn').click();
     await page.reload();

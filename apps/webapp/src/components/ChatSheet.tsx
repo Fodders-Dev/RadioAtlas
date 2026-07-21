@@ -24,6 +24,7 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
 import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
+import { LiraMark } from './LiraMark';
 import './ChatSheet.css';
 
 type ChatMessage = {
@@ -229,6 +230,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
       .map((message) => ({ role: message.role, text: message.text }));
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
     const trustedTrack = nowPlaying?.trim();
+    const trustedStationName = player.current?.name?.trim();
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
     if (override === undefined) {
       setInput('');
@@ -238,10 +240,10 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     try {
       const response = await postChatMessage(text, history, {
         userTaste,
-        nowPlaying: trustedTrack
+        nowPlaying: trustedTrack || trustedStationName
           ? {
-              track: trustedTrack.slice(0, 220),
-              stationName: player.current?.name?.slice(0, 120)
+              ...(trustedTrack ? { track: trustedTrack.slice(0, 220) } : {}),
+              ...(trustedStationName ? { stationName: trustedStationName.slice(0, 120) } : {})
             }
           : undefined
       });
@@ -287,6 +289,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
   };
 
   const startFresh = () => {
+    if (!window.confirm(t('chat.clearChatConfirm'))) return;
     triggerSelectionHaptic();
     setMessages([]);
     setInput('');
@@ -322,22 +325,23 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
         <header className="chat-sheet-head">
           <div className="chat-identity">
             <span className="chat-lira-orb chat-lira-orb--header" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M14 4v10.2a3.6 3.6 0 1 1-2-3.22V6l8-2v8.2a3.6 3.6 0 1 1-2-3.22V6.56L14 7.6V4Z" />
-              </svg>
+              <LiraMark />
               <i />
             </span>
             <div className="chat-identity-copy">
               <span className="chat-kicker">{t('chat.kicker')}</span>
               <h1 id={titleId}>{t('chat.title')}</h1>
-              <span className="chat-online"><i aria-hidden="true" />{t('chat.status')}</span>
+              <span className="chat-online">
+                <i aria-hidden="true" />
+                {messages.length ? t('chat.threadSaved') : t('chat.status')}
+              </span>
             </div>
           </div>
           <div className="chat-head-actions">
             {messages.length ? (
               <button className="chat-history-btn" type="button" onClick={startFresh}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5a7 7 0 1 0 6.32 4H16l3.5-3.5L23 9h-2.55A9 9 0 1 1 12 3v2Zm-1 2h2v5.2l3.2 1.85-1 1.73L11 13.35V7Z" />
+                  <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.72 12H7.72L7 9Zm2.08 2 .48 8h1.5l-.24-8H9.08Zm4.1 0-.24 8h1.5l.48-8h-1.74Z" />
                 </svg>
                 <span>{t('chat.newChat')}</span>
               </button>
@@ -373,23 +377,6 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                 </div>
               </div>
 
-              {nowPlaying?.trim() ? (
-                <button
-                  className="chat-now-playing"
-                  type="button"
-                  onClick={() => void send(t('chat.currentTrackQuery'))}
-                >
-                  <span className="chat-now-playing-bars" aria-hidden="true"><i /><i /><i /></span>
-                  <span>
-                    <small>{t('chat.currentTrack')}</small>
-                    <strong>{nowPlaying.trim()}</strong>
-                  </span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m9 5 7 7-7 7V5Z" />
-                  </svg>
-                </button>
-              ) : null}
-
               <div className="chat-prompt-grid" aria-label={t('chat.quickPrompts')}>
                 {QUICK_PROMPTS.map((prompt) => (
                   <button
@@ -416,7 +403,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
             <div key={message.id} className={`chat-row chat-row--${message.role}`}>
               {message.role === 'assistant' ? (
                 <span className="chat-lira-orb chat-lira-orb--message" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path d="M14 4v10.2a3.6 3.6 0 1 1-2-3.22V6l8-2v8.2a3.6 3.6 0 1 1-2-3.22V6.56L14 7.6V4Z" /></svg>
+                  <LiraMark />
                 </span>
               ) : null}
               <div className="chat-message-stack">
@@ -513,7 +500,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
           {sending ? (
             <div className="chat-row chat-row--assistant">
               <span className="chat-lira-orb chat-lira-orb--message" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M14 4v10.2a3.6 3.6 0 1 1-2-3.22V6l8-2v8.2a3.6 3.6 0 1 1-2-3.22V6.56L14 7.6V4Z" /></svg>
+                <LiraMark />
               </span>
               <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
                 <span className="visually-hidden">{t('chat.thinking')}</span>

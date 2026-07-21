@@ -40,11 +40,17 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
   - Opens as an immersive full-screen conversation surface from the central
     navigation action. The visual language is layered Apple-inspired Liquid
     Glass with readable opaque fallbacks for unsupported/contrast modes.
-  - The empty state offers one-tap mood/place/genre prompts; the current thread
-    persists locally on the device and can be reset from the header.
+  - The empty state offers one-tap mood/place/genre prompts. Lira has one
+    persistent local thread: closing the surface and reopening it through the
+    Lira navigation action restores the conversation; clearing it is explicit
+    and confirmed from the header.
   - Her voice is a lively, self-possessed music friend with light friendly
     flirting: warm and teasing, never clingy and never romantically reciprocal.
-  - Resolves an explicitly named song or the trusted current now-playing track for lyrics and meaning questions.
+  - Resolves an explicitly named song or the trusted current now-playing track
+    for lyrics and meaning questions. Natural questions such as «что сейчас
+    играет?» read the live player context directly, without a separate button.
+  - Artist requests probe exact station-name matches before broad genre search,
+    so dedicated catalog stations win over generic pop/rock recommendations.
   - Before explaining a song, the lyrics-analysis lane requests cleaned page
     content from the external search provider when available, reads it as
     untrusted source data, and bases the literal-story analysis on that text.

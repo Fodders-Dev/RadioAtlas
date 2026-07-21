@@ -445,6 +445,15 @@ export const classifySongKnowledgeIntent = (message: string): SongKnowledgeInten
   };
 };
 
+const NOW_PLAYING_QUESTION =
+  /(?:^|[,.!?]\s*)(?:а\s+)?(?:что(?:\s+за)?(?:\s+(?:трек|песн[яюи]?|композиц[а-яё]*))?\s+(?:сейчас\s+)?(?:играет|звучит)(?:\s+(?:на\s+)?(?:радио|станци[а-яё]*|в\s+эфире))?|ка(?:кая|кой)\s+(?:песн[яюи]?|трек|композиц[а-яё]*)\s+(?:сейчас\s+)?(?:играет|звучит)|что\s+я\s+(?:сейчас\s+)?слушаю|кто\s+(?:это\s+)?(?:сейчас\s+)?(?:по[её]т|исполняет)|(?:назови|скажи)\s+(?:мне\s+)?(?:текущ(?:ий|ую)\s+)?(?:трек|песн[юя])|что\s+(?:сейчас\s+)?в\s+эфире|what(?:'s|\s+is)?\s+(?:this|currently|now)?\s*playing|what\s+(?:song|track)\s+is\s+(?:currently\s+|now\s+)?playing|who\s+(?:is\s+)?singing)(?:\s*[?!.])?$/i;
+
+// A direct playback-state question is answered from the trusted player context,
+// never from the model. This keeps «что сейчас играет?» fast and incapable of
+// inventing a track when a station has not exposed ICY metadata yet.
+export const isNowPlayingQuestion = (message: string): boolean =>
+  NOW_PLAYING_QUESTION.test(String(message || '').trim());
+
 const isKnowledgeQuestion = (message: string): boolean =>
   FACTUAL_QUESTION.test(message) ||
   TRIVIA_QUESTION.test(message) ||
@@ -1261,6 +1270,38 @@ export const chatWithAssistant = async (
   const surface = input.surface;
   const now = deps.now();
   const userMessage = String(input.userMessage || '').trim();
+  const currentTrack = safeContextLabel(input.nowPlaying?.track, 180);
+  const currentStationName = safeContextLabel(input.nowPlaying?.stationName, 120);
+
+  if (userMessage && isNowPlayingQuestion(userMessage)) {
+    const english = /^en(?:-|$)/i.test(String(input.locale || ''));
+    let reply: string;
+    if (currentTrack && currentStationName) {
+      reply = english
+        ? `You’re listening to “${currentTrack}” on “${currentStationName}” right now.`
+        : `Сейчас у тебя играет «${currentTrack}» на «${currentStationName}».`;
+    } else if (currentTrack) {
+      reply = english
+        ? `You’re listening to “${currentTrack}” right now.`
+        : `Сейчас у тебя играет «${currentTrack}».`;
+    } else if (currentStationName) {
+      reply = english
+        ? `You’re tuned to “${currentStationName}”, but it hasn’t shared the track title yet.`
+        : `Ты слушаешь «${currentStationName}», но она пока не отдала название трека.`;
+    } else {
+      reply = english
+        ? 'Nothing is playing in RadioAtlas right now. Start a station and ask me again.'
+        : 'Сейчас в RadioAtlas ничего не играет. Включи станцию и спроси меня ещё раз.';
+    }
+    return {
+      reply,
+      stations: [],
+      serviceLinks: [],
+      sources: [],
+      actions: [{ kind: 'none' }],
+      usage: { prompt: 0, completion: 0 }
+    };
+  }
 
   // Enabled-gate: no key / disabled → warm fallback, never a hard error.
   if (!deps.deepseek.enabled || !deps.deepseek.apiKey || !userMessage) {
@@ -1268,8 +1309,6 @@ export const chatWithAssistant = async (
   }
 
   const songKnowledgeIntent = classifySongKnowledgeIntent(userMessage);
-  const currentTrack = safeContextLabel(input.nowPlaying?.track, 180);
-  const currentStationName = safeContextLabel(input.nowPlaying?.stationName, 120);
   if (songKnowledgeIntent.any && songKnowledgeIntent.referencesCurrentTrack && !currentTrack) {
     return {
       reply: 'Я пока не вижу названия текущего трека. Напиши исполнителя и название песни — найду текст или разберу смысл без догадок.',
@@ -1336,10 +1375,40 @@ export const chatWithAssistant = async (
   // for a non-artist phrase, and a loose stem would mis-fire on «что-то типа кино»);
   // it only flips isSmalltalk so the planner runs and decides.
   const anchorQuery = culturalTags ? null : referenceAnchorQuery(userMessage);
+  const explicitArtist = culturalTags ? null : explicitArtistQuery(userMessage);
+  const curatedForcedArtist =
+    !culturalTags && forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null;
+  let catalogMatchedForcedArtist: string | null = null;
+  let catalogMatchedForcedStations: VerifiedStationRef[] = [];
+  // Unknown artist names used to go straight through literal station search,
+  // where broad tag hits (usually pop) buried exact catalog stations such as
+  // «Exclusively The Weeknd». Probe the station NAME index first, but only for a
+  // concrete non-genre action query; an empty probe falls back to normal search.
+  if (
+    !culturalTags &&
+    !preciseSearchPlan &&
+    !explicitArtist &&
+    !curatedForcedArtist &&
+    forcedQuery &&
+    !MUSIC_DESCRIPTOR.test(forcedQuery) &&
+    !hasVibeIntent(userMessage) &&
+    deps.tools.matchStationsByArtistName
+  ) {
+    try {
+      const exactNameMatches = await deps.tools.matchStationsByArtistName(forcedQuery);
+      if (exactNameMatches.length) {
+        catalogMatchedForcedArtist = forcedQuery;
+        catalogMatchedForcedStations = exactNameMatches;
+      }
+    } catch (error) {
+      deps.log(`ai artist name probe error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   const artistQuery = culturalTags
     ? null
-    : explicitArtistQuery(userMessage) ||
-      (forcedQuery && resolveCuratedArtist(forcedQuery) ? forcedQuery : null) ||
+    : explicitArtist ||
+      curatedForcedArtist ||
+      catalogMatchedForcedArtist ||
       (anchorQuery && resolveAnchorGenres(anchorQuery) ? anchorQuery : null);
 
   if (preciseSearchPlan) {
@@ -1412,10 +1481,20 @@ export const chatWithAssistant = async (
   } else if (artistQuery) {
     const artistArgs = { artist: artistQuery };
     usedSignatures.add(toolSignature('find_stations_by_artist', artistArgs));
-    const artistObs = await runTool('find_stations_by_artist', artistArgs, {
-      tools: deps.tools,
-      musicServices: deps.musicServices
-    });
+    const artistObs: ToolObservation =
+      catalogMatchedForcedArtist === artistQuery && catalogMatchedForcedStations.length
+        ? {
+            tool: 'find_stations_by_artist',
+            args: artistArgs,
+            found: true,
+            stations: catalogMatchedForcedStations,
+            grounding: 'name-match',
+            artist: artistQuery
+          }
+        : await runTool('find_stations_by_artist', artistArgs, {
+            tools: deps.tools,
+            musicServices: deps.musicServices
+          });
     observations.push(artistObs);
     if (artistObs.error) deps.log(`ai tool find_stations_by_artist error: ${artistObs.error}`);
     // No dedicated/name-matched station for this artist → search a curated
@@ -1439,7 +1518,11 @@ export const chatWithAssistant = async (
         if (collectVerifiedStations(observations).length > 0) break;
       }
     }
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+    // A verified artist-dedicated/name-matched card is already the most precise
+    // answer. Do not let a second planner pass dilute it with generic pop cards.
+    if (collectVerifiedStations(observations).length === 0) {
+      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+    }
   } else if (forcedQuery) {
     // Explicit play/rec intent with a concrete topic → ACT: search stations now
     // (deterministically, history notwithstanding), then keep planning for any

@@ -235,9 +235,19 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Cover now-playing transport, raw-content search gating/cache separation,
   prompt-injection fencing, and the song-analysis path with focused tests.
 
+## Lira playback context + exact artist stations (done)
+
+- [x] Reuse the approved lyre mark across navigation, header, assistant bubbles,
+  and typing state; remove the duplicate music-note glyphs.
+- [x] Answer natural current-track questions directly from the trusted live
+  player context and keep the active station available before metadata arrives.
+- [x] Prefer exact artist-name station matches (including `Exclusively The
+  Weeknd`) over generic genre slates without hijacking plain genre requests.
+- [x] Make the one-chat model explicit in the UI: return through the Lira nav
+  action, persistent local history, and confirmed clearing from the header.
+
 ## Next:
 
-Next: owner review the new Lira Liquid Glass screen at 390/426px; smoke-test the
-deployed lyrics analysis on a real current track in Telegram (cleaned text read,
-short excerpt, source link, cited creation context), then refresh the approved
+Next: owner smoke-test the deployed Lira thread return, natural current-track
+question, and exact The Weeknd station in Telegram; then refresh the approved
 Lira/Home visual baselines and upgrade the VPS runtime from Node 22 to Node 24.

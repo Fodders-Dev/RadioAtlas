@@ -36,4 +36,24 @@ describe('postChatMessage', () => {
       nowPlaying: { track: 'Artist — Song', stationName: 'Night Radio' }
     });
   });
+
+  it('can send the active station even before track metadata arrives', async () => {
+    localStorage.setItem(API_STORAGE_KEY, 'https://api.example.test');
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ reply: 'Станция играет.', stations: [], serviceLinks: [], sources: [], actions: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await postChatMessage('что сейчас играет?', [], {
+      nowPlaying: { stationName: 'Osaka Nights' }
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      nowPlaying: { stationName: 'Osaka Nights' }
+    });
+  });
 });

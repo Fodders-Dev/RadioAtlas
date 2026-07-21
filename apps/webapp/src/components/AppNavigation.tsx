@@ -1,6 +1,7 @@
 import type { AppSection } from '../types';
 import { useLocale } from '../state/LocaleContext';
 import { triggerSelectionHaptic } from '../lib/telegram';
+import { LiraMark } from './LiraMark';
 
 type NavItem = {
   id: AppSection;
@@ -41,58 +42,6 @@ const NAV_ITEMS: NavItem[] = [
     )
   }
 ];
-
-// «Лира» companion — an actual LYRE, the instrument she is named after.
-//
-// The previous glyph was a speech bubble with a music note crammed inside: a
-// generic chat mark that turned to mush at 24px. This is the instrument: two
-// arms sweeping out and down, the yoke crossing between them, three strings
-// hanging inside. Drawn open at the bottom on purpose — closing it with a bowl
-// makes the whole thing read as a basket.
-//
-// Weight is deliberately split: the frame is 2.0 so the silhouette lands first
-// at 21-27px, the strings are 0.95 at 0.78 opacity so they read as strings
-// rather than as more frame.
-//
-// `fill="none"` sits on every PATH, not just the <svg>: the desktop rail rule
-// (`.nav-rail-icon svg { fill: currentColor }`) would otherwise flood these
-// open outlines into a solid blob, and a CSS rule beats an attribute on the
-// <svg> — but not one on the path itself.
-const CHAT_ICON = (
-  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path
-      d="M9.7 9.6v6.7M12 9.6v7.4M14.3 9.6v6.7"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="0.95"
-      strokeLinecap="round"
-      opacity="0.78"
-    />
-    <path
-      d="M6.8 9h10.4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.45"
-      strokeLinecap="round"
-    />
-    <path
-      d="M8.7 19C6.5 15.3 5.5 11.9 5.5 8.7c0-2.1 1.1-3.4 2.8-3.4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M15.3 19c2.2-3.7 3.2-7.1 3.2-10.3 0-2.1-1.1-3.4-2.8-3.4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 type AppNavigationProps = {
   active: AppSection;
@@ -166,7 +115,7 @@ export const AppNavigation = ({
             <>
               {NAV_ITEMS.slice(0, 2).map(renderDesktopItem)}
               <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
-                <span className="nav-rail-icon">{CHAT_ICON}</span>
+                <span className="nav-rail-icon"><LiraMark /></span>
                 <span>{t('chat.launch')}</span>
               </button>
               {NAV_ITEMS.slice(2).map(renderDesktopItem)}
@@ -198,7 +147,7 @@ export const AppNavigation = ({
               aria-label={t('chat.launch')}
             >
               <span className="mobile-nav-chat-fab" aria-hidden="true">
-                {CHAT_ICON}
+                <LiraMark />
               </span>
               <span className="mobile-nav-chat-label">{t('chat.launch')}</span>
             </button>
