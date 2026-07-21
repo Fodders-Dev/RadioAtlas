@@ -132,6 +132,33 @@ test.describe('dialog keyboard a11y', () => {
     );
   });
 
+  test('Search topbar title still focuses the input when the Search chunk is slow', async ({
+    page
+  }) => {
+    // The test above races the lazy chunk and therefore only catches this ~2%
+    // of the time under load, 0% in isolation — so a revert of the fix would
+    // sail through a green suite. This one makes the race DETERMINISTIC by
+    // stalling the Search chunk, so it fails 100% on the old handler (which
+    // dropped the focus request outright when #search-hero-input did not exist
+    // yet) and passes on the retry.
+    await page.route('**/screens/Search.tsx*', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+    await page.goto('/');
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).click();
+
+    // Click the title while the screen is still a skeleton: the topbar lives in
+    // the always-loaded shell, so the button is there long before the input is.
+    const titleAction = page.locator('.app-topbar-title-action');
+    await titleAction.click();
+    await expect(page.locator('#search-hero-input')).toHaveCount(0);
+
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.id || ''), { timeout: 10_000 })
+      .toBe('search-hero-input');
+  });
+
   test('FullPlayerOverlay: focus trap, Escape, and focus restoration', async ({ page }) => {
     await page.goto('/');
     // Play a station so the dock (and its artwork trigger that opens the

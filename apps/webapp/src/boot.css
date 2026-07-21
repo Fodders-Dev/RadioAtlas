@@ -290,43 +290,12 @@ a {
   overflow: hidden;
 }
 
-.player-peek-handle,
-.player-peek-handle.dormant {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  max-width: min(168px, calc(100vw - 90px));
-  min-height: 28px;
-  padding: 4px 10px;
-  gap: 7px;
-  border: 0;
-  border-radius: 999px;
-  color: inherit;
-}
-
-.player-peek-pill {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.player-peek-label,
 .player-dock-title,
 .player-dock-track-button-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.player-peek-label {
-  display: block;
-  max-width: 60vw;
-  font-size: 10px;
-  line-height: 1.1;
 }
 
 .player-dock-title {

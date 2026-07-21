@@ -141,36 +141,6 @@
   box-shadow: 0 0 4px rgba(255, 74, 81, 0.7);
 }
 
-.screen-home-next .home-refresh-chip {
-  display: inline-grid;
-  place-items: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding-inline: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  /* Apple liquid glass, same as the topbar circles — not a dark blob. */
-  background: rgba(255, 255, 255, 0.035);
-  box-shadow:
-    inset 0 0 0 0.75px rgba(255, 255, 255, 0.4),
-    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
-    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.5),
-    inset 0 0 4px -2px rgba(2, 14, 34, 0.45),
-    0 1px 3px rgba(0, 7, 20, 0.28);
-  color: rgba(242, 249, 255, 0.95);
-  font-size: 0.72rem;
-  font-weight: 750;
-  cursor: pointer;
-  -webkit-backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05);
-  backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05);
-}
-
-.screen-home-next .home-refresh-chip svg {
-  width: 19px;
-  height: 19px;
-  fill: currentColor;
-}
-
 .screen-home-next .home-hero-body,
 .screen-home-next .home-hero-card.is-dense .home-hero-body {
   display: grid;
@@ -1454,8 +1424,21 @@
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+    /* The bar is INVISIBLE here — no fill, no border, no frost — but it is
+       floated over the hero and was still swallowing pointer events across its
+       full 362x54 box. A user who began the pull-down on the top strip of the
+       hero (where they see artwork with «Главная» floating on it) got nothing,
+       because the gesture's hit test found <header> instead of the hero. Only
+       the two utility circles and the title are real targets, so only they take
+       pointer events back. */
+    pointer-events: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card .app-topbar-title,
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card .app-topbar-actions {
+    pointer-events: auto;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card::before,
@@ -1600,26 +1583,6 @@
 
   .screen-home-next .home-hero-card.is-dense .home-hero-topline {
     display: flex;
-  }
-
-  .screen-home-next .home-refresh-chip {
-    width: 44px;
-    padding: 0;
-    overflow: hidden;
-    color: transparent;
-  }
-
-  .screen-home-next .home-refresh-chip.is-loading::before {
-    content: '';
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(237, 249, 255, 0.94);
-    border-left-color: transparent;
-    border-radius: 50%;
-  }
-
-  .screen-home-next .home-refresh-chip svg {
-    color: rgba(237, 249, 255, 0.94);
   }
 
   .screen-home-next .home-hero-body,
@@ -2170,8 +2133,17 @@
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+    /* Mirrors the <=720px block: this rule is a near-duplicate that also applies
+       across 721-959px, where the same invisible bar was still swallowing the
+       hero's top strip and killing the pull gesture there. */
+    pointer-events: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card .app-topbar-title,
+  .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card .app-topbar-actions {
+    pointer-events: auto;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-v2.glass-card::before,
@@ -2305,14 +2277,12 @@
    ============================================================ */
 :root[data-theme-mode='light'] .screen-home-next .home-section-title,
 :root[data-theme-mode='light'] .screen-home-next .home-section-head h2,
-:root[data-theme-mode='light'] .screen-home-next .home-quick-chips-head h2,
-:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-title {
+:root[data-theme-mode='light'] .screen-home-next .home-quick-chips-head h2 {
   color: var(--theme-text, #241a17);
   text-shadow: none;
 }
 
 :root[data-theme-mode='light'] .screen-home-next .home-section-see-all,
-:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-sub,
 :root[data-theme-mode='light'] .screen-home-next .home-section-copy,
 :root[data-theme-mode='light'] .screen-home-next .home-section-head p {
   color: var(--theme-muted, rgba(58, 44, 38, 0.62));
@@ -2337,40 +2307,51 @@
   fill: var(--theme-text, #241a17);
 }
 
-/* «Лента» row — same glass problem, same treatment. */
+/* «Лента» row — THE HERO'S LIP, IN BOTH THEMES.
+   Owner: «шов мешает». It was treated as page furniture and painted cream, but
+   it is welded to the hero: negative top margin, squared top corners, and it is
+   half of the pull gesture's hit zone. A cream strip butted against a dark photo
+   card read as a drawer someone left open under the hero. Following the HERO
+   instead of the page makes the two one object — which is also what the grip
+   promises when you pull it. The light-theme copy below is re-inked to match. */
 :root[data-theme-mode='light'] .screen-home-next .home-feed-hero {
-  /* This block outranks the dark rule above (0,3,0 vs 0,2,0), so without the
-     same treatment here the light theme silently kept the old slab: a full-width
-     `inset 0 1px 0` bevel and a 20px shadow cloud. Same law, warm ink. */
   border: 0;
-  background: rgba(255, 252, 248, 0.62);
+  background:
+    radial-gradient(120% 90% at 18% -18%, rgba(255, 255, 255, 0.12), transparent 52%),
+    rgba(14, 30, 50, 0.82);
   box-shadow:
-    inset 0 0 0 0.75px rgba(58, 44, 38, 0.16),
-    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
-    inset -1px -1.5px 1px -0.5px rgba(58, 44, 38, 0.08),
-    0 1px 3px rgba(58, 44, 38, 0.12);
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.3),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 0.86),
+    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.36),
+    0 1px 3px rgba(58, 44, 38, 0.16);
 }
 
-/* The grip is `rgba(255,255,255,0.28)` in dark — pure white at 28% on a near-white
-   light surface is invisible, and it is the one element that tells the user this
-   strip can be pulled. */
+:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-title {
+  color: #f7fbff;
+}
+
+:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-sub {
+  color: rgba(226, 238, 250, 0.78);
+}
+
+/* Back to white: the strip is dark in both themes now, so the warm-ink grip that
+   this block used to need would itself have been the invisible one. */
 :root[data-theme-mode='light'] .screen-home-next .home-feed-entry-grip {
-  background: rgba(58, 44, 38, 0.26);
+  background: rgba(255, 255, 255, 0.28);
 }
 
-/* The refresh chip: it sits on the PAGE (below the hero), not on artwork, so on
-   light it needs ink and a visible edge — as glass it was a pale ghost. */
-:root[data-theme-mode='light'] .screen-home-next .home-refresh-chip,
+/* The refresh circle sits ON the «Лента» strip, so it follows the strip into the
+   dark — warm ink on a dark strip would have been the pale ghost this time. */
 :root[data-theme-mode='light'] .screen-home-next .home-surface-refresh {
-  border-color: rgba(60, 45, 38, 0.22);
-  background: rgba(255, 252, 248, 0.9);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
   box-shadow:
-    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
-    0 1px 3px rgba(58, 44, 38, 0.14);
-  color: var(--theme-text, #241a17);
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.34),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 0.92),
+    0 1px 3px rgba(2, 14, 34, 0.28);
+  color: #f2f9ff;
 }
 
-:root[data-theme-mode='light'] .screen-home-next .home-refresh-chip svg,
 :root[data-theme-mode='light'] .screen-home-next .home-surface-refresh svg {
-  fill: var(--theme-text, #241a17);
+  fill: #f2f9ff;
 }

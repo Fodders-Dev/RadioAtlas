@@ -5,11 +5,11 @@
 }
 
 /* The peek keeps its original shorthand and its original alphas on purpose —
-   NOT because it is unpainted. It has two render branches (MiniPlayerDock.tsx
-   ~271): with no current station it is the dormant pill and .player-peek-handle
-   carries the visible paint, but with a station it also takes .player-dock-compact
-   and THIS rule is the surface under the artwork, title and three transport
-   buttons. Restructuring its paint is deferred rather than dismissed: the
+   NOT because it is unpainted. It now has ONE render branch: the dock returns
+   null when there is no current station, so the old dormant-pill branch (and
+   the .player-peek-* paint it carried) is gone. With a station the peek also
+   takes .player-dock-compact and THIS rule is the surface under the artwork,
+   title and three transport buttons. Restructuring its paint is deferred: the
    desktop visual baselines (helpers.ts seeds playerPresentation:'peek') shoot
    this element, and two of them — search-screen and library-screen — are
    zero-tolerance, so a 1px background-origin shift is a gate risk that belongs
@@ -125,11 +125,6 @@
     rgba(255, 255, 255, 0.05);
 }
 
-.player-peek-handle,
-.player-peek-handle.dormant {
-  max-width: min(168px, calc(100vw - 90px));
-}
-
 .player-dock.player-dock-bar .player-dock-title,
 .player-dock.player-dock-peek .player-dock-title {
   font-size: var(--text-sm);
@@ -139,15 +134,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.player-dock.player-dock-peek .player-peek-label {
-  display: block;
-  max-width: 60vw;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .player-dock .player-dock-track-button {
@@ -196,8 +182,7 @@
   justify-self: start;
 }
 
-.dock-more-btn,
-.dock-explore-btn {
+.dock-more-btn {
   order: 1;
 }
 
