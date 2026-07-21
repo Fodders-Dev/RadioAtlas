@@ -1430,7 +1430,9 @@
   .screen-home-next .home-hero-body,
   .screen-home-next .home-hero-card.is-dense .home-hero-body {
     grid-template-columns: minmax(0, 1fr) 98px;
-    gap: 12px;
+    /* 18, not 12: at 12 a long single-line name ends ~9px from the play orb and
+       reads as touching it. This is the gutter that keeps them apart. */
+    gap: 18px;
   }
 
   .screen-home-next .home-hero-station-logo,
@@ -1442,13 +1444,16 @@
 
   .screen-home-next .home-hero-title,
   .screen-home-next .home-hero-card.is-dense .home-hero-title {
-    max-width: 12ch;
+    /* 16ch, not 12ch: 12 characters is narrower than the copy column actually
+       is, so ordinary station names were being wrapped by the cap rather than
+       by the available space. */
+    max-width: 16ch;
     font-size: clamp(2.28rem, 11vw, 4.25rem);
   }
 
   .screen-home-next .home-hero-title.is-long,
   .screen-home-next .home-hero-card.is-dense .home-hero-title.is-long {
-    max-width: 14ch;
+    max-width: 100%;
     display: -webkit-box;
     overflow: hidden;
     font-size: clamp(1.72rem, 8vw, 2.65rem);
@@ -1886,7 +1891,8 @@
   }
 
   .screen-home-next .home-hero-topline {
-    min-height: 38px;
+    /* The refresh chip is gone, so this row is just the eyebrow pill. */
+    min-height: 32px;
   }
 
   .screen-home-next .home-hero-copy,
@@ -1907,8 +1913,16 @@
     line-height: 1.02;
   }
 
-  .screen-home-next .home-hero-title.is-long {
-    font-size: clamp(1.6rem, 5.8vw, 2.2rem);
+  /* Must carry the `.is-dense` variant too: an earlier block (~1452) styles
+     `.screen-home-next .home-hero-card.is-dense .home-hero-title.is-long`,
+     which out-specifies a bare `.home-hero-title.is-long` — so without this the
+     long-name step never applied on a phone and a LONG name rendered LARGER
+     (31.2px) than a short one (30.4px), which is exactly backwards. */
+  .screen-home-next .home-hero-title.is-long,
+  .screen-home-next .home-hero-card.is-dense .home-hero-title.is-long {
+    max-width: 100%;
+    font-size: clamp(1.5rem, 5.9vw, 2rem);
+    line-height: 1.05;
   }
 
   .screen-home-next .home-hero-subtitle,
