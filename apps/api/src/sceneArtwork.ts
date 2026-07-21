@@ -4,7 +4,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CLOUDFLARE_SCENE_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
-export const DEFAULT_SCENE_STYLE_VERSION = 'atlas-night-v1';
+// v2 (scene identity): light and palette are derived from WHERE the station is,
+// no longer a hardcoded navy/cyan night clause. The bump is the cache-migration
+// lever — v1 keys and v2 keys coexist on disk, so no cached image is ever served
+// against a prompt it was not generated from. deploy/server/configure-scene-artwork.sh
+// pins SCENE_ARTWORK_STYLE_VERSION and is the value that actually reaches
+// production keys; it must be bumped in lockstep with this constant.
+export const DEFAULT_SCENE_STYLE_VERSION = 'atlas-daylight-v2';
 export const DEFAULT_SCENE_DAILY_CAP = 60;
 export const SCENE_VIBES = [
   'chill',
@@ -19,6 +25,21 @@ export const SCENE_VIBES = [
 
 export type SceneVibe = (typeof SCENE_VIBES)[number];
 
+// Light/landscape bands derived from latitude. Deliberately coarse: the band is
+// a pure function of the station's country (see COUNTRY_LIGHT), so adding it to
+// the scene key costs ZERO extra cardinality for every station that carries a
+// country code — it only makes the key readable for operators.
+export const SCENE_LIGHTS = [
+  'polar',
+  'boreal',
+  'temperate',
+  'subtrop',
+  'tropic',
+  'global'
+] as const;
+
+export type SceneLight = (typeof SCENE_LIGHTS)[number];
+
 export type SceneArtworkStation = {
   stationuuid: string;
   name?: string | null;
@@ -26,6 +47,13 @@ export type SceneArtworkStation = {
   countrycode?: string | null;
   state?: string | null;
   tags?: string | null;
+  // Only consulted when the station carries no usable ISO country code. Per
+  // station coordinates are populated on ~21% of the catalog, so making them the
+  // primary light source would split a country's scenes by data-coverage
+  // accident rather than by anything a listener can perceive — and it would
+  // multiply the generation budget for exactly the largest countries.
+  geo_lat?: number | null;
+  geo_long?: number | null;
 };
 
 export type SceneDescriptor = {
@@ -33,6 +61,7 @@ export type SceneDescriptor = {
   country: string;
   countryIdentity: string;
   vibe: SceneVibe;
+  light: SceneLight;
   styleVersion: string;
   prompt: string;
   seed: number;
@@ -110,23 +139,216 @@ const SCENE_KEY_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,126}[a-z0-9])?$/;
 
 const VIBE_KEYWORDS: ReadonlyArray<readonly [SceneVibe, readonly string[]]> = [
   ['jazz', ['jazz', 'blues', 'soul', 'funk', 'swing', 'bebop']],
-  ['dance', ['dance', 'edm', 'electronic', 'house', 'techno', 'trance', 'club', 'disco']],
-  ['chill', ['chill', 'chillout', 'lounge', 'ambient', 'downtempo', 'lofi', 'easy listening', 'meditation']],
-  ['news', ['news', 'talk', 'speech', 'information', 'politics', 'current affairs']],
-  ['retro', ['oldies', 'retro', 'vintage', 'classic hits', '80s', '90s', '70s']],
-  ['road', ['rock', 'country', 'indie', 'alternative', 'metal', 'punk', 'americana']],
-  ['pop', ['pop', 'j-pop', 'k-pop', 'top 40', 'hits', 'chart']]
+  [
+    'dance',
+    ['dance', 'edm', 'electronic', 'house', 'techno', 'trance', 'club', 'disco', 'rave', 'groove']
+  ],
+  [
+    'chill',
+    [
+      'chill',
+      'chillout',
+      'lounge',
+      'ambient',
+      'downtempo',
+      'lofi',
+      'easy listening',
+      'meditation',
+      'relax',
+      'smooth'
+    ]
+  ],
+  [
+    'news',
+    ['news', 'talk', 'speech', 'information', 'politics', 'current affairs', 'nachrichten', 'info']
+  ],
+  [
+    'retro',
+    [
+      'oldies',
+      'retro',
+      'vintage',
+      'classic hits',
+      'nostalgia',
+      '60s',
+      '70s',
+      '80s',
+      '90s',
+      '1960s',
+      '1970s',
+      '1980s',
+      '1990s',
+      'gold'
+    ]
+  ],
+  [
+    'road',
+    ['rock', 'country', 'indie', 'alternative', 'metal', 'punk', 'americana', 'drive', 'highway']
+  ],
+  // 'j-pop'/'k-pop' are normalized to spaces before matching, so they are spelled
+  // the way the normalizer emits them.
+  ['pop', ['pop', 'j pop', 'k pop', 'top 40', 'hits', 'chart']]
 ];
 
+// Vibe supplies SUBJECT and ENERGY only. Time of day, weather and palette are a
+// separate, location-derived axis (LIGHT_PROMPTS) — that separation is the fix
+// for "everything renders as neon night": previously five of these eight strings
+// baked dusk/night/neon in independently of the global palette clause.
 const VIBE_PROMPTS: Record<SceneVibe, string> = {
-  chill: 'calm blue-hour atmosphere, soft reflections, spacious composition and gentle light',
-  dance: 'energetic neon nightlife, rhythmic city lights, saturated cyan and magenta accents',
-  jazz: 'elegant late-night mood, warm amber windows, deep shadows and sophisticated atmosphere',
-  news: 'modern metropolitan skyline, crisp architectural lines, confident restrained lighting',
-  pop: 'bright contemporary city atmosphere, vivid color accents, polished optimistic energy',
-  retro: 'timeless analog-film atmosphere, subtle grain, warm practical lights and nostalgic color',
-  road: 'cinematic open road or urban transit at dusk, motion, horizon lights and a sense of travel',
-  world: 'cinematic landscape and architecture, atmospheric local character and natural evening light'
+  chill: 'calm spacious composition, soft reflective surfaces, unhurried open air and room to breathe',
+  dance: 'high-energy graphic geometry, bold repeating shapes, a strong sense of rhythm and movement',
+  jazz: 'intimate refined interior mood, rich fabrics and polished wood, understated elegant detail',
+  news: 'modern civic and metropolitan architecture, crisp structural lines, composed and confident',
+  pop: 'playful contemporary street scene, clean bold colour blocking, buoyant optimistic energy',
+  retro: 'analog-film texture with fine grain, nostalgic mid-century shapes, signage-free period props',
+  road: 'open road and wide horizon, motion and distance, a sense of travelling somewhere',
+  world: 'characterful local landscape and vernacular architecture at a human scale'
+};
+
+// Light + palette per band. THREE variants each; which one a scene gets is chosen
+// by bytes of the scene digest, so it is fully deterministic and adds no keys —
+// two countries in the same band still read differently. No entry mentions night
+// or neon anywhere.
+const LIGHT_PROMPTS: Record<SceneLight, { light: readonly string[]; palette: readonly string[] }> = {
+  polar: {
+    light: [
+      'pale low-angle daylight with very long soft shadows',
+      'bright crisp overcast noon under a clean high sky',
+      'wide luminous daytime haze over open ground'
+    ],
+    palette: [
+      'cool silver-blue with pale gold highlights',
+      'muted slate and snow white with a soft rose accent',
+      'clear ice-blue with warm low sunlight'
+    ]
+  },
+  boreal: {
+    light: [
+      'soft northern morning light under thin high cloud',
+      'clear crisp afternoon sun with long shadows',
+      'even bright overcast daylight'
+    ],
+    palette: [
+      'deep pine green and weathered grey with warm amber highlights',
+      'cool blue-grey with muted ochre',
+      'fresh green, birch white and pale sky blue'
+    ]
+  },
+  temperate: {
+    light: [
+      'warm golden late-afternoon sun',
+      'clear high-noon daylight with crisp contrast',
+      'soft morning haze with gentle warm light'
+    ],
+    palette: [
+      'warm terracotta, olive green and honey gold',
+      'clean daylight blues with sandstone warmth',
+      'soft sage, cream and dusty rose'
+    ]
+  },
+  subtrop: {
+    light: [
+      'strong bright midday sun with sharp defined shadows',
+      'warm amber late-afternoon glow across dry air',
+      'hazy warm morning light with soft dust in the air'
+    ],
+    palette: [
+      'sun-bleached ochre and dry gold under a deep blue sky',
+      'warm coral, pale sand and turquoise',
+      'burnt sienna, cream and vivid azure'
+    ]
+  },
+  tropic: {
+    light: [
+      'brilliant equatorial midday sun',
+      'warm golden-hour daylight through humid air',
+      'bright clear light just after rain, surfaces still wet and reflective'
+    ],
+    palette: [
+      'vivid green, saturated turquoise and hot coral',
+      'rich emerald, mango yellow and deep sea blue',
+      'lush foliage green with warm terracotta and bright white'
+    ]
+  },
+  global: {
+    light: [
+      'clear natural daylight',
+      'soft diffused daylight under high cloud',
+      'warm open afternoon light'
+    ],
+    palette: [
+      'balanced natural colour with warm highlights',
+      'clean daylight tones with gentle contrast',
+      'warm neutral palette lifted by a single vivid accent'
+    ]
+  }
+};
+
+// Representative light band per ISO country code, grouped by band so the table
+// stays auditable. Static and deterministic on purpose: derived from the
+// population-weighted latitude of each country, NOT from catalog data (which
+// would drift between artifact refreshes and break key stability).
+const LIGHT_BAND_COUNTRIES: Record<Exclude<SceneLight, 'global'>, readonly string[]> = {
+  polar: ['is', 'no', 'fi', 'gl', 'fo', 'sj', 'ax', 'aq', 'tf'],
+  boreal: [
+    'se', 'ee', 'lv', 'lt', 'ru', 'by', 'dk', 'gb', 'ie', 'im', 'gg', 'je',
+    'nl', 'be', 'de', 'pl', 'cz', 'ca', 'kz', 'fk', 'pm'
+  ],
+  temperate: [
+    'fr', 'ch', 'at', 'sk', 'hu', 'si', 'hr', 'ba', 'rs', 'me', 'mk', 'ro',
+    'md', 'ua', 'bg', 'it', 'es', 'pt', 'ad', 'sm', 'va', 'mc', 'lu', 'li',
+    'gr', 'al', 'xk', 'tr', 'ge', 'am', 'az', 'mn', 'kg', 'uz', 'tj', 'tm',
+    'cn', 'jp', 'kr', 'kp', 'us', 'nz', 'ar', 'uy', 'cl', 'cy', 'mt', 'gi', 'ir'
+  ],
+  subtrop: [
+    'mx', 'ma', 'dz', 'tn', 'ly', 'eg', 'il', 'jo', 'lb', 'sy', 'iq', 'af',
+    'pk', 'np', 'bt', 'sa', 'kw', 'bh', 'qa', 'ae', 'om', 'tw', 'hk', 'mo',
+    'au', 'za', 'na', 'bw', 'zw', 'ls', 'sz', 'py', 'bm', 'ps', 'ye', 'in',
+    'bd', 'bs'
+  ],
+  tropic: [
+    'br', 'ph', 'id', 'co', 'pe', 've', 'ec', 'do', 'gh', 'th', 'lk', 'my',
+    'ke', 'ng', 'bo', 'gt', 'sg', 'sv', 'cr', 'hn', 'jm', 'pr', 'vn', 're',
+    'et', 'ht', 'sn', 'tt', 'pa', 'ni', 'cu', 'cw', 'tz', 'bb', 'lc', 'cv',
+    'um', 'mg', 'mu', 'ao', 'cd', 'as', 'ml', 'sr', 'vc', 'rw', 'pf', 'kh',
+    'gy', 'ky', 'ci', 'mw', 'gf', 'vi', 'nc', 'bf', 'mz', 'tg', 'mq', 'dm',
+    'gd', 'aw', 'zm', 'gp', 'io', 'mm', 'ai', 'pg', 'vu', 'ag', 'gu', 'mv',
+    'km', 'cx', 'sc', 'bi', 'sd', 'ne', 'yt', 'bz', 'sl', 'la', 'cf', 'vg',
+    'to', 'mh', 'so', 'st', 'pw', 'td', 'ss', 'ms', 'cg', 'gn', 'gq', 'wf',
+    'gw', 'nu', 'sh', 'ki', 'ga', 'lr', 'sx', 'sb', 'mr', 'dj', 'tl', 'gm',
+    'cc', 'tv', 'tc', 'fm', 'ck', 'nr', 'mf', 'ug', 'bj', 'cm', 'er', 'bn',
+    'fj', 'bq', 'mp', 'ws', 'tk', 'bl'
+  ]
+};
+
+const COUNTRY_LIGHT: ReadonlyMap<string, SceneLight> = new Map(
+  (Object.entries(LIGHT_BAND_COUNTRIES) as Array<[SceneLight, readonly string[]]>).flatMap(
+    ([light, codes]) => codes.map((code) => [code, light] as const)
+  )
+);
+
+// Absolute-latitude cut points, used only when no country code is available.
+const lightFromLatitude = (latitude: number): SceneLight => {
+  const absolute = Math.abs(latitude);
+  if (absolute >= 60) return 'polar';
+  if (absolute >= 50) return 'boreal';
+  if (absolute >= 35) return 'temperate';
+  if (absolute >= 23) return 'subtrop';
+  return 'tropic';
+};
+
+const selectSceneLight = (
+  countryCode: string,
+  latitude: number | null | undefined
+): SceneLight => {
+  const fromCountry = COUNTRY_LIGHT.get(countryCode);
+  if (fromCountry) return fromCountry;
+  const value = typeof latitude === 'number' ? latitude : Number.NaN;
+  // 0/0 is the Radio Browser "unknown coordinates" sentinel, not the Gulf of Guinea.
+  if (Number.isFinite(value) && value !== 0 && Math.abs(value) <= 90) {
+    return lightFromLatitude(value);
+  }
+  return 'global';
 };
 
 const normalizeText = (value: string | null | undefined) =>
@@ -168,45 +390,105 @@ const utcDay = (clock: SceneArtworkClock) => {
   return date.toISOString().slice(0, 10);
 };
 
-export const selectSceneVibe = (tags: string | null | undefined): SceneVibe => {
-  const normalized = normalizeLookupText(tags || '').replace(/[;,|/]+/g, ' ');
-  if (!normalized) return 'world';
+// Whole-word matching over a CLOSED keyword list. The caller's text is never
+// carried anywhere else: the only thing that escapes this function is one of the
+// eight SCENE_VIBES enum values, which is what makes it safe to feed an
+// attacker-controlled station name in.
+const matchVibe = (value: string | null | undefined): SceneVibe | null => {
+  const normalized = normalizeLookupText(value || '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  if (!normalized) return null;
   const padded = ` ${normalized} `;
   for (const [vibe, keywords] of VIBE_KEYWORDS) {
     if (keywords.some((keyword) => padded.includes(` ${keyword} `))) return vibe;
   }
-  return 'world';
+  return null;
 };
 
+// Tags stay the primary signal. The station NAME is a fallback, not an override:
+// tags are curated metadata, a name is marketing copy, so a name only speaks when
+// tags say nothing usable. «DFM DANCE GOLD 1990s» with empty tags now reaches
+// 'dance' instead of collapsing into the catch-all 'world' bucket.
+export const selectSceneVibe = (
+  tags: string | null | undefined,
+  name?: string | null
+): SceneVibe => matchVibe(tags) || matchVibe(name) || 'world';
+
 export const isValidSceneKey = (value: string): boolean => SCENE_KEY_PATTERN.test(value);
+
+// Deterministic variant choice from a slice of the scene digest. No Math.random,
+// no clock: the same scene key always yields the same sentence, forever. Because
+// the digest is itself derived from the key components, this widens the visual
+// spread WITHOUT adding a single new cache key.
+const pickVariant = <T>(options: readonly T[], digest: string, offset: number): T => {
+  const byte = Number.parseInt(digest.slice(offset, offset + 2), 16);
+  const index = Number.isFinite(byte) ? byte % options.length : 0;
+  return options[index] as T;
+};
+
+// The label that goes INTO THE PROMPT must be decided by the scene key, never by
+// the station's free-text `country` field. Two stations can share a key while
+// spelling their country differently («Deutschland» vs «Germany»); if the free
+// text reached the prompt, the cached image would be whichever of them happened
+// to generate first — the picture would be a function of traffic order rather
+// than of the station. Intl gives one canonical English name per ISO code, with
+// no table to maintain and no locale drift (the locale is pinned to 'en').
+const REGION_NAMES = new Intl.DisplayNames(['en'], { type: 'region' });
+
+const canonicalCountryLabel = (countryCode: string, freeText: string): string => {
+  if (/^[a-z]{2}$/.test(countryCode)) {
+    try {
+      const resolved = REGION_NAMES.of(countryCode.toUpperCase());
+      // Intl echoes the input back for codes it does not know.
+      if (resolved && resolved.toLowerCase() !== countryCode) {
+        return resolved.slice(0, MAX_COUNTRY_LABEL_LENGTH);
+      }
+    } catch {
+      // Unknown/ill-formed code — fall through to the free text, which in that
+      // case is itself part of the key via countrySlug.
+    }
+  }
+  return freeText;
+};
 
 export const buildSceneDescriptor = (
   station: SceneArtworkStation,
   styleVersion = DEFAULT_SCENE_STYLE_VERSION
 ): SceneDescriptor => {
   const countryCode = normalizeText(station.countrycode).toLowerCase();
-  const country = normalizeText(station.country).slice(0, MAX_COUNTRY_LABEL_LENGTH) || 'the world';
+  const rawCountry = normalizeText(station.country).slice(0, MAX_COUNTRY_LABEL_LENGTH) || 'the world';
+  const country = canonicalCountryLabel(countryCode, rawCountry);
   const countryIdentity = /^[a-z]{2}$/.test(countryCode)
     ? `cc:${countryCode}`
-    : `country:${normalizeLookupText(country) || 'world'}`;
-  const vibe = selectSceneVibe(station.tags);
+    : `country:${normalizeLookupText(rawCountry) || 'world'}`;
+  const vibe = selectSceneVibe(station.tags, station.name);
+  const light = selectSceneLight(countryCode, station.geo_lat);
   const normalizedStyle = slugify(
     normalizeText(styleVersion).slice(0, MAX_STYLE_VERSION_LENGTH),
     DEFAULT_SCENE_STYLE_VERSION,
     32
   );
-  const digestSource = `${countryIdentity}\n${vibe}\n${normalizedStyle}`;
+  const digestSource = `${countryIdentity}\n${vibe}\n${light}\n${normalizedStyle}`;
   const digest = createHash('sha256').update(digestSource).digest('hex');
   const countrySlug = /^[a-z]{2}$/.test(countryCode)
     ? countryCode
-    : slugify(country, 'world', 28);
-  const sceneKey = `${countrySlug}-${vibe}-${normalizedStyle}-${digest.slice(0, 12)}`;
+    : slugify(rawCountry, 'world', 28);
+  const sceneKey = `${countrySlug}-${vibe}-${light}-${normalizedStyle}-${digest.slice(0, 12)}`;
+  // The prompt is a PURE function of the four key components. That invariant is
+  // what makes a shared cache entry honest: two stations that resolve to the
+  // same file were always described by the same sentence, so whichever one
+  // triggered generation, the other is not served a mismatched picture.
+  const band = LIGHT_PROMPTS[light];
+  const lightClause = pickVariant(band.light, digest, 12);
+  const paletteClause = pickVariant(band.palette, digest, 14);
   const prompt = [
     `Wide cinematic editorial background inspired by ${country}.`,
-    VIBE_PROMPTS[vibe],
-    'Premium realistic photography, deep navy evening palette, luminous cyan accent, high detail.',
-    'Horizontal 4:3 composition with the visual focus on the right and clean darker negative space on the left for an app interface.',
-    'Atmospheric decorative artwork, not a claim of an exact real place.',
+    `${lightClause}, ${paletteClause}.`,
+    `${VIBE_PROMPTS[vibe]}.`,
+    'Premium realistic photography, natural daylight colour, high detail.',
+    'Horizontal 4:3 composition with the visual focus on the right and clean low-detail negative space on the left for an app interface.',
+    'Atmospheric decorative artwork, not a claim of an exact real place, building, studio or landmark.',
     'No text, letters, captions, logos, brands, flags, watermarks, people or faces.'
   ].join(' ');
   return {
@@ -214,6 +496,7 @@ export const buildSceneDescriptor = (
     country,
     countryIdentity,
     vibe,
+    light,
     styleVersion: normalizedStyle,
     prompt,
     seed: Number.parseInt(digest.slice(0, 8), 16) & 0x7fffffff
