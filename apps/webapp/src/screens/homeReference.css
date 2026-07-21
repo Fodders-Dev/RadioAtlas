@@ -209,9 +209,12 @@
   overflow: visible;
   color: #f7fbff;
   font-size: clamp(2.6rem, 6.4vw, 5.9rem);
-  font-weight: 560;
+  /* 700/-0.02em, was 560/-0.055em: at display sizes that tracking pulled the
+     letters into each other and the half-weight read as neither text nor
+     headline. */
+  font-weight: 700;
   line-height: 0.96;
-  letter-spacing: -0.055em;
+  letter-spacing: -0.02em;
   text-overflow: clip;
   text-wrap: balance;
   white-space: normal;
@@ -285,23 +288,20 @@
   box-shadow: 0 0 5px rgba(111, 234, 255, 0.3);
   opacity: 0.85;
   transform-origin: center;
-  /* Live equalizer: each bar bounces between 32% and 100% of its seeded height,
-     staggered per bar so it reads as reactive audio, not a static waveform. */
-  animation: home-eq 900ms ease-in-out infinite alternate;
+  /* AT REST BY DEFAULT. This used to bounce on `home-eq` forever, so the hero
+     showed a dancing equalizer with nothing playing — the owner rightly called
+     it out: it read as sound where there was none. The bars now simply stand at
+     their seeded heights; motion is reserved for `[data-live='true']` below,
+     which is driven by the real analyser. */
+  animation: none;
 }
 
-.screen-home-next .home-hero-waveform > span:nth-child(2n) {
-  animation-delay: -180ms;
-}
 .screen-home-next .home-hero-waveform > span:nth-child(3n) {
   animation-duration: 1150ms;
 }
 .screen-home-next .home-hero-waveform > span:nth-child(3n + 1) {
   animation-duration: 700ms;
   animation-delay: -90ms;
-}
-.screen-home-next .home-hero-waveform > span:nth-child(4n) {
-  animation-delay: -340ms;
 }
 .screen-home-next .home-hero-waveform > span:nth-child(5n) {
   animation-duration: 1300ms;
@@ -503,15 +503,20 @@
   padding: 0;
   border: 1px solid rgba(214, 249, 255, 0.6);
   border-radius: 50%;
+  /* Owner: «матовая колхозная кнопка плей». It was a half-opaque blue disc — the
+     0.54/0.50 fill covered the scene, so the blur behind it did nothing and the
+     result read as flat paint. Now it is genuinely a lens: an almost-empty
+     fill, a bright specular droplet, a cool rim, and the glow doing the work. */
   background:
-    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 40%),
-    linear-gradient(150deg, rgba(96, 205, 255, 0.54), rgba(16, 92, 160, 0.5));
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0) 42%),
+    radial-gradient(circle at 62% 84%, rgba(120, 226, 255, 0.28), rgba(120, 226, 255, 0) 58%),
+    rgba(255, 255, 255, 0.07);
   box-shadow:
-    0 22px 52px rgba(0, 13, 36, 0.5),
-    0 0 48px rgba(91, 224, 255, 0.42),
-    inset 0 2px 2px rgba(255, 255, 255, 0.85),
-    inset 0 -14px 34px rgba(0, 45, 92, 0.34),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    0 20px 46px rgba(0, 13, 36, 0.46),
+    0 0 42px rgba(91, 224, 255, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 1.5px 2px 2px -1.5px rgba(255, 255, 255, 0.98),
+    inset -1.5px -2px 2px -1.5px rgba(150, 225, 255, 0.5);
   color: #ffffff;
   /* !important overrides the global "content surfaces stay flat" policy that
      strips backdrop-filter from buttons — this orb is a deliberate liquid-glass

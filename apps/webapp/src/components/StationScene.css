@@ -39,19 +39,25 @@
 
 .station-scene[data-scene-pattern='dial']::before {
   background:
-    repeating-conic-gradient(
-      from var(--station-scene-angle),
-      rgba(255, 255, 255, 0.13) 0 7deg,
-      transparent 7deg 20deg
-    ),
-    radial-gradient(circle, transparent 0 26%, rgba(255, 255, 255, 0.14) 27% 30%, transparent 31%);
+    radial-gradient(circle at 72% 28%, rgba(255, 255, 255, 0.2), transparent 30%),
+    radial-gradient(ellipse at 18% 84%, rgba(255, 255, 255, 0.12), transparent 34%);
 }
 
+/* Owner: «картинка фона в клетку тоже колхозная». This drew a literal 28px
+   graph-paper grid across the card whenever a station had no generated scene —
+   hard 1px lines that read as a placeholder, not as artwork. Replaced with the
+   same soft light-fall the other fallbacks use, so a station without a scene
+   still looks deliberate. The 'dial' pattern had the same problem: repeating
+   hard conic spokes. Both now bend toward atmosphere rather than graph paper. */
 .station-scene[data-scene-pattern='grid']::before {
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.13) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(
+      calc(var(--station-scene-angle) + 64deg),
+      transparent 0 38%,
+      rgba(255, 255, 255, 0.12) 39% 47%,
+      transparent 48%
+    ),
+    radial-gradient(circle at 24% 74%, rgba(255, 255, 255, 0.18), transparent 26%);
 }
 
 .station-scene[data-scene-pattern='wave']::before {
