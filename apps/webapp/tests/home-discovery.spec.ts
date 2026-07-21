@@ -188,19 +188,33 @@ test.describe('T2.23 variety pass', () => {
   });
 
   test('mobile: Feed copy stays complete and station cards expose one play action', async ({ page }) => {
-    for (const width of [360, 390]) {
+    for (const width of [360, 390, 412]) {
       await page.setViewportSize({ width, height: 844 });
       await openHome(page);
 
       const feedCopy = page.locator('.home-feed-entry-sub');
       await expect(feedCopy).toBeVisible();
-      const copyMetrics = await feedCopy.evaluate((element) => ({
-        clientHeight: element.clientHeight,
-        scrollHeight: element.scrollHeight,
-        lineClamp: window.getComputedStyle(element).webkitLineClamp
-      }));
+      const copyMetrics = await feedCopy.evaluate((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return {
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          clientWidth: element.clientWidth,
+          // The natural width of the TEXT, not of the box. `scrollWidth` is
+          // clamped to the box for a nowrap+ellipsis element in some engines, so
+          // measuring the range is the only reading that cannot lie.
+          textWidth: range.getBoundingClientRect().width,
+          lineClamp: window.getComputedStyle(element).webkitLineClamp
+        };
+      });
       expect(copyMetrics.scrollHeight).toBeLessThanOrEqual(copyMetrics.clientHeight + 1);
       expect(copyMetrics.lineClamp).toBe('none');
+      // The test above only ever compared HEIGHTS, so for months the line read
+      // «Потяни вниз — станции одна за др...» on every phone width and nothing
+      // failed: 221px of text in a 184px box. Horizontal truncation is the way
+      // this copy actually breaks, so it is the thing that has to be asserted.
+      expect(copyMetrics.textWidth).toBeLessThanOrEqual(copyMetrics.clientWidth);
 
       const firstTile = page.locator('[data-home-rail="fresh-now"] [data-home-station]').first();
       await expect(firstTile.locator('.home-station-primary-action')).toHaveCount(1);
