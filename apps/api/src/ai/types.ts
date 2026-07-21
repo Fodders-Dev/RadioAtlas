@@ -10,7 +10,7 @@ export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 // «о чём этот трек?» resolve against the live player without exposing stream
 // URLs or treating stale cached metadata as current.
 export type NowPlayingContext = {
-  track: string;
+  track?: string;
   stationName?: string;
 };
 

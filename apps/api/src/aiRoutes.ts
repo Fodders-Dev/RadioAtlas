@@ -131,9 +131,12 @@ export const parseNowPlayingContext = (raw: unknown): NowPlayingContext | undefi
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const value = raw as Record<string, unknown>;
   const track = parsePlaybackLabel(value.track, MAX_TRACK_CHARS);
-  if (!track) return undefined;
   const stationName = parsePlaybackLabel(value.stationName, MAX_STATION_NAME_CHARS);
-  return { track, ...(stationName ? { stationName } : {}) };
+  if (!track && !stationName) return undefined;
+  return {
+    ...(track ? { track } : {}),
+    ...(stationName ? { stationName } : {})
+  };
 };
 
 const MAX_TASTE_IDS = 80;

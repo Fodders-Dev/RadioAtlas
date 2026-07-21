@@ -59,7 +59,7 @@ export type ChatUserTaste = {
 };
 
 export type ChatNowPlaying = {
-  track: string;
+  track?: string;
   stationName?: string;
 };
 

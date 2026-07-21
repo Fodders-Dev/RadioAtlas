@@ -23,6 +23,12 @@ const CATALOG: Row[] = [
     tags: 'радио ваня, russian'
   },
   { stationuuid: 'lp-1', name: 'Linkin Park Radio', url_resolved: 'http://s/lp', tags: 'rock' },
+  {
+    stationuuid: 'weeknd-1',
+    name: 'Exclusively The Weeknd',
+    url_resolved: 'https://streaming.exclusive.radio/er/theweeknd/icecast.audio',
+    tags: 'alternative r&b, pop'
+  },
   { stationuuid: 'jz', name: 'Paris Jazz', url_resolved: 'http://s/jz', tags: 'jazz' },
   { stationuuid: 'dead-cold', name: 'Coldplay Hits', url_resolved: '', tags: 'pop' } // no stream → skipped
 ];
@@ -68,6 +74,13 @@ test('matchStationsByArtistName: a station whose NAME contains the artist (token
   const cards = await provider.matchStationsByArtistName!('Linkin Park');
   assert.equal(cards.length, 1);
   assert.equal(cards[0]?.stationuuid, 'lp-1'); // «Linkin Park» ⊆ «Linkin Park Radio»
+});
+
+test('matchStationsByArtistName: The Weeknd resolves the real dedicated catalog station', async () => {
+  const cards = await provider.matchStationsByArtistName!('The Weeknd');
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0]?.stationuuid, 'weeknd-1');
+  assert.equal(cards[0]?.name, 'Exclusively The Weeknd');
 });
 
 test('matchStationsByArtistName: a name match with NO resolvable stream is skipped', async () => {

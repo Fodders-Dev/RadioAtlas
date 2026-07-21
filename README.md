@@ -146,6 +146,12 @@ words, and the attributed source link. Lira does not copy full copyrighted
 lyrics; user-supplied text can still be analyzed. Full in-app lyrics require an
 explicit display licence from a lyrics provider.
 
+Lira keeps one persistent conversation on the current device; reopen it with
+the central Lira navigation action. Every message carries the bounded active
+station/current-track context when available, so «что сейчас играет?» works as
+a normal chat question. Named-artist requests prefer exact dedicated stations
+from the RadioAtlas catalog before broader genre matches.
+
 ## Notes
 - Webapp pulls stations from Radio Browser and filters https streams.
 - Favorites and recently played are stored locally in the browser.

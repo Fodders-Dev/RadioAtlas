@@ -4,6 +4,7 @@ import {
   buildStationQuery,
   chatWithAssistant,
   classifySongKnowledgeIntent,
+  isNowPlayingQuestion,
   isRejectRefreshIntent,
   parseGenreTags,
   summarizeStationSlate
@@ -878,6 +879,33 @@ test('SONG CURRENT TRACK: asks for artist/title when live metadata is unavailabl
   assert.match(result.reply, /не вижу названия текущего трека.*исполнителя и название/i);
 });
 
+test('NOW PLAYING: a natural chat question reads the trusted live player without calling DeepSeek', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'This must not run.' });
+  const result = await chatWithAssistant(
+    ask('Что за трек сейчас играет на радио?', {
+      nowPlaying: { track: 'The Weeknd — Blinding Lights', stationName: 'Exclusively The Weeknd' }
+    }),
+    makeDeps(fetchImpl, { deepseek: deepseek({ enabled: false }) })
+  );
+  assert.equal(isNowPlayingQuestion('что я сейчас слушаю?'), true);
+  assert.equal(isNowPlayingQuestion('где сейчас играет The Weeknd?'), false);
+  assert.equal(calls.length, 0);
+  assert.match(result.reply, /The Weeknd — Blinding Lights/);
+  assert.match(result.reply, /Exclusively The Weeknd/);
+  assert.deepEqual(result.stations, []);
+});
+
+test('NOW PLAYING: names the active station honestly when it exposes no track metadata', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'This must not run.' });
+  const result = await chatWithAssistant(
+    ask('Что сейчас играет?', { nowPlaying: { stationName: 'Osaka Nights' } }),
+    makeDeps(fetchImpl)
+  );
+  assert.equal(calls.length, 0);
+  assert.match(result.reply, /Osaka Nights/);
+  assert.match(result.reply, /не отдала название трека/i);
+});
+
 test('WEB SEARCH P0: web text rides an UNTRUSTED user message — stations stay in the trusted system block', async () => {
   const { fetchImpl, calls } = makeFetch({
     planner: [
@@ -1247,6 +1275,35 @@ test('ARTIST ROUTING: a forced play of a curated artist («включи Руки
   const result = await chatWithAssistant(ask('включи Руки Вверх'), makeDeps(fetchImpl, { tools }));
   assert.equal(result.stations[0]?.stationuuid, 'uuid-ruki');
   assert.equal(result.actions[0]?.kind, 'play'); // explicit play verb → autoplay
+});
+
+test('ARTIST ROUTING: an uncurated artist command prefers an exact catalog station over generic pop', async () => {
+  let genericSearchCalled = false;
+  let artistNameProbes = 0;
+  const weekndStation = station({
+    stationuuid: 'uuid-weeknd',
+    name: 'Exclusively The Weeknd',
+    tags: ['alternative r&b', 'pop']
+  });
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => {
+      genericSearchCalled = true;
+      return [station({ stationuuid: 'uuid-generic-pop', name: 'Generic Pop FM', tags: ['pop'] })];
+    },
+    resolveArtistStation: async () => null,
+    matchStationsByArtistName: async (artist) => {
+      artistNameProbes += 1;
+      return /the weeknd/i.test(artist) ? [weekndStation] : [];
+    }
+  };
+  const { fetchImpl, calls } = makeFetch({ compose: 'Нашла точную станцию для The Weeknd.' });
+  const result = await chatWithAssistant(ask('включи The Weeknd'), makeDeps(fetchImpl, { tools }));
+  assert.ok(artistNameProbes >= 1);
+  assert.equal(genericSearchCalled, false);
+  assert.equal(calls.filter((call) => call.phase === 'planner').length, 0);
+  assert.equal(result.stations[0]?.stationuuid, 'uuid-weeknd');
+  assert.equal(result.actions[0]?.kind, 'play');
 });
 
 test('ARTIST ROUTING: a plain genre («включи джаз») is NOT hijacked by the artist tool', async () => {

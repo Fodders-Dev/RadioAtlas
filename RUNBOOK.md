@@ -71,8 +71,14 @@ terminals. If only Vite is running, `/api/image` proxy `ECONNREFUSED` messages a
 expected; they do not mean the webapp command was wrong.
 
 Lira song QA:
-- With a known current track, tap the in-chat now-playing prompt: the Mini App
-  must send bounded `track + stationName` context to `/ai/chat`.
+- With a known current track, ask «что сейчас играет?» in ordinary chat text:
+  the Mini App must send bounded `track + stationName` context to `/ai/chat` and
+  Lira must answer from it without a model call. When metadata is missing, she
+  may name the active station but must not invent a track.
+- Close and reopen Lira from the central navigation action, then reload the app:
+  the same single local thread must return. Clearing it requires confirmation.
+- Ask «включи The Weeknd»: the exact `Exclusively The Weeknd` catalog card must
+  lead; a generic pop slate must not replace it.
 - Ask for lyrics only: expect no full lyrics, an external source link, and no station cards.
 - Ask about meaning: with Tavily enabled, expect a lyrics-content search before
   the meaning/context search, one short excerpt at most, and a full-text source
