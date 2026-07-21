@@ -88,9 +88,11 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 - Favorites, recently played, and copied tracks live in localStorage on device (no server sync yet).
 - Generated station atmosphere is a separate visual layer, never a replacement
   for owner-provided station logos or Media Session artwork.
-- Scene identity is deterministic from country, controlled vibe, and style
-  version. Home discovery cards, Feed, and Full Player may prefer a ready cached
-  scene; every surface must retain the existing artwork/gradient fallback.
+- Scene identity is deterministic per station from its UUID, safe station-name
+  cue, curated music profile, location, and style version. A bounded harvested
+  track/artist snapshot may enrich generation without changing the key. Home
+  discovery cards, Feed, and Full Player may prefer a ready cached scene; every
+  surface must retain the existing artwork/gradient fallback.
 - Browsers have read-only scene access. Only an internal authenticated server
   command may call the image provider, and repeated station views must never
   trigger generation or consume provider quota.

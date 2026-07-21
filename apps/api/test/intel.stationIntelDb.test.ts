@@ -22,6 +22,10 @@ test('recordObservation inserts a row and upserts the artist index', () => {
   assert.equal(artists[0]?.lastSeen, 200);
   assert.equal(artists[1]?.artist, 'Justice');
   assert.equal(artists[1]?.obsCount, 1);
+  assert.deepEqual(store.recentTracks('s1', 2), [
+    'Justice - Genesis',
+    'Daft Punk - Da Funk'
+  ]);
   store.close();
 });
 

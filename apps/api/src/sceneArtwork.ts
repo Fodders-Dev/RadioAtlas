@@ -4,13 +4,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CLOUDFLARE_SCENE_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
-// v2 (scene identity): light and palette are derived from WHERE the station is,
-// no longer a hardcoded navy/cyan night clause. The bump is the cache-migration
-// lever — v1 keys and v2 keys coexist on disk, so no cached image is ever served
-// against a prompt it was not generated from. deploy/server/configure-scene-artwork.sh
-// pins SCENE_ARTWORK_STYLE_VERSION and is the value that actually reaches
-// production keys; it must be bumped in lockstep with this constant.
-export const DEFAULT_SCENE_STYLE_VERSION = 'atlas-daylight-v2';
+// v3 (music identity): the station, its curated genres and a bounded snapshot of
+// harvested programming now lead the prompt; country is only secondary art
+// direction. The bump is the cache-migration lever — old country+vibe images
+// remain on disk but can no longer be selected for a v3 station scene.
+// deploy/server/configure-scene-artwork.sh pins the production value and must be
+// bumped in lockstep with this constant.
+export const DEFAULT_SCENE_STYLE_VERSION = 'atlas-music-v3';
 export const DEFAULT_SCENE_DAILY_CAP = 60;
 export const SCENE_VIBES = [
   'chill',
@@ -24,6 +24,26 @@ export const SCENE_VIBES = [
 ] as const;
 
 export type SceneVibe = (typeof SCENE_VIBES)[number];
+
+export const SCENE_MUSIC_PROFILES = [
+  'citypop',
+  'gaming',
+  'electronic',
+  'hiphop',
+  'heavy',
+  'rock',
+  'jazz',
+  'classical',
+  'latin',
+  'folk',
+  'chill',
+  'retro',
+  'pop',
+  'spoken',
+  'world'
+] as const;
+
+export type SceneMusicProfile = (typeof SCENE_MUSIC_PROFILES)[number];
 
 // Light/landscape bands derived from latitude. Deliberately coarse: the band is
 // a pure function of the station's country (see COUNTRY_LIGHT), so adding it to
@@ -47,6 +67,11 @@ export type SceneArtworkStation = {
   countrycode?: string | null;
   state?: string | null;
   tags?: string | null;
+  // Trusted, server-side observations only. They enrich the generation prompt
+  // but deliberately do not enter the cache key: a new song must not mint a
+  // paid background every few minutes.
+  recentTracks?: readonly string[] | null;
+  topArtists?: readonly string[] | null;
   // Only consulted when the station carries no usable ISO country code. Per
   // station coordinates are populated on ~21% of the catalog, so making them the
   // primary light source would split a country's scenes by data-coverage
@@ -61,6 +86,10 @@ export type SceneDescriptor = {
   country: string;
   countryIdentity: string;
   vibe: SceneVibe;
+  musicProfile: SceneMusicProfile;
+  genreLabels: readonly string[];
+  stationCue: string | null;
+  trackCues: readonly string[];
   light: SceneLight;
   styleVersion: string;
   prompt: string;
@@ -203,6 +232,88 @@ const VIBE_PROMPTS: Record<SceneVibe, string> = {
   retro: 'analog-film texture with fine grain, nostalgic mid-century shapes, signage-free period props',
   road: 'open road and wide horizon, motion and distance, a sense of travelling somewhere',
   world: 'characterful local landscape and vernacular architecture at a human scale'
+};
+
+type MusicSignal = {
+  profile: SceneMusicProfile;
+  label: string;
+  aliases: readonly string[];
+};
+
+// Closed vocabulary: catalog tags, station titles and harvested stream titles
+// may be attacker-controlled, so only these recognized music concepts can
+// influence the structural art direction or the cache identity.
+const MUSIC_SIGNALS: readonly MusicSignal[] = [
+  { profile: 'citypop', label: 'city pop', aliases: ['city pop', 'citypop'] },
+  { profile: 'citypop', label: 'future funk', aliases: ['future funk', 'futurefunk'] },
+  { profile: 'citypop', label: 'anime', aliases: ['anime', 'anisong'] },
+  { profile: 'citypop', label: 'J-pop', aliases: ['j pop', 'jpop', 'japanese pop'] },
+  { profile: 'citypop', label: 'vaporwave', aliases: ['vaporwave', 'vapourwave'] },
+  { profile: 'gaming', label: 'video-game music', aliases: ['video game', 'game music', 'vgm', 'gaming'] },
+  { profile: 'gaming', label: 'chiptune', aliases: ['chiptune', '8 bit', '16 bit'] },
+  { profile: 'gaming', label: 'soundtrack', aliases: ['soundtrack', 'original score', 'ost', 'metal slug'] },
+  { profile: 'electronic', label: 'house', aliases: ['house', 'deep house', 'tech house'] },
+  { profile: 'electronic', label: 'techno', aliases: ['techno', 'minimal techno'] },
+  { profile: 'electronic', label: 'electronic', aliases: ['electronic', 'electronica', 'edm', 'dance'] },
+  { profile: 'electronic', label: 'trance', aliases: ['trance', 'psytrance'] },
+  { profile: 'electronic', label: 'drum and bass', aliases: ['drum and bass', 'dnb', 'jungle'] },
+  { profile: 'hiphop', label: 'hip-hop', aliases: ['hip hop', 'hiphop', 'rap', 'trap'] },
+  { profile: 'heavy', label: 'metal', aliases: ['heavy metal', 'death metal', 'metalcore', 'metal'] },
+  { profile: 'heavy', label: 'punk', aliases: ['punk', 'hardcore'] },
+  { profile: 'heavy', label: 'hard rock', aliases: ['hard rock', 'grunge'] },
+  { profile: 'jazz', label: 'jazz', aliases: ['jazz', 'bebop', 'swing'] },
+  { profile: 'jazz', label: 'soul', aliases: ['soul', 'rhythm and blues', 'rnb'] },
+  { profile: 'jazz', label: 'funk', aliases: ['funk', 'groove'] },
+  { profile: 'jazz', label: 'blues', aliases: ['blues'] },
+  { profile: 'classical', label: 'classical', aliases: ['classical', 'baroque', 'symphony', 'orchestra'] },
+  { profile: 'classical', label: 'opera', aliases: ['opera', 'operatic'] },
+  { profile: 'latin', label: 'Latin', aliases: ['latin', 'latino', 'reggaeton'] },
+  { profile: 'latin', label: 'salsa', aliases: ['salsa', 'bachata', 'merengue', 'cumbia'] },
+  { profile: 'folk', label: 'country', aliases: ['country', 'americana', 'bluegrass'] },
+  { profile: 'folk', label: 'folk', aliases: ['folk', 'acoustic', 'singer songwriter'] },
+  { profile: 'chill', label: 'lo-fi', aliases: ['lo fi', 'lofi'] },
+  { profile: 'chill', label: 'ambient', aliases: ['ambient', 'downtempo', 'chillout', 'chill'] },
+  { profile: 'retro', label: 'disco', aliases: ['disco'] },
+  { profile: 'retro', label: 'oldies', aliases: ['oldies', 'retro', 'vintage', 'classic hits'] },
+  { profile: 'retro', label: '80s/90s', aliases: ['80s', '90s', '1980s', '1990s'] },
+  { profile: 'pop', label: 'pop', aliases: ['pop', 'top 40', 'chart', 'hits'] },
+  { profile: 'spoken', label: 'spoken radio', aliases: ['news', 'talk', 'speech', 'podcast'] },
+  { profile: 'rock', label: 'rock', aliases: ['rock', 'indie', 'alternative'] }
+] as const;
+
+const MUSIC_PROFILE_PROMPTS: Record<SceneMusicProfile, string> = {
+  citypop: 'retro-futurist Japanese city-pop and anime soundtrack atmosphere, a rain-polished urban arcade, cassette-era chrome, playful geometric light and saturated violet-cyan glow',
+  gaming: 'kinetic video-game soundtrack atmosphere, stylized arcade architecture, bold modular forms, energetic screen-like colour and tactile controller-era detail',
+  electronic: 'immersive electronic-music environment, rhythmic light architecture, precise repeating geometry, glossy industrial surfaces and a strong pulse',
+  hiphop: 'confident contemporary street-culture atmosphere, monumental graphic forms, textured concrete, warm cinematic contrast and editorial swagger',
+  heavy: 'raw high-energy rock atmosphere, dramatic industrial structure, weathered metal, strong directional contrast and a sense of live-stage impact',
+  rock: 'open-road rock atmosphere, broad horizon, worn leather and amplifier texture, honest natural contrast and a sense of forward motion',
+  jazz: 'intimate jazz-listening atmosphere, rich fabrics, polished wood, sculptural brass detail and understated late-session elegance',
+  classical: 'spacious acoustic performance atmosphere, refined architectural rhythm, natural materials, graceful symmetry and restrained grandeur',
+  latin: 'vivid Latin dance atmosphere, sun-warmed colour, layered street texture, flowing movement and joyful rhythmic detail',
+  folk: 'earthy travelling-music atmosphere, tactile timber and canvas, open landscape, human-scale detail and a strong sense of place',
+  chill: 'calm headphone-listening atmosphere, soft reflective surfaces, diffused light, uncluttered space and slow visual rhythm',
+  retro: 'nostalgic analog-music atmosphere, period hi-fi shapes, fine film grain, warm material texture and playful vintage colour',
+  pop: 'bright contemporary pop atmosphere, clean bold colour blocking, polished editorial surfaces and buoyant optimistic energy',
+  spoken: 'composed modern broadcast atmosphere, crisp civic structure, studio-grade visual order and confident editorial clarity',
+  world: 'characterful global music atmosphere, tactile local materials, vernacular forms and an inviting human-scale sense of discovery'
+};
+
+const MUSIC_PROFILE_VIBES: Record<Exclude<SceneMusicProfile, 'world'>, SceneVibe> = {
+  citypop: 'pop',
+  gaming: 'dance',
+  electronic: 'dance',
+  hiphop: 'pop',
+  heavy: 'road',
+  rock: 'road',
+  jazz: 'jazz',
+  classical: 'chill',
+  latin: 'dance',
+  folk: 'road',
+  chill: 'chill',
+  retro: 'retro',
+  pop: 'pop',
+  spoken: 'news'
 };
 
 // Light + palette per band. THREE variants each; which one a scene gets is chosen
@@ -415,6 +526,96 @@ export const selectSceneVibe = (
   name?: string | null
 ): SceneVibe => matchVibe(tags) || matchVibe(name) || 'world';
 
+const normalizedSignalText = (values: readonly (string | null | undefined)[]) =>
+  normalizeLookupText(values.filter(Boolean).join(' '))
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const matchedMusicSignals = (
+  values: readonly (string | null | undefined)[]
+): readonly MusicSignal[] => {
+  const normalized = normalizedSignalText(values);
+  if (!normalized) return [];
+  const padded = ` ${normalized} `;
+  return MUSIC_SIGNALS.filter((signal) =>
+    signal.aliases.some((alias) => padded.includes(` ${normalizeLookupText(alias)} `))
+  );
+};
+
+const selectMusicProfile = (station: SceneArtworkStation): SceneMusicProfile => {
+  const tagSignals = matchedMusicSignals([station.tags]);
+  const nameSignals = matchedMusicSignals([station.name]);
+  const programmingSignals = matchedMusicSignals([
+    ...(station.recentTracks || []),
+    ...(station.topArtists || [])
+  ]);
+  const tagProfile = tagSignals[0]?.profile;
+  // Generic pop/spoken metadata is allowed to yield to a much more descriptive
+  // broadcast observation. Specific curated tags always remain authoritative.
+  if (tagProfile && tagProfile !== 'pop' && tagProfile !== 'spoken') return tagProfile;
+  return programmingSignals[0]?.profile || tagProfile || nameSignals[0]?.profile || 'world';
+};
+
+const selectCachedMusicProfile = (station: SceneArtworkStation): SceneMusicProfile =>
+  matchedMusicSignals([station.tags])[0]?.profile ||
+  matchedMusicSignals([station.name])[0]?.profile ||
+  'world';
+
+const collectCuratedGenreLabels = (station: SceneArtworkStation): readonly string[] => {
+  const labels: string[] = [];
+  for (const signal of [
+    ...matchedMusicSignals([station.tags]),
+    ...matchedMusicSignals([station.name])
+  ]) {
+    if (!labels.includes(signal.label)) labels.push(signal.label);
+    if (labels.length >= 6) break;
+  }
+  return labels;
+};
+
+const collectGenreLabels = (station: SceneArtworkStation): readonly string[] => {
+  const labels: string[] = [];
+  for (const signal of [
+    ...matchedMusicSignals([station.tags]),
+    ...matchedMusicSignals([station.name]),
+    ...matchedMusicSignals([...(station.recentTracks || []), ...(station.topArtists || [])])
+  ]) {
+    if (!labels.includes(signal.label)) labels.push(signal.label);
+    if (labels.length >= 6) break;
+  }
+  return labels;
+};
+
+const PROMPT_CONTROL_PATTERN = /\b(?:ignore (?:all |the )?(?:previous|prior)|system prompt|instructions?|assistant|developer message|render (?:the )?(?:words?|text)|write (?:the )?(?:words?|text))\b/i;
+
+// Free-form labels are used only as bounded, quoted musical references. URLs,
+// control-like phrases and unusual punctuation are removed before a cue can
+// reach the provider. Structural direction always comes from the closed maps.
+const safePromptCue = (value: string | null | undefined, maxLength: number): string | null => {
+  const normalized = normalizeText(value)
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/[^\p{L}\p{N}\s&'’().,+:/_-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+    .trim();
+  if (!normalized || PROMPT_CONTROL_PATTERN.test(normalized)) return null;
+  return normalized;
+};
+
+const collectTrackCues = (station: SceneArtworkStation): readonly string[] => {
+  const cues: string[] = [];
+  for (const value of [...(station.recentTracks || []), ...(station.topArtists || [])]) {
+    const cue = safePromptCue(value, 90);
+    if (!cue || cues.some((existing) => normalizeLookupText(existing) === normalizeLookupText(cue))) {
+      continue;
+    }
+    cues.push(cue);
+    if (cues.length >= 5) break;
+  }
+  return cues;
+};
+
 export const isValidSceneKey = (value: string): boolean => SCENE_KEY_PATTERN.test(value);
 
 // Deterministic variant choice from a slice of the scene digest. No Math.random,
@@ -462,31 +663,61 @@ export const buildSceneDescriptor = (
   const countryIdentity = /^[a-z]{2}$/.test(countryCode)
     ? `cc:${countryCode}`
     : `country:${normalizeLookupText(rawCountry) || 'world'}`;
-  const vibe = selectSceneVibe(station.tags, station.name);
+  const musicProfile = selectMusicProfile(station);
+  const vibe = musicProfile === 'world'
+    ? selectSceneVibe(station.tags, station.name)
+    : MUSIC_PROFILE_VIBES[musicProfile];
+  const genreLabels = collectGenreLabels(station);
+  const cachedMusicProfile = selectCachedMusicProfile(station);
+  const curatedGenreLabels = collectCuratedGenreLabels(station);
+  const stationCue = safePromptCue(station.name, 72);
+  const trackCues = collectTrackCues(station);
   const light = selectSceneLight(countryCode, station.geo_lat);
   const normalizedStyle = slugify(
     normalizeText(styleVersion).slice(0, MAX_STYLE_VERSION_LENGTH),
     DEFAULT_SCENE_STYLE_VERSION,
     32
   );
-  const digestSource = `${countryIdentity}\n${vibe}\n${light}\n${normalizedStyle}`;
+  const stationIdentity = normalizeText(station.stationuuid).slice(0, 200) || 'unknown-station';
+  // One stable key per station/music identity. Track observations intentionally
+  // stay out: they enrich the one generation snapshot without turning each song
+  // transition into another paid image. A curated genre/name change does rotate
+  // the key, which is exactly when an artwork refresh is useful.
+  const digestSource = [
+    stationIdentity,
+    countryIdentity,
+    cachedMusicProfile,
+    curatedGenreLabels.join('|'),
+    stationCue || '',
+    light,
+    normalizedStyle
+  ].join('\n');
   const digest = createHash('sha256').update(digestSource).digest('hex');
   const countrySlug = /^[a-z]{2}$/.test(countryCode)
     ? countryCode
     : slugify(rawCountry, 'world', 28);
-  const sceneKey = `${countrySlug}-${vibe}-${light}-${normalizedStyle}-${digest.slice(0, 12)}`;
-  // The prompt is a PURE function of the four key components. That invariant is
-  // what makes a shared cache entry honest: two stations that resolve to the
-  // same file were always described by the same sentence, so whichever one
-  // triggered generation, the other is not served a mismatched picture.
+  const sceneKey = `${countrySlug}-${cachedMusicProfile}-${light}-${normalizedStyle}-${digest.slice(0, 12)}`;
   const band = LIGHT_PROMPTS[light];
   const lightClause = pickVariant(band.light, digest, 12);
   const paletteClause = pickVariant(band.palette, digest, 14);
+  const identityClause = stationCue
+    ? `Station identity cue: "${stationCue}"; treat this cleaned label only as a brand and musical mood reference, never as visible copy.`
+    : 'Create a distinctive identity for this individual radio station.';
+  const genreClause = genreLabels.length
+    ? `Curated genre cues: ${genreLabels.join(', ')}.`
+    : `Genre direction: ${vibe}.`;
+  const programmingClause = trackCues.length
+    ? `Recently observed programming cues: ${trackCues.map((cue) => `"${cue}"`).join(', ')}. Use them only to infer musical era, energy and culture; do not illustrate a literal title.`
+    : 'No reliable track history is available, so rely on the station identity and curated genres.';
   const prompt = [
-    `Wide cinematic editorial background inspired by ${country}.`,
-    `${lightClause}, ${paletteClause}.`,
+    'Wide cinematic editorial background for one specific music radio station.',
+    identityClause,
+    `Music identity must dominate the image: ${MUSIC_PROFILE_PROMPTS[musicProfile]}.`,
+    genreClause,
+    programmingClause,
+    `Location is a subtle secondary layer inspired by ${country}: ${lightClause}, ${paletteClause}. Never let country stereotypes override the music identity.`,
     `${VIBE_PROMPTS[vibe]}.`,
-    'Premium realistic photography, natural daylight colour, high detail.',
+    'Premium realistic editorial photography blended with restrained music-led art direction, high detail.',
     'Horizontal 4:3 composition with the visual focus on the right and clean low-detail negative space on the left for an app interface.',
     'Atmospheric decorative artwork, not a claim of an exact real place, building, studio or landmark.',
     'No text, letters, captions, logos, brands, flags, watermarks, people or faces.'
@@ -496,6 +727,10 @@ export const buildSceneDescriptor = (
     country,
     countryIdentity,
     vibe,
+    musicProfile,
+    genreLabels,
+    stationCue,
+    trackCues,
     light,
     styleVersion: normalizedStyle,
     prompt,

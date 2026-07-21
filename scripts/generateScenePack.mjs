@@ -4,6 +4,10 @@ const apiBase = String(process.env.RADIOATLAS_API_URL || 'http://127.0.0.1:3001'
 const token = String(process.env.INTERNAL_WEBHOOK_TOKEN || '').trim();
 const requestedLimit = Number(process.env.SCENE_PACK_LIMIT || 50);
 const limit = Math.min(50, Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 50));
+const priorityIds = String(process.env.SCENE_PACK_STATION_IDS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 if (!token) {
   throw new Error('INTERNAL_WEBHOOK_TOKEN is required');
@@ -41,7 +45,7 @@ if (!stationIds.length) {
     throw new Error(`catalog summary failed (${summaryResponse.status})`);
   }
   const summary = await summaryResponse.json();
-  stationIds = collectStations(summary);
+  stationIds = [...priorityIds, ...collectStations(summary)];
 }
 
 stationIds = [...new Set(stationIds)].slice(0, limit);

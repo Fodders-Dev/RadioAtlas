@@ -191,6 +191,17 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Document local/VPS configuration and cover provider, auth, caching, and
   browser-client behavior with focused tests.
 
+## Station-specific music scenes (done)
+
+- [x] Replace shared `country + vibe` backgrounds with one versioned visual
+  identity per station; keep location as secondary art direction.
+- [x] Lead prompts with a safe station-name cue and a closed genre taxonomy,
+  including city pop/anime/future funk and game-soundtrack profiles.
+- [x] Enrich generation from harvested recent tracks and top artists while
+  keeping track rotation out of the paid cache key.
+- [x] Bump the production style to `atlas-music-v3`, seed by active style rather
+  than total legacy file count, and cover the Yumi Co. Radio mismatch directly.
+
 ## Designer-reference Home (done)
 
 - [x] Restore the computed live recommendation as a full-bleed Home hero with
@@ -248,6 +259,6 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 
 ## Next:
 
-Next: owner smoke-test the deployed Lira thread return, natural current-track
-question, and exact The Weeknd station in Telegram; then refresh the approved
+Next: owner smoke-test the new Yumi Co. Radio city-pop scene plus the deployed
+Lira thread return/current-track question in Telegram; then refresh approved
 Lira/Home visual baselines and upgrade the VPS runtime from Node 22 to Node 24.
