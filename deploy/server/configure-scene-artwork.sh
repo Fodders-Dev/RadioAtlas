@@ -49,6 +49,9 @@ upsert_env SCENE_ARTWORK_DIR "$SCENE_DIR"
 upsert_env SCENE_ARTWORK_DAILY_CAP 60
 upsert_env SCENE_ARTWORK_CONCURRENCY 1
 upsert_env SCENE_ARTWORK_QUEUE_MAX 100
-upsert_env SCENE_ARTWORK_STYLE_VERSION aurora-night-v1
+# THIS value — not DEFAULT_SCENE_STYLE_VERSION in apps/api/src/sceneArtwork.ts —
+# is what actually reaches production scene keys. Bump both together or the new
+# location-derived prompts silently keep serving the old night-palette images.
+upsert_env SCENE_ARTWORK_STYLE_VERSION atlas-daylight-v2
 
 echo "Persistent Workers AI scene cache configured."
