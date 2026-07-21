@@ -264,7 +264,6 @@ export const HomeHeroCard = ({
   const compactLayout = useCompactLayout();
   const station = module.station;
   const companionStations = dense || compactLayout ? [] : module.companionStations;
-  const moduleLabel = module.label?.trim();
 
   if (!station) {
     return (
@@ -305,8 +304,17 @@ export const HomeHeroCard = ({
       .flatMap((chunk) => (chunk.trim().length > 18 ? chunk.trim().split(/\s+/) : [chunk.trim()]))
       .map((tag) => tag.trim())
       .filter(Boolean)
+      // «No Tags» is a LITERAL tag string that Radio Browser ships on stations
+      // that have none — the hero was printing it as if it were a genre, so a
+      // Russian screen displayed the English words "No Tags" where the music
+      // should be. Five other modules (homeSurface, homeProfile, discoveryFeed,
+      // radioSession, stationDiversity) already drop it; the hero did not.
+      .filter((tag) => tag.toLowerCase() !== 'no tags')
       .slice(0, 3)
       .map((tag) => tag.replace(/(^|[\s-])(\p{L})/gu, (m) => m.toUpperCase()));
+    // Everything filtered out is the same as having had nothing: fall back to
+    // the place, never to a placeholder.
+    if (!parts.length) return stationLocation(station);
     return parts.join(' • ');
   })();
 
@@ -323,30 +331,26 @@ export const HomeHeroCard = ({
           «Лента» row, with the same aria-label — a duplicate that rendered as a
           third circle stacked under the settings/profile pair and read as an
           accident. The reference has no refresh in the hero. */}
-      <div className="home-hero-topline">
-        <div className="home-hero-eyebrow">
-          <span className="home-surface-kicker">
-            {t(
-              nowPlaying
-                ? onAir
-                  ? 'home.heroKickerNowPlaying'
-                  : 'home.heroKickerPaused'
-                : 'home.heroKicker'
-            )}
-          </span>
-          {moduleLabel ? <span className="home-surface-label">{moduleLabel}</span> : null}
-          {/* The LIVE dot used to render unconditionally — it claimed "LIVE" over
-              a mere recommendation with nothing playing. It now means what it
-              says: this station is on air RIGHT NOW, which is why it hangs off
-              `onAir` and not off `nowPlaying` (that one survives pause). */}
-          {onAir ? (
+      {/* Owner: «блок "Рекомендуем"/"Сейчас играет" — он бессмысленный!». He is
+          right, and it is worth naming why: the chip only ever restated what the
+          card already shows. «Сейчас играет» duplicated the LIVE dot beside it
+          and the playing state of the button; «Рекомендуем» labelled the one
+          surface that could not be anything else. The station name, place and
+          genre carry the meaning; a caption over them was pure chrome.
+
+          The LIVE dot stays — it is the one badge that says something the rest
+          of the card does not, and only when `onAir` is genuinely true. With the
+          kicker gone the row exists ONLY for the dot, so it renders only then. */}
+      {onAir ? (
+        <div className="home-hero-topline">
+          <div className="home-hero-eyebrow">
             <span className="home-hero-live-dot">
               <span aria-hidden="true" />
               {t('app.liveBadge')}
             </span>
-          ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <StationScene station={station} className="home-hero-scene" priority />
       <div className="home-hero-scrim" aria-hidden="true" />

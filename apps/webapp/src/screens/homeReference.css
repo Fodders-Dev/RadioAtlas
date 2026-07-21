@@ -35,8 +35,15 @@
 .screen-home-next .home-hero-card {
   position: relative;
   isolation: isolate;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* FLEX, not a 3-row grid. The grid declared `auto 1fr auto` but only ever had
+     TWO in-flow children (the topline and the body — the scene and the scrim are
+     absolutely positioned), so a third empty track plus its 18px gap was always
+     being reserved at the bottom. That was invisible while the topline was
+     mandatory; now that the topline renders only when the station is genuinely
+     on air, an empty first track would have shifted the body too. Flex has no
+     phantom tracks and its `gap` only applies between children that exist. */
+  display: flex;
+  flex-direction: column;
   min-height: clamp(340px, 42vh, 440px);
   gap: 18px;
   overflow: hidden;
@@ -81,28 +88,23 @@
 }
 
 .screen-home-next .home-hero-topline {
+  flex: 0 0 auto;
   align-items: center;
-  min-height: 44px;
+  /* Was min-height:44px to reserve room for the kicker chip. The row now holds
+     only the LIVE pill (32px) and only when on air, so a 44px floor would leave
+     12px of empty air above the station name. */
+  min-height: 0;
+}
+
+/* The body took the grid's `1fr`; under flex it needs the equivalent, or the
+   hero collapses to its content and stops filling its min-height. */
+.screen-home-next .home-hero-body,
+.screen-home-next .home-hero-card.is-dense .home-hero-body {
+  flex: 1 1 auto;
 }
 
 .screen-home-next .home-hero-eyebrow {
   gap: 10px;
-}
-
-.screen-home-next .home-surface-kicker,
-.screen-home-next .home-surface-label {
-  min-height: 32px;
-  border-color: transparent;
-  background: rgba(3, 14, 32, 0.3);
-  color: rgba(237, 247, 255, 0.78);
-  font-size: 0.82rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  /* -webkit- alias FIRST, standard LAST (bug #175); the alias was missing, so
-     this label had no frost on Safari / Telegram iOS. */
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
 }
 
 .screen-home-next .home-hero-live-dot {
@@ -111,11 +113,20 @@
   gap: 7px;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 82, 86, 0.46);
+  border: 0;
   border-radius: 999px;
-  background: rgba(111, 10, 21, 0.42);
-  box-shadow: 0 0 24px rgba(255, 38, 52, 0.18);
-  color: #ff7f82;
+  /* Was a red-tinted pill under a 24px neon bloom — the exact idiom PR #194
+     retired everywhere else, left behind here because the chip beside it used to
+     dominate the row. Now that this pill is ALONE on the hero it has to hold the
+     same material law: near-zero fill, hairline edge, no bloom. */
+  background: rgba(120, 12, 24, 0.3);
+  box-shadow:
+    inset 0 0 0 0.75px rgba(255, 138, 142, 0.5),
+    inset 1px 1.5px 1px -0.5px rgba(255, 226, 227, 0.9),
+    0 1px 3px rgba(24, 0, 4, 0.32);
+  color: #ff9a9d;
+  -webkit-backdrop-filter: blur(6px) saturate(190%) !important;
+  backdrop-filter: blur(6px) saturate(190%) !important;
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -125,8 +136,9 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #ff3239;
-  box-shadow: 0 0 12px rgba(255, 50, 57, 0.72);
+  background: #ff4a51;
+  /* A tight 4px halo reads as a lit indicator; the old 12px one read as neon. */
+  box-shadow: 0 0 4px rgba(255, 74, 81, 0.7);
 }
 
 .screen-home-next .home-refresh-chip {
@@ -140,16 +152,17 @@
   /* Apple liquid glass, same as the topbar circles — not a dark blob. */
   background: rgba(255, 255, 255, 0.035);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-    inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
-    inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
-    0 8px 24px rgba(0, 8, 20, 0.35);
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.4),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.5),
+    inset 0 0 4px -2px rgba(2, 14, 34, 0.45),
+    0 1px 3px rgba(0, 7, 20, 0.28);
   color: rgba(242, 249, 255, 0.95);
   font-size: 0.72rem;
   font-weight: 750;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
-  backdrop-filter: blur(12px) saturate(190%) brightness(1.15);
+  -webkit-backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05);
+  backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05);
 }
 
 .screen-home-next .home-refresh-chip svg {
@@ -420,8 +433,8 @@
   /* -webkit- FIRST, standard LAST (bug #175) — and !important on BOTH: with it
      on the standard line only, the normal-weight `-webkit-backdrop-filter: none`
      flatten policy in styles.css wins for Safari while Chrome keeps the blur. */
-  -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
-  backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
+  -webkit-backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
+  backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
 }
 
 .screen-home-next .home-quick-chip-icon {
@@ -722,22 +735,40 @@
   gap: 0;
   overflow: hidden;
   min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  /* Positioning context for the grip, which is centred over the WHOLE strip
+     (including the refresh circle) even though it must remain a descendant of
+     the button — ~65 e2e anchors depend on that parentage. */
+  position: relative;
+  border: 0;
   border-radius: 22px;
-  /* Transparent glass row (was a matte 0.78/0.86 slab). */
+  /* Owner: he dislikes how this block looks. It was a dark slab wearing a
+     different design language than the hero it hangs off: a flat border, an
+     `inset 0 1px 0` bevel bar running the full width, and a 10px blur that
+     erased the photo behind it. Same material law as PR #194 now — near-zero
+     fill, hairline edge with a top-left specular filament, modest blur that
+     CONCENTRATES the backdrop instead of deleting it. */
   background:
-    radial-gradient(120% 90% at 18% -18%, rgba(255, 255, 255, 0.14), transparent 50%),
-    rgba(12, 30, 52, 0.28);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
-  backdrop-filter: blur(10px) saturate(160%);
+    radial-gradient(120% 90% at 18% -18%, rgba(255, 255, 255, 0.1), transparent 52%),
+    rgba(10, 26, 46, 0.22);
+  box-shadow:
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.34),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 0.9),
+    inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.42),
+    inset 0 0 5px -2px rgba(2, 14, 34, 0.4),
+    0 1px 3px rgba(0, 7, 20, 0.26);
+  /* !important on BOTH lines, per bug #175: with it on the standard line only,
+     Safari / Telegram iOS falls back to a flatten policy while Chrome keeps the
+     blur — and Chromium here cannot show me that divergence. */
+  -webkit-backdrop-filter: blur(6px) saturate(210%) contrast(1.04) !important;
+  backdrop-filter: blur(6px) saturate(210%) contrast(1.04) !important;
 }
 
 .screen-home-next .home-feed-entry {
   min-width: 0;
   min-height: 44px;
   gap: 12px;
-  padding: 5px 12px;
+  /* Top padding clears the grip that now sits centred above the copy. */
+  padding: 15px 14px 9px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -748,17 +779,42 @@
   touch-action: pan-y;
 }
 
-/* Drag affordance: the handle you pull to grow the hero into the «Лента». */
-.screen-home-next .home-feed-entry-grip {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--home-cyan-strong, #bdf8ff) 46%, transparent);
+/* Visible keyboard focus. Measured: the button had no rule of its own anywhere in
+   the repo, so it fell back to the UA default `outline: auto 1px rgb(16,16,16)` —
+   near-black on a dark strip, i.e. invisible. Inset, because the strip clips its
+   children (`overflow: hidden` on .home-feed-hero) and an outer ring would be cut. */
+.screen-home-next .home-feed-entry:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent, #6ee7d8) 80%, white 20%);
 }
 
-.screen-home-next[data-hero-pull='ready'] .home-feed-entry-grip {
+/* Drag affordance: the handle you pull to grow the hero into the «Лента». */
+.screen-home-next .home-feed-entry-grip {
+  /* Centred at the top edge — the iOS sheet handle. As a leading inline dash it
+     read as a bullet next to a list row, which is precisely why the strip looked
+     like a card explaining a gesture rather than the hero's own bottom lip.
+     Absolute, so it centres over the full strip and leaves the copy flush left. */
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  transition: background 140ms ease, width 140ms ease;
+}
+
+.screen-home-next[data-hero-pull='ready'] .home-feed-entry-grip,
+.screen-home-next .home-feed-entry:hover .home-feed-entry-grip {
+  width: 44px;
   background: var(--home-cyan, #6feaff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-home-next .home-feed-entry-grip {
+    transition: none;
+  }
 }
 
 .screen-home-next .home-feed-entry-title {
@@ -769,6 +825,11 @@
   max-width: none;
   overflow: hidden;
   font-size: 0.76rem;
+  /* The ellipsis stays as a last-resort guard for long translations, but the
+     copy itself was shortened so it no longer fires: measured 221px of text in a
+     184px box at 360, 390 AND 412 — every phone width showed «…одна за др...».
+     The existing guard only compared scrollHeight, so horizontal clipping was
+     invisible to it; zz/home-discovery now asserts scrollWidth too. */
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -863,6 +924,11 @@
     margin-top: calc(-1 * var(--home-screen-gap, 0px));
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+    /* Bottom corners match the HERO's radius, not an unrelated 22px. The strip
+       is the hero's lower edge; a tighter radius under a wider card is what made
+       two shapes read as two objects stacked by accident. */
+    border-bottom-left-radius: clamp(26px, 3vw, 40px);
+    border-bottom-right-radius: clamp(26px, 3vw, 40px);
     border-top-color: transparent;
   }
 }
@@ -1414,7 +1480,7 @@
     letter-spacing: -0.045em;
     white-space: nowrap;
     text-overflow: ellipsis;
-    text-shadow: 0 3px 18px rgba(0, 5, 18, 0.5);
+    text-shadow: 0 1px 3px rgba(0, 8, 24, 0.42);
   }
 
   /* Never wrap the two action circles into a column (the base rule wraps;
@@ -1441,15 +1507,16 @@
        edge reads as a lens — a bright top-left arc + faint bottom-right arc. */
     background: rgba(255, 255, 255, 0.035);
     box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-      inset 1.5px 2px 1.5px -1.5px rgba(255, 255, 255, 0.95),
-      inset -1px -1.5px 1px -1px rgba(255, 255, 255, 0.4),
-      0 8px 24px rgba(0, 8, 20, 0.35);
+      inset 0 0 0 0.75px rgba(255, 255, 255, 0.4),
+      inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+      inset -1px -1.5px 1px -0.5px rgba(200, 238, 255, 0.5),
+      inset 0 0 4px -2px rgba(2, 14, 34, 0.45),
+      0 1px 3px rgba(0, 7, 20, 0.28);
     color: rgba(246, 251, 255, 0.96);
     /* !important on BOTH lines — see the note at ~399: a one-sided !important
        leaves Safari on the flatten policy's `none` while Chrome keeps glass. */
-    -webkit-backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
-    backdrop-filter: blur(12px) saturate(190%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
+    backdrop-filter: blur(6px) saturate(210%) brightness(1.06) contrast(1.05) !important;
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
@@ -1496,6 +1563,20 @@
        left the top-right — where the lens sits — as flat murk with no structure
        to refract. Glass needs a real backdrop; this keeps that corner open. */
     background:
+      /* Topbar legibility comes from the SURFACE, not from a cloud under the
+         glyphs. MEASURED: with only the corner wedge below, the brightest 5% of
+         the photo behind «Главная» sits at 0.57 luminance — white on that is a
+         1.63 contrast ratio, i.e. unreadable. That is precisely why an 18px
+         50%-alpha shadow had been bolted under the title, and why deleting that
+         shadow without adding surface would have shipped an invisible heading.
+         This band buys the same legibility honestly and dies to zero at 150px,
+         before the copy wedge starts, so the middle of the photo is untouched. */
+      linear-gradient(
+        180deg,
+        rgba(1, 8, 21, 0.62) 0,
+        rgba(1, 8, 21, 0.32) 76px,
+        rgba(1, 8, 21, 0) 150px
+      ),
       /* Anchored to the BOTTOM-LEFT corner, which is exactly where the copy
          lives — so the title, location and genre line always sit on their own
          shadow no matter how bright that part of the photo is, while the
@@ -1519,10 +1600,6 @@
 
   .screen-home-next .home-hero-card.is-dense .home-hero-topline {
     display: flex;
-  }
-
-  .screen-home-next .home-hero-topline .home-surface-label {
-    display: none;
   }
 
   .screen-home-next .home-refresh-chip {
@@ -2119,7 +2196,7 @@
     letter-spacing: -0.045em;
     white-space: nowrap;
     text-overflow: ellipsis;
-    text-shadow: 0 3px 18px rgba(0, 5, 18, 0.5);
+    text-shadow: 0 1px 3px rgba(0, 8, 24, 0.42);
   }
 
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn {
@@ -2262,11 +2339,23 @@
 
 /* «Лента» row — same glass problem, same treatment. */
 :root[data-theme-mode='light'] .screen-home-next .home-feed-hero {
-  border-color: rgba(60, 45, 38, 0.18);
-  background: rgba(255, 252, 248, 0.82);
+  /* This block outranks the dark rule above (0,3,0 vs 0,2,0), so without the
+     same treatment here the light theme silently kept the old slab: a full-width
+     `inset 0 1px 0` bevel and a 20px shadow cloud. Same law, warm ink. */
+  border: 0;
+  background: rgba(255, 252, 248, 0.62);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 8px 20px rgba(58, 44, 38, 0.1);
+    inset 0 0 0 0.75px rgba(58, 44, 38, 0.16),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+    inset -1px -1.5px 1px -0.5px rgba(58, 44, 38, 0.08),
+    0 1px 3px rgba(58, 44, 38, 0.12);
+}
+
+/* The grip is `rgba(255,255,255,0.28)` in dark — pure white at 28% on a near-white
+   light surface is invisible, and it is the one element that tells the user this
+   strip can be pulled. */
+:root[data-theme-mode='light'] .screen-home-next .home-feed-entry-grip {
+  background: rgba(58, 44, 38, 0.26);
 }
 
 /* The refresh chip: it sits on the PAGE (below the hero), not on artwork, so on
@@ -2276,8 +2365,8 @@
   border-color: rgba(60, 45, 38, 0.22);
   background: rgba(255, 252, 248, 0.9);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 6px 16px rgba(58, 44, 38, 0.12);
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 1),
+    0 1px 3px rgba(58, 44, 38, 0.14);
   color: var(--theme-text, #241a17);
 }
 

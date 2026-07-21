@@ -252,28 +252,16 @@ describe('Home cards density (T2.20)', () => {
       })
     );
 
-  it('hero kicker reads «Рекомендуем» when idle and «Сейчас играет» when a station is on air', () => {
-    mountHero({ nowPlaying: false });
-    expect(container.querySelector('.home-surface-kicker')?.textContent).toBe(
-      ruDictionary.home.heroKicker
-    );
-
-    mountHero({ nowPlaying: true, onAir: true, isActive: true });
-    expect(container.querySelector('.home-surface-kicker')?.textContent).toBe(
-      ruDictionary.home.heroKickerNowPlaying
-    );
-  });
-
   it('a PAUSED station keeps the hero but stops claiming it is playing', () => {
-    // `player.current` outlives pause and failure, so gating the kicker on
-    // presence alone made a paused (or dead) stream read «Сейчас играет» under a
-    // pulsing LIVE badge. The hero must still SHOW the station — flipping back
-    // to a recommendation on every pause would be worse — but it has to say so.
+    // `player.current` outlives pause and failure. The hero must still SHOW the
+    // station — flipping back to a recommendation on every pause would be worse
+    // — but nothing on it may claim the stream is live. The caption that used to
+    // carry that claim is gone (owner: «блок … бессмысленный»), so the LIVE dot
+    // and the data attributes are now the whole contract.
     mountHero({ nowPlaying: true, onAir: false, isActive: true });
-    expect(container.querySelector('.home-surface-kicker')?.textContent).toBe(
-      ruDictionary.home.heroKickerPaused
-    );
     expect(container.querySelector('.home-hero-live-dot')).toBeNull();
+    // The row itself must not survive as an empty band.
+    expect(container.querySelector('.home-hero-topline')).toBeNull();
     // Identity is unchanged: still the on-air station, still 'now-playing' mode.
     const hero = container.querySelector<HTMLElement>('[data-home-hero]');
     expect(hero?.getAttribute('data-home-hero-mode')).toBe('now-playing');
@@ -286,6 +274,26 @@ describe('Home cards density (T2.20)', () => {
 
     mountHero({ nowPlaying: true, onAir: true, isActive: true });
     expect(container.querySelector('.home-hero-live-dot')).not.toBeNull();
+  });
+
+  it('carries no caption restating what the card already shows', () => {
+    // Owner: «блок "Рекомендуем"/"Сейчас играет" — он бессмысленный!». Guard it,
+    // because a caption like this is exactly the kind of thing that creeps back.
+    for (const props of [
+      { nowPlaying: false },
+      { nowPlaying: true, onAir: true, isActive: true },
+      { nowPlaying: true, onAir: false, isActive: true }
+    ]) {
+      mountHero(props);
+      expect(container.querySelector('.home-surface-kicker')).toBeNull();
+      expect(container.querySelector('.home-surface-label')).toBeNull();
+      // Literals, deliberately: the dictionary keys are deleted in this same
+      // change, so reading them back would compare against `undefined` and the
+      // guard would silently pass forever.
+      for (const gone of ['Рекомендуем', 'Сейчас играет', 'На паузе']) {
+        expect(container.textContent).not.toContain(gone);
+      }
+    }
   });
 
   it('exposes the render MODE and the frozen recommendation id as data attributes', () => {
@@ -301,19 +309,6 @@ describe('Home cards density (T2.20)', () => {
     expect(
       container.querySelector('[data-home-hero]')?.getAttribute('data-home-hero-mode')
     ).toBe('recommendation');
-  });
-
-  it('ships the now-playing kicker in BOTH dictionaries (a missing key renders raw)', () => {
-    // The dictionary is a loose DictionaryTree: a key present in ru but missing
-    // in en renders the literal "home.heroKickerNowPlaying" with no typecheck
-    // error and no other failing test. This is that guard.
-    for (const dict of [ruDictionary, enDictionary]) {
-      expect(typeof dict.home.heroKickerNowPlaying).toBe('string');
-      expect(dict.home.heroKickerNowPlaying).not.toMatch(/[{}]/);
-      expect((dict.home.heroKickerNowPlaying as string).length).toBeGreaterThan(0);
-    }
-    expect(ruDictionary.home.heroKickerNowPlaying).toBe('Сейчас играет');
-    expect(enDictionary.home.heroKickerNowPlaying).toBe('Now playing');
   });
 
   it('T_audit_3 F1: spotlight titles carry no {placeholder} (HomeRail renders t() without vars)', () => {
