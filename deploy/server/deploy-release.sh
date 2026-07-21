@@ -91,6 +91,26 @@ assert_webapp_css_commit_stamp() {
   echo "Verified webapp CSS cache-bust stamp: $(basename "$stamped_css")" >&2
 }
 
+# Same guard, for the bot's Mini App stamp. Without it the stamp can go inert
+# again in exactly the way it already did — silently, because nothing renders it
+# anywhere a human looks.
+assert_bot_release_stamp() {
+  local bot_env="$RELEASE_DIR/apps/bot/.env"
+
+  if [[ ! -f "$bot_env" ]]; then
+    # No shared bot.env on this host (e.g. a bot-less deployment): nothing to
+    # assert, and failing here would break an otherwise valid deploy.
+    echo "No apps/bot/.env in this release; skipping bot stamp assert." >&2
+    return 0
+  fi
+
+  if ! grep -q "^SOURCE_COMMIT=${RELEASE_SHA}$" "$bot_env"; then
+    echo "Bot release stamp missing or stale: expected SOURCE_COMMIT=${RELEASE_SHA} in $bot_env" >&2
+    return 1
+  fi
+  echo "Verified bot release stamp: SOURCE_COMMIT=${RELEASE_SHORT_SHA}" >&2
+}
+
 wait_for_api_health() {
   local url="${1:-http://127.0.0.1:3001/health}"
   local attempts="${2:-20}"
@@ -169,6 +189,18 @@ if [[ -f "$SHARED_ENV_DIR/api.env" ]]; then
 fi
 if [[ -f "$SHARED_ENV_DIR/bot.env" ]]; then
   cp "$SHARED_ENV_DIR/bot.env" "apps/bot/.env"
+  # The bot stamps `?v=<short sha>` onto the Mini App URL from SOURCE_COMMIT
+  # (apps/bot/src/urlRuntime.ts) — but nothing ever set it, so the stamp was
+  # silently absent from every link the bot has ever sent. This is the runtime
+  # sibling of the #180 build-time fix: the bot reads its env from THIS file at
+  # start-up, so writing the release sha here is release-scoped and survives a
+  # pm2 resurrect after a reboot.
+  #
+  # Honest scope: this does NOT fix HTTP caching — Caddy already serves the
+  # shell with `no-store`. It matters only where Telegram reuses a Mini App
+  # instance keyed by URL, and it makes the stamp truthful for diagnosis.
+  sed -i '/^SOURCE_COMMIT=/d' "apps/bot/.env"
+  printf '\nSOURCE_COMMIT=%s\n' "$RELEASE_SHA" >> "apps/bot/.env"
 fi
 if [[ -f "$SHARED_ENV_DIR/webapp.env" ]]; then
   cp "$SHARED_ENV_DIR/webapp.env" "apps/webapp/.env.production"
@@ -182,6 +214,7 @@ SOURCE_COMMIT="$RELEASE_SHA" npm --workspace apps/webapp run build
 assert_webapp_css_commit_stamp
 npm --workspace apps/api run build
 npm --workspace apps/bot run build
+assert_bot_release_stamp
 
 # T_audit_6: must run AFTER the webapp build (so the new assets dir exists) and
 # BEFORE the symlink swap (so $CURRENT_LINK still points at the previous release).

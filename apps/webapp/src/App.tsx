@@ -336,14 +336,46 @@ const App = () => {
     setLegacyWinampUnlocked(true);
     winamp.setExpanded(true);
   };
+  /**
+   * Focus the search field from the topbar title.
+   *
+   * The title button lives in the always-loaded shell and renders the instant
+   * the section flips, but `#search-hero-input` only exists once the LAZY Search
+   * chunk resolves and mounts. The old `if (!input) return` therefore threw the
+   * request away whenever the click won that race — silently, so the user just
+   * saw nothing happen and had to tap the field itself. Measured at ~1.8% of
+   * clicks under load; on a cold chunk over a slow phone connection it is far
+   * likelier than that.
+   *
+   * The intent is now kept alive across the gap, with two bounds: a 3s deadline,
+   * and an abort the moment the user leaves Search — stealing focus into a
+   * screen someone has already navigated away from would be worse than doing
+   * nothing.
+   */
   const focusSearchInput = () => {
-    const input = document.querySelector<HTMLInputElement>('#search-hero-input');
-    if (!input) return;
-    input.scrollIntoView({
-      behavior: lowPowerShell ? 'auto' : 'smooth',
-      block: 'center'
-    });
-    window.setTimeout(() => input.focus({ preventScroll: true }), lowPowerShell ? 0 : 120);
+    const deadline = Date.now() + 3000;
+    const attempt = () => {
+      if (activeSectionRef.current !== 'search') return;
+      // ...and abort if the user has moved focus somewhere else in the meantime
+      // (tapped a filter pill, a card, another field). Yanking focus — and the
+      // mobile keyboard — into the search box a second later would be its own
+      // bug, worse than the one being fixed.
+      const stillOnTrigger =
+        document.activeElement === document.body ||
+        Boolean(document.activeElement?.closest('.app-topbar-title-action'));
+      if (!stillOnTrigger) return;
+      const input = document.querySelector<HTMLInputElement>('#search-hero-input');
+      if (!input) {
+        if (Date.now() < deadline) window.setTimeout(attempt, 50);
+        return;
+      }
+      input.scrollIntoView({
+        behavior: lowPowerShell ? 'auto' : 'smooth',
+        block: 'center'
+      });
+      window.setTimeout(() => input.focus({ preventScroll: true }), lowPowerShell ? 0 : 120);
+    };
+    attempt();
   };
 
   const renderTopbarTitle = () => {

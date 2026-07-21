@@ -192,10 +192,6 @@
   border-color: color-mix(in srgb, var(--accent) 36%, var(--theme-border));
 }
 
-:root[data-theme-mode='light'] .player-peek-handle {
-  background: var(--theme-surface, rgba(255, 252, 248, 0.72));
-}
-
 /* T-desktop-light: mirror the chrome-wiring to the desktop shell. The desktop
    nav rail, its rail items, the home chips/links, and the non-dense resume
    tiles hardcode the same dark glass as their mobile counterparts — light them
@@ -2617,8 +2613,7 @@ body {
 .station-location,
 .station-tags,
 .home-search-meta,
-.globe-overlay,
-.player-peek-meta {
+.globe-overlay {
   color: rgba(223, 234, 247, 0.9);
   text-shadow: 0 1px 1px rgba(5, 12, 22, 0.3);
 }
@@ -4074,68 +4069,6 @@ button.app-brand-pill {
   bottom: calc(var(--dock-offset-v2) + 2px);
 }
 
-.player-dock-peek[data-empty='true'] {
-  display: flex;
-  justify-content: center;
-}
-
-.player-peek-handle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(214, 246, 255, 0.18);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.2), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.05)),
-    var(--glass-bg-strong);
-  color: var(--text);
-  border-radius: 16px;
-  padding: 7px 12px;
-  -webkit-backdrop-filter: blur(34px) saturate(190%);
-  backdrop-filter: blur(34px) saturate(190%);
-  cursor: pointer;
-  min-width: 0;
-  box-shadow: 0 14px 30px rgba(2, 10, 18, 0.08);
-}
-
-.player-peek-handle.dormant {
-  width: auto;
-  max-width: min(220px, calc(100vw - 84px));
-  padding: 6px 10px;
-  gap: 8px;
-  border-radius: 999px;
-}
-
-.player-peek-pill {
-  width: 42px;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.player-peek-handle.dormant .player-peek-pill {
-  width: 20px;
-}
-
-.player-peek-label {
-  max-width: 60vw;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player-peek-meta {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 11px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .player-dock-bar {
   bottom: calc(var(--dock-offset-v2) - 2px);
   display: grid;
@@ -5126,8 +5059,7 @@ button.app-brand-pill {
 .nav-brand-copy,
 .section-subtitle,
 .home-search-meta,
-.globe-overlay,
-.player-peek-meta {
+.globe-overlay {
   font-size: 11px;
 }
 
@@ -5430,10 +5362,6 @@ button.app-brand-pill {
 
   .library-empty-state {
     padding-bottom: var(--screen-bottom-safe-v2);
-  }
-
-  .player-peek-handle.dormant {
-    max-width: min(180px, calc(100vw - 96px));
   }
 }
 
@@ -6191,30 +6119,6 @@ body {
   /* `.player-dock-peek { bottom }` removed — the derived offset in the @<=959px
      block places both dock variants on one baseline. */
 
-  .player-peek-handle,
-  .player-peek-handle.dormant {
-    width: auto;
-    max-width: min(168px, calc(100vw - 90px));
-    min-height: 28px;
-    padding: 4px 10px;
-    gap: 7px;
-    border-radius: 999px;
-  }
-
-  .player-peek-pill {
-    width: 18px;
-    height: 4px;
-  }
-
-  .player-peek-label {
-    font-size: 10px;
-    line-height: 1.1;
-  }
-
-  .player-peek-meta {
-    display: none;
-  }
-
   .player-dock-bar {
     /* `bottom` deliberately absent — see the @<=959px derived offset. */
     gap: 6px;
@@ -6328,10 +6232,6 @@ body {
 }
 
 @media (max-width: 360px) {
-  .player-peek-handle,
-  .player-peek-handle.dormant {
-    max-width: min(150px, calc(100vw - 84px));
-  }
 
   .player-dock-bar {
     gap: 6px;
@@ -8506,42 +8406,12 @@ body {
    feedback layer: smooth color/shadow, a subtle press-scale, and consistent
    :focus-visible rings. Low specificity (:where) so any existing rule wins, and
    the transform is dropped under reduced-motion. */
-:where(
-  .chip,
-  .clear-btn,
-  .link-btn,
-  .play-btn,
-  .player-btn,
-  .icon-btn,
-  .mobile-nav-item,
-  .library-collection-picker-row,
-  .chat-reject-btn,
-  .library-queue-move-btn,
-  .library-queue-grip,
-  .dock-mini-btn,
-  .dock-icon-btn,
-  .dock-next-btn,
-  .dock-explore-btn,
-  .dock-artwork-trigger,
-  .dock-more-row
-) {
+:where(.chip, .clear-btn, .link-btn, .play-btn, .player-btn, .icon-btn, .mobile-nav-item, .library-collection-picker-row, .chat-reject-btn, .library-queue-move-btn, .library-queue-grip, .dock-mini-btn, .dock-icon-btn, .dock-next-btn, .dock-artwork-trigger, .dock-more-row) {
   transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease,
     box-shadow 0.16s ease, transform 0.11s ease;
 }
 
-:where(
-    .chip,
-    .clear-btn,
-    .link-btn,
-    .play-btn,
-    .player-btn,
-    .icon-btn,
-    .chat-reject-btn,
-    .dock-mini-btn,
-    .dock-icon-btn,
-    .dock-next-btn,
-    .dock-explore-btn
-  ):active:not(:disabled) {
+:where(.chip, .clear-btn, .link-btn, .play-btn, .player-btn, .icon-btn, .chat-reject-btn, .dock-mini-btn, .dock-icon-btn, .dock-next-btn):active:not(:disabled) {
   transform: scale(0.95);
 }
 
@@ -8571,23 +8441,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :where(
-    .chip,
-    .clear-btn,
-    .link-btn,
-    .play-btn,
-    .player-btn,
-    .icon-btn,
-    .mobile-nav-item,
-    .library-collection-picker-row,
-    .chat-reject-btn,
-    .chat-station-card,
-    .search-station-card,
-    .dock-mini-btn,
-    .dock-icon-btn,
-    .dock-next-btn,
-    .dock-explore-btn
-  ):active {
+  :where(.chip, .clear-btn, .link-btn, .play-btn, .player-btn, .icon-btn, .mobile-nav-item, .library-collection-picker-row, .chat-reject-btn, .chat-station-card, .search-station-card, .dock-mini-btn, .dock-icon-btn, .dock-next-btn):active {
     transform: none;
   }
 }

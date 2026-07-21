@@ -298,7 +298,26 @@ const pullHeroDown = async (page: Page, distance = 190) => {
   // on the refresh chip, the favourite button or the play button — a pointerdown
   // that lands on a control is deliberately ignored by the gesture.
   const startX = box.x + box.width * 0.3;
-  const startY = box.y + 60;
+  // NOT `box.y + 60`. On Home at <=959px the glass topbar is lifted out of flow
+  // and floated OVER the hero, so it owns the hero's top ~66px; a pointerdown
+  // there targets the <header>, `inPullZone()` is false, and the gesture never
+  // starts. This spec only ever passed when boundingBox() happened to be
+  // sampled mid `motion-rise` (translateY(16px)), which pushed the point far
+  // enough down — i.e. it was racing a 480ms entry animation, and lost 6 times
+  // out of 8.
+  const startY = box.y + box.height * 0.55;
+  // Fail LOUDLY if anything ever covers the grab point again, instead of
+  // degrading into an intermittent timeout that reads like a product bug.
+  const occluder = await page.evaluate(
+    ([x, y]) => {
+      const el = document.elementFromPoint(x as number, y as number);
+      return el && el.closest('.home-hero-card')
+        ? null
+        : `${el?.tagName}.${String(el?.className ?? '').slice(0, 40)}`;
+    },
+    [startX, startY]
+  );
+  expect(occluder, 'hero grab point is occluded — the pull can never start there').toBeNull();
   await page.mouse.move(startX, startY);
   await page.mouse.down();
   // Several intermediate moves: the tracker needs a real trail (dead zone →

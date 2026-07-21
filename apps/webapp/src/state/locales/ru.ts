@@ -169,7 +169,6 @@ export const ruDictionary = {
     "unknownLocation": "Локация не указана"
   },
   "home": {
-    "kicker": "Live radio",
     "title": "Радио мира",
     "subtitle": "Живая витрина радиомира: новые подборки на каждый заход, быстрый поиск и Winamp отдельно для полного погружения.",
     "topbarSubtitle": "Новые подборки и быстрые действия.",
@@ -685,7 +684,6 @@ export const ruDictionary = {
     "regionActivityBody": "{station}"
   },
   "dock": {
-    "peekLabel": "Плеер готов",
     "peekHint": "Нажми, чтобы раскрыть",
     "queueCount": "В очереди: {count}",
     "queueProgress": "{current}/{total}",

@@ -169,7 +169,6 @@ export const enDictionary = {
     "unknownLocation": "Unknown location"
   },
   "home": {
-    "kicker": "Live radio",
     "title": "World radio",
     "subtitle": "A living radio front page: fresh picks on every visit, fast search, and Winamp kept separate for the full player.",
     "topbarSubtitle": "Fresh picks and quick actions.",
@@ -685,7 +684,6 @@ export const enDictionary = {
     "regionActivityBody": "{station}"
   },
   "dock": {
-    "peekLabel": "Player ready",
     "peekHint": "Tap to expand",
     "queueCount": "Queued: {count}",
     "queueProgress": "{current}/{total}",
