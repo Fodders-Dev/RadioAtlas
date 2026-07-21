@@ -58,8 +58,14 @@ export type ChatUserTaste = {
   languageScores?: Record<string, number>;
 };
 
+export type ChatNowPlaying = {
+  track: string;
+  stationName?: string;
+};
+
 export type ChatRequestOptions = {
   userTaste?: ChatUserTaste;
+  nowPlaying?: ChatNowPlaying;
 };
 
 const readToken = (): string => {
@@ -93,7 +99,12 @@ export const postChatMessage = async (
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify({ message, history, userTaste: options.userTaste })
+    body: JSON.stringify({
+      message,
+      history,
+      userTaste: options.userTaste,
+      nowPlaying: options.nowPlaying
+    })
   });
   if (!response.ok) {
     throw new Error(`chat failed (${response.status})`);

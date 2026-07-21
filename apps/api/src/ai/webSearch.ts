@@ -1,6 +1,7 @@
 // P1 — web_search_factual backing client. Tavily ONLY (ported from the
-// FoddersGameBot _tavily_search: include_raw_content:false, keep score +
-// published_date; no scrapers, no LLM query-planner). Built on the injected
+// FoddersGameBot _tavily_search: snippet-first, with a tightly gated cleaned
+// raw-content mode for song-text analysis; no direct scrapers or LLM query
+// planner). Built on the injected
 // fetch + an 8s AbortController, like deepseekClient. The Tavily key lives only
 // in the api process (like DEEPSEEK_API_KEY) and never reaches a client bundle.
 //
@@ -16,6 +17,7 @@ const SCORE_THRESHOLD = 0.5;
 const FRESH_TTL_MS = 3 * 60 * 1000; // «жив/умер»/news — volatile
 const STALE_TTL_MS = 60 * 60 * 1000; // everything else
 const MAX_RESULTS = 5;
+const MAX_SOURCE_CONTENT_CHARS = 12_000;
 const DAY_MS = 86_400_000;
 
 type CacheEntry = { at: number; outcome: WebSearchOutcome };
@@ -24,14 +26,19 @@ type RawResult = {
   title?: unknown;
   url?: unknown;
   content?: unknown;
+  raw_content?: unknown;
   score?: unknown;
   published_date?: unknown;
 };
 
-const toSource = (raw: RawResult): WebSource => ({
+const toSource = (raw: RawResult, includeContent: boolean): WebSource => ({
   title: String(raw?.title || '').slice(0, 200),
   url: String(raw?.url || ''),
-  snippet: String(raw?.content || ''),
+  snippet: String(
+    includeContent && typeof raw?.raw_content === 'string' && raw.raw_content.trim()
+      ? raw.raw_content
+      : raw?.content || ''
+  ).slice(0, MAX_SOURCE_CONTENT_CHARS),
   score: typeof raw?.score === 'number' && Number.isFinite(raw.score) ? raw.score : 0,
   publishedDate: typeof raw?.published_date === 'string' ? raw.published_date : undefined
 });
@@ -48,12 +55,15 @@ export const createTavilyWebSearch = (config: {
 
   const search = async (
     query: string,
-    opts: { fresh: boolean }
+    opts: { fresh: boolean; includeContent?: boolean }
   ): Promise<WebSearchOutcome> => {
     const trimmed = String(query || '').trim();
     if (!trimmed || !config.apiKey) return { status: 'empty', sources: [] };
 
-    const key = trimmed.toLowerCase();
+    const includeContent = opts.includeContent === true;
+    // A snippet-only cache entry cannot satisfy a later lyrics analysis that
+    // explicitly needs the cleaned page text.
+    const key = `${includeContent ? 'content' : 'snippet'}:${trimmed.toLowerCase()}`;
     const now = config.now();
     const ttl = opts.fresh ? FRESH_TTL_MS : STALE_TTL_MS;
     const cached = cache.get(key);
@@ -78,7 +88,7 @@ export const createTavilyWebSearch = (config: {
           api_key: config.apiKey,
           query: trimmed,
           search_depth: 'basic',
-          include_raw_content: false,
+          include_raw_content: includeContent ? 'text' : false,
           include_answer: false,
           max_results: MAX_RESULTS
         }),
@@ -87,7 +97,7 @@ export const createTavilyWebSearch = (config: {
       if (!response.ok) return { status: 'error', sources: [] };
       const body = (await response.json()) as { results?: RawResult[] } | null;
       const sources = (Array.isArray(body?.results) ? body!.results! : [])
-        .map(toSource)
+        .map((result) => toSource(result, includeContent))
         .filter((source) => source.url && source.score >= SCORE_THRESHOLD)
         .sort((a, b) => b.score - a.score)
         .slice(0, MAX_RESULTS);

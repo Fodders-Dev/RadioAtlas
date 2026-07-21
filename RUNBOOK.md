@@ -23,7 +23,7 @@ Use Node.js 24+ and npm 10+. The API account and station-intelligence stores use
 - `INTERNAL_WEBHOOK_TOKEN`: shared secret required on `POST /billing/telegram/webhook`. Requests without `X-Internal-Token` or with a mismatched value get 401. If the env is empty the route rejects every call (fail-closed). Must match the bot's `INTERNAL_WEBHOOK_TOKEN` exactly.
 - `AI_ENABLED` + `DEEPSEEK_API_KEY`: enable the Mini App `/ai/chat` and internal `/internal/bot/ai-chat` endpoints. `AI_ENABLED=1` without a key leaves AI disabled and the bot should not be deployed with `AI_ENABLED=1` in that state.
 - `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `AI_MAX_OUTPUT_TOKENS`, `AI_TIMEOUT_SEC`: optional AI runtime tuning.
-- `AI_WEB_SEARCH_ENABLED` + `TAVILY_API_KEY`: optional grounded web search for factual questions.
+- `AI_WEB_SEARCH_ENABLED` + `TAVILY_API_KEY`: optional grounded web search for factual questions; required for sourced song-creation context, documented author intent, and resolving a direct lyrics page. Without it Lira still offers a safe external lyrics search link and may interpret supplied text/metadata, but must not invent factual history.
 - `BILLING_RECONCILE_ENABLED`: T0.2c reconcile sweep toggle. Defaults to enabled. Set to `0` in tests/CI (or for emergency stop) to keep the in-process `setInterval` from firing real `getStarTransactions` calls; the `/test/billing/trigger-reconcile` fixture endpoint stays available regardless and runs a single sweep cycle synchronously. Sweep needs `TELEGRAM_BOT_TOKEN`/`BOT_TOKEN` (already used by the invoice flow) — boot logs a warning and skips the sweep if the env is missing. Assumes single API instance; PM2 cluster mode would need a DB-side lease (see `billingReconciliation.ts` header). The sweep emits these structured stderr log events: `billing_reconcile_dead_letter` (`{purchaseId, attempts, lastError}` — fires once per row when `reconcile_attempts` crosses 4→5), `billing_reconcile_telegram_fetch_failed` (Telegram API outage, this tick skipped, no row state mutated), `billing_reconcile_grant_failed` (in-process `confirmBillingPurchase` threw — rare, row still attempts++ on next tick), `billing_reconcile_tick_crashed` (defensive catch around the whole tick — should never fire, indicates a bug).
 - `ALLOWED_ORIGINS`: comma-separated allow-list of origins permitted to read the API cross-origin (exact match, case-insensitive on scheme+host). Required in production - the API process exits non-zero on boot if `NODE_ENV=production` and this is empty. In dev (any other `NODE_ENV`) it falls back to `http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174`. The production value at the time of writing is:
   ```
@@ -70,6 +70,22 @@ For local browser QA, run `npm run dev:webapp` and `npm run dev:api` in separate
 terminals. If only Vite is running, `/api/image` proxy `ECONNREFUSED` messages are
 expected; they do not mean the webapp command was wrong.
 
+Lira song QA:
+- With a known current track, tap the in-chat now-playing prompt: the Mini App
+  must send bounded `track + stationName` context to `/ai/chat`.
+- Ask for lyrics only: expect no full lyrics, an external source link, and no station cards.
+- Ask about meaning: with Tavily enabled, expect a lyrics-content search before
+  the meaning/context search, one short excerpt at most, and a full-text source
+  button. Cleaned page text is model context only and is never returned wholesale.
+- Ask about meaning and creation context: sourced facts stay distinct from interpretation.
+- Paste lyrics for analysis: the reply may analyze them but must not echo long passages.
+- Disable Tavily: expect an honest grounding limitation, not invented history.
+
+Lyrics-content retrieval uses Tavily `include_raw_content: text` only on the
+deterministic lyrics-analysis query. It consumes more provider credits than the
+ordinary snippet path; keep the existing daily cap conservative and use a
+licensed lyrics-display provider before ever rendering complete lyrics in-app.
+
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
 
@@ -91,10 +107,12 @@ expected; they do not mean the webapp command was wrong.
 - The `?winamp=1` easter-egg/debug path is decorative Lite/Winamp only; it does not support Skin Lab or `.wsz` imports.
 
 ## Cache
-- Catalog cached for 30 minutes in localStorage.
+- Client catalog responses use an IndexedDB TTL cache with localStorage fallback; Home summary TTL is 6 hours.
 - Clear cache via Settings screen.
-- Local fallback catalog lives at `apps/webapp/public/catalog-fast.json`.
-- Update fallback catalog with `npm run catalog:update`.
+- The webapp build embeds a compact 32-station Home bootstrap derived from
+  `artifacts/catalog-fast.json`; it renders before IndexedDB/API revalidation.
+- The larger direct-Radio-Browser fallback stays lazy and is cached separately.
+- Refresh catalog artifacts with `npm run catalog:update`.
 
 ## Legacy Lite/Winamp easter egg
 - The main player uses the native RadioAtlas Full Player overlay.
@@ -143,6 +161,10 @@ Deploy flow:
 - The server runs `deploy/server/deploy-release.sh <git_sha>`.
 - Shared env files from `/opt/RadioAtlas/shared/env` are copied into the release before build.
 - `npm ci`, `npm --workspace apps/webapp run build`, `npm --workspace apps/api run build`, and `npm --workspace apps/bot run build` run on the server.
+- The webapp build is pinned to the release SHA through `SOURCE_COMMIT=<git_sha>`.
+  `deploy-release.sh` then requires at least one generated CSS asset ending in
+  `-<short_sha>.css` before switching `/opt/RadioAtlas/current`. This prevents a
+  stale VPS environment variable from reusing a one-year-immutable CSS URL.
 - PM2 launches `apps/api/dist/index.js` and `apps/bot/dist/index.js` directly from the release workspace instead of routing through `npm --workspace`.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
 - Deploy now waits for `http://127.0.0.1:3001/health` before reporting success, and dumps `pm2` status/logs if the API fails to come back.

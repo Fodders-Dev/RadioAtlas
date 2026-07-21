@@ -8,6 +8,7 @@ import {
   type AssistantRuntime
 } from './aiRoutes.js';
 import { bumpCounter } from './observabilityStore.js';
+import { publicWebSources } from './ai/publicSources.js';
 import type { UserTasteContext } from './ai/types.js';
 
 // Mirrors the billing webhook gate: constant-time compare, empty token fails closed.
@@ -190,7 +191,9 @@ export const registerBotRoutes = (
             country: station.country
           })),
           serviceLinks: result.serviceLinks,
-          sources: result.sources
+          // Keep raw search/lyrics content server-side; Telegram needs only
+          // link labels and URLs for its inline buttons.
+          sources: publicWebSources(result.sources)
         });
       } catch (err) {
         bumpCounter('ai_chat_error');
