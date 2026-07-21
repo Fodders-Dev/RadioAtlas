@@ -34,13 +34,16 @@ export const normalizeArtist = (value: string | null | undefined): string =>
     .replace(/\s+/g, ' ');
 
 const tokensOf = (normalized: string): string[] => normalized.split(' ').filter(Boolean);
+const LATIN_TOKEN = /^[a-z0-9]+$/;
 
 // Two tokens are "the same word" when either is exactly the other (covers short
-// tokens like «и», «дж») OR they share a ≥MIN_PREFIX-char leading run (covers
-// case endings: «авария»/«аварией», «дискотека»/«дискотекой»). Different scripts
-// share no prefix, so «ас» never matches «asti».
+// tokens like «и», «дж») OR CYRILLIC words share a ≥MIN_PREFIX-char leading run
+// (covers case endings: «авария»/«аварией», «дискотека»/«дискотекой»). Latin
+// artist tokens require exact equality: English has no case endings here, while
+// prefix matching turns The Weeknd into false hits on «week» and «weekend».
 const tokenMatches = (queryToken: string, keyToken: string): boolean => {
   if (queryToken === keyToken) return true;
+  if (LATIN_TOKEN.test(queryToken) || LATIN_TOKEN.test(keyToken)) return false;
   // A ≤3-char key token must match EXACTLY — a 1–3 char prefix is too weak and
   // would let «дж» swallow «джаз»/«django» etc.
   if (keyToken.length <= 3 || queryToken.length < MIN_PREFIX) return false;

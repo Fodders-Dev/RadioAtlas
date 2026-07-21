@@ -29,6 +29,8 @@ const CATALOG: Row[] = [
     url_resolved: 'https://streaming.exclusive.radio/er/theweeknd/icecast.audio',
     tags: 'alternative r&b, pop'
   },
+  { stationuuid: 'week-1', name: 'OUI FM TOP OF THE WEEK', url_resolved: 'http://s/week' },
+  { stationuuid: 'weekend-1', name: 'Classic Hits on the weekend', url_resolved: 'http://s/weekend' },
   { stationuuid: 'jz', name: 'Paris Jazz', url_resolved: 'http://s/jz', tags: 'jazz' },
   { stationuuid: 'dead-cold', name: 'Coldplay Hits', url_resolved: '', tags: 'pop' } // no stream → skipped
 ];
