@@ -59,6 +59,7 @@ describe('station visual semantics', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   it('keeps StationArtwork on owner artwork and never asks for an AI scene', async () => {
@@ -152,5 +153,46 @@ describe('station visual semantics', () => {
     expect(scene.dataset.sceneSource).toBe('generated');
     expect(scene.querySelector('img')).toBeNull();
     expect(scene.querySelector('.station-artwork')).toBeNull();
+  });
+
+  it('defers non-priority scene lookup until the card approaches the viewport', async () => {
+    let emitIntersection: ((isIntersecting: boolean) => void) | null = null;
+
+    class MockIntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = '320px 240px';
+      readonly thresholds = [0];
+
+      constructor(callback: IntersectionObserverCallback) {
+        emitIntersection = (isIntersecting) =>
+          callback(
+            [{ isIntersecting } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver
+          );
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    }
+
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    await mount(createElement(StationScene, { station: makeStation() }));
+
+    expect(sceneMocks.resolveSceneArtworkUrl).not.toHaveBeenCalled();
+
+    await act(async () => {
+      emitIntersection?.(false);
+      await Promise.resolve();
+    });
+    expect(sceneMocks.resolveSceneArtworkUrl).not.toHaveBeenCalled();
+
+    await act(async () => {
+      emitIntersection?.(true);
+      await Promise.resolve();
+    });
+    expect(sceneMocks.resolveSceneArtworkUrl).toHaveBeenCalledOnce();
+    expect(sceneMocks.resolveSceneArtworkUrl).toHaveBeenCalledWith('station-visual-test');
   });
 });
