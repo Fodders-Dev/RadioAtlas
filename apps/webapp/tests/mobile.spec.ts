@@ -2999,13 +2999,13 @@ test('cached summary renders home while catalog summary is offline', async ({ pa
       window.localStorage.setItem(
         storageKey,
         JSON.stringify({
-          'summary:v2': {
+          'summary:v3': {
             // T_audit_10: must match the live CATALOG_CACHE_VERSION, else
             // readCatalogCache rejects the entry (it did after T_audit_8 bumped
             // 1→2) and — with the network routed to hang below — the home never
             // hydrates. The point of this test is the served-cache path.
             version: cacheVersion,
-            key: 'summary:v2',
+            key: 'summary:v3',
             payload: cachedSummary,
             createdAt: now,
             expiresAt: now + 60 * 60 * 1000

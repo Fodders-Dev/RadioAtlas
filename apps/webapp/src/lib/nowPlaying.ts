@@ -113,6 +113,32 @@ const canAttemptDirectFetch = (url: string) => {
   }
 };
 
+// Generic Icecast/Shoutcast/Azura probes are useful discovery fallbacks, but a
+// regular audio CDN often answers their conventional paths with a permanent
+// 401/403/404. Repeating the same four known-dead requests every 30 seconds for
+// every listener wastes both radioatlas.ru proxy capacity and mobile radio.
+// Cache only definitive client errors; timeouts and 5xx remain retryable.
+const METADATA_PROBE_MISS_TTL_MS = 30 * 60_000;
+const METADATA_PROBE_MISS_LIMIT = 256;
+const metadataProbeMisses = new Map<string, number>();
+const isDefinitiveMetadataMiss = (status: number) =>
+  status === 401 || status === 403 || status === 404 || status === 410;
+const shouldSkipMetadataProbe = (target: string) => {
+  const expiresAt = metadataProbeMisses.get(target) || 0;
+  if (expiresAt > Date.now()) return true;
+  if (expiresAt) metadataProbeMisses.delete(target);
+  return false;
+};
+const rememberMetadataProbeMiss = (target: string, response: Response) => {
+  if (isDefinitiveMetadataMiss(response.status)) {
+    if (!metadataProbeMisses.has(target) && metadataProbeMisses.size >= METADATA_PROBE_MISS_LIMIT) {
+      const oldestTarget = metadataProbeMisses.keys().next().value;
+      if (oldestTarget) metadataProbeMisses.delete(oldestTarget);
+    }
+    metadataProbeMisses.set(target, Date.now() + METADATA_PROBE_MISS_TTL_MS);
+  }
+};
+
 // 6 s ICY timeout was holding back the whole snapshot pipeline:
 // the ICY probe is the slowest in-browser strategy, and most
 // streams either respond with metadata in well under 1 s or never
@@ -198,6 +224,7 @@ const fetchAzuraCast = async (
   ];
 
   for (const endpoint of endpoints) {
+    if (shouldSkipMetadataProbe(endpoint)) continue;
     try {
       let response: Response | null = null;
       if (canAttemptDirectFetch(endpoint)) {
@@ -212,7 +239,10 @@ const fetchAzuraCast = async (
       } else {
         continue;
       }
-      if (!response.ok) continue;
+      if (!response.ok) {
+        rememberMetadataProbeMiss(endpoint, response);
+        continue;
+      }
       const data = await response.json();
       const track = parseAzuraCast(data);
       if (track) return track;
@@ -1052,12 +1082,14 @@ const fetchIcecastCORS = async (
   signal?: AbortSignal
 ): Promise<string | null> => {
   const target = `${origin}/status-json.xsl`;
+  if (shouldSkipMetadataProbe(target)) return null;
   let data: any = null;
 
   if (canAttemptDirectFetch(target)) {
     try {
       const res = await fetchWithTimeout(target, 4000, signal);
       if (res.ok) data = await res.json();
+      else rememberMetadataProbeMiss(target, res);
     } catch {
       // ignore direct failure
     }
@@ -1071,6 +1103,7 @@ const fetchIcecastCORS = async (
         signal
       );
       if (res.ok) data = await res.json();
+      else rememberMetadataProbeMiss(target, res);
     } catch {
       markApiUnavailable(apiBase);
     }
@@ -1101,12 +1134,14 @@ const fetchShoutcastCORS = async (
   signal?: AbortSignal
 ): Promise<string | null> => {
   const target = `${origin}/7.html`;
+  if (shouldSkipMetadataProbe(target)) return null;
   let text: string | null = null;
 
   if (canAttemptDirectFetch(target)) {
     try {
       const res = await fetchWithTimeout(target, 4000, signal);
       if (res.ok) text = await res.text();
+      else rememberMetadataProbeMiss(target, res);
     } catch {
       // ignore
     }
@@ -1120,6 +1155,7 @@ const fetchShoutcastCORS = async (
         signal
       );
       if (res.ok) text = await res.text();
+      else rememberMetadataProbeMiss(target, res);
     } catch {
       markApiUnavailable(apiBase);
     }

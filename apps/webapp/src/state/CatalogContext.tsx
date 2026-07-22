@@ -67,7 +67,11 @@ const SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const AREAS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AREA_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STATION_BY_ID_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const SUMMARY_CACHE_KEY = 'summary:v2';
+// v3 deliberately invalidates summaries written by the direct Radio Browser
+// fallback. Older builds cached that reduced emergency payload for six hours,
+// so one API cold start could leave discovery stuck on ~4k stations even after
+// the primary catalog recovered.
+const SUMMARY_CACHE_KEY = 'summary:v3';
 const AREAS_CACHE_PREFIX = 'areas:v5';
 // Bumped to v3 to invalidate every user's stale cache: schemaVersion 3
 // of /catalog/points adds `state` and `name`, and we hit a regression
@@ -302,9 +306,23 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
         try {
           const fallback = await loadFallbackCatalog();
           const fallbackSummary = await fallback.loadRadioBrowserFallbackSummary(seed);
-          await writeCatalogCache(SUMMARY_CACHE_KEY, fallbackSummary, SUMMARY_CACHE_TTL_MS);
           applySummary(fallbackSummary);
           setSummaryError(null);
+
+          // The fallback is a fast, usable first paint, not a replacement for
+          // RadioAtlas' richer catalog. Do not persist it under the primary
+          // summary key. The request that just timed out may still be warming
+          // the API process, so retry once in the background and self-heal this
+          // session (and the six-hour cache) as soon as it is ready.
+          void fetchNetworkSummary(seed)
+            .then((primarySummary) => {
+              applySummary(primarySummary);
+              setSummaryError(null);
+            })
+            .catch(() => {
+              // Keep the already-rendered emergency catalog. A future visit
+              // retries the primary because the fallback was not cached.
+            });
           return fallbackSummary;
         } catch {
           setSummaryError(error instanceof Error ? error.message : 'Catalog summary failed');

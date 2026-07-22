@@ -257,8 +257,23 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Make the one-chat model explicit in the UI: return through the Lira nav
   action, persistent local history, and confirmed clearing from the header.
 
+## Catalog and metadata reliability audit (done)
+
+- [x] Stop a six-second API cold start from pinning the reduced direct-browser
+  fallback for six hours: paint the emergency catalog, retry the primary in the
+  background, and cache only the recovered full summary.
+- [x] Defer non-hero generated-scene lookups until a card approaches the
+  viewport instead of probing every mounted Home rail on first paint.
+- [x] Remember definitive 401/403/404/410 metadata endpoint misses for 30
+  minutes so the active player does not repeat known-dead Icecast, Shoutcast,
+  and Azura probes on every poll.
+- [x] Cover the recovery/migration/probe behavior with unit and mobile E2E
+  checks; pass the 463-test web unit suite and 106 mobile/desktop/Home flows.
+
 ## Next:
 
-Next: owner smoke-test the new Yumi Co. Radio city-pop scene plus the deployed
-Lira thread return/current-track question in Telegram; then refresh approved
-Lira/Home visual baselines and upgrade the VPS runtime from Node 22 to Node 24.
+Next: owner smoke-test the full-catalog cold-start recovery, lazy Home scenes,
+and Lira thread/current-track behavior in Telegram; then connect a licensed
+lyrics-content provider (or keep the current Tavily + safe Genius-search
+fallback), refresh approved Lira/Home visual baselines, and upgrade the VPS
+runtime from Node 22 to Node 24.
