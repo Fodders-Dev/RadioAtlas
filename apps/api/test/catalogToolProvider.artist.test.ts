@@ -32,6 +32,13 @@ const CATALOG: Row[] = [
   { stationuuid: 'week-1', name: 'OUI FM TOP OF THE WEEK', url_resolved: 'http://s/week' },
   { stationuuid: 'weekend-1', name: 'Classic Hits on the weekend', url_resolved: 'http://s/weekend' },
   { stationuuid: 'jz', name: 'Paris Jazz', url_resolved: 'http://s/jz', tags: 'jazz' },
+  // Name-collision fixture: the singer «Шура» vs the comedian «Шура Каретный».
+  {
+    stationuuid: 'shura-talk',
+    name: 'Шура Каретный 18+ Радио',
+    url_resolved: 'http://s/shura-talk',
+    tags: 'music, talk'
+  },
   { stationuuid: 'dead-cold', name: 'Coldplay Hits', url_resolved: '', tags: 'pop' } // no stream → skipped
 ];
 
@@ -93,4 +100,19 @@ test('matchStationsByArtistName: a name match with NO resolvable stream is skipp
 test('matchStationsByArtistName: an unrelated artist matches nothing; empty query → []', async () => {
   assert.deepEqual(await provider.matchStationsByArtistName!('Daft Punk'), []);
   assert.deepEqual(await provider.matchStationsByArtistName!(''), []);
+});
+
+test('matchStationsByArtistName: «Шура» (singer) does NOT surface the «Шура Каретный» talk station', async () => {
+  // A LOOSE collision — «шура» ⊆ «шура каретный» — plus talk format ⇒ dropped,
+  // so the artist path falls through to the русская-эстрада genre fallback
+  // instead of answering with a comedian's spoken-word station.
+  const cards = await provider.matchStationsByArtistName!('Шура');
+  assert.deepEqual(cards, []);
+});
+
+test('matchStationsByArtistName: an EXPLICIT «Шура Каретный» still keeps the talk station', async () => {
+  // Full name (not a subset) ⇒ the user clearly wants that station, keep it.
+  const cards = await provider.matchStationsByArtistName!('Шура Каретный');
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0]?.stationuuid, 'shura-talk');
 });

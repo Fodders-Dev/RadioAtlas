@@ -4,6 +4,7 @@ import {
   buildStationQuery,
   chatWithAssistant,
   classifySongKnowledgeIntent,
+  explicitArtistQuery,
   isNowPlayingQuestion,
   isRejectRefreshIntent,
   parseGenreTags,
@@ -893,6 +894,32 @@ test('NOW PLAYING: a natural chat question reads the trusted live player without
   assert.match(result.reply, /The Weeknd — Blinding Lights/);
   assert.match(result.reply, /Exclusively The Weeknd/);
   assert.deepEqual(result.stations, []);
+});
+
+test('NOW PLAYING: the colloquial «Че за песня играет сейчас?» is a now-playing question', () => {
+  // The owner's exact phrasing (from the screenshot) fell through to the planner
+  // and got «я не ловлю эфир в реальном времени». It must hit the trusted fast
+  // path instead — «че/чё» + a trailing «сейчас» after the verb.
+  assert.equal(isNowPlayingQuestion('Че за песня играет сейчас?'), true);
+  assert.equal(isNowPlayingQuestion('чё играет сейчас'), true);
+  assert.equal(isNowPlayingQuestion('что играет сейчас?'), true);
+  assert.equal(isNowPlayingQuestion('какая песня играет сейчас'), true);
+  // …but a discovery/knowledge ask must NOT be mistaken for it.
+  assert.equal(isNowPlayingQuestion('что послушать сейчас?'), false);
+  assert.equal(isNowPlayingQuestion('что нового у Земфиры?'), false);
+  assert.equal(isNowPlayingQuestion('где сейчас играет The Weeknd?'), false);
+});
+
+test('explicitArtistQuery strips a leading filler noun (музыка/песни/трек X)', () => {
+  // «радио где играет музыка Weeknd» captured «музыка Weeknd», which name-matched
+  // nothing and made the reply deny a station it then showed. Strip the filler
+  // so the artist is «Weeknd» and the name-match route fires.
+  assert.equal(explicitArtistQuery('Радио где играет музыка Weeknd'), 'Weeknd');
+  assert.equal(explicitArtistQuery('где играет песни Земфиры'), 'Земфиры');
+  assert.equal(explicitArtistQuery('радио где играет трек The Weeknd'), 'The Weeknd');
+  // A bare artist (no filler) is untouched; a non-artist ask stays null.
+  assert.equal(explicitArtistQuery('где играет Баста'), 'Баста');
+  assert.equal(explicitArtistQuery('какая сегодня погода'), null);
 });
 
 test('NOW PLAYING: names the active station honestly when it exposes no track metadata', async () => {
