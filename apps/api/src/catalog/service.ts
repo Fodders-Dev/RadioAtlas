@@ -485,7 +485,20 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
       languages: new Set(sorted.map((station) => normalizeText(station.language)).filter(Boolean)).size,
       genres: tagCount
     },
-    catalogPool: sorted.slice(0, 18).map(toStationLite),
+    // The client's personalization pool. This used to be `sorted.slice(0, 18)`,
+    // and `sortByTopSignal` tiebreaks on `name.localeCompare` with NO seed — so
+    // every user on every seed got the SAME 18 alphabetical rows («__1 oldies»,
+    // «__80 HITS», …) from US/DE/ES, zero Russian. Live-verified across seeds
+    // 1/2/99: byte-identical. That is the whole of «рекомендации однообразные»:
+    // the taste ranker was correct but had nothing on-taste to rank.
+    // Now seeded and wider (48), so the ranker has real choice. Rotation is
+    // HOURLY, not per-refresh: summaryCache quantizes the seed into 1h buckets
+    // on purpose (buildCatalogSummary is ~0.85s of sync CPU). Verified with
+    // hour-apart seeds — the pool turns over completely and spans ~25 countries
+    // incl. Russia, where it used to be 18 fixed `__`-prefixed rows from US/DE/ES.
+    // Per-visit freshness comes from the client's own surface seed; on-taste
+    // candidates come from the client's taste-scoped /catalog/search fetch.
+    catalogPool: seededSample(sorted, seed + 3, 48),
     freshSignals: seededSample(sorted, seed + 1, 8),
     searchLaunch: seededSample(sorted, seed + 7, 8),
     sponsored: promoted,

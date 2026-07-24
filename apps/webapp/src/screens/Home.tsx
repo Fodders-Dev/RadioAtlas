@@ -34,6 +34,7 @@ import {
   tasteSignature,
   withFavoriteTasteBoosts
 } from '../lib/tasteProfile';
+import { useTasteCandidatePool } from '../lib/useTasteCandidatePool';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import { HomeHeroCard, HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
@@ -430,7 +431,7 @@ const rotateSurfaceFeed = (surface: HomeSurfaceFeed): HomeSurfaceFeed => {
 };
 
 export const Home = () => {
-  const { summary, summaryLoading, summaryError, refreshSummary } = useCatalog();
+  const { summary, summaryLoading, summaryError, refreshSummary, searchStations } = useCatalog();
 
   const {
     knownStations,
@@ -475,19 +476,31 @@ export const Home = () => {
   const homeImpressionSignatureRef = useRef('');
   const homeExposureFlushedRef = useRef('');
 
+  // ON-TASTE candidates from the FULL 60k catalog, scoped by the user's own
+  // language/country (see tasteCandidates.ts for why NOT by tag alone). The
+  // server pool is a generic slice, so without this the ranker could only ever
+  // rank other people's stations — the owner's «рекомендации однообразные… у
+  // меня в медиатеке совсем другой вкус». Merged, never substituted: discovery
+  // must not collapse to what the user already likes, and a cold-start user
+  // (no confident signal) gets exactly the previous behaviour.
+  const effectiveTasteProfile = useMemo(
+    () => withFavoriteTasteBoosts(tasteProfile, favorites),
+    [favorites, tasteProfile]
+  );
+  const tasteCandidates = useTasteCandidatePool(
+    effectiveTasteProfile,
+    searchStations,
+    homeState.sessionSeed
+  );
   const catalog = useMemo(
-    () => mergeStations(summary?.catalogPool || [], knownStations),
-    [knownStations, summary?.catalogPool]
+    () => mergeStations(summary?.catalogPool || [], tasteCandidates, knownStations),
+    [knownStations, summary?.catalogPool, tasteCandidates]
   );
   // «Что слушают сейчас»: real presence from our own counting. The server
   // already withholds any station below its privacy floor, so an empty list is
   // the honest common case while the app is small — and an empty list renders
   // NO block at all rather than a placeholder.
   const liveNow = useLiveNow(catalog);
-  const effectiveTasteProfile = useMemo(
-    () => withFavoriteTasteBoosts(tasteProfile, favorites),
-    [favorites, tasteProfile]
-  );
   const queuePreview = useMemo(() => {
     const startIndex = Math.max(queue.currentIndex, 0);
     return queue.items.slice(startIndex, startIndex + 4);
