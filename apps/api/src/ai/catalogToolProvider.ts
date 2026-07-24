@@ -166,16 +166,32 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
   matchStationsByArtistName: async (artist: string) => {
     const artistNorm = normalizeArtist(artist);
     if (!artistNorm) return [];
+    // Name-collision guard. «Шура» (the singer) name-matched «Шура Каретный 18+
+    // Радио» — a TALK station about a comedian — and, because that counted as a
+    // verified hit, the artist path never fell back to the русская-эстрада
+    // genre. Drop a talk-format hit ONLY when the query is a strict SUBSET of the
+    // station name (asks fewer meaningful tokens than the station has), so
+    // «шура»→drops the Каретный talk row but an explicit «Шура Каретный» keeps
+    // it. An explicit talk/humour ask («анекдоты», «включи Каретный») is honored
+    // via queryWantsTalk. Every other artist path already runs isTalkFormat;
+    // this was the one that didn't.
+    const wantsTalk = queryWantsTalk(artist);
+    const NAME_NOISE = new Set(['радио', 'radio', 'fm', 'онлайн', 'online', 'plus', 'плюс', 'hd', '18']);
+    const meaningfulTokens = (norm: string) =>
+      norm.split(' ').filter((token) => token && !NAME_NOISE.has(token));
+    const queryTokenCount = meaningfulTokens(artistNorm).length;
     const stations = await catalog.getCatalog('full');
     const out: VerifiedStationRef[] = [];
     for (const station of stations) {
       if (!station.url_resolved) continue;
       // artist is the KEY (every artist token must appear in the station NAME);
       // the name is the haystack. So «Linkin Park» matches «Linkin Park Radio».
-      if (artistTokensMatch(normalizeArtist(station.name), artistNorm)) {
-        out.push(toRef(station));
-        if (out.length >= MAX_NAME_MATCHES) break;
-      }
+      const stationNorm = normalizeArtist(station.name);
+      if (!artistTokensMatch(stationNorm, artistNorm)) continue;
+      const looseCollision = meaningfulTokens(stationNorm).length > queryTokenCount;
+      if (looseCollision && !wantsTalk && isTalkFormat(station)) continue;
+      out.push(toRef(station));
+      if (out.length >= MAX_NAME_MATCHES) break;
     }
     return out;
   },

@@ -16,7 +16,11 @@ import {
 } from './antiHallucination.js';
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { resolveCulturalVibe } from './culturalVibes.js';
-import { resolveAnchorGenres, resolveArtistGenres } from './artistGenreFallback.js';
+import {
+  resolveAnchorGenres,
+  resolveArtistGenres,
+  resolveRussianGenrePhrase
+} from './artistGenreFallback.js';
 import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
@@ -86,7 +90,7 @@ const hasVibeIntent = (message: string): boolean =>
 // so a false positive only costs one planner call, never a wrong card. Short
 // stems get a Cyrillic/Latin-aware boundary so «урок»≠«рок», «попа»≠«поп».
 const MUSIC_DESCRIPTOR =
-  /(музык|вокал|инструментал|хиты|хитов|хит-парад|\d0-?[еёхxs]|девяност|восьмидес|семидес|шестидес|нулев[ыо]|двухтысячн|драм-?н-?бэйс|драм\s+энд\s+бэйс|drum\s?(?:and|n|&|'n')?\s?bass|(?:^|[^a-zа-яё])(?:рок|поп|рэп|рнб|джаз|метал{1,2}|панк|фонк|блюз|соул|фанк|диско|техно|хаус|house|регги|reggae|трэп|trap|гранж|grunge|инди|indie|эмбиент|ambient|шансон|дрилл|drill|грайм|grime|хардкор|hardcore|дабстеп|dubstep|синтвейв|synthwave|дарквейв|darkwave|шугейз|shoegaze|лоу-?фай|lo-?fi|фолк|folk|кантри|country|электрон|electronic|вейпорвейв|vaporwave|хип-?хоп|hip-?hop|сити-?поп|city\s?pop|к-?поп|k-?pop|джей-?поп|j-?pop|госпел|gospel|латин|latin|босса|самб|танго|кельтск|celtic|металкор|metalcore|ска|ska|транс|trance|дрим|dream|евроданс|eurodance|психоделик|psytrance|психотранс|гоа[\s-]?транс|goa[\s-]?trance|хардстайл|hardstyle|брейкбит|breakbeat|биг-?бит|big\s?beat|днб|dnb|айдиэм|idm|даунтемпо|downtempo|прогрессив|progressive|пост-?панк|post-?punk|пост-?рок|post-?rock|дэт-?метал|death\s?metal|блэк-?метал|black\s?metal|дум-?метал|doom\s?metal|нью-?вейв|new\s?wave|итало|italo)(?![a-zа-яё]))/i;
+  /(музык|эстрад|попс|вокал|инструментал|хиты|хитов|хит-парад|\d0-?[еёхxs]|девяност|восьмидес|семидес|шестидес|нулев[ыо]|двухтысячн|драм-?н-?бэйс|драм\s+энд\s+бэйс|drum\s?(?:and|n|&|'n')?\s?bass|(?:^|[^a-zа-яё])(?:рок|поп|рэп|рнб|джаз|метал{1,2}|панк|фонк|блюз|соул|фанк|диско|техно|хаус|house|регги|reggae|трэп|trap|гранж|grunge|инди|indie|эмбиент|ambient|шансон|дрилл|drill|грайм|grime|хардкор|hardcore|дабстеп|dubstep|синтвейв|synthwave|дарквейв|darkwave|шугейз|shoegaze|лоу-?фай|lo-?fi|фолк|folk|кантри|country|электрон|electronic|вейпорвейв|vaporwave|хип-?хоп|hip-?hop|сити-?поп|city\s?pop|к-?поп|k-?pop|джей-?поп|j-?pop|госпел|gospel|латин|latin|босса|самб|танго|кельтск|celtic|металкор|metalcore|ска|ska|транс|trance|дрим|dream|евроданс|eurodance|психоделик|psytrance|психотранс|гоа[\s-]?транс|goa[\s-]?trance|хардстайл|hardstyle|брейкбит|breakbeat|биг-?бит|big\s?beat|днб|dnb|айдиэм|idm|даунтемпо|downtempo|прогрессив|progressive|пост-?панк|post-?punk|пост-?рок|post-?rock|дэт-?метал|death\s?metal|блэк-?метал|black\s?metal|дум-?метал|doom\s?metal|нью-?вейв|new\s?wave|итало|italo)(?![a-zа-яё]))/i;
 
 // Dislike / negation of a genre — «не люблю транс», «ненавижу рэп», «терпеть не
 // могу попсу», «не слушаю метал», «фу, шансон», «надоел рэп». Used ONLY to narrow
@@ -324,11 +328,21 @@ const ARTIST_REQUEST_PATTERNS: RegExp[] = [
   /про\s+групп\w+\s+(.+)$/i
 ];
 
-const explicitArtistQuery = (message: string): string | null => {
+// A leading filler noun in the captured tail — «музыка/песни/трек/композиция X»
+// — otherwise reaches the artist tool verbatim: «радио где играет музыка Weeknd»
+// captured «музыка Weeknd», which name-matched nothing and made the reply DENY a
+// station it went on to show. Strip it so the artist is just «Weeknd». `\w` is
+// ASCII-only in JS, so the Russian case ending uses `[а-яё]*`.
+const stripArtistFiller = (artist: string): string =>
+  artist.replace(/^(?:музык|песн|трек|композици|исполнител|групп|коллектив)[а-яё]*\s+/i, '').trim();
+
+export const explicitArtistQuery = (message: string): string | null => {
   for (const pattern of ARTIST_REQUEST_PATTERNS) {
     const match = message.match(pattern);
-    const artist = match?.[1]?.trim().replace(/[?!.]+$/, '').trim();
-    if (artist && artist.length >= 2) return artist;
+    const raw = match?.[1]?.trim().replace(/[?!.]+$/, '').trim();
+    if (!raw || raw.length < 2) continue;
+    const artist = stripArtistFiller(raw);
+    if (artist.length >= 2) return artist;
   }
   return null;
 };
@@ -445,8 +459,13 @@ export const classifySongKnowledgeIntent = (message: string): SongKnowledgeInten
   };
 };
 
+// «что за X», «че/чё за X», with an optional trailing «сейчас» after the verb —
+// the owner asked «Че за песня играет сейчас?» and the narrow «что…» pattern
+// missed both the colloquial «че/чё» AND the verb-final «…играет сейчас», so it
+// fell through to the planner which hallucinated «я не ловлю эфир в реальном
+// времени» despite the trusted nowPlaying context being present.
 const NOW_PLAYING_QUESTION =
-  /(?:^|[,.!?]\s*)(?:а\s+)?(?:что(?:\s+за)?(?:\s+(?:трек|песн[яюи]?|композиц[а-яё]*))?\s+(?:сейчас\s+)?(?:играет|звучит)(?:\s+(?:на\s+)?(?:радио|станци[а-яё]*|в\s+эфире))?|ка(?:кая|кой)\s+(?:песн[яюи]?|трек|композиц[а-яё]*)\s+(?:сейчас\s+)?(?:играет|звучит)|что\s+я\s+(?:сейчас\s+)?слушаю|кто\s+(?:это\s+)?(?:сейчас\s+)?(?:по[её]т|исполняет)|(?:назови|скажи)\s+(?:мне\s+)?(?:текущ(?:ий|ую)\s+)?(?:трек|песн[юя])|что\s+(?:сейчас\s+)?в\s+эфире|what(?:'s|\s+is)?\s+(?:this|currently|now)?\s*playing|what\s+(?:song|track)\s+is\s+(?:currently\s+|now\s+)?playing|who\s+(?:is\s+)?singing)(?:\s*[?!.])?$/i;
+  /(?:^|[,.!?]\s*)(?:а\s+)?(?:(?:что|ч[её])(?:\s+за)?(?:\s+(?:трек|песн[яюи]?|композиц[а-яё]*))?\s+(?:сейчас\s+)?(?:играет|звучит)(?:\s+сейчас)?(?:\s+(?:на\s+)?(?:радио|станци[а-яё]*|в\s+эфире))?|ка(?:кая|кой)\s+(?:песн[яюи]?|трек|композиц[а-яё]*)\s+(?:сейчас\s+)?(?:играет|звучит)(?:\s+сейчас)?|что\s+я\s+(?:сейчас\s+)?слушаю|кто\s+(?:это\s+)?(?:сейчас\s+)?(?:по[её]т|исполняет)|(?:назови|скажи)\s+(?:мне\s+)?(?:текущ(?:ий|ую)\s+)?(?:трек|песн[юя])|что\s+(?:сейчас\s+)?в\s+эфире|what(?:'s|\s+is)?\s+(?:this|currently|now)?\s*playing|what\s+(?:song|track)\s+is\s+(?:currently\s+|now\s+)?playing|who\s+(?:is\s+)?singing)(?:\s*[?!.])?$/i;
 
 // A direct playback-state question is answered from the trusted player context,
 // never from the model. This keeps «что сейчас играет?» fast and incapable of
@@ -1228,6 +1247,16 @@ const mapVibeToTags = async (
   taste?: UserTasteContext | null
 ): Promise<{ tags: string[]; usage?: ChatUsage }> => {
   const { hint, avoid } = buildVibeTasteHint(taste);
+  // Deterministic Russian-genre short-circuit, BEFORE the model. The model path
+  // below cannot help here even if it wanted to: parseGenreTags drops every
+  // Cyrillic tag, so «советская эстрада»/«хип-хоп»/«шансон» never survive it and
+  // a Russian genre ask leaks to foreign pop. These tags are cat-probe-verified
+  // to return Russian stations. Taste-dislikes still apply.
+  const russianGenre = resolveRussianGenrePhrase(userMessage);
+  if (russianGenre) {
+    const kept = russianGenre.filter((tag) => !avoid.has(normalizeTasteLabel(tag)));
+    if (kept.length) return { tags: kept };
+  }
   const result = await callDeepseek(
     deps.deepseek,
     [

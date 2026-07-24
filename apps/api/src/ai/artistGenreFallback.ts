@@ -60,6 +60,29 @@ export const ARTIST_GENRES: ArtistGenre[] = [
   { label: 'mashina-vremeni', pattern: /машина\s*времени|макаревич/i, tags: ['russian rock'], anchorSafe: true },
   { label: 'zemfira', pattern: /земфир/i, tags: ['russian rock'], anchorSafe: true },
   { label: 'mumiy-troll', pattern: /мумий\s*тролл/i, tags: ['russian rock'], anchorSafe: true },
+  { label: 'bi-2', pattern: /(?:^|[^а-яё])би\s*-?\s*2|би\s+два/i, tags: ['russian rock'], anchorSafe: true },
+  // Russian POP / ЭСТРАДА / DANCE — the generic planner sent these to FOREIGN pop
+  // (Swiss/French, live-verified) because their catalog PRIMARY tag is a bare
+  // «pop». Each here is pinned to a RUSSIAN tag that actually returns Russian
+  // stations (russian pop → 9 RU, «советская эстрада» → 5, «russian dance» → 4;
+  // all cat-probe-checked). «Ева Польна», «Винтаж», «Шура» are the owner's exact
+  // examples. Common-noun stems (шура/винтаж/тату/мираж/баста) are NOT anchorSafe
+  // — they only fire on the explicit «радио с X»/«где играет X» path, never on
+  // «в стиле X», so ordinary chat can't be hijacked.
+  { label: 'eva-polna', pattern: /ева\s*польн|(?:^|[^а-яё])польн[а-яё]*/i, tags: ['russian pop', 'советская эстрада'] },
+  { label: 'polina-gagarina', pattern: /полин[а-яё]*\s*гагарин|гагарин[а-яё]*/i, tags: ['russian pop'], anchorSafe: true },
+  { label: 'pugacheva', pattern: /пугач[её]в|алла\s*пугач/i, tags: ['советская эстрада', 'russian pop'], anchorSafe: true },
+  { label: 'kirkorov', pattern: /киркоров/i, tags: ['russian pop', 'советская эстрада'], anchorSafe: true },
+  { label: 'shura', pattern: /(?:^|[^а-яё])шура(?![а-яё])/i, tags: ['russian pop', 'советская эстрада'] },
+  { label: 'vintazh', pattern: /(?:^|[^а-яё])винтаж(?![а-яё])/i, tags: ['russian dance', 'russian pop'] },
+  { label: 'tatu', pattern: /t\.?a\.?t\.?u|(?:^|[^а-яё])тату(?![а-яё])/i, tags: ['russian pop', 'russian dance'] },
+  { label: 'estrada-dance', pattern: /руки\s*вверх|(?:^|[^а-яё])мираж(?![а-яё])|ласков[а-яё]*\s*май|(?:^|[^а-яё])комбинаци[а-яё]*/i, tags: ['советская эстрада', 'russian dance'] },
+  // Russian RAP / ХИП-ХОП — the Cyrillic tags «хип-хоп»/«рэп» are ~100% RU
+  // (9/5 RU) while «hip hop»/«russian rap» leak foreign; pin to the Cyrillic tag.
+  { label: 'egor-krid', pattern: /егор\s*крид/i, tags: ['russian pop', 'хип-хоп'], anchorSafe: true },
+  { label: 'maks-korzh', pattern: /макс\s*корж/i, tags: ['хип-хоп', 'russian pop'], anchorSafe: true },
+  { label: 'basta', pattern: /(?:^|[^а-яё])баста(?![а-яё])|noggano|ноггано/i, tags: ['хип-хоп', 'рэп'] },
+  { label: 'oxxxymiron', pattern: /oxxxymiron|оксимирон|окси\s*мирон/i, tags: ['хип-хоп', 'рэп'], anchorSafe: true },
   // International marquee acts the generic planner/vibe-mapping demonstrably
   // fumbles — it reads their DREAMY/atmospheric vibe and searches «ambient», so a
   // «в стиле Robert Miles» ask lands on SomaFM SLEEP stations instead of their real
@@ -99,6 +122,38 @@ export const resolveAnchorGenres = (text?: string | null): string[] | null => {
   if (!haystack) return null;
   for (const entry of ARTIST_GENRES) {
     if (entry.anchorSafe && entry.pattern.test(haystack)) return entry.tags;
+  }
+  return null;
+};
+
+/**
+ * Deterministic RUSSIAN GENRE PHRASE → verified catalog tags.
+ *
+ * Needed because the model-driven vibe→tags path (parseGenreTags) drops ANY
+ * Cyrillic tag by design, so the best Russian genre tags — «советская эстрада»,
+ * «хип-хоп», «рэп», «шансон» — can never survive it, and a Russian genre ask
+ * («русская эстрада», «русский рэп») lands on foreign pop. This runs BEFORE the
+ * model and short-circuits to tags that are live-verified to return Russian
+ * stations. `\w` is ASCII-only in JS, so Russian suffixes use `[а-яё]*`.
+ *
+ * The bare «эстрад»/«шансон» entries have no «русск» prefix on purpose: in a
+ * Russian UI both overwhelmingly mean the Russian variety (cat-probe: Cyrillic
+ * «шансон» → 22 RU, «эстрада» → 5 RU).
+ */
+const RUSSIAN_GENRE_PHRASES: ReadonlyArray<{ pattern: RegExp; tags: string[] }> = [
+  { pattern: /русск[а-яё]*\s*эстрад|совет\w*\s*эстрад|(?:^|[^а-яё])эстрад/i, tags: ['советская эстрада', 'эстрада', 'russian pop'] },
+  { pattern: /русск[а-яё]*\s*(?:поп|попс|попняк)|(?:^|[^а-яё])попс[а-яё]*/i, tags: ['russian pop', 'русское радио'] },
+  { pattern: /русск[а-яё]*\s*(?:рэп|рэпчик|хип-?хоп)/i, tags: ['хип-хоп', 'рэп'] },
+  { pattern: /русск[а-яё]*\s*шансон|(?:^|[^а-яё])шансон/i, tags: ['шансон'] },
+  { pattern: /русск[а-яё]*\s*(?:танцев[а-яё]*|дэнс|dance)/i, tags: ['russian dance', 'russian pop'] },
+  { pattern: /русск[а-яё]*\s*рок/i, tags: ['russian rock', 'русский рок'] }
+];
+
+export const resolveRussianGenrePhrase = (text?: string | null): string[] | null => {
+  const haystack = String(text || '').toLowerCase();
+  if (!haystack) return null;
+  for (const entry of RUSSIAN_GENRE_PHRASES) {
+    if (entry.pattern.test(haystack)) return entry.tags;
   }
   return null;
 };
