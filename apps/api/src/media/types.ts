@@ -11,6 +11,11 @@ export type MediaRouteOptions = {
   fetchCacheTtlMs?: number;
   fetchNegativeCacheTtlMs?: number;
   upstreamTimeoutMs?: number;
+  // Idle/stall timeout for the live-stream BODY transfer (ms). The headers fetch
+  // is bounded by upstreamTimeoutMs, but the body pipe is unbounded — this kills
+  // a half-open upstream that sends headers then goes silent, freeing the
+  // concurrency slot. Reset on every chunk; backpressure-aware. Default ~20000.
+  streamStallTimeoutMs?: number;
   metadataRateLimitPerWindow?: number;
   fetchRateLimitPerWindow?: number;
   streamRateLimitPerWindow?: number;
