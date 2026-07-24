@@ -17,6 +17,10 @@ import { MediaOverloadError, ProtectedMediaRoute } from './protection.js';
 
 const proxyTimeoutMs = (options: MediaRouteOptions) => options.upstreamTimeoutMs || 12_000;
 
+// Idle/stall budget for the BODY transfer (separate from the headers fetch
+// timeout). 0 / unset disables the watchdog.
+const streamStallTimeoutMs = (options: MediaRouteOptions) => options.streamStallTimeoutMs ?? 20_000;
+
 /**
  * Tear down the upstream read when the client disconnects mid-stream.
  *
@@ -40,6 +44,91 @@ export const wireClientDisconnectTeardown = (
       stream.destroy();
     }
   });
+};
+
+type StallSource = {
+  on: (
+    event: 'data' | 'end' | 'close' | 'error',
+    listener: (...args: unknown[]) => void
+  ) => void;
+};
+
+type StallTimers = {
+  set: (callback: () => void, ms: number) => ReturnType<typeof setTimeout>;
+  clear: (handle: ReturnType<typeof setTimeout>) => void;
+};
+
+const defaultStallTimers: StallTimers = {
+  set: (callback, ms) => setTimeout(callback, ms),
+  clear: (handle) => clearTimeout(handle)
+};
+
+/**
+ * Idle/stall watchdog for the upstream BODY transfer.
+ *
+ * fetchWithTimeout only bounds the HEADERS fetch — once headers arrive its
+ * AbortController timer is cleared, so the body pipe runs with NO timeout. A
+ * half-open upstream (sends 200 + headers, then goes silent) therefore leaks its
+ * socket/fd and the 512KB PassThrough buffer for as long as the process lives.
+ *
+ * NB (corrected during review): this does NOT free a stuck concurrency slot —
+ * ProtectedMediaRoute releases the slot in its `finally` the moment the stream
+ * task resolves, i.e. at HEADER time, so a half-open body never held one. The
+ * leak is real; the "pins one of 6 slots forever" story is not.
+ *
+ * This arms a timer that fires after `idleMs`
+ * with no `data` from `source`; every chunk re-arms it, and `end`/`close`/
+ * `error` disarm it for good.
+ *
+ * `onIdle` is the decision callback run when the timer fires: return `true` to
+ * keep watching (the idle tick was just downstream backpressure — a slow/paused
+ * CLIENT pauses the source, which also stops `data` — NOT an upstream stall), or
+ * `false` to stop (the caller has torn the stream down). A live radio stream
+ * sends data constantly, so on a healthy connection the timer is perpetually
+ * re-armed and never fires.
+ *
+ * Pure + DI'd timers for unit testing. Returns a disposer. `idleMs <= 0` is a
+ * no-op (watchdog disabled).
+ */
+export const wireStreamStallTimeout = (
+  source: StallSource,
+  idleMs: number,
+  onIdle: () => boolean,
+  timers: StallTimers = defaultStallTimers
+): (() => void) => {
+  if (!(idleMs > 0)) return () => {};
+  let handle: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+
+  const clear = () => {
+    if (handle !== null) {
+      timers.clear(handle);
+      handle = null;
+    }
+  };
+  const stop = () => {
+    stopped = true;
+    clear();
+  };
+  const arm = () => {
+    if (stopped) return;
+    clear();
+    handle = timers.set(() => {
+      handle = null;
+      if (stopped) return;
+      if (onIdle()) arm();
+      else stop();
+    }, idleMs);
+  };
+
+  source.on('data', arm);
+  source.on('end', stop);
+  source.on('close', stop);
+  source.on('error', stop);
+  // Arm immediately so a "headers then total silence" upstream (no `data` ever)
+  // still trips, not just one that goes quiet mid-stream.
+  arm();
+  return stop;
 };
 
 const IMAGE_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
@@ -314,6 +403,31 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
       });
       wireClientDisconnectTeardown(res, sourceStream, bufferStream);
       sourceStream.pipe(bufferStream).pipe(res);
+
+      // Stall watchdog: kill a half-open upstream (200 + headers, then silence)
+      // that would otherwise pin a concurrency slot forever — fetchWithTimeout
+      // only bounds the headers fetch. Wired AFTER pipe so adding the `data`
+      // listener doesn't flip the source to flowing mode before pipe attaches
+      // (which would drop the first chunks). A live stream sends data constantly
+      // so it never trips; an idle tick caused by a slow/paused CLIENT (the
+      // PassThrough fills → backpressure pauses the source → no `data`) re-arms
+      // instead of killing a healthy stream.
+      const stopStallWatch = wireStreamStallTimeout(
+        sourceStream,
+        streamStallTimeoutMs(options),
+        () => {
+          if (sourceStream.isPaused() || bufferStream.writableLength > 0) {
+            return true; // downstream backpressure, not an upstream stall — keep watching
+          }
+          // Flowing with an empty buffer yet no bytes for the whole window ⇒ the
+          // upstream really went silent. Destroy the source (fires agent disposal
+          // → frees the pinned socket) and close the response.
+          sourceStream.destroy(new Error('upstream stalled'));
+          if (!res.writableEnded) res.destroy();
+          return false;
+        }
+      );
+      res.on('close', stopStallWatch);
     } catch (error) {
       if (error instanceof MediaOverloadError) {
         res.setHeader('Retry-After', String(error.retryAfterSec));
