@@ -1,0 +1,5 @@
+# Shell scripts run on Linux and MUST be LF in the repository. A CRLF file makes
+# bash read `set -euo pipefail\r` and abort with "pipefail: invalid option name" —
+# which is exactly how install-health-guard.sh got committed broken: an edit made
+# from Windows wrote CRLF, and core.autocrlf=true did not normalise it back.
+*.sh text eol=lf
