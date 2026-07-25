@@ -152,6 +152,7 @@ test.before(async () => {
     env: {
       ...process.env,
       PORT: String(apiPort),
+      INTERNAL_WEBHOOK_TOKEN: 'degradation-test-internal-token',
       RADIO_BROWSER_URLS: `${upstreamBaseUrl}/catalog-source`,
       CATALOG_FETCH_TIMEOUT_MS: '50',
       METADATA_PROBE_TIMEOUT_MS: '50',
@@ -209,7 +210,9 @@ test.after(async () => {
 });
 
 test('slow catalog source falls back to cached artifact and records observability', async () => {
-  const { body: before } = await getJson<ObservabilityPayload>('/observability');
+  const { body: before } = await getJson<ObservabilityPayload>('/observability', {
+    headers: { 'x-internal-token': 'degradation-test-internal-token' }
+  });
   const beforeFallbacks =
     Number(before.counters['catalog_fallback:artifact'] || 0) +
     Number(before.counters['catalog_fallback:snapshot'] || 0);
@@ -218,7 +221,9 @@ test('slow catalog source falls back to cached artifact and records observabilit
   assert.equal(response.status, 200);
   assert.equal(typeof body.counts.stations, 'number');
 
-  const { body: after } = await getJson<ObservabilityPayload>('/observability');
+  const { body: after } = await getJson<ObservabilityPayload>('/observability', {
+    headers: { 'x-internal-token': 'degradation-test-internal-token' }
+  });
   const afterFallbacks =
     Number(after.counters['catalog_fallback:artifact'] || 0) +
     Number(after.counters['catalog_fallback:snapshot'] || 0);

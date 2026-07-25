@@ -413,7 +413,9 @@ test('observability exposes persisted JSON and prometheus views', async () => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: 'visual_regression_ping',
+      // Must be one of the names the web app actually reports: the counter key
+      // is derived from it, so arbitrary names are refused now.
+      name: 'client_error',
       detail: 'contract-test',
       meta: {
         scope: 'contracts',
@@ -423,8 +425,22 @@ test('observability exposes persisted JSON and prometheus views', async () => {
   });
   assert.equal(clientEventResponse.status, 200);
 
-  const { body: observability } = await getJson<ObservabilityPayload>('/observability');
-  assert.equal(typeof observability.counters['client_event:visual_regression_ping'], 'number');
+  const inventedEvent = await fetch(`${baseUrl}/observability/client-event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'visual_regression_ping' })
+  });
+  assert.equal(inventedEvent.status, 400, 'an unauthenticated caller must not mint metric keys');
+
+  // /observability is no longer world-readable: it published the release path
+  // and the browser-error ring to anyone who asked.
+  const closedObservability = await fetch(`${baseUrl}/observability`);
+  assert.equal(closedObservability.status, 404, 'the snapshot must not be public');
+
+  const { body: observability } = await getJson<ObservabilityPayload>('/observability', {
+    headers: { 'x-internal-token': 'contract-test-internal-token' }
+  });
+  assert.equal(typeof observability.counters['client_event:client_error'], 'number');
   assert.equal(typeof observability.gauges['runtime:process_cpu_percent'], 'number');
   assert.ok(Array.isArray(observability.clientEvents));
   assert.equal(observability.clientEvents[0]?.meta?.scope, 'contracts');
@@ -432,7 +448,9 @@ test('observability exposes persisted JSON and prometheus views', async () => {
   assert.ok(Array.isArray(observability.latency));
   assert.equal(typeof observability.persistence.storePath, 'string');
 
-  const metricsResponse = await fetch(`${baseUrl}/observability/prometheus`);
+  const metricsResponse = await fetch(`${baseUrl}/observability/prometheus`, {
+    headers: { 'x-internal-token': 'contract-test-internal-token' }
+  });
   assert.equal(metricsResponse.status, 200);
   const metrics = await metricsResponse.text();
   assert.match(metrics, /radioatlas_observability_counter/);
