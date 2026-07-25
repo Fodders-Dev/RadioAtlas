@@ -4,6 +4,7 @@ import type express from 'express';
 import type { MediaRouteOptions } from './types.js';
 import {
   drainResponseBody,
+  fetchCandidate,
   fetchUrlCandidates,
   noteHttpsUpgradeFailure,
   fetchWithDeadline,
@@ -306,13 +307,12 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
         let lastError: Error | null = null;
         for (const candidate of fetchUrlCandidates(parsed.target)) {
           try {
-            const response = await fetchWithTimeout(
-              candidate.url.toString(),
+            const response = await fetchCandidate(
+              candidate,
               { headers },
-              // The speculative https:// upgrade gets a SHORT deadline; only the
-              // real target is worth the full upstream timeout. See
-              // fetchUrlCandidates for the measurement behind this.
-              candidate.timeoutMs ?? proxyTimeoutMs(options)
+              // The speculative https:// upgrade carries a SHORT deadline of its
+              // own; only the real target is worth the full upstream timeout.
+              proxyTimeoutMs(options)
             );
             if (!response.ok) {
               // Drain the abandoned body so its agent-disposal wrapper closes
@@ -500,15 +500,15 @@ export const createImageHandler = (options: MediaRouteOptions) => {
 
         for (const candidate of fetchUrlCandidates(parsed.target)) {
           try {
-            const response = await fetchWithTimeout(
-              candidate.url.toString(),
+            const response = await fetchCandidate(
+              candidate,
               {
                 headers: {
                   'User-Agent': options.userAgent,
                   Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
                 }
               },
-              candidate.timeoutMs ?? proxyTimeoutMs(options)
+              proxyTimeoutMs(options)
             );
             if (!response.ok) {
               // Same leak as the stream loop: artwork URLs 404/redirect often,

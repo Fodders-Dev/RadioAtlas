@@ -76,6 +76,41 @@ export const shouldTryHttpsUpgrade = (target: URL, now = Date.now()) => {
 
 export type UrlCandidate = { url: URL; speculative: boolean; timeoutMs?: number };
 
+/**
+ * Stop WAITING on a speculative probe after `ms`, whether or not the underlying
+ * socket lets go.
+ *
+ * MEASURED, and the reason this exists: a plain `fetch` with an AbortController
+ * cuts a stuck TLS connect at exactly 1500ms — but our stack passes
+ * `dispatcher: buildPinnedAgent(...)` (the SSRF pin), and with that dispatcher
+ * the abort does NOT interrupt the connect phase: the same attempt still took
+ * ~10.3s on the production VPS. Racing the promise is therefore the only way to
+ * bound the wait. We still abort (best effort) so the socket is not leaked, and
+ * the per-host memory means a given server pays this at most once an hour.
+ */
+export const raceWithDeadline = async <T>(
+  work: Promise<T>,
+  ms: number,
+  onTimeout: () => void
+): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          onTimeout();
+          reject(new Error('speculative probe timed out'));
+        }, ms);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    // A losing `work` promise must not surface as an unhandled rejection.
+    void work.catch(() => {});
+  }
+};
+
 export const fetchUrlCandidates = (target: URL, now = Date.now()): UrlCandidate[] => {
   const candidates: UrlCandidate[] = [];
   if (target.protocol === 'http:' && shouldTryHttpsUpgrade(target, now)) {
@@ -649,6 +684,28 @@ export const fetchWithTimeout = async (
   } finally {
     clearTimeout(timeout);
   }
+};
+
+/**
+ * Fetch one candidate URL. A speculative candidate is additionally bounded by a
+ * wall-clock race, because the abort signal alone does not stop the wait (see
+ * raceWithDeadline).
+ */
+export const fetchCandidate = async (
+  candidate: UrlCandidate,
+  init: RequestInit,
+  fullTimeoutMs: number
+): Promise<Response> => {
+  const timeoutMs = candidate.timeoutMs ?? fullTimeoutMs;
+  const work = fetchWithTimeout(candidate.url.toString(), init, timeoutMs);
+  if (!candidate.speculative) {
+    return work;
+  }
+  return raceWithDeadline(work, timeoutMs, () => {
+    // We have stopped waiting, but the socket may still answer later. Drain
+    // whatever arrives so the pinned agent is disposed instead of leaked.
+    void work.then((response) => drainResponseBody(response)).catch(() => {});
+  });
 };
 
 export const fetchWithDeadline = async (
