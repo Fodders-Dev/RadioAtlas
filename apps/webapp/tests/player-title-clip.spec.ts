@@ -37,6 +37,13 @@ for (const viewport of [
     await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
     await page.waitForTimeout(400);
 
+    const art = await page.evaluate(() => {
+      const hero = document.querySelector('[data-full-player-overlay] .full-player-hero') as HTMLElement | null;
+      if (!hero) return null;
+      const r = hero.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+
     const title = await page.evaluate(() => {
       const h1 = document.querySelector('[data-full-player-overlay] h1') as HTMLElement | null;
       if (!h1) return null;
@@ -53,5 +60,15 @@ for (const viewport of [
       title!.boxH,
       `"${title!.text}" got a ${title!.boxH}px box for a ${title!.lineBoxH}px line - the title is being cropped`
     ).toBeGreaterThanOrEqual(title!.lineBoxH - 0.5);
+
+    // The hero is now sized off `height` so flex can shrink it, with
+    // `aspect-ratio: 1` deriving the width. Any rule that ALSO sets `width`
+    // silently defeats the aspect ratio and squashes the cover into a rectangle -
+    // the short-screen block (max-height: 700px) did exactly that.
+    expect(art, 'the full player must render hero artwork').not.toBeNull();
+    expect(
+      Math.abs(art!.w - art!.h),
+      `hero artwork is ${art!.w}x${art!.h} - it must stay square`
+    ).toBeLessThanOrEqual(1);
   });
 }
