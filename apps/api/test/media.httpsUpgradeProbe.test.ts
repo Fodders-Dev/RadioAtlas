@@ -5,8 +5,8 @@ import {
   noteHttpsUpgradeFailure,
   resetHttpsUpgradeMemory,
   HTTPS_UPGRADE_MEMORY_MS,
-  SPECULATIVE_HTTPS_TIMEOUT_MS
-} from '../src/media/shared.js';
+  SPECULATIVE_HTTPS_TIMEOUT_MS,
+  raceWithDeadline} from '../src/media/shared.js';
 
 test('an http target still tries https FIRST — the upgrade is worth keeping', () => {
   resetHttpsUpgradeMemory();
@@ -55,4 +55,48 @@ test('an https target is never given a speculative sibling', () => {
   const candidates = fetchUrlCandidates(new URL('https://secure.test/mount'));
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0]?.speculative, false);
+});
+
+test('a speculative probe stops WAITING at its deadline even when nothing aborts it', async () => {
+  // This is the production failure #210 missed: with `dispatcher: buildPinnedAgent(...)`
+  // the AbortController does not interrupt a stuck TLS connect, so the fetch
+  // promise simply does not settle. Model that with a promise that never settles.
+  let timedOut = false;
+  const neverSettles = new Promise<string>(() => {});
+  const started = Date.now();
+  await assert.rejects(
+    raceWithDeadline(neverSettles, 40, () => {
+      timedOut = true;
+    }),
+    /timed out/
+  );
+  assert.equal(timedOut, true, 'onTimeout must fire so the host is remembered as failing');
+  assert.ok(Date.now() - started < 1000, 'must return at the deadline, not hang');
+});
+
+test('a probe that answers in time wins the race untouched', async () => {
+  let timedOut = false;
+  const value = await raceWithDeadline(Promise.resolve('ok'), 1000, () => {
+    timedOut = true;
+  });
+  assert.equal(value, 'ok');
+  assert.equal(timedOut, false);
+});
+
+test('a losing probe that fails later does not crash the process', async () => {
+  // Without the catch in raceWithDeadline this rejection lands after we have
+  // moved on, i.e. as an unhandled rejection that takes the API down.
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    const late = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error('socket died late')), 20).unref?.();
+    });
+    await assert.rejects(raceWithDeadline(late, 5, () => {}), /timed out/);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+  assert.deepEqual(unhandled, []);
 });
