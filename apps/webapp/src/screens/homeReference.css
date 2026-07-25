@@ -1103,7 +1103,7 @@
   color: #fff;
   font-size: 0.98rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.35;
   white-space: nowrap;
   text-overflow: ellipsis;
   text-shadow: 0 1px 12px rgba(0, 6, 16, 0.6);
@@ -1459,7 +1459,7 @@
     color: #f8fbff;
     font-size: clamp(1.85rem, 5vw + 10px, 2.5rem);
     font-weight: 520;
-    line-height: 1;
+    line-height: 1.35;
     letter-spacing: -0.045em;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -1615,7 +1615,7 @@
     display: -webkit-box;
     overflow: hidden;
     font-size: clamp(1.72rem, 8vw, 2.65rem);
-    line-height: 1.02;
+    line-height: 1.35;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
@@ -2194,7 +2194,7 @@
     color: #f8fbff;
     font-size: clamp(1.85rem, 5vw + 10px, 2.5rem);
     font-weight: 520;
-    line-height: 1;
+    line-height: 1.35;
     letter-spacing: -0.045em;
     white-space: nowrap;
     text-overflow: ellipsis;

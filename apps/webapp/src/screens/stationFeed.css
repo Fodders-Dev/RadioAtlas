@@ -573,7 +573,7 @@
   margin: 0;
   font-size: clamp(28px, 8.4vw, 38px);
   font-weight: 800;
-  line-height: 1.06;
+  line-height: 1.35;
   letter-spacing: -0.02em;
   display: -webkit-box;
   -webkit-line-clamp: 2;

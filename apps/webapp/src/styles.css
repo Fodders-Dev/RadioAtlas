@@ -2431,7 +2431,7 @@ input {
   overflow: hidden;
   word-break: break-word;
   font-size: 11.5px;
-  line-height: 1.22;
+  line-height: 1.35;
   font-weight: 700;
 }
 
@@ -4140,7 +4140,7 @@ button.app-brand-pill {
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: anywhere;
-  line-height: 1.15;
+  line-height: 1.35;
 }
 
 .player-dock-track-button {
@@ -7453,7 +7453,7 @@ body {
   color: #f4fbff;
   font-size: 15px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10420,7 +10420,7 @@ button.player-dock-status-pill:active {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 18px;
-    line-height: 1.1;
+    line-height: 1.35;
   }
 
   .app-topbar-utility-row {
@@ -10847,7 +10847,7 @@ button.player-dock-status-pill:active {
   .app-topbar-title {
     overflow: hidden;
     font-size: 18px;
-    line-height: 1.1;
+    line-height: 1.35;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
