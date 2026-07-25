@@ -29,14 +29,61 @@ export const rewriteM3U8 = (body: string, sourceUrl: string, proxyBase: string) 
   return rewritten.join('\n');
 };
 
-export const fetchUrlCandidates = (target: URL) => {
-  const candidates: URL[] = [];
-  if (target.protocol === 'http:') {
+/**
+ * A plain-HTTP station is tried over HTTPS first, because plenty of hosts serve
+ * both and the secure one is strictly better. That upgrade is an OPTIMISM, not a
+ * requirement — and it used to be charged the full upstream timeout.
+ *
+ * MEASURED on the production VPS: an HTTPS attempt against a TLS-less Icecast
+ * (79.120.39.202:8004) hangs for 14.9s before failing, while the same mount over
+ * plain HTTP answers in 0.18s. Every such station therefore paid ~12s (the
+ * upstream timeout) BEFORE the real request even started — that is the owner's
+ * «жму на радио — и оно спустя минуту только запускается». Hosts that genuinely
+ * serve TLS answer the upgrade in ~0.12s, so they never noticed.
+ *
+ * Two changes keep the upgrade's benefit and drop its cost:
+ *   1. the speculative candidate gets its OWN short deadline (below), not the
+ *      full upstream timeout;
+ *   2. an origin that fails the upgrade is remembered, so the next play of any
+ *      station on that host skips the probe entirely and starts at HTTP speed.
+ */
+export const SPECULATIVE_HTTPS_TIMEOUT_MS = 1500;
+/** How long a failed upgrade is remembered. Long enough to cover a listening
+ *  session, short enough that a host adding TLS is picked up the same day. */
+export const HTTPS_UPGRADE_MEMORY_MS = 60 * 60 * 1000;
+
+const httpsUpgradeFailures = new Map<string, number>();
+
+/** Exposed for tests; also lets a long-lived process forget stale entries. */
+export const resetHttpsUpgradeMemory = () => httpsUpgradeFailures.clear();
+
+export const noteHttpsUpgradeFailure = (target: URL, now = Date.now()) => {
+  httpsUpgradeFailures.set(target.host, now);
+  // Bounded: this map only ever holds hosts we actually failed to upgrade.
+  if (httpsUpgradeFailures.size > 5000) {
+    const oldest = [...httpsUpgradeFailures.entries()].sort((a, b) => a[1] - b[1])[0];
+    if (oldest) httpsUpgradeFailures.delete(oldest[0]);
+  }
+};
+
+export const shouldTryHttpsUpgrade = (target: URL, now = Date.now()) => {
+  const failedAt = httpsUpgradeFailures.get(target.host);
+  if (failedAt === undefined) return true;
+  if (now - failedAt < HTTPS_UPGRADE_MEMORY_MS) return false;
+  httpsUpgradeFailures.delete(target.host);
+  return true;
+};
+
+export type UrlCandidate = { url: URL; speculative: boolean; timeoutMs?: number };
+
+export const fetchUrlCandidates = (target: URL, now = Date.now()): UrlCandidate[] => {
+  const candidates: UrlCandidate[] = [];
+  if (target.protocol === 'http:' && shouldTryHttpsUpgrade(target, now)) {
     const upgraded = new URL(target.toString());
     upgraded.protocol = 'https:';
-    candidates.push(upgraded);
+    candidates.push({ url: upgraded, speculative: true, timeoutMs: SPECULATIVE_HTTPS_TIMEOUT_MS });
   }
-  candidates.push(target);
+  candidates.push({ url: target, speculative: false });
   return candidates;
 };
 
