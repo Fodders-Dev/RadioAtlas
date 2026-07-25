@@ -36,7 +36,31 @@ export const recordClientEvent = (
   });
 };
 
-export const installObservability = (app: express.Express) => {
+/**
+ * Event names the web app is allowed to report. The counter key is built from
+ * this value, so an open list means any caller can mint unlimited distinct
+ * metric keys — and counters are the one structure the age-based prune never
+ * touches. Kept in sync with reportClientEvent() call sites in the web app.
+ */
+const ALLOWED_CLIENT_EVENTS = new Set([
+  'client_error',
+  'deeplink_enter',
+  'deeplink_error',
+  'deeplink_play',
+  'hls_error',
+  'share_story'
+]);
+
+const hasInternalAccess = (candidate: string, configured: string | null | undefined) => {
+  const expected = String(configured || '').trim();
+  const provided = String(candidate || '').trim();
+  return expected.length > 0 && provided === expected;
+};
+
+export const installObservability = (
+  app: express.Express,
+  options: { internalToken?: string | null } = {}
+) => {
   void hydrateObservabilityStore();
 
   let lastCpuUsage = process.cpuUsage();
@@ -131,6 +155,11 @@ export const installObservability = (app: express.Express) => {
       res.status(400).json({ error: 'name is required' });
       return;
     }
+    // Unauthenticated endpoint: never let the caller choose a metric key.
+    if (!ALLOWED_CLIENT_EVENTS.has(name)) {
+      res.status(400).json({ error: 'unknown event name' });
+      return;
+    }
     bumpCounter(`client_event:${name}`);
     appendClientEvent({
       name,
@@ -142,11 +171,25 @@ export const installObservability = (app: express.Express) => {
     res.json({ ok: true });
   });
 
-  app.get('/observability', (_req, res) => {
+  // These were world-readable on production: `GET /api/observability` returned
+  // 200 to anyone, including `persistence.storePath` (the absolute release path
+  // on the box) and the clientEvents ring, which carries error detail straight
+  // from browsers. Gate on the same internal token the scene-artwork webhook
+  // uses. Note a loopback check would NOT work here: with `trust proxy 1` a
+  // caller can put 127.0.0.1 in X-Forwarded-For and req.ip follows.
+  const requireInternal: express.RequestHandler = (req, res, next) => {
+    if (!hasInternalAccess(req.get('x-internal-token') || '', options.internalToken)) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    next();
+  };
+
+  app.get('/observability', requireInternal, (_req, res) => {
     res.json(getObservabilitySnapshot());
   });
 
-  app.get('/observability/prometheus', (_req, res) => {
+  app.get('/observability/prometheus', requireInternal, (_req, res) => {
     res.type('text/plain; version=0.0.4');
     res.send(renderPrometheusMetrics());
   });

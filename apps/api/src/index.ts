@@ -299,7 +299,7 @@ app.use((req, res, next) => {
   }
   next();
 });
-installObservability(app);
+installObservability(app, { internalToken: INTERNAL_WEBHOOK_TOKEN });
 
 let fastCache: CacheEntry | null = null;
 let fullCache: CacheEntry | null = null;
