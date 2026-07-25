@@ -212,7 +212,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: clamp(1.48rem, 4vw, 2.3rem);
-  line-height: 1;
+  line-height: 1.35;
   letter-spacing: -0.04em;
 }
 
@@ -1336,7 +1336,7 @@
   white-space: normal;
   min-height: 2.28em;
   font-size: var(--text-sm);
-  line-height: 1.14;
+  line-height: 1.35;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }

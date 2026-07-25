@@ -70,7 +70,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-lg);
-  line-height: 1.12;
+  line-height: 1.35;
 }
 
 .full-player-kicker {
@@ -165,7 +165,7 @@
   display: -webkit-box;
   overflow: hidden;
   font-size: clamp(24px, 8vw, 48px);
-  line-height: 1.02;
+  line-height: 1.35;
   letter-spacing: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -543,9 +543,18 @@
     padding: 0 var(--space-lg) calc(var(--space-lg) + var(--shell-safe-bottom));
   }
 
+  /* The artwork is what gives way when the stage is short, NOT the station name.
+     It used to be `flex: 0 0 auto` while .full-player-identity (below) kept the
+     default `0 1 auto`, so a 360x780 phone - where the stage wants 842px - took
+     all 62px of the shortfall out of the identity block: measured 143px of
+     content squeezed into 135px, which cropped the descenders straight through
+     the station title. Driving the square off `height` lets flex shrink it and
+     `aspect-ratio` follow, so the picture just gets smaller. */
   .full-player-hero {
-    flex: 0 0 auto;
-    width: min(64vw, 240px);
+    flex: 0 1 auto;
+    width: auto;
+    height: min(64vw, 240px);
+    min-height: 0;
     aspect-ratio: 1;
     margin: var(--space-sm) auto 0;
   }
@@ -558,6 +567,10 @@
   .full-player-identity {
     position: relative;
     z-index: 0;
+    /* Never absorb the stage's shortfall: this block carries the station name,
+       and `overflow: hidden` here means any shrink silently CROPS it rather than
+       scrolling. The hero above is the flexible one. */
+    flex: 0 0 auto;
     display: grid;
     gap: var(--space-xs);
     justify-items: center;
@@ -638,7 +651,7 @@
     color: var(--text-strong);
     font-size: clamp(20px, 6.2vw, 26px);
     font-weight: 800;
-    line-height: 1.1;
+    line-height: 1.35;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }

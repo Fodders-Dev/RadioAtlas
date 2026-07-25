@@ -2452,7 +2452,7 @@
     color: var(--text-strong);
     font-size: var(--text-lg);
     font-weight: 800;
-    line-height: 1.15;
+    line-height: 1.35;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }
