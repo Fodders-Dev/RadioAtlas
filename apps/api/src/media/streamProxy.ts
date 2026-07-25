@@ -5,6 +5,7 @@ import type { MediaRouteOptions } from './types.js';
 import {
   drainResponseBody,
   fetchUrlCandidates,
+  noteHttpsUpgradeFailure,
   fetchWithDeadline,
   fetchWithTimeout,
   parseAndValidateHttpUrl,
@@ -306,9 +307,12 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
         for (const candidate of fetchUrlCandidates(parsed.target)) {
           try {
             const response = await fetchWithTimeout(
-              candidate.toString(),
+              candidate.url.toString(),
               { headers },
-              proxyTimeoutMs(options)
+              // The speculative https:// upgrade gets a SHORT deadline; only the
+              // real target is worth the full upstream timeout. See
+              // fetchUrlCandidates for the measurement behind this.
+              candidate.timeoutMs ?? proxyTimeoutMs(options)
             );
             if (!response.ok) {
               // Drain the abandoned body so its agent-disposal wrapper closes
@@ -321,6 +325,10 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
             upstream = response;
             break;
           } catch (error) {
+            // A failed upgrade is remembered per host, so the next station on
+            // that server starts at plain-HTTP speed instead of paying the probe
+            // again.
+            if (candidate.speculative) noteHttpsUpgradeFailure(candidate.url);
             lastError = error instanceof Error ? error : new Error('Upstream failed');
           }
         }
@@ -493,14 +501,14 @@ export const createImageHandler = (options: MediaRouteOptions) => {
         for (const candidate of fetchUrlCandidates(parsed.target)) {
           try {
             const response = await fetchWithTimeout(
-              candidate.toString(),
+              candidate.url.toString(),
               {
                 headers: {
                   'User-Agent': options.userAgent,
                   Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
                 }
               },
-              proxyTimeoutMs(options)
+              candidate.timeoutMs ?? proxyTimeoutMs(options)
             );
             if (!response.ok) {
               // Same leak as the stream loop: artwork URLs 404/redirect often,
@@ -512,6 +520,10 @@ export const createImageHandler = (options: MediaRouteOptions) => {
             upstream = response;
             break;
           } catch (error) {
+            // A failed upgrade is remembered per host, so the next station on
+            // that server starts at plain-HTTP speed instead of paying the probe
+            // again.
+            if (candidate.speculative) noteHttpsUpgradeFailure(candidate.url);
             lastError = error instanceof Error ? error : new Error('Upstream failed');
           }
         }
