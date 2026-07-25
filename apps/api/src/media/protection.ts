@@ -45,12 +45,34 @@ const sharedState = {
   maxActive: 10
 };
 
+const ALERT_COOLDOWN_MS = 60_000;
 const alertCooldowns = new Map<string, number>();
+let lastCooldownSweep = 0;
+
+/**
+ * The cooldown key is `media-rate-limit:<route>:<ip>`, so this map gained an
+ * entry per (route, ip) and never lost one — a slow leak in the same process
+ * whose memory ceiling already had to be raised (512M -> 896M, #151).
+ *
+ * Dropping an EXPIRED entry is behaviour-neutral: `get(key) || 0` yields 0 for a
+ * missing key, which is exactly what an expired cooldown already meant.
+ */
+const sweepAlertCooldowns = (now: number) => {
+  if (now - lastCooldownSweep < ALERT_COOLDOWN_MS) return;
+  lastCooldownSweep = now;
+  for (const [key, ts] of alertCooldowns) {
+    if (now - ts >= ALERT_COOLDOWN_MS) alertCooldowns.delete(key);
+  }
+};
+
+/** Test seam: proves the sweep actually bounds the map. */
+export const __alertCooldownSize = () => alertCooldowns.size;
 
 const maybeAlert = (key: string, title: string, detail: string) => {
   const now = Date.now();
+  sweepAlertCooldowns(now);
   const previous = alertCooldowns.get(key) || 0;
-  if (now - previous < 60_000) return;
+  if (now - previous < ALERT_COOLDOWN_MS) return;
   alertCooldowns.set(key, now);
   appendAlert({
     kind: 'server-error',
@@ -96,6 +118,7 @@ export class ProtectedMediaRoute<T> {
   private readonly cache = new Map<string, CacheEntry<T>>();
   private readonly inflight = new Map<string, Promise<T>>();
   private readonly rateLimits = new Map<string, RateLimitBucket>();
+  private lastRateLimitSweep = 0;
   private active = 0;
   private completed = 0;
   private failed = 0;
@@ -164,9 +187,29 @@ export class ProtectedMediaRoute<T> {
     this.publishGauges();
   }
 
+  /**
+   * Expired buckets were only ever OVERWRITTEN, and only if that same address
+   * came back — so every address that ever hit this route kept a bucket for the
+   * life of the process. Sweeping at most once per window keeps the cost
+   * negligible while bounding the map to addresses seen in the last window.
+   */
+  private sweepRateLimits(now: number) {
+    if (now - this.lastRateLimitSweep < this.rateLimitWindowMs) return;
+    this.lastRateLimitSweep = now;
+    for (const [key, bucket] of this.rateLimits) {
+      if (bucket.resetAt <= now) this.rateLimits.delete(key);
+    }
+  }
+
+  /** Test seam: proves the sweep actually bounds the map. */
+  get rateLimitBucketCount() {
+    return this.rateLimits.size;
+  }
+
   checkRateLimit(req: express.Request) {
     const ip = getClientIp(req, this.routeName);
     const now = Date.now();
+    this.sweepRateLimits(now);
     const current = this.rateLimits.get(ip);
     if (!current || current.resetAt <= now) {
       this.rateLimits.set(ip, {
