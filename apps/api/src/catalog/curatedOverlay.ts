@@ -14,6 +14,7 @@
 // The type-only import is erased at compile time, so this module has NO runtime
 // dependency on the server entry (no boot side-effects, no import cycle).
 import type { Station } from '../index.js';
+import { CAPRICE_HOSTS, CAPRICE_PORT, CAPRICE_STREAMS } from './capriceStreams.js';
 
 const CDN_HOST = 'icecast-radiovanya.cdnvideo.ru';
 const HOMEPAGE = 'https://radiovanya.ru/';
@@ -213,5 +214,30 @@ export const applyCuratedOverlay = (stations: Station[]): Station[] => {
   }
 
   const kept = rows.filter((row) => !removeUuids.has(row.stationuuid));
-  return [...kept, ...curatedRows];
+  return repairCapriceUrls([...kept, ...curatedRows]);
 };
+
+// Radio Caprice: a URL REPAIR, not a row replacement. The upstream rows are fine
+// (name, tags, geo, artwork) — only `url_resolved` still points at the network's
+// retired 9xxx ports, which is why 85% of a measured sample was dead while Radio
+// Browser still called them healthy. See capriceStreams.ts for how the live
+// mounts were enumerated and individually verified.
+//
+// Deliberately conservative: a station we could not map with confidence keeps
+// its original URL rather than being pointed at a plausible-looking neighbour —
+// a wrong mount would silently play the wrong genre.
+const capriceByUuid = new Map(
+  CAPRICE_STREAMS.map(([uuid, hostIndex, mount]) => [
+    uuid,
+    `http://${CAPRICE_HOSTS[hostIndex]}:${CAPRICE_PORT}/${mount}`
+  ])
+);
+
+export const repairCapriceUrls = <T extends { stationuuid: string; url?: string; url_resolved?: string }>(
+  stations: T[]
+): T[] =>
+  stations.map((station) => {
+    const fixed = capriceByUuid.get(station.stationuuid);
+    if (!fixed || station.url_resolved === fixed) return station;
+    return { ...station, url: fixed, url_resolved: fixed };
+  });

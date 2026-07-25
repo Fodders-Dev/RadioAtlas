@@ -284,38 +284,11 @@ test('settings sheet mobile visual baseline', async ({ page }) => {
   });
 });
 
-test('compact live dock mobile visual baseline', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 780 });
-  await seedRadioState(page, { activeSection: 'search' });
-  await page.goto('/?api=/api');
-  await page.locator('#search-hero-input').first().fill('Tokyo');
-  await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
-  await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
-  await expect(page.locator('.player-dock-bar')).toBeVisible();
-  await page.locator('.dock-collapse-btn').click();
-  await expect(page.locator('.player-dock-compact')).toBeVisible();
-  await page.addStyleTag({
-    content: '.player-dock-compact-artwork { --ra-energy: 0 !important; }'
-  });
-  await waitForStableMetrics(page, '.player-dock-compact');
-
-  const compactControlSizes = await page.locator('.player-dock-compact button').evaluateAll(
-    (buttons) => buttons.map((button) => {
-      const rect = button.getBoundingClientRect();
-      return { width: rect.width, height: rect.height };
-    })
-  );
-  expect(compactControlSizes).toHaveLength(4);
-  compactControlSizes.forEach(({ width, height }) => {
-    expect(width).toBeGreaterThanOrEqual(44);
-    expect(height).toBeGreaterThanOrEqual(44);
-  });
-
-  const shot = await page.locator('.player-dock-compact').screenshot({
-    animations: 'disabled'
-  });
-  expect(shot).toMatchSnapshot('compact-live-dock-mobile.png', { maxDiffPixelRatio: 0.04 });
-});
+// The «compact live dock» baseline is gone with the surface it covered: the
+// «Свернуть» button was removed (owner: «какой смысл в кнопке свернуть???») and
+// every play snapped the presentation back to the bar anyway, so the compact
+// dock was unreachable. A baseline for a surface nobody can open is worse than
+// no baseline — it looks like coverage and proves nothing.
 
 test('full player overlay visual baseline', async ({ page }) => {
   await seedRadioState(page, {
@@ -402,10 +375,10 @@ test('globe mobile visual baseline (single global dock)', async ({ page }) => {
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
-  await page.locator('.dock-collapse-btn').click();
-  await expect(page.locator('.player-dock-compact')).toBeVisible();
+  // This shot used to collapse the dock first; «Свернуть» is gone, so it just
+  // frames the normal bar. Freeze the artwork's reactive glow either way.
   await page.addStyleTag({
-    content: '.player-dock-compact-artwork { --ra-energy: 0 !important; }'
+    content: '.player-dock-artwork-trigger { --ra-energy: 0 !important; }'
   });
 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
