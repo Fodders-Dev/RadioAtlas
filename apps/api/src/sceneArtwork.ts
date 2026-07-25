@@ -4,6 +4,60 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const CLOUDFLARE_SCENE_MODEL = '@cf/black-forest-labs/flux-2-klein-4b';
+
+/**
+ * Cloudflare rejects a share of generations with an OUTPUT-safety flag rather
+ * than a prompt problem: `{"errors":[{"message":"...Your output has been
+ * flagged...","code":3030}]}` under HTTP 400.
+ *
+ * MEASURED on prod 2026-07-25: 11 of 60 queued scenes (18%) died this way, and
+ * because we discarded the response body they all logged as an opaque "(400)".
+ * The classifier is probabilistic, not content-specific - the byte-identical
+ * prompt at the byte-identical seed was observed failing and then succeeding
+ * minutes later. So a bounded re-roll recovers most of them: at p(flag)=0.2 one
+ * extra attempt cuts the loss to 4%, two to under 1%.
+ */
+export const CLOUDFLARE_OUTPUT_FLAGGED_CODE = 3030;
+export const SCENE_MAX_ATTEMPTS = 3;
+
+export class SceneGenerationError extends Error {
+  readonly status: number;
+  readonly cloudflareCode: number | null;
+
+  constructor(status: number, body: string) {
+    const code = parseCloudflareErrorCode(body);
+    // The body is Cloudflare's own error envelope - it never echoes the request,
+    // so it cannot carry our API token. Truncated anyway: logs are not a dump.
+    const detail = body.trim().slice(0, 300);
+    super(
+      `Cloudflare scene generation failed (${status})${code === null ? '' : ` code=${code}`}${detail ? `: ${detail}` : ''}`
+    );
+    this.name = 'SceneGenerationError';
+    this.status = status;
+    this.cloudflareCode = code;
+  }
+}
+
+const parseCloudflareErrorCode = (body: string): number | null => {
+  try {
+    const parsed = JSON.parse(body) as { errors?: { code?: unknown }[] };
+    const code = parsed?.errors?.[0]?.code;
+    return typeof code === 'number' ? code : null;
+  } catch {
+    return null;
+  }
+};
+
+export const isOutputFlagged = (error: unknown): boolean =>
+  error instanceof SceneGenerationError &&
+  error.cloudflareCode === CLOUDFLARE_OUTPUT_FLAGGED_CODE;
+
+/**
+ * Re-roll for a retry while keeping attempt 0 byte-identical to the old
+ * behaviour, so an unchanged station still resolves to its existing image.
+ */
+export const nextSeed = (seed: number, attempt: number): number =>
+  attempt === 0 ? seed : (seed + attempt * 0x9e3779b1) & 0x7fffffff;
 // v3 (music identity): the station, its curated genres and a bounded snapshot of
 // harvested programming now lead the prompt; country is only secondary art
 // direction. The bump is the cache-migration lever — old country+vibe images
@@ -1022,12 +1076,19 @@ export const createSceneArtworkService = (config: SceneArtworkConfig): SceneArtw
     return true;
   };
 
-  const requestCloudflare = async (descriptor: SceneDescriptor): Promise<SceneArtworkImage> => {
+  const requestCloudflare = async (
+    descriptor: SceneDescriptor,
+    attempt = 0
+  ): Promise<SceneArtworkImage> => {
     const form = new FormData();
     form.append('prompt', descriptor.prompt);
     form.append('width', String(width));
     form.append('height', String(height));
-    form.append('seed', String(descriptor.seed));
+    // A retry re-rolls the seed. The classifier is probabilistic rather than
+    // seed-specific (an identical prompt+seed was measured failing then passing),
+    // so this is not a workaround for a "bad" seed - it just avoids asking for
+    // the byte-identical image twice.
+    form.append('seed', String(nextSeed(descriptor.seed, attempt)));
     const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${CLOUDFLARE_SCENE_MODEL}`;
     const response = await fetchImpl(endpoint, {
       method: 'POST',
@@ -1036,7 +1097,11 @@ export const createSceneArtworkService = (config: SceneArtworkConfig): SceneArtw
       signal: AbortSignal.timeout(timeoutMs)
     });
     if (!response.ok) {
-      throw new Error(`Cloudflare scene generation failed (${response.status})`);
+      // The body carries the only usable diagnosis. Without it every failure
+      // logged as a bare "(400)" and the output-safety rejections below were
+      // invisible - they read exactly like a bad request.
+      const detail = await response.text().catch(() => '');
+      throw new SceneGenerationError(response.status, detail);
     }
     let body: unknown;
     try {
@@ -1049,8 +1114,44 @@ export const createSceneArtworkService = (config: SceneArtworkConfig): SceneArtw
 
   const generate = async (descriptor: SceneDescriptor) => {
     if (await readImage(descriptor.sceneKey)) return;
-    const image = await requestCloudflare(descriptor);
-    await atomicWrite(imagePath(descriptor.sceneKey, image.extension), image.data);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < SCENE_MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) {
+        // Every call to Cloudflare costs, so a retry claims its own slot instead
+        // of sneaking past the daily cap. Cap reached => stop, keep the failure.
+        //
+        // The reservation MUST go through the same schedule lock enqueue() uses:
+        // reserveDailyAttempt is a read-modify-write on one JSON file, so an
+        // unlocked retry racing an inbound enqueue loses an increment. Measured
+        // at maxConcurrency 2: 6 paid Cloudflare calls, persisted count 4 - two
+        // images billed outside the cap that exists to bound exactly that.
+        // Not re-entrant: pump() starts generate() without awaiting it, so the
+        // lock is already released by the time a retry asks for it.
+        let reserved = false;
+        try {
+          reserved = await withScheduleLock(reserveDailyAttempt);
+        } catch (error) {
+          log('scene artwork daily quota persist failed', error);
+        }
+        if (!reserved) break;
+      }
+      try {
+        const image = await requestCloudflare(descriptor, attempt);
+        await atomicWrite(imagePath(descriptor.sceneKey, image.extension), image.data);
+        return;
+      } catch (error) {
+        lastError = error;
+        // Only a flagged OUTPUT is worth spending another slot on: it is a
+        // probabilistic classifier, so the same request usually succeeds on a
+        // re-roll. A 401/429/timeout would just fail again.
+        if (!isOutputFlagged(error)) break;
+        log(
+          `scene artwork output flagged for ${descriptor.sceneKey} (attempt ${attempt + 1}/${SCENE_MAX_ATTEMPTS})`,
+          error
+        );
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('scene generation failed');
   };
 
   const notifyIdle = () => {

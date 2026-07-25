@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +11,10 @@ import {
   decodeCloudflareImage,
   decodeCloudflarePng,
   isJpegBuffer,
+  isOutputFlagged,
+  nextSeed,
+  SCENE_MAX_ATTEMPTS,
+  SceneGenerationError,
   selectSceneVibe,
   type SceneArtworkConfig,
   type SceneArtworkService,
@@ -688,4 +692,171 @@ test('generated scenes are no longer uniformly night', () => {
   // …and they must not all be the same sentence with a different country noun.
   const withoutCountry = prompts.map((p) => p.replace(/inspired by [^.]+\./, ''));
   assert.equal(new Set(withoutCountry).size, withoutCountry.length);
+});
+
+const flaggedResponse = () =>
+  new Response(
+    JSON.stringify({
+      errors: [
+        {
+          message:
+            'AiError: AiError: Your output has been flagged. Please choose another prompt / input image combination (d8d093c2-fac0-4215-86d5-c9b3d877b331)',
+          code: 3030
+        }
+      ],
+      success: false,
+      result: {},
+      messages: []
+    }),
+    { status: 400, headers: { 'content-type': 'application/json' } }
+  );
+
+const imageResponse = () =>
+  new Response(JSON.stringify({ success: true, result: { image: JPEG.toString('base64') } }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' }
+  });
+
+test('a flagged OUTPUT is retried and the scene still lands', async () => {
+  await withTempDir(async (cacheDir) => {
+    const seeds: string[] = [];
+    let calls = 0;
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      calls += 1;
+      seeds.push(String((init?.body as FormData).get('seed')));
+      // Cloudflare's output classifier is probabilistic: the same request was
+      // measured failing and then passing. Fail once, then succeed.
+      return calls === 1 ? flaggedResponse() : imageResponse();
+    };
+    const service = createSceneArtworkService(serviceConfig(cacheDir, { fetch: fetchImpl }));
+    const queued = await service.resolve(station('tokyo'), { generate: true });
+    assert.equal(queued.status, 'queued');
+    await service.whenIdle();
+
+    assert.equal(calls, 2, 'the flagged attempt must be re-rolled');
+    assert.notEqual(seeds[0], seeds[1], 'a retry must not ask for the byte-identical image');
+    assert.equal((await service.resolve(station('tokyo'))).status, 'ready');
+  });
+});
+
+test('a retry claims its own daily slot instead of sneaking past the cap', async () => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return flaggedResponse();
+    };
+    // Two slots: the enqueue takes one, the FIRST retry takes the second, and
+    // the second retry finds the cap empty and stops. A cap of 1 would not
+    // distinguish this from having no retry loop at all - both spend one call.
+    const service = createSceneArtworkService(
+      serviceConfig(cacheDir, { fetch: fetchImpl, dailyCap: 2 })
+    );
+    await service.resolve(station('tokyo'), { generate: true });
+    await service.whenIdle();
+    assert.equal(calls, 2, 'the retry runs, and then the cap stops the next one');
+    assert.equal(
+      SCENE_MAX_ATTEMPTS > 2,
+      true,
+      'this test only proves the cap stopped us if attempts were still available'
+    );
+    const persisted = JSON.parse(
+      await readFile(join(cacheDir, '.daily-usage.json'), 'utf8')
+    ) as { count: number };
+    assert.equal(persisted.count, 2, 'the cap is a hard cost bound, retries included');
+    assert.equal((await service.resolve(station('tokyo'))).status, 'unavailable');
+  });
+});
+
+test('retries are bounded, so a permanently flagged station cannot drain the day', async () => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return flaggedResponse();
+    };
+    const service = createSceneArtworkService(
+      serviceConfig(cacheDir, { fetch: fetchImpl, dailyCap: 60 })
+    );
+    await service.resolve(station('tokyo'), { generate: true });
+    await service.whenIdle();
+    assert.equal(calls, SCENE_MAX_ATTEMPTS);
+  });
+});
+
+test('a non-flagged failure is NOT retried — a re-roll would just fail again', async () => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ errors: [{ message: 'nope', code: 10000 }] }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' }
+      });
+    };
+    const service = createSceneArtworkService(serviceConfig(cacheDir, { fetch: fetchImpl }));
+    await service.resolve(station('tokyo'), { generate: true });
+    await service.whenIdle();
+    assert.equal(calls, 1);
+  });
+});
+
+test('the Cloudflare error code survives into the message so a 400 is diagnosable', () => {
+  const error = new SceneGenerationError(
+    400,
+    JSON.stringify({ errors: [{ message: 'Your output has been flagged.', code: 3030 }] })
+  );
+  assert.equal(error.cloudflareCode, 3030);
+  assert.equal(isOutputFlagged(error), true);
+  assert.match(error.message, /code=3030/);
+  assert.match(error.message, /flagged/);
+  assert.equal(isOutputFlagged(new SceneGenerationError(429, '{"errors":[{"code":10000}]}')), false);
+  assert.equal(isOutputFlagged(new Error('plain')), false);
+});
+
+test('attempt 0 keeps the original seed, so an unchanged station is byte-stable', () => {
+  const descriptor = buildSceneDescriptor(station('tokyo'), 'atlas-music-v3');
+  assert.equal(nextSeed(descriptor.seed, 0), descriptor.seed);
+  assert.notEqual(nextSeed(descriptor.seed, 1), descriptor.seed);
+  // Bound the TOP, not the sign. `seed + attempt * 0x9e3779b1` is a sum of two
+  // non-negative numbers, so a `>= 0` assertion can never fail — the suite stayed
+  // green with the `& 0x7fffffff` mask deleted, at which point attempt 2 posts
+  // seed=7409444197 to Cloudflare. buildSceneDescriptor masks its base seed the
+  // same way; this pins that nextSeed preserves the 31-bit range.
+  for (const seed of [0, 1, descriptor.seed, 0x7fffffff]) {
+    for (const attempt of [1, 2]) {
+      const value = nextSeed(seed, attempt);
+      assert.ok(
+        Number.isSafeInteger(value) && value >= 0 && value <= 0x7fffffff,
+        `nextSeed(${seed}, ${attempt}) = ${value} left the 31-bit seed range`
+      );
+    }
+  }
+});
+
+test('concurrent retries cannot bill past the cap (read-modify-write race)', async () => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      // Yield, so two in-flight generate() loops interleave the way the real
+      // network makes them interleave.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return flaggedResponse();
+    };
+    const service = createSceneArtworkService(
+      serviceConfig(cacheDir, { fetch: fetchImpl, dailyCap: 60, maxConcurrency: 2 })
+    );
+    await service.resolve(station('one'), { generate: true });
+    await service.resolve(station('two', 'FR'), { generate: true });
+    await service.whenIdle();
+
+    // reserveDailyAttempt reads then writes one JSON file. Before the retry took
+    // the schedule lock this produced 6 paid calls against a persisted count of
+    // 4 — two images billed outside the cap.
+    const persisted = JSON.parse(
+      await readFile(join(cacheDir, '.daily-usage.json'), 'utf8')
+    ) as { count: number };
+    assert.equal(persisted.count, calls, 'every paid call must be reflected in the persisted cap');
+  });
 });
