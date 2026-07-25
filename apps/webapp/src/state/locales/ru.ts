@@ -1024,6 +1024,7 @@ export const ruDictionary = {
     "source": "Источник",
     "playStation": "Включить станцию {name}",
     "reject": "Не то · ещё",
+    "retry": "Попробовать ещё раз",
     "rejectQuery": "не то, дай другое"
   },
   "radio": {

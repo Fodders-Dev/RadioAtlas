@@ -46,6 +46,12 @@ const actionIcon = {
     <path d="M3 6h12v2H3V6Zm0 5h12v2H3v-2Zm0 5h8v2H3v-2Zm16-2.55V6h2v9.5a3.25 3.25 0 1 1-2-3.05ZM17.75 19a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z" />
   ),
   previous: <path d="M7 6h2v12H7V6Zm3 6 8 6V6l-8 6Z" />,
+  volume: (
+    <path d="M5 9v6h4l5 4V5l-5 4H5Zm11.5 3a4.5 4.5 0 0 0-2.5-4.03v8.06A4.5 4.5 0 0 0 16.5 12Zm1.5 0c0 2.42-1.18 4.56-3 5.88v-1.95a5.49 5.49 0 0 0 0-7.86V6.12c1.82 1.32 3 3.46 3 5.88Z" />
+  ),
+  mute: (
+    <path d="M15 12a5.5 5.5 0 0 1-.96 3.12l1.43 1.43A7.45 7.45 0 0 0 17 12c0-1.78-.62-3.42-1.66-4.7l-1.42 1.42A5.5 5.5 0 0 1 15 12ZM3.27 2 2 3.27 6.73 8H5v8h4l5 4v-6.73L18.73 18 20 16.73 3.27 2ZM12 8.83v6.34l-2.8-2.24-.57-.46H7V10h1.63l.57-.46L12 8.83Z" />
+  ),
   play: <path d="M8 5v14l11-7L8 5Z" />,
   pause: <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" />,
   next: <path d="M6 6v12l8.5-6L6 6Zm9 0v12h2V6h-2Z" />,
@@ -473,6 +479,40 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     </section>
   );
 
+  // Volume lives here now. The mini dock dropped its volume button so the
+  // station name could have the width (the owner: «область под трек теперь очень
+  // маленькая»), and the full player had NO volume control at all — so without
+  // this row the app would simply have lost in-app loudness control.
+  const renderVolume = () => (
+    <section className="full-player-volume" aria-label={t('dock.volume')}>
+      <button
+        className="full-player-volume-toggle"
+        type="button"
+        onClick={() => {
+          triggerHaptic();
+          player.setVolume(player.volume > 0.01 ? 0 : 0.8);
+        }}
+        aria-label={t('dock.volume')}
+      >
+        {/* Plain svg, not ThemeActionIcon: that component's `name` is a closed
+            union of the themable transport glyphs and volume is not one. */}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {player.volume > 0.01 ? actionIcon.volume : actionIcon.mute}
+        </svg>
+      </button>
+      <input
+        className="full-player-volume-range"
+        type="range"
+        min={0}
+        max={100}
+        value={Math.round(player.volume * 100)}
+        onChange={(event) => player.setVolume(Number(event.target.value) / 100)}
+        aria-label={t('dock.volume')}
+      />
+      <span className="full-player-volume-value">{Math.round(player.volume * 100)}%</span>
+    </section>
+  );
+
   const renderLikeChip = () => (
     <button
       className={`full-player-action-chip ${liked ? 'active' : ''}`}
@@ -662,6 +702,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               ) : null}
 
               {renderTransport()}
+              {renderVolume()}
 
               <section className="full-player-actions" aria-label={t('common.actions')}>
                 {renderLikeChip()}
@@ -734,6 +775,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               />
 
               {renderTransport()}
+              {renderVolume()}
 
               <section className="full-player-actions" aria-label={t('common.actions')}>
                 {renderLikeChip()}

@@ -1877,9 +1877,39 @@
     flex: 0 0 auto;
   }
 
-  .app-shell-v2[data-active-section='home'] .dock-next-btn,
-  .app-shell-v2[data-active-section='home'] .dock-like-btn {
+  /* Owner: «отсутствие кнопок в плеере при маленьком масштабе экрана», «отсутствие
+     лайка — грустно», then «область под трек теперь очень маленькая… вот как в
+     других плеерах сделано?»
+
+     He is right, and the answer is the mini-player pattern every big player uses
+     (Spotify / Apple Music / YouTube Music): the bar carries the artwork, a WIDE
+     title, and at most two controls — like + play. Everything else lives in the
+     full player, which you reach by tapping the bar. Cramming five 44px buttons
+     into a 360px bar left the station name 86px (≈4 characters); with two it
+     gets ~190px and can actually be read.
+
+     The bar keeps: artwork · name · «Ещё» · play · like — the overflow «Ещё» is
+     deliberately still there, because "where did my buttons go?" needs an answer
+     ON the bar, not only behind a tap.
+
+     What moved, and where it lives now:
+       • next / prev → the full player's transport (tap the station name)
+       • volume      → a NEW row in the full player (it had none), plus the dock
+                       on every other section
+     Nothing was deleted; the bar simply stopped being a five-slot toolbar. */
+  .app-shell-v2[data-active-section='home'] .dock-volume-btn,
+  .app-shell-v2[data-active-section='home'] .dock-next-btn {
     display: none;
+  }
+
+  /* The 44px touch floor was dead on this rail (computed min-width: 0 → 31px
+     boxes): MiniPlayerDock.css sets `min-width:0; width:auto` on the actions and
+     loads after the shared floor in styles.css, so it has to be restated here. */
+  .app-shell-v2[data-active-section='home'] .player-dock-actions .dock-icon-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
   }
 
   .app-shell-v2[data-active-section='home'] .dock-play-btn {

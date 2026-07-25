@@ -1024,6 +1024,7 @@ export const enDictionary = {
     "source": "Source",
     "playStation": "Play station {name}",
     "reject": "Not these · more",
+    "retry": "Try again",
     "rejectQuery": "не то, дай другое"
   },
   "radio": {

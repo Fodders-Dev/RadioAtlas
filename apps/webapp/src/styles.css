@@ -9108,10 +9108,6 @@ button.player-dock-status-pill:active {
     gap: 7px;
   }
 
-  .dock-volume-btn {
-    display: none;
-  }
-
   .dock-icon-btn,
   .dock-expand-btn,
   .dock-mini-btn {
@@ -9505,10 +9501,6 @@ button.player-dock-status-pill:active {
   .player-dock-bar {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
-  }
-
-  .dock-volume-btn {
-    display: grid;
   }
 
   .player-dock-actions {
