@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
+import { useDockSwipe } from '../lib/useDockSwipe';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { useLocale } from '../state/LocaleContext';
@@ -38,6 +39,7 @@ export const MiniPlayerDock = () => {
     nowPlayingStatus,
     queue,
     playNext,
+    playPrevious,
     playStation,
     copyTrack,
     openExternal,
@@ -67,6 +69,7 @@ export const MiniPlayerDock = () => {
   const [trayMode, setTrayMode] = useState<DockTrayMode>(null);
   const lastAudibleVolumeRef = useRef(player.volume || 0.8);
   const artworkRef = useRef<HTMLButtonElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
 
   // P3-3d: subtle dock micro-reactivity. The always-visible dock artwork picks
   // up a faint accent glow that breathes with the audio energy, fed by the same
@@ -108,6 +111,21 @@ export const MiniPlayerDock = () => {
   // alive: that still showed the owner a permanent «Выбери станцию» prompt
   // covering the rails, which is exactly what we removed it for. The queue stays
   // reachable from «Моё».
+  // Swipe the bar sideways to walk the queue: left → next, right → previous.
+  // #86-safe by construction — a committed swipe is an explicit request and it
+  // calls the SAME playNext/playPrevious the buttons do (a strict queue walk,
+  // never a random pick). Registered here, above every early return, so the hook
+  // order is stable when the dock goes dormant.
+  useDockSwipe(
+    barRef,
+    (direction) => {
+      triggerHaptic('light');
+      if (direction === 'next') playNext();
+      else playPrevious();
+    },
+    Boolean(current)
+  );
+
   const isDormantDock = !current;
   const resolvedQueueIndex =
     queue.currentIndex >= 0
@@ -361,6 +379,7 @@ export const MiniPlayerDock = () => {
 
   return (
     <div
+      ref={barRef}
       className="player-dock player-dock-bar"
       data-has-station={current ? 'true' : 'false'}
       data-tray-open={trayMode ? 'true' : 'false'}

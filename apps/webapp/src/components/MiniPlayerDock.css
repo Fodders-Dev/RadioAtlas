@@ -336,3 +336,27 @@
     animation: none;
   }
 }
+
+/* Swipe-to-change-station feedback. `data-swipe-dx` is written by useDockSwipe
+   only while the gesture is ENGAGED (past the dead zone and direction-locked),
+   so an ordinary tap or a page scroll never moves the bar. The travel is damped
+   — the bar hints that it is following the finger without sliding off screen. */
+.player-dock-bar[data-swipe-dx] {
+  transform: translateX(calc(clamp(-72px, var(--swipe-dx, 0px), 72px) * 0.35));
+  transition: none;
+  will-change: transform;
+}
+
+.player-dock-bar:not([data-swipe-dx]) {
+  transition: transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-dock-bar[data-swipe-dx],
+  .player-dock-bar:not([data-swipe-dx]) {
+    /* Reduced motion asks for less MOTION, not less FUNCTION: the swipe still
+       commits and still changes the station, it just does not animate. */
+    transform: none;
+    transition: none;
+  }
+}
