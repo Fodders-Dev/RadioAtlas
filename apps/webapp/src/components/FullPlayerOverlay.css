@@ -1010,8 +1010,12 @@
 /* Very short viewports (≤700px tall): shrink the hero before anything clips —
    the stage is overflow:hidden by design, so height is budgeted, not scrolled. */
 @media (max-width: 720px) and (max-height: 700px) {
+  /* Must set the SAME axis as the base rule. The hero is sized off `height` so
+     flex can shrink it and `aspect-ratio: 1` derives the width; setting `width`
+     here too would pin both axes, aspect-ratio would be ignored, and the cover
+     would render as a rectangle (measured 187x96 at 360x640). */
   .full-player-hero {
-    width: min(52vw, 190px);
+    height: min(52vw, 190px);
   }
 }
 
