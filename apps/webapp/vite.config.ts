@@ -72,20 +72,25 @@ export default defineConfig({
     modulePreload: false,
     rollupOptions: {
       output: {
-        // CSS assets in this toolchain get a filename hash that is NOT derived
-        // from their content — CSS-only edits reuse the same `Name-<hash>.css`
-        // filename. Served `Cache-Control: immutable` (1 year), returning
-        // browsers (incl. the Telegram WebView) therefore keep the OLD cached
-        // CSS forever and never see a style change. Stamp the build commit into
-        // CSS filenames so every release busts the cache; JS chunks and other
-        // assets keep their content hash (they already bust correctly).
-        assetFileNames: (assetInfo: { names?: string[]; name?: string }) => {
-          const names = assetInfo.names ?? (assetInfo.name ? [assetInfo.name] : []);
-          const isCss = names.some((name) => name?.endsWith('.css'));
-          return isCss
-            ? `assets/[name]-[hash]-${commitHash}[extname]`
-            : 'assets/[name]-[hash][extname]';
-        },
+        // #180 stamped the build commit into CSS filenames because this
+        // toolchain's CSS `[hash]` was NOT content-derived: a CSS-only edit
+        // reused the same filename, and with `Cache-Control: immutable` the
+        // Telegram WebView kept the old stylesheet forever.
+        //
+        // That is FIXED upstream now — measured: editing one CSS declaration
+        // moves the hash (FullPlayerOverlay-C-wY5E8D -> -CRzT_Sz7) with the
+        // commit held constant. The stamp is therefore redundant, and it was
+        // actively harmful: chunk hashes are computed over a graph that includes
+        // asset filenames, so a new commit rotated the name of EVERY chunk —
+        // including the 1MB maplibre vendor chunk whose bytes never change.
+        // Measured on prod: 25 byte-identical copies of maplibre-vendor (one md5,
+        // 1,027,743 bytes each) in a single release, i.e. every deploy made every
+        // listener re-download the whole bundle over mobile data.
+        //
+        // Isolated proof: with source unchanged, SOURCE_COMMIT=aaaaaaa produced
+        // maplibre-vendor-BwL657R7.js and SOURCE_COMMIT=bbbbbbb produced
+        // maplibre-vendor-DZpQDDZH.js.
+        assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
           const normalizedId = id.replace(/\\/g, '/');
           if (normalizedId.includes('vite/preload-helper')) {
