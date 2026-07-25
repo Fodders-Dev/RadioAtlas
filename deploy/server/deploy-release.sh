@@ -54,6 +54,24 @@ preserve_previous_chunks() {
 
   rsync -a --ignore-existing "$prev_assets/" "$new_assets/"
   echo "Preserved previous-release chunks from $prev_target/apps/webapp/dist/assets" >&2
+
+  # ...but with an expiry, or the carry-forward compounds forever: each release
+  # inherited every chunk of every release before it. Measured before this:
+  # 661 files under 43 distinct basenames in ONE release, 2.8GB across the five
+  # kept releases on a box with 7.3GB free.
+  #
+  # Safe to expire, because Caddy serves index.html `no-store, no-cache,
+  # must-revalidate`: a fresh page load always resolves the CURRENT hashes. Old
+  # chunks are only needed by a session that was ALREADY open across a deploy,
+  # which lives hours, not weeks. rsync -a preserves mtimes, so a carried chunk
+  # keeps the mtime of the build that produced it; this build's own files are
+  # brand new and can never match.
+  local retention_days="${CHUNK_RETENTION_DAYS:-14}"
+  local pruned=0
+  pruned="$(find "$new_assets" -maxdepth 1 -type f -mtime "+${retention_days}" -print -delete | wc -l)"
+  if (( pruned > 0 )); then
+    echo "Pruned $pruned carried chunk(s) older than ${retention_days}d from $new_assets" >&2
+  fi
 }
 
 assert_webapp_dist() {
@@ -71,24 +89,31 @@ assert_webapp_dist() {
   fi
 }
 
-assert_webapp_css_commit_stamp() {
-  local assets_dir="$RELEASE_DIR/apps/webapp/dist/assets"
-  local stamped_css=""
+# The CSS filename stamp this used to check is gone: the toolchain's CSS hash is
+# content-derived again, and stamping the commit into asset names rotated EVERY
+# chunk filename each release (25 byte-identical 1MB maplibre copies piled up in
+# one release's assets dir, and every listener re-downloaded the bundle on every
+# deploy).
+#
+# The hazard it guarded is still real though — builds run ON the VPS, whose git
+# checkout is frozen, so a build can silently be made from the wrong source. Guard
+# that directly instead: __APP_COMMIT__ is compiled into the bundle, so the
+# release sha MUST appear in the built output.
+assert_webapp_build_provenance() {
+  local dist_dir="$RELEASE_DIR/apps/webapp/dist"
 
-  if [[ ! -d "$assets_dir" ]]; then
-    echo "Missing built webapp assets directory: $assets_dir" >&2
+  if [[ ! -d "$dist_dir/assets" ]]; then
+    echo "Missing built webapp assets directory: $dist_dir/assets" >&2
     return 1
   fi
 
-  stamped_css="$(
-    find "$assets_dir" -maxdepth 1 -type f -name "*-${RELEASE_SHORT_SHA}.css" -print -quit
-  )"
-  if [[ -z "$stamped_css" ]]; then
-    echo "Webapp CSS cache-bust stamp is missing: expected *-${RELEASE_SHORT_SHA}.css in $assets_dir" >&2
+  if ! grep -rqF "$RELEASE_SHORT_SHA" "$dist_dir/index.html" "$dist_dir/assets" 2>/dev/null; then
+    echo "Webapp build provenance check failed: $RELEASE_SHORT_SHA is absent from $dist_dir." >&2
+    echo "The build did not see this release's source (SOURCE_COMMIT wiring or a stale checkout)." >&2
     return 1
   fi
 
-  echo "Verified webapp CSS cache-bust stamp: $(basename "$stamped_css")" >&2
+  echo "Verified webapp build provenance: $RELEASE_SHORT_SHA is present in the built output." >&2
 }
 
 # Same guard, for the bot's Mini App stamp. Without it the stamp can go inert
@@ -211,7 +236,7 @@ npm ci
 # SOURCE_COMMIT. CSS is served immutable for one year, so reusing an old commit
 # suffix can leave Telegram WebViews on stale styles after a successful deploy.
 SOURCE_COMMIT="$RELEASE_SHA" npm --workspace apps/webapp run build
-assert_webapp_css_commit_stamp
+assert_webapp_build_provenance
 npm --workspace apps/api run build
 npm --workspace apps/bot run build
 assert_bot_release_stamp
