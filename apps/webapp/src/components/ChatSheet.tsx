@@ -11,6 +11,8 @@ import {
 import { createPortal } from 'react-dom';
 import { useDialog } from '../lib/useDialog';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
+import { StationArtwork } from './StationArtwork';
+import type { StationLite } from '../types';
 import {
   postChatMessage,
   type ChatHistoryTurn,
@@ -31,6 +33,10 @@ type ChatMessage = {
   id: number;
   role: 'user' | 'assistant';
   text: string;
+  /** A local transport failure, NOT something Лира said. Never sent back as
+      history (the model was literally being told it had apologised for a network
+      error) and never persisted; carries the draft so the user can retry. */
+  errorFor?: string;
   stations?: ChatStationRef[];
   serviceLinks?: ChatServiceLink[];
   sources?: ChatSource[];
@@ -194,14 +200,34 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
 
   useDialog(rootRef, { isOpen: open, onClose });
 
+  // Scroll so the newest turn STARTS at the top of the view, not so the thread
+  // ends at the bottom. Pinning scrollTop to scrollHeight meant a long answer
+  // (the API caps replies at 3500 chars ≈ 2.8 screens) opened on its LAST line —
+  // measured at 390x844, the first line of a full-length reply sat 1506px above
+  // the viewport, so every good answer had to be scrolled UP to be read.
+  //
+  // A short answer that fits below the question changes nothing (the clamp keeps
+  // it at the bottom); only replies taller than the view are re-anchored.
   useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    const list = listRef.current;
+    if (!list) return;
+    const rows = list.querySelectorAll<HTMLElement>('.chat-row');
+    const latest = rows[rows.length - 1];
+    const target = latest
+      ? Math.min(latest.offsetTop - list.offsetTop - 8, list.scrollHeight - list.clientHeight)
+      : list.scrollHeight;
+    list.scrollTop = Math.max(0, target);
   }, [messages, sending]);
 
   useEffect(() => {
     try {
       if (messages.length) {
-        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages.slice(-STORED_MESSAGE_LIMIT)));
+        localStorage.setItem(
+          CHAT_STORAGE_KEY,
+          // A transport error is a local UI state, not part of the conversation:
+          // persisting it meant reopening the chat to an apology Лира never made.
+          JSON.stringify(messages.filter((message) => !message.errorFor).slice(-STORED_MESSAGE_LIMIT))
+        );
       } else {
         localStorage.removeItem(CHAT_STORAGE_KEY);
       }
@@ -226,6 +252,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     const text = (override ?? input).trim();
     if (!text || sending) return;
     const history: ChatHistoryTurn[] = messages
+      .filter((message) => !message.errorFor)
       .slice(-HISTORY_LIMIT)
       .map((message) => ({ role: message.role, text: message.text }));
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
@@ -263,7 +290,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: nextId(), role: 'assistant', text: t('chat.error') }
+        { id: nextId(), role: 'assistant', text: t('chat.error'), errorFor: text }
       ]);
     } finally {
       setSending(false);
@@ -408,6 +435,28 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
               ) : null}
               <div className="chat-message-stack">
                 <div className={`chat-bubble chat-bubble--${message.role}`}>{message.text}</div>
+                {message.errorFor ? (
+                  <button
+                    type="button"
+                    className="chat-reject-btn chat-retry-btn"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      // Drop the failed turn AND the question it answered, then
+                      // resend that same question — the composer was cleared on
+                      // submit, so without this the text was simply lost.
+                      const failed = message.errorFor as string;
+                      setMessages((prev) => {
+                        const index = prev.findIndex((item) => item.id === message.id);
+                        if (index < 0) return prev;
+                        const start = index > 0 && prev[index - 1]?.role === 'user' ? index - 1 : index;
+                        return prev.slice(0, start);
+                      });
+                      void send(failed);
+                    }}
+                  >
+                    {t('chat.retry')}
+                  </button>
+                ) : null}
                 {message.stations && message.stations.length ? (
                   <div className="chat-station-list">
                     {message.stations.map((station) => (
@@ -421,16 +470,18 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                         }}
                         aria-label={t('chat.playStation', { name: station.name })}
                       >
-                        <span
+                        {/* Owner's screenshots: most of Лира's cards were a blank
+                            dark square. This surface hand-rolled its own
+                            `background-image: var(--art)` — with an empty or 404
+                            favicon there was no letter, no palette and no error
+                            path, just a hole. Every OTHER station list already
+                            uses StationArtwork, which falls back to the station's
+                            initial over a deterministic palette and retires
+                            broken URLs. */}
+                        <StationArtwork
+                          station={station as unknown as StationLite}
+                          size="sm"
                           className="chat-station-art"
-                          style={
-                            {
-                              '--art': getProxiedAssetUrl(station.favicon)
-                                ? `url(${JSON.stringify(getProxiedAssetUrl(station.favicon))})`
-                                : 'none'
-                            } as CSSProperties
-                          }
-                          aria-hidden="true"
                         />
                         <span className="chat-station-copy">
                           <strong>{station.name}</strong>

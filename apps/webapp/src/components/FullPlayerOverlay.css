@@ -1175,3 +1175,58 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
+
+/* Volume row — the mini dock gave up its volume button so the station name could
+   have the width, and the full player had no loudness control at all. Same glass
+   language as the transport above it. */
+.full-player-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  margin: 14px auto 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 0.75px rgba(255, 255, 255, 0.28),
+    inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 0.85),
+    0 1px 3px rgba(0, 7, 20, 0.26);
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(6px) saturate(200%);
+  backdrop-filter: blur(6px) saturate(200%);
+}
+
+.full-player-volume-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.full-player-volume-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.full-player-volume-range {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--accent, #6feaff);
+}
+
+.full-player-volume-value {
+  min-width: 44px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.8;
+}

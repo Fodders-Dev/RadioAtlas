@@ -1886,6 +1886,10 @@ test('dock volume click opens slider tray, right-click mutes directly', async ({
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
+  // The HOME dock now carries only like+play (the station name needs the width);
+  // volume and «Ещё» live on the other sections' dock and in the full player.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Поиск|Search/ }).first().click();
+  await page.waitForTimeout(400);
 
   const volumeButton = page.locator('.dock-volume-btn');
   await expect(volumeButton).toBeVisible();
@@ -2725,8 +2729,14 @@ test('station details exposes trust, recent tracks, report broken and recommenda
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await playHomeStation(page, 'Tokyo FM');
+  // The dock name now opens the FULL PLAYER (the mini bar stopped being a
+  // toolbar so the station name could have the width); station details moved one
+  // step in, behind the player's «Ещё». Walk the real path.
   await page.locator('.player-dock-station').click();
-
+  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
+  // Mobile full player: «Ещё» opens the actions sheet, which carries «Детали».
+  await page.locator('.full-player-action-chip').filter({ hasText: /Ещё|More/ }).first().click();
+  await page.locator('.full-player-action-row').filter({ hasText: /Детали|details/i }).first().click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-artwork')).toBeVisible();
   await expect(page.locator('.details-card')).toContainText(/Надёжность|Stream trust/);

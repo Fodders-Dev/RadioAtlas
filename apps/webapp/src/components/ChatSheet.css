@@ -612,15 +612,15 @@
 }
 
 .chat-station-art {
+  /* Shape only. The FILL now comes from StationArtwork (image, or the station's
+     initial over a deterministic palette) — this rule used to paint its own
+     `background-image: var(--art)` on top, which is why a station with no
+     favicon rendered as a blank dark square in Лира's cards. */
   flex: 0 0 auto;
   width: 46px;
   height: 46px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 15px;
-  background-color: color-mix(in oklab, var(--accent) 24%, #12264b);
-  background-image: var(--art), radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.3), transparent 30%);
-  background-position: center;
-  background-size: cover;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 

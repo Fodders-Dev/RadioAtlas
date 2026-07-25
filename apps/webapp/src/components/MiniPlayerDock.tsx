@@ -623,9 +623,13 @@ export const MiniPlayerDock = () => {
         <button
           className="player-dock-station"
           type="button"
+          // Tapping the station name opens the FULL PLAYER, which is where every
+          // other player puts the controls that don't fit a mini bar (transport,
+          // volume, queue). It used to open a details sheet — a dead end that
+          // left the owner asking «а как доп кнопки вызывать?».
           onClick={() => {
             if (current) {
-              setDetailsOpen(true);
+              openFullPlayer();
             }
           }}
           disabled={!current}
