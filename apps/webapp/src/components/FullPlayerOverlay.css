@@ -517,7 +517,9 @@
 @media (max-width: 720px) {
   .full-player-header--stage {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    /* Third column is `auto`, not a fixed 44px: it carries the like AND share
+       circles now, and a fixed track pushed share off the right edge. */
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--space-sm);
     padding: calc(var(--space-sm) + var(--shell-safe-top)) var(--space-md) var(--space-xs);
@@ -543,60 +545,248 @@
     padding: 0 var(--space-lg) calc(var(--space-lg) + var(--shell-safe-bottom));
   }
 
-  /* The artwork is what gives way when the stage is short, NOT the station name.
-     It used to be `flex: 0 0 auto` while .full-player-identity (below) kept the
-     default `0 1 auto`, so a 360x780 phone - where the stage wants 842px - took
-     all 62px of the shortfall out of the identity block: measured 143px of
-     content squeezed into 135px, which cropped the descenders straight through
-     the station title. Driving the square off `height` lets flex shrink it and
-     `aspect-ratio` follow, so the picture just gets smaller. */
-  .full-player-hero {
-    flex: 0 1 auto;
-    width: auto;
-    height: min(64vw, 240px);
-    min-height: 0;
-    aspect-ratio: 1;
-    margin: var(--space-sm) auto 0;
-  }
-
-  .full-player-hero .full-player-artwork.station-artwork-card {
-    width: 100%;
-    height: 100%;
-  }
-
+  /* The generated scene fills the overlay behind everything, so the identity no
+     longer needs its own panel — the name sits directly on the photo, left
+     aligned, the way the reference layout does it. `flex: 0 0 auto` because this
+     block carries the station name and its `overflow: hidden` would crop rather
+     than scroll if flex ever squeezed it. */
   .full-player-identity {
     position: relative;
     z-index: 0;
-    /* Never absorb the stage's shortfall: this block carries the station name,
-       and `overflow: hidden` here means any shrink silently CROPS it rather than
-       scrolling. The hero above is the flexible one. */
     flex: 0 0 auto;
     display: grid;
-    gap: var(--space-xs);
-    justify-items: center;
+    gap: 2px;
+    justify-items: start;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding: var(--space-sm) var(--space-md);
+    padding: 0;
     box-sizing: border-box;
+    /* No `overflow: hidden` here: it clipped this block's own ::before wash, so
+       the scrim stopped dead at the copy and read as a band across the photo.
+       The title and place line clamp themselves, and the block is `flex: 0 0
+       auto`, so nothing can overflow it in the first place. */
+    text-align: left;
+  }
+
+  .full-player-place {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .full-player-clock {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .full-player-section-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .full-player-onair {
+    flex: 0 0 auto;
+    display: grid;
+    gap: 4px;
+    justify-items: start;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .full-player-onair-tags {
+    margin: 0;
     overflow: hidden;
+    max-width: 100%;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* "What did this station just play, and when" — the reference layout's best
+     idea, and the data was already persisted per station. */
+  .full-player-recent-air {
+    flex: 1 1 auto;
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .full-player-recent-air ul {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .full-player-recent-air li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-sm);
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  }
+
+  .full-player-recent-air li:last-child {
+    border-bottom: 0;
+  }
+
+  .full-player-recent-air-track {
+    overflow: hidden;
+    color: var(--text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .full-player-recent-air-time {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .full-player-stage-pills {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-sm);
+    width: 100%;
+  }
+
+  .full-player-stage-pill {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 var(--space-sm);
+    border: 0;
+    border-radius: var(--radius-full);
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow:
+      inset 0 0 0 0.75px rgba(255, 255, 255, 0.28),
+      inset 1px 1.5px 1px -0.5px rgba(255, 255, 255, 0.85),
+      0 1px 3px rgba(0, 7, 20, 0.26);
+    -webkit-backdrop-filter: blur(6px) saturate(200%);
+    backdrop-filter: blur(6px) saturate(200%);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .full-player-stage-pill span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .full-player-stage-pill svg {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    fill: currentcolor;
+  }
+
+  .full-player-stage-pill.active {
+    color: var(--accent-ink, var(--bg));
+    background: var(--accent);
+  }
+
+  .full-player-stage-foot {
+    flex: 0 0 auto;
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .full-player-queue-count {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .full-player-stage-foot-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-full);
+    color: var(--text);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .full-player-stage-foot-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentcolor;
+  }
+
+  .full-player-header-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: var(--space-xs);
+    align-items: center;
+  }
+
+  /* The pill sits BETWEEN the collapse button and the two action circles. Left
+     to the default `flex: 0 1 auto` on a flex row with a wide gap it grew and
+     pushed the share button past the right edge. */
+  .full-player-header--stage .full-player-live-pill,
+  .full-player-header--stage .full-player-kicker {
+    min-width: 0;
+    justify-self: center;
     text-align: center;
+  }
+
+  .full-player-header--stage .full-player-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Anchor the transport and everything under it to the bottom of the stage, so
+     a tall phone gives its extra height to the play history rather than leaving
+     a dead band above the controls. */
+  .full-player-main--stage .full-player-controls {
+    margin-top: auto;
   }
 
   /* PR-1 contrast: the identity block sits directly over the reactive backdrop
      glow, so a committed theme-aware scrim (dark wash on dark themes, light on
      Warm Light via var(--bg)) keeps the name/tags at AA without flattening the
      glow elsewhere on the stage. */
+  /* The copy now sits directly on the generated photo, left aligned, so the
+     old centred radial ellipse read as a stray rounded rectangle. A top-down
+     wash that fades out below keeps the title AA over any scene without drawing
+     a visible shape. */
   .full-player-identity::before {
     content: '';
     position: absolute;
-    inset: calc(-1 * var(--space-sm)) calc(-1 * var(--space-lg));
+    /* Fade over ~150px BELOW the copy, not to its edge. A short wash ends in a
+       visible horizontal band across the photo; a long one reads as part of the
+       image. Same lesson as the Home top scrim. */
+    inset: calc(-1 * var(--space-lg)) calc(-1 * var(--space-lg)) -150px;
     z-index: -1;
-    border-radius: var(--radius-xl);
-    background: radial-gradient(
-      ellipse at center,
-      color-mix(in srgb, var(--bg) 66%, transparent) 0%,
-      color-mix(in srgb, var(--bg) 38%, transparent) 62%,
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg) 62%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 40%, transparent) 26%,
+      color-mix(in srgb, var(--bg) 14%, transparent) 62%,
       transparent 100%
     );
     pointer-events: none;
@@ -1009,16 +1199,6 @@
 
 /* Very short viewports (≤700px tall): shrink the hero before anything clips —
    the stage is overflow:hidden by design, so height is budgeted, not scrolled. */
-@media (max-width: 720px) and (max-height: 700px) {
-  /* Must set the SAME axis as the base rule. The hero is sized off `height` so
-     flex can shrink it and `aspect-ratio: 1` derives the width; setting `width`
-     here too would pin both axes, aspect-ratio would be ignored, and the cover
-     would render as a rectangle (measured 187x96 at 360x640). */
-  .full-player-hero {
-    height: min(52vw, 190px);
-  }
-}
-
 @media (max-width: 380px) {
   .full-player-main--stage .full-player-controls {
     grid-template-columns: 52px minmax(0, 1fr) 52px;

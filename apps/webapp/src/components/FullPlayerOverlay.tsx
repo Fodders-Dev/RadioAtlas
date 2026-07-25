@@ -8,6 +8,7 @@ import {
   type RefObject
 } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import { stationLocalTime } from '../lib/stationClock';
 import { formatListenerLine } from '../lib/listenerPresence';
 import { useListenerPresence } from '../lib/useListenerPresence';
 import { useDialog } from '../lib/useDialog';
@@ -200,7 +201,7 @@ const FullPlayerSheet = ({
 };
 
 export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const {
     player,
     queue,
@@ -229,9 +230,18 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const recentPanelRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobilePlayerLayout();
+
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   const [queueSheetTarget, setQueueSheetTarget] = useState<'queue' | 'recent' | null>(null);
   const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
+  // The station clock must not go stale while someone stares at it. One tick a
+  // minute, only while the overlay is mounted.
+  const [clockTick, setClockTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClockTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const [dialMinutes, setDialMinutes] = useState(30);
   const sleepLabel = sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : t('settings.off');
   // Mounted only while open (App.tsx gates on winamp.expanded), so isOpen
@@ -419,6 +429,49 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
 
   // Shared verbatim pieces — used by both layout branches so the desktop DOM
   // stays byte-identical while mobile recomposes around them.
+  // "It is 21:47 in Tokyo right now" — the one thing a radio app can say that a
+  // playlist cannot. stationLocalTime returns null for any country with more than
+  // one timezone, so the line simply disappears rather than printing a clock that
+  // is wrong for most of that country. Re-rendered once a minute while open.
+  const stationClock = useMemo(
+    () => stationLocalTime(current?.country, new Date(clockTick), locale === 'en' ? 'en-GB' : 'ru-RU'),
+    [current?.country, clockTick, locale]
+  );
+
+  /**
+   * The best idea in the reference mockup, and the data was already here: what
+   * this station played, with the time. The recurring radio frustration is
+   * hearing something good, getting distracted, and losing it forever.
+   *
+   * The timestamp is when THIS device observed the track, so it is formatted in
+   * the listener's own timezone — "you heard this at 21:28" — not the station's.
+   */
+  const renderRecentOnAir = () => {
+    if (!current || recentTracks.length === 0) return null;
+    return (
+      <section className="full-player-recent-air" aria-label={t('winamp.recentOnAir')}>
+        <span className="full-player-section-label">{t('winamp.recentOnAir')}</span>
+        <ul>
+          {recentTracks.slice(0, 3).map((item) => (
+            <li key={item.id}>
+              <span className="full-player-recent-air-track">{item.track}</span>
+              <time
+                className="full-player-recent-air-time"
+                dateTime={new Date(item.timestamp).toISOString()}
+              >
+                {new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                }).format(new Date(item.timestamp))}
+              </time>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  };
+
   const renderTrackButton = () => (
     <button
       className="full-player-track"
@@ -648,36 +701,56 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               >
                 <Icon>{actionIcon.collapse}</Icon>
               </button>
-              <span className="full-player-kicker">{queueLabel}</span>
-              <button
-                className="full-player-icon-btn"
-                type="button"
-                onClick={openActionsSheet}
-                aria-label={t('dock.more')}
-              >
-                <Icon>{actionIcon.more}</Icon>
-              </button>
+              {livePillState ? (
+                <span className="full-player-live-pill" data-tone={livePillState.tone}>
+                  <span className="full-player-live-dot" aria-hidden="true" />
+                  {livePillState.label}
+                </span>
+              ) : (
+                <span className="full-player-kicker">{queueLabel}</span>
+              )}
+              <div className="full-player-header-actions">
+                <button
+                  className={`full-player-icon-btn ${liked ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    if (current) {
+                      triggerHaptic();
+                      toggleFavorite(current);
+                    }
+                  }}
+                  disabled={!current}
+                  aria-pressed={liked}
+                  aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
+                >
+                  <ThemeActionIcon name="like">{actionIcon.like}</ThemeActionIcon>
+                </button>
+                <button
+                  className="full-player-icon-btn"
+                  type="button"
+                  onClick={() => current && shareStation(current)}
+                  disabled={!current}
+                  aria-label={t('common.share')}
+                >
+                  <Icon>{actionIcon.share}</Icon>
+                </button>
+              </div>
             </header>
 
             <main
               className="full-player-main full-player-main--stage"
               data-has-next={nextQueueStation ? 'true' : 'false'}
             >
-              <div className="full-player-hero">
-                <StationArtwork station={current} size="card" className="full-player-artwork" />
-              </div>
-
+              {/* The generated scene already fills the whole overlay behind us
+                  (StationBackdrop), so a second small square of the same artwork
+                  was both redundant and the single biggest consumer of a stage
+                  that does not fit a phone. The photo IS the hero now. */}
               <section className="full-player-identity" aria-label={t('winamp.currentStation')}>
-                {livePillState ? (
-                  <span className="full-player-live-pill" data-tone={livePillState.tone}>
-                    <span className="full-player-live-dot" aria-hidden="true" />
-                    {livePillState.label}
-                    {current ? <em>· {stationLocation(current)}</em> : null}
-                  </span>
-                ) : null}
                 <h1>{normalizeStationName(current?.name) || t('winamp.noStation')}</h1>
-                <p>{current ? stationTags(current) : t('winamp.buildQueue')}</p>
-                {renderTrackButton()}
+                <p className="full-player-place">
+                  {current ? stationLocation(current) : t('winamp.buildQueue')}
+                  {stationClock ? <span className="full-player-clock"> · {stationClock}</span> : null}
+                </p>
               </section>
 
               <FullPlayerVisualizer
@@ -685,54 +758,54 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
                 subscribe={player.subscribeVisualizer}
               />
 
-              {nextQueueStation ? (
-                <button
-                  className="full-player-next-row"
-                  type="button"
-                  onClick={() => {
-                    triggerHaptic();
-                    queue.playAtIndex(nextQueueIndex);
-                  }}
-                  aria-label={`${t('common.play')}: ${normalizeStationName(nextQueueStation.name)}`}
-                >
-                  <span>{t('winamp.upNext')}</span>
-                  <strong>{normalizeStationName(nextQueueStation.name)}</strong>
-                  <Icon>{actionIcon.next}</Icon>
-                </button>
-              ) : null}
+              <section className="full-player-onair" aria-label={t('winamp.onAirNow')}>
+                <span className="full-player-section-label">{t('winamp.onAirNow')}</span>
+                {renderTrackButton()}
+                {current ? <p className="full-player-onair-tags">{stationTags(current)}</p> : null}
+              </section>
+
+              {renderRecentOnAir()}
 
               {renderTransport()}
               {renderVolume()}
 
-              <section className="full-player-actions" aria-label={t('common.actions')}>
-                {renderLikeChip()}
-                {renderShareChip()}
-                {recordAvailable ? (
-                  renderRecordChip()
-                ) : (
-                  <button
-                    className="full-player-action-chip"
-                    type="button"
-                    onClick={openQueueSheet}
-                    aria-label={t('playlist.title')}
-                  >
-                    <Icon>{actionIcon.queue}</Icon>
-                    <span>{t('playlist.title')}</span>
-                    {queue.items.length ? (
-                      <em className="full-player-action-badge">{queue.items.length}</em>
-                    ) : null}
-                  </button>
-                )}
+              <section className="full-player-stage-pills" aria-label={t('common.actions')}>
                 <button
-                  className="full-player-action-chip"
+                  className="full-player-stage-pill"
+                  type="button"
+                  onClick={openQueueSheet}
+                  aria-label={t('winamp.addToQueue')}
+                >
+                  <Icon>{actionIcon.queue}</Icon>
+                  <span>{t('winamp.addToQueue')}</span>
+                </button>
+                <button
+                  className={`full-player-stage-pill ${sleepTimer.active ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    setSleepSheetOpen(true);
+                  }}
+                  aria-label={t('settings.sleepTimerLabel')}
+                >
+                  <Icon>{actionIcon.sleep}</Icon>
+                  <span>{sleepTimer.active ? sleepLabel : t('settings.sleepTimerLabel')}</span>
+                </button>
+              </section>
+
+              <div className="full-player-stage-foot">
+                <span className="full-player-queue-count">
+                  {t('winamp.inQueue')}: {queue.items.length}
+                </span>
+                <button
+                  className="full-player-stage-foot-btn"
                   type="button"
                   onClick={openActionsSheet}
                   aria-label={t('dock.more')}
                 >
                   <Icon>{actionIcon.more}</Icon>
-                  <span>{t('dock.more')}</span>
                 </button>
-              </section>
+              </div>
             </main>
           </>
         ) : (
