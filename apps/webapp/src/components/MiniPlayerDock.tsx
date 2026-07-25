@@ -281,83 +281,12 @@ export const MiniPlayerDock = () => {
     return null;
   }
 
-  if (playerPresentation === 'peek') {
-    if (current) {
-      return (
-        <div
-          className="player-dock player-dock-peek player-dock-compact"
-          data-empty="false"
-          data-track-trust={trackTrust.kind}
-        >
-          <button
-            ref={artworkRef}
-            className="player-dock-artwork-trigger player-dock-compact-artwork"
-            data-dock-reactive
-            data-active={visualizerActive ? 'true' : 'false'}
-            type="button"
-            onClick={openFullPlayer}
-            aria-label={t('dock.openWinamp')}
-            title={t('dock.openWinamp')}
-          >
-            <StationArtwork station={current} size="dock" />
-          </button>
-          <div className="player-dock-compact-copy" title={stationLocation(current)}>
-            <span className="player-dock-title">{stationTitle}</span>
-          </div>
-          <button
-            className={`dock-icon-btn player-dock-compact-play ${player.isPlaying ? 'active' : ''}`}
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              void player.toggle();
-            }}
-            aria-label={player.isPlaying ? t('common.pause') : t('common.play')}
-          >
-            <ThemeActionIcon name={player.isPlaying ? 'pause' : 'play'}>
-              {player.isPlaying ? (
-                <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
-              ) : (
-                <path d="M8 5v14l11-7z" />
-              )}
-            </ThemeActionIcon>
-          </button>
-          <button
-            className={`dock-icon-btn player-dock-compact-like ${liked ? 'active' : ''}`}
-            type="button"
-            onClick={() => {
-              triggerHaptic();
-              toggleFavorite(current);
-            }}
-            aria-label={liked ? t('stationTable.unfavorite') : t('stationTable.favorite')}
-            aria-pressed={liked}
-          >
-            <ThemeActionIcon name="like">
-              <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
-            </ThemeActionIcon>
-          </button>
-          <button
-            className="dock-icon-btn player-dock-compact-expand"
-            type="button"
-            onClick={() => setPlayerPresentation('bar')}
-            aria-label={t('dock.peekHint')}
-            aria-expanded="false"
-            title={t('dock.peekHint')}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6 1.4 1.4Z" />
-            </svg>
-          </button>
-        </div>
-      );
-    }
-
-    // No fallback here on purpose. `isDormantDock = !current` returns null at the
-    // top of this component, so `peek && !current` is unreachable — the branch
-    // that used to live here rendered a «player-peek-handle» whose every
-    // expression tested `isDormantDock`, i.e. dead code guarding against a state
-    // that can no longer arrive. Returning null keeps that explicit.
-    return null;
-  }
+  // 'peek' no longer has a rendering of its own. It used to draw a compact dock,
+  // reachable ONLY through the «Свернуть» button that just went away — and every
+  // play snapped the state back to 'bar' anyway (RadioContext), so the compact
+  // view was a dead end that saved one line of height. Falling through to the
+  // bar keeps any session whose STORED state is 'peek' working exactly like
+  // everyone else's, with nothing to be trapped in.
 
   return (
     <div
@@ -765,21 +694,14 @@ export const MiniPlayerDock = () => {
             <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
           </ThemeActionIcon>
         </button>
-        <button
-          className="dock-icon-btn dock-collapse-btn"
-          type="button"
-          onClick={() => {
-            setTrayMode(null);
-            setPlayerPresentation('peek');
-          }}
-          aria-label={t('winamp.collapse')}
-          aria-expanded="true"
-          title={t('winamp.collapse')}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z" />
-          </svg>
-        </button>
+        {/* «Свернуть» removed. Owner: «какой блять смысл в кнопке свернуть???» —
+            and he is right: collapsing only dropped the track line and «Ещё»
+            from a bar of the same width, then every play snapped the state
+            straight back to 'bar' (RadioContext), so the compact view lasted
+            until the next tap. It cost a slot in a bar we had just decluttered
+            and bought a state nobody could stay in. The compact rendering path
+            stays so a session whose stored state is already 'peek' still has its
+            own expand control and is never trapped. */}
       </div>
     </div>
   );
