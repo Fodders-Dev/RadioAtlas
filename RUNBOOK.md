@@ -166,10 +166,11 @@ something the assistant does):
 2. R2 → Manage API tokens → Create API token.
    Permission **Object Read & Write**, scoped to that ONE bucket. No admin, no
    account-wide scope. Note the Access Key ID and Secret Access Key.
-3. Append to `/opt/RadioAtlas/shared/env/api.env` (this file is not in git):
+3. Append the two SECRET values to `/opt/RadioAtlas/shared/env/api.env` (this
+   file is not in git). The account id defaults to the `CLOUDFLARE_ACCOUNT_ID`
+   already in that file, and the bucket defaults to `radioatlas-backups`, so
+   nothing else needs typing:
 
-       R2_ACCOUNT_ID=<cloudflare account id>
-       R2_BUCKET=radioatlas-backups
        R2_ACCESS_KEY_ID=<from step 2>
        R2_SECRET_ACCESS_KEY=<from step 2>
 
