@@ -96,16 +96,33 @@ const asLimit = (value: unknown): number | undefined => {
 export const runTool = async (
   tool: string,
   args: Record<string, unknown>,
-  ctx: { tools: ToolProvider; musicServices: MusicService[]; webSearch?: WebSearchProvider }
+  ctx: {
+    tools: ToolProvider;
+    musicServices: MusicService[];
+    webSearch?: WebSearchProvider;
+    /**
+     * Deterministic language hint derived from the listener's message BEFORE the
+     * model runs (see subjectLanguage.ts). Applied only when the planner left
+     * both language and country empty, so an explicit «бразильское радио» is
+     * never overridden.
+     */
+    languageScope?: string;
+  }
 ): Promise<ToolObservation> => {
   const base = { tool, args };
   try {
     switch (tool) {
       case 'search_stations': {
+        const country = asOptionalString(args.country);
+        const language = asOptionalString(args.language);
+        // A bare `pop` search is 2/50 Russian; `language=russian` + `pop` is
+        // 47/50 (#205). The planner never sets this, so a question about a
+        // Russian artist came back with French, Swiss and Arabic pop.
+        const scoped = !country && !language ? ctx.languageScope : undefined;
         const stations = await ctx.tools.searchStations({
           query: asString(args.query),
-          country: asOptionalString(args.country),
-          language: asOptionalString(args.language),
+          country,
+          language: language || scoped,
           tag: asOptionalString(args.tag),
           limit: asLimit(args.limit)
         });
