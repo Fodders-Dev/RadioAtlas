@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { stationLocalTime } from '../lib/stationClock';
+import { buildMusicServiceLinks } from '../lib/musicServiceLinks';
 import { formatListenerLine } from '../lib/listenerPresence';
 import { useListenerPresence } from '../lib/useListenerPresence';
 import { useDialog } from '../lib/useDialog';
@@ -16,6 +17,7 @@ import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer
 import { SleepTimerDial } from './SleepTimerDial';
 import {
   canShareToStory,
+  openLinkOrFallback,
   openStationRecording,
   shareStationToStory,
   triggerHaptic
@@ -234,6 +236,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
   const [queueSheetTarget, setQueueSheetTarget] = useState<'queue' | 'recent' | null>(null);
   const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
+  const [trackSheetOpen, setTrackSheetOpen] = useState(false);
   // The station clock must not go stale while someone stares at it. One tick a
   // minute, only while the overlay is mounted.
   const [clockTick, setClockTick] = useState(() => Date.now());
@@ -472,20 +475,37 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     );
   };
 
+  // Search links are pure url-building (lib/musicServiceLinks) — no network, no
+  // assistant round trip, so the sheet opens instantly and works offline.
+  const trackServiceLinks = useMemo(
+    () => buildMusicServiceLinks(displayTrack),
+    [displayTrack]
+  );
+
   const renderTrackButton = () => (
     <button
       className="full-player-track"
       type="button"
-      disabled={!canCopyTrack}
+      disabled={!canCopyTrack && trackServiceLinks.length === 0}
       onClick={() => {
-        if (canCopyTrack) void copyTrack();
+        // Tapping used to copy silently, with nothing on screen saying so.
+        // It now opens the track sheet, where copying is one visible row next
+        // to "open in your music service".
+        if (canCopyTrack || trackServiceLinks.length > 0) {
+          triggerHaptic();
+          setTrackSheetOpen(true);
+        }
       }}
       data-full-player-track
       data-last-heard={isLastHeard ? 'true' : undefined}
     >
       <span>{displayTrack}</span>
       {isLastHeard ? <span className="full-player-track-tag">{t('dock.lastHeard')}</span> : null}
-      {canCopyTrack ? <Icon>{actionIcon.copy}</Icon> : null}
+      {trackServiceLinks.length > 0 ? (
+        <Icon>{actionIcon.external}</Icon>
+      ) : canCopyTrack ? (
+        <Icon>{actionIcon.copy}</Icon>
+      ) : null}
     </button>
   );
 
@@ -1011,6 +1031,55 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           <div className="full-player-sheet-panels">
             {renderQueuePanel()}
             {renderRecentPanel()}
+          </div>
+        </FullPlayerSheet>
+      ) : null}
+
+      {/* "I like this track" is a thought you have WHILE it plays. Reaching these
+          links through the assistant meant opening a chat and asking; they are
+          pure search urls, so the sheet needs no network at all. */}
+      {isMobileLayout ? (
+        <FullPlayerSheet
+          open={trackSheetOpen}
+          onClose={() => setTrackSheetOpen(false)}
+          kicker={normalizeStationName(current?.name) || t('winamp.currentStation')}
+          title={displayTrack}
+        >
+          <div className="full-player-sheet-rows">
+            {trackServiceLinks.length > 0 ? (
+              <>
+                <div className="full-player-sheet-label">{t('details.openInService')}</div>
+                {trackServiceLinks.map((link) => (
+                  <button
+                    key={link.service}
+                    className="full-player-action-row"
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      openLinkOrFallback(link.url);
+                      setTrackSheetOpen(false);
+                    }}
+                  >
+                    <Icon>{actionIcon.external}</Icon>
+                    <span>{link.label}</span>
+                  </button>
+                ))}
+              </>
+            ) : null}
+            {canCopyTrack ? (
+              <button
+                className="full-player-action-row"
+                type="button"
+                onClick={() => {
+                  triggerHaptic();
+                  void copyTrack();
+                  setTrackSheetOpen(false);
+                }}
+              >
+                <Icon>{actionIcon.copy}</Icon>
+                <span>{t('details.copyTrack')}</span>
+              </button>
+            ) : null}
           </div>
         </FullPlayerSheet>
       ) : null}

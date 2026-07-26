@@ -936,6 +936,7 @@ export const enDictionary = {
     "closeAria": "Close station card",
     "close": "Close",
     "copyTrack": "Copy track",
+    "openInService": "Open in a music service",
     "nowPlaying": "Now playing",
     "streamUrl": "Stream URL",
     "homepage": "Homepage",
