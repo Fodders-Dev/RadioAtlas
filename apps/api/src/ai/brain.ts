@@ -500,6 +500,30 @@ const CURRENT_STATION_QUESTION =
 const SONG_TOPIC_QUESTION =
   /(?:что|ч[её])\s+за\s+(?:песн|трек|композиц|альбом|исполнител|групп)|когда\s+(?:она\s+|он\s+|эт[аои]т?\s+)?(?:песн[а-яё]*\s+|трек[а-яё]*\s+|композици[а-яё]*\s+|альбом[а-яё]*\s+)?(?:вышл|записан|появил|созда)|в\s+каком\s+году|из\s+какого\s+альбома|с\s+какого\s+альбома|кто\s+(?:её\s+|его\s+)?(?:по[её]т|исполня|написал|автор|спел)|what\s+(?:song|track)\s+is|when\s+(?:was|did)[^?]*(?:releas|come\s+out|record)/i;
 
+/**
+ * An explicit request FOR music, as opposed to a question about it.
+ *
+ * The first attempt at the station gate used the existing `musicIntent`, which
+ * is deliberately broad — it fires on a bare music descriptor, so the word
+ * «песня» inside «Че за песня?» was enough to keep it true and the gate never
+ * ran once in production. Exported so the distinction is unit-testable rather
+ * than inferred.
+ */
+const MUSIC_REQUEST_VERB = new RegExp(
+  String.raw`(?:^|[\s,.;:!?"'«»()\-–—])` +
+    String.raw`(?:посоветуй|подбери|подбор|найди|поищи|включи|поставь|запусти|переключи|дай|скинь\s+(?:станци|радио)|покажи\s+(?:станци|радио)|хочу|хочется|давай)` +
+    '|' +
+    String.raw`что\s+(?:мне\s+)?(?:послушать|поставить|включить)` +
+    '|' +
+    String.raw`подскажи\s+(?:станци|радио|что)` +
+    '|' +
+    String.raw`(?:^|\s)(?:play|find|recommend|suggest)\s`,
+  'i'
+);
+
+export const isExplicitMusicRequest = (message: string): boolean =>
+  MUSIC_REQUEST_VERB.test(String(message || '').trim());
+
 export const isSongTopicQuestion = (message: string): boolean =>
   SONG_TOPIC_QUESTION.test(String(message || '').trim());
 
@@ -1857,8 +1881,12 @@ export const chatWithAssistant = async (
     songKnowledgeIntent.any ||
     songKnowledgeIntent.referencesCurrentTrack ||
     isSongTopicQuestion(userMessage);
-  const stations = answersAQuestion && !musicIntent ? [] : collectedStations;
-  if (answersAQuestion && !musicIntent && collectedStations.length > 0) {
+  // NOT `!musicIntent`: that predicate fires on a bare music descriptor, so the
+  // word «песня» inside «Че за песня?» kept it true and this gate never ran.
+  // A question loses its cards unless the listener actually ASKED for music.
+  const dropCards = answersAQuestion && !isExplicitMusicRequest(userMessage);
+  const stations = dropCards ? [] : collectedStations;
+  if (dropCards && collectedStations.length > 0) {
     deps.log(`ai dropped ${collectedStations.length} off-topic station card(s) from a knowledge answer`);
   }
   const serviceLinks = collectServiceLinks(groundedObservations);
