@@ -24,12 +24,11 @@ const requestFrom = (ip: string) =>
 
 const routeFor = (windowMs: number) =>
   new ProtectedMediaRoute({
-    routeName: 'leak-test',
-    maxConcurrent: 4,
-    queueLimit: 4,
+    routeName: 'image',
+    maxConcurrency: 4,
+    sharedMaxConcurrency: 8,
     rateLimitPerWindow: 1000,
     rateLimitWindowMs: windowMs,
-    cacheTtlMs: 1000
   });
 
 test('buckets for addresses that never return do not accumulate forever', async () => {
@@ -56,12 +55,11 @@ test('buckets for addresses that never return do not accumulate forever', async 
 test('a still-active bucket is never swept away', async () => {
   // The sweep must not hand a rate-limited caller a fresh allowance.
   const route = new ProtectedMediaRoute({
-    routeName: 'leak-test-active',
-    maxConcurrent: 4,
-    queueLimit: 4,
+    routeName: 'fetch',
+    maxConcurrency: 4,
+    sharedMaxConcurrency: 8,
     rateLimitPerWindow: 2,
     rateLimitWindowMs: 5_000,
-    cacheTtlMs: 1000
   });
 
   const offender = requestFrom('198.51.100.9');

@@ -7,9 +7,11 @@ import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import type { ChatInput, DeepseekConfig } from '../src/ai/types.js';
 
 // --- 1. XFF / cost-bypass guard --------------------------------------------
-// The ai-chat fix keys the rate limit on req.ip (the trusted single hop behind
-// Caddy's `trust proxy`) instead of the spoofable X-Forwarded-For. Media routes
-// must keep the forwarded-first behaviour.
+// Every route keys the rate limit on req.ip — the trusted single hop behind
+// Caddy's `trust proxy` — instead of the spoofable X-Forwarded-For. ai-chat was
+// fixed first because it fronts paid DeepSeek calls; the media routes kept the
+// bypassable behaviour until it was measured that this made their limits
+// decorative.
 const fakeReq = (ip: string, xff: string): express.Request =>
   ({ ip, socket: { remoteAddress: ip }, headers: { 'x-forwarded-for': xff } }) as unknown as express.Request;
 
@@ -28,7 +30,7 @@ test('ai-chat rate limit keys on req.ip — a rotated X-Forwarded-For cannot min
   assert.notEqual(second, null); // SAME bucket → limited, despite the new XFF
 });
 
-test('media (image) rate limit still keys on X-Forwarded-For (behaviour unchanged)', () => {
+test('media (image) rate limit keys on req.ip too — the header cannot reset it', () => {
   const guard = new ProtectedMediaRoute({
     routeName: 'image',
     rateLimitPerWindow: 1,
@@ -38,8 +40,8 @@ test('media (image) rate limit still keys on X-Forwarded-For (behaviour unchange
   });
   const first = guard.checkRateLimit(fakeReq('1.1.1.1', '9.9.9.9'));
   const second = guard.checkRateLimit(fakeReq('1.1.1.1', '8.8.8.8'));
-  assert.equal(first, null); // bucket 9.9.9.9
-  assert.equal(second, null); // bucket 8.8.8.8 → different bucket, not limited
+  assert.equal(first, null);
+  assert.notEqual(second, null); // SAME bucket → limited, despite the new XFF
 });
 
 // --- 3. Cost-guard wiring on the runtime -----------------------------------
