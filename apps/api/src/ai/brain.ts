@@ -733,7 +733,10 @@ const runPlannerLoop = async (
   observations: ToolObservation[],
   usedSignatures: Set<string>,
   usage: ChatUsage,
-  startStep: number
+  startStep: number,
+  // Computed from the listener's message before the model ran; see
+  // subjectLanguage.ts. Undefined means "do not constrain".
+  languageScope?: string
 ) => {
   for (let step = startStep; step < MAX_TOOL_STEPS; step += 1) {
     const { result, decision } = await planAgentStep(deps, transcript, observations);
@@ -744,6 +747,7 @@ const runPlannerLoop = async (
     if (usedSignatures.has(signature)) break; // never repeat the same call
     usedSignatures.add(signature);
     const observation = await runTool(decision.tool, args, {
+      languageScope,
       tools: deps.tools,
       musicServices: deps.musicServices,
       webSearch: deps.webSearch
@@ -1365,6 +1369,10 @@ export const chatWithAssistant = async (
   const surface = input.surface;
   const now = deps.now();
   const userMessage = String(input.userMessage || '').trim();
+  // Deterministic, BEFORE the model: a Cyrillic artist/track subject means the
+  // listener means Russian-language music. #204 proved the model path cannot be
+  // trusted with this — parseGenreTags drops Cyrillic tags outright.
+  const languageScope = subjectLanguageScope(userMessage) || undefined;
   const currentTrack = safeContextLabel(input.nowPlaying?.track, 180);
   const currentStationName = safeContextLabel(input.nowPlaying?.stationName, 120);
 
@@ -1593,7 +1601,7 @@ export const chatWithAssistant = async (
       if (collectVerifiedStations(observations).length >= minStations) break;
     }
     if (collectVerifiedStations(observations).length === 0) {
-      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
     }
   } else if (culturalExplainerQuestion && deps.webSearch) {
     const webArgs = { query: culturalExplainerWebQuery(userMessage) };
@@ -1644,7 +1652,7 @@ export const chatWithAssistant = async (
       if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
       if (collectVerifiedStations(observations).length > 0) break;
     }
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
   } else if (artistQuery) {
     const artistArgs = { artist: artistQuery };
     usedSignatures.add(toolSignature('find_stations_by_artist', artistArgs));
@@ -1688,7 +1696,7 @@ export const chatWithAssistant = async (
     // A verified artist-dedicated/name-matched card is already the most precise
     // answer. Do not let a second planner pass dilute it with generic pop cards.
     if (collectVerifiedStations(observations).length === 0) {
-      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
     }
   } else if (forcedQuery) {
     // Explicit play/rec intent with a concrete topic → ACT: search stations now
@@ -1702,7 +1710,7 @@ export const chatWithAssistant = async (
     });
     observations.push(forcedObservation);
     if (forcedObservation.error) deps.log(`ai tool search_stations error: ${forcedObservation.error}`);
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1);
+    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
   } else if (!isSmalltalk(userMessage)) {
     // Normal planner loop — skipped for obvious chat (latency fast-path).
     await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 0);
