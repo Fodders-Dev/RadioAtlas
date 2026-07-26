@@ -33,6 +33,7 @@ import {
   toolSignature
 } from './tools.js';
 import { wrapSnippet } from './untrustedData.js';
+import { namedSubjectWords, subjectLanguageScope } from './subjectLanguage.js';
 import type {
   AssistantAction,
   AssistantDeps,
@@ -529,13 +530,22 @@ const songKnowledgeWebQueries = (
 
 const lyricsSearchSubject = (message: string, intent: SongKnowledgeIntent, currentTrack?: string): string => {
   if (intent.referencesCurrentTrack && currentTrack) return currentTrack;
+  // «Хорошо, скинь текст песни но изменный тобой» names no song at all — the
+  // lead-strip below cannot help because the sentence does not START with the
+  // command. If nothing in the message looks like a title or an artist, the
+  // track on air is what the listener means.
+  if (currentTrack && namedSubjectWords(message).length === 0) return currentTrack;
   const explicit = message.trim().replace(/\s+/g, ' ').slice(0, 220);
   const withoutLead = explicit
     .replace(/^\s*(?:пожалуйста[,\s]*)?(?:дай|скинь|пришли|покажи|найди|открой|хочу)\s+(?:мне\s+)?/i, '')
     .replace(/^\s*(?:текст|слова|lyrics)(?:\s+(?:этой|этого))?(?:\s+(?:песни|трека|композиции|song|track))?\s*/i, '')
     .replace(/\s+(?:и\s+)?(?:объясни|разбери|расскажи|что\s+значит|о\s+ч[её]м|какой\s+смысл|смысл).*/i, '')
     .trim();
-  return withoutLead || explicit;
+  // Falling back to `explicit` here is what produced «Найти текст "Скинь текст"
+  // на Genius»: stripping the command left nothing, so the user's own words
+  // became the search subject. When the message names no song, the track on air
+  // IS the subject.
+  return withoutLead || currentTrack || explicit;
 };
 
 const lyricsSearchFallbackSource = (
@@ -1816,7 +1826,22 @@ export const chatWithAssistant = async (
   });
   addUsage(usage, composed.usage);
 
-  const stations = collectVerifiedStations(groundedObservations);
+  // A question about a SONG or a FACT deserves an answer, not a rack of
+  // stations. The planner is free to call search_stations on any turn, and
+  // whatever it happened to find used to be attached regardless of intent —
+  // which is how «когда вышла эта песня?» came back with chiptune channels, and
+  // a question about a Russian pop track came back with Albanian tech-house.
+  // The existing knowledgeQuestion gate only guarded the zero-results BACKSTOP;
+  // it never filtered what the planner itself dragged in.
+  //
+  // serviceLinks deliberately survive: "open this track on Yandex/Spotify" is
+  // exactly what someone asking about a song wants next.
+  const collectedStations = collectVerifiedStations(groundedObservations);
+  const answersAQuestion = knowledgeQuestion || songKnowledgeIntent.any;
+  const stations = answersAQuestion && !musicIntent ? [] : collectedStations;
+  if (answersAQuestion && !musicIntent && collectedStations.length > 0) {
+    deps.log(`ai dropped ${collectedStations.length} off-topic station card(s) from a knowledge answer`);
+  }
   const serviceLinks = collectServiceLinks(groundedObservations);
 
   // Compose failed / empty / off-voice → warm fallback (carrying any stations
