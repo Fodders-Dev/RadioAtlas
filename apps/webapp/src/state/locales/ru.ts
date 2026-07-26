@@ -936,6 +936,7 @@ export const ruDictionary = {
     "closeAria": "Закрыть карточку станции",
     "close": "Закрыть",
     "copyTrack": "Копировать трек",
+    "openInService": "Открыть в сервисе",
     "nowPlaying": "Сейчас играет",
     "streamUrl": "URL потока",
     "homepage": "Сайт",
