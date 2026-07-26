@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { VisualizerFrame } from '../lib/useAudioPlayer';
 import type { StationLite } from '../types';
 import { createGeneratedArtworkPalette } from '../lib/artwork';
-import { extractArtworkPalette, type ExtractedPalette } from '../lib/artworkColor';
+import {
+  extractArtworkPalette,
+  toStagePalette,
+  type ExtractedPalette,
+  type PaletteTone
+} from '../lib/artworkColor';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { resolveSceneArtworkUrl } from '../lib/sceneArtwork';
 import './StationBackdrop.css';
@@ -24,6 +29,9 @@ type StationBackdropProps = {
   station: StationLite | null;
   active: boolean;
   subscribe: (callback: (frame: VisualizerFrame) => void) => () => void;
+  /** 'stage' recedes behind dense copy (the player); 'poster' stays colourful
+   *  (the feed card). Defaults to poster — the pre-existing behaviour. */
+  tone?: PaletteTone;
 };
 
 const stationArtworkUrlOf = (station: StationLite | null) =>
@@ -36,7 +44,12 @@ const seedOf = (station: StationLite | null) =>
     .filter(Boolean)
     .join(':') || 'radio';
 
-export const StationBackdrop = ({ station, active, subscribe }: StationBackdropProps) => {
+export const StationBackdrop = ({
+  station,
+  active,
+  subscribe,
+  tone = 'poster'
+}: StationBackdropProps) => {
   const energyRef = useRef<HTMLDivElement>(null);
 
   const stationArtworkUrl = stationArtworkUrlOf(station);
@@ -81,7 +94,12 @@ export const StationBackdrop = ({ station, active, subscribe }: StationBackdropP
     };
   }, [artworkUrl]);
 
-  const palette = extracted ?? generated;
+  // Re-banded for the surface: the tile palettes are far too bright to carry a
+  // whole screen. See toStagePalette — hue is kept, brightness is not.
+  const palette = useMemo(
+    () => toStagePalette(extracted ?? generated, tone),
+    [extracted, generated, tone]
+  );
 
   // Layer B energy: subscribe to the same audio pump as the spectrum, smooth the
   // low-mid bands, and write --ra-energy straight to the DOM node (no React state

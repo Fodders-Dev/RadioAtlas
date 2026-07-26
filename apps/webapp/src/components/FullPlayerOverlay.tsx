@@ -28,6 +28,7 @@ import { latestTrackForStation } from '../state/radio/helpers';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
 import { StationBackdrop } from './StationBackdrop';
+import { StationPlaceCard } from './StationPlaceCard';
 import { FullPlayerVisualizer } from './FullPlayerVisualizer';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
@@ -710,6 +711,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           station={current}
           active={player.visualizer.active}
           subscribe={player.subscribeVisualizer}
+          tone="stage"
         />
         {isMobileLayout ? (
           <>
@@ -784,6 +786,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
                 {renderTrackButton()}
                 {current ? <p className="full-player-onair-tags">{stationTags(current)}</p> : null}
               </section>
+
+              {/* Fills the band that used to be dead space above the transport,
+                  with the one fact only a radio atlas can offer. Renders nothing
+                  when we have no country geometry, and the layout closes up. */}
+              <StationPlaceCard station={current} label={t('winamp.onAirFrom')} />
 
               {renderRecentOnAir()}
 

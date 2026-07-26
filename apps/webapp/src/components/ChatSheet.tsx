@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -44,6 +45,8 @@ type ChatMessage = {
 
 type ChatSheetProps = { open: boolean; onClose: () => void };
 
+import { pickChatPrompts, type ChatPromptSpec } from '../lib/chatPrompts';
+
 const HISTORY_LIMIT = 10;
 const STORED_MESSAGE_LIMIT = 40;
 const CHAT_STORAGE_KEY = 'radio:lira-thread:v1';
@@ -54,28 +57,7 @@ const AVOID_ID_LIMIT = 80;
 const LAST_RECOMMENDED_ID_LIMIT = 20;
 const NEGATIVE_STATION_SCORE_THRESHOLD = -4;
 
-const QUICK_PROMPTS = [
-  {
-    label: 'chat.promptNight',
-    query: 'chat.promptNightQuery',
-    path: 'M12 3a9 9 0 1 0 9 9 7.2 7.2 0 0 1-9-9Z'
-  },
-  {
-    label: 'chat.promptLofi',
-    query: 'chat.promptLofiQuery',
-    path: 'M6 9v7a3 3 0 0 0 3 3h1v-8H8a6 6 0 0 1 12 0h-2v8h1a3 3 0 0 0 3-3v-7a10 10 0 0 0-20 0v7a3 3 0 0 0 3 3h1V9Z'
-  },
-  {
-    label: 'chat.promptTokyo',
-    query: 'chat.promptTokyoQuery',
-    path: 'M11 2h2l1 5 4 14h-2l-1.1-4H9.1L8 21H6l4-14 1-5Zm-1.35 13h4.7L12 6.55 9.65 15Z'
-  },
-  {
-    label: 'chat.promptEnergy',
-    query: 'chat.promptEnergyQuery',
-    path: 'M13.2 2 5 13h6l-.8 9L19 10h-6l.2-8Z'
-  }
-] as const;
+
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object';
@@ -195,6 +177,24 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
   const titleId = useId();
   const inputId = useId();
   const [messages, setMessages] = useState<ChatMessage[]>(readStoredMessages);
+
+  // Advance the rotation each time the welcome screen appears, NOT each render:
+  // chips that reshuffle under a finger are worse than chips that repeat.
+  const promptSeedRef = useRef(0);
+  const welcomeVisible = open && messages.length === 0;
+  useEffect(() => {
+    if (welcomeVisible) promptSeedRef.current += 1;
+  }, [welcomeVisible]);
+  const quickPrompts = useMemo(
+    () =>
+      pickChatPrompts({
+        seed: promptSeedRef.current,
+        hour: new Date().getHours(),
+        station: player.current?.name?.trim() || undefined,
+        track: nowPlaying?.trim() || undefined
+      }),
+    [welcomeVisible, player.current?.stationuuid, nowPlaying]
+  );
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -410,20 +410,20 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
               </div>
 
               <div className="chat-prompt-grid" aria-label={t('chat.quickPrompts')}>
-                {QUICK_PROMPTS.map((prompt) => (
+                {quickPrompts.map((prompt: ChatPromptSpec) => (
                   <button
-                    key={prompt.label}
+                    key={prompt.id}
                     className="chat-prompt-card"
                     type="button"
                     onClick={() => {
                       triggerSelectionHaptic();
-                      void send(t(prompt.query));
+                      void send(t(prompt.queryKey, prompt.params));
                     }}
                   >
                     <span className="chat-prompt-icon" aria-hidden="true">
                       <svg viewBox="0 0 24 24"><path d={prompt.path} /></svg>
                     </span>
-                    <span>{t(prompt.label)}</span>
+                    <span>{t(prompt.labelKey)}</span>
                   </button>
                 ))}
               </div>
