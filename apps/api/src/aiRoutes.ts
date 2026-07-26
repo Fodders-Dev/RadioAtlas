@@ -132,10 +132,17 @@ export const parseNowPlayingContext = (raw: unknown): NowPlayingContext | undefi
   const value = raw as Record<string, unknown>;
   const track = parsePlaybackLabel(value.track, MAX_TRACK_CHARS);
   const stationName = parsePlaybackLabel(value.stationName, MAX_STATION_NAME_CHARS);
-  if (!track && !stationName) return undefined;
+  // Shape-checked, not trusted: it is only ever used as a catalogue lookup key,
+  // and a miss simply means the assistant answers without station facts.
+  const rawUuid = typeof value.stationUuid === 'string' ? value.stationUuid.trim() : '';
+  const stationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawUuid)
+    ? rawUuid.toLowerCase()
+    : undefined;
+  if (!track && !stationName && !stationUuid) return undefined;
   return {
     ...(track ? { track } : {}),
-    ...(stationName ? { stationName } : {})
+    ...(stationName ? { stationName } : {}),
+    ...(stationUuid ? { stationUuid } : {})
   };
 };
 

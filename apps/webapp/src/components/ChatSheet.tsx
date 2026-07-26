@@ -258,6 +258,10 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
     const trustedTrack = nowPlaying?.trim();
     const trustedStationName = player.current?.name?.trim();
+    // The NAME alone cannot answer "tell me about this station" — the catalogue
+    // is keyed by uuid, and names repeat. Sending the id lets Lira look the
+    // station up for real instead of describing a string.
+    const trustedStationUuid = player.current?.stationuuid?.trim();
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
     if (override === undefined) {
       setInput('');
@@ -267,10 +271,11 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     try {
       const response = await postChatMessage(text, history, {
         userTaste,
-        nowPlaying: trustedTrack || trustedStationName
+        nowPlaying: trustedTrack || trustedStationName || trustedStationUuid
           ? {
               ...(trustedTrack ? { track: trustedTrack.slice(0, 220) } : {}),
-              ...(trustedStationName ? { stationName: trustedStationName.slice(0, 120) } : {})
+              ...(trustedStationName ? { stationName: trustedStationName.slice(0, 120) } : {}),
+              ...(trustedStationUuid ? { stationUuid: trustedStationUuid } : {})
             }
           : undefined
       });
