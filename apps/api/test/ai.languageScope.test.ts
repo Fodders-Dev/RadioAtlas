@@ -64,3 +64,37 @@ test('no scope means no filter', async () => {
   });
   assert.equal(seen[0]!.language, undefined);
 });
+
+/**
+ * The first wiring attempt reached production applying the scope to exactly ONE
+ * of the ten runTool call sites — the planner loop — while six OTHER
+ * search_stations calls bypass that loop entirely. «посоветуй что-нибудь как
+ * Жасмин» went through one of those and still returned Swiss and French pop.
+ *
+ * This asserts against the SOURCE: every search_stations invocation must carry
+ * the scope, because a missed one fails silently and looks exactly like a
+ * scoping rule that does not work.
+ */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+test('every search_stations call site passes the language scope', () => {
+  const brainPath = resolve(dirname(fileURLToPath(import.meta.url)), '../src/ai/brain.ts');
+  const source = readFileSync(brainPath, 'utf8');
+  const lines = source.split('\n');
+
+  const missing: string[] = [];
+  lines.forEach((line, index) => {
+    if (!line.includes("runTool('search_stations'")) return;
+    const ctx = lines.slice(index, index + 8).join('\n');
+    // The planner loop receives it as a function parameter and forwards it.
+    if (!ctx.includes('languageScope')) missing.push(`line ${index + 1}`);
+  });
+
+  assert.deepEqual(
+    missing,
+    [],
+    `these search_stations calls would silently ignore the language scope: ${missing.join(', ')}`
+  );
+});
