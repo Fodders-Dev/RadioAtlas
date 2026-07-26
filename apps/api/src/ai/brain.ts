@@ -488,6 +488,21 @@ export const isNowPlayingQuestion = (message: string): boolean =>
 const CURRENT_STATION_QUESTION =
   /(?:^|[,.!?]\s*)(?:а\s+)?(?:(?:что|ч[её])\s+(?:это\s+)?за\s+(?:станци[а-яё]*|радио|волн[а-яё]*)|расскажи\s+(?:мне\s+)?(?:про|о|об)\s+(?:эт(?:у|ой|о|ом)\s+)?(?:станци[а-яё]*|радио)|что\s+(?:ты\s+)?знаешь\s+(?:про|о|об)\s+(?:эт(?:у|ой|ом)\s+)?(?:станци[а-яё]*|радио)|(?:эта|это)\s+(?:станция|радио)\s*[-—]?\s*(?:что|кто)\s+(?:это|такое)|откуда\s+(?:эта\s+)?(?:станци[а-яё]*|радио)|what(?:'s|\s+is)?\s+(?:this|that)\s+(?:station|radio)|what\s+(?:station|radio)\s+is\s+(?:this|that)|tell\s+me\s+about\s+(?:this\s+)?(?:station|radio))(?:\s*[?!.])?$/i;
 
+/**
+ * Questions ABOUT a song — its identity, year, album, performer. Distinct from
+ * classifySongKnowledgeIntent, which only covers lyrics/meaning/translation and
+ * therefore returned `any=false` for «Че за песня?» and «Когда эта песня вышла?»
+ * — the two that kept dragging chiptune and tech-house cards into the answer.
+ *
+ * These are QUESTIONS, not requests: «посоветуй что-нибудь как Жасмин» is a
+ * request and keeps its station cards.
+ */
+const SONG_TOPIC_QUESTION =
+  /(?:что|ч[её])\s+за\s+(?:песн|трек|композиц|альбом|исполнител|групп)|когда\s+(?:она\s+|он\s+|эт[аои]т?\s+)?(?:песн[а-яё]*\s+|трек[а-яё]*\s+|композици[а-яё]*\s+|альбом[а-яё]*\s+)?(?:вышл|записан|появил|созда)|в\s+каком\s+году|из\s+какого\s+альбома|с\s+какого\s+альбома|кто\s+(?:её\s+|его\s+)?(?:по[её]т|исполня|написал|автор|спел)|what\s+(?:song|track)\s+is|when\s+(?:was|did)[^?]*(?:releas|come\s+out|record)/i;
+
+export const isSongTopicQuestion = (message: string): boolean =>
+  SONG_TOPIC_QUESTION.test(String(message || '').trim());
+
 export const isCurrentStationQuestion = (message: string): boolean =>
   CURRENT_STATION_QUESTION.test(String(message || '').trim());
 
@@ -1837,7 +1852,11 @@ export const chatWithAssistant = async (
   // serviceLinks deliberately survive: "open this track on Yandex/Spotify" is
   // exactly what someone asking about a song wants next.
   const collectedStations = collectVerifiedStations(groundedObservations);
-  const answersAQuestion = knowledgeQuestion || songKnowledgeIntent.any;
+  const answersAQuestion =
+    knowledgeQuestion ||
+    songKnowledgeIntent.any ||
+    songKnowledgeIntent.referencesCurrentTrack ||
+    isSongTopicQuestion(userMessage);
   const stations = answersAQuestion && !musicIntent ? [] : collectedStations;
   if (answersAQuestion && !musicIntent && collectedStations.length > 0) {
     deps.log(`ai dropped ${collectedStations.length} off-topic station card(s) from a knowledge answer`);
