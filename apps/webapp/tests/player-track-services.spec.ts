@@ -72,3 +72,37 @@ test('a service row carries a real search url for the track on air', async ({ pa
   // A SEARCH page for the actual title — never a guessed track id.
   expect(decodeURIComponent(opened[0]!)).toContain(track.split(' - ')[0]!.slice(0, 12));
 });
+
+/**
+ * Caught on production, not by this suite: the fixtures always carry a track, so
+ * nothing exercised the ~90% of stations that never send ICY. The sheet offered
+ * all six services anyway and Yandex Music searched for the literal placeholder
+ * «Название трека пока недоступно» — the links were built from the DISPLAY
+ * string, which already has the fallback substituted in.
+ */
+test('a station with no track metadata offers no search at all', async ({ page }) => {
+  // Later routes win in Playwright, so this overrides the fixture's Mock Song.
+  await page.route('**/metadata?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ title: '', logs: [], source: 'test' })
+    })
+  );
+  await page.route('**/status-json.xsl', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ icestats: {} }) })
+  );
+  await page.route('**/fetch?url=**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/plain', body: '' })
+  );
+
+  await openFullPlayer(page);
+
+  const row = page.locator('[data-full-player-track]');
+  await expect(row).toContainText(/недоступно|unavailable/i);
+  await expect(row).toBeDisabled();
+
+  // And nothing opens if the tap lands anyway.
+  await row.click({ force: true });
+  await expect(page.locator('.full-player-sheet')).toHaveCount(0);
+});

@@ -294,8 +294,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     [nowPlayingStatus, trust.track, current, trackHistory]
   );
   const isLastHeard = !trust.track && Boolean(lastHeard);
+  // The real metadata, before the "no title yet" placeholder is substituted for
+  // display. Anything that SEARCHES must use this one — searching a service for
+  // the words «Название трека пока недоступно» is worse than offering nothing.
+  const realTrack = trust.track || lastHeard?.track || '';
   const displayTrack =
-    trust.track || lastHeard?.track || (current ? t('dock.currentTrackUnavailable') : t('winamp.noStation'));
+    realTrack || (current ? t('dock.currentTrackUnavailable') : t('winamp.noStation'));
   const queuePreview = useMemo(() => {
     if (!queue.items.length) return [];
     const start = Math.max(activeQueueIndex, 0);
@@ -477,10 +481,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
 
   // Search links are pure url-building (lib/musicServiceLinks) — no network, no
   // assistant round trip, so the sheet opens instantly and works offline.
-  const trackServiceLinks = useMemo(
-    () => buildMusicServiceLinks(displayTrack),
-    [displayTrack]
-  );
+  const trackServiceLinks = useMemo(() => buildMusicServiceLinks(realTrack), [realTrack]);
 
   const renderTrackButton = () => (
     <button
