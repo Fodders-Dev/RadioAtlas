@@ -622,8 +622,21 @@ registerMediaRoutes(app, {
 });
 
 const port = Number(process.env.PORT || 3001);
-app.listen(port, () => {
-  console.log(`RadioAtlas API on ${port}`);
+// Bind to loopback. The API was listening on 0.0.0.0 and was therefore reachable
+// from the public internet at http://<box>:3001 — verified: a direct request to
+// /health returned 200 over PLAIN HTTP, bypassing Caddy and its TLS entirely.
+//
+// That also silently defeats the rate limiter: `trust proxy 1` resolves req.ip
+// from X-Forwarded-For, which is only trustworthy because Caddy appends the real
+// address. A caller reaching :3001 directly writes that header themselves.
+//
+// Nothing needs the public bind: Caddy proxies to 127.0.0.1:3001, the health
+// guard curls 127.0.0.1, and the bot is configured with https://radioatlas.ru/api.
+// Kept configurable for a topology that ever needs otherwise.
+const bindHost = process.env.API_BIND_HOST || '127.0.0.1';
+
+app.listen(port, bindHost, () => {
+  console.log(`RadioAtlas API on ${bindHost}:${port}`);
 });
 
 // T_api_bootwarm: prime the profiled 'full' catalog in the BACKGROUND right after

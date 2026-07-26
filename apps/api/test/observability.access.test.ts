@@ -50,13 +50,14 @@ test('a spoofed loopback header does not grant access', async () => {
   // `trust proxy 1` makes req.ip follow X-Forwarded-For, so an IP allowlist
   // would have been bypassable with one header. The gate is the token only.
   await withServer(async (base) => {
-    for (const headers of [
+    const spoofs: Record<string, string>[] = [
       { 'x-forwarded-for': '127.0.0.1' },
       { 'x-forwarded-for': '127.0.0.1, 10.0.0.1' },
       { 'x-forwarded-for': '::1' },
       { 'x-internal-token': 'wrong' },
       { 'x-internal-token': '' }
-    ]) {
+    ];
+    for (const headers of spoofs) {
       const response = await fetch(`${base}/observability`, { headers });
       assert.equal(response.status, 404, `granted access for ${JSON.stringify(headers)}`);
     }

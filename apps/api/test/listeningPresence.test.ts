@@ -10,7 +10,7 @@ import {
   recordPresenceBeat,
   releasePresence,
   sweepPresence
-} from '../src/listeningPresence.ts';
+} from '../src/listeningPresence.js';
 
 const T0 = 1_700_000_000_000;
 

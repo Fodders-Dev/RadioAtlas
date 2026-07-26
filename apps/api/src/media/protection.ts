@@ -91,24 +91,25 @@ const pruneCache = <T,>(cache: Map<string, CacheEntry<T>>) => {
   }
 };
 
-const getClientIp = (req: express.Request, routeName: ProtectedRouteOptions['routeName']) => {
-  // ai-chat fronts PAID DeepSeek calls and accepts anonymous callers, so its
-  // rate-limit key MUST NOT be derived from a client-controlled header — a
-  // rotating X-Forwarded-For would mint a fresh bucket every request. `trust
-  // proxy` is set (index.ts), so req.ip is the real single hop behind Caddy.
-  // The media routes keep the historical forwarded-first behaviour unchanged.
-  if (routeName === 'ai-chat') {
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  }
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0]!.trim();
-  }
-  if (Array.isArray(forwarded) && forwarded[0]) {
-    return forwarded[0].split(',')[0]!.trim();
-  }
-  return req.ip || req.socket.remoteAddress || 'unknown';
-};
+/**
+ * A rate-limit key must never come from a header the caller controls.
+ *
+ * ai-chat was fixed for this reason (it fronts PAID DeepSeek calls), but the
+ * media routes kept reading the LEFTMOST X-Forwarded-For value — which the
+ * client writes. Rotating that header minted a fresh bucket on every request, so
+ * the metadata/fetch/stream/image limits were decorative: present in the code,
+ * absent in effect.
+ *
+ * `app.set('trust proxy', 1)` (index.ts) means express already resolves req.ip
+ * to the single real hop behind Caddy, so there is nothing to reconstruct here.
+ *
+ * Known trade-off, accepted deliberately: callers sharing one carrier NAT now
+ * share a bucket. At the current scale that is theoretical — the live snapshot
+ * shows zero rate-limit hits ever recorded — and `media_rate_limit:<route>` is
+ * the counter that will say otherwise if it stops being.
+ */
+const getClientIp = (req: express.Request) =>
+  req.ip || req.socket.remoteAddress || 'unknown';
 
 export class ProtectedMediaRoute<T> {
   private readonly routeName: ProtectedRouteOptions['routeName'];
@@ -207,7 +208,7 @@ export class ProtectedMediaRoute<T> {
   }
 
   checkRateLimit(req: express.Request) {
-    const ip = getClientIp(req, this.routeName);
+    const ip = getClientIp(req);
     const now = Date.now();
     this.sweepRateLimits(now);
     const current = this.rateLimits.get(ip);
