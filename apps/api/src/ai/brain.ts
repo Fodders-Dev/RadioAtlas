@@ -1593,6 +1593,7 @@ export const chatWithAssistant = async (
       usedSignatures.add(signature);
       const observation = await runTool('search_stations', step.args, {
         tools: deps.tools,
+        languageScope,
         musicServices: deps.musicServices
       });
       observations.push(observation);
@@ -1646,6 +1647,7 @@ export const chatWithAssistant = async (
       usedSignatures.add(signature);
       const observation = await runTool('search_stations', args, {
         tools: deps.tools,
+        languageScope,
         musicServices: deps.musicServices
       });
       observations.push(observation);
@@ -1686,6 +1688,7 @@ export const chatWithAssistant = async (
         usedSignatures.add(signature);
         const observation = await runTool('search_stations', args, {
           tools: deps.tools,
+          languageScope,
           musicServices: deps.musicServices
         });
         observations.push(observation);
@@ -1706,6 +1709,7 @@ export const chatWithAssistant = async (
     usedSignatures.add(toolSignature('search_stations', forcedArgs));
     const forcedObservation = await runTool('search_stations', forcedArgs, {
       tools: deps.tools,
+      languageScope,
       musicServices: deps.musicServices
     });
     observations.push(forcedObservation);
@@ -1762,6 +1766,7 @@ export const chatWithAssistant = async (
       usedSignatures.add(signature);
       const observation = await runTool('search_stations', args, {
         tools: deps.tools,
+        languageScope,
         musicServices: deps.musicServices
       });
       observations.push(observation);
