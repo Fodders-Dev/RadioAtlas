@@ -1,0 +1,56 @@
+name: CI
+
+# Until this existed there was NOTHING between a commit and production: a push to
+# master went straight to rsync + build on the VPS. The tests were already here
+# and already fast — they simply never ran.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: types + fast tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Match PRODUCTION, not the newest release. The VPS runs 22.22.0 and the
+      # API runs on it, so a green gate on a different major would prove less
+      # than it appears to.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.x'
+          cache: npm
+
+      - run: npm ci
+
+      # tsx runs tests happily with type errors in them, so the typecheck of the
+      # TEST sources is a separate, load-bearing step — it has already caught
+      # wrong option names and an invalid route literal that the green test run
+      # sailed straight past.
+      - name: Typecheck sources
+        run: npm run typecheck
+
+      - name: Typecheck tests
+        run: npm run typecheck:test
+
+      - name: API tests
+        run: npm run test:api
+
+      - name: Bot tests
+        run: npm run test:bot
+
+      - name: Webapp unit tests
+        run: npm --workspace apps/webapp run test:unit
+
+      # Playwright is DELIBERATELY not in this gate. Several specs flake under
+      # parallel load, and a blocking gate that goes red for no reason is a gate
+      # that gets switched off within a week. Browser coverage stays a local
+      # pre-merge step until the flakes are fixed; see e2e-fullsuite-flakes.
