@@ -312,7 +312,11 @@ test('full player overlay visual baseline', async ({ page }) => {
   await expect(page.locator('[data-full-player-overlay]')).toContainText(/Tokyo FM|Mock Song/);
   await waitForStableMetrics(page, '[data-full-player-overlay]');
   const overlayShot = await page.locator('[data-full-player-overlay]').screenshot({
-    animations: 'disabled'
+    animations: 'disabled',
+    // The station's local time ticks in real time — the only part of this
+    // surface that cannot match a stored baseline. Mask it rather than freezing
+    // Date globally, which stalls the queue sheet further down this test.
+    mask: [page.locator('.full-player-clock')]
   });
   expect(overlayShot).toMatchSnapshot('full-player-overlay.png');
 });
@@ -350,15 +354,26 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
   await expect(page.locator('[data-full-player-overlay] h1')).toContainText(/Tokyo FM/);
   await waitForStableMetrics(page, '[data-full-player-overlay]');
   const mobileShot = await page.locator('[data-full-player-overlay]').screenshot({
-    animations: 'disabled'
+    animations: 'disabled',
+    // The station's local time ticks in real time — the only part of this
+    // surface that cannot match a stored baseline. Mask it rather than freezing
+    // Date globally, which stalls the queue sheet further down this test.
+    mask: [page.locator('.full-player-clock')]
   });
   expect(mobileShot).toMatchSnapshot('full-player-overlay-mobile.png');
 
   // The queue bottom-sheet is the other new PR-6 surface (a sibling of the
   // overlay root, so this is a full-page shot) — pin it too.
-  await page.getByRole('button', { name: /^(Очередь|Queue)$/ }).first().click();
+  // NB: this pill is labelled «В очередь» / "To queue" even though it only OPENS
+  // the queue. The old strict /^Очередь$/ matched nothing, so this baseline had
+  // silently stopped being exercised — it never got that far, because the two
+  // snapshots above it were failing first.
+  await page.locator('.full-player-stage-pill').first().click();
   await expect(page.locator('[data-full-player-queue]')).toBeVisible();
-  const sheetShot = await page.screenshot({ animations: 'disabled' });
+  const sheetShot = await page.screenshot({
+    animations: 'disabled',
+    mask: [page.locator('.full-player-clock')]
+  });
   expect(sheetShot).toMatchSnapshot('full-player-queue-sheet-mobile.png');
 });
 
