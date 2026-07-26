@@ -17,8 +17,9 @@
  * must never be empty. A failure here is a non-zero exit, not a warning.
  */
 import { backup, DatabaseSync } from 'node:sqlite';
+import { putObject } from './s3put.mjs';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, unlink } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
@@ -26,6 +27,37 @@ import { createGzip } from 'node:zlib';
 const DATA_DIR = process.env.RADIOATLAS_DATA_DIR || '/opt/RadioAtlas/shared/data';
 const BACKUP_DIR = process.env.RADIOATLAS_BACKUP_DIR || '/opt/RadioAtlas/backups';
 const KEEP = Math.max(1, Number(process.env.RADIOATLAS_BACKUP_KEEP || 14));
+
+/**
+ * Off-box replication. A snapshot that shares a disk with its source survives a
+ * bad DELETE but not a dead disk, and /opt is already at 92%.
+ *
+ * Cloudflare R2 by choice: the account already exists (Workers AI generates the
+ * scene backgrounds), a year of daily snapshots is ~1.31GB against a 10GB free
+ * tier, and R2 charges nothing for egress — which matters precisely when you are
+ * restoring. The token must be a SEPARATE, write-scoped one: the existing
+ * CLOUDFLARE_API_TOKEN is Workers-AI-only and returns 403 on R2 (verified).
+ *
+ * Absent config is not an error — it is reported, loudly, every run, so it
+ * cannot quietly become permanent.
+ */
+const R2 = {
+  accountId: process.env.R2_ACCOUNT_ID || '',
+  bucket: process.env.R2_BUCKET || '',
+  accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || ''
+};
+const r2Configured = Object.values(R2).every((value) => value.length > 0);
+
+const replicate = async (gzPath, name) => {
+  if (!r2Configured) return 'not-configured';
+  const body = await readFile(gzPath);
+  const result = await putObject({ ...R2, key: `${name}/${basename(gzPath)}`, body });
+  if (!result.ok) {
+    throw new Error(`R2 upload failed (${result.status}): ${result.text.slice(0, 160)}`);
+  }
+  return `replicated ${(body.length / 1024).toFixed(0)}KB`;
+};
 
 /** name -> a table that must have rows for the snapshot to be worth keeping. */
 const SOURCES = [
@@ -127,11 +159,13 @@ const run = async () => {
       await gzipFile(raw, gz);
       const { size } = await stat(gz);
       const pruned = await pruneOld(prefix);
+      const offbox = await replicate(gz, prefix);
       console.log(
         `ok ${file}: ${tables} tables` +
           (sentinelRows === null ? '' : `, ${sentinelTable}=${sentinelRows} rows`) +
           `, ${(size / 1024).toFixed(0)}KB gz` +
-          (pruned ? `, pruned ${pruned} old` : '')
+          (pruned ? `, pruned ${pruned} old` : '') +
+          `, ${offbox}`
       );
     } catch (error) {
       failures += 1;
@@ -139,6 +173,14 @@ const run = async () => {
       await rm(raw, { force: true });
       console.error(`FAILED ${file}: ${error instanceof Error ? error.message : error}`);
     }
+  }
+
+  if (!r2Configured) {
+    console.error(
+      'WARNING: off-box replication is NOT configured — every copy lives on the same disk as the source. ' +
+        'Set R2_ACCOUNT_ID / R2_BUCKET / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY in shared/env/api.env. ' +
+        'See RUNBOOK.md "Backups".'
+    );
   }
 
   if (failures > 0) {

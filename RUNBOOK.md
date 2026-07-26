@@ -112,6 +112,79 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 - Theme Studio themes are stored locally in browser storage.
 - The `?winamp=1` easter-egg/debug path is decorative Lite/Winamp only; it does not support Skin Lab or `.wsz` imports.
 
+## Backups
+
+`account-store.sqlite` holds accounts, sessions, favourites, playlists, referrals,
+the audit trail and Telegram Stars purchases. Until 2026-07-25 nothing backed it
+up at all — the only systemd timers matching "backup" on that box belong to dpkg
+and to two neighbouring projects.
+
+**What runs now.** `radioatlas-sqlite-backup.timer`, nightly at 04:20 UTC, keeping
+14 copies in `/opt/RadioAtlas/backups`. It uses `node:sqlite`'s `backup()` (the
+online backup API) rather than `cp`, because the store is in WAL mode with a WAL
+larger than the database, so a plain copy can capture a torn state. Every run
+re-opens the snapshot it just wrote, runs `PRAGMA integrity_check`, and requires
+the `accounts` table to be non-empty; a failure deletes the partial file and
+exits non-zero, which shows up as a failed unit.
+
+    systemctl status radioatlas-sqlite-backup.service
+    journalctl -u radioatlas-sqlite-backup.service -n 20
+
+**Restore.** Rehearsed on production data (18/18 tables, 6554/6554 rows,
+0 differing) — do it the same way:
+
+    gunzip -c /opt/RadioAtlas/backups/account-store-<stamp>.sqlite.gz > /tmp/restore.sqlite
+    node -e 'const {DatabaseSync}=require("node:sqlite");
+             const d=new DatabaseSync("/tmp/restore.sqlite",{readOnly:true});
+             console.log(d.prepare("SELECT count(*) n FROM accounts").get());'
+    # only once that looks right:
+    pm2 stop radioatlas-api
+    cp /tmp/restore.sqlite /opt/RadioAtlas/shared/data/account-store.sqlite
+    rm -f /opt/RadioAtlas/shared/data/account-store.sqlite-wal           /opt/RadioAtlas/shared/data/account-store.sqlite-shm
+    pm2 start radioatlas-api
+
+Delete the stale `-wal`/`-shm` sidecars. Leaving them next to a restored database
+is the classic way to lose the restore.
+
+### Off-box replication — TODO, needs one manual step
+
+Every copy currently lives on the same disk as its source, and `/opt` is at 92%.
+The backup job prints a WARNING on every run until this is configured; that
+warning is the reminder, do not silence it.
+
+**Chosen destination: Cloudflare R2.** The account already exists (Workers AI
+generates the scene backgrounds), a year of daily snapshots is ~1.31GB against a
+10GB free tier, and R2 charges nothing for egress — which is exactly when you
+need it. ⚠ The existing `CLOUDFLARE_API_TOKEN` is Workers-AI-scoped and returns
+**403 on R2** (verified), so this needs its own token.
+
+Owner steps (~2 minutes, must be done by a human — creating credentials is not
+something the assistant does):
+
+1. Cloudflare dashboard → R2 → create bucket `radioatlas-backups`, location
+   automatic. Leave public access OFF.
+2. R2 → Manage API tokens → Create API token.
+   Permission **Object Read & Write**, scoped to that ONE bucket. No admin, no
+   account-wide scope. Note the Access Key ID and Secret Access Key.
+3. Append to `/opt/RadioAtlas/shared/env/api.env` (this file is not in git):
+
+       R2_ACCOUNT_ID=<cloudflare account id>
+       R2_BUCKET=radioatlas-backups
+       R2_ACCESS_KEY_ID=<from step 2>
+       R2_SECRET_ACCESS_KEY=<from step 2>
+
+4. Verify: `systemctl start radioatlas-sqlite-backup.service` then
+   `journalctl -u radioatlas-sqlite-backup.service -n 5`. Each line should end
+   with `replicated <n>KB` instead of `not-configured`, and the WARNING should
+   be gone.
+5. Set a bucket lifecycle rule to expire objects after ~400 days, so the free
+   tier is never the thing that breaks the backup.
+
+The uploader is `deploy/server/s3put.mjs` — a dependency-free SigV4 PUT, since
+the box has no rclone or aws-cli. Its signing is verified against AWS's own
+published test vector in `s3put.test.mjs`, so the algorithm is known-good before
+a real bucket exists; only the live credentials are untested.
+
 ## Cache
 - Client catalog responses use an IndexedDB TTL cache with localStorage fallback; Home summary TTL is 6 hours.
 - Clear cache via Settings screen.
