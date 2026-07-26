@@ -2486,7 +2486,9 @@ test('mobile dock artwork opens full player', async ({ page }) => {
   const overlay = page.locator('[data-full-player-overlay]');
   await expect(overlay).toBeVisible();
   await expect(page.locator('#webamp')).toHaveCount(0);
-  await expect(overlay.locator('.full-player-artwork').first()).toBeVisible();
+  // #215 removed the square cover from the mobile stage — the full-bleed
+  // backdrop IS the hero now, so that is what must be there.
+  await expect(overlay.locator('[data-full-player-backdrop]')).toBeVisible();
   await expect(overlay.locator('[data-full-player-track]')).toContainText(/Mock Song|Название трека пока недоступно|Track title unavailable/i);
 
   // PR-6: queue + recent tracks live in the queue bottom-sheet now (a sibling
@@ -2735,7 +2737,8 @@ test('station details exposes trust, recent tracks, report broken and recommenda
   await page.locator('.player-dock-station').click();
   await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
   // Mobile full player: «Ещё» opens the actions sheet, which carries «Детали».
-  await page.locator('.full-player-action-chip').filter({ hasText: /Ещё|More/ }).first().click();
+  // #215 moved the overflow entry from a labelled chip row to the stage foot.
+  await page.locator('.full-player-stage-foot-btn').first().click();
   await page.locator('.full-player-action-row').filter({ hasText: /Детали|details/i }).first().click();
   await expect(page.locator('.details-card')).toBeVisible();
   await expect(page.locator('.details-artwork')).toBeVisible();

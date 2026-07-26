@@ -38,6 +38,67 @@ const TERTIARY_L = { min: 0.3, max: 0.46 };
 const clamp = (value: number, min: number, max: number) =>
   value < min ? min : value > max ? max : value;
 
+/**
+ * A whole phone screen is not a 64px tile.
+ *
+ * Both palette sources above are tuned for small decorative artwork — punchy on
+ * purpose, lightness up to 0.70 and saturation up to 0.82. Stretched across the
+ * full player that reads as highlighter, not atmosphere: a station whose hue
+ * landed near 60° filled the stage with olive (measured on Tokyo FM:
+ * `hsl(56 85% 50%)` at 0.85 alpha over the whole lower half).
+ *
+ * Re-clamp into a NIGHT range for stage use only. The station's HUE is kept
+ * untouched, so identity survives — it is the brightness that was never
+ * appropriate at this size. Tiles keep their punch because only the backdrop
+ * calls this.
+ */
+const BANDS = {
+  // The full player: dense copy and controls sit on it, so it has to recede.
+  stage: {
+    primary: { s: { min: 0.24, max: 0.5 }, l: { min: 0.14, max: 0.24 } },
+    secondary: { s: { min: 0.2, max: 0.44 }, l: { min: 0.1, max: 0.18 } },
+    tertiary: { s: { min: 0.22, max: 0.46 }, l: { min: 0.11, max: 0.2 } }
+  },
+  // The discovery feed card is a POSTER — one title, a few round buttons. It
+  // should stay alive and colourful; it only needs the highlighter ceiling, not
+  // the player's darkness. Clamping it as hard as the stage made it flat.
+  poster: {
+    primary: { s: { min: 0.3, max: 0.72 }, l: { min: 0.2, max: 0.42 } },
+    secondary: { s: { min: 0.26, max: 0.66 }, l: { min: 0.16, max: 0.36 } },
+    tertiary: { s: { min: 0.28, max: 0.68 }, l: { min: 0.18, max: 0.38 } }
+  }
+} as const;
+
+export type PaletteTone = keyof typeof BANDS;
+
+// Both sources emit the modern space-separated form `hsl(H S% L%)`.
+const HSL_PATTERN = /^hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)$/i;
+
+const restage = (value: string, band: { s: { min: number; max: number }; l: { min: number; max: number } }) => {
+  const match = HSL_PATTERN.exec(value.trim());
+  // Anything we cannot parse is passed through untouched rather than guessed at.
+  if (!match) return value;
+  const h = Number(match[1]);
+  const s = clamp(Number(match[2]) / 100, band.s.min, band.s.max);
+  const l = clamp(Number(match[3]) / 100, band.l.min, band.l.max);
+  if (!Number.isFinite(h) || !Number.isFinite(s) || !Number.isFinite(l)) return value;
+  return `hsl(${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`;
+};
+
+/** Re-band a tile palette for a full-bleed surface. */
+export const toStagePalette = <T extends ExtractedPalette>(
+  palette: T,
+  tone: PaletteTone = 'stage'
+): T => {
+  const band = BANDS[tone] || BANDS.stage;
+  return {
+    ...palette,
+    primary: restage(palette.primary, band.primary),
+    secondary: restage(palette.secondary, band.secondary),
+    tertiary: restage(palette.tertiary, band.tertiary)
+  };
+};
+
 type Hsl = { h: number; s: number; l: number };
 
 export const rgbToHsl = (r: number, g: number, b: number): Hsl => {

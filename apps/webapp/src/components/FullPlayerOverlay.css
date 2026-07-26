@@ -872,9 +872,11 @@
      open space between identity and the control cluster, short screens
      compress to content height before anything clips. */
   .full-player-main--stage .full-player-visualizer {
-    width: min(280px, 100%);
-    height: 34px;
-    margin: auto auto 0;
+    width: 100%;
+    height: 44px;
+    gap: 3px;
+    margin: 2px auto 2px;
+    padding: 0;
   }
 
   .full-player-main--stage[data-has-next='true'] .full-player-visualizer {
@@ -1195,6 +1197,120 @@
   .full-player-queue-item.active .full-player-queue-btn[data-queue-action^='move'] {
     display: none;
   }
+
+  /* ---- Reference pass: the stage reads as lit glass over a night city ---- */
+
+  /* Transport as ORBS, not discs. The bloom under the primary is not decoration
+     — it is what separates the control from a dark photographic backdrop, so it
+     carries contrast and must not be "cleaned up" away. */
+  .full-player-main--stage .full-player-controls {
+    grid-template-columns: 58px 88px 58px;
+    gap: 26px;
+  }
+
+  .full-player-main--stage .full-player-controls .full-player-icon-btn {
+    width: 58px;
+    height: 58px;
+    border-radius: var(--theme-icon-radius, 999px);
+    border-color: color-mix(in srgb, #ffffff 15%, transparent);
+    background:
+      radial-gradient(125% 125% at 30% 20%, rgba(255, 255, 255, 0.2), transparent 58%),
+      color-mix(in srgb, var(--surface-raised) 58%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 -9px 20px rgba(0, 0, 0, 0.3),
+      0 10px 26px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(14px) saturate(1.12);
+  }
+
+  .full-player-main--stage .full-player-primary-btn {
+    width: 88px;
+    height: 88px;
+    min-height: 0;
+    border: 0;
+    border-radius: var(--theme-icon-radius, 999px);
+    color: #ffffff;
+    background:
+      radial-gradient(105% 105% at 34% 24%,
+        color-mix(in srgb, #ffffff 70%, var(--accent)) 0%, transparent 54%),
+      radial-gradient(120% 120% at 66% 84%,
+        color-mix(in srgb, var(--accent-2) 74%, transparent), transparent 62%),
+      linear-gradient(160deg,
+        var(--accent) 0%,
+        color-mix(in srgb, var(--accent) 58%, #071722) 100%);
+    box-shadow:
+      inset 0 2px 2px rgba(255, 255, 255, 0.52),
+      inset 0 -12px 26px color-mix(in srgb, var(--accent) 46%, #000),
+      0 0 0 1px color-mix(in srgb, #ffffff 24%, transparent),
+      0 18px 48px color-mix(in srgb, var(--accent) 44%, transparent),
+      0 0 72px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+
+  .full-player-main--stage .full-player-primary-btn svg,
+  .full-player-main--stage .full-player-primary-btn .theme-action-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* The now-playing line is CONTENT, not a form field. A bordered box with a
+     filled background read as a disabled text input. */
+  .full-player-main--stage .full-player-track {
+    min-height: 0;
+    margin-top: 6px;
+    padding: 2px 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--text-strong, #fff);
+  }
+
+  .full-player-main--stage .full-player-track span {
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .full-player-main--stage .full-player-track svg,
+  .full-player-main--stage .full-player-track .theme-action-icon {
+    opacity: 0.5;
+  }
+
+  /* Genres as a spaced, quiet caption line — «J-Pop • News • Talk». */
+  .full-player-main--stage .full-player-onair-tags {
+    margin-top: 4px;
+    /* 62% measured 4.43:1 over the stage — just under AA for body text. */
+    color: color-mix(in srgb, var(--text) 78%, transparent);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+
+  /* The station name carries the screen: large and light, like the reference. */
+  .full-player-main--stage .full-player-identity h1 {
+    font-size: clamp(30px, 8.6vw, 40px);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.08;
+  }
+
+  /* Volume is a control LINE on the stage, not a second card. The glass pill
+     competed with the transport orbs right above it for the eye. The material
+     is only dropped here — the desktop pill keeps its shell, and the text
+     contrast is carried by the backdrop scrim (measured, not assumed). */
+  .full-player-main--stage .full-player-volume {
+    margin: 10px auto 0;
+    padding: 0 2px;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Very short viewports (≤700px tall): shrink the hero before anything clips —
@@ -1227,7 +1343,9 @@
    When there's no live analyser data the bars run a calm idle shimmer. */
 .full-player-visualizer {
   display: flex;
-  align-items: flex-end;
+  /* Mirrored around the centre line, the way an audio waveform actually reads —
+     bars grew off the floor before, which looks like a bar chart, not sound. */
+  align-items: center;
   justify-content: center;
   gap: 3px;
   width: min(340px, 100%);
@@ -1240,8 +1358,10 @@
 .full-player-visualizer-bar {
   flex: 1 1 auto;
   min-width: 2px;
-  height: calc(10% + (var(--ra-level, 0) * 90%));
-  border-radius: 999px 999px 2px 2px;
+  /* A 10% floor collapsed to ~3px on the stage, so a quiet passage rendered as
+     a dead dotted line. The floor now keeps a visible thread of sound. */
+  height: calc(20% + (var(--ra-level, 0) * 80%));
+  border-radius: 999px;
   background: linear-gradient(
     180deg,
     var(--visualizer-start) 0%,
