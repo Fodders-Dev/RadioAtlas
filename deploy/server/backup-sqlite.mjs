@@ -41,9 +41,12 @@ const KEEP = Math.max(1, Number(process.env.RADIOATLAS_BACKUP_KEEP || 14));
  * Absent config is not an error — it is reported, loudly, every run, so it
  * cannot quietly become permanent.
  */
+// Only the two SECRET values need a human. The account id is already in this
+// same env file for Workers AI, and the bucket name is ours to choose — asking
+// someone to retype either at 2am is just an invitation to typo one of them.
 const R2 = {
-  accountId: process.env.R2_ACCOUNT_ID || '',
-  bucket: process.env.R2_BUCKET || '',
+  accountId: process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || '',
+  bucket: process.env.R2_BUCKET || 'radioatlas-backups',
   accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
   secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || ''
 };
@@ -178,7 +181,7 @@ const run = async () => {
   if (!r2Configured) {
     console.error(
       'WARNING: off-box replication is NOT configured — every copy lives on the same disk as the source. ' +
-        'Set R2_ACCOUNT_ID / R2_BUCKET / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY in shared/env/api.env. ' +
+        'Add R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY to shared/env/api.env (account id and bucket default themselves). ' +
         'See RUNBOOK.md "Backups".'
     );
   }
