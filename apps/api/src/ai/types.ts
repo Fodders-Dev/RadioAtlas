@@ -12,6 +12,14 @@ export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 export type NowPlayingContext = {
   track?: string;
   stationName?: string;
+  /**
+   * The station the listener is actually on. A NAME is not enough to answer
+   * "tell me about this station" — two stations share a name often enough, and
+   * the catalogue is keyed by uuid. With the id, the assistant can call the
+   * existing get_station tool and answer from real catalogue data instead of
+   * guessing from a string.
+   */
+  stationUuid?: string;
 };
 
 export type ChatInput = {

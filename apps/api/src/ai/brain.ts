@@ -473,6 +473,23 @@ const NOW_PLAYING_QUESTION =
 export const isNowPlayingQuestion = (message: string): boolean =>
   NOW_PLAYING_QUESTION.test(String(message || '').trim());
 
+/**
+ * "What station is this?" is a DIFFERENT question from "what track is this?",
+ * and it used to fall through to the planner — which knows the station's NAME
+ * from the player context but not WHICH catalogue row it is, so it answered from
+ * the string or not at all.
+ *
+ * With the station's uuid in the now-playing context we can answer from the
+ * catalogue itself. Deliberately narrow: it must reference THIS station
+ * («эта/эту/этой станции», «это за радио»), never a station named in the
+ * message — those already route to the planner and its search tools.
+ */
+const CURRENT_STATION_QUESTION =
+  /(?:^|[,.!?]\s*)(?:а\s+)?(?:(?:что|ч[её])\s+(?:это\s+)?за\s+(?:станци[а-яё]*|радио|волн[а-яё]*)|расскажи\s+(?:мне\s+)?(?:про|о|об)\s+(?:эт(?:у|ой|о|ом)\s+)?(?:станци[а-яё]*|радио)|что\s+(?:ты\s+)?знаешь\s+(?:про|о|об)\s+(?:эт(?:у|ой|ом)\s+)?(?:станци[а-яё]*|радио)|(?:эта|это)\s+(?:станция|радио)\s*[-—]?\s*(?:что|кто)\s+(?:это|такое)|откуда\s+(?:эта\s+)?(?:станци[а-яё]*|радио)|what(?:'s|\s+is)?\s+(?:this|that)\s+(?:station|radio)|what\s+(?:station|radio)\s+is\s+(?:this|that)|tell\s+me\s+about\s+(?:this\s+)?(?:station|radio))(?:\s*[?!.])?$/i;
+
+export const isCurrentStationQuestion = (message: string): boolean =>
+  CURRENT_STATION_QUESTION.test(String(message || '').trim());
+
 const isKnowledgeQuestion = (message: string): boolean =>
   FACTUAL_QUESTION.test(message) ||
   TRIVIA_QUESTION.test(message) ||
@@ -1324,6 +1341,78 @@ export const chatWithAssistant = async (
     }
     return {
       reply,
+      stations: [],
+      serviceLinks: [],
+      sources: [],
+      actions: [{ kind: 'none' }],
+      usage: { prompt: 0, completion: 0 }
+    };
+  }
+
+  // "What station is this?" — answered from the CATALOGUE row the listener is
+  // actually on, not from the model and not from the display name. Everything in
+  // the reply comes from a verified station record; anything the catalogue does
+  // not carry is simply omitted rather than guessed.
+  if (userMessage && isCurrentStationQuestion(userMessage)) {
+    const english = /^en(?:-|$)/i.test(String(input.locale || ''));
+    const stationUuid = input.nowPlaying?.stationUuid;
+    const station = stationUuid
+      ? await deps.tools.getStation(stationUuid).catch(() => null)
+      : null;
+
+    if (station) {
+      const country = safeContextLabel(station.country, 60);
+      const genres = (station.tags || [])
+        .map((tag) => safeContextLabel(tag, 28))
+        .filter(Boolean)
+        .slice(0, 4);
+      const parts: string[] = [];
+      parts.push(
+        english
+          ? `You're on “${station.name}”.`
+          : `Ты сейчас на «${station.name}».`
+      );
+      if (country) {
+        parts.push(english ? `It broadcasts from ${country}.` : `Вещает из страны: ${country}.`);
+      }
+      if (genres.length) {
+        parts.push(
+          english
+            ? `The catalogue lists it as ${genres.join(', ')}.`
+            : `В каталоге у неё жанры: ${genres.join(', ')}.`
+        );
+      }
+      if (currentTrack) {
+        parts.push(
+          english ? `Right now it's playing “${currentTrack}”.` : `Прямо сейчас играет «${currentTrack}».`
+        );
+      }
+      parts.push(
+        english
+          ? 'Ask me for something in the same spirit and I will find it.'
+          : 'Скажи, если хочешь что-то в том же духе — подберу.'
+      );
+      return {
+        reply: parts.join(' '),
+        stations: [station],
+        serviceLinks: [],
+        sources: [],
+        actions: [{ kind: 'none' }],
+        usage: { prompt: 0, completion: 0 }
+      };
+    }
+
+    // No id (older client, or nothing playing) — say so plainly rather than
+    // describing a station from its name.
+    const fallbackName = currentStationName;
+    return {
+      reply: fallbackName
+        ? english
+          ? `You're tuned to “${fallbackName}”, but I can't pull its catalogue card right now. Ask me to find stations like it and I will.`
+          : `Ты слушаешь «${fallbackName}», но карточку из каталога сейчас не вижу. Попроси найти похожие — это я могу.`
+        : english
+          ? 'Nothing is playing in RadioAtlas right now. Start a station and ask me again.'
+          : 'Сейчас в RadioAtlas ничего не играет. Включи станцию и спроси меня ещё раз.',
       stations: [],
       serviceLinks: [],
       sources: [],

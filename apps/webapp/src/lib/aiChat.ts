@@ -61,6 +61,7 @@ export type ChatUserTaste = {
 export type ChatNowPlaying = {
   track?: string;
   stationName?: string;
+  stationUuid?: string;
 };
 
 export type ChatRequestOptions = {
