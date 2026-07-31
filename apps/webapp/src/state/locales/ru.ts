@@ -976,7 +976,7 @@ export const ruDictionary = {
     "onAirNow": "Сейчас в эфире",
     "onAirFrom": "Откуда вещает",
     "recentOnAir": "Недавно в эфире",
-    "addToQueue": "В очередь",
+    "queue": "Очередь",
     "inQueue": "В очереди",
     "currentStation": "Текущая станция",
     "visualizer": "Визуализатор",

@@ -976,7 +976,7 @@ export const enDictionary = {
     "onAirNow": "On air now",
     "onAirFrom": "Broadcasting from",
     "recentOnAir": "Recently on air",
-    "addToQueue": "To queue",
+    "queue": "Queue",
     "inQueue": "In queue",
     "currentStation": "Current station",
     "visualizer": "Visualizer",

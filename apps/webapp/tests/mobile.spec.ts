@@ -293,23 +293,15 @@ const startSearchQueueAndOpenFullPlayer = async (page: Page, query = 'jpop') => 
     .toBe(true);
 };
 
-// PR-6: open the mobile player's queue bottom-sheet. The queue chip sits on the
-// face when the record button isn't there (VITE_TG_BOT unset — the e2e case);
-// with the bot configured, record owns that slot and the queue lives in the
-// «Ещё» actions sheet instead — handle both so the suite doesn't depend on env.
+// Open the mobile player's queue bottom-sheet from the stage pill. Since #215
+// that pill is unconditional on the mobile face (record moved to the desktop
+// action row), and since #237 it is labelled «Очередь» — this name had matched
+// NOTHING, so every call silently re-routed through the «Ещё» sheet and the pill
+// itself was never exercised. No fallback on purpose: if the pill regresses this
+// must fail loudly rather than quietly test a different path.
 const openFullPlayerQueueSheet = async (page: Page) => {
   const overlay = page.locator('[data-full-player-overlay]');
-  const faceQueueChip = overlay.getByRole('button', { name: /^(Очередь|Queue)$/ }).first();
-  if (await faceQueueChip.isVisible().catch(() => false)) {
-    await faceQueueChip.click();
-  } else {
-    await overlay.getByRole('button', { name: /^(Ещё|More)$/ }).first().click();
-    await page
-      .locator('.full-player-sheet')
-      .getByRole('button', { name: /Очередь|Queue/ })
-      .first()
-      .click();
-  }
+  await overlay.getByRole('button', { name: /^(Очередь|Queue)$/ }).first().click();
   await expect(page.locator('[data-full-player-queue]')).toBeVisible();
 };
 
