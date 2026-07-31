@@ -363,12 +363,14 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
   expect(mobileShot).toMatchSnapshot('full-player-overlay-mobile.png');
 
   // The queue bottom-sheet is the other new PR-6 surface (a sibling of the
-  // overlay root, so this is a full-page shot) — pin it too.
-  // NB: this pill is labelled «В очередь» / "To queue" even though it only OPENS
-  // the queue. The old strict /^Очередь$/ matched nothing, so this baseline had
-  // silently stopped being exercised — it never got that far, because the two
-  // snapshots above it were failing first.
-  await page.locator('.full-player-stage-pill').first().click();
+  // overlay root, so this is a full-page shot) — pin it too. The pill is
+  // addressed by role/name since #237 renamed it «Очередь» / "Queue" to match
+  // what it actually does (it OPENS the queue; it never added to it).
+  await page
+    .locator('[data-full-player-overlay]')
+    .getByRole('button', { name: /^(Очередь|Queue)$/ })
+    .first()
+    .click();
   await expect(page.locator('[data-full-player-queue]')).toBeVisible();
   const sheetShot = await page.screenshot({
     animations: 'disabled',

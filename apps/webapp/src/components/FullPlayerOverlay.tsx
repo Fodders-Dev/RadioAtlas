@@ -802,10 +802,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
                   className="full-player-stage-pill"
                   type="button"
                   onClick={openQueueSheet}
-                  aria-label={t('winamp.addToQueue')}
+                  aria-label={t('winamp.queue')}
                 >
                   <Icon>{actionIcon.queue}</Icon>
-                  <span>{t('winamp.addToQueue')}</span>
+                  <span>{t('winamp.queue')}</span>
                 </button>
                 <button
                   className={`full-player-stage-pill ${sleepTimer.active ? 'active' : ''}`}
