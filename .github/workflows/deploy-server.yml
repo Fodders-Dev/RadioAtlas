@@ -92,6 +92,15 @@ jobs:
           ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
             "APP_ROOT=$APP_ROOT bash $APP_ROOT/current/deploy/server/seed-scene-artwork.sh"
 
+      # seed-scene-artwork.sh above is a first-boot bootstrap: it stops entirely
+      # once the active style has >=8 images, so it spent the daily allowance on
+      # almost no days at all. This installs the recurring job that does.
+      # Idempotent, and a clean no-op when the SSH user cannot write a unit.
+      - name: Install nightly scene top-up timer
+        run: |
+          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "APP_ROOT=$APP_ROOT bash $APP_ROOT/current/deploy/server/install-scene-seeder.sh"
+
       - name: Report scene generation status
         run: |
           ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
