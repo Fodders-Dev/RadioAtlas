@@ -75,6 +75,51 @@ test('subgenre stations do not point at the generic blackmetal mount', () => {
   }
 });
 
+// #240: a row's `homepage` is `http://radcap.ru/<mount>.html` — the network
+// naming its own stream — and 30 rows disagreed with it, almost all sitting on a
+// generic parent genre. These are the ones a listener would notice first.
+test('a station plays its own genre, not the parent genre', () => {
+  const mountOf = (uuid: string) => CAPRICE_STREAMS.find(([id]) => id === uuid)?.[2];
+
+  const pinned: ReadonlyArray<readonly [string, string, string]> = [
+    ['2ec690e4-3e4e-4fc9-bc99-675d1aae44a2', 'rapru', 'Russian Rap / Hip Hop (was hiphop)'],
+    ['9dc82d50-2f8b-478b-b790-60737987627f', 'clubru', 'Russian Club Dance Music (was clubdance)'],
+    ['6955c23d-9e0d-41c7-aaf7-798cc7693177', 'electroswing', 'Electro Swing (was electrohouse)'],
+    ['d68d5422-53ae-4a27-bd58-73913c77c017', 'deathdoom', 'Death Doom Metal (was deathmetal)'],
+    ['9cfe095b-edea-4d05-945f-1487223a892c', 'aabmds', 'Atmospheric Ambient Black Metal (was blackmetal)'],
+    ['bb1cfd49-d90d-45e9-bf0c-e7d85c4b83a7', 'folkrockru', 'Russian Folk Rock (was folkrock)']
+  ];
+
+  // NB: no "how many rows sit on a parent mount" ceiling here. The parent mounts
+  // legitimately serve their own stations («Radio Caprice - Hip Hop» belongs on
+  // `hiphop`), the map carries no station names to distinguish them, and a
+  // threshold pinned to today's count asserts the status quo rather than an
+  // invariant. The named rows below are the real assertion.
+
+  // No `if (actual)` guard: a uuid that has fallen out of the map must fail
+  // loudly, not silently skip. A test that can pass while asserting nothing is
+  // the failure mode this whole file keeps running into.
+  for (const [uuid, expected, label] of pinned) {
+    assert.equal(mountOf(uuid), expected, `${label} must play ${expected}`);
+  }
+
+  // The two deliberate non-changes: the homepage contradicts the station NAME,
+  // so the name wins. Guard against a future pass "helpfully" flipping them.
+  // NB: this cannot be «nothing may sit on industrialmetal» — «RadCap -
+  // Industrial Metal» genuinely belongs there, and asserting the mount is empty
+  // failed for exactly that reason.
+  assert.equal(
+    mountOf('2fd84d74-eded-4d6d-99e2-e8e4b68c4044'),
+    'instrumentalmetal',
+    'INSTRUMENTAL Metal must not follow its homepage onto the INDUSTRIAL mount'
+  );
+  assert.equal(
+    mountOf('02950ba8-2fa9-4031-8f4f-d712ce543151'),
+    'thrashmetal',
+    'plain «Thrash Metal» must not follow its homepage onto crossoverthrash'
+  );
+});
+
 test('the repair runs as part of the normal catalog overlay', () => {
   // It must be applied on EVERY catalog ingress, not just in a unit test —
   // otherwise the live refetch would quietly restore the dead URLs.
