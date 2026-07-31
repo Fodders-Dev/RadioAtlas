@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const PORT = Number(process.env.PLAYWRIGHT_WEBAPP_PORT || 5174);
-const API_PORT = 4311;
+// Overridable for the same reason the webapp port is: two worktrees running the
+// suite at once otherwise fight over one pair of ports. The failure is not a
+// clean "port busy" — with PLAYWRIGHT_REUSE_SERVER=1 the run silently attaches
+// to the OTHER worktree's dev server and asserts against that branch's code.
+const API_PORT = Number(process.env.PLAYWRIGHT_API_PORT || 4311);
 const ACCOUNT_STORE_PATH = join(
   tmpdir(),
   'radioatlas-playwright',

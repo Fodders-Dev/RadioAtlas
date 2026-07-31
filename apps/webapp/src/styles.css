@@ -9922,14 +9922,40 @@ button.player-dock-status-pill:active {
   transform: none !important;
 }
 
-.app-shell-v2[data-low-power='true'] .glass-card,
-.app-shell-v2[data-low-power='true'] .app-topbar-v2,
-.app-shell-v2[data-low-power='true'] .player-dock-bar,
-.app-shell-v2[data-low-power='true'] .player-dock-tray-panel,
-.app-shell-v2[data-low-power='true'] .player-dock-tray,
-.app-shell-v2[data-low-power='true'] .mobile-nav-item,
-.app-shell-v2[data-low-power='true'] .app-navigation-mobile,
-.app-shell-v2[data-low-power='true'] .nav-utility-btn {
+/* The shell-flatten policy: on a low-power device the chrome surfaces drop their
+   backdrop-filter, because a live blur pass under fixed chrome is the single
+   most expensive thing this UI asks of a weak GPU.
+
+   The tripled attribute is a SPECIFICITY WEIGHT, not a typo. !important alone is
+   not enough here: the section-scoped glass overrides carry !important on
+   backdrop-filter too (deliberately — they had to beat the normal-weight
+   flatten policy at ~5605), and two !important declarations tie on importance,
+   so specificity decides. The offender was
+     `.app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn`
+   (screens/homeReference.css ~1428) at (0,4,0) against this block's (0,3,0):
+   the Home topbar circles kept blur+saturate+brightness+contrast under
+   data-low-power='true', while the box-shadow in this same block DID flatten
+   (it faced no !important rival) — flat shadow, live blur, the worst of both.
+   Repeating [data-low-power='true'] lifts this block to (0,5,0) without
+   changing a single element it matches. `.app-topbar-actions
+   .nav-utility-btn.nav-utility-btn-icon` (~5619) is a second, latent case: it
+   ties at (0,3,0) and only loses on source order today.
+
+   tests/low-power-flatten.spec.ts asserts the COMPUTED backdrop-filter, so the
+   next override that out-specifies this fails the gate instead of silently
+   turning the blur back on. Keep the block below (~10117) at the same weight —
+   it refines the shadow for three of these surfaces and must stay on top. */
+.app-shell-v2[data-low-power='true'][data-low-power='true'][data-low-power='true']
+  :is(
+    .glass-card,
+    .app-topbar-v2,
+    .player-dock-bar,
+    .player-dock-tray-panel,
+    .player-dock-tray,
+    .mobile-nav-item,
+    .app-navigation-mobile,
+    .nav-utility-btn
+  ) {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
   box-shadow: 0 8px 16px rgba(3, 9, 18, 0.12) !important;
@@ -10088,9 +10114,12 @@ button.player-dock-status-pill:active {
   }
 }
 
-.app-shell-v2[data-low-power='true'] .app-topbar-v2,
-.app-shell-v2[data-low-power='true'] .player-dock-bar,
-.app-shell-v2[data-low-power='true'] .app-navigation-mobile {
+/* Softer shadow for the three fixed chrome plates than the blanket flatten
+   above gives them. Carries the SAME tripled-attribute weight as that block
+   (~9925) on purpose: both are (0,5,0), so this one still wins on source order.
+   Bump one without the other and this refinement silently loses. */
+.app-shell-v2[data-low-power='true'][data-low-power='true'][data-low-power='true']
+  :is(.app-topbar-v2, .player-dock-bar, .app-navigation-mobile) {
   box-shadow: 0 6px 12px rgba(3, 9, 18, 0.1) !important;
 }
 

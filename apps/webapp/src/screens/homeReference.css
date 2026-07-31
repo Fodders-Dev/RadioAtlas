@@ -2136,6 +2136,20 @@
   .app-shell-v2[data-active-section='home'] .app-topbar-actions .nav-utility-btn span {
     display: none;
   }
+
+  /* Low-power fallback. The shell-flatten policy (styles.css ~9925) strips BOTH
+     the frost and the lens-edge box-shadow from these circles, and what the
+     glass version leaves behind is a 3.5% white fill — over a photographic hero
+     that is not a button, it is a floating glyph. The blur is the part that
+     costs GPU; a fill and a rim cost nothing, so pay the contrast back in
+     pigment instead. This is the dark-theme twin of what the light theme
+     already does for the same two circles (styles.css ~11210, (0,5,0), so it
+     still wins on cream). Later in source than the glass rule above at the same
+     (0,4,0) — keep it below, not above. */
+  .app-shell-v2[data-low-power='true'] .app-topbar-actions .nav-utility-btn {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(8, 18, 34, 0.62);
+  }
 }
 
 /* Unconditional, every width including desktop: the action circles are a single
