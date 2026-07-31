@@ -29,6 +29,28 @@
 //   * 48 rows remain unmapped on purpose: no mount on the network matches them
 //     with confidence.
 //
+// 2026-07-31 (#240) — 28 more rows re-pointed at the genre they claim to play.
+// A Caprice row's `homepage` is `http://radcap.ru/<mount>.html`: the network
+// naming its OWN stream. Comparing the map against it found 30 rows sitting on a
+// more generic parent genre — «Russian Rap / Hip Hop» on `hiphop` instead of
+// `rapru`, «Electro Swing» on `electrohouse`, «Death Doom Metal» on
+// `deathmetal`, «ACID HOUSE» on `techtrance`, «Atmospheric/Ambient Black Metal»
+// on `blackmetal` rather than `aabmds`. Every replacement was verified live like
+// any other row.
+//
+// ⚠ This is the check that should have existed from the start. Fetching a mount
+// proves a stream EXISTS; it cannot prove it is the RIGHT stream, which is how
+// the generic mappings passed the first pass and shipped. The homepage field is
+// the only independent statement of intent we get, and it was in the catalogue
+// the whole time. Icecast's own metadata is useless here — every mount on the
+// network reports "Unspecified name / Unspecified description".
+//
+// 2 of the 30 were deliberately NOT changed: «RadCap - Instrumental Metal»
+// (homepage says `industrialmetal` — a different genre from the name) and
+// «RadCap - Thrash Metal (48)» (homepage says `crossoverthrash`, the name says
+// plain thrash). When the two upstream signals contradict each other, the more
+// specific one is not automatically the true one.
+//
 // ⚠ The name matcher now requires a mount to account for EVERY word of the
 // station name, not just two. Under the looser rule «Depressive Black Metal»
 // matched `blackmetal` and would have shipped as a duplicate of plain black
@@ -101,7 +123,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['1831ce93-b92a-466d-b11b-e864913c8bdf', 3, 'hardcorerap'],
   ['18aa5bf5-44f4-4ba3-bf44-0a19f089e593', 0, 'slavonicneofolk'],
   ['18d69edf-a0a9-4e2c-8f10-34283ce09ad3', 1, 'southernrap'],
-  ['193ce893-b2f4-11e8-afe1-52543be04c81', 4, 'hardrock'],
+  ['193ce893-b2f4-11e8-afe1-52543be04c81', 2, 'aor'],
   ['19ad483c-32ff-43f0-90f1-bc23a83b7c23', 3, 'dronemetal'],
   ['19c57c60-bf6f-481b-9197-cb7e4f58c589', 3, 'mintechno'],
   ['19c656f5-3f70-465c-92fc-de29beb10626', 4, 'instrumentalhiphop'],
@@ -153,9 +175,9 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['2bfc5fec-a16f-48a5-882c-2ce3e2ca6235', 0, 'memphisrap'],
   ['2c2a1002-506d-4429-9793-3fbbb7cf566a', 2, 'hardbop'],
   ['2cbba83f-f6ac-488f-8eef-9e675ea57905', 3, 'dreamtrance'],
-  ['2e1cb65b-967f-4221-8bcb-1baecea7784c', 4, 'freeimprovisation'],
+  ['2e1cb65b-967f-4221-8bcb-1baecea7784c', 1, 'avantgardejazz'],
   ['2e55b815-eaac-41d3-bba6-86b5c2d11604', 1, 'surfrock'],
-  ['2ec690e4-3e4e-4fc9-bc99-675d1aae44a2', 4, 'hiphop'],
+  ['2ec690e4-3e4e-4fc9-bc99-675d1aae44a2', 4, 'rapru'],
   ['2f0fabd6-b2ea-11e8-afe1-52543be04c81', 1, 'contclass'],
   ['2f114a0e-33fa-4976-9a64-ba6c2096a446', 2, 'heavymetal'],
   ['2f44e86c-28ef-4a5a-841f-74d2e20679fc', 1, 'neurofunk'],
@@ -171,7 +193,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['32bac5f0-58bc-445a-8e54-8ce9ba7f48df', 1, 'skapunk'],
   ['341d82cb-6009-4f91-aa6a-5e70330c5b0d', 1, 'spacerock'],
   ['34aed61f-f87f-4e99-87d4-2d8a11491805', 4, 'deathmetal'],
-  ['359ffcf7-2429-4d3f-abd5-a7a0c023fb21', 4, 'thrashmetal'],
+  ['359ffcf7-2429-4d3f-abd5-a7a0c023fb21', 0, 'thrashheavy'],
   ['35d3fe80-5299-46ce-8307-541c5808b6c7', 2, 'metalstep'],
   ['36d2f90a-baf1-4abb-bf7b-55536d606f93', 4, 'hardrock'],
   ['36e134cf-a83b-11e8-a907-52543be04c81', 3, 'dronemetal'],
@@ -179,7 +201,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['3749a83f-5418-11e8-b0ce-52543be04c81', 2, 'triphop'],
   ['3844c845-a028-40be-b98d-b056d95c8133', 2, 'ambientdub'],
   ['396cb3b4-be7c-4ebf-9a77-3c6aa3186087', 2, 'lounge'],
-  ['39e76148-a05a-4ced-852d-2184e0158c67', 4, 'blackmetal'],
+  ['39e76148-a05a-4ced-852d-2184e0158c67', 3, 'aabmds'],
   ['3b493ef5-9cfa-48ca-b698-c58ec8eb933c', 4, 'instrumentalhiphop'],
   ['3bd970e6-6f77-49a3-9546-3aff74fd945b', 2, 'numetal'],
   ['3c7cf41f-20a8-44fd-961b-f0245a762632', 3, 'darkdubstep'],
@@ -221,7 +243,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['4c5ff97b-104b-11e9-a80b-52543be04c81', 1, 'indieelectronic'],
   ['4ccbc462-5fe5-41a1-8771-654d2f5eae3e', 3, 'klezmer'],
   ['4d469e31-aaa8-437f-ab70-de2ef9beaa18', 0, 'experimentaltechno'],
-  ['4dc43a39-10ac-4e62-8946-1f3326d60854', 2, 'drumbass'],
+  ['4dc43a39-10ac-4e62-8946-1f3326d60854', 1, 'liquidfunk'],
   ['4dd3fc15-bc84-48e5-92bd-ba1dc495f918', 4, 'punk'],
   ['4e4b6810-8634-4d65-a73f-2b4816997ddf', 0, 'oceania'],
   ['4eb36136-697b-4339-b07d-0f4981c4b784', 1, 'postgrunge'],
@@ -235,12 +257,12 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['5256bbb3-87f0-4caf-9bc0-0a9ba8cadfdb', 0, 'oldschoolhiphop'],
   ['52f44de7-02cb-49e3-ab36-459e116c12cb', 0, 'illbient'],
   ['5354e798-151d-4718-9da8-e295ee1fe7e2', 1, 'italodisco'],
-  ['536802d7-8f40-4f5e-8968-7599ae50be8b', 4, 'powermetal'],
+  ['536802d7-8f40-4f5e-8968-7599ae50be8b', 1, 'melodicpower'],
   ['5502c16e-45ca-4f6b-ae1c-1df8e6503270', 0, 'frenchrap'],
   ['55777a00-33f0-4811-8f92-8d0d3f12622c', 2, 'celtic'],
   ['55e2cde9-90f9-4217-b036-d0362fa2780c', 1, 'twist'],
   ['567483dc-b2f0-11e8-afe1-52543be04c81', 1, 'jazzfusion'],
-  ['57162ebc-5ac6-4ec8-88b7-430850c47e2b', 2, 'heavymetal'],
+  ['57162ebc-5ac6-4ec8-88b7-430850c47e2b', 1, 'melodicheavy'],
   ['574b28f1-b2fb-11e8-afe1-52543be04c81', 2, 'easylistening'],
   ['58ab4a1b-d3c9-4923-bcb8-9674df9e7a38', 2, 'texasblues'],
   ['59abfbf8-a0b7-4480-8eaa-9512fa8d5123', 4, 'popru'],
@@ -271,7 +293,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['685c0176-fe9c-406a-9283-8ccfc1399f20', 2, 'eastcoastrap'],
   ['689df9c5-b393-11e8-afe1-52543be04c81', 2, 'darktechno'],
   ['68b283e7-29ea-478e-ac77-9f08f9682762', 0, 'medieval'],
-  ['6955c23d-9e0d-41c7-aaf7-798cc7693177', 2, 'electrohouse'],
+  ['6955c23d-9e0d-41c7-aaf7-798cc7693177', 0, 'electroswing'],
   ['6a223c05-6d45-4076-9623-bc54f2fdc3df', 2, 'deathcore'],
   ['6b7ef2d7-79a0-408a-9fc3-39e0be2ca26c', 3, 'balkan'],
   ['6c2ec0d6-31af-40f0-ae97-0a0071b3f519', 1, 'paganmetal'],
@@ -301,7 +323,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['78677595-7d16-40e3-8371-e1661290e774', 4, 'rockballads'],
   ['78c48ebf-ea50-418a-a155-bb9b232a2545', 0, 'atmosphericdoom'],
   ['78ea79d9-9c5a-437b-93f5-c564a5dff5fe', 0, 'experimentaltechno'],
-  ['79369412-9813-41fd-95c6-3289b71b4a3b', 1, 'progressiverock'],
+  ['79369412-9813-41fd-95c6-3289b71b4a3b', 1, 'neoprogrock'],
   ['795e1e3f-8b5a-414a-bb28-a53164c27c71', 3, 'postpunk'],
   ['79aa47f3-4876-49b3-9edc-0e2b6938e216', 1, 'avantprog'],
   ['7a21bc2b-b2f9-11e8-afe1-52543be04c81', 2, 'crossoverprog'],
@@ -315,7 +337,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['7eadf977-e8de-11e9-a96c-52543be04c81', 3, 'relaxation'],
   ['7f7bc5cf-44ab-4b56-bc78-12314a641450', 4, 'hiphop'],
   ['7fd43177-a6ca-4df3-b22e-cb6da4955208', 3, 'ethnojazz'],
-  ['800fa270-d90c-45bb-bdbd-7849f9d13a42', 1, 'clubdance'],
+  ['800fa270-d90c-45bb-bdbd-7849f9d13a42', 4, 'clubru'],
   ['8062ce17-e8a0-44d1-910e-7ca0096e0174', 3, 'africanfolk'],
   ['80d76811-1d47-431f-853c-3b8fb1129531', 3, 'gothdoommet'],
   ['81610c98-108c-4efc-bac1-434373fa8f6f', 1, 'spacemusic'],
@@ -343,7 +365,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['87eafdfb-bfa2-4142-87e3-5f2dfc99e45b', 0, 'frenchrap'],
   ['883db8c4-e80a-11e9-a96c-52543be04c81', 4, 'vocal'],
   ['8856dcb8-5a51-11e9-a622-52543be04c81', 2, 'orthodox'],
-  ['8918ea01-ae78-4cf7-a906-d033ffea75d1', 1, 'clubdance'],
+  ['8918ea01-ae78-4cf7-a906-d033ffea75d1', 4, 'clubru'],
   ['8954b0a1-29fc-4f49-8c90-194fc20c6a74', 2, 'dancehall'],
   ['8963775b-3445-4623-bf53-650298f5de57', 2, 'darktechno'],
   ['896a7b65-55fa-406b-8aa3-e92a149c5581', 2, 'hardbop'],
@@ -360,14 +382,14 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['8f29faf7-5672-481c-b56e-a531ed0e0d38', 0, 'ndh'],
   ['8fbb6bb4-ac29-4536-b8c3-61e85ea2ed6d', 1, 'garagerock'],
   ['90733611-c239-45ad-b6be-14adbd14f294', 3, 'darkjazz'],
-  ['90c69e5f-b2f4-11e8-afe1-52543be04c81', 1, 'progressiverock'],
+  ['90c69e5f-b2f4-11e8-afe1-52543be04c81', 1, 'neoprogrock'],
   ['91153ec2-0c6e-4c9f-9ff4-e092f7e12a23', 1, 'ambient'],
   ['91df7363-3f38-476f-af4a-bb529a474ef7', 3, 'salsa'],
   ['92d640be-4031-4f96-b471-40bf7532f451', 2, 'postrock'],
   ['939bfffc-d9b6-4b67-9473-598f00d40777', 1, 'fareast'],
   ['94118ebd-cb63-4eb5-bea3-ab6a54df7207', 1, 'epicmetal'],
   ['945078ee-d308-4635-99b9-e41f78c59824', 4, 'classical'],
-  ['949aec8c-2342-4f02-9312-e3f74cf840f6', 4, 'thrashmetal'],
+  ['949aec8c-2342-4f02-9312-e3f74cf840f6', 0, 'thrashblack'],
   ['94dd3221-4108-4041-952d-f9aae149ca7d', 1, 'oistreetpunk'],
   ['95665424-8edb-43c7-bb77-f7b964e57d80', 0, 'americana'],
   ['9611911f-0601-11e8-ae97-52543be04c81', 2, 'psybient'],
@@ -409,7 +431,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['9844d092-3c18-46d9-b812-75dfea6b94d0', 1, 'mintechhouse'],
   ['99439cbd-f35a-425a-81db-cd4863f03be3', 2, 'industrial'],
   ['99c8588b-7c76-4db1-bd11-12d35c4e67af', 0, 'classguitar'],
-  ['99e54111-b655-4bfd-a059-02de5c7197f9', 4, 'freeimprovisation'],
+  ['99e54111-b655-4bfd-a059-02de5c7197f9', 1, 'avantgardejazz'],
   ['9a544b89-b2ef-11e8-afe1-52543be04c81', 3, 'dixieland'],
   ['9a730296-a01a-11e9-a787-52543be04c81', 2, 'mainstreamjazz'],
   ['9acd84cf-22d3-4260-a7d5-f26589e21956', 3, 'industrialmetal'],
@@ -419,17 +441,17 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['9be40c18-3cec-4de9-8e12-113ba624d5e4', 0, 'classguitar'],
   ['9cabd2b9-50dd-4eda-b8ec-ea301cf2b5fb', 4, 'symphometal'],
   ['9cec8bfa-825f-4081-81a0-55ac30cccbc9', 4, 'gothicmetal'],
-  ['9cfe095b-edea-4d05-945f-1487223a892c', 4, 'blackmetal'],
+  ['9cfe095b-edea-4d05-945f-1487223a892c', 3, 'aabmds'],
   ['9d02c5d0-0707-422d-8b50-fe139ee74296', 1, 'psychobilly'],
   ['9db21bfa-0a49-4c34-a96a-fd305d2fda0b', 4, 'deathmetal'],
-  ['9dc82d50-2f8b-478b-b790-60737987627f', 1, 'clubdance'],
+  ['9dc82d50-2f8b-478b-b790-60737987627f', 4, 'clubru'],
   ['9eeeae46-59bd-472b-9b2f-d8f80ca45ed5', 1, 'jrock'],
   ['9f402596-35bd-4184-a1de-29b6050cef16', 4, 'blackmetal'],
   ['a05df5ad-b2fb-11e8-afe1-52543be04c81', 3, 'neoclassical'],
   ['a1234e66-3be6-4ba3-8520-5fa4881d4b16', 0, 'healing'],
   ['a1c29ddb-1801-49f4-9e05-311153ef631d', 0, 'lovesongs'],
   ['a28b528b-bf73-4c91-8dcf-31d31afe4fea', 2, 'acidjazz'],
-  ['a2d00de3-cd16-46c8-ac30-9e79e294cf47', 4, 'hardrock'],
+  ['a2d00de3-cd16-46c8-ac30-9e79e294cf47', 2, 'aor'],
   ['a2dbcc72-6b83-4b6d-a221-f2b5053ef319', 4, 'suomisaundi'],
   ['a32f144e-27a7-4a21-bdfe-0b893a6babcd', 2, 'industrial'],
   ['a3385f48-cb74-406c-8bb2-2e64a2d20cea', 2, 'postblack'],
@@ -482,7 +504,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['ba5499dd-d47f-4c72-8629-85e8caeafeb9', 4, 'manouche'],
   ['ba718fe1-b2fa-11e8-afe1-52543be04c81', 4, 'piano'],
   ['ba799c41-519f-4616-a804-86fc5cf0f66e', 2, 'indianfolk'],
-  ['bb1cfd49-d90d-45e9-bf0c-e7d85c4b83a7', 2, 'folkrock'],
+  ['bb1cfd49-d90d-45e9-bf0c-e7d85c4b83a7', 2, 'folkrockru'],
   ['bb6eebee-87c9-4992-b8d4-4987f709637a', 1, 'altcountry'],
   ['bb824676-8d83-423d-b7f2-b3100e82cbce', 0, 'zydeco'],
   ['bbe22a84-0de9-400b-896b-430fddc2ed4a', 2, 'heavymetal'],
@@ -495,9 +517,9 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['be2984e6-268b-427b-9684-1cf51fbbc042', 1, 'nativeamerican'],
   ['be92906f-ee2e-4053-9f0f-39cffd32c98a', 0, 'avantrock'],
   ['bebfa334-df6f-11e9-a8ba-52543be04c81', 4, 'meditation'],
-  ['bed93a3d-adc5-493d-8206-082f7b0a3f10', 4, 'thrashmetal'],
+  ['bed93a3d-adc5-493d-8206-082f7b0a3f10', 0, 'thrashheavy'],
   ['bef32a9a-3260-41e9-8476-4bab1614cdc2', 2, 'rockabilly'],
-  ['c06d26a0-75b3-4a93-a680-e3f3ea3f1f68', 4, 'thrashmetal'],
+  ['c06d26a0-75b3-4a93-a680-e3f3ea3f1f68', 0, 'crossoverthrash'],
   ['c1d32b98-4b5d-4793-a8db-006fecfb2084', 2, 'glitch'],
   ['c2efe617-e1f8-401a-8b61-6f7dfbb56c91', 1, 'experimentalmusic'],
   ['c340efa8-3b85-42aa-a384-550ce42e1057', 3, 'arabicpop'],
@@ -516,7 +538,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['cc4e23dd-5485-4176-9ade-0a79a08b3ee1', 4, 'countryblues'],
   ['cc58e6d3-74ba-422c-82e9-56f5382d39e5', 0, 'musiqueconcrete'],
   ['cc883873-ef4b-11e9-a96c-52543be04c81', 4, 'instrumental'],
-  ['ccaf9855-83ab-4367-ba77-2af21ab374e9', 4, 'freeimprovisation'],
+  ['ccaf9855-83ab-4367-ba77-2af21ab374e9', 1, 'avantgardejazz'],
   ['cd00b402-e3bd-4fce-8e9d-cff9446bcf46', 1, 'latinjazz'],
   ['cd32cbc3-7c5c-46a9-bd0b-ab80cb706f3f', 4, 'brokenbeat'],
   ['cd5d0756-46ba-4027-b30b-2f04841ac002', 0, 'sacred'],
@@ -535,12 +557,12 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['d11fa3ed-1509-4639-8a72-3e075f452418', 0, 'forestpsytrance'],
   ['d27e8af1-b2f7-11e8-afe1-52543be04c81', 2, 'indiefolk'],
   ['d2a835f6-a5ce-4fe2-a4a8-6c0fa8c90a05', 0, 'funkyhouse'],
-  ['d2bf4806-7287-11e8-83fa-52543be04c81', 4, 'hiphop'],
+  ['d2bf4806-7287-11e8-83fa-52543be04c81', 1, 'southernrap'],
   ['d59bbb09-d855-46b7-bf21-ddb203dfff71', 1, 'chiptune'],
   ['d5bb77fd-087f-4b4d-8942-1a604ccf9c5a', 0, '70collection'],
   ['d6413007-80c9-471a-a3a0-d4c2e94411ed', 3, 'electroclash'],
   ['d669ce1a-f049-4b3f-be2c-d9ea905a96dc', 2, 'idm'],
-  ['d68d5422-53ae-4a27-bd58-73913c77c017', 4, 'deathmetal'],
+  ['d68d5422-53ae-4a27-bd58-73913c77c017', 3, 'deathdoom'],
   ['d716df3e-37ee-4601-97e3-f041dfb28539', 4, 'grime'],
   ['d7394d2d-9355-11e8-a767-52543be04c81', 3, 'strings'],
   ['d753a9d6-bd9e-44a6-af51-d431936736ba', 0, 'jumpblues'],
@@ -577,7 +599,7 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['e7590421-042e-428b-a796-b26b3cb5be08', 0, 'electroswing'],
   ['e7f05237-284e-4a04-807a-7971bdaa0ccd', 0, 'jazzmetal'],
   ['e818a035-196f-4029-a32b-2e2ea3be1e1c', 2, 'hardcoremetal'],
-  ['e828fd36-ef88-4802-b749-2d5a4d7aff13', 0, 'medievalmetal'],
+  ['e828fd36-ef88-4802-b749-2d5a4d7aff13', 0, 'medieval'],
   ['e947a3f4-e184-4b75-80ef-f2daa7ffd65a', 2, 'lo-fi'],
   ['e96c7ca7-b2fa-11e8-afe1-52543be04c81', 3, 'acousticguitar'],
   ['e9fd79a6-3761-4e55-8887-d0904a7825c6', 3, 'electroclash'],
@@ -614,15 +636,15 @@ export const CAPRICE_STREAMS: ReadonlyArray<readonly [string, number, string]> =
   ['f64559c4-faa2-4c17-b042-00ab4a921dfb', 2, 'numetal'],
   ['f6987a26-b1c9-486e-9f5e-9dd90468e93d', 3, 'symphorock'],
   ['f77b637f-0867-48c8-8e88-c23390409887', 3, 'mathrock'],
-  ['f91f9262-b2f5-11e8-afe1-52543be04c81', 4, 'poprock'],
+  ['f91f9262-b2f5-11e8-afe1-52543be04c81', 2, 'chamberpop'],
   ['f9b39c50-863a-484b-8110-181b12009cb1', 2, 'chicagoblues'],
   ['fa9d5209-9288-4d9d-908e-836b279c1f71', 4, 'poprock'],
   ['fb454031-4fa0-4dc2-91a9-4bf6a72e8e30', 0, 'slideguitar'],
-  ['fb6cb8a8-95e4-4f79-8119-f897aafcd487', 0, 'techtrance'],
+  ['fb6cb8a8-95e4-4f79-8119-f897aafcd487', 1, 'acid'],
   ['fcdca0ed-ba45-4a7c-9b43-6207aeea20a6', 3, 'glam'],
   ['fd16e680-e50a-43b1-8924-61574b2e3021', 3, 'hardcorerap'],
   ['fe1287ed-8e88-4f41-97b2-22edde55a59e', 3, 'postmetal'],
   ['feea0b0d-7fc3-46e8-8a04-4c4d6ef20ffc', 2, 'idm'],
-  ['ff122908-8d92-4af9-81f8-69a8a89951ad', 4, 'blackmetal'],
+  ['ff122908-8d92-4af9-81f8-69a8a89951ad', 3, 'aabmds'],
   ['fffeaf03-4b5a-46b1-a1f1-575513c346f4', 1, 'droneambient']
 ];
