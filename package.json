@@ -21,6 +21,7 @@
     "test:webapp": "npm --workspace apps/webapp run test:e2e",
     "test:api": "npm --workspace apps/api run test",
     "test:bot": "npm --workspace apps/bot run test",
-    "test": "npm run typecheck && npm run typecheck:test && npm run test:api && npm run test:bot && npm run test:webapp"
+    "test:ops": "node --test \"deploy/server/*.test.mjs\"",
+    "test": "npm run typecheck && npm run typecheck:test && npm run test:api && npm run test:bot && npm run test:ops && npm run test:webapp"
   }
 }

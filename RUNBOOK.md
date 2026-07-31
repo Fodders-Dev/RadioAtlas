@@ -146,6 +146,20 @@ exits non-zero, which shows up as a failed unit.
 Delete the stale `-wal`/`-shm` sidecars. Leaving them next to a restored database
 is the classic way to lose the restore.
 
+**Restore drill.** Once R2 is on, `deploy/server/restore-drill.mjs` rehearses the
+off-box half without touching anything live: it downloads the newest object, checks
+it is byte-identical to the local snapshot, gunzips it, runs `integrity_check`,
+and compares every table's row count against the live database.
+
+    node /opt/RadioAtlas/current/deploy/server/restore-drill.mjs
+    node /opt/RadioAtlas/current/deploy/server/restore-drill.mjs account-store
+
+It is read-only on both sides and exits non-zero on any failure, so it is safe to
+run whenever, and worth running after anything that touches the backup path.
+Rows *added* since the snapshot are expected and reported as drift; tables
+missing from the copy are a failure. Worth doing quarterly — the failure mode this
+catches is a bucket that has been quietly rejecting writes since a token rotation.
+
 ### Off-box replication — TODO, needs one manual step
 
 Every copy currently lives on the same disk as its source, and `/opt` is at 92%.
@@ -178,13 +192,27 @@ something the assistant does):
    `journalctl -u radioatlas-sqlite-backup.service -n 5`. Each line should end
    with `replicated <n>KB` instead of `not-configured`, and the WARNING should
    be gone.
-5. Set a bucket lifecycle rule to expire objects after ~400 days, so the free
+5. Prove it comes back, don't assume it:
+   `node /opt/RadioAtlas/current/deploy/server/restore-drill.mjs`
+6. Set a bucket lifecycle rule to expire objects after ~400 days, so the free
    tier is never the thing that breaks the backup.
 
-The uploader is `deploy/server/s3put.mjs` — a dependency-free SigV4 PUT, since
-the box has no rclone or aws-cli. Its signing is verified against AWS's own
+⚠ The credentials only reach the job because the unit carries
+`EnvironmentFile=-/opt/RadioAtlas/shared/env/api.env`. systemd passes a service
+*only* what the unit names, so without that line the R2 values can sit correctly
+in `api.env` and the job will still report `not-configured` forever — it reads a
+different environment than the API does. `install-sqlite-backup.sh` writes the
+line, but **no deploy step runs that installer**; if the unit is ever
+re-provisioned by hand, check for it. Confirm with:
+
+    systemctl show radioatlas-sqlite-backup.service -p EnvironmentFiles
+
+The uploader is `deploy/server/s3put.mjs` — a dependency-free SigV4 PUT and GET,
+since the box has no rclone or aws-cli. Its signing is verified against AWS's own
 published test vector in `s3put.test.mjs`, so the algorithm is known-good before
-a real bucket exists; only the live credentials are untested.
+a real bucket exists; only the live credentials are untested. `npm run test:ops`
+runs that suite, and CI runs it on every push — it used to be a file nobody
+executed.
 
 ## Cache
 - Client catalog responses use an IndexedDB TTL cache with localStorage fallback; Home summary TTL is 6 hours.

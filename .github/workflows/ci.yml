@@ -50,6 +50,13 @@ jobs:
       - name: Webapp unit tests
         run: npm --workspace apps/webapp run test:unit
 
+      # The backup tooling lives outside the workspaces, so nothing ran it: the
+      # SigV4 signer and the restore drill were verified once by hand and then
+      # left unguarded. These are the tests standing between a green
+      # "replicated 580KB" log line and a backup nobody can actually restore.
+      - name: Backup tooling tests
+        run: npm run test:ops
+
       # Playwright is DELIBERATELY not in this gate. Several specs flake under
       # parallel load, and a blocking gate that goes red for no reason is a gate
       # that gets switched off within a week. Browser coverage stays a local

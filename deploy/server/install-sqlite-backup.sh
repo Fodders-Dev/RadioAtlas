@@ -11,6 +11,9 @@ set -euo pipefail
 APP_ROOT="${APP_ROOT:-/opt/RadioAtlas}"
 BACKUP_DIR="${BACKUP_DIR:-$APP_ROOT/backups}"
 KEEP="${RADIOATLAS_BACKUP_KEEP:-14}"
+# The R2 credentials for off-box replication live here, alongside the API's other
+# secrets, and are deliberately not in git.
+ENV_FILE="${ENV_FILE:-$APP_ROOT/shared/env/api.env}"
 SERVICE=/etc/systemd/system/radioatlas-sqlite-backup.service
 TIMER=/etc/systemd/system/radioatlas-sqlite-backup.timer
 NODE_BIN="${NODE_BIN:-$(command -v node)}"
@@ -29,6 +32,12 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+# Off-box replication reads R2_* from here. Without this line the job silently
+# keeps reporting "not-configured" no matter what is put in the file, because
+# systemd passes only what the unit names — that cost one round-trip already.
+# Leading "-" so a box without the file still takes local snapshots.
+# Listed before Environment= so the unit's own settings always win.
+EnvironmentFile=-$ENV_FILE
 Environment=RADIOATLAS_BACKUP_DIR=$BACKUP_DIR
 Environment=RADIOATLAS_BACKUP_KEEP=$KEEP
 ExecStart=$NODE_BIN --no-warnings $APP_ROOT/current/deploy/server/backup-sqlite.mjs

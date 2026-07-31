@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { putObject, signRequest } from './s3put.mjs';
+import { getObject, putObject, signRequest } from './s3put.mjs';
 
 /**
  * The signing algorithm is checked against AWS's own published SigV4 test case
@@ -75,6 +75,67 @@ test('the PUT is addressed and signed the way R2 expects', async () => {
   assert.doesNotMatch(seen.url, /%2F/);
   assert.equal(seen.init.headers['x-amz-date'], '20260726T042000Z');
   assert.equal(seen.init.headers['content-length'], String(body.length));
+});
+
+test('the GET addresses the same object the PUT wrote, and returns the bytes', async () => {
+  const seen = {};
+  const stored = Buffer.from('gzipped-snapshot-bytes');
+  const key = 'account-store/2026-07-26.sqlite.gz';
+  const credentials = {
+    accountId: 'acct123',
+    bucket: 'radioatlas-backups',
+    accessKeyId: 'AKIA_TEST',
+    secretAccessKey: 'secret',
+    now: new Date('2026-07-26T04:20:00.000Z')
+  };
+
+  const put = await putObject({
+    ...credentials,
+    key,
+    body: stored,
+    fetchImpl: async (url) => {
+      seen.putUrl = url;
+      return { status: 200, ok: true, text: async () => '' };
+    }
+  });
+
+  const got = await getObject({
+    ...credentials,
+    key,
+    fetchImpl: async (url, init) => {
+      seen.getUrl = url;
+      seen.init = init;
+      return { status: 200, ok: true, arrayBuffer: async () => stored };
+    }
+  });
+
+  assert.equal(put.ok, true);
+  assert.equal(got.ok, true);
+  // A restore that reads from a different place than the backup wrote is not a restore.
+  assert.equal(seen.getUrl, seen.putUrl, 'GET and PUT must address the same object');
+  assert.equal(seen.init.method, 'GET');
+  assert.equal(got.body.toString(), stored.toString());
+  // GET signs an empty payload — the SHA256 of "".
+  assert.equal(
+    seen.init.headers['x-amz-content-sha256'],
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+  );
+  assert.match(seen.init.headers.Authorization, /SignedHeaders=host;x-amz-content-sha256;x-amz-date,/);
+});
+
+test('a missing or forbidden object is reported, not returned as empty bytes', async () => {
+  const result = await getObject({
+    accountId: 'acct123',
+    bucket: 'b',
+    key: 'k',
+    accessKeyId: 'a',
+    secretAccessKey: 's',
+    fetchImpl: async () => ({ status: 404, ok: false, text: async () => 'NoSuchKey' })
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 404);
+  assert.equal(result.body, null, 'a failed GET must not look like a zero-byte backup');
+  assert.match(result.text, /NoSuchKey/);
 });
 
 test('a failed upload surfaces the provider response instead of swallowing it', async () => {

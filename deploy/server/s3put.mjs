@@ -79,6 +79,13 @@ export const signRequest = ({
   };
 };
 
+/** Where an object lives, and the timestamp both the URL and the signature must agree on. */
+const addressFor = ({ accountId, bucket, key, endpoint, now }) => ({
+  host: endpoint || `${accountId}.r2.cloudflarestorage.com`,
+  path: `/${encodeSegment(bucket)}/${key.split('/').map(encodeSegment).join('/')}`,
+  amzDate: `${now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15)}Z`
+});
+
 /** PUT one object. Returns the response status; the caller decides what that means. */
 export const putObject = async ({
   accountId,
@@ -91,9 +98,7 @@ export const putObject = async ({
   fetchImpl = fetch,
   now = new Date()
 }) => {
-  const host = endpoint || `${accountId}.r2.cloudflarestorage.com`;
-  const path = `/${encodeSegment(bucket)}/${key.split('/').map(encodeSegment).join('/')}`;
-  const amzDate = `${now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15)}Z`;
+  const { host, path, amzDate } = addressFor({ accountId, bucket, key, endpoint, now });
   const payloadHash = sha256Hex(body);
 
   const { authorization, headers } = signRequest({
@@ -120,4 +125,55 @@ export const putObject = async ({
   });
 
   return { status: response.status, ok: response.ok, text: response.ok ? '' : await response.text() };
+};
+
+/**
+ * GET one object back.
+ *
+ * Uploading is only half of a backup: until the bytes have been pulled down and
+ * opened, "replicated 580KB" is a claim, not a fact. The box has no rclone and
+ * no aws-cli, so the restore drill needs its own signed GET — same verified
+ * signer, empty payload rather than a body.
+ */
+export const getObject = async ({
+  accountId,
+  bucket,
+  key,
+  accessKeyId,
+  secretAccessKey,
+  endpoint,
+  fetchImpl = fetch,
+  now = new Date()
+}) => {
+  const { host, path, amzDate } = addressFor({ accountId, bucket, key, endpoint, now });
+
+  const { authorization, headers } = signRequest({
+    method: 'GET',
+    host,
+    path,
+    payloadHash: sha256Hex(''),
+    accessKeyId,
+    secretAccessKey,
+    amzDate
+  });
+
+  const response = await fetchImpl(`https://${host}${path}`, {
+    method: 'GET',
+    headers: {
+      Authorization: authorization,
+      host: headers.host,
+      'x-amz-content-sha256': headers['x-amz-content-sha256'],
+      'x-amz-date': headers['x-amz-date']
+    }
+  });
+
+  if (!response.ok) {
+    return { status: response.status, ok: false, text: await response.text(), body: null };
+  }
+  return {
+    status: response.status,
+    ok: true,
+    text: '',
+    body: Buffer.from(await response.arrayBuffer())
+  };
 };
