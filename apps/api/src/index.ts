@@ -13,6 +13,7 @@ import { parseMusicServices } from './ai/musicLinks.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
+import { createCatalogSingleFlight } from './catalog/singleFlight.js';
 import { registerCatalogRoutes } from './catalogRoutes.js';
 import { registerMediaRoutes } from './mediaRoutes.js';
 import { createSceneArtworkService } from './sceneArtwork.js';
@@ -298,6 +299,7 @@ installObservability(app);
 
 let fastCache: CacheEntry | null = null;
 let fullCache: CacheEntry | null = null;
+const resolveRawCatalogFlight = createCatalogSingleFlight<Station[]>();
 
 const cacheCatalog = (mode: 'fast' | 'full', data: Station[]) => {
   const entry = { ts: Date.now(), data };
@@ -412,12 +414,7 @@ const readCatalogSnapshot = async (mode: 'fast' | 'full') => {
   );
 };
 
-const getCatalog = async (mode: 'fast' | 'full') => {
-  const cache = mode === 'fast' ? fastCache : fullCache;
-  if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
-    return cache.data;
-  }
-
+const loadCatalog = async (mode: 'fast' | 'full') => {
   // T_audit_5: artifact-only mode — the bundled artifact IS the configured
   // source here, not a fallback, so we skip the live fetch and do NOT record a
   // catalog_fallback counter. Same normalization as the fallback path below
@@ -477,6 +474,14 @@ const getCatalog = async (mode: 'fast' | 'full') => {
 
   void persistCatalogSnapshot(mode, stations);
   return cacheCatalog(mode, stations);
+};
+
+const getCatalog = (mode: 'fast' | 'full') => {
+  const cache = mode === 'fast' ? fastCache : fullCache;
+  if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
+    return Promise.resolve(cache.data);
+  }
+  return resolveRawCatalogFlight(mode, () => loadCatalog(mode));
 };
 
 const withStationProfiles = async (stations: Station[]) => {

@@ -8500,7 +8500,6 @@ body {
   .dock-mini-btn,
   .dock-icon-btn,
   .dock-next-btn,
-  .dock-explore-btn,
   .dock-artwork-trigger,
   .dock-more-row
 ) {
@@ -8518,8 +8517,7 @@ body {
     .chat-reject-btn,
     .dock-mini-btn,
     .dock-icon-btn,
-    .dock-next-btn,
-    .dock-explore-btn
+    .dock-next-btn
   ):active:not(:disabled) {
   transform: scale(0.95);
 }
@@ -8564,8 +8562,7 @@ body {
     .search-station-card,
     .dock-mini-btn,
     .dock-icon-btn,
-    .dock-next-btn,
-    .dock-explore-btn
+    .dock-next-btn
   ):active {
     transform: none;
   }

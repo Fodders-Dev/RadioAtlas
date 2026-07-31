@@ -190,7 +190,6 @@ export const MiniPlayerDock = () => {
   const volumePercent = Math.round(player.volume * 100);
   const isMuted = player.volume <= 0.01;
   const showMoreButton = Boolean(current) || queueCount > 0;
-  const showExploreButton = !current && queueCount === 0;
 
   useEffect(() => {
     if (player.volume > 0.01) {
@@ -688,18 +687,6 @@ export const MiniPlayerDock = () => {
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d={MORE_ICON.more} />
-            </svg>
-          </button>
-        ) : null}
-        {showExploreButton ? (
-          <button
-            className="dock-icon-btn dock-explore-btn"
-            type="button"
-            onClick={openSearch}
-            aria-label={t('dock.queueEmptyCta')}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10.5 4a6.5 6.5 0 0 1 5.16 10.45l4.45 4.44-1.42 1.42-4.44-4.45A6.5 6.5 0 1 1 10.5 4Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
             </svg>
           </button>
         ) : null}

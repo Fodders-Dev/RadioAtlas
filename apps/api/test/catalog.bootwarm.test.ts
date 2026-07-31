@@ -32,7 +32,7 @@ const mk = (id: string, over: Partial<CatalogStation> = {}): CatalogStation => (
   ...over
 });
 
-test('boot warm of the full catalog primes the profiled cache so by-id rides it (no second parse)', async () => {
+test('boot warm single-flights a cold request burst and primes the profiled cache', async () => {
   let getCatalogCalls = 0;
   let withProfilesCalls = 0;
   const deps: CatalogDependencies = {
@@ -49,15 +49,19 @@ test('boot warm of the full catalog primes the profiled cache so by-id rides it 
 
   const service = createCatalogService(deps);
 
-  // The boot warm.
-  await service.getCatalog('full');
+  // The boot warm can race the first deep-link request in production. Both must
+  // ride one raw load + one profile/index pass.
+  const warm = service.getCatalog('full');
+  const deepLink = service.getStationById('b');
+  const [, station] = await Promise.all([warm, deepLink]);
   assert.equal(getCatalogCalls, 1, 'warm fetches the catalogue once');
   assert.equal(withProfilesCalls, 1, 'warm runs the profile map once');
+  assert.equal(station?.stationuuid, 'b', 'concurrent by-id resolves from the shared flight');
 
   // The deep-link path immediately after: it must hit the warm profiled cache,
   // not re-fetch/re-parse/re-map (which is what blocked the loop and 503'd).
-  const station = await service.getStationById('b');
-  assert.equal(station?.stationuuid, 'b', 'by-id resolves from the warm cache');
+  const cachedStation = await service.getStationById('b');
+  assert.equal(cachedStation?.stationuuid, 'b', 'by-id resolves from the warm cache');
   assert.equal(getCatalogCalls, 1, 'by-id did NOT re-invoke getCatalog (rode the warm)');
   assert.equal(withProfilesCalls, 1, 'by-id did NOT re-run the profile map');
 

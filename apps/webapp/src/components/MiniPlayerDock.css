@@ -196,8 +196,7 @@
   justify-self: start;
 }
 
-.dock-more-btn,
-.dock-explore-btn {
+.dock-more-btn {
   order: 1;
 }
 

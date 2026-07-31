@@ -1,4 +1,5 @@
 import { createSummaryCache } from './summaryCache.js';
+import { createCatalogSingleFlight } from './singleFlight.js';
 
 export type CatalogStation = {
   stationuuid: string;
@@ -100,6 +101,7 @@ const GENERIC_STATE_KEYS = new Set([
 
 let profiledFastCache: { ts: number; data: CatalogStation[] } | null = null;
 let profiledFullCache: { ts: number; data: CatalogStation[] } | null = null;
+const resolveProfiledCatalogFlight = createCatalogSingleFlight<CatalogStation[]>();
 
 const toStationLite = (station: CatalogStation) => ({
   stationuuid: station.stationuuid,
@@ -826,19 +828,22 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
   if (cache && Date.now() - cache.ts < PROFILE_CACHE_TTL_MS) {
     return cache.data;
   }
-  // T_perf_search: precompute the search index here so it lives on the cached
-  // profiled array (one map per 5-min refresh, on the boot-warm path) and the
-  // per-request search just scans ready fields. NOT folded into withStationProfiles
-  // — that short-circuits on no overrides and skips unprofiled stations.
-  const profiled = await dependencies.withStationProfiles(await dependencies.getCatalog(mode));
-  const data = attachSearchIndex(profiled);
-  const entry = { ts: Date.now(), data };
-  if (mode === 'fast') {
-    profiledFastCache = entry;
-  } else {
-    profiledFullCache = entry;
-  }
-  return data;
+
+  return resolveProfiledCatalogFlight(mode, async () => {
+    // T_perf_search: precompute the search index here so it lives on the cached
+    // profiled array (one map per 5-min refresh, on the boot-warm path) and the
+    // per-request search just scans ready fields. NOT folded into withStationProfiles
+    // — that short-circuits on no overrides and skips unprofiled stations.
+    const profiled = await dependencies.withStationProfiles(await dependencies.getCatalog(mode));
+    const data = attachSearchIndex(profiled);
+    const entry = { ts: Date.now(), data };
+    if (mode === 'fast') {
+      profiledFastCache = entry;
+    } else {
+      profiledFullCache = entry;
+    }
+    return data;
+  });
 };
 
 // Compact per-station points payload for the immersive globe surface.

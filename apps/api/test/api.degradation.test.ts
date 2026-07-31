@@ -208,7 +208,7 @@ test.after(async () => {
   }
 });
 
-test('slow catalog source falls back to cached artifact and records observability', async () => {
+test('slow catalog source falls back once across the boot/request herd and records observability', async () => {
   const { body: before } = await getJson<ObservabilityPayload>('/observability');
   const beforeFallbacks =
     Number(before.counters['catalog_fallback:artifact'] || 0) +
@@ -222,7 +222,12 @@ test('slow catalog source falls back to cached artifact and records observabilit
   const afterFallbacks =
     Number(after.counters['catalog_fallback:artifact'] || 0) +
     Number(after.counters['catalog_fallback:snapshot'] || 0);
-  assert.ok(afterFallbacks > beforeFallbacks);
+  assert.ok(afterFallbacks >= beforeFallbacks, 'fallback counters never move backwards');
+  assert.equal(
+    afterFallbacks,
+    1,
+    'boot warm and the first catalog request share one raw fallback flight'
+  );
 });
 
 test('metadata timeout returns stable 404 contract', async () => {

@@ -7,6 +7,12 @@ if [[ $# -lt 1 ]]; then
 fi
 
 RELEASE_SHA="$1"
+if [[ ! "$RELEASE_SHA" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+  echo "Invalid release SHA: expected 7-64 hexadecimal characters." >&2
+  exit 1
+fi
+RELEASE_SHORT_SHA="${RELEASE_SHA:0:7}"
+
 APP_ROOT="/opt/RadioAtlas"
 RELEASES_DIR="$APP_ROOT/releases"
 CURRENT_LINK="$APP_ROOT/current"
@@ -63,6 +69,26 @@ assert_webapp_dist() {
     echo "Missing built webapp assets directory: $web_root/assets" >&2
     return 1
   fi
+}
+
+assert_webapp_css_commit_stamp() {
+  local assets_dir="$RELEASE_DIR/apps/webapp/dist/assets"
+  local stamped_css=""
+
+  if [[ ! -d "$assets_dir" ]]; then
+    echo "Missing built webapp assets directory: $assets_dir" >&2
+    return 1
+  fi
+
+  stamped_css="$(
+    find "$assets_dir" -maxdepth 1 -type f -name "*-${RELEASE_SHORT_SHA}.css" -print -quit
+  )"
+  if [[ -z "$stamped_css" ]]; then
+    echo "Webapp CSS cache-bust stamp is missing: expected *-${RELEASE_SHORT_SHA}.css in $assets_dir" >&2
+    return 1
+  fi
+
+  echo "Verified webapp CSS cache-bust stamp: $(basename "$stamped_css")" >&2
 }
 
 wait_for_api_health() {
@@ -149,7 +175,11 @@ if [[ -f "$SHARED_ENV_DIR/webapp.env" ]]; then
 fi
 
 npm ci
-npm --workspace apps/webapp run build
+# Pin the Vite build metadata to this release even if the VPS inherits a stale
+# SOURCE_COMMIT. CSS is served immutable for one year, so reusing an old commit
+# suffix can leave Telegram WebViews on stale styles after a successful deploy.
+SOURCE_COMMIT="$RELEASE_SHA" npm --workspace apps/webapp run build
+assert_webapp_css_commit_stamp
 npm --workspace apps/api run build
 npm --workspace apps/bot run build
 

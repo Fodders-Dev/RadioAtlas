@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseUserTasteContext } from '../src/aiRoutes.js';
+import { parseNowPlayingContext, parseUserTasteContext } from '../src/aiRoutes.js';
 
 test('parseUserTasteContext normalizes and caps Mini App taste payloads', () => {
   const taste = parseUserTasteContext({
@@ -50,4 +50,24 @@ test('parseUserTasteContext drops empty or malformed payloads', () => {
   assert.equal(parseUserTasteContext(null), undefined);
   assert.equal(parseUserTasteContext([]), undefined);
   assert.equal(parseUserTasteContext({ tagScores: { jazz: 'nope' }, favoriteStationIds: [''] }), undefined);
+});
+
+test('parseNowPlayingContext bounds playback metadata and strips controls', () => {
+  const parsed = parseNowPlayingContext({
+    track: `  Linkin\u0000 Park  -  Numb ${'x'.repeat(300)}  `,
+    stationName: `  Rock\nWave ${'y'.repeat(200)} `,
+    url: 'https://stream.example/secret'
+  });
+  assert.equal(parsed?.track.includes('\u0000'), false);
+  assert.equal(parsed?.track.length, 180);
+  assert.equal(parsed?.stationName?.includes('\n'), false);
+  assert.equal(parsed?.stationName?.length, 120);
+  assert.equal('url' in (parsed || {}), false);
+});
+
+test('parseNowPlayingContext rejects malformed or missing tracks', () => {
+  assert.equal(parseNowPlayingContext(null), undefined);
+  assert.equal(parseNowPlayingContext([]), undefined);
+  assert.equal(parseNowPlayingContext({ stationName: 'Rock Wave' }), undefined);
+  assert.equal(parseNowPlayingContext({ track: ' ' }), undefined);
 });

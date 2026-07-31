@@ -1814,7 +1814,6 @@ test('dock more-menu surfaces the queue when queue has items', async ({ page }) 
   await page.locator('.player-peek-handle').click();
   await expect(page.locator('.player-dock-bar')).toBeVisible();
   await expect(page.locator('.dock-more-btn')).toBeVisible();
-  await expect(page.locator('.dock-explore-btn')).toHaveCount(0);
 
   // ☰ now opens the extra-functions menu (not the queue directly)…
   await page.locator('.dock-more-btn').click();
