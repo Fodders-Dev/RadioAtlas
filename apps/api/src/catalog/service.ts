@@ -315,24 +315,40 @@ const sortByTopSignal = (stations: CatalogStation[]) =>
     return left.name.localeCompare(right.name);
   });
 
-// Top-N by a numeric Radio Browser signal (votes / clicktrend), descending.
+// Rank by a numeric Radio Browser signal (votes / clicktrend), descending.
 // Stations missing the signal (or with a non-positive value) are excluded so a
 // rail built from this list hides gracefully when the artifact lacks the column.
+const rankByNumericSignal = (
+  stations: CatalogStation[],
+  pick: (station: CatalogStation) => number | undefined
+) =>
+  stations
+    .map((station) => ({ station, score: pick(station) ?? 0 }))
+    .filter((entry) => Number.isFinite(entry.score) && entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.station);
+
+const dedupeStations = (stations: CatalogStation[]) => {
+  const seen = new Set<string>();
+  const out: CatalogStation[] = [];
+  for (const station of stations) {
+    if (seen.has(station.stationuuid)) continue;
+    seen.add(station.stationuuid);
+    out.push(station);
+  }
+  return out;
+};
+
+// Top-N by a numeric signal.
 const topByNumericSignal = (
   stations: CatalogStation[],
   pick: (station: CatalogStation) => number | undefined,
   limit: number,
   perCountryCap: number
-) => {
-  const ranked = stations
-    .map((station) => ({ station, score: pick(station) ?? 0 }))
-    .filter((entry) => Number.isFinite(entry.score) && entry.score > 0)
-    .sort((left, right) => right.score - left.score)
-    .map((entry) => entry.station);
+) =>
   // Cap per country first (≤2), then backfill from the overflow so the rail
   // still fills to `limit` even if only a few countries carry the signal.
-  return diversifyByCountry(ranked, limit, perCountryCap).map(toStationLite);
-};
+  diversifyByCountry(rankByNumericSignal(stations, pick), limit, perCountryCap).map(toStationLite);
 
 const buildCountrySpotlight = (
   stations: CatalogStation[],
@@ -407,6 +423,10 @@ export const MOOD_DEFINITIONS: MoodDefinition[] = [
 ];
 const MOOD_RAIL_POOL = 10;
 const MOOD_RAIL_MIN = 6;
+// Size of the bounded, DETERMINISTIC candidate set a mood rail rotates inside.
+// See buildMoodRails for why this exists; 4 moods x 30 = 120 stations is a set a
+// 60/day scene budget covers in about two days and then only tops up.
+const MOOD_RAIL_FEATURED = 30;
 
 const stationTagSet = (station: CatalogStation) =>
   new Set(
@@ -440,11 +460,39 @@ const buildMoodRails = (stations: CatalogStation[], seed: number) => {
   return MOOD_DEFINITIONS.map((mood, index) => {
     const bucket = buckets.get(mood.id) || [];
     if (bucket.length < MOOD_RAIL_MIN) return null;
-    // T_quality (2b): a mood bucket often skews to one country (prod
-    // «Концентрация» was 3/5 Greece). Cap ≤3 per country within the seeded
-    // order, then backfill from the overflow so the shelf keeps its length and
-    // never drops below MOOD_RAIL_MIN.
-    const ordered = seededOrder(bucket, seed + 401 + index);
+    // The visible rows used to be a reshuffle of the ENTIRE bucket — measured
+    // against artifacts/catalog-full.json (61 470 stations) those buckets hold
+    // 1 080 (late-night) to 6 656 (driving) stations. A generated scene
+    // therefore had well under a 1% chance of being on screen in any given
+    // hour, so seeded coverage could never accrue: prod measured 0 of 40 mood
+    // slots with a scene while trending/topVoted sat at 100%. Rank by a real
+    // popularity signal and rotate INSIDE a bounded, deterministic featured
+    // pool — the shelf still turns over hourly, but out of a set small enough
+    // for the nightly seeder to cover, and a voted station is better radio than
+    // a random draw from the tail.
+    //
+    // ⚠ sortByTopSignal is unusable as the ranker here: it tiebreaks on
+    // name.localeCompare, which is exactly what pinned the old catalogPool to
+    // the same alphabetical «__»-prefixed rows. It appears only as a stable
+    // filler for a bucket too tag-narrow to have MOOD_RAIL_FEATURED voted
+    // stations, so the pool stays deterministic (and therefore seedable) even
+    // then, and a rail that used to render never vanishes.
+    //
+    // T_quality (2b) is unchanged and deliberately still applied to the VISIBLE
+    // draw: a mood bucket often skews to one country (prod «Концентрация» was
+    // 3/5 Greece). Capping only the pool is not equivalent — diversifyByCountry
+    // backfills past the cap to fill its limit, so a 4-country pool of 30 holds
+    // ~7 per country and a 10-row draw from it took 4. Bound the pool, then cap
+    // the shelf exactly as before.
+    const pool = diversifyByCountry(
+      dedupeStations([
+        ...rankByNumericSignal(bucket, (station) => station.votes),
+        ...sortByTopSignal(bucket)
+      ]),
+      MOOD_RAIL_FEATURED,
+      MOOD_GENRE_COUNTRY_CAP
+    );
+    const ordered = seededOrder(pool, seed + 401 + index);
     const stations = diversifyByCountry(ordered, MOOD_RAIL_POOL, MOOD_GENRE_COUNTRY_CAP).map(
       toStationLite
     );

@@ -50,6 +50,11 @@ jobs:
       - name: Webapp unit tests
         run: npm --workspace apps/webapp run test:unit
 
+      # Ops scripts live outside every workspace, so nothing was running their
+      # tests — s3put.test.mjs (the backup signing) had never run in CI at all.
+      - name: Ops script tests
+        run: npm run test:scripts
+
       # Playwright is DELIBERATELY not in this gate. Several specs flake under
       # parallel load, and a blocking gate that goes red for no reason is a gate
       # that gets switched off within a week. Browser coverage stays a local
