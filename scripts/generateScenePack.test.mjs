@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { RANKED_SURFACES, collectStations, selectRankedStationIds } from './generateScenePack.mjs';
+// Imports the LIBRARY, never the program. generateScenePack.mjs now runs its
+// work at import time on purpose — that is what removed the isMain guard whose
+// silent false on a symlinked deploy is the whole reason this split exists.
+import {
+  RANKED_SURFACES,
+  collectStations,
+  selectRankedStationIds
+} from './lib/sceneSelection.mjs';
 
 // The scene budget is 60 images/day against a ~61k catalogue, so WHERE it is
 // spent is the entire design. This pins the one property that matters: the

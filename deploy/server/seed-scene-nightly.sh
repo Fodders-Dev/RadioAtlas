@@ -79,4 +79,18 @@ export RADIOATLAS_API_URL="$API_URL"
 export SCENE_PACK_LIMIT="$pack_limit"
 export SCENE_PACK_SKIP_COVERED=1
 echo "Scene top-up: allowance $quota_count/$daily_cap used, queuing up to $pack_limit ranked stations."
-node scripts/generateScenePack.mjs
+
+# ⚠ Treat a SILENT SUCCESS as a failure. `set -e` only catches a non-zero exit,
+# and the failure mode that actually bit us was the opposite: the program exited
+# 0 having done nothing at all (an isMain guard comparing import.meta.url with
+# process.argv[1], which can disagree because $CURRENT_LINK is a symlink and Node
+# resolves an ESM entry point to its real path). That produced a green systemd
+# unit, an unspent budget, and no way to tell from the outside. The guard is gone
+# now, but the belt stays: the pack always prints its response, so no stdout
+# means it did not get as far as asking.
+pack_output="$(node scripts/generateScenePack.mjs)"
+if [[ -z "${pack_output//[[:space:]]/}" ]]; then
+  echo "Scene top-up FAILED: the pack script produced no output at all." >&2
+  exit 1
+fi
+printf '%s\n' "$pack_output"
