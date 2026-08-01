@@ -62,6 +62,15 @@ describe('station display fallbacks', () => {
     expect(stationTags(station, '')).toBe('');
   });
 
+  // The default used to be the hard-coded English «Unknown location», and almost
+  // no caller passed a localised one — so a Russian UI printed it under station
+  // cards on the first screen a new user sees. Defaulting to empty means the
+  // line is simply omitted rather than spending a row to announce an absence.
+  it('defaults to nothing rather than inventing an English placeholder', () => {
+    expect(stationLocation(station)).toBe('');
+    expect(stationLocation(station)).not.toMatch(/unknown/i);
+  });
+
   it('shortens verbose catalog country names for display', () => {
     expect(formatCountryLabel('The United Kingdom Of Great Britain And Northern Ireland')).toBe(
       'United Kingdom'

@@ -48,10 +48,18 @@ export const normalizeStationName = (name?: string | null): string => {
     .replace(/^[\s_]+|[\s_]+$/g, '');
 };
 
-export const stationLocation = (
-  station: Station | StationLite,
-  fallback = 'Unknown location'
-) => {
+// ⚠ The default fallback is EMPTY, not «Unknown location». That English string
+// was hard-coded here while almost no caller passed a localised one, so a
+// Russian UI showed «Unknown location» under station cards — seen on live prod
+// on the very first screen a new user gets.
+//
+// Empty is better than a translated placeholder too: a card that simply omits
+// the line reads as a station without a stated location, while «Локация не
+// указана» spends a line to announce an absence. Callers that need a word can
+// still pass one (there is a locale key: explore.unknownLocation), and
+// librarySearch's haystack already .filter(Boolean)s it out — which also drops a
+// bogus «unknown location» token from the search index.
+export const stationLocation = (station: Station | StationLite, fallback = '') => {
   const parts = [formatLocationPart(station.state), formatLocationPart(station.country)].filter(Boolean);
   return parts.length ? parts.join(', ') : fallback;
 };
