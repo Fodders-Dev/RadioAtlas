@@ -92,8 +92,13 @@ const Icon = ({ children }: { children: ReactNode }) => (
   </svg>
 );
 
+// Joined from the parts that exist: stationLocation now returns '' when the
+// catalogue has no place for a station, and a naive template left a dangling
+// « · » in front of the tags.
 const formatStationMeta = (station: StationLite | null, fallback: string) =>
-  station ? `${stationLocation(station)} · ${stationTags(station)}` : fallback;
+  station
+    ? [stationLocation(station), stationTags(station)].filter(Boolean).join(' · ') || fallback
+    : fallback;
 
 // PR-6: the player has two render branches. ≤720px gets the mobile-first stage
 // (fixed now-playing + bottom sheets); >720px keeps the previous desktop DOM
