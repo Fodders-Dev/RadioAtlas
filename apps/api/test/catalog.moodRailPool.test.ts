@@ -84,6 +84,43 @@ test('the featured pool is deterministic, so a seeded scene stays on screen', ()
   assert.deepEqual(union(0), union(5_000), 'the pool must not drift with the clock');
 });
 
+// The degraded state that actually happened on prod 2026-08-01: three of the
+// four Radio Browser mirrors were unreachable, the API served
+// artifacts/catalog-full.json, and that artifact carries no votes at all — so
+// EVERY mood bucket lost its ranking signal at once, not just a narrow one.
+test('mood rails survive a catalogue with no vote signal at all', () => {
+  const stations = Array.from({ length: 400 }, (_, i) =>
+    mk(`s${String(i).padStart(3, '0')}`, {
+      name: `${i} Station`,
+      country: `Country${i}`,
+      countrycode: `C${i}`
+    })
+  ); // note: no votes anywhere
+
+  const seen = new Set<string>();
+  for (const seed of [1, 2, 3, 7, 11, 29]) {
+    const rail = lateNight(buildCatalogSummary(stations, seed));
+    assert.ok(rail, `rail must still render at seed ${seed}`);
+    assert.equal(rail.stations.length, 10, 'shelf still fills');
+    rail.stations.forEach((s) => seen.add(s.stationuuid));
+  }
+
+  // ⚠ The naive assertion here ("it still rotates", seen.size > 10) PASSES
+  // against the bug and proves nothing: seededOrder shuffles the pool before
+  // slicing either way, so the shelf always turns over. The real difference is
+  // WHICH stations can ever appear.
+  //
+  // With sortByTopSignal as the filler the pool is name.localeCompare order —
+  // byte-identical for every seed — so the union across seeds is capped at
+  // MOOD_RAIL_FEATURED (30) and the rail can only ever show the same
+  // alphabetical head («16Bit.FM I.D.E.A.», «101 SMOOTH JAZZ», …). With a
+  // seeded filler each seed draws a different pool, so the union grows past 30.
+  assert.ok(
+    seen.size > 30,
+    `without votes the pool must not be a fixed alphabetical slice; only ${seen.size} distinct stations were reachable across 6 seeds`
+  );
+});
+
 test('a tag-narrow bucket still renders and keeps the per-country cap', () => {
   // Only two stations carry a vote signal — the rest must still be reachable,
   // or a rail that used to render would vanish.
