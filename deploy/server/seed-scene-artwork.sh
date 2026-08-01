@@ -64,5 +64,8 @@ export SCENE_PACK_LIMIT="$pack_limit"
 # The first slot is the concrete regression station from the music-identity
 # rollout. The helper fills the remaining slots from the normal catalog summary.
 export SCENE_PACK_STATION_IDS="74884688-e3a7-41f8-8105-bc249a37963e"
-node scripts/generateScenePack.mjs >/dev/null
+# Was `>/dev/null`. Discarding stdout here hid the same silent-success failure
+# the nightly job hit: the pack could do nothing at all and this still printed
+# the reassuring line below.
+node scripts/generateScenePack.mjs
 echo "Queued a small station-specific music scene pack."
