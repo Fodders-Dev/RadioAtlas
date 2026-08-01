@@ -74,7 +74,22 @@ const pickStation = (raw) => {
     geo_lat: asNumber(raw.geo_lat),
     geo_long: asNumber(raw.geo_long),
     ...(lastcheckok !== undefined ? { lastcheckok } : {}),
-    ...(lastIso ? { lastchecktime_iso8601: lastIso } : {})
+    ...(lastIso ? { lastchecktime_iso8601: lastIso } : {}),
+    // Popularity signals. These used to live ONLY on the live Radio Browser
+    // rows, so the moment the upstream mirrors were unreachable and the API
+    // served this artifact instead, `trending` and `topVoted` went to ZERO
+    // stations and simply disappeared from the app — measured on prod
+    // 2026-08-01, with three of the four mirrors timing out. A snapshot whose
+    // whole job is to survive an upstream outage has to carry the columns the
+    // outage takes away.
+    //
+    // Server-side only: toStationLite does not project them onto the wire, so
+    // votes are still never shown to a listener as a "listener count".
+    // Written only when positive, so the artifact does not grow by a field of
+    // zeroes for the long tail.
+    ...(asNumber(raw.votes) ? { votes: asNumber(raw.votes) } : {}),
+    ...(asNumber(raw.clicktrend) ? { clicktrend: asNumber(raw.clicktrend) } : {}),
+    ...(asNumber(raw.clickcount) ? { clickcount: asNumber(raw.clickcount) } : {})
   };
 };
 

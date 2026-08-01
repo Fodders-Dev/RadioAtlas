@@ -484,11 +484,23 @@ const buildMoodRails = (stations: CatalogStation[], seed: number) => {
     // backfills past the cap to fill its limit, so a 4-country pool of 30 holds
     // ~7 per country and a 10-row draw from it took 4. Bound the pool, then cap
     // the shelf exactly as before.
+    // ⚠ The vote signal can vanish for the WHOLE catalogue, not just for a
+    // tag-narrow bucket: `votes`/`clicktrend` live only on the live Radio
+    // Browser rows, and pickStation deliberately drops them from
+    // artifacts/catalog-full.json. So whenever the upstream mirrors are
+    // unreachable and the API serves its artifact fallback, rankByNumericSignal
+    // returns NOTHING for every mood — measured on prod 2026-08-01, with
+    // trending and topVoted empty at the same time.
+    //
+    // The filler must therefore be SEEDED, never sortByTopSignal: that one
+    // tiebreaks on name.localeCompare, so in the degraded state every rail
+    // collapsed to the same alphabetical rows («16Bit.FM I.D.E.A.»,
+    // «101 SMOOTH JAZZ», «24/7 Bossa Nova Radio»). Seeded order is what these
+    // rails did before the bounded pool existed, so degraded mode now falls
+    // back to the OLD behaviour instead of to garbage.
+    const voted = rankByNumericSignal(bucket, (station) => station.votes);
     const pool = diversifyByCountry(
-      dedupeStations([
-        ...rankByNumericSignal(bucket, (station) => station.votes),
-        ...sortByTopSignal(bucket)
-      ]),
+      dedupeStations([...voted, ...seededOrder(bucket, seed + 977 + index)]),
       MOOD_RAIL_FEATURED,
       MOOD_GENRE_COUNTRY_CAP
     );
