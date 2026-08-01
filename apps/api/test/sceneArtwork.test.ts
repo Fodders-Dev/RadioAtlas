@@ -351,8 +351,21 @@ test('same-key requests single-flight and the pending queue is bounded', async (
     const providerGate = new Promise<void>((resolveGate) => {
       releaseProvider = resolveGate;
     });
+    // ⚠ resolve() returns 'queued' the moment pump() hands the task off — and
+    // pump() starts generate() WITHOUT awaiting it. Before the provider is ever
+    // reached, generate() does `await withScheduleLock(reserveDailyAttempt)`,
+    // which is a quota-file read plus an atomic write. So `calls` is still 0 for
+    // a while after all three resolves have returned, and asserting on it
+    // straight away is a race against real file I/O. It held on a dev box and
+    // went red on CI (expected 1, actual 0). Wait for the provider to actually
+    // be entered instead of assuming the scheduler got there.
+    let announceProviderEntered = () => {};
+    const providerEntered = new Promise<void>((resolveEntered) => {
+      announceProviderEntered = resolveEntered;
+    });
     const fetchImpl: typeof fetch = async () => {
       calls += 1;
+      announceProviderEntered();
       await providerGate;
       return new Response(JSON.stringify({ result: { image: PNG.toString('base64') } }), {
         headers: { 'content-type': 'application/json' }
@@ -371,6 +384,17 @@ test('same-key requests single-flight and the pending queue is bounded', async (
     assert.equal(duplicateA.status, 'queued');
     assert.equal(duplicateB.status, 'queued');
     assert.equal(first.sceneKey, duplicateA.sceneKey);
+
+    // Bounded, so a genuine regression fails loudly here instead of hanging the
+    // whole suite on a promise that will never resolve.
+    await Promise.race([
+      providerEntered,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('provider was never entered within 5s')), 5000).unref?.()
+      )
+    ]);
+    // The point of the test: three concurrent resolves of the SAME key reach the
+    // provider exactly once.
     assert.equal(calls, 1);
 
     const full = await service.resolve(station('france', 'FR'), { generate: true });
