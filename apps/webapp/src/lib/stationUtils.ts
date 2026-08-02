@@ -143,7 +143,16 @@ export const normalizeStationName = (name?: string | null): string => {
 // librarySearch's haystack already .filter(Boolean)s it out — which also drops a
 // bogus «unknown location» token from the search index.
 export const stationLocation = (station: Station | StationLite, fallback = '') => {
-  const parts = [formatLocationPart(station.state), formatLocationPart(station.country)].filter(Boolean);
+  const state = formatLocationPart(station.state);
+  const country = formatLocationPart(station.country);
+  // 265 catalogue rows (0.43%) repeat the country in the state field, which
+  // rendered as «Spain, Spain», «France, France», «Hong Kong, Hong Kong». Small
+  // share, disproportionately visible — it landed in the Home hero on the first
+  // prod check after the last deploy. Compared case-insensitively because the
+  // two fields are filled by different people.
+  const parts = [state, country].filter(
+    (part, index, all) => Boolean(part) && all.findIndex((other) => other?.toLowerCase() === part?.toLowerCase()) === index
+  );
   return parts.length ? parts.join(', ') : fallback;
 };
 

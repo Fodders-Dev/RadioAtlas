@@ -145,6 +145,19 @@ describe('station display fallbacks', () => {
   // no caller passed a localised one — so a Russian UI printed it under station
   // cards on the first screen a new user sees. Defaulting to empty means the
   // line is simply omitted rather than spending a row to announce an absence.
+  // Found on live prod right after a deploy: the Home hero read «Spain, Spain».
+  // 265 catalogue rows repeat the country in the state field.
+  it('does not print the country twice when state repeats it', () => {
+    const spain = { ...station, state: 'Spain', country: 'Spain' } as StationLite;
+    expect(stationLocation(spain)).toBe('Spain');
+    // Different people fill the two fields, so compare case-insensitively.
+    const france = { ...station, state: 'france', country: 'France' } as StationLite;
+    expect(stationLocation(france)).toBe('france');
+    // A genuine region is still kept alongside its country.
+    const real = { ...station, state: 'Bavaria', country: 'Germany' } as StationLite;
+    expect(stationLocation(real)).toBe('Bavaria, Germany');
+  });
+
   it('defaults to nothing rather than inventing an English placeholder', () => {
     expect(stationLocation(station)).toBe('');
     expect(stationLocation(station)).not.toMatch(/unknown/i);
