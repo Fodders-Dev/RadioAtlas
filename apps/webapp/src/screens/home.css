@@ -117,6 +117,14 @@
   color: var(--muted);
 }
 
+/* The station's local time, appended to the place line. Tabular figures so the
+   minute rolling over cannot shift the text beside it, and it inherits --muted
+   from the subtitle rather than introducing a second tint. */
+.home-hero-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .home-hero-topline,
 .home-hero-body,
 .home-hero-actions,

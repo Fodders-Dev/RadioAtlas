@@ -117,7 +117,12 @@ test.beforeEach(async ({ page }) => {
 test('home shell visual baseline', async ({ page }) => {
   await openHome(page);
   const screenshot = await page.screenshot({
-    animations: 'disabled'
+    animations: 'disabled',
+    // The hero now carries the station's LOCAL TIME, which ticks in real time —
+    // the one part of this surface that can never match a stored baseline.
+    // Masked rather than frozen: page.clock.setFixedTime stalls the queue step
+    // further down this suite (learned the hard way in #234).
+    mask: [page.locator('.home-hero-clock')],
   });
   expect(screenshot).toMatchSnapshot('home-shell.png', {
     maxDiffPixels: 20_000
@@ -149,7 +154,12 @@ test('home shell mobile visual baseline', async ({ page }) => {
   await openHome(page);
   await expect(page).toHaveScreenshot('home-shell-mobile.png', {
     animations: 'disabled',
-    fullPage: true
+    fullPage: true,
+    // The hero now carries the station's LOCAL TIME, which ticks in real time —
+    // the one part of this surface that can never match a stored baseline.
+    // Masked rather than frozen: page.clock.setFixedTime stalls the queue step
+    // further down this suite (learned the hard way in #234).
+    mask: [page.locator('.home-hero-clock')],
   });
 });
 
@@ -158,7 +168,12 @@ test('home shell compact-wide visual baseline', async ({ page }) => {
   await openHome(page);
   await expect(page).toHaveScreenshot('home-shell-compact-wide.png', {
     animations: 'disabled',
-    fullPage: true
+    fullPage: true,
+    // The hero now carries the station's LOCAL TIME, which ticks in real time —
+    // the one part of this surface that can never match a stored baseline.
+    // Masked rather than frozen: page.clock.setFixedTime stalls the queue step
+    // further down this suite (learned the hard way in #234).
+    mask: [page.locator('.home-hero-clock')],
   });
 });
 
@@ -171,6 +186,11 @@ test('home shell populated visual baseline', async ({ page }) => {
   });
   const screenshot = await page.screenshot({
     animations: 'disabled',
+    // The hero now carries the station's LOCAL TIME, which ticks in real time —
+    // the one part of this surface that can never match a stored baseline.
+    // Masked rather than frozen: page.clock.setFixedTime stalls the queue step
+    // further down this suite (learned the hard way in #234).
+    mask: [page.locator('.home-hero-clock')],
     clip: {
       x: 0,
       y: 0,
