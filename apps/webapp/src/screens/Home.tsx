@@ -793,6 +793,17 @@ export const Home = () => {
       stations: blocked
     };
   }
+  // A user who has never played anything, never liked anything and has no
+  // recents has not "chosen" yet — and the shop window is exactly wrong for
+  // them. Measured on prod: a newcomer's first screen was 11 rails, 3315px and
+  // ~64 station names they have no reason to care about.
+  //
+  // Deliberately derived from the LIBRARY (not from a "seen onboarding" flag):
+  // it needs no new persisted state, it cannot desync, and it un-latches by
+  // itself the moment the first station plays.
+  const isFirstRun =
+    !playbackHistory.length && !favorites.length && !recent.length;
+
   const visibleRails = useMemo(() => {
     const limit = denseLayout ? DENSE_RAIL_LIMIT : DESKTOP_RAIL_LIMIT;
     const usedStationIds = new Set<string>(
@@ -1134,6 +1145,27 @@ export const Home = () => {
           <span>{t('home.refreshFeed')}</span>
         </button>
       </div>
+
+      {/* First run: the shop window is gated off above, so this is what stands
+          between the hero and an empty screen. Two sentences, both load-bearing
+          — «живой эфир» is the shared-moment pillar, «останется здесь» is the
+          never-lose-what-you-found one — plus an explicit way OUT to the whole
+          catalogue so nobody feels walled in. Disappears the moment the first
+          station plays, because isFirstRun reads the library. */}
+      {isFirstRun ? (
+        <section className="home-first-run" data-home-first-run>
+          <h2 className="home-first-run-title">{t('home.firstRunTitle')}</h2>
+          <p className="home-first-run-body">{t('home.firstRunBody')}</p>
+          <button
+            className="home-first-run-browse"
+            type="button"
+            // Empty query: land on Search with the full catalogue, not a result set.
+            onClick={() => openSearch('')}
+          >
+            {t('home.firstRunBrowse')}
+          </button>
+        </section>
+      ) : null}
 
       <section className="home-quick-chips-section">
         <div className="home-quick-chips-head">

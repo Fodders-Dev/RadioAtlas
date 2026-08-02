@@ -1642,3 +1642,42 @@
     font-size: 0.72rem;
   }
 }
+
+/* First-run block. Sits between the hero and the quick chips, and only for a
+   listener with no history at all — see isFirstRun in Home.tsx. Sized to be
+   read, not skipped: this is the only place the app says what it is. */
+.home-first-run {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 16px 18px 18px;
+  margin: 4px 0 2px;
+  border-radius: 20px;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.1));
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+}
+
+.home-first-run-title {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+
+.home-first-run-body {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.home-first-run-browse {
+  margin-top: 4px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.14));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
