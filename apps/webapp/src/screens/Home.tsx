@@ -55,6 +55,10 @@ const HOME_SURFACE_VERSION = 6;
 // — on both layouts (dense shows all ten; desktop also fits companions/resume).
 const DESKTOP_RAIL_LIMIT = 12;
 const DENSE_RAIL_LIMIT = 10;
+// What a listener with no history sees: exactly one shelf, and specifically the
+// one built from what other people already voted for.
+const FIRST_RUN_RAIL_LIMIT = 1;
+const FIRST_RUN_RAIL_ID = 'top-voted';
 const HOME_MIN_RAIL_STATIONS = 3;
 
 // «Быстрый выбор» — curated glass quick-pick chips under the hero (the reference
@@ -805,12 +809,27 @@ export const Home = () => {
     !playbackHistory.length && !favorites.length && !recent.length;
 
   const visibleRails = useMemo(() => {
-    const limit = denseLayout ? DENSE_RAIL_LIMIT : DESKTOP_RAIL_LIMIT;
+    // A first-time listener gets ONE shelf — not eleven, and not zero: an empty
+    // screen under the hero reads as broken. «Top voted» is the shelf, chosen
+    // deliberately: it is stations other people already liked, which is the
+    // gentlest possible entry for someone who has chosen nothing yet. Everything
+    // else opens the moment they play something, because isFirstRun reads the
+    // library.
+    const limit = isFirstRun
+      ? FIRST_RUN_RAIL_LIMIT
+      : denseLayout
+        ? DENSE_RAIL_LIMIT
+        : DESKTOP_RAIL_LIMIT;
     const usedStationIds = new Set<string>(
       sessionBlockedStationsRef.current.stations
     );
     const rails: HomeRailModule[] = [];
-    surfaceRails.forEach((rail) => {
+    const orderedSource = isFirstRun
+      ? [...surfaceRails].sort((left, right) =>
+          Number(right.id === FIRST_RUN_RAIL_ID) - Number(left.id === FIRST_RUN_RAIL_ID)
+        )
+      : surfaceRails;
+    orderedSource.forEach((rail) => {
       if (rails.length >= limit) return;
       const stations = rail.stations.filter((station) => !usedStationIds.has(station.stationuuid));
       if (!stations.length) return;
@@ -864,7 +883,7 @@ export const Home = () => {
     // sessionBlockedStationsRef is read inside; it re-snapshots only on
     // homeState.sessionSeed change which is implicit through surfaceRails.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, denseLayout, rankedCatalogRails, surfaceRails]);
+  }, [catalog, denseLayout, isFirstRun, rankedCatalogRails, surfaceRails]);
 
   useEffect(() => {
     const stationIds = mergeStations(

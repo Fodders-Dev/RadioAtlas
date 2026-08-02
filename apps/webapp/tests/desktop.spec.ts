@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installMediaMocks, mockStations, mockStreamAudio, playHomeStation, seedRadioState } from './helpers';
+import { installMediaMocks, mockStations, mockStreamAudio, playHomeStation, seedRadioState, stations } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
@@ -229,6 +229,12 @@ test('metadata state recovers from unavailable to live track without losing play
 });
 
 test('home discovery modules stay non-duplicative across main station shelves', async ({ page }) => {
+  // Re-seed as a RETURNING listener: with no history at all Home shows the
+  // first-run screen (hero + the top-voted shelf), and "non-duplicative across
+  // shelves" is a statement about the full discovery surface. Scoped to this
+  // test rather than the shared beforeEach — seeding history for the whole file
+  // changes what the dock shows and reddened the metadata-recovery test.
+  await seedRadioState(page, { playbackHistory: [stations[0]] });
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 

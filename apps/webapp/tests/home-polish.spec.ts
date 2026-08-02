@@ -46,7 +46,10 @@ const seedSummary = async (page: Page) => {
 };
 
 const openHome = async (page: Page) => {
-  await seedRadioState(page);
+  // A listener with NO history gets the first-run screen (hero + the top-voted
+  // shelf only). This spec is about the DISCOVERY SURFACE — what a RETURNING
+  // listener sees — so seed one play to be that listener.
+  await seedRadioState(page, { playbackHistory: [stations[0]] });
   await page.goto('/?api=/api');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   // (No dock wait here: with nothing playing the dormant dock renders nothing,
