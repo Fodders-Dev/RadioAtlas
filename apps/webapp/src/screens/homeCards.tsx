@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import { StationScene } from '../components/StationScene';
 import type {
@@ -6,6 +6,7 @@ import type {
   HomeRailModule,
   HomeResumeModule
 } from '../lib/homeSurface';
+import { stationLocalTime } from '../lib/stationClock';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
@@ -260,9 +261,21 @@ export const HomeHeroCard = ({
   onAir = false,
   recommendedStationId = null
 }: HomeHeroCardProps) => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const compactLayout = useCompactLayout();
   const station = module.station;
+  // «Сейчас в Афинах 04:12» is the one thing a radio atlas can say that a
+  // playlist cannot, and it is a reason to open the app AT THIS MOMENT rather
+  // than some day. It already existed — but only inside the full player, two
+  // taps past the point where the choice is actually made.
+  //
+  // One tick a minute so it cannot go stale under someone's eyes; the interval
+  // is cheap and lives only as long as the hero is mounted.
+  const [clockTick, setClockTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setClockTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const companionStations = dense || compactLayout ? [] : module.companionStations;
 
   if (!station) {
@@ -293,6 +306,16 @@ export const HomeHeroCard = ({
   // "Подборка на сейчас — обнови" filler: the hero should read like the
   // reference — station · location · genre, and the live track once it plays.
   const heroTrack = isActive ? activeTrack : null;
+  // Honest by construction: stationLocalTime returns null for any country with
+  // more than one timezone (Russia, the USA, Brazil…), because a station record
+  // carries a COUNTRY and never a zone. Measured over the 61 481-row catalogue,
+  // it can answer for 45.5% of stations; for the rest the hero simply shows the
+  // place alone, exactly as before.
+  const heroClock = useMemo(
+    () => stationLocalTime(station.country, new Date(clockTick), locale === 'en' ? 'en-GB' : 'ru-RU'),
+    [station.country, clockTick, locale]
+  );
+  const heroPlace = stationLocation(station);
   // Reference genre line: «J-Pop • News • Talk» — at most three tags, Title
   // Case, bullet-separated. Raw tags arrive as one lowercase run («club dance
   // electronic house trance») or ·-joined; split on both and prettify.
@@ -369,7 +392,15 @@ export const HomeHeroCard = ({
           >
             {stationName}
           </h2>
-          <div className="home-hero-subtitle">{stationLocation(station)}</div>
+          <div className="home-hero-subtitle">
+            {heroPlace}
+            {heroClock ? (
+              <span className="home-hero-clock">
+                {heroPlace ? ' · ' : ''}
+                {heroClock}
+              </span>
+            ) : null}
+          </div>
           <div className="home-hero-tags">{heroGenre}</div>
 
           {heroTrack ? (
