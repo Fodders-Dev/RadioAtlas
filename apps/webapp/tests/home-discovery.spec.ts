@@ -58,7 +58,10 @@ const seedSummary = async (page: Page) => {
 };
 
 const openHome = async (page: Page) => {
-  await seedRadioState(page);
+  // A listener with NO history now gets the first-run screen (hero + the
+  // top-voted shelf only). These specs are about the DISCOVERY SURFACE, which
+  // is what a returning listener sees — so seed one play to be that listener.
+  await seedRadioState(page, { playbackHistory: [stations[0]] });
   await page.goto('/?api=/api');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   // (No dock wait here: with nothing playing the dormant dock renders nothing,
@@ -368,7 +371,10 @@ test.describe('T_audit_10 cold-load stale-cache surface', () => {
     page
   }) => {
     await page.setViewportSize({ width: 1440, height: 960 });
-    await seedRadioState(page);
+    // A listener with NO history now gets the first-run screen (hero + the
+  // top-voted shelf only). These specs are about the DISCOVERY SURFACE, which
+  // is what a returning listener sees — so seed one play to be that listener.
+  await seedRadioState(page, { playbackHistory: [stations[0]] });
     await page.goto('/?api=/api');
 
     // Home hydrates from the cached payload first (5 base rails).

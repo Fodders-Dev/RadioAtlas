@@ -115,7 +115,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('home shell visual baseline', async ({ page }) => {
-  await openHome(page);
+  // The full Home shell is the subject here. A listener with no history gets the
+  // first-run screen instead (hero + top-voted shelf), so seed one play.
+  await openHome(page, { playbackHistory: [stations[0]] });
   const screenshot = await page.screenshot({
     animations: 'disabled',
     // The hero now carries the station's LOCAL TIME, which ticks in real time —
@@ -151,7 +153,9 @@ test('home renders without window.Telegram (standalone web fallback)', async ({ 
 
 test('home shell mobile visual baseline', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await openHome(page);
+  // The full Home shell is the subject here. A listener with no history gets the
+  // first-run screen instead (hero + top-voted shelf), so seed one play.
+  await openHome(page, { playbackHistory: [stations[0]] });
   await expect(page).toHaveScreenshot('home-shell-mobile.png', {
     animations: 'disabled',
     fullPage: true,
@@ -165,7 +169,9 @@ test('home shell mobile visual baseline', async ({ page }) => {
 
 test('home shell compact-wide visual baseline', async ({ page }) => {
   await page.setViewportSize({ width: 540, height: 900 });
-  await openHome(page);
+  // The full Home shell is the subject here. A listener with no history gets the
+  // first-run screen instead (hero + top-voted shelf), so seed one play.
+  await openHome(page, { playbackHistory: [stations[0]] });
   await expect(page).toHaveScreenshot('home-shell-compact-wide.png', {
     animations: 'disabled',
     fullPage: true,
@@ -204,7 +210,9 @@ test('home shell populated visual baseline', async ({ page }) => {
 });
 
 test('home surface stays stable during play actions', async ({ page }) => {
-  await openHome(page);
+  // The full Home shell is the subject here. A listener with no history gets the
+  // first-run screen instead (hero + top-voted shelf), so seed one play.
+  await openHome(page, { playbackHistory: [stations[0]] });
   const before = await readHomeSurfaceSignature(page);
 
   // Cards no longer render a like button; a normal rail play must not reshape

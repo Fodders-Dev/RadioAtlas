@@ -1238,6 +1238,9 @@ test('mobile home rail queue fails over from a broken first station', async ({ p
 test('mobile home promotes behavior-profile recommendations without reason copy', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedRadioState(page, {
+    // Returning listener: with no history Home shows the first-run screen
+    // (hero + the top-voted shelf only), and this test needs the full surface.
+    playbackHistory: [stations[0]],
     stationCache: stations,
     behaviorProfile: behaviorProfile({
       tagScores: { techno: 90 },
@@ -2879,6 +2882,9 @@ test('query flag keeps legacy lite winamp easter egg', async ({ page }) => {
 
 test('R++ brand gesture unlocks legacy lite winamp easter egg', async ({ page }) => {
   await enableTelegramMobileSafeMode(page);
+  // playHomeStation below looks for Tokyo FM among the rails; a listener with no
+  // history sees only the first-run screen, where it is not on offer.
+  await seedRadioState(page, { playbackHistory: [stations[0]] });
   await page.goto('/?tgWebAppPlatform=ios');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
@@ -3115,6 +3121,9 @@ test.describe('T_mobile_1 mobile Home polish', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedDiscoveryRoutes(page);
+    // "ALL discovery rails" is a statement about the full surface, which a
+    // listener with no history does not get — they see the first-run screen.
+    await seedRadioState(page, { playbackHistory: [stations[0]] });
     await page.goto('/');
     await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
     await expect(page.locator('.screen-home-next')).toHaveAttribute('data-density', 'dense');
