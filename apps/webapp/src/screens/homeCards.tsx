@@ -395,10 +395,10 @@ export const HomeHeroCard = ({
           <div className="home-hero-subtitle">
             {heroPlace}
             {heroClock ? (
-              <span className="home-hero-clock">
+              <>
                 {heroPlace ? ' · ' : ''}
-                {heroClock}
-              </span>
+                <span className="home-hero-clock">{heroClock}</span>
+              </>
             ) : null}
           </div>
           <div className="home-hero-tags">{heroGenre}</div>

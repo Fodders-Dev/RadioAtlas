@@ -123,6 +123,15 @@
 .home-hero-clock {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* ⚠ FIXED BOX, and it is a test contract as much as a visual one. The visual
+     baselines MASK this element, and a mask's rectangle is derived from the
+     element's size — so a clock that is «4:12» at one hour and «21:40» at the
+     next produced a different masked box and reddened home-shell-mobile /
+     -compact-wide out of nowhere. Reserving the width of «00:00» keeps the box
+     constant, so the mask stays byte-stable around the clock. */
+  display: inline-block;
+  min-width: 5ch;
+  text-align: right;
 }
 
 .home-hero-topline,
