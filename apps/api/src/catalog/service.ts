@@ -1,3 +1,4 @@
+import { DEAD_STREAM_IDS } from './deadStreams.js';
 import { createSummaryCache } from './summaryCache.js';
 
 export type CatalogStation = {
@@ -517,21 +518,33 @@ const buildMoodRails = (stations: CatalogStation[], seed: number) => {
 const dayNumber = (now = Date.now()) => Math.floor(now / 86_400_000);
 
 export const buildCatalogSummary = (stations: CatalogStation[], seed: number, now = Date.now()) => {
-  const sorted = sortByTopSignal(stations);
+  // Stations we have PROVEN do not play are not recommended. Probed from the
+  // production VPS: five stations on our own shop window answered
+  // `lastcheckok = 1` while being stone dead, on an upstream check dated
+  // 2026-01-15 — over six months stale. Upstream health is not evidence.
+  //
+  // Filtered HERE and nowhere else, on purpose: every rail below is built from
+  // `promotable`, so nothing we recommend can contain them, while the catalogue
+  // itself is untouched — they stay searchable and playable for anyone who goes
+  // looking. We are declining to recommend, not deleting. See deadStreams.ts.
+  const promotable = DEAD_STREAM_IDS.size
+    ? stations.filter((station) => !DEAD_STREAM_IDS.has(station.stationuuid))
+    : stations;
+  const sorted = sortByTopSignal(promotable);
   const promoted = sorted.filter((station) => station.promoted).slice(0, 6).map(toStationLite);
   const genreSpotlight = buildGenreSpotlight(sorted, seed + 17);
   const countrySpotlight = buildCountrySpotlight(sorted, seed + 29);
   // T2.21 discovery rails — non-personalised, server-side popularity signals.
   // Pools are larger than a rail renders (6) so they survive client-side
   // de-duplication against the personalised fresh-now shelf and still fill.
-  const trending = topByNumericSignal(stations, (station) => station.clicktrend, 12, TRENDING_COUNTRY_CAP);
-  const topVoted = topByNumericSignal(stations, (station) => station.votes, 12, TRENDING_COUNTRY_CAP);
+  const trending = topByNumericSignal(promotable, (station) => station.clicktrend, 12, TRENDING_COUNTRY_CAP);
+  const topVoted = topByNumericSignal(promotable, (station) => station.votes, 12, TRENDING_COUNTRY_CAP);
   // Around the world rotates daily and avoids repeating the country-spotlight.
   const aroundTheWorld = buildCountrySpotlight(sorted, dayNumber(now), {
     exclude: countrySpotlight?.label
   });
   // T2.22 mood rails — bucket the full catalogue by listening context.
-  const moodRails = buildMoodRails(stations, seed);
+  const moodRails = buildMoodRails(promotable, seed);
   const tagCount = new Set(
     sorted
       .flatMap((station) => (station.tags || '').split(',').map((tag) => tag.trim().toLowerCase()))
@@ -540,9 +553,12 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
   return {
     generatedAt: Date.now(),
     counts: {
-      stations: sorted.length,
-      countries: new Set(sorted.map((station) => normalizeText(station.country)).filter(Boolean)).size,
-      languages: new Set(sorted.map((station) => normalizeText(station.language)).filter(Boolean)).size,
+      // Counts describe the CATALOGUE, not the subset we are willing to
+      // recommend — «Станций: 61 481» is a statement about what is in here, and
+      // withholding five from the shelves does not remove them from it.
+      stations: stations.length,
+      countries: new Set(stations.map((station) => normalizeText(station.country)).filter(Boolean)).size,
+      languages: new Set(stations.map((station) => normalizeText(station.language)).filter(Boolean)).size,
       genres: tagCount
     },
     // The client's personalization pool. This used to be `sorted.slice(0, 18)`,
