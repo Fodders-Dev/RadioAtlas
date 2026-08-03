@@ -327,11 +327,12 @@ export const HomeHeroCard = ({
       .flatMap((chunk) => (chunk.trim().length > 18 ? chunk.trim().split(/\s+/) : [chunk.trim()]))
       .map((tag) => tag.trim())
       .filter(Boolean)
-      // «No Tags» is a LITERAL tag string that Radio Browser ships on stations
-      // that have none — the hero was printing it as if it were a genre, so a
-      // Russian screen displayed the English words "No Tags" where the music
-      // should be. Five other modules (homeSurface, homeProfile, discoveryFeed,
-      // radioSession, stationDiversity) already drop it; the hero did not.
+      // ⚠ CORRECTED: this used to say Radio Browser ships «No Tags» as a literal
+      // tag value. It does not — ZERO of the 61560 catalogue rows contain that
+      // substring. The string was stationTags' OWN English fallback leaking back
+      // in, which is why the hero printed it as if it were a genre. That default
+      // is gone (stationUtils.ts), so this filter now only catches values that
+      // were persisted before the fix. Kept as a belt for stored state.
       .filter((tag) => tag.toLowerCase() !== 'no tags')
       .slice(0, 3)
       .map((tag) => tag.replace(/(^|[\s-])(\p{L})/gu, (m) => m.toUpperCase()));

@@ -9,6 +9,11 @@ import {
 } from 'react';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { stationLocalTime } from '../lib/stationClock';
+import {
+  resolveNowPlayingLine,
+  stationLooksSilent,
+  SILENCE_VERDICT_AFTER_MS
+} from '../lib/nowPlayingLine';
 import { buildMusicServiceLinks } from '../lib/musicServiceLinks';
 import { formatListenerLine } from '../lib/listenerPresence';
 import { useListenerPresence } from '../lib/useListenerPresence';
@@ -279,7 +284,6 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
         ? queue.items.findIndex((station) => station.stationuuid === current.stationuuid)
         : -1;
   const canResume = Boolean(current || queue.items.length || playbackHistory.length);
-  const canCopyTrack = Boolean(nowPlaying?.trim());
   const trust = resolveNowPlayingTrust({
     station: current,
     track: nowPlaying,
@@ -300,12 +304,85 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     [nowPlayingStatus, trust.track, current, trackHistory]
   );
   const isLastHeard = !trust.track && Boolean(lastHeard);
-  // The real metadata, before the "no title yet" placeholder is substituted for
-  // display. Anything that SEARCHES must use this one — searching a service for
-  // the words «Название трека пока недоступно» is worse than offering nothing.
+  // The real metadata, before anything is substituted for display. Anything that
+  // SEARCHES or COPIES must use this one — offering the words «Прямой эфир» to a
+  // music service is worse than offering nothing.
   const realTrack = trust.track || lastHeard?.track || '';
-  const displayTrack =
-    realTrack || (current ? t('dock.currentTrackUnavailable') : t('winamp.noStation'));
+  // ⚠ This used to read the RAW context value: `Boolean(nowPlaying?.trim())`.
+  // Everything the listener SEES goes through the station-aware trust filter, so
+  // whenever that filter rejected a title — a station ident, an HTML fragment —
+  // the button stayed lit over a line that said nothing was playing, and a tap
+  // led nowhere. Tightening the filter (#252) made that state more common, not
+  // less. Both now read the same value.
+  const canCopyTrack = Boolean(realTrack);
+  /**
+   * The largest line on the screen. About 40% of stations never send a title, so
+   * a ladder where every rung is TRUE beats one apology that covers them all —
+   * see lib/nowPlayingLine.ts for the measurements behind it.
+   */
+  const nowPlayingLine = useMemo(
+    () => resolveNowPlayingLine({ station: current, track: trust.track, lastHeard: lastHeard?.track }),
+    [current, trust.track, lastHeard?.track]
+  );
+  const displayTrack = current
+    ? nowPlayingLine.kind === 'genre'
+      ? t(`genre.${nowPlayingLine.slug}`)
+      : nowPlayingLine.kind === 'live'
+        ? t('dock.liveBroadcast')
+        : realTrack
+    : t('winamp.noStation');
+
+  /**
+   * The quiet note under the line: «Эта станция не передаёт названия треков».
+   *
+   * Said only once this session has WATCHED it happen — see stationLooksSilent
+   * for why playback, not just an empty snapshot, is the precondition. Nothing
+   * is persisted and nothing feeds the ranking-visible health profile; a wrong
+   * guess costs one line of text until the station is left.
+   */
+  const [listeningSince, setListeningSince] = useState<number | null>(null);
+  const [silenceConfirmed, setSilenceConfirmed] = useState(false);
+  const everHadTrackRef = useRef(false);
+  const stationId = current?.stationuuid ?? null;
+  const isPlaying = player.status === 'playing';
+
+  useEffect(() => {
+    // A new station is a fresh question, even if the last one never spoke.
+    everHadTrackRef.current = false;
+    setSilenceConfirmed(false);
+    setListeningSince(null);
+  }, [stationId]);
+
+  useEffect(() => {
+    if (trust.track) everHadTrackRef.current = true;
+  }, [trust.track]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    setListeningSince((since) => since ?? Date.now());
+  }, [isPlaying, stationId]);
+
+  useEffect(() => {
+    if (silenceConfirmed || !stationId || !listeningSince) return;
+    if (!stationLooksSilent({
+      isPlaying,
+      metadataStatus: nowPlayingStatus,
+      listeningSinceMs: listeningSince,
+      everHadTrack: everHadTrackRef.current,
+      now: Date.now()
+    })) {
+      // Not yet — check again exactly when the threshold could first be met,
+      // rather than polling.
+      if (!isPlaying || nowPlayingStatus !== 'unavailable' || everHadTrackRef.current) return;
+      const remaining = Math.max(0, listeningSince + SILENCE_VERDICT_AFTER_MS - Date.now());
+      const timer = setTimeout(() => setSilenceConfirmed(true), remaining + 50);
+      return () => clearTimeout(timer);
+    }
+    setSilenceConfirmed(true);
+    return undefined;
+  }, [silenceConfirmed, stationId, listeningSince, isPlaying, nowPlayingStatus, trust.track]);
+
+  const showsSilenceNote = silenceConfirmed && !realTrack;
   const queuePreview = useMemo(() => {
     if (!queue.items.length) return [];
     const start = Math.max(activeQueueIndex, 0);
@@ -789,7 +866,12 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
               <section className="full-player-onair" aria-label={t('winamp.onAirNow')}>
                 <span className="full-player-section-label">{t('winamp.onAirNow')}</span>
                 {renderTrackButton()}
-                {current ? <p className="full-player-onair-tags">{stationTags(current)}</p> : null}
+                {showsSilenceNote ? (
+                  <p className="full-player-onair-note">{t('dock.stationSendsNoTitles')}</p>
+                ) : null}
+                {current && stationTags(current) ? (
+                  <p className="full-player-onair-tags">{stationTags(current)}</p>
+                ) : null}
               </section>
 
               {/* Fills the band that used to be dead space above the transport,

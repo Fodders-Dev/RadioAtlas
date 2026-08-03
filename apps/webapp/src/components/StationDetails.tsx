@@ -171,7 +171,7 @@ export const StationDetails = ({ open, onClose }: StationDetailsProps) => {
           </button>
         </div>
 
-        <div className="details-tags">{tags}</div>
+        {tags ? <div className="details-tags">{tags}</div> : null}
 
         <div className="details-actions">
           <button className="player-btn primary" onClick={handlePlay} type="button">

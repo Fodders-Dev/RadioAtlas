@@ -99,10 +99,92 @@ test('a station with no track metadata offers no search at all', async ({ page }
   await openFullPlayer(page);
 
   const row = page.locator('[data-full-player-track]');
-  await expect(row).toContainText(/недоступно|unavailable/i);
+  // The line no longer apologises. About 40% of stations never send a title, so
+  // it falls to what IS true about this one — its genre, or «Прямой эфир» when
+  // even that is unknown. What must NOT change is that there is nothing here to
+  // search for: the button stays dead and the sheet never opens.
+  await expect(row).not.toContainText(/недоступно|unavailable/i);
+  await expect(row).toHaveText(/\S/);
   await expect(row).toBeDisabled();
 
   // And nothing opens if the tap lands anyway.
+  await row.click({ force: true });
+  await expect(page.locator('.full-player-sheet')).toHaveCount(0);
+});
+
+test('after a long silent stretch the player says the station sends no titles', async ({ page }) => {
+  // ⚠ This needs controllable time: the note is deliberately withheld for 75
+  // seconds so a station between records is never accused. It also needs real
+  // playback — the note is gated on audio actually playing, because two
+  // different metadata branches produce an identical "unavailable" snapshot and
+  // only one of them means "we listened and nothing came".
+  await page.clock.install();
+  await page.route('**/metadata?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ title: '', logs: [], source: 'test' })
+    })
+  );
+  await page.route('**/status-json.xsl', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ icestats: {} }) })
+  );
+  await page.route('**/fetch?url=**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/plain', body: '' })
+  );
+
+  await openFullPlayer(page);
+
+  const note = page.locator('.full-player-onair-note');
+
+  // Not on arrival, and not at half a minute: a station between records must
+  // never be accused of never naming anything.
+  await expect(note).toHaveCount(0);
+  await page.clock.fastForward(30_000);
+  await expect(note).toHaveCount(0);
+
+  // ⚠ Two jumps, not one, and the total is not the assertion. `fastForward`
+  // fires the timers that were already armed; the countdown is only armed once
+  // the app itself settles into "playing", which happens across a render after
+  // the first jump. A single long jump therefore proves nothing (verified: 200s
+  // in one go leaves the note absent, 90s twice shows it). What this test does
+  // guarantee is the pair that matters — withheld early, shown eventually.
+  await page.clock.fastForward(90_000);
+  await page.waitForTimeout(300);
+  await page.clock.fastForward(90_000);
+
+  await expect(note).toHaveText(/не переда|does not send/i);
+  // It explains the line above without competing with it.
+  await expect(page.locator('[data-full-player-track]')).not.toContainText(/не переда|does not send/i);
+});
+
+test('a junk title the trust filter rejects leaves no live copy button', async ({ page }) => {
+  // ⚠ The regression this guards: everything the listener SEES goes through the
+  // station-aware trust filter, but `canCopyTrack` used to read the RAW value.
+  // A station broadcasting its own ident — very common — therefore showed «нет
+  // названия» under a lit button that led nowhere. Tightening the filter (#252)
+  // made the state MORE common, so the two now read one value.
+  await page.route('**/metadata?url=**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      // Rejected by trackTrust: an HTML fragment, seen in production on
+      // NewDanceRadio.
+      body: JSON.stringify({ title: 'whois"> <meta content="text/html"', logs: [], source: 'test' })
+    })
+  );
+  await page.route('**/status-json.xsl', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ icestats: {} }) })
+  );
+  await page.route('**/fetch?url=**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/plain', body: '' })
+  );
+
+  await openFullPlayer(page);
+
+  const row = page.locator('[data-full-player-track]');
+  await expect(row).not.toContainText(/whois|meta content/i);
+  await expect(row).toBeDisabled();
   await row.click({ force: true });
   await expect(page.locator('.full-player-sheet')).toHaveCount(0);
 });

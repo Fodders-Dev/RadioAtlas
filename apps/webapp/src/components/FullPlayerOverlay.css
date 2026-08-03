@@ -607,6 +607,18 @@
     white-space: nowrap;
   }
 
+  /* «Эта станция не передаёт названия треков» — an answer, deliberately quieter
+     than the line it explains, and allowed to wrap: the sentence is long and
+     truncating an explanation to «Эта станция не переда…» explains nothing. */
+  .full-player-onair-note {
+    margin: 2px 0 0;
+    max-width: 100%;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    text-wrap: pretty;
+  }
+
   /* "What did this station just play, and when" — the reference layout's best
      idea, and the data was already persisted per station. */
   .full-player-recent-air {

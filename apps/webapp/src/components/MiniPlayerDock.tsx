@@ -3,6 +3,7 @@ import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
 import { useDockSwipe } from '../lib/useDockSwipe';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
+import { resolveNowPlayingLine } from '../lib/nowPlayingLine';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { useLocale } from '../state/LocaleContext';
 import { latestTrackForStation } from '../state/radio/helpers';
@@ -199,13 +200,20 @@ export const MiniPlayerDock = () => {
               }
             : null;
   const stationTitle = normalizeStationName(current?.name) || t('dock.emptyTitle');
-  const trackTitle = activeTrack
-    ? activeTrack
-    : lastHeard?.track
-      ? lastHeard.track
-      : current
-        ? t('dock.currentTrackUnavailable')
-        : t('dock.emptySubtitle');
+  // The dock is on screen far more of the time than the full player is, so it
+  // has to tell the same story — the same ladder, not an apology. About 40% of
+  // stations never send a title; see lib/nowPlayingLine.ts.
+  const dockLine = useMemo(
+    () => resolveNowPlayingLine({ station: current, track: activeTrack, lastHeard: lastHeard?.track }),
+    [current, activeTrack, lastHeard?.track]
+  );
+  const trackTitle = !current
+    ? t('dock.emptySubtitle')
+    : dockLine.kind === 'genre'
+      ? t(`genre.${dockLine.slug}`)
+      : dockLine.kind === 'live'
+        ? t('dock.liveBroadcast')
+        : dockLine.text;
   const trackAriaLabel = activeTrack
     ? t('dock.copyCurrentTrack')
     : isLastHeard

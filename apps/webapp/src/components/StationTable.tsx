@@ -396,7 +396,7 @@ const StationTableRow = memo(({
             </div>
           </div>
           <div className="station-location">{locationLabel}</div>
-          <div className="station-tags">{tagsLabel}</div>
+          {tagsLabel ? <div className="station-tags">{tagsLabel}</div> : null}
           <div className="station-row-actions">
             <button
               className={`icon-btn ${liked ? 'active' : ''}`}
