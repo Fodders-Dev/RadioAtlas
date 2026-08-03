@@ -156,11 +156,25 @@ export const stationLocation = (station: Station | StationLite, fallback = '') =
   return parts.length ? parts.join(', ') : fallback;
 };
 
-export const stationTags = (station: Station | StationLite, fallback = 'No tags') => {
+// ⚠ This helper used to default its own fallback to the English words «No tags»,
+// and three places printed the result raw — the player's ON AIR NOW block
+// (FullPlayerOverlay), the station table and the details sheet. 34.5% of the
+// 61560-station catalogue carries no tag at all, so a Russian screen read
+// «Название трека пока недоступно / No tags».
+//
+// ⚠⚠ Seven modules filter incoming tags against the literal string «no tags» on
+// the belief that Radio Browser ships it as a tag value. It does not: ZERO of
+// the 61560 catalogue rows contain that substring. What they were catching was
+// THIS fallback leaking back into the data flow. Fixing the default removes the
+// source; the set below still earns its place, because 14 rows really do carry
+// «none» / «n/a» / «null» as their entire tags field.
+const NON_TAGS = new Set(['no tags', 'no tag', 'none', 'n/a', 'na', 'undefined', 'null', '-']);
+
+export const stationTags = (station: Station | StationLite, fallback = '') => {
   const tags = station.tags
     ?.split(',')
     .map((tag) => tag.trim())
-    .filter(Boolean)
+    .filter((tag) => tag && !NON_TAGS.has(tag.toLowerCase()))
     .slice(0, 3);
   return tags?.length ? tags.join(' · ') : fallback;
 };
