@@ -1,4 +1,5 @@
 import { DEAD_STREAM_IDS } from './deadStreams.js';
+import { dedupeByBroadcaster } from './stationIdentity.js';
 import { createSummaryCache } from './summaryCache.js';
 
 export type CatalogStation = {
@@ -517,19 +518,57 @@ const buildMoodRails = (stations: CatalogStation[], seed: number) => {
 // UTC midnight and stays fixed all day (deterministic, no server state).
 const dayNumber = (now = Date.now()) => Math.floor(now / 86_400_000);
 
-export const buildCatalogSummary = (stations: CatalogStation[], seed: number, now = Date.now()) => {
-  // Stations we have PROVEN do not play are not recommended. Probed from the
+// The pool EVERY rail below is drawn from, and the only place either filter is
+// applied. It depends on the catalogue alone — not on the seed — while
+// buildCatalogSummary runs once per hourly seed bucket, so it is memoized
+// against the array it was built from. Measured at ~200ms over the 61 560-row
+// artifact; getProfiledCatalog hands out the same array for five minutes, so
+// that cost falls on the catalog refresh instead of on every bucket (and each
+// bucket then does LESS work than before, over a pool a quarter smaller: 455ms
+// → 340ms). A WeakMap needs no invalidation — the entry dies with the catalog
+// array it belongs to.
+const promotableCache = new WeakMap<CatalogStation[], CatalogStation[]>();
+
+const resolvePromotable = (stations: CatalogStation[]) => {
+  const cached = promotableCache.get(stations);
+  if (cached) return cached;
+
+  // 1. Stations we have PROVEN do not play are not recommended. Probed from the
   // production VPS: five stations on our own shop window answered
   // `lastcheckok = 1` while being stone dead, on an upstream check dated
   // 2026-01-15 — over six months stale. Upstream health is not evidence.
-  //
-  // Filtered HERE and nowhere else, on purpose: every rail below is built from
-  // `promotable`, so nothing we recommend can contain them, while the catalogue
-  // itself is untouched — they stay searchable and playable for anyone who goes
-  // looking. We are declining to recommend, not deleting. See deadStreams.ts.
-  const promotable = DEAD_STREAM_IDS.size
+  const playable = DEAD_STREAM_IDS.size
     ? stations.filter((station) => !DEAD_STREAM_IDS.has(station.stationuuid))
     : stations;
+
+  // 2. One row per BROADCASTER, not per Radio Browser uuid. Radio Browser lists
+  // the same station several times — another mount, another bitrate, a duplicate
+  // submission, or one stream re-listed under every country — so a ten-slot rail
+  // was free to spend several slots on one broadcaster. Prod, 2026-08-03: of 83
+  // promoted stations five names appeared twice («Iran International», «إذاعة
+  // القرآن الكريم», «Abdulbasit Abdulsamad», «AK radio Trarkhal», «100.7
+  // Stereo»). Measured over artifacts/catalog-full.json, 61 560 rows carry
+  // 46 048 distinct stations.
+  //
+  // ⚠ This is a SET REDUCTION, not a per-shelf quota, and that is why it works
+  // where a cap would not: diversifyByCountry backfills past its cap to fill a
+  // rail, so capping a pool is not the same as capping a shelf (#251). Because
+  // each broadcaster survives here exactly once, no downstream ranking, seeded
+  // draw, cap or backfill can put it on a rail twice.
+  const promotable = dedupeByBroadcaster(playable, searchQualityOf);
+  promotableCache.set(stations, promotable);
+  return promotable;
+};
+
+export const buildCatalogSummary = (stations: CatalogStation[], seed: number, now = Date.now()) => {
+  // The dead streams we decline to recommend, and the duplicate rows we decline
+  // to recommend twice, are both dropped in resolvePromotable and nowhere else.
+  // Scope is deliberately the RANKED DISCOVERY SURFACES: `counts` below still
+  // describes the whole catalogue, and search, the map and
+  // /catalog/stations/:id are untouched, so every row stays findable and
+  // playable for anyone who goes looking. We are declining to recommend, not
+  // deleting. See deadStreams.ts and stationIdentity.ts.
+  const promotable = resolvePromotable(stations);
   const sorted = sortByTopSignal(promotable);
   const promoted = sorted.filter((station) => station.promoted).slice(0, 6).map(toStationLite);
   const genreSpotlight = buildGenreSpotlight(sorted, seed + 17);
@@ -545,8 +584,13 @@ export const buildCatalogSummary = (stations: CatalogStation[], seed: number, no
   });
   // T2.22 mood rails — bucket the full catalogue by listening context.
   const moodRails = buildMoodRails(promotable, seed);
+  // Counted over the RAW catalogue, like the counts beside it — «Жанров: N» is a
+  // statement about what is in here. It used to be counted over `sorted`, which
+  // was the whole catalogue bar five dead streams; now that `promotable` also
+  // folds duplicate rows together, counting there would quietly restate the
+  // figure as "genres among the stations we recommend".
   const tagCount = new Set(
-    sorted
+    stations
       .flatMap((station) => (station.tags || '').split(',').map((tag) => tag.trim().toLowerCase()))
       .filter(Boolean)
   ).size;
