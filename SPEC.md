@@ -59,6 +59,16 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
     attributed external source link and, at most, one excerpt up to 10 words.
     User-provided lyrics may be analyzed without being repeated at length. Full
     in-app lyrics require a provider licence that explicitly covers display.
+  - Lira is a bounded agent, not a free-form state mutator. The server routes
+    each task through Supervisor, Worker, code policy, and deterministic
+    verifier stages with runtime/tool limits and a traceable run id.
+  - In the Mini App, verified actions may play/pause, append a station to the
+    queue, or set favorite state. The browser re-resolves station ids through
+    the catalog, executes only the closed action registry, stays idempotent,
+    and returns an executed/skipped/failed receipt to the next turn.
+  - Model providers are replaceable behind one typed client. DeepSeek remains
+    the default; OpenAI Responses API is an opt-in evaluated configuration,
+    never an automatic production migration.
 - Settings
   - Clear cache/favorites/recent in one grouped data section with inline confirmation.
   - API status and diagnostics stay collapsed under a developer disclosure.

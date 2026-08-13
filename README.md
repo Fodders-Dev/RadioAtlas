@@ -126,7 +126,11 @@ WEBAPP_DEEPLINK=https://t.me/your_bot?startapp=radio
 `apps/api/.env`:
 ```
 AI_ENABLED=0
+AI_PROVIDER=deepseek
 DEEPSEEK_API_KEY=
+# Alternative provider; switch only after the Lira eval pass:
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-luna
 AI_WEB_SEARCH_ENABLED=0
 TAVILY_API_KEY=
 ```
@@ -140,7 +144,9 @@ VITE_AI_ENABLED=1
 
 Lira is visible by default in Vite development. Production builds require
 `VITE_AI_ENABLED=1`; actual replies also require the API process with
-`AI_ENABLED=1` and `DEEPSEEK_API_KEY` configured.
+`AI_ENABLED=1` and the API key selected by `AI_PROVIDER`. DeepSeek remains the
+default; `AI_PROVIDER=openai` uses the OpenAI Responses API and
+`OPENAI_MODEL` (default `gpt-5.6-luna`).
 Grounded song history, documented author intent, and direct lyrics-page
 resolution additionally require `AI_WEB_SEARCH_ENABLED=1` plus
 `TAVILY_API_KEY`; without it Lira still provides a safe external lyrics search.
@@ -155,6 +161,23 @@ the central Lira navigation action. Every message carries the bounded active
 station/current-track context when available, so «что сейчас играет?» works as
 a normal chat question. Named-artist requests prefer exact dedicated stations
 from the RadioAtlas catalog before broader genre matches.
+
+Lira is also a bounded player agent. In the Mini App she can play or pause,
+enqueue a verified station, and set its favorite state. A server-side
+Supervisor limits runtime/tool calls, policy code validates every proposed
+write, the browser resolves stations through the trusted catalog before
+execution, and action receipts are fed into the next turn. Agent run traces
+and token counts are retained in the existing observability store.
+
+Run the fixed provider comparison after both server-side keys are configured:
+
+```bash
+npm run eval:lira -- --provider=both --repeat=3 --out=artifacts/lira-provider-eval.json
+```
+
+`npm run eval:lira -- --dry-run` validates the suite without spending tokens or
+requiring keys. The report includes replies for manual quality review plus
+contract pass rate, median latency, tokens, and an uncached cost estimate.
 
 ## Notes
 - Webapp pulls stations from Radio Browser and filters https streams.

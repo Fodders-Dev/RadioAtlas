@@ -29,6 +29,22 @@ export type ChatInput = {
   locale?: string;
   userTaste?: UserTasteContext;
   nowPlaying?: NowPlayingContext;
+  agentContext?: AgentClientContext;
+  actionReceipts?: ClientActionReceipt[];
+  safetyIdentifier?: string;
+};
+
+export type AgentClientContext = {
+  isPlaying?: boolean;
+  queueStationIds?: string[];
+};
+
+export type ClientActionReceipt = {
+  actionId: string;
+  kind: AssistantAction['kind'];
+  status: 'executed' | 'skipped' | 'failed';
+  stationuuid?: string;
+  detail?: string;
 };
 
 export type UserTasteContext = {
@@ -86,8 +102,11 @@ export type WebSource = {
 };
 
 export type AssistantAction = {
-  kind: 'play' | 'open-station' | 'none';
+  actionId?: string;
+  kind: 'play' | 'open-station' | 'enqueue' | 'set-favorite' | 'pause' | 'none';
   stationuuid?: string;
+  desired?: boolean;
+  permission?: 'read' | 'write';
 };
 
 export type ChatUsage = { prompt: number; completion: number };
@@ -99,16 +118,50 @@ export type ChatResult = {
   sources: WebSource[];
   actions: AssistantAction[];
   usage?: ChatUsage;
+  agentRun?: AgentRunSummary;
 };
 
-// --- DeepSeek client config (server-only; the key lives in exactly one env) ---
-export type DeepseekConfig = {
+export type AiModelProvider = 'deepseek' | 'openai';
+export type ModelReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+// Server-only model config. `provider` is optional for backwards-compatible
+// tests/config and defaults to DeepSeek; new runtime wiring always sets it.
+export type AiModelConfig = {
+  provider?: AiModelProvider;
   enabled: boolean;
   apiKey: string;
   baseUrl: string;
   model: string;
   maxOutputTokens: number;
   timeoutSec: number;
+  reasoningEffort?: ModelReasoningEffort;
+};
+
+/** @deprecated Use AiModelConfig. Kept so downstream tests/config compile. */
+export type DeepseekConfig = AiModelConfig;
+
+export type AgentRunStatus = 'completed' | 'needs_input' | 'blocked' | 'failed';
+export type AgentRoute = 'direct_action' | 'music_worker';
+
+export type AgentToolTrace = {
+  name: string;
+  status: 'completed' | 'failed' | 'blocked';
+  durationMs: number;
+  error?: string;
+};
+
+export type AgentRunSummary = {
+  runId: string;
+  taskId: string;
+  provider: AiModelProvider;
+  model: string;
+  status: AgentRunStatus;
+  route: AgentRoute;
+  steps: number;
+  toolCalls: AgentToolTrace[];
+  durationMs: number;
+  verifierPassed: boolean;
+  warnings: string[];
 };
 
 // --- Tool layer ------------------------------------------------------------
@@ -203,7 +256,7 @@ export type PlannerDecision = {
 };
 
 export type AssistantDeps = {
-  deepseek: DeepseekConfig;
+  model: AiModelConfig;
   tools: ToolProvider;
   musicServices: MusicService[];
   // Optional web-search provider — when present, web_search_factual is offered
@@ -212,6 +265,8 @@ export type AssistantDeps = {
   fetch: typeof fetch;
   log: (message: string) => void;
   now: () => number;
+  signal?: AbortSignal;
+  safetyIdentifier?: string;
 };
 
 export type ToolServicesConfig = {

@@ -56,4 +56,38 @@ describe('postChatMessage', () => {
       nowPlaying: { stationName: 'Osaka Nights' }
     });
   });
+
+  it('sends agent state and receipts while filtering unsupported response actions', async () => {
+    localStorage.setItem(API_STORAGE_KEY, 'https://api.example.test');
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          reply: 'Готово.',
+          stations: [],
+          serviceLinks: [],
+          sources: [],
+          actions: [
+            { actionId: 'run:1', kind: 'pause', permission: 'write' },
+            { actionId: 'run:2', kind: 'delete-account', permission: 'write' }
+          ]
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await postChatMessage('пауза', [], {
+      agentContext: { isPlaying: true, queueStationIds: ['station-1'] },
+      actionReceipts: [{ actionId: 'old:1', kind: 'enqueue', status: 'executed', stationuuid: 'station-1' }]
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const request = JSON.parse(String(init.body));
+    expect(request).toMatchObject({
+      agentContext: { isPlaying: true, queueStationIds: ['station-1'] },
+      actionReceipts: [{ actionId: 'old:1', kind: 'enqueue', status: 'executed' }]
+    });
+    expect(request.safetyIdentifier).toMatch(/^lira:/);
+    expect(response.actions).toEqual([{ actionId: 'run:1', kind: 'pause', permission: 'write' }]);
+  });
 });

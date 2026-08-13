@@ -105,7 +105,7 @@ export const registerBotRoutes = (
     internalWebhookToken: string;
     // Provided only when AI is enabled — gates the /internal/bot/ai-chat
     // endpoint so AI-off deploys are byte-identical (no endpoint at all). The
-    // bot calls this; the DeepSeek key never leaves the api process.
+    // bot calls this; the selected model-provider key never leaves the api process.
     aiRuntime?: AssistantRuntime | null;
   }
 ) => {
@@ -157,7 +157,7 @@ export const registerBotRoutes = (
   // surface:'telegram' and return the abstract result. runtime.chat already
   // applies the shared concurrency guard + global volume cap, so this endpoint
   // shares the api-side cost backstop with /ai/chat. The bot never imports the
-  // brain and never holds the DeepSeek key. (No account lookup: the brain does
+  // brain and never holds a model-provider key. (No account lookup: the brain does
   // not use an account id in v1, so a per-call DB hit would be wasted.)
   const aiRuntime = options.aiRuntime;
   if (aiRuntime) {

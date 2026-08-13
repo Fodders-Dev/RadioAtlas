@@ -10,6 +10,7 @@ import { registerBotRoutes } from './botRoutes.js';
 import { createAssistantRuntime, registerAiRoutes } from './aiRoutes.js';
 import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
+import type { AiModelProvider, ModelReasoningEffort } from './ai/types.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
@@ -54,15 +55,27 @@ const SCENE_ARTWORK_STYLE_VERSION = process.env.SCENE_ARTWORK_STYLE_VERSION || u
 const SCENE_ARTWORK_DAILY_CAP = Number(process.env.SCENE_ARTWORK_DAILY_CAP);
 const SCENE_ARTWORK_CONCURRENCY = Number(process.env.SCENE_ARTWORK_CONCURRENCY);
 const SCENE_ARTWORK_QUEUE_MAX = Number(process.env.SCENE_ARTWORK_QUEUE_MAX);
-// «Лира» AI companion. The DeepSeek key lives in EXACTLY one place — this
-// process — and is read here only. AI_ENABLED defaults OFF so a deploy without
-// the AI envs behaves byte-identically to today.
+// «Лира» AI companion. Provider keys live only in this process. DeepSeek stays
+// the default until an explicit A/B decision switches AI_PROVIDER to openai.
 const AI_ENABLED = process.env.AI_ENABLED === '1';
+const AI_PROVIDER: AiModelProvider = process.env.AI_PROVIDER === 'openai' ? 'openai' : 'deepseek';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
 const AI_TIMEOUT_SEC = Math.max(1, Number(process.env.AI_TIMEOUT_SEC) || 8);
+const AI_REASONING_EFFORT = (() => {
+  const providerDefault = AI_PROVIDER === 'openai' ? 'low' : 'none';
+  const value = String(process.env.AI_REASONING_EFFORT || providerDefault).toLowerCase();
+  const allowed = new Set<ModelReasoningEffort>(['none', 'low', 'medium', 'high', 'xhigh', 'max']);
+  return allowed.has(value as ModelReasoningEffort) ? (value as ModelReasoningEffort) : 'low';
+})();
+const AI_MODEL_API_KEY = AI_PROVIDER === 'openai' ? OPENAI_API_KEY : DEEPSEEK_API_KEY;
+const AI_MODEL_BASE_URL = AI_PROVIDER === 'openai' ? OPENAI_BASE_URL : DEEPSEEK_BASE_URL;
+const AI_MODEL_NAME = AI_PROVIDER === 'openai' ? OPENAI_MODEL : DEEPSEEK_MODEL;
 const AI_MUSIC_SERVICES = parseMusicServices(process.env.AI_MUSIC_SERVICES);
 // Web-search facts (news-stack P1). OFF by default like the rest of «Лира»; the
 // Tavily key lives ONLY here (like DEEPSEEK_API_KEY) and never reaches a client.
@@ -112,9 +125,9 @@ if (NODE_ENV === 'production' && ENABLE_TEST_AUTH_FIXTURES) {
 // AI_ENABLED without a key is a misconfiguration, but a NON-fatal one: log
 // loudly and fall back to AI-off rather than crashing the whole API (radio must
 // keep serving). The assistant is "active" only with both flag AND key.
-if (NODE_ENV === 'production' && AI_ENABLED && !DEEPSEEK_API_KEY) {
+if (NODE_ENV === 'production' && AI_ENABLED && !AI_MODEL_API_KEY) {
   console.error(
-    'AI_ENABLED=1 but DEEPSEEK_API_KEY is missing — the assistant will run as DISABLED until the key is set.'
+    `AI_ENABLED=1 but the ${AI_PROVIDER} API key is missing — the assistant will run as DISABLED until the key is set.`
   );
 }
 // Same non-fatal posture for web search: flag on without a Tavily key → web
@@ -151,7 +164,7 @@ if (NODE_ENV === 'production' && SCENE_ARTWORK_ENABLED && !SCENE_ARTWORK_DIR_RAW
   );
   process.exit(1);
 }
-const AI_ACTIVE = AI_ENABLED && Boolean(DEEPSEEK_API_KEY);
+const AI_ACTIVE = AI_ENABLED && Boolean(AI_MODEL_API_KEY);
 // Web search is active only when AI is active AND its own flag AND a Tavily key.
 const AI_WEB_SEARCH_ACTIVE = AI_ACTIVE && AI_WEB_SEARCH_ENABLED && Boolean(TAVILY_API_KEY);
 
@@ -556,19 +569,21 @@ registerSceneArtworkRoutes(app, {
   internalToken: INTERNAL_WEBHOOK_TOKEN
 });
 // Build the assistant runtime BEFORE registerBotRoutes so the internal bot
-// AI endpoint can share the same warm in-process catalog + the single DeepSeek
-// key. Null when AI is off → no /ai/chat route, no internal endpoint, no bot
+// AI endpoint can share the same warm in-process catalog + model client. Null
+// when AI is off → no /ai/chat route, no internal endpoint, no bot
 // handler (byte-identical to today).
 const aiRuntime = AI_ACTIVE
   ? createAssistantRuntime({
       catalog: catalogService,
-      deepseek: {
+      model: {
+        provider: AI_PROVIDER,
         enabled: true,
-        apiKey: DEEPSEEK_API_KEY,
-        baseUrl: DEEPSEEK_BASE_URL,
-        model: DEEPSEEK_MODEL,
+        apiKey: AI_MODEL_API_KEY,
+        baseUrl: AI_MODEL_BASE_URL,
+        model: AI_MODEL_NAME,
         maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
-        timeoutSec: AI_TIMEOUT_SEC
+        timeoutSec: AI_TIMEOUT_SEC,
+        reasoningEffort: AI_REASONING_EFFORT
       },
       musicServices: AI_MUSIC_SERVICES,
       webSearch: AI_WEB_SEARCH_ACTIVE

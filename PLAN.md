@@ -270,10 +270,30 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Cover the recovery/migration/probe behavior with unit and mobile E2E
   checks; pass the 463-test web unit suite and 106 mobile/desktop/Home flows.
 
+## Lira bounded agent foundation (done)
+
+- [x] Wrap the existing music brain as a typed Worker behind a bounded
+  Supervisor with finite routes, task/run ids, runtime/tool ceilings, and
+  deterministic fallback behavior.
+- [x] Add code-owned action policy and verification; only catalog-grounded
+  play/pause, queue, and favorite writes can reach the Mini App client.
+- [x] Add a closed, idempotent browser action executor plus action receipts so
+  a later turn can observe executed, skipped, or failed state changes.
+- [x] Persist run/provider/model/status/step/tool/token telemetry in the existing
+  observability store and cover the direct-action and fail-closed paths.
+- [x] Generalize the model client: DeepSeek stays default, while opt-in OpenAI
+  uses the Responses API and defaults to the cost-oriented `gpt-5.6-luna` tier.
+- [x] Add a repeatable six-fixture provider A/B runner with identical catalog
+  context, contract grading, reply capture, latency/tokens, and cost estimates.
+- [x] Cover queue, favorite, play, pause, and returned action receipts through
+  a full inside-Telegram Playwright path; isolate E2E observability persistence
+  from local/dev metrics.
+
 ## Next:
 
-Next: owner smoke-test the full-catalog cold-start recovery, lazy Home scenes,
-and Lira thread/current-track behavior in Telegram; then connect a licensed
-lyrics-content provider (or keep the current Tavily + safe Genius-search
-fallback), refresh approved Lira/Home visual baselines, and upgrade the VPS
-runtime from Node 22 to Node 24.
+Next: provision `DEEPSEEK_API_KEY` and `OPENAI_API_KEY`, run the fixed three-pass
+provider eval, manually score the captured replies, and canary the winner in a
+real Telegram client before changing production. Then connect a licensed
+lyrics-content provider (or keep Tavily + the safe Genius-search fallback),
+refresh approved Lira/Home visual baselines, and upgrade the VPS runtime from
+Node 22 to Node 24.

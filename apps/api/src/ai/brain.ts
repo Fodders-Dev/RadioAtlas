@@ -2,7 +2,7 @@
 // TS from the FoddersGameBot pattern):
 //   1. PLANNER MODE (temp 0.1): decide whether to call a tool for fresh/
 //      verifiable data, or go straight to the reply. Loops up to MAX_TOOL_STEPS,
-//      de-duping tool+args, so a turn costs ≤4 DeepSeek calls.
+//      de-duping tool+args, so a turn costs no more than 4 model calls.
 //   2. REPLY MODE (temp 0.6): compose «Лира»'s reply, grounding any station
 //      facts ONLY in the tool observations.
 // Post-processing verifies stations (cards come from observations only), checks
@@ -21,7 +21,7 @@ import {
   resolveArtistGenres,
   resolveRussianGenrePhrase
 } from './artistGenreFallback.js';
-import { callDeepseek, type DeepseekMessage } from './deepseekClient.js';
+import { callModel, type ModelMessage } from './modelClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
 import {
@@ -607,7 +607,7 @@ const trimHistory = (history: ChatTurn[] | undefined): ChatTurn[] =>
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => ({ role: turn.role, text: turn.text.trim() }));
 
-const transcriptMessages = (history: ChatTurn[], userMessage: string): DeepseekMessage[] => [
+const transcriptMessages = (history: ChatTurn[], userMessage: string): ModelMessage[] => [
   ...history.map((turn) => ({ role: turn.role, content: turn.text })),
   { role: 'user' as const, content: userMessage }
 ];
@@ -695,10 +695,10 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
 
 const planAgentStep = async (
   deps: AssistantDeps,
-  transcript: DeepseekMessage[],
+  transcript: ModelMessage[],
   observations: ToolObservation[]
 ) => {
-  const messages: DeepseekMessage[] = [
+  const messages: ModelMessage[] = [
     { role: 'system', content: buildPlannerSystem(Boolean(deps.webSearch)) },
     ...transcript
   ];
@@ -715,10 +715,29 @@ const planAgentStep = async (
       )}. Реши следующий шаг.`
     });
   }
-  const result = await callDeepseek(
-    deps.deepseek,
+  const result = await callModel(
+    deps.model,
     messages,
-    { temperature: 0.1, maxTokens: PLANNER_MAX_TOKENS },
+    {
+      temperature: 0.1,
+      maxTokens: PLANNER_MAX_TOKENS,
+      signal: deps.signal,
+      safetyIdentifier: deps.safetyIdentifier,
+      jsonSchema: {
+        name: 'lira_planner_decision',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            action: { type: 'string', enum: ['use_tool', 'final'] },
+            tool: { type: 'string' },
+            args: { type: 'object' },
+            note: { type: 'string' }
+          },
+          required: ['action']
+        }
+      }
+    },
     deps.fetch
   );
   return { result, decision: result.error ? { action: 'final' as const } : parsePlannerDecision(result.content) };
@@ -729,7 +748,7 @@ const planAgentStep = async (
 // and the forced-search path (startStep 1, after a deterministic first search).
 const runPlannerLoop = async (
   deps: AssistantDeps,
-  transcript: DeepseekMessage[],
+  transcript: ModelMessage[],
   observations: ToolObservation[],
   usedSignatures: Set<string>,
   usage: ChatUsage,
@@ -842,7 +861,7 @@ export const summarizeStationSlate = (stations: VerifiedStationRef[]): string | 
 const composeAgentReply = async (
   deps: AssistantDeps,
   systemPrompt: string,
-  transcript: DeepseekMessage[],
+  transcript: ModelMessage[],
   observations: ToolObservation[],
   opts: {
     factualGuard?: boolean;
@@ -859,7 +878,7 @@ const composeAgentReply = async (
     };
   } = {}
 ) => {
-  const messages: DeepseekMessage[] = [
+  const messages: ModelMessage[] = [
     { role: 'system', content: systemPrompt },
     ...transcript,
     {
@@ -922,23 +941,44 @@ const composeAgentReply = async (
   } else if (opts.factualGuard) {
     messages.push({ role: 'system', content: FACTUAL_GUARD_NOTE });
   }
-  return callDeepseek(
-    deps.deepseek,
+  return callModel(
+    deps.model,
     messages,
-    { temperature: 0.6, maxTokens: deps.deepseek.maxOutputTokens },
+    {
+      temperature: 0.6,
+      maxTokens: deps.model.maxOutputTokens,
+      signal: deps.signal,
+      safetyIdentifier: deps.safetyIdentifier
+    },
     deps.fetch
   );
 };
 
+const ENQUEUE_INTENT =
+  /(добав|постав|закин|отправ).{0,32}(очеред)|(?:add|put|send).{0,32}\bqueue\b|\bqueue\s+(?:this|current)\b/i;
+const FAVORITE_ADD_INTENT =
+  /(добав|сохран|полож).{0,32}(избран|любим)|(?:add|save).{0,32}\bfavou?rites?\b|\bfavou?rite.{0,16}\b(?:this|current)\b/i;
+const FAVORITE_REMOVE_INTENT =
+  /(убер|удал|сним).{0,32}(избран|любим)|(?:remove|delete).{0,32}\bfavou?rites?\b|\bunfavou?rite\b/i;
+
 const deriveActions = (
   stations: VerifiedStationRef[],
-  playIntent: boolean
+  userMessage: string
 ): AssistantAction[] => {
   const lead = stations[0];
   if (!lead) return [{ kind: 'none' }];
+  if (ENQUEUE_INTENT.test(userMessage)) {
+    return [{ kind: 'enqueue', stationuuid: lead.stationuuid }];
+  }
+  if (FAVORITE_REMOVE_INTENT.test(userMessage)) {
+    return [{ kind: 'set-favorite', stationuuid: lead.stationuuid, desired: false }];
+  }
+  if (FAVORITE_ADD_INTENT.test(userMessage)) {
+    return [{ kind: 'set-favorite', stationuuid: lead.stationuuid, desired: true }];
+  }
   return [
     {
-      kind: playIntent ? 'play' : 'open-station',
+      kind: PLAY_INTENT.test(userMessage) ? 'play' : 'open-station',
       stationuuid: lead.stationuuid
     }
   ];
@@ -1260,7 +1300,7 @@ const personalizedObservations = (
   });
 };
 
-// vibe→tags: a tiny, cheap DeepSeek call that maps ANY request (incl. an abstract
+// vibe→tags: a tiny model call that maps ANY request (incl. an abstract
 // vibe like «гулять по солнечному питеру») to 1–2 canonical ENGLISH radio genre
 // tags the catalog actually indexes. Semantic mapping is far more robust than a
 // regex on «солнечный питер». Returns [] on error/empty (caller then degrades).
@@ -1327,13 +1367,18 @@ const mapVibeToTags = async (
     const kept = russianGenre.filter((tag) => !avoid.has(normalizeTasteLabel(tag)));
     if (kept.length) return { tags: kept };
   }
-  const result = await callDeepseek(
-    deps.deepseek,
+  const result = await callModel(
+    deps.model,
     [
       { role: 'system', content: VIBE_TAG_SYSTEM },
       { role: 'user', content: `${userMessage}${hint}` }
     ],
-    { temperature: 0.2, maxTokens: 24 },
+    {
+      temperature: 0.2,
+      maxTokens: 24,
+      signal: deps.signal,
+      safetyIdentifier: deps.safetyIdentifier
+    },
     deps.fetch
   );
   if (result.error) {
@@ -1479,7 +1524,7 @@ export const chatWithAssistant = async (
   }
 
   // Enabled-gate: no key / disabled → warm fallback, never a hard error.
-  if (!deps.deepseek.enabled || !deps.deepseek.apiKey || !userMessage) {
+  if (!deps.model.enabled || !deps.model.apiKey || !userMessage) {
     return buildFallbackResult({ surface, now, reason: 'disabled' });
   }
 
@@ -1498,6 +1543,20 @@ export const chatWithAssistant = async (
   const systemPrompt = buildSystemPrompt(input.locale, surface);
   const history = trimHistory(input.history);
   const transcript = transcriptMessages(history, userMessage);
+  const actionReceipts = (input.actionReceipts || []).slice(-6);
+  if (actionReceipts.length) {
+    transcript.splice(Math.max(0, transcript.length - 1), 0, {
+      role: 'system',
+      content: `Результаты последних действий клиента (доверяй статусу, не повторяй выполненное без явной просьбы): ${JSON.stringify(
+        actionReceipts.map((receipt) => ({
+          actionId: receipt.actionId,
+          kind: receipt.kind,
+          status: receipt.status,
+          stationuuid: receipt.stationuuid
+        }))
+      )}`
+    });
+  }
   const musicContextMessage = recommendationContextMessage(history, userMessage);
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
@@ -1920,7 +1979,7 @@ export const chatWithAssistant = async (
     stations,
     serviceLinks,
     sources,
-    actions: deriveActions(stations, PLAY_INTENT.test(userMessage)),
+    actions: deriveActions(stations, userMessage),
     usage
   };
 };

@@ -1,16 +1,16 @@
 // Mini App AI surface (in-process). POST /ai/chat runs the shared brain against
 // the warm in-process catalog and returns the abstract { reply, stations,
-// serviceLinks, actions } for the client to render. The DeepSeek key lives only
+// serviceLinks, actions } for the client to render. Provider keys live only
 // in the runtime built here — it never reaches a client.
 //
 // createAssistantRuntime owns the ai-chat ProtectedMediaRoute guard (concurrency
 // + the shared pool) AND a global rolling volume cap, so BOTH surfaces (Mini App
 // /ai/chat and the internal bot endpoint) share one cost backstop and identical
 // concurrency. The per-IP rate limit (429) stays at the HTTP layer via
-// runtime.checkRateLimit so it can pre-empt the DeepSeek call cheaply.
+// runtime.checkRateLimit so it can pre-empt the model call cheaply.
 
 import type express from 'express';
-import { chatWithAssistant } from './ai/brain.js';
+import { runLiraAgent } from './ai/agentRunner.js';
 import {
   createCatalogToolProvider,
   type CatalogServiceLike
@@ -20,9 +20,12 @@ import { publicWebSources } from './ai/publicSources.js';
 import { createRollingVolumeCap } from './ai/volumeCap.js';
 import type {
   AssistantDeps,
+  AgentClientContext,
+  AiModelConfig,
   ChatInput,
   ChatResult,
   ChatTurn,
+  ClientActionReceipt,
   DeepseekConfig,
   MusicService,
   NowPlayingContext,
@@ -30,7 +33,7 @@ import type {
   WebSearchProvider
 } from './ai/types.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
-import { bumpCounter, setGauge } from './observabilityStore.js';
+import { appendAgentRun, bumpCounter, setGauge } from './observabilityStore.js';
 
 const MAX_MESSAGE_CHARS = 2000;
 const MAX_HISTORY_TURNS = 10;
@@ -44,7 +47,9 @@ export type AssistantRuntime = {
 
 export const createAssistantRuntime = (options: {
   catalog: CatalogServiceLike;
-  deepseek: DeepseekConfig;
+  model?: AiModelConfig;
+  /** @deprecated Pass model instead. */
+  deepseek?: DeepseekConfig;
   musicServices: MusicService[];
   // Optional Tavily-backed web search — omit to keep web search OFF (default).
   webSearch?: WebSearchProvider;
@@ -55,8 +60,10 @@ export const createAssistantRuntime = (options: {
   log?: (message: string) => void;
 }): AssistantRuntime => {
   const now = options.now || (() => Date.now());
+  const model = options.model || options.deepseek;
+  if (!model) throw new Error('assistant model config is required');
   const deps: AssistantDeps = {
-    deepseek: options.deepseek,
+    model,
     tools: createCatalogToolProvider(options.catalog),
     musicServices: options.musicServices,
     webSearch: options.webSearch,
@@ -81,14 +88,14 @@ export const createAssistantRuntime = (options: {
 
   const chat = async (input: ChatInput): Promise<ChatResult> => {
     // Global cost backstop: over the per-window total → warm fallback, no
-    // DeepSeek call (this defeats the rotate-real-IPs flood the per-IP limiter
+    // model call (this defeats the rotate-real-IPs flood the per-IP limiter
     // can't see).
     if (volumeCap.exceeded()) {
       bumpCounter('ai_chat_volume_capped');
       return buildFallbackResult({ surface: input.surface, now: now(), reason: 'capped' });
     }
     try {
-      return await guard.run(null, () => chatWithAssistant(input, deps));
+      return await guard.run(null, () => runLiraAgent(input, deps));
     } catch (err) {
       // Concurrency overload is a capacity signal, not an error — degrade to a
       // warm fallback (200) rather than throwing, so both surfaces stay graceful.
@@ -233,6 +240,59 @@ export const parseUserTasteContext = (raw: unknown): UserTasteContext | undefine
   };
 };
 
+const ACTION_KINDS = new Set<ClientActionReceipt['kind']>([
+  'play',
+  'open-station',
+  'enqueue',
+  'set-favorite',
+  'pause',
+  'none'
+]);
+const ACTION_STATUSES = new Set<ClientActionReceipt['status']>([
+  'executed',
+  'skipped',
+  'failed'
+]);
+
+export const parseAgentClientContext = (raw: unknown): AgentClientContext | undefined => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  const queueStationIds = parseTasteIds(value.queueStationIds, 80);
+  const isPlaying = typeof value.isPlaying === 'boolean' ? value.isPlaying : undefined;
+  if (isPlaying === undefined && queueStationIds.length === 0) return undefined;
+  return {
+    ...(isPlaying === undefined ? {} : { isPlaying }),
+    ...(queueStationIds.length ? { queueStationIds } : {})
+  };
+};
+
+export const parseActionReceipts = (raw: unknown): ClientActionReceipt[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item): ClientActionReceipt | null => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const value = item as Record<string, unknown>;
+      const rawActionId = typeof value.actionId === 'string' ? value.actionId.trim().slice(0, 160) : '';
+      const actionId = /^[a-zA-Z0-9._:-]{1,160}$/.test(rawActionId) ? rawActionId : '';
+      const kind = value.kind as ClientActionReceipt['kind'];
+      const status = value.status as ClientActionReceipt['status'];
+      if (!actionId || !ACTION_KINDS.has(kind) || !ACTION_STATUSES.has(status)) return null;
+      const rawStationId = typeof value.stationuuid === 'string'
+        ? value.stationuuid.trim().slice(0, 160)
+        : '';
+      const stationuuid = /^[a-zA-Z0-9._:-]{1,160}$/.test(rawStationId) ? rawStationId : undefined;
+      return { actionId, kind, status, ...(stationuuid ? { stationuuid } : {}) };
+    })
+    .filter((item): item is ClientActionReceipt => item !== null)
+    .slice(-6);
+};
+
+export const parseSafetyIdentifier = (raw: unknown): string | undefined => {
+  if (typeof raw !== 'string') return undefined;
+  const value = raw.trim();
+  return /^[a-zA-Z0-9._:-]{8,128}$/.test(value) ? value : undefined;
+};
+
 export const recordChatTelemetry = (
   surface: 'miniapp' | 'telegram',
   startedAt: number,
@@ -244,6 +304,19 @@ export const recordChatTelemetry = (
   if (result.usage) {
     bumpCounter('ai_chat_tokens_prompt', result.usage.prompt);
     bumpCounter('ai_chat_tokens_completion', result.usage.completion);
+  }
+  if (result.agentRun) {
+    bumpCounter(`ai_agent_run:${result.agentRun.status}`);
+    bumpCounter(`ai_agent_route:${result.agentRun.route}`);
+    setGauge('ai_agent_steps', result.agentRun.steps);
+    setGauge('ai_agent_tool_calls', result.agentRun.toolCalls.length);
+    appendAgentRun({
+      ...result.agentRun,
+      surface,
+      promptTokens: result.usage?.prompt || 0,
+      completionTokens: result.usage?.completion || 0,
+      ts: Date.now()
+    });
   }
 };
 
@@ -279,7 +352,10 @@ export const registerAiRoutes = (
         surface: 'miniapp',
         locale,
         userTaste: parseUserTasteContext(req.body?.userTaste),
-        nowPlaying: parseNowPlayingContext(req.body?.nowPlaying)
+        nowPlaying: parseNowPlayingContext(req.body?.nowPlaying),
+        agentContext: parseAgentClientContext(req.body?.agentContext),
+        actionReceipts: parseActionReceipts(req.body?.actionReceipts),
+        safetyIdentifier: parseSafetyIdentifier(req.body?.safetyIdentifier)
       });
       recordChatTelemetry('miniapp', startedAt, result);
       res.json({
@@ -289,7 +365,14 @@ export const registerAiRoutes = (
         // Snippets/raw page content are private grounding context. Never send
         // them to the browser; the UI only needs attribution metadata.
         sources: publicWebSources(result.sources),
-        actions: result.actions
+        actions: result.actions,
+        run: result.agentRun
+          ? {
+              runId: result.agentRun.runId,
+              status: result.agentRun.status,
+              route: result.agentRun.route
+            }
+          : undefined
       });
     } catch {
       bumpCounter('ai_chat_error');

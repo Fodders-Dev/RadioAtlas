@@ -115,7 +115,9 @@ test('explicit "refresh feed" button still wires through to handleRefresh', asyn
   // it to a slow handler just for this test so the transition through
   // `setRefreshing(true)` is catchable in Playwright's polling.
   await page.route('**/catalog/summary**', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // Keep this comfortably above Playwright's polling interval even when the
+    // complete suite is saturating the worker machine.
+    await new Promise((resolve) => setTimeout(resolve, 750));
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -123,6 +125,10 @@ test('explicit "refresh feed" button still wires through to handleRefresh', asyn
         counts: { stations: 12, countries: 3, languages: 3, genres: 4 },
         catalogPool: [],
         freshSignals: [],
+        searchLaunch: [],
+        sponsored: [],
+        countrySpotlight: null,
+        genreSpotlight: null,
         generatedAt: Date.now()
       })
     });

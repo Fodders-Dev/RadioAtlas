@@ -1139,6 +1139,7 @@ export const enDictionary = {
     "send": "Send",
     "thinking": "Lira is typing…",
     "error": "Oops, the line dropped for a second. Try again.",
+    "actionFailed": "The action did not complete — the player was left unchanged.",
     "sourceLabel": "Lira",
     "sources": "Sources",
     "source": "Source",

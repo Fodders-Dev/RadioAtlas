@@ -557,6 +557,13 @@
     0 10px 28px color-mix(in oklab, var(--accent) 24%, transparent);
 }
 
+.chat-action-feedback {
+  margin: -4px 6px 2px;
+  color: var(--danger, #ff8d9a);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .chat-bubble--typing {
   display: flex;
   align-items: center;

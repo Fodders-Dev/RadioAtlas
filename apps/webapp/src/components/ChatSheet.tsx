@@ -17,11 +17,13 @@ import type { StationLite } from '../types';
 import {
   postChatMessage,
   type ChatHistoryTurn,
+  type ChatActionReceipt,
   type ChatServiceLink,
   type ChatSource,
   type ChatStationRef,
   type ChatUserTaste
 } from '../lib/aiChat';
+import { executeAgentActions } from '../lib/agentActions';
 import { useLocale } from '../state/LocaleContext';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback } from '../state/RadioContext';
@@ -41,6 +43,7 @@ type ChatMessage = {
   stations?: ChatStationRef[];
   serviceLinks?: ChatServiceLink[];
   sources?: ChatSource[];
+  actionReceipts?: ChatActionReceipt[];
 };
 
 type ChatSheetProps = { open: boolean; onClose: () => void };
@@ -84,7 +87,10 @@ const readStoredMessages = (): ChatMessage[] => {
         serviceLinks: Array.isArray(item.serviceLinks)
           ? (item.serviceLinks as ChatServiceLink[])
           : undefined,
-        sources: Array.isArray(item.sources) ? (item.sources as ChatSource[]) : undefined
+        sources: Array.isArray(item.sources) ? (item.sources as ChatSource[]) : undefined,
+        actionReceipts: Array.isArray(item.actionReceipts)
+          ? (item.actionReceipts as ChatActionReceipt[])
+          : undefined
       }));
   } catch {
     return [];
@@ -168,8 +174,8 @@ const buildChatUserTaste = (
 export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
   const { t } = useLocale();
   const { fetchStationById } = useCatalog();
-  const { player, nowPlaying, playStation } = usePlayback();
-  const { favorites, recent, tasteProfile } = useLibrary();
+  const { player, queue, nowPlaying, playStation } = usePlayback();
+  const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -256,6 +262,7 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
       .slice(-HISTORY_LIMIT)
       .map((message) => ({ role: message.role, text: message.text }));
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
+    const actionReceipts = messages.flatMap((message) => message.actionReceipts || []).slice(-6);
     const trustedTrack = nowPlaying?.trim();
     const trustedStationName = player.current?.name?.trim();
     // The NAME alone cannot answer "tell me about this station" — the catalogue
@@ -271,6 +278,11 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     try {
       const response = await postChatMessage(text, history, {
         userTaste,
+        agentContext: {
+          isPlaying: player.isPlaying,
+          queueStationIds: queue.items.map((station) => station.stationuuid).filter(Boolean).slice(0, 80)
+        },
+        actionReceipts,
         nowPlaying: trustedTrack || trustedStationName || trustedStationUuid
           ? {
               ...(trustedTrack ? { track: trustedTrack.slice(0, 220) } : {}),
@@ -279,10 +291,11 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
             }
           : undefined
       });
+      const assistantMessageId = nextId();
       setMessages((prev) => [
         ...prev,
         {
-          id: nextId(),
+          id: assistantMessageId,
           role: 'assistant',
           text: response.reply,
           stations: response.stations,
@@ -290,8 +303,23 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
           sources: response.sources
         }
       ]);
-      const playAction = response.actions.find((action) => action.kind === 'play');
-      if (playAction?.stationuuid) void playVerified(playAction.stationuuid);
+      const receipts = await executeAgentActions(response.actions, {
+        resolveStation: (stationuuid) => fetchStationById(stationuuid).catch(() => null),
+        play: (station) =>
+          playStation(station, { sourceId: 'assistant', sourceLabel: t('chat.sourceLabel') }),
+        enqueue: (station) => queue.enqueue(station),
+        pause: () => player.pause(),
+        isFavorite,
+        toggleFavorite
+      });
+      if (receipts.some((receipt) => receipt.status === 'executed')) triggerHaptic('light');
+      if (receipts.length) {
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === assistantMessageId ? { ...message, actionReceipts: receipts } : message
+          )
+        );
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -440,6 +468,9 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
               ) : null}
               <div className="chat-message-stack">
                 <div className={`chat-bubble chat-bubble--${message.role}`}>{message.text}</div>
+                {message.actionReceipts?.some((receipt) => receipt.status === 'failed') ? (
+                  <p className="chat-action-feedback" role="status">{t('chat.actionFailed')}</p>
+                ) : null}
                 {message.errorFor ? (
                   <button
                     type="button"

@@ -94,7 +94,7 @@ const pruneCache = <T,>(cache: Map<string, CacheEntry<T>>) => {
 /**
  * A rate-limit key must never come from a header the caller controls.
  *
- * ai-chat was fixed for this reason (it fronts PAID DeepSeek calls), but the
+ * ai-chat was fixed for this reason (it fronts paid model calls), but the
  * media routes kept reading the LEFTMOST X-Forwarded-For value — which the
  * client writes. Rotating that header minted a fresh bucket on every request, so
  * the metadata/fetch/stream/image limits were decorative: present in the code,

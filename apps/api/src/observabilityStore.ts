@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { AgentRunSummary } from './ai/types.js';
 
 export type SlowRequestEntry = {
   path: string;
@@ -33,6 +34,13 @@ export type ObservabilityAlert = {
   ts: number;
 };
 
+export type AgentRunTraceEntry = AgentRunSummary & {
+  surface: 'miniapp' | 'telegram';
+  promptTokens: number;
+  completionTokens: number;
+  ts: number;
+};
+
 type CounterMap = Map<string, number>;
 type GaugeMap = Map<string, number>;
 
@@ -42,6 +50,7 @@ type PersistedObservabilityState = {
   slowRequests: SlowRequestEntry[];
   requestSamples: RequestSampleEntry[];
   clientEvents: ClientEventEntry[];
+  agentRuns?: AgentRunTraceEntry[];
   alerts: ObservabilityAlert[];
   updatedAt: number | null;
 };
@@ -49,6 +58,7 @@ type PersistedObservabilityState = {
 const MAX_SLOW_REQUESTS = 40;
 const MAX_REQUEST_SAMPLES = 300;
 const MAX_CLIENT_EVENTS = 80;
+const MAX_AGENT_RUNS = 80;
 const MAX_ALERTS = 40;
 const FLUSH_DELAY_MS = 250;
 const ENTRY_RETENTION_MS = Number(process.env.OBSERVABILITY_RETENTION_MS || 1000 * 60 * 60 * 24 * 7);
@@ -64,6 +74,7 @@ const gauges: GaugeMap = new Map();
 const slowRequests: SlowRequestEntry[] = [];
 const requestSamples: RequestSampleEntry[] = [];
 const clientEvents: ClientEventEntry[] = [];
+const agentRuns: AgentRunTraceEntry[] = [];
 const alerts: ObservabilityAlert[] = [];
 
 let hydrated = false;
@@ -147,10 +158,12 @@ const loadPersistedState = async () => {
           ...(parsed.requestSamples || []).slice(0, MAX_REQUEST_SAMPLES)
         );
         clientEvents.splice(0, clientEvents.length, ...(parsed.clientEvents || []).slice(0, MAX_CLIENT_EVENTS));
+        agentRuns.splice(0, agentRuns.length, ...(parsed.agentRuns || []).slice(0, MAX_AGENT_RUNS));
         alerts.splice(0, alerts.length, ...(parsed.alerts || []).slice(0, MAX_ALERTS));
         pruneByAge(slowRequests);
         pruneByAge(requestSamples);
         pruneByAge(clientEvents);
+        pruneByAge(agentRuns);
         pruneByAge(alerts);
         updatedAt = parsed.updatedAt ?? null;
       } catch (error) {
@@ -171,10 +184,12 @@ const flushState = async () => {
   pruneByAge(slowRequests);
   pruneByAge(requestSamples);
   pruneByAge(clientEvents);
+  pruneByAge(agentRuns);
   pruneByAge(alerts);
   trimList(slowRequests, MAX_SLOW_REQUESTS);
   trimList(requestSamples, MAX_REQUEST_SAMPLES);
   trimList(clientEvents, MAX_CLIENT_EVENTS);
+  trimList(agentRuns, MAX_AGENT_RUNS);
   trimList(alerts, MAX_ALERTS);
   await mkdir(dirname(storePath), { recursive: true });
   await rotateStoreBackups();
@@ -184,6 +199,7 @@ const flushState = async () => {
     slowRequests,
     requestSamples,
     clientEvents,
+    agentRuns,
     alerts,
     updatedAt
   };
@@ -251,6 +267,12 @@ export const appendClientEvent = (entry: ClientEventEntry) => {
   }
 };
 
+export const appendAgentRun = (entry: AgentRunTraceEntry) => {
+  agentRuns.unshift(entry);
+  trimList(agentRuns, MAX_AGENT_RUNS);
+  scheduleFlush();
+};
+
 export const appendAlert = (alert: ObservabilityAlert) => {
   pushAlert(alert);
 };
@@ -299,6 +321,7 @@ export const getObservabilitySnapshot = () => ({
   requestSamples,
   latency: buildLatencySummary(),
   clientEvents,
+  agentRuns,
   alerts,
   updatedAt,
   persistence: {
@@ -333,6 +356,9 @@ export const renderPrometheusMetrics = () => {
   lines.push('# HELP radioatlas_observability_request_samples Number of retained request samples');
   lines.push('# TYPE radioatlas_observability_request_samples gauge');
   lines.push(`radioatlas_observability_request_samples ${requestSamples.length}`);
+  lines.push('# HELP radioatlas_observability_agent_runs Number of retained Lira agent runs');
+  lines.push('# TYPE radioatlas_observability_agent_runs gauge');
+  lines.push(`radioatlas_observability_agent_runs ${agentRuns.length}`);
   lines.push('# HELP radioatlas_request_latency_ms Request latency percentile gauges');
   lines.push('# TYPE radioatlas_request_latency_ms gauge');
   buildLatencySummary().forEach((entry) => {

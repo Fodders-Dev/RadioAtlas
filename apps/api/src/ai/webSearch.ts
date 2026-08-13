@@ -2,8 +2,8 @@
 // FoddersGameBot _tavily_search: snippet-first, with a tightly gated cleaned
 // raw-content mode for song-text analysis; no direct scrapers or LLM query
 // planner). Built on the injected
-// fetch + an 8s AbortController, like deepseekClient. The Tavily key lives only
-// in the api process (like DEEPSEEK_API_KEY) and never reaches a client bundle.
+// fetch + a bounded AbortController, like the shared model client. The Tavily key lives only
+// in the api process (like model-provider keys) and never reaches a client bundle.
 //
 // Guards baked in (the brief's forks): a freshness-aware cache (3 min for
 // life/death/news, 1 h otherwise), a score quality floor (drop < 0.5), and a

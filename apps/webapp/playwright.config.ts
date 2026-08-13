@@ -9,6 +9,11 @@ const ACCOUNT_STORE_PATH = join(
   'radioatlas-playwright',
   `account-store-${process.pid}-${Date.now()}.sqlite`
 );
+const OBSERVABILITY_STORE_PATH = join(
+  tmpdir(),
+  'radioatlas-playwright',
+  `observability-${process.pid}-${Date.now()}.json`
+);
 const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 export default defineConfig({
@@ -33,7 +38,9 @@ export default defineConfig({
         PORT: String(API_PORT),
         GOOGLE_CLIENT_ID: 'test-google-client',
         ENABLE_TEST_AUTH_FIXTURES: '1',
-        ACCOUNT_STORE_PATH
+        ACCOUNT_STORE_PATH,
+        OBSERVABILITY_STORE_PATH,
+        BILLING_RECONCILE_ENABLED: '0'
       }
     },
     {

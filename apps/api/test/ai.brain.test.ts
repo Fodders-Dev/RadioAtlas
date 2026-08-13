@@ -103,7 +103,7 @@ const deepseek = (over: Partial<DeepseekConfig> = {}): DeepseekConfig => ({
 });
 
 const makeDeps = (fetchImpl: typeof fetch, over: Partial<AssistantDeps> = {}): AssistantDeps => ({
-  deepseek: deepseek(),
+  model: deepseek(),
   tools: stubTools,
   musicServices: ALL_MUSIC_SERVICES,
   fetch: fetchImpl,
@@ -120,7 +120,7 @@ const ask = (text: string, extra: Partial<ChatInput> = {}): ChatInput => ({
 
 test('AI disabled → warm fallback, ZERO DeepSeek calls', async () => {
   const { fetchImpl, calls } = makeFetch({});
-  const deps = makeDeps(fetchImpl, { deepseek: deepseek({ enabled: false }) });
+  const deps = makeDeps(fetchImpl, { model: deepseek({ enabled: false }) });
   const result = await chatWithAssistant(ask('включи джаз'), deps);
   assert.equal(calls.length, 0);
   assert.ok(result.reply.length > 0);
@@ -415,7 +415,7 @@ test('SHIP-BLOCKING canary: the DeepSeek key never leaks into the result OR the 
     const logs: string[] = [];
     const { fetchImpl } = makeFetch(responses);
     const deps = makeDeps(fetchImpl, {
-      deepseek: deepseek({ apiKey: CANARY, enabled }),
+      model: deepseek({ apiKey: CANARY, enabled }),
       log: (m) => logs.push(m)
     });
     const result = await chatWithAssistant(ask(message), deps);
@@ -886,7 +886,7 @@ test('NOW PLAYING: a natural chat question reads the trusted live player without
     ask('Что за трек сейчас играет на радио?', {
       nowPlaying: { track: 'The Weeknd — Blinding Lights', stationName: 'Exclusively The Weeknd' }
     }),
-    makeDeps(fetchImpl, { deepseek: deepseek({ enabled: false }) })
+    makeDeps(fetchImpl, { model: deepseek({ enabled: false }) })
   );
   assert.equal(isNowPlayingQuestion('что я сейчас слушаю?'), true);
   assert.equal(isNowPlayingQuestion('где сейчас играет The Weeknd?'), false);
