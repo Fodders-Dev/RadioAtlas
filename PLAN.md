@@ -289,11 +289,28 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   a full inside-Telegram Playwright path; isolate E2E observability persistence
   from local/dev metrics.
 
+## Lira agent polish: constraint fidelity and action UX (done)
+
+- [x] Reproduce recommendation failures against the public production UI:
+  explicit «без DnB / shoegaze» and «без шансона / бардов» constraints were
+  contradicted by the rendered station cards.
+- [x] Enforce explicit negative genre/content constraints after every tool lane
+  and before composition; if every catalog card is rejected, fall back to a
+  clean external-service query that omits the forbidden clause.
+- [x] Route Russian 2010s / modern Russian pop and electronic asks through
+  language-scoped `russian pop`, `russian hits`, and electronic catalog searches
+  instead of the chanson-heavy broad `russian` shelf.
+- [x] Show polite, persistent receipts for real play, pause, queue, favorite,
+  skipped, and failed actions so the listener can distinguish Lira's promise
+  from the client's verified outcome.
+- [x] Reduce external-link clutter to three primary services with a native,
+  keyboard-accessible «ещё сервисы» disclosure for the remainder.
+
 ## Next:
 
-Next: provision `DEEPSEEK_API_KEY` and `OPENAI_API_KEY`, run the fixed three-pass
-provider eval, manually score the captured replies, and canary the winner in a
-real Telegram client before changing production. Then connect a licensed
-lyrics-content provider (or keep Tavily + the safe Genius-search fallback),
-refresh approved Lira/Home visual baselines, and upgrade the VPS runtime from
-Node 22 to Node 24.
+Next: watch production constraint-filter and agent-receipt telemetry, expand the
+audited exclusion vocabulary from real misses, and run the fixed provider A/B
+after OpenAI billing has usable credit (DeepSeek remains the production default).
+Then connect a licensed lyrics-content provider (or keep Tavily + the safe
+Genius-search fallback), refresh approved Lira visual baselines, and upgrade the
+VPS runtime from Node 22 to Node 24.

@@ -5,9 +5,11 @@ import {
   chatWithAssistant,
   classifySongKnowledgeIntent,
   explicitArtistQuery,
+  explicitStationExclusionIds,
   isNowPlayingQuestion,
   isRejectRefreshIntent,
   parseGenreTags,
+  stripExplicitExclusionClauses,
   summarizeStationSlate
 } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
@@ -197,6 +199,69 @@ test('station cards diversify same-tag runs before final rendering', async () =>
   const ids = result.stations.map((item) => item.stationuuid);
   assert.ok(ids.includes('soul-1'));
   assert.ok(ids.indexOf('soul-1') < 4, `same-tag run was not broken: ${ids.join(', ')}`);
+});
+
+test('explicit “without” constraints remove contradictory station names and tags', async () => {
+  assert.deepEqual(
+    explicitStationExclusionIds('Подбери synthwave без DnB и shoegaze — только retrowave'),
+    ['dnb', 'shoegaze']
+  );
+  assert.deepEqual(
+    explicitStationExclusionIds('Дай русскую музыку, без шансона и бардов'),
+    ['chanson', 'bard']
+  );
+  assert.deepEqual(explicitStationExclusionIds('Хочу музыку без рока и джаза и попсы'), ['rock', 'jazz', 'pop']);
+  assert.equal(
+    stripExplicitExclusionClauses('Дай русскую музыку 2010-х, без шансона и бардов'),
+    'Дай русскую музыку 2010-х'
+  );
+
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async () => [
+      station({ stationuuid: 'dnb', name: 'DnB&EDM', tags: ['chillstep', 'dnb'] }),
+      station({ stationuuid: 'shoe', name: 'HighFi Dream', tags: ['new wave', 'shoegaze'] }),
+      station({ stationuuid: 'night', name: 'Night Drive Radio', tags: ['retrowave', 'synthwave'] }),
+      station({ stationuuid: 'out', name: 'Nightride FM', tags: ['outrun', 'retrowave'] })
+    ]
+  };
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"synthwave"}}', '{"action":"final"}'],
+    compose: 'Лови чистый ночной synthwave.'
+  });
+  const result = await chatWithAssistant(
+    ask('Подбери synthwave без DnB и shoegaze — только retrowave, outrun и ночная трасса'),
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.deepEqual(result.stations.map((item) => item.stationuuid).sort(), ['night', 'out']);
+  assert.ok(result.stations.every((item) => !/dnb|shoegaze/i.test(`${item.name} ${item.tags.join(' ')}`)));
+});
+
+test('Russian 2010s lane scopes catalogue searches and falls back cleanly when exclusions remove every card', async () => {
+  const searches: Array<{ query: string; language?: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push(args);
+      return [
+        station({ stationuuid: `chanson-${searches.length}`, name: 'Мир Шансона', tags: ['шансон'] }),
+        station({ stationuuid: `bard-${searches.length}`, name: 'Авторская / Бардовская песня', tags: ['russian pop'] })
+      ];
+    }
+  };
+  const { fetchImpl } = makeFetch({ compose: 'Точных станций не нашла — оставляю чистый поиск по сервисам.' });
+  const result = await chatWithAssistant(
+    ask('Дай радио с русской музыкой 2010-х, без шансона и бардов'),
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.equal(searches[0]?.query, 'russian pop');
+  assert.equal(searches[0]?.language, 'russian');
+  assert.equal(searches[0]?.tag, 'russian pop');
+  assert.deepEqual(result.stations, []);
+  assert.equal(result.serviceLinks.length, 6);
+  assert.ok(result.serviceLinks.every((link) => !/шансон|бард/i.test(link.query)));
 });
 
 test('taste-heavy recommendations keep the best match but promote adjacent discovery', async () => {

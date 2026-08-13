@@ -159,7 +159,7 @@ const explicitSearchQuery = (message: string): string | null => {
 };
 
 type CuratedSearchStep = {
-  args: { query: string; tag?: string; limit?: number };
+  args: { query: string; country?: string; language?: string; tag?: string; limit?: number };
   minStations?: number;
 };
 
@@ -211,6 +211,29 @@ const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
 
   const wantsStations = SEARCH_INTENT.test(text) || /радио|станци|волн|эфир/i.test(text);
   if (!wantsStations || isKnowledgeQuestion(text)) return null;
+
+  // «Русская музыка 2010-х / современный русский поп» is not a useful literal
+  // Radio Browser query: the planner tends to collapse the language clue into
+  // the broad `russian` tag, whose first page is dominated by chanson. Search
+  // the catalogue's actual pop/hits/electronic vocabulary with a hard language
+  // scope. Explicit «без шансона/бардов» is enforced again by the station-card
+  // constraint filter below, so even polluted catalog tags cannot leak through.
+  if (
+    /(?:^|[^а-яёa-z])(?:русск|российск|russian)[а-яёa-z]*/i.test(text) &&
+    /(2010|десят[ыо]|нулев|двухтысяч|современн|новинк|нов(?:ая|ую|ые|ых)\s+музык|поп|электрон|хит)/i.test(text) &&
+    !/(не\s+(?:любл|хочу|надо|нужн)[а-яё]*\s+(?:русск|российск)|без\s+русск)/i.test(text)
+  ) {
+    return {
+      note:
+        'Пользователь просит современную русскоязычную музыку / русские 2010-е. Веди к russian pop, russian hits, dance-pop и электронной поп-музыке; НЕ подменяй запрос шансоном, бардовской песней или советской эстрадой. Честно скажи, что годы вещания станции не гарантируют конкретное десятилетие.',
+      steps: [
+        { args: { query: 'russian pop', language: 'russian', tag: 'russian pop', limit: 8 }, minStations: 3 },
+        { args: { query: 'russian hits', language: 'russian', tag: 'russian hits', limit: 8 }, minStations: 3 },
+        { args: { query: 'russian electronic', language: 'russian', tag: 'electronic', limit: 8 }, minStations: 3 },
+        { args: { query: 'dance pop', language: 'russian', tag: 'dance', limit: 8 }, minStations: 3 }
+      ]
+    };
+  }
 
   if (
     /(hall\s*&?\s*oates|холл?\s*(?:и|&)?\s*оу?т[еэ]с|хола\s+и\s+отиса|rock\s*n\s*soul|rock\s+and\s+soul|рок\s*н\s*соул)/i.test(text) &&
@@ -1038,6 +1061,87 @@ const primaryTag = (station: VerifiedStationRef) =>
 const stationTagSet = (station: VerifiedStationRef) =>
   new Set((station.tags || []).map(normalizeTasteLabel).filter((tag) => tag && tag !== 'no tags'));
 
+type ExplicitStationExclusion = {
+  id: string;
+  requestPattern: RegExp;
+  stationPattern: RegExp;
+};
+
+// This is deliberately a small, auditable vocabulary rather than a fuzzy
+// model decision. If the listener says «без X», a false negative is annoying;
+// a false positive is worse because it silently hides good stations. Only
+// well-known catalogue genres/content types with stable aliases live here.
+const EXPLICIT_STATION_EXCLUSIONS: ExplicitStationExclusion[] = [
+  {
+    id: 'dnb',
+    requestPattern: /(?:^|[^a-zа-яё])(?:dnb|днб|drum\s*(?:and|n|&|'n')?\s*bass|драм[-\s]*(?:энд[-\s]*)?б[еэ]йс)(?![a-zа-яё])/i,
+    stationPattern: /(?:^|[^a-z])(?:dnb|drum\s*(?:and|n|&|'n')?\s*bass)(?![a-z])/i
+  },
+  { id: 'shoegaze', requestPattern: /(?:shoegaze|шугейз)/i, stationPattern: /(?:shoegaze|шугейз)/i },
+  { id: 'chanson', requestPattern: /(?:chanson|шансон)/i, stationPattern: /(?:chanson|шансон)/i },
+  { id: 'bard', requestPattern: /(?:бард|авторск(?:ая|ой)?\s+песн|singer[-\s]?songwriter|bard)/i, stationPattern: /(?:бард|авторск(?:ая|ой)?\s+песн|singer[-\s]?songwriter|bard)/i },
+  { id: 'talk', requestPattern: /(?:разговор|болтов|(?:^|[^а-яё])слов(?:$|[^а-яё])|ведущ|talk|spoken|podcast)/i, stationPattern: /(?:talk|spoken|speech|podcast|разговор|новост|news)/i },
+  { id: 'news', requestPattern: /(?:новост|news)/i, stationPattern: /(?:новост|news)/i },
+  { id: 'rap', requestPattern: /(?:^|[^a-zа-яё])(?:рэп[а-яё]*|rap|hip[-\s]?hop|хип[-\s]?хоп[а-яё]*)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:рэп[а-яё]*|rap|hip[-\s]?hop|хип[-\s]?хоп[а-яё]*)(?![a-zа-яё])/i },
+  { id: 'metal', requestPattern: /(?:^|[^a-zа-яё])(?:метал[а-яё]*|metal)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:метал[а-яё]*|metal)(?![a-zа-яё])/i },
+  { id: 'hardcore', requestPattern: /(?:hardcore|хардкор)/i, stationPattern: /(?:hardcore|хардкор)/i },
+  { id: 'rock', requestPattern: /(?:^|[^a-zа-яё])(?:рок[а-яё]*|rock)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:рок[а-яё]*|rock)(?![a-zа-яё])/i },
+  { id: 'jazz', requestPattern: /(?:^|[^a-zа-яё])(?:джаз[а-яё]*|jazz)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:джаз[а-яё]*|jazz)(?![a-zа-яё])/i },
+  { id: 'pop', requestPattern: /(?:^|[^a-zа-яё])(?:попс[а-яё]*|поп(?:а|у|ом)?|pop)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:поп[а-яё]*|pop)(?![a-zа-яё])/i },
+  { id: 'house', requestPattern: /(?:^|[^a-zа-яё])(?:хаус[а-яё]*|house)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:хаус[а-яё]*|house)(?![a-zа-яё])/i },
+  { id: 'trance', requestPattern: /(?:^|[^a-zа-яё])(?:транс[а-яё]*|trance)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:транс[а-яё]*|trance)(?![a-zа-яё])/i },
+  { id: 'ambient', requestPattern: /(?:ambient|эмбиент)/i, stationPattern: /(?:ambient|эмбиент)/i },
+  { id: 'folk', requestPattern: /(?:^|[^a-zа-яё])(?:фолк[а-яё]*|folk)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:фолк[а-яё]*|folk)(?![a-zа-яё])/i },
+  { id: 'country', requestPattern: /(?:^|[^a-zа-яё])(?:кантри|country)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:кантри|country)(?![a-zа-яё])/i },
+  { id: 'reggae', requestPattern: /(?:reggae|регги)/i, stationPattern: /(?:reggae|регги)/i },
+  { id: 'classical', requestPattern: /(?:классическ|classical)/i, stationPattern: /(?:классическ|classical)/i }
+];
+
+const EXCLUSION_CLAUSE_SOURCE =
+  '(?:^|[\\s,.;!?—–])(?:без|кроме|(?:полностью\\s+)?(?:исключи|исключить|исключая|убери|убрать)|никак(?:ого|ой|их)|не\\s+(?:надо|нужен|нужна|нужно|нужны|хочу|ставь|включай|добавляй))\\s+([^,.;!?—–]+)';
+
+const explicitExclusionClauses = (message: string): string[] =>
+  Array.from(message.matchAll(new RegExp(EXCLUSION_CLAUSE_SOURCE, 'gi')))
+    .map((match) => match[1]?.trim() || '')
+    .filter(Boolean);
+
+export const explicitStationExclusionIds = (message: string): string[] => {
+  const clauses = explicitExclusionClauses(message);
+  if (!clauses.length) return [];
+  return EXPLICIT_STATION_EXCLUSIONS
+    .filter((constraint) => clauses.some((clause) => constraint.requestPattern.test(clause)))
+    .map((constraint) => constraint.id);
+};
+
+export const stripExplicitExclusionClauses = (message: string): string =>
+  message
+    .replace(new RegExp(EXCLUSION_CLAUSE_SOURCE, 'gi'), ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;!?])/g, '$1')
+    .replace(/[\s,;:—–-]+$/g, '')
+    .trim();
+
+const applyExplicitStationExclusions = (
+  observations: ToolObservation[],
+  message: string
+): { observations: ToolObservation[]; removed: number; ids: string[] } => {
+  const ids = explicitStationExclusionIds(message);
+  if (!ids.length) return { observations, removed: 0, ids };
+  const active = EXPLICIT_STATION_EXCLUSIONS.filter((constraint) => ids.includes(constraint.id));
+  let removed = 0;
+  const filtered = observations.map((observation) => {
+    if (!observation.stations?.length) return observation;
+    const stations = observation.stations.filter((station) => {
+      const descriptor = [station.name, ...(station.tags || [])].join(' ').toLowerCase();
+      const excluded = active.some((constraint) => constraint.stationPattern.test(descriptor));
+      if (excluded) removed += 1;
+      return !excluded;
+    });
+    return { ...observation, stations, found: stations.length > 0 || Boolean(observation.serviceLinks?.length) };
+  });
+  return { observations: filtered, removed, ids };
+};
+
 const stationSimilarity = (left: VerifiedStationRef, right: VerifiedStationRef) => {
   const leftName = stationNameDiversityKey(left.name);
   const rightName = stationNameDiversityKey(right.name);
@@ -1834,6 +1938,19 @@ export const chatWithAssistant = async (
     }
   }
 
+  // Model/tool ranking is advisory; an explicit negative constraint is a hard
+  // promise. Filter names + catalogue tags after every search lane (planner,
+  // curated, artist fallback and vibe backstop) and before deciding whether the
+  // result is empty. This fixes contradictions such as saying «никакого DnB»
+  // while rendering DnB&EDM as the first card.
+  const constraintResult = applyExplicitStationExclusions(observations, musicContextMessage);
+  if (constraintResult.removed > 0) {
+    observations.splice(0, observations.length, ...constraintResult.observations);
+    deps.log(
+      `ai excluded ${constraintResult.removed} station card(s) by explicit constraints: ${constraintResult.ids.join(',')}`
+    );
+  }
+
   // Empty-result fallback: a music request that STILL found NO stations and NO
   // links (even the vibe→tags backstop came up empty) → external service-search
   // links so there is ALWAYS something tappable instead of a prose apology. Runs
@@ -1843,7 +1960,12 @@ export const chatWithAssistant = async (
     collectVerifiedStations(observations).length === 0 &&
     collectServiceLinks(observations).length === 0
   ) {
-    const fallbackQuery = forcedQuery || buildStationQuery(musicContextMessage) || musicContextMessage;
+    const constraintSafeMessage = stripExplicitExclusionClauses(musicContextMessage);
+    const fallbackQuery =
+      (forcedQuery ? stripExplicitExclusionClauses(forcedQuery) : '') ||
+      buildStationQuery(constraintSafeMessage) ||
+      constraintSafeMessage ||
+      musicContextMessage;
     const linkObservation = await runTool('music_service_search', { query: fallbackQuery }, {
       tools: deps.tools,
       musicServices: deps.musicServices

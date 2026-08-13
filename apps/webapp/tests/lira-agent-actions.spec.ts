@@ -93,6 +93,7 @@ test('Lira executes queue, favorite, play and pause actions and reports receipts
   };
 
   await send('Добавь Osaka Nights в очередь', 'Добавила Osaka Nights в очередь.');
+  await expect(sheet.getByText('Добавлено в очередь')).toBeVisible();
   await expect.poll(() =>
     page.evaluate(() => {
       const state = JSON.parse(localStorage.getItem('radio:player:v2') || '{}');
@@ -101,6 +102,7 @@ test('Lira executes queue, favorite, play and pause actions and reports receipts
   ).toContain('uuid-osaka');
 
   await send('Добавь Osaka Nights в избранное', 'Добавила Osaka Nights в избранное.');
+  await expect(sheet.getByText('Избранное обновлено')).toBeVisible();
   await expect.poll(() =>
     page.evaluate(() => {
       const state = JSON.parse(localStorage.getItem('radio:library:v2') || '{}');
@@ -109,9 +111,11 @@ test('Lira executes queue, favorite, play and pause actions and reports receipts
   ).toContain('uuid-osaka');
 
   await send('Включи Osaka Nights', 'Включаю Osaka Nights.');
+  await expect(sheet.getByText('Станция включена')).toBeVisible();
   await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
 
   await send('Поставь на паузу', 'Поставила на паузу.');
+  await expect(sheet.getByText('Поставлено на паузу')).toBeVisible();
   await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'paused');
 
   expect(requests).toHaveLength(4);

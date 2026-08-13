@@ -59,8 +59,41 @@ const RECENT_ID_LIMIT = 30;
 const AVOID_ID_LIMIT = 80;
 const LAST_RECOMMENDED_ID_LIMIT = 20;
 const NEGATIVE_STATION_SCORE_THRESHOLD = -4;
+const SERVICE_LINK_PREVIEW_COUNT = 3;
 
+type ActionFeedbackSpec = {
+  key: string;
+  tone: 'success' | 'neutral' | 'danger';
+};
 
+const actionFeedbackForReceipt = (receipt: ChatActionReceipt): ActionFeedbackSpec | null => {
+  if (receipt.status === 'failed') return { key: 'chat.actionFailed', tone: 'danger' };
+  if (receipt.status === 'executed') {
+    if (receipt.kind === 'play') return { key: 'chat.actionPlayed', tone: 'success' };
+    if (receipt.kind === 'pause') return { key: 'chat.actionPaused', tone: 'success' };
+    if (receipt.kind === 'enqueue') return { key: 'chat.actionQueued', tone: 'success' };
+    if (receipt.kind === 'set-favorite') return { key: 'chat.actionFavoriteUpdated', tone: 'success' };
+  }
+  if (receipt.status === 'skipped' && receipt.detail === 'already_queued') {
+    return { key: 'chat.actionAlreadyQueued', tone: 'neutral' };
+  }
+  if (receipt.status === 'skipped' && receipt.detail === 'already_in_desired_state') {
+    return { key: 'chat.actionAlreadyDone', tone: 'neutral' };
+  }
+  return null;
+};
+
+const ServiceLinkChip = ({ link, messageId }: { link: ChatServiceLink; messageId: number }) => (
+  <a
+    key={`${messageId}-${link.service}`}
+    className="chat-service-chip"
+    href={link.url}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    {link.label}<span aria-hidden="true">↗</span>
+  </a>
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object';
@@ -468,8 +501,21 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
               ) : null}
               <div className="chat-message-stack">
                 <div className={`chat-bubble chat-bubble--${message.role}`}>{message.text}</div>
-                {message.actionReceipts?.some((receipt) => receipt.status === 'failed') ? (
-                  <p className="chat-action-feedback" role="status">{t('chat.actionFailed')}</p>
+                {message.actionReceipts?.some((receipt) => actionFeedbackForReceipt(receipt)) ? (
+                  <div className="chat-action-feedback" role="status" aria-live="polite" aria-atomic="true">
+                    {message.actionReceipts.map((receipt) => {
+                      const feedback = actionFeedbackForReceipt(receipt);
+                      return feedback ? (
+                        <span
+                          key={`${receipt.actionId}-${receipt.kind}`}
+                          className={`chat-action-feedback__item is-${feedback.tone}`}
+                        >
+                          <i aria-hidden="true">{feedback.tone === 'success' ? '✓' : feedback.tone === 'danger' ? '!' : '•'}</i>
+                          {t(feedback.key)}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
                 ) : null}
                 {message.errorFor ? (
                   <button
@@ -548,18 +594,22 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
                   </div>
                 ) : null}
                 {message.serviceLinks && message.serviceLinks.length ? (
-                  <div className="chat-service-row">
-                    {message.serviceLinks.map((link) => (
-                      <a
-                        key={`${message.id}-${link.service}`}
-                        className="chat-service-chip"
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {link.label}<span aria-hidden="true">↗</span>
-                      </a>
-                    ))}
+                  <div className="chat-service-links">
+                    <div className="chat-service-row">
+                      {message.serviceLinks.slice(0, SERVICE_LINK_PREVIEW_COUNT).map((link) => (
+                        <ServiceLinkChip key={`${message.id}-${link.service}`} link={link} messageId={message.id} />
+                      ))}
+                    </div>
+                    {message.serviceLinks.length > SERVICE_LINK_PREVIEW_COUNT ? (
+                      <details className="chat-service-more">
+                        <summary>{t('chat.moreServices', { count: message.serviceLinks.length - SERVICE_LINK_PREVIEW_COUNT })}</summary>
+                        <div className="chat-service-row">
+                          {message.serviceLinks.slice(SERVICE_LINK_PREVIEW_COUNT).map((link) => (
+                            <ServiceLinkChip key={`${message.id}-${link.service}`} link={link} messageId={message.id} />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
                 ) : null}
                 {message.sources && message.sources.length ? (
