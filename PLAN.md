@@ -299,7 +299,8 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   clean external-service query that omits the forbidden clause.
 - [x] Route Russian 2010s / modern Russian pop and electronic asks through
   language-scoped `russian pop`, `russian hits`, and electronic catalog searches
-  instead of the chanson-heavy broad `russian` shelf.
+  instead of the chanson-heavy broad `russian` shelf; keep retro/classic-hits
+  and spoken `russian programming` cards out of that modern lane.
 - [x] Show polite, persistent receipts for real play, pause, queue, favorite,
   skipped, and failed actions so the listener can distinguish Lira's promise
   from the client's verified outcome.

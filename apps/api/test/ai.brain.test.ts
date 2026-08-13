@@ -264,6 +264,36 @@ test('Russian 2010s lane scopes catalogue searches and falls back cleanly when e
   assert.ok(result.serviceLinks.every((link) => !/шансон|бард/i.test(link.query)));
 });
 
+test('Russian 2010s lane drops retro/programming cards and continues to a modern search step', async () => {
+  const searches: Array<{ query: string; language?: string; tag?: string }> = [];
+  const tools: ToolProvider = {
+    ...stubTools,
+    searchStations: async (args) => {
+      searches.push(args);
+      if (args.query === 'russian pop') {
+        return [
+          station({ stationuuid: 'retro', name: 'Ретро FM', tags: ['classic hits', 'retro'] }),
+          station({ stationuuid: 'sputnik', name: 'Радио Спутник', tags: ['russian pop', 'russian programming'] })
+        ];
+      }
+      return [
+        station({ stationuuid: 'hits', name: 'Русский ХИТ', tags: ['russian hits', 'russian pop'] }),
+        station({ stationuuid: 'dance', name: 'Новая Волна', tags: ['dance', 'russian pop'] }),
+        station({ stationuuid: 'electro', name: 'Электроника RU', tags: ['electronic', 'russian'] })
+      ];
+    }
+  };
+  const { fetchImpl } = makeFetch({ compose: 'Лови современный русский поп без ретро.' });
+  const result = await chatWithAssistant(
+    ask('Дай современный русский поп и электронику, полностью исключи шансон'),
+    makeDeps(fetchImpl, { tools })
+  );
+
+  assert.deepEqual(searches.slice(0, 2).map((item) => item.query), ['russian pop', 'russian hits']);
+  assert.deepEqual(result.stations.map((item) => item.stationuuid).sort(), ['dance', 'electro', 'hits']);
+  assert.ok(result.stations.every((item) => !/retro|classic hits|programming/i.test(`${item.name} ${item.tags.join(' ')}`)));
+});
+
 test('taste-heavy recommendations keep the best match but promote adjacent discovery', async () => {
   const tools: ToolProvider = {
     ...stubTools,

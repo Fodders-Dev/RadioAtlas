@@ -166,6 +166,7 @@ type CuratedSearchStep = {
 type CuratedSearchPlan = {
   note: string;
   steps: CuratedSearchStep[];
+  stationReject?: RegExp;
 };
 
 const CURATED_SEARCH_DEFAULT_MIN = 3;
@@ -226,6 +227,7 @@ const curatedSearchPlan = (message: string): CuratedSearchPlan | null => {
     return {
       note:
         'Пользователь просит современную русскоязычную музыку / русские 2010-е. Веди к russian pop, russian hits, dance-pop и электронной поп-музыке; НЕ подменяй запрос шансоном, бардовской песней или советской эстрадой. Честно скажи, что годы вещания станции не гарантируют конкретное десятилетие.',
+      stationReject: /(?:retro|oldies|classic\s+hits|soviet|ussr|russian\s+programming|ретро|советск)/i,
       steps: [
         { args: { query: 'russian pop', language: 'russian', tag: 'russian pop', limit: 8 }, minStations: 3 },
         { args: { query: 'russian hits', language: 'russian', tag: 'russian hits', limit: 8 }, minStations: 3 },
@@ -1759,6 +1761,13 @@ export const chatWithAssistant = async (
         languageScope,
         musicServices: deps.musicServices
       });
+      if (preciseSearchPlan.stationReject && observation.stations?.length) {
+        const rejected = preciseSearchPlan.stationReject;
+        observation.stations = observation.stations.filter(
+          (station) => !rejected.test(`${station.name} ${(station.tags || []).join(' ')}`)
+        );
+        observation.found = observation.stations.length > 0 || Boolean(observation.serviceLinks?.length);
+      }
       observations.push(observation);
       if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
       const minStations = step.minStations ?? CURATED_SEARCH_DEFAULT_MIN;
