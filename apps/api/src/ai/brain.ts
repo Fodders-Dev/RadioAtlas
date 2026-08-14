@@ -41,6 +41,7 @@ import type {
   ChatResult,
   ChatTurn,
   ChatUsage,
+  ModelErrorKind,
   ServiceLink,
   ToolObservation,
   UserTasteContext,
@@ -643,6 +644,31 @@ const addUsage = (into: ChatUsage, add: ChatUsage | undefined) => {
   into.completion += add.completion;
 };
 
+// Every model failure in this file degrades to a warm deterministic answer on
+// purpose — the listener must never see a stack trace. The cost of that is that
+// a DEAD provider looks exactly like a healthy one from the outside: a 402
+// "Insufficient Balance" produced «Я на секунду засмотрелась в окно…» and an
+// agent run marked completed/warnings:[]. This sink is the counterweight: it
+// carries the failure kinds out to the runner so the run is reported honestly.
+export type ModelErrorSink = ModelErrorKind[];
+
+const noteModelErrorKind = (
+  sink: ModelErrorSink | undefined,
+  kind: ModelErrorKind | undefined
+) => {
+  if (!sink || !kind) return;
+  if (!sink.includes(kind)) sink.push(kind);
+};
+
+const noteModelError = (
+  sink: ModelErrorSink | undefined,
+  result: { error?: string; errorKind?: ModelErrorKind }
+) => {
+  // No classification ⇒ configuration (`disabled`), not an outage.
+  if (!result.error) return;
+  noteModelErrorKind(sink, result.errorKind);
+};
+
 // Compact station facts the composer is allowed to reference (names/ids only
 // from here). Excludes url_resolved — the model never needs the raw stream.
 const artistObservation = (observations: ToolObservation[]): ToolObservation | undefined =>
@@ -780,11 +806,14 @@ const runPlannerLoop = async (
   startStep: number,
   // Computed from the listener's message before the model ran; see
   // subjectLanguage.ts. Undefined means "do not constrain".
-  languageScope?: string
+  languageScope?: string,
+  modelErrors?: ModelErrorSink
 ) => {
   for (let step = startStep; step < MAX_TOOL_STEPS; step += 1) {
     const { result, decision } = await planAgentStep(deps, transcript, observations);
     addUsage(usage, result.usage);
+    noteModelError(modelErrors, result);
+    if (result.error) deps.log(`ai planner error: ${result.error}`);
     if (decision.action !== 'use_tool' || !decision.tool) break;
     const args = decision.args || {};
     const signature = toolSignature(decision.tool, args);
@@ -1461,7 +1490,7 @@ const mapVibeToTags = async (
   deps: AssistantDeps,
   userMessage: string,
   taste?: UserTasteContext | null
-): Promise<{ tags: string[]; usage?: ChatUsage }> => {
+): Promise<{ tags: string[]; usage?: ChatUsage; errorKind?: ModelErrorKind }> => {
   const { hint, avoid } = buildVibeTasteHint(taste);
   // Deterministic Russian-genre short-circuit, BEFORE the model. The model path
   // below cannot help here even if it wanted to: parseGenreTags drops every
@@ -1489,7 +1518,7 @@ const mapVibeToTags = async (
   );
   if (result.error) {
     deps.log(`ai vibe-tags error: ${result.error}`);
-    return { tags: [], usage: result.usage };
+    return { tags: [], usage: result.usage, errorKind: result.errorKind };
   }
   const tags = parseGenreTags(result.content).filter((tag) => !avoid.has(normalizeTasteLabel(tag)));
   return { tags, usage: result.usage };
@@ -1678,6 +1707,7 @@ export const chatWithAssistant = async (
     `${userMessage}|${history.map((turn) => `${turn.role}:${turn.text}`).join('|')}|${Math.floor(now / 60_000)}`
   );
   const usage: ChatUsage = { prompt: 0, completion: 0 };
+  const modelErrors: ModelErrorSink = [];
   const observations: ToolObservation[] = [];
   const usedSignatures = new Set<string>();
   const forcedQuery = knowledgeQuestion ? null : explicitSearchQuery(userMessage);
@@ -1774,7 +1804,9 @@ export const chatWithAssistant = async (
       if (collectVerifiedStations(observations).length >= minStations) break;
     }
     if (collectVerifiedStations(observations).length === 0) {
-      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
+      await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
+    );
     }
   } else if (culturalExplainerQuestion && deps.webSearch) {
     const webArgs = { query: culturalExplainerWebQuery(userMessage) };
@@ -1826,7 +1858,9 @@ export const chatWithAssistant = async (
       if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
       if (collectVerifiedStations(observations).length > 0) break;
     }
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
+    await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
+    );
   } else if (artistQuery) {
     const artistArgs = { artist: artistQuery };
     usedSignatures.add(toolSignature('find_stations_by_artist', artistArgs));
@@ -1871,7 +1905,9 @@ export const chatWithAssistant = async (
     // A verified artist-dedicated/name-matched card is already the most precise
     // answer. Do not let a second planner pass dilute it with generic pop cards.
     if (collectVerifiedStations(observations).length === 0) {
-      await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
+      await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
+    );
     }
   } else if (forcedQuery) {
     // Explicit play/rec intent with a concrete topic → ACT: search stations now
@@ -1886,14 +1922,20 @@ export const chatWithAssistant = async (
     });
     observations.push(forcedObservation);
     if (forcedObservation.error) deps.log(`ai tool search_stations error: ${forcedObservation.error}`);
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 1, languageScope);
+    await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
+    );
   } else if (!isSmalltalk(userMessage)) {
     // Normal planner loop — skipped for obvious chat (latency fast-path).
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 0);
+    await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 0, undefined, modelErrors
+    );
   } else if (deps.webSearch && (FACTUAL_QUESTION.test(userMessage) || TRIVIA_QUESTION.test(userMessage))) {
     // A factual/news/trivia question reads as smalltalk (no music intent) but must
     // reach the planner so it can web_search_factual instead of guessing.
-    await runPlannerLoop(deps, transcript, observations, usedSignatures, usage, 0);
+    await runPlannerLoop(
+      deps, transcript, observations, usedSignatures, usage, 0, undefined, modelErrors
+    );
   }
 
   // BACKSTOP — always return cards on a music request. Any ACTION/VIBE-intent
@@ -1929,8 +1971,11 @@ export const chatWithAssistant = async (
     (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent) &&
     !knowledgeQuestion;
   if (musicIntent && collectVerifiedStations(observations).length === 0) {
-    const { tags, usage: tagUsage } = await mapVibeToTags(deps, musicContextMessage, input.userTaste);
+    const { tags, usage: tagUsage, errorKind: tagErrorKind } = await mapVibeToTags(
+      deps, musicContextMessage, input.userTaste
+    );
     addUsage(usage, tagUsage);
+    noteModelErrorKind(modelErrors, tagErrorKind);
     for (const tag of tags) {
       const args = { query: tag };
       const signature = toolSignature('search_stations', args);
@@ -2067,6 +2112,8 @@ export const chatWithAssistant = async (
       : undefined
   });
   addUsage(usage, composed.usage);
+  noteModelError(modelErrors, composed);
+  if (composed.error) deps.log(`ai compose error: ${composed.error}`);
 
   // A question about a SONG or a FACT deserves an answer, not a rack of
   // stations. The planner is free to call search_stations on any turn, and
@@ -2101,7 +2148,8 @@ export const chatWithAssistant = async (
     if (reason === 'voice-unsafe') deps.log('ai compose rejected by voice safety');
     return {
       ...buildFallbackResult({ surface, now, reason, stations, serviceLinks, sources }),
-      usage
+      usage,
+      ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
     };
   }
 
@@ -2111,6 +2159,9 @@ export const chatWithAssistant = async (
     serviceLinks,
     sources,
     actions: deriveActions(stations, userMessage),
-    usage
+    usage,
+    // A planner step can die while the composer still answers. The turn is
+    // usable, but the provider is not healthy — say so.
+    ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
   };
 };

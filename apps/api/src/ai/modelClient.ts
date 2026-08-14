@@ -1,6 +1,7 @@
 import type {
   AiModelConfig,
   ChatUsage,
+  ModelErrorKind,
   ModelReasoningEffort
 } from './types.js';
 
@@ -13,6 +14,14 @@ export type ModelResult = {
   content: string;
   usage?: ChatUsage;
   error?: string;
+  /**
+   * Operator-facing classification of `error`. The message string stays as it
+   * was (tests and logs read it), but a dead provider has to be *countable*:
+   * an exhausted balance and a 500 both used to surface as the same warm
+   * fallback with nothing to alert on. Never carries provider prose — only a
+   * closed set of kinds, so nothing from a response body can leak into logs.
+   */
+  errorKind?: ModelErrorKind;
 };
 
 export type JsonSchemaOutput = {
@@ -48,6 +57,24 @@ const toNumber = (value: unknown): number =>
 const normalizedProvider = (config: AiModelConfig) => config.provider || 'deepseek';
 
 const normalizeBaseUrl = (baseUrl: string) => baseUrl.replace(/\/+$/, '');
+
+// HTTP status → what an operator has to DO about it. `billing` and `auth` mean
+// the provider is dead until a human acts; `rate_limit` and `unavailable` are
+// expected to recover on their own. Anything unmapped stays `http`.
+export const classifyModelHttpStatus = (status: number): ModelErrorKind => {
+  if (status === 401 || status === 403) return 'auth';
+  if (status === 402) return 'billing';
+  if (status === 429) return 'rate_limit';
+  if (status >= 500) return 'provider_unavailable';
+  return 'http';
+};
+
+export const classifyModelThrow = (error: unknown): ModelErrorKind => {
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : '';
+  if (name === 'AbortError' || /timeout|aborted/i.test(message)) return 'timeout';
+  return 'network';
+};
 
 const attachAbortSignal = (
   controller: AbortController,
@@ -107,7 +134,11 @@ const callDeepseekCompatible = async (
   });
 
   if (!response.ok) {
-    return { content: '', error: `deepseek http ${response.status}` };
+    return {
+      content: '',
+      error: `deepseek http ${response.status}`,
+      errorKind: classifyModelHttpStatus(response.status)
+    };
   }
 
   const body = (await response.json()) as DeepseekCompletion;
@@ -169,7 +200,11 @@ const callOpenAiResponses = async (
   });
 
   if (!response.ok) {
-    return { content: '', error: `openai http ${response.status}` };
+    return {
+      content: '',
+      error: `openai http ${response.status}`,
+      errorKind: classifyModelHttpStatus(response.status)
+    };
   }
 
   const body = (await response.json()) as OpenAiResponse;
@@ -189,6 +224,8 @@ export const callModel = async (
   fetchImpl: typeof fetch
 ): Promise<ModelResult> => {
   if (!config.enabled || !config.apiKey) {
+    // Deliberately configured off: not an incident, so it stays unclassified
+    // and never reaches the model-error counters.
     return { content: '', error: 'disabled' };
   }
 
@@ -219,7 +256,7 @@ export const callModel = async (
   } catch (error) {
     const provider = normalizedProvider(config);
     const reason = error instanceof Error ? error.message : `${provider} call failed`;
-    return { content: '', error: reason };
+    return { content: '', error: reason, errorKind: classifyModelThrow(error) };
   } finally {
     clearTimeout(timeout);
     detachExternalSignal();

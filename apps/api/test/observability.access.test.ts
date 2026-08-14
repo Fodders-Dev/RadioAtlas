@@ -1,8 +1,21 @@
 import assert from 'node:assert/strict';
+import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
 import test from 'node:test';
 import express from 'express';
-import { installObservability } from '../src/observability.js';
+
+// The observability store hydrates from a repo-local metrics file by default,
+// so on any machine where the dev API has run, this suite used to inherit real
+// counters and fail the "only known names become counter keys" assertion. CI
+// passed purely because its checkout has no such file. Point the store at a
+// throwaway path BEFORE it is imported, so the assertions describe this test
+// run and nothing else.
+process.env.OBSERVABILITY_STORE_PATH =
+  process.env.OBSERVABILITY_STORE_PATH ||
+  join(tmpdir(), `radioatlas-observability-access-${process.pid}.json`);
+
+const { installObservability } = await import('../src/observability.js');
 
 /**
  * `GET https://radioatlas.ru/api/observability` answered 200 to anyone. Verified

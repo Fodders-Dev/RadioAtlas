@@ -33,7 +33,7 @@ import type {
   WebSearchProvider
 } from './ai/types.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
-import { appendAgentRun, bumpCounter, setGauge } from './observabilityStore.js';
+import { appendAgentRun, appendAlert, bumpCounter, setGauge } from './observabilityStore.js';
 
 const MAX_MESSAGE_CHARS = 2000;
 const MAX_HISTORY_TURNS = 10;
@@ -293,6 +293,23 @@ export const parseSafetyIdentifier = (raw: unknown): string | undefined => {
   return /^[a-zA-Z0-9._:-]{8,128}$/.test(value) ? value : undefined;
 };
 
+// One alert per provider+kind per window. Without this, a dead provider would
+// push an alert on every single turn and bury the 40-entry alert ring (and the
+// webhook) under identical lines.
+const MODEL_ERROR_ALERT_WINDOW_MS = 15 * 60_000;
+const lastModelErrorAlertAt = new Map<string, number>();
+
+export const shouldAlertModelError = (
+  key: string,
+  now: number,
+  windowMs = MODEL_ERROR_ALERT_WINDOW_MS
+) => {
+  const previous = lastModelErrorAlertAt.get(key);
+  if (previous !== undefined && now - previous < windowMs) return false;
+  lastModelErrorAlertAt.set(key, now);
+  return true;
+};
+
 export const recordChatTelemetry = (
   surface: 'miniapp' | 'telegram',
   startedAt: number,
@@ -304,6 +321,26 @@ export const recordChatTelemetry = (
   if (result.usage) {
     bumpCounter('ai_chat_tokens_prompt', result.usage.prompt);
     bumpCounter('ai_chat_tokens_completion', result.usage.completion);
+  }
+  const modelErrors = result.modelErrors || [];
+  if (modelErrors.length) {
+    const provider = result.agentRun?.provider || 'unknown';
+    const model = result.agentRun?.model || 'unknown';
+    const now = Date.now();
+    bumpCounter('ai_model_error');
+    modelErrors.forEach((kind) => {
+      bumpCounter(`ai_model_error:${provider}:${kind}`);
+      // `billing` and `auth` do not recover on their own — a human has to top
+      // up or rotate a key, so those are the ones worth waking someone for.
+      if (kind !== 'billing' && kind !== 'auth') return;
+      if (!shouldAlertModelError(`${provider}:${kind}`, now)) return;
+      appendAlert({
+        kind: 'server-error',
+        title: `ai_model_error:${kind}`,
+        detail: `Lira provider ${provider} (${model}) is failing with "${kind}"; replies are deterministic fallbacks until it is fixed.`,
+        ts: now
+      });
+    });
   }
   if (result.agentRun) {
     bumpCounter(`ai_agent_run:${result.agentRun.status}`);

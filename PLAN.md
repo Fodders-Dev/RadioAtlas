@@ -307,11 +307,38 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Reduce external-link clutter to three primary services with a native,
   keyboard-accessible «ещё сервисы» disclosure for the remainder.
 
+## Provider outage visibility (done)
+
+- [x] 2026-08-14 incident: the DeepSeek balance hit zero, every model call
+  returned `402 Insufficient Balance`, and production Lira answered only with
+  deterministic fallbacks. Nothing alerted, because the run was still logged as
+  `completed` with `warnings: []` and `verifierPassed: true`.
+- [x] `modelClient` now classifies a failure into a closed `ModelErrorKind` set
+  (`billing`, `auth`, `rate_limit`, `provider_unavailable`, `timeout`,
+  `network`, `http`) without echoing provider prose into logs. A disabled model
+  stays unclassified — configuration is not an outage.
+- [x] `brain.ts` collects the kinds hit by the planner, vibe-tag, and composer
+  calls; `agentRunner` reports the run as `failed` with `model_error:<kind>`
+  warnings instead of a clean success.
+- [x] `ai_model_error` / `ai_model_error:<provider>:<kind>` counters, plus a
+  throttled observability alert for `billing` and `auth`. `modelErrors` is an
+  operator signal only and is never returned to the browser.
+- [x] Fixed on-box provider A/B (2026-08-14, repeat=1, six fixtures):
+  OpenAI `gpt-5.6-luna` 6/6 contracts, median 6.2 s, $0.0065 for the run;
+  DeepSeek 0/6 because of the exhausted balance. Once DeepSeek was topped up it
+  answered normally again, so the comparison is NOT a quality verdict and
+  DeepSeek remains the production default.
+- [x] `apps/api/test/observability.access.test.ts` no longer hydrates the
+  repo-local dev metrics store, so the suite is green on a developer machine
+  that has run the API — not just on a clean CI checkout.
+
 ## Next:
 
-Next: watch production constraint-filter and agent-receipt telemetry, expand the
-audited exclusion vocabulary from real misses, and run the fixed provider A/B
-after OpenAI billing has usable credit (DeepSeek remains the production default).
-Then connect a licensed lyrics-content provider (or keep Tavily + the safe
+Next: re-run the provider A/B with both providers funded (repeat=3) for a real
+quality comparison, and watch `ai_model_error:*` plus `ai_agent_run:failed` now
+that a dead provider is actually visible. Keep watching production
+constraint-filter and agent-receipt telemetry and expand the audited exclusion
+vocabulary from real misses (DeepSeek remains the production default). Then
+connect a licensed lyrics-content provider (or keep Tavily + the safe
 Genius-search fallback), refresh approved Lira visual baselines, and upgrade the
 VPS runtime from Node 22 to Node 24.

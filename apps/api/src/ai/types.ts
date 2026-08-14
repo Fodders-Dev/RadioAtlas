@@ -111,6 +111,21 @@ export type AssistantAction = {
 
 export type ChatUsage = { prompt: number; completion: number };
 
+/**
+ * Why a model call failed, as an operator would triage it. `billing` and `auth`
+ * need a human; `rate_limit`, `provider_unavailable`, `timeout`, and `network`
+ * are expected to self-heal. A deliberately disabled model is NOT in this set —
+ * that is configuration, not an outage.
+ */
+export type ModelErrorKind =
+  | 'auth'
+  | 'billing'
+  | 'rate_limit'
+  | 'provider_unavailable'
+  | 'timeout'
+  | 'network'
+  | 'http';
+
 export type ChatResult = {
   reply: string;
   stations: VerifiedStationRef[];
@@ -119,6 +134,13 @@ export type ChatResult = {
   actions: AssistantAction[];
   usage?: ChatUsage;
   agentRun?: AgentRunSummary;
+  /**
+   * Distinct model-failure kinds hit while producing this reply. A non-empty
+   * list means the listener got a deterministic fallback INSTEAD of a model
+   * answer — the run must not be reported as a clean success. Empty/undefined
+   * on every healthy turn.
+   */
+  modelErrors?: ModelErrorKind[];
 };
 
 export type AiModelProvider = 'deepseek' | 'openai';

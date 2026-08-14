@@ -103,3 +103,54 @@ test('Telegram never routes into Mini App state mutations', async () => {
   assert.equal(result.agentRun?.route, 'music_worker');
   assert.equal(result.actions[0]?.kind, 'none');
 });
+
+// The 2026-08-14 production incident in one test: the provider balance ran out,
+// every model call returned 402, and the listener got a warm fallback while the
+// run was recorded as `completed` with no warnings — so nothing alerted.
+test('a dead provider is reported as a failed run, not a clean success', async () => {
+  const paymentRequired = (async () =>
+    new Response(JSON.stringify({ error: { message: 'Insufficient Balance' } }), {
+      status: 402,
+      headers: { 'Content-Type': 'application/json' }
+    })) as typeof fetch;
+
+  const result = await runLiraAgent(
+    { userMessage: 'посоветуй джаз на вечер', surface: 'miniapp' },
+    {
+      ...deps(),
+      model: {
+        provider: 'deepseek',
+        enabled: true,
+        apiKey: 'test-key',
+        baseUrl: 'https://deepseek.invalid',
+        model: 'test-model',
+        maxOutputTokens: 200,
+        timeoutSec: 2
+      },
+      fetch: paymentRequired
+    }
+  );
+
+  assert.equal(result.agentRun?.status, 'failed');
+  assert.ok(
+    result.agentRun?.warnings.includes('model_error:billing'),
+    `expected a billing model_error warning, got ${JSON.stringify(result.agentRun?.warnings)}`
+  );
+  assert.deepEqual(result.modelErrors, ['billing']);
+  // The listener still gets a usable answer — the fix is about visibility, not
+  // about surfacing provider failures to the person asking for music.
+  assert.ok(result.reply.trim().length > 0);
+});
+
+test('a healthy disabled-model turn is not mistaken for a provider outage', async () => {
+  const result = await runLiraAgent(
+    { userMessage: 'посоветуй джаз на вечер', surface: 'miniapp' },
+    deps()
+  );
+  assert.equal(result.agentRun?.status, 'completed');
+  assert.deepEqual(
+    result.agentRun?.warnings.filter((warning) => warning.startsWith('model_error:')),
+    []
+  );
+  assert.equal(result.modelErrors, undefined);
+});

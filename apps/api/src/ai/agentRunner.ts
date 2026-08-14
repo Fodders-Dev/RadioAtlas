@@ -379,6 +379,17 @@ export const runLiraAgent = async (
   if (toolCalls.length >= AGENT_LIMITS.maxToolCalls) {
     warnings.push('max_tool_calls_reached');
   }
+  // A model outage is invisible from the reply alone: brain.ts answers with a
+  // warm deterministic fallback, which used to be logged as a clean
+  // `completed` run with no warnings. That is how an exhausted provider balance
+  // ran unnoticed in production. Report it as a real failure.
+  const modelErrors = workerResult.modelErrors || [];
+  if (modelErrors.length) {
+    modelErrors.forEach((kind) => warnings.push(`model_error:${kind}`));
+    // `blocked` (a limit we imposed) and `needs_input` (a legitimate ask) stay
+    // as they are — only a claimed success is downgraded.
+    if (status === 'completed') status = 'failed';
+  }
 
   const policy = applyAssistantActionPolicy(
     workerResult.actions,
@@ -399,7 +410,8 @@ export const runLiraAgent = async (
         now: baseDeps.now(),
         reason: 'compose-error'
       }),
-      usage: workerResult.usage
+      usage: workerResult.usage,
+      ...(modelErrors.length ? { modelErrors } : {})
     };
   }
 

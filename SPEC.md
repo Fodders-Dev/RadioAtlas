@@ -69,6 +69,12 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
   - Model providers are replaceable behind one typed client. DeepSeek remains
     the default; OpenAI Responses API is an opt-in evaluated configuration,
     never an automatic production migration.
+  - A model failure never reaches the listener as an error — she still gets a
+    warm deterministic reply. It must, however, reach the operator: the agent
+    run is reported as failed with a classified `model_error:<kind>` warning and
+    a counted metric, so an exhausted balance or a revoked key cannot masquerade
+    as healthy traffic. A deliberately disabled model is configuration, not an
+    outage, and stays silent.
 - Settings
   - Clear cache/favorites/recent in one grouped data section with inline confirmation.
   - API status and diagnostics stay collapsed under a developer disclosure.

@@ -101,6 +101,35 @@ Lira agent QA:
   with `AI_PROVIDER=deepseek`, then with `AI_PROVIDER=openai`; do not compare
   unlike traffic or switch production from a single anecdotal answer.
 
+### Dead-provider triage (model_error)
+
+Every model failure degrades to a warm deterministic reply on purpose, so a
+listener never sees an error — which means a dead provider is invisible unless
+you look for it. Since 2026-08-14 the run carries the failure out:
+
+- The agent run is recorded as `status: failed` with a `model_error:<kind>`
+  warning. Kinds: `billing`, `auth`, `rate_limit`, `provider_unavailable`,
+  `timeout`, `network`, `http`. A deliberately disabled model (`AI_ENABLED=0`
+  or a missing key) is configuration, NOT a model error, and stays silent.
+- Counters: `ai_model_error` and `ai_model_error:<provider>:<kind>`, visible in
+  `/observability` and `/observability/prometheus`.
+- `billing` and `auth` additionally raise an observability alert (and hit
+  `OBSERVABILITY_ALERT_WEBHOOK` when configured), throttled to one alert per
+  provider+kind per 15 minutes. The other kinds are counted, not alerted —
+  they are expected to recover on their own.
+- Alert on `ai_model_error:*:billing`, `ai_model_error:*:auth`, and on a
+  sustained rise in `ai_agent_run:failed`.
+- `modelErrors` never reaches the browser; `/ai/chat` still returns only
+  reply/stations/serviceLinks/sources/actions plus the bounded `run` object.
+
+Check a provider balance directly (values are never printed, only status):
+
+```bash
+# DeepSeek — 402 "Insufficient Balance" is the 2026-08-14 production failure.
+curl -sS https://api.deepseek.com/user/balance \
+  -H "Authorization: Bearer $DEEPSEEK_API_KEY"
+```
+
 Automated provider eval:
 ```bash
 # No keys and no billable calls; validates fixtures, model names, and prices.

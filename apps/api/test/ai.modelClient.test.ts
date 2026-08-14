@@ -47,3 +47,73 @@ test('OpenAI provider uses Responses API with bounded structured output and safe
   assert.equal(result.content, '{"action":"final"}');
   assert.deepEqual(result.usage, { prompt: 7, completion: 3 });
 });
+
+test('model failures carry an operator-facing kind, not just a message', async () => {
+  const respondWith = (status: number) =>
+    (async () =>
+      new Response(JSON.stringify({ error: { message: 'nope' } }), {
+        status,
+        headers: { 'Content-Type': 'application/json' }
+      })) as typeof fetch;
+
+  const config = {
+    provider: 'deepseek' as const,
+    enabled: true,
+    apiKey: 'test-key',
+    baseUrl: 'https://deepseek.test',
+    model: 'deepseek-v4-pro',
+    maxOutputTokens: 200,
+    timeoutSec: 2
+  };
+  const call = (status: number) =>
+    callModel(config, [{ role: 'user', content: 'hi' }], { temperature: 0, maxTokens: 10 }, respondWith(status));
+
+  // 402 is the exact production failure: an exhausted balance that used to be
+  // indistinguishable from a healthy turn.
+  assert.equal((await call(402)).errorKind, 'billing');
+  assert.equal((await call(401)).errorKind, 'auth');
+  assert.equal((await call(429)).errorKind, 'rate_limit');
+  assert.equal((await call(503)).errorKind, 'provider_unavailable');
+  assert.equal((await call(418)).errorKind, 'http');
+  assert.equal((await call(402)).error, 'deepseek http 402');
+});
+
+test('a disabled model is configuration, not an outage, and stays unclassified', async () => {
+  const result = await callModel(
+    {
+      provider: 'openai',
+      enabled: false,
+      apiKey: '',
+      baseUrl: 'https://api.openai.test/v1',
+      model: 'gpt-5.6-luna',
+      maxOutputTokens: 200,
+      timeoutSec: 2
+    },
+    [{ role: 'user', content: 'hi' }],
+    { temperature: 0, maxTokens: 10 },
+    globalThis.fetch
+  );
+  assert.equal(result.error, 'disabled');
+  assert.equal(result.errorKind, undefined);
+});
+
+test('a network throw is classified without echoing provider prose', async () => {
+  const boom = (async () => {
+    throw new Error('connect ECONNREFUSED 127.0.0.1:443');
+  }) as typeof fetch;
+  const result = await callModel(
+    {
+      provider: 'deepseek',
+      enabled: true,
+      apiKey: 'test-key',
+      baseUrl: 'https://deepseek.test',
+      model: 'deepseek-v4-pro',
+      maxOutputTokens: 200,
+      timeoutSec: 2
+    },
+    [{ role: 'user', content: 'hi' }],
+    { temperature: 0, maxTokens: 10 },
+    boom
+  );
+  assert.equal(result.errorKind, 'network');
+});
