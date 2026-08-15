@@ -579,6 +579,13 @@ watch for:
 The first means the safety net worked. The second means every copy was
 unreadable and the file was set aside for inspection.
 
+The store has exactly one writer at a time, enforced inside the store rather
+than at the call site. The first version of this fix serialised only the
+debounced path and used one shared `<store>.tmp`, which produced
+`[Observability] failed to persist state ENOENT: rename …metrics.json.tmp` in
+production within hours — the debounce spaces out when a flush STARTS, not how
+long it takes. Temp names are now unique per write as well.
+
 Read the current store without the API (for example while it is restarting):
 
 ```bash

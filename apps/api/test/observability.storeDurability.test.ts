@@ -108,6 +108,33 @@ test('a flush never leaves the store missing or half written', async () => {
   });
 });
 
+test('concurrent flushes do not fight over one temp file', async () => {
+  // The production failure this reproduces, seen on the very code that fixed
+  // the same defect for the catalogue snapshot:
+  //   [Observability] failed to persist state
+  //   Error: ENOENT: rename '<store>.tmp' -> '<store>'
+  // The debounce only spaces out when a flush STARTS; a slow write plus a fresh
+  // burst of counters left two of them writing the same file through one shared
+  // temp name.
+  await withStore(async ({ store, dir, mod }) => {
+    for (let index = 0; index < 40; index += 1) mod.bumpCounter(`concurrent_${index}`);
+    await Promise.all([
+      mod.flushObservabilityStore(),
+      mod.flushObservabilityStore(),
+      mod.flushObservabilityStore(),
+      mod.flushObservabilityStore()
+    ]);
+
+    const raw = JSON.parse(readFileSync(store, 'utf8'));
+    assert.equal(raw.counters.concurrent_0, 1, 'the store must still be complete');
+    assert.deepEqual(
+      readdirSync(dir).filter((name) => name.endsWith('.tmp')),
+      [],
+      'no temp file may be left behind'
+    );
+  });
+});
+
 test('a missing store is an ordinary cold start, not a corruption', async () => {
   await withStore(async ({ store, mod }) => {
     await mod.hydrateObservabilityStore();

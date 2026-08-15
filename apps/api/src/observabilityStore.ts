@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentRunSummary } from './ai/types.js';
@@ -147,6 +147,8 @@ const rotateStoreBackups = async (now: number) => {
   await copyFile(storePath, backupPath(1));
 };
 
+let pendingWriteId = 0;
+
 const scheduleFlush = () => {
   updatedAt = Date.now();
   if (flushTimer) {
@@ -154,6 +156,11 @@ const scheduleFlush = () => {
   }
   flushTimer = setTimeout(() => {
     flushTimer = null;
+    // Chained, not fired-and-forgotten. The debounce only spaces out the START
+    // of a flush; a slow write plus a fresh burst of counters used to leave two
+    // flushes writing the same file at once, which is how they raced over the
+    // temp name. Serialising also means the last one to run is the one that
+    // wins, which is what a "latest state" snapshot wants anyway.
     flushPromise = flushState().catch((error) => {
       console.error('[Observability] failed to persist state', error);
     });
@@ -255,7 +262,29 @@ const loadPersistedState = async () => {
   await hydratePromise;
 };
 
-const flushState = async () => {
+/**
+ * The store has exactly one writer, whoever asks. Serialising only inside
+ * `scheduleFlush` left every other caller — a shutdown hook, a test, a future
+ * "flush now" — free to collide, and two writers is what produced
+ * `ENOENT: rename ...metrics.json.tmp` in production. Queue here and the
+ * property holds for everyone, on every platform: Linux renames atomically,
+ * Windows raises EPERM when two renames target the same destination at once.
+ */
+let writeChain: Promise<void> = Promise.resolve();
+
+const flushState = async (): Promise<void> => {
+  const run = writeChain.then(
+    () => writeStateToDisk(),
+    () => writeStateToDisk()
+  );
+  writeChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+};
+
+const writeStateToDisk = async () => {
   await loadPersistedState();
   pruneByAge(slowRequests);
   pruneByAge(requestSamples);
@@ -286,9 +315,19 @@ const flushState = async () => {
   // had accumulated. rename(2) is atomic on POSIX, so a reader sees either the
   // whole previous file or the whole new one, and a process killed mid-write
   // leaves the previous one intact.
-  const pendingPath = `${storePath}.tmp`;
-  await writeFile(pendingPath, JSON.stringify(payload, null, 2), 'utf8');
-  await rename(pendingPath, storePath);
+  // Unique per write. A shared `<store>.tmp` looked harmless right up until two
+  // flushes overlapped in production: the first renamed the file away and the
+  // second failed with `ENOENT: rename ...metrics.json.tmp`. Exactly the defect
+  // the catalogue snapshot had, in the code that was written to fix it.
+  pendingWriteId += 1;
+  const pendingPath = `${storePath}.${process.pid}.${pendingWriteId}.tmp`;
+  try {
+    await writeFile(pendingPath, JSON.stringify(payload, null, 2), 'utf8');
+    await rename(pendingPath, storePath);
+  } catch (error) {
+    await unlink(pendingPath).catch(() => {});
+    throw error;
+  }
   await rotateStoreBackups(Date.now());
 };
 
@@ -313,6 +352,14 @@ const pushAlert = (alert: ObservabilityAlert) => {
   scheduleFlush();
   void sendAlertWebhook(alert);
 };
+
+/**
+ * Force a write now. Exists so the concurrency contract can be tested for real:
+ * the debounced path only spaces out when a flush STARTS, and the production
+ * failure (`ENOENT: rename ...metrics.json.tmp`) needed two of them writing at
+ * once — which no amount of counter-bumping reproduces reliably from outside.
+ */
+export const flushObservabilityStore = () => flushState();
 
 export const hydrateObservabilityStore = async () => {
   await loadPersistedState();
