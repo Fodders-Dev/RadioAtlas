@@ -509,6 +509,50 @@ curl -sS -X POST http://127.0.0.1:3001/observability/client-event   -H 'Content-
 
 `{"ok":true}` accepted, `{"error":"unknown event name"}` rejected.
 
+### Lira constraint, receipt and grounding counters
+
+Three more things the roadmap says to watch, none of which emitted a number
+before 2026-08-15. Same rule as the card gate: the retained agent run keeps no
+prompt text, so these are counters, never transcripts.
+
+**Explicit «без …» constraint filter.** The vocabulary in
+`EXPLICIT_STATION_EXCLUSIONS` is small and hand-audited on purpose — a false
+positive silently hides good stations — and the roadmap asks to grow it from
+real misses.
+
+- `ai_exclusion_clause` — the listener wrote an exclusion clause at all.
+- `ai_exclusion_matched:<id>` — a known constraint fired. `<id>` always comes
+  from the repo-owned list, never from chat text.
+- `ai_exclusion_removed` — cards were actually removed.
+- `ai_exclusion_unmatched` — **the miss counter.** A clause matched nothing the
+  list knows. This is the evidence for widening the vocabulary; it does not say
+  what was asked, and deliberately cannot.
+- `ai_exclusion_emptied` — the constraint removed every card, so the turn fell
+  back to external link search. Rare, and worse for the listener than a miss:
+  the promise was kept so hard nothing is left to play.
+
+`unmatched / clause` is the ratio to watch. High means the vocabulary is short.
+`emptied` climbing means a `stationPattern` is too broad.
+
+**Agent action receipts.** The browser reports what it actually did with an
+action Lira proposed. These were parsed and fed back into the conversation, but
+counted nowhere — so a client that FAILED to carry out a promised action left no
+server-side trace.
+
+- `ai_action_receipt:<kind>:<status>` — closed: six kinds x
+  executed/skipped/failed.
+- `ai_action_receipt_failed` — aggregate. Alert on a sustained rise: it means
+  Lira is promising things the app cannot deliver.
+
+**Grounding provider.** A capped or failing Tavily degrades silently — the
+listener still gets a warm answer, just without the sources Lira was supposed to
+cite. That is exactly how the 2026-08-14 model outage hid for a day.
+
+- `ai_web_search:<ok|empty|capped|error|disabled>`
+- `ai_web_search_degraded` — `capped` + `error`. Alert on a sustained rise; a
+  steady stream means the daily cap or the key needs attention before anyone
+  concludes Lira has "started making things up".
+
 ### Lira card-gate counters
 
 The gate that keeps station cards off an answer to a question reports which

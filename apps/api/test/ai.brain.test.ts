@@ -2058,3 +2058,60 @@ test('OPINION GATE: a request wearing a question mark keeps its cards and is rep
   assert.ok(result.stations.length > 0, 'a real request keeps its cards');
   assert.equal(result.cardGate?.droppedCards, 0);
 });
+
+/**
+ * The constraint filter is a hand-audited vocabulary on purpose, and the
+ * roadmap wants it grown "from real misses". A miss had no representation at
+ * all — the filter logged a line and nothing else — so these pin the reported
+ * shape end to end: a known exclusion names the id it applied, an unknown one
+ * says so without the message being retained anywhere.
+ */
+test('CONSTRAINT TELEMETRY: a known exclusion reports its id and what it removed', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Тогда без джаза — держи другое.'
+  });
+  // stubTools returns exactly one station tagged `jazz`, so the constraint has
+  // something real to remove and the turn ends with nothing left.
+  const result = await chatWithAssistant(ask('поставь что-нибудь спокойное, без джаза'), makeDeps(fetchImpl));
+
+  assert.ok(result.constraintFilter, 'the turn must report what the filter did');
+  assert.equal(result.constraintFilter?.clauses, 1);
+  assert.deepEqual(result.constraintFilter?.matchedIds, ['jazz']);
+  assert.equal(result.constraintFilter?.unmatchedClause, false);
+  assert.ok((result.constraintFilter?.removedCards ?? 0) > 0, 'the jazz card was actually removed');
+  assert.equal(result.constraintFilter?.emptiedEverything, true, 'nothing survived the constraint');
+  assert.deepEqual(result.stations, [], 'and the promise is kept in the reply too');
+});
+
+test('CONSTRAINT TELEMETRY: an exclusion outside the vocabulary is reported as a miss', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Держи.'
+  });
+  // «горловое пение» is a perfectly reasonable thing to exclude and is not in
+  // EXPLICIT_STATION_EXCLUSIONS. That is exactly the case the counter exists to
+  // surface — without keeping the phrase.
+  const result = await chatWithAssistant(
+    ask('включи что-нибудь фоновое, без горлового пения'),
+    makeDeps(fetchImpl)
+  );
+
+  assert.equal(result.constraintFilter?.clauses, 1);
+  assert.deepEqual(result.constraintFilter?.matchedIds, []);
+  assert.equal(result.constraintFilter?.unmatchedClause, true);
+  assert.equal(result.constraintFilter?.removedCards, 0);
+  assert.ok(result.stations.length > 0, 'an unknown exclusion must not silently empty the slate');
+});
+
+test('CONSTRAINT TELEMETRY: an ordinary request reports no clauses at all', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Лови джаз.'
+  });
+  const result = await chatWithAssistant(ask('включи джаз'), makeDeps(fetchImpl));
+
+  assert.equal(result.constraintFilter?.clauses, 0);
+  assert.equal(result.constraintFilter?.unmatchedClause, false);
+  assert.ok(result.stations.length > 0);
+});

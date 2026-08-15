@@ -151,7 +151,45 @@ export type ChatResult = {
    * tell an over-firing gate from a gate that never fires at all.
    */
   cardGate?: CardGateSignal;
+  /**
+   * What the explicit negative-constraint filter did on this turn. Operator
+   * telemetry only, same as `cardGate`: the `/ai/chat` body never carries it.
+   */
+  constraintFilter?: ConstraintFilterSignal;
+  /** Grounding-provider outcomes for this turn, in call order. */
+  webSearchStatuses?: WebSearchStatus[];
 };
+
+export type ConstraintFilterSignal = {
+  /** How many «без …» / «кроме …» clauses the listener actually wrote. */
+  clauses: number;
+  /**
+   * Which constraints fired, from the closed, repo-owned
+   * `EXPLICIT_STATION_EXCLUSIONS` vocabulary. Never a user-supplied string —
+   * a counter key built from chat text would be unbounded key minting.
+   */
+  matchedIds: string[];
+  /** Station cards the constraint actually removed. */
+  removedCards: number;
+  /**
+   * The listener wrote an exclusion clause that matched NO known constraint.
+   * This is the "real miss" the roadmap wants the vocabulary expanded from —
+   * it says the vocabulary is short, without retaining what was asked.
+   */
+  unmatchedClause: boolean;
+  /** The constraint removed every card, so the turn fell back to link search. */
+  emptiedEverything: boolean;
+};
+
+/**
+ * Per-turn tally of the grounding provider's outcomes, keyed by the same closed
+ * status set the provider already returns (`disabled` covers the tool being
+ * offered while no provider is bound). Grounding degrades silently by design —
+ * an exhausted Tavily quota or a provider outage just means Lira stops citing
+ * sources — which is precisely why it needs a number, the same lesson the
+ * 2026-08-14 DeepSeek billing outage taught about the model client.
+ */
+export type WebSearchStatus = 'ok' | 'empty' | 'capped' | 'error' | 'disabled';
 
 /** Closed set - each value is a predicate that already exists in `brain.ts`. */
 export type CardGateReason = 'knowledge' | 'song' | 'song_topic' | 'opinion';

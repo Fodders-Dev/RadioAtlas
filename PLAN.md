@@ -456,14 +456,54 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   is replaced by a test that reads the web app sources — both directions, so a
   stale name is caught as well as a missing one.
 
+## Constraint, receipt and grounding telemetry (done)
+
+- [x] Same finding as the card gate, three more times over. "Keep watching
+  production constraint-filter and agent-receipt telemetry" could not be done:
+  the constraint filter emitted one log line, action receipts were parsed and
+  validated and then counted nowhere, and the grounding provider's own
+  ok/empty/capped/error status reached the model as context and stopped there.
+- [x] `ai_exclusion_*`: clause seen, which repo-owned id matched, cards removed,
+  and — the one that decides whether to widen the vocabulary —
+  `ai_exclusion_unmatched`, a listener excluding something the list does not
+  know. Plus `ai_exclusion_emptied`, where the constraint was kept so
+  thoroughly that no station survived.
+- [x] `ai_action_receipt:<kind>:<status>` and `ai_action_receipt_failed`: a
+  client that could not carry out an action Lira promised is now visible.
+- [x] `ai_web_search:<status>` and `ai_web_search_degraded`: an exhausted Tavily
+  cap or a provider outage stops being indistinguishable from Lira simply
+  choosing not to cite anything.
+- [x] Every key space stays closed and repo-owned. The excluded clause is
+  reduced to a boolean — a counter key built from chat text would be unbounded
+  key minting, and counters are never pruned by age.
+- [x] Covered end to end through the brain (a known exclusion, an unknown one,
+  and a plain request) plus the route-level counter contracts.
+- [x] Production config checked while here: `AI_ENABLED=1`,
+  `AI_WEB_SEARCH_ENABLED=1` with a Tavily key present, `AI_PROVIDER` unset so
+  DeepSeek remains the default. So the lyrics path in production is the
+  Tavily + safe Genius-search fallback described in SPEC; the licensed-provider
+  decision is a purchase, not a code gap.
+
 ## Next:
 
-Next: let `ai_cards_gate:*` and `ai_model_error:*` accumulate over a real
-traffic window now that the store survives a deploy, and only then decide
-whether the opinion vocabulary needs widening (a reason stuck at zero is not
-evidence for widening it). Keep watching production
-constraint-filter and agent-receipt telemetry and expand the audited exclusion
-vocabulary from real misses (DeepSeek remains the production default). Then
-connect a licensed lyrics-content provider (or keep Tavily + the safe
-Genius-search fallback) and refresh approved Lira visual baselines once the
-design pass settles.
+Next: this is now a WAITING item, not a coding one. Every signal the roadmap
+asked to watch exists and survives a deploy; what is missing is traffic. Let
+`ai_cards_gate:*`, `ai_exclusion_*`, `ai_action_receipt_*`, `ai_web_search_*`
+and `ai_model_error:*` accumulate over a real window, then act on what they say:
+
+- `ai_cards_gate:opinion` stuck at zero is an argument AGAINST widening the
+  opinion vocabulary; `ai_cards_gate_released` climbing means a predicate has
+  grown greedy enough to match real requests.
+- `ai_exclusion_unmatched` against `ai_exclusion_clause` is the ratio that
+  decides whether the hand-audited exclusion vocabulary is short.
+  `ai_exclusion_emptied` climbing means a `stationPattern` is too broad.
+- `ai_action_receipt_failed` means Lira is promising what the app cannot do.
+- `ai_web_search_degraded` means she is answering without the sources she was
+  supposed to cite — check the Tavily cap or key before concluding anything
+  about answer quality.
+- DeepSeek remains the production default; `AI_PROVIDER` is unset on the box.
+
+Not code: a licensed lyrics-content provider is an owner purchase decision.
+Production runs Tavily plus the safe Genius-search fallback today, which SPEC
+already describes as an acceptable steady state. Approved Lira visual baselines
+wait for the design pass to settle.

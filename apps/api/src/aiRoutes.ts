@@ -313,7 +313,8 @@ export const shouldAlertModelError = (
 export const recordChatTelemetry = (
   surface: 'miniapp' | 'telegram',
   startedAt: number,
-  result: ChatResult
+  result: ChatResult,
+  receipts: ClientActionReceipt[] = []
 ) => {
   bumpCounter('ai_chat_request');
   bumpCounter(`ai_chat_request:${surface}`);
@@ -357,6 +358,36 @@ export const recordChatTelemetry = (
     if (result.cardGate.droppedCards > 0) bumpCounter('ai_cards_gate_dropped');
     if (result.cardGate.released) bumpCounter('ai_cards_gate_released');
   }
+  // What the explicit «без …» filter did. The vocabulary is a small hand-audited
+  // list on purpose, and the roadmap asks to grow it "from real misses" — this
+  // is what a real miss looks like in numbers: `ai_exclusion_unmatched` is a
+  // listener excluding something the list does not know. The ids are repo-owned
+  // so the key space stays closed; the clause itself is never retained.
+  if (result.constraintFilter && result.constraintFilter.clauses > 0) {
+    bumpCounter('ai_exclusion_clause');
+    result.constraintFilter.matchedIds.forEach((id) => {
+      bumpCounter(`ai_exclusion_matched:${id}`);
+    });
+    if (result.constraintFilter.removedCards > 0) bumpCounter('ai_exclusion_removed');
+    if (result.constraintFilter.unmatchedClause) bumpCounter('ai_exclusion_unmatched');
+    // The promise was kept so hard that nothing is left to listen to. Rare, and
+    // the one constraint outcome that is worse for the listener than a miss.
+    if (result.constraintFilter.emptiedEverything) bumpCounter('ai_exclusion_emptied');
+  }
+  // Grounding outcomes. `capped` and `error` both mean Lira answered WITHOUT
+  // the sources she was supposed to cite — the listener cannot tell, and before
+  // this neither could the operator.
+  (result.webSearchStatuses || []).forEach((status) => {
+    bumpCounter(`ai_web_search:${status}`);
+    if (status === 'capped' || status === 'error') bumpCounter('ai_web_search_degraded');
+  });
+  // Receipts were parsed, validated and handed to the next turn — and counted
+  // nowhere, so a client that FAILED to carry out an action Lira promised left
+  // no trace at all. Closed key space: six action kinds x three statuses.
+  receipts.forEach((receipt) => {
+    bumpCounter(`ai_action_receipt:${receipt.kind}:${receipt.status}`);
+    if (receipt.status === 'failed') bumpCounter('ai_action_receipt_failed');
+  });
   if (result.agentRun) {
     bumpCounter(`ai_agent_run:${result.agentRun.status}`);
     bumpCounter(`ai_agent_route:${result.agentRun.route}`);
@@ -393,6 +424,9 @@ export const registerAiRoutes = (
     const locale = typeof req.body?.locale === 'string' ? req.body.locale : undefined;
     const history = parseChatHistory(req.body?.history);
     const startedAt = Date.now();
+    // Parsed once: the brain needs it as context for the next turn, and the
+    // telemetry needs it to record what the client actually managed to do.
+    const actionReceipts = parseActionReceipts(req.body?.actionReceipts);
 
     try {
       // runtime.chat already applies the volume cap + concurrency guard and
@@ -406,10 +440,10 @@ export const registerAiRoutes = (
         userTaste: parseUserTasteContext(req.body?.userTaste),
         nowPlaying: parseNowPlayingContext(req.body?.nowPlaying),
         agentContext: parseAgentClientContext(req.body?.agentContext),
-        actionReceipts: parseActionReceipts(req.body?.actionReceipts),
+        actionReceipts,
         safetyIdentifier: parseSafetyIdentifier(req.body?.safetyIdentifier)
       });
-      recordChatTelemetry('miniapp', startedAt, result);
+      recordChatTelemetry('miniapp', startedAt, result, actionReceipts);
       res.json({
         reply: result.reply,
         stations: result.stations,

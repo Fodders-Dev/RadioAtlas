@@ -39,6 +39,8 @@ import type {
   AssistantDeps,
   CardGateReason,
   CardGateSignal,
+  ConstraintFilterSignal,
+  WebSearchStatus,
   ChatInput,
   ChatResult,
   ChatTurn,
@@ -2035,6 +2037,33 @@ export const chatWithAssistant = async (
       `ai excluded ${constraintResult.removed} station card(s) by explicit constraints: ${constraintResult.ids.join(',')}`
     );
   }
+  // What the filter did, as numbers rather than a log line. The vocabulary is
+  // deliberately small and hand-audited, so the question that decides whether
+  // to grow it is "did a listener exclude something we do not know?" — which is
+  // `unmatchedClause`. Nothing here carries chat text: the ids come from the
+  // repo-owned list, and the clause itself is reduced to a boolean.
+  // Grounding degrades quietly on purpose: a capped or failing Tavily just
+  // means Lira stops citing sources, and the listener still gets a warm answer.
+  // That is the same shape as the model outage that went unnoticed for a day,
+  // so the outcome gets counted. The status set is the provider's own.
+  const webSearchStatuses = observations
+    .filter((observation) => observation.tool === WEB_SEARCH_TOOL)
+    .map((observation): WebSearchStatus => {
+      if (observation.error === 'web search disabled') return 'disabled';
+      const note = String(observation.note || '');
+      return note === 'ok' || note === 'empty' || note === 'capped' || note === 'error'
+        ? note
+        : 'error';
+    });
+  const constraintClauseCount = explicitExclusionClauses(musicContextMessage).length;
+  const constraintFilter: ConstraintFilterSignal = {
+    clauses: constraintClauseCount,
+    matchedIds: constraintResult.ids,
+    removedCards: constraintResult.removed,
+    unmatchedClause: constraintClauseCount > 0 && constraintResult.ids.length === 0,
+    emptiedEverything:
+      constraintResult.removed > 0 && collectVerifiedStations(observations).length === 0
+  };
 
   // Empty-result fallback: a music request that STILL found NO stations and NO
   // links (even the vibe→tags backstop came up empty) → external service-search
@@ -2192,6 +2221,8 @@ export const chatWithAssistant = async (
       ...buildFallbackResult({ surface, now, reason, stations, serviceLinks, sources }),
       usage,
       cardGate,
+      constraintFilter,
+      webSearchStatuses,
       ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
     };
   }
@@ -2204,6 +2235,8 @@ export const chatWithAssistant = async (
     actions: deriveActions(stations, userMessage),
     usage,
     cardGate,
+    constraintFilter,
+    webSearchStatuses,
     // A planner step can die while the composer still answers. The turn is
     // usable, but the provider is not healthy — say so.
     ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
