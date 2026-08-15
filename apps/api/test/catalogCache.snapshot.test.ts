@@ -123,7 +123,10 @@ test('CATALOG_DATA_DIR moves the snapshot off the default path', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'radioatlas-datadir-'));
   process.env.CATALOG_DATA_DIR = join(dir, 'somewhere', 'else');
   try {
-    const mod = await import('../src/catalogCache.js?case=datadir');
+    // A literal specifier with a query string is a TS2307 for tsc, even though
+    // Node resolves it fine — hence the variable, like the other cases here.
+    const specifier = `../src/catalogCache.js?case=datadir-${Date.now()}`;
+    const mod = await import(specifier);
     await mod.persistCatalogSnapshot('full', [station(1)]);
     const written = await readFile(join(dir, 'somewhere', 'else', 'catalog-full.json'), 'utf8');
     assert.deepEqual(JSON.parse(written), [station(1)]);
