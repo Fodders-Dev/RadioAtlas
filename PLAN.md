@@ -644,6 +644,40 @@ Options, in the order they should be considered, all of them the owner's call:
   an API now get their own `ACCOUNT_STORE_PATH` and `CATALOG_DATA_DIR` instead
   of sharing the developer's files.
 
+## The ratchet saturates (measured)
+
+Four real catalogue refreshes against the live mirrors, on the current code,
+in a local API with no other traffic (each round waited out BOTH the raw TTL and
+the hard-coded 5-minute profiled-cache TTL, and each is confirmed by a ~70s
+response — a cache hit answers in milliseconds):
+
+```
+after boot warm     193MB
+after refresh 1     556MB   (+363)
+after refresh 2     629MB   (+73)
+after refresh 3     629MB   (+0)
+after refresh 4     628MB   (-1)
+```
+
+- **It is not linear.** V8 grows the heap to fit the refresh working set over
+  the first two refreshes and then stops: rounds three and four cost nothing.
+  The plateau, ~629MB with no traffic at all, sits below the 896MB cap.
+- So production's 480MB -> 1010MB over eleven refreshes was not eleven refreshes
+  each keeping ~33MB. It was that plateau PLUS the traffic and the hourly
+  harvester burst on top of it.
+- Which makes the six-hour TTL worth more than the arithmetic suggested: the
+  process now spends nearly all its life at the low baseline (437MB observed on
+  production over an hour) instead of repeatedly climbing to the plateau.
+- No further code change is justified by this evidence. The number to watch is
+  still the kill counter.
+
+The first version of this measurement was wrong and is worth remembering as a
+trap: it drove `/catalog/summary`, which is served from an HOURLY bucket cache
+and never reaches the catalogue, so four "refreshes" were four 3ms cache hits
+that "proved" 0.3MB per refresh. A refresh needs a request that goes through the
+profiled catalogue AND both caches lapsed, and it takes ~70 seconds — so the
+response time is itself the check that a refresh happened.
+
 ## Next:
 
 Next: with the TTL at 6 hours the spike happens 4 times a day instead of 48;
