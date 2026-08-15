@@ -598,6 +598,29 @@ Options, in the order they should be considered, all of them the owner's call:
   publishes 62 369 and we keep 62 337. `MAX_PAGES=12` is a ceiling the paging
   loop never reaches.
 
+## The memory does not spike, it ratchets (observing)
+
+- [x] Kill #5 arrived at 20:43 on the code that ALREADY had the mirror-abort
+  and chunked-snapshot fixes: 1010MB after 5.5 hours of uptime. So the earlier
+  reading was incomplete — the process does not merely spike during a refresh
+  and come back, it comes back a little higher each time.
+- [x] The numbers fit a ratchet rather than a leak: boot at 15:08, ~480MB after
+  the first refresh, 842MB at 20:41, killed at 1010MB. Eleven refreshes in
+  between, roughly +33MB retained per refresh. V8 grows its heap to hold the
+  transient and does not hand the pages back; repeatedly allocating and freeing
+  60k-object arrays fragments what it keeps.
+- [x] If that is the mechanism, the 6-hour TTL is the right lever and no further
+  code is needed: four refreshes a day instead of forty-eight turns ~+65MB/hour
+  into ~+130MB/day, against a process that is restarted by every deploy anyway.
+- [ ] **Being measured overnight.** `radioatlas-nightwatch` samples RSS, swap,
+  uptime and counters every minute into `/tmp/nightwatch.log` on the box. The
+  first refresh under the new TTL is due ~6h after the 20:50 boot. Flat until
+  then, and a single step at the refresh, confirms the ratchet. A steady climb
+  with no refresh means something else retains memory and the hunt continues.
+- [ ] If it does turn out to need more: `--max-old-space-size` (make V8 collect
+  rather than grow) is the next lever, and a safer one than raising the pm2 cap
+  on a box whose 2GB of swap is already full.
+
 ## Next:
 
 Next: with the TTL at 6 hours the spike happens 4 times a day instead of 48;
