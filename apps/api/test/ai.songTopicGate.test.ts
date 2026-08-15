@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isExplicitMusicRequest, isSongTopicQuestion } from '../src/ai/brain.js';
+import {
+  isExplicitMusicRequest,
+  isMusicOpinionQuestion,
+  isSongTopicQuestion
+} from '../src/ai/brain.js';
 
 /**
  * Live transcript this exists for. Each of these came back with station cards
@@ -84,5 +88,58 @@ test('a question is not a request, and a request is not a question', () => {
   ];
   for (const message of requests) {
     assert.equal(isExplicitMusicRequest(message), true, `request: ${message}`);
+  }
+});
+
+/**
+ * 2026-08-15 provider A/B, six fixtures × three repeats against both providers.
+ * Every fixture passed except `music-conversation` — «Почему людям так нравится
+ * джаз?» — which DeepSeek failed 3/3 and OpenAI 2/3, both by returning
+ * `open-station` plus station cards for a question that asked for an opinion,
+ * not for radio. Two different models failing the same way is a gap in the
+ * gate, not a model quirk: nothing in the knowledge, song, or trivia predicates
+ * matched, so the cards the planner had collected were attached anyway.
+ */
+test('an open-ended question about music is a conversation turn, not a radio request', () => {
+  for (const message of [
+    'Почему людям так нравится джаз?',
+    'почему все так любят синтвейв',
+    'зачем люди слушают эмбиент',
+    'отчего металл так популярен',
+    'чем цепляет городской поп',
+    'чем так хорош lo-fi',
+    'в чём прелесть винила',
+    'в чем секрет шугейза',
+    'что такого в этом жанре',
+    'why do people like jazz'
+  ]) {
+    assert.equal(
+      isMusicOpinionQuestion(message),
+      true,
+      `should be an opinion question: ${message}`
+    );
+  }
+});
+
+test('asking FOR music keeps its cards even when phrased as a question', () => {
+  // The trap this predicate has to avoid: a request wearing a question mark.
+  // «Почему бы не поставить…» is a real ask, and the infinitive «поставить»
+  // does NOT match MUSIC_REQUEST_VERB, so the opinion predicate is the only
+  // thing standing between that request and a silently card-less answer.
+  for (const message of [
+    'почему бы не поставить что-то бодрое?',
+    'почему бы не включить джаз',
+    'посоветуй джаз',
+    'найди что-нибудь спокойное',
+    'что послушать вечером',
+    'включи русский рок',
+    'что сейчас играет?',
+    'привет'
+  ]) {
+    assert.equal(
+      isMusicOpinionQuestion(message),
+      false,
+      `must NOT be an opinion question: ${message}`
+    );
   }
 });

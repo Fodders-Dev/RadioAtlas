@@ -332,11 +332,27 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   repo-local dev metrics store, so the suite is green on a developer machine
   that has run the API — not just on a clean CI checkout.
 
+## Provider A/B with both providers funded (done)
+
+- [x] 2026-08-15, six fixtures x three repeats, identical catalog context:
+  DeepSeek `deepseek-v4-pro` 15/18 contracts, median 5.5 s, $0.0135;
+  OpenAI `gpt-5.6-luna` 16/18, median 4.6 s, $0.0210. Latency and quality are
+  close enough that cost keeps DeepSeek as the production default; OpenAI stays
+  the evaluated alternative and the standby when DeepSeek is unavailable.
+- [x] Both providers failed the SAME fixture, which made it a product gap rather
+  than a model difference: «Почему людям так нравится джаз?» came back with
+  station cards and an `open-station` action. None of the knowledge, song, or
+  trivia predicates matched an open-ended opinion question, so whatever the
+  planner had collected was attached to an answer nobody asked to listen to.
+- [x] Added `isMusicOpinionQuestion` to the card gate — deliberately narrow, so a
+  request wearing a question mark («почему бы не поставить что-то бодрое?»)
+  keeps its cards.
+
 ## Next:
 
-Next: re-run the provider A/B with both providers funded (repeat=3) for a real
-quality comparison, and watch `ai_model_error:*` plus `ai_agent_run:failed` now
-that a dead provider is actually visible. Keep watching production
+Next: watch `ai_model_error:*` plus `ai_agent_run:failed` now that a dead
+provider is actually visible, and re-check the opinion-question gate against
+real transcripts before widening its vocabulary. Keep watching production
 constraint-filter and agent-receipt telemetry and expand the audited exclusion
 vocabulary from real misses (DeepSeek remains the production default). Then
 connect a licensed lyrics-content provider (or keep Tavily + the safe

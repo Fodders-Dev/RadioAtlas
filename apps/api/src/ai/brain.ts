@@ -553,6 +553,35 @@ export const isExplicitMusicRequest = (message: string): boolean =>
 export const isSongTopicQuestion = (message: string): boolean =>
   SONG_TOPIC_QUESTION.test(String(message || '').trim());
 
+// An open-ended question ABOUT music — «почему людям так нравится джаз?»,
+// «чем цепляет синтвейв?», «зачем слушают эмбиент?» — is a conversation turn,
+// not a request for radio. It names a genre, and that is exactly why it used to
+// come back with station cards and an auto-open action: none of the knowledge,
+// song, or trivia predicates matched, so whatever the planner happened to
+// collect got attached to an answer nobody asked to listen to. Both DeepSeek
+// and OpenAI failed this fixture in the 2026-08-15 A/B, which is what makes it
+// a product gap rather than a model quirk.
+//
+// Deliberately narrow: it needs the "why/what makes it appealing" shape, not a
+// bare «почему». «Почему бы не поставить что-то бодрое?» carries a real request
+// and must keep its cards — the infinitive «поставить» does not match
+// MUSIC_REQUEST_VERB, so this predicate cannot lean on that guard alone.
+const MUSIC_OPINION_QUESTION = new RegExp(
+  String.raw`(?:почему|отчего|зачем)[^?!.]{0,80}?(?:нрав|люб(?:ят|ит)|слуша(?:ют|ет)|популяр|цепля|заходит|торкает|прётся|прется)` +
+    '|' +
+    String.raw`чем\s+(?:так\s+)?(?:цепля|нрав|привлека|хорош|интересен|интересна|берёт|берет)` +
+    '|' +
+    String.raw`в\s+ч[её]м\s+(?:прелесть|смысл|секрет|магия|сила|кайф)` +
+    '|' +
+    String.raw`что\s+такого\s+в(?![а-яё])` +
+    '|' +
+    String.raw`why\s+(?:do\s+)?people\s+(?:like|love|listen)`,
+  'i'
+);
+
+export const isMusicOpinionQuestion = (message: string): boolean =>
+  MUSIC_OPINION_QUESTION.test(String(message || '').trim());
+
 export const isCurrentStationQuestion = (message: string): boolean =>
   CURRENT_STATION_QUESTION.test(String(message || '').trim());
 
@@ -2130,7 +2159,8 @@ export const chatWithAssistant = async (
     knowledgeQuestion ||
     songKnowledgeIntent.any ||
     songKnowledgeIntent.referencesCurrentTrack ||
-    isSongTopicQuestion(userMessage);
+    isSongTopicQuestion(userMessage) ||
+    isMusicOpinionQuestion(userMessage);
   // NOT `!musicIntent`: that predicate fires on a bare music descriptor, so the
   // word «песня» inside «Че за песня?» kept it true and this gate never ran.
   // A question loses its cards unless the listener actually ASKED for music.
