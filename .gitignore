@@ -12,6 +12,10 @@ artifacts/
 .env.local
 .DS_Store
 .vscode/
+# Per-developer editor/agent config, same class as .vscode/ above.
+.claude/launch.json
+.claude/settings.local.json
+.claude/worktrees/
 apps/extractor/bin/
 apps/webapp/vite-plan*.log
 apps/webapp/vite-*.log
