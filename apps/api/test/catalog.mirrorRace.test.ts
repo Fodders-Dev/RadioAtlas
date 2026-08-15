@@ -25,8 +25,12 @@ import test from 'node:test';
  */
 
 const apiRoot = fileURLToPath(new URL('../', import.meta.url));
-const apiPort = 35200 + Math.floor(Math.random() * 300);
-const upstreamPort = apiPort + 400;
+// 38xxx is free: the other spawning suites sit between 34100 and 37699, and
+// they run in parallel (node:test runs files concurrently), so an overlapping
+// range takes down a NEIGHBOURING suite rather than this one — which is how it
+// first showed up, as api.degradation.test.ts failing with ECONNREFUSED.
+const apiPort = 38200 + Math.floor(Math.random() * 200);
+const upstreamPort = apiPort + 300;
 const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const upstreamBaseUrl = `http://127.0.0.1:${upstreamPort}`;
 
