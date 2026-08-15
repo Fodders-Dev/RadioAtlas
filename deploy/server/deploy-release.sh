@@ -74,6 +74,31 @@ preserve_previous_chunks() {
   fi
 }
 
+# `ffmpeg-static` (a dependency of apps/bot) downloads its binary in a
+# postinstall step and keeps every copy it has ever fetched in a cacache
+# directory that nothing evicts. Every deploy runs `npm ci` in a fresh release
+# dir, so every deploy adds another ~9MB entry. Measured 2026-08-14: 1188
+# entries, 5.5GB — twice the size of all five kept releases combined, and the
+# single largest consumer on a 59GB disk that had reached 96% full.
+#
+# A warm cache is worth keeping (it saves the download on the common deploy),
+# so this caps rather than clears: past the cap the whole directory goes and the
+# next install refills it with just what it needs.
+prune_ffmpeg_download_cache() {
+  local cache_dir="${FFMPEG_CACHE_DIR:-$HOME/.cache/ffmpeg-static-nodejs}"
+  local cap_mb="${FFMPEG_CACHE_MAX_MB:-256}"
+  local used_mb=""
+
+  [[ -d "$cache_dir" ]] || return 0
+  used_mb="$(du -sm "$cache_dir" 2>/dev/null | cut -f1)"
+  [[ "$used_mb" =~ ^[0-9]+$ ]] || return 0
+
+  if (( used_mb > cap_mb )); then
+    rm -rf "$cache_dir"
+    echo "Cleared ffmpeg-static download cache: ${used_mb}MB exceeded the ${cap_mb}MB cap" >&2
+  fi
+}
+
 assert_webapp_dist() {
   local web_root="$CURRENT_LINK/apps/webapp/dist"
   local index_file="$web_root/index.html"
@@ -183,7 +208,11 @@ restart_pm2_release_clean() {
 
 prune_old_releases() {
   local current_target=""
-  local keep_extra=4
+  # Chunk preservation reads exactly ONE previous release; the extras exist only
+  # for a manual rollback. At ~530MB each, four spares cost 2.1GB of a 59GB disk
+  # for a rollback depth nobody has used — two is a real safety margin without
+  # being the reason the box fills up.
+  local keep_extra="${RELEASE_KEEP_EXTRA:-2}"
   local kept_extra=0
   local release=""
 
@@ -232,6 +261,7 @@ if [[ -f "$SHARED_ENV_DIR/webapp.env" ]]; then
 fi
 
 npm ci
+prune_ffmpeg_download_cache
 # Pin the Vite build metadata to this release even if the VPS inherits a stale
 # SOURCE_COMMIT. CSS is served immutable for one year, so reusing an old commit
 # suffix can leave Telegram WebViews on stale styles after a successful deploy.

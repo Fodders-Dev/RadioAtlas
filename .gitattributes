@@ -1,5 +1,48 @@
+# One canonical line ending, decided by the repository instead of by whoever
+# checked it out.
+#
+# Before this rule the repo stored LF but a Windows checkout wrote CRLF, and
+# only `core.autocrlf=true` in that one developer's global git config hid the
+# difference. Any other tool reading the same working tree — WSL, a Linux
+# container, an agent working through a mounted folder — saw all ~478 tracked
+# files as modified, which is both useless noise and a standing invitation to
+# commit a whole-file line-ending change by accident.
+#
+# It was not only cosmetic: `*.sh text eol=lf` below was added after the files
+# were already on disk, and git never re-checks out a file just because an
+# attribute changed. So 8 of 15 shell scripts stayed CRLF locally, and
+# `bash deploy/server/test-preserve-chunks.sh` — a command RUNBOOK.md tells you
+# to run — died on `set: pipefail: invalid option name`. That is the same
+# failure that shipped install-health-guard.sh broken.
+#
+# `text=auto` lets git detect and leave binary files alone; the explicit rules
+# below remove any doubt for the formats this repo actually carries.
+* text=auto eol=lf
+
 # Shell scripts run on Linux and MUST be LF in the repository. A CRLF file makes
 # bash read `set -euo pipefail\r` and abort with "pipefail: invalid option name" —
 # which is exactly how install-health-guard.sh got committed broken: an edit made
 # from Windows wrote CRLF, and core.autocrlf=true did not normalise it back.
 *.sh text eol=lf
+
+# Windows batch files are the one thing that genuinely wants CRLF (gradlew.bat).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never touch the bytes.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.mp3 binary
+*.zip binary
+*.gz binary
+*.jar binary
+*.wsz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
