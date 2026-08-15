@@ -678,11 +678,35 @@ that "proved" 0.3MB per refresh. A refresh needs a request that goes through the
 profiled catalogue AND both caches lapsed, and it takes ~70 seconds — so the
 response time is itself the check that a refresh happened.
 
+## Nothing ratchets permanently (measured across a full cycle)
+
+Production, 63 minutes of one-per-two-minute sampling across a complete
+harvester cycle, no deploys in the window:
+
+```
+22:25 - 23:06   462-463MB    flat for 41 minutes, no traffic, no refresh
+23:08           464MB        harvester tick starts
+23:10           481MB
+23:12           504MB        peak during the tick
+23:14           416MB        tick ends - and it lands BELOW where it began
+23:16 - 23:28   414-415MB    flat
+```
+
+- The hourly harvester burst costs **+42MB transiently and returns all of it**,
+  settling ~48MB below the pre-tick baseline. The earlier 437 -> 468MB reading
+  that suggested a per-tick ratchet was simply the transient caught mid-tick.
+- Together with the other two measurements — a Лира turn returns its +67MB in
+  45 seconds, and the refresh ratchet saturates after two rounds — **nothing in
+  this process accumulates without bound.** The 480MB -> 1010MB climb before the
+  fixes was refreshes every 30 minutes never letting the process leave the
+  elevated plateau, not a leak.
+- Kill counter frozen at five for over three hours, the fifth being 20:43 on the
+  pre-TTL code.
+
 ## Next:
 
-Next: with the TTL at 6 hours the spike happens 4 times a day instead of 48;
-confirm over a day that `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
-stays at four. The box-level problem is separate and belongs to the owner: 2GB
+Next: nothing outstanding on memory. Confirm over a few days that
+`grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stays at five. The box-level problem is separate and belongs to the owner: 2GB
 of swap is fully used and RadioAtlas is not the main occupant.
 
 Superseded (kept for the reasoning): deciding between the three memory options — the measurement is done
