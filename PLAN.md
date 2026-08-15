@@ -484,9 +484,40 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   Tavily + safe Genius-search fallback described in SPEC; the licensed-provider
   decision is a purchase, not a code gap.
 
+## The persistent metrics store had to survive being killed (done)
+
+- [x] Ninety minutes after the store moved to a path that survives deploys, it
+  lost history anyway: `ai_chat_request` went 6 → 3. Cause found in the logs —
+  pm2 restarted the API for exceeding `max_memory_restart` mid-flush, the next
+  boot read a truncated file (`Unexpected end of JSON input`), hydration failed,
+  and the process then wrote its own near-empty state over everything.
+- [x] Two defects, both harmless while the store was disposable and both fatal
+  once it was not. `writeFile` is not atomic; and the backup rotation `rename`d
+  the live file away BEFORE writing the new one, leaving a window with no store
+  at all — several times a second under load.
+- [x] Writes are now write-then-`rename`. Backups are copied after a successful
+  write, at most once a minute instead of on every flush.
+- [x] The rotated backups were written and never read. Hydration now falls back
+  to them and preserves an unreadable live file as `.corrupt` rather than
+  silently replacing it.
+- [x] Covered by a test that reproduces the production shape: a truncated live
+  file next to a good backup, a flush loop that reads the file on every
+  iteration, and a cold start that must not be mistaken for corruption.
+
 ## Next:
 
-Next: this is now a WAITING item, not a coding one. Every signal the roadmap
+Next, and NOT a waiting item: **the API is being memory-killed under real
+load.** Three restarts on 2026-08-15 (12:10:57, 12:11:27, 12:37:57) at
+1114MB / 1012MB / 1031MB against the 896MB `max_memory_restart` cap, and the
+12:10 one killed a real listener's `/api/ai/chat` mid-request — Caddy logged the
+502 with their Telegram Android user agent. This is the #151 pattern recurring
+above the cap it was raised to. Raising it again is not free: the box has 3.9GB
+total and ~1.3GB available, shared with the neighbour services, so the next step
+is finding what allocates ~700MB above the ~400MB idle baseline (the parsed
+58MB catalog artifact and concurrent Лира working sets are the first suspects),
+not another bump.
+
+The rest is a WAITING item, not a coding one. Every signal the roadmap
 asked to watch exists and survives a deploy; what is missing is traffic. Let
 `ai_cards_gate:*`, `ai_exclusion_*`, `ai_action_receipt_*`, `ai_web_search_*`
 and `ai_model_error:*` accumulate over a real window, then act on what they say:

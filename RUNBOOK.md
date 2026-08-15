@@ -471,6 +471,26 @@ boot, `/observability` reports `persistence.ephemeral`, and
 `apps/api/test/observability.storePath.test.ts` asserts the pm2 config points
 outside `releases/`.
 
+The file is written with write-then-`rename`, so a reader sees either the whole
+previous state or the whole new one, and a process killed mid-write leaves the
+previous file intact. Hydration falls back to `metrics.json.1.bak` /
+`.2.bak` (copied at most once a minute) and preserves an unreadable live file as
+`metrics.json.corrupt` instead of overwriting it.
+
+That is not theoretical: on 2026-08-15, ninety minutes after the store was moved
+here, pm2 restarted the API for exceeding `max_memory_restart` mid-flush, the
+next boot read a truncated file, hydration failed, and the process wrote its own
+near-empty state over the history (`ai_chat_request` went 6 → 3). Log lines to
+watch for:
+
+```
+[Observability] recovered metrics from <path>.1.bak after an unreadable store
+[Observability] kept the unreadable store as <path>.corrupt
+```
+
+The first means the safety net worked. The second means every copy was
+unreadable and the file was set aside for inspection.
+
 Read the current store without the API (for example while it is restarting):
 
 ```bash

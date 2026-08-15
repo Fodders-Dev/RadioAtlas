@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentRunSummary } from './ai/types.js';
@@ -117,26 +117,34 @@ const pruneByAge = <T extends { ts: number }>(target: T[]) => {
 
 const backupPath = (index: number) => `${storePath}.${index}.bak`;
 
-const rotateStoreBackups = async () => {
+/**
+ * Rotation used to `rename()` the live file into `.1.bak` and only then write a
+ * new one, which leaves a window with NO store file at all — and it ran on
+ * every flush, i.e. several times a second under load. Copy instead, after the
+ * new state is safely in place, and not more often than this.
+ */
+const BACKUP_INTERVAL_MS = Math.max(0, Number(process.env.OBSERVABILITY_BACKUP_INTERVAL_MS || 60_000));
+let lastBackupAt = 0;
+
+const rotateStoreBackups = async (now: number) => {
   if (STORE_BACKUP_COUNT <= 0) return;
+  if (now - lastBackupAt < BACKUP_INTERVAL_MS) return;
   try {
     await access(storePath);
   } catch {
     return;
   }
+  lastBackupAt = now;
 
-  for (let index = STORE_BACKUP_COUNT; index >= 1; index -= 1) {
-    const source = index === 1 ? storePath : backupPath(index - 1);
-    const target = backupPath(index);
+  for (let index = STORE_BACKUP_COUNT; index >= 2; index -= 1) {
     try {
-      await rename(source, target);
+      await copyFile(backupPath(index - 1), backupPath(index));
     } catch (error) {
       const code = (error as NodeJS.ErrnoException | undefined)?.code;
-      if (code !== 'ENOENT') {
-        throw error;
-      }
+      if (code !== 'ENOENT') throw error;
     }
   }
+  await copyFile(storePath, backupPath(1));
 };
 
 const scheduleFlush = () => {
@@ -152,13 +160,63 @@ const scheduleFlush = () => {
   }, FLUSH_DELAY_MS);
 };
 
+/**
+ * Read the store, falling back to the rotated backups. The backups existed
+ * before this and were never read — so when the live file came back truncated
+ * after a mid-write restart, the process started from nothing and then
+ * overwrote the only good copies it had. An unreadable live file is kept aside
+ * as `.corrupt` rather than silently replaced, so the next flush cannot destroy
+ * the evidence.
+ */
+const readPersistedState = async (): Promise<PersistedObservabilityState | null> => {
+  const candidates = [storePath];
+  for (let index = 1; index <= STORE_BACKUP_COUNT; index += 1) candidates.push(backupPath(index));
+
+  let liveFileWasCorrupt = false;
+  for (const candidate of candidates) {
+    let raw: string;
+    try {
+      raw = await readFile(candidate, 'utf8');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code !== 'ENOENT') {
+        console.error(`[Observability] cannot read ${candidate}`, error);
+      }
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(raw) as PersistedObservabilityState;
+      if (candidate !== storePath) {
+        console.error(`[Observability] recovered metrics from ${candidate} after an unreadable store`);
+      }
+      return parsed;
+    } catch (error) {
+      if (candidate === storePath) liveFileWasCorrupt = true;
+      console.error(`[Observability] ${candidate} is not valid JSON`, error);
+    }
+  }
+
+  if (liveFileWasCorrupt) {
+    try {
+      await rename(storePath, `${storePath}.corrupt`);
+      console.error(`[Observability] kept the unreadable store as ${storePath}.corrupt`);
+    } catch (error) {
+      console.error('[Observability] could not preserve the unreadable store', error);
+    }
+  }
+  return null;
+};
+
 const loadPersistedState = async () => {
   if (hydrated) return;
   if (!hydratePromise) {
     hydratePromise = (async () => {
       try {
-        const raw = await readFile(storePath, 'utf8');
-        const parsed = JSON.parse(raw) as PersistedObservabilityState;
+        const parsed = await readPersistedState();
+        if (!parsed) {
+          hydrated = true;
+          return;
+        }
         Object.entries(parsed.counters || {}).forEach(([key, value]) => {
           if (typeof value === 'number' && Number.isFinite(value)) {
             counters.set(key, value);
@@ -210,7 +268,6 @@ const flushState = async () => {
   trimList(agentRuns, MAX_AGENT_RUNS);
   trimList(alerts, MAX_ALERTS);
   await mkdir(dirname(storePath), { recursive: true });
-  await rotateStoreBackups();
   const payload: PersistedObservabilityState = {
     counters: Object.fromEntries(counters.entries()),
     gauges: Object.fromEntries(gauges.entries()),
@@ -221,7 +278,18 @@ const flushState = async () => {
     alerts,
     updatedAt
   };
-  await writeFile(storePath, JSON.stringify(payload, null, 2), 'utf8');
+  // Write-then-rename, because a plain writeFile is not atomic and this store
+  // is no longer disposable. Production, 2026-08-15: pm2 restarted the API for
+  // exceeding max_memory_restart WHILE a flush was in flight, the next boot
+  // read a truncated file (`Unexpected end of JSON input`), hydration failed,
+  // and the process then wrote its own near-empty state over everything that
+  // had accumulated. rename(2) is atomic on POSIX, so a reader sees either the
+  // whole previous file or the whole new one, and a process killed mid-write
+  // leaves the previous one intact.
+  const pendingPath = `${storePath}.tmp`;
+  await writeFile(pendingPath, JSON.stringify(payload, null, 2), 'utf8');
+  await rename(pendingPath, storePath);
+  await rotateStoreBackups(Date.now());
 };
 
 const sendAlertWebhook = async (alert: ObservabilityAlert) => {
