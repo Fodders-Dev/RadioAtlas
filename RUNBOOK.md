@@ -10,6 +10,66 @@ npm run dev:bot
 Use Node.js 24+ and npm 10+. The API account and station-intelligence stores use
 `node:sqlite`, so older Node runtimes are not supported.
 
+## Node runtime on the VPS
+
+Production runs **Node 24.19.0** (NodeSource apt, `node_24.x nodistro`) since
+2026-08-15; it was 22.22.0 before. CI and `engines.node` track the same major on
+purpose — a green gate on a runtime nobody runs proves less than it looks like.
+
+The runtime is **shared with the neighbouring services on this box**, so an
+upgrade is not a RadioAtlas-only decision. Who is affected:
+
+- `rodnya-backend.service` and `rodnya-web-static.service` run `/usr/bin/node`
+  directly and restart with it. Both are pure JS (no native modules), so a major
+  bump is cheap — but they do need an explicit `systemctl restart`.
+- FoddersGameBot runs under Docker Compose and uses its image's node. Unaffected.
+- RadioAtlas's own native modules (`@resvg/resvg-js`, `lightningcss`, rollup,
+  rolldown) are all N-API prebuilds and `npm ci` runs per deploy, so there is
+  nothing to rebuild by hand.
+
+Upgrade sequence that was actually used:
+
+```bash
+cp -a /etc/apt/sources.list.d/nodesource.list /root/nodesource.list.bak-$(date +%F-%H%M%S)
+echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main"   > /etc/apt/sources.list.d/nodesource.list
+apt-get update && apt-get install -s -y nodejs   # dry run first: expect ONE Inst line
+apt-get install -y nodejs
+pm2 start /opt/RadioAtlas/current/ecosystem.config.cjs --update-env && pm2 save
+systemctl restart rodnya-backend.service rodnya-web-static.service
+```
+
+⚠ **Do not use `pm2 update`.** It is the documented way to move the daemon onto
+a new node, and on this box (pm2 6.0.14) it hung: it killed the God daemon and
+every app, then never returned, leaving the API down and `:3001` refusing
+connections. Recovery is to kill the stuck `pm2 update` process and start from
+the ecosystem file, which is what the deploy script does anyway:
+
+```bash
+pkill -f "pm2 update"
+pm2 start /opt/RadioAtlas/current/ecosystem.config.cjs --update-env
+pm2 save
+```
+
+Verify the upgrade against all four surfaces, not just `/health`:
+
+```bash
+node -v && npm -v                                             # 24.x / 11.x
+curl -sS http://127.0.0.1:3001/health                         # {"ok":true}
+curl -sS -o /dev/null -w '%{http_code}
+' http://127.0.0.1:8080/health   # rodnya backend
+curl -sS -o /dev/null -w '%{http_code}
+' http://127.0.0.1:8098/         # rodnya static
+curl -sS -o /dev/null -D- http://127.0.0.1:3001/share/story/<uuid>.png | grep -i fallback
+```
+
+The story card is the one that matters most: an `x-radioatlas-fallback` header
+means satori/resvg did NOT render and the native path is broken on the new
+runtime. No header means it rendered live.
+
+Rollback: restore the saved `nodesource.list`, `apt-get update`, then
+`apt-get install -y --allow-downgrades nodejs=22.*`, and repeat the same restart
+sequence.
+
 ## Bot env
 - `BOT_TOKEN`: Telegram bot token
 - `WEBAPP_URL`: public webapp URL

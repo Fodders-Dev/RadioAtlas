@@ -21,12 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Match PRODUCTION, not the newest release. The VPS runs 22.22.0 and the
-      # API runs on it, so a green gate on a different major would prove less
-      # than it appears to.
+      # Match PRODUCTION, not the newest release. The VPS runs 24.19.0 since
+      # 2026-08-15 (it was 22.22.0 before), and the API runs on it, so a green
+      # gate on a different major would prove less than it appears to.
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.22.x'
+          node-version: '24.19.x'
           cache: npm
 
       - run: npm ci

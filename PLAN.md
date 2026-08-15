@@ -412,6 +412,31 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   question drops the planner's cards and returns `{kind:'none'}` rather than
   `open-station`, and a request wearing a question mark keeps them.
 
+## VPS runtime: Node 22 -> 24 (done)
+
+- [x] The box was on Node 22.22.0 while README and `node:sqlite` usage assumed
+  24+. Upgraded via NodeSource `node_24.x` to **24.19.0** (npm 11.17.0).
+- [x] The runtime is shared, so the blast radius was checked before touching it:
+  `rodnya-backend` and `rodnya-web-static` run `/usr/bin/node` directly (pure
+  JS, no native modules, `engines >=22`), FoddersGameBot runs in Docker and is
+  unaffected, and RadioAtlas's native modules are all N-API prebuilds refetched
+  by the per-deploy `npm ci`. Both rodnya units were restarted and verified.
+- [x] `pm2 update` — the documented way to move the daemon to a new node —
+  **hung** on pm2 6.0.14: it killed the daemon and every app and never
+  returned, taking the API down. Recovery was `pm2 start ecosystem.config.cjs
+  --update-env`, which is what the deploy script uses anyway. RUNBOOK now says
+  not to use `pm2 update` on this box.
+- [x] Verified after the upgrade: `/health`, public `https://radioatlas.ru/api/health`,
+  `/catalog/summary`, a live Lira turn, the harvester one-shot (`processed=194
+  failures=6 tripped=false`), and the story card rendering **live** rather than
+  serving the static fallback — that last one is the only check that proves the
+  native satori/resvg path survived the major bump.
+- [x] CI and `engines.node` moved to the same major, so the gate keeps testing
+  the runtime production actually runs. The nightly catalog-artifacts job left
+  Node 20 (end-of-life since April 2026) even though it commits to master.
+- [x] Incidental confirmation that the metrics fix works: the counters carried
+  across a full pm2 daemon restart and a runtime replacement without resetting.
+
 ## Next:
 
 Next: let `ai_cards_gate:*` and `ai_model_error:*` accumulate over a real
@@ -421,5 +446,5 @@ evidence for widening it). Keep watching production
 constraint-filter and agent-receipt telemetry and expand the audited exclusion
 vocabulary from real misses (DeepSeek remains the production default). Then
 connect a licensed lyrics-content provider (or keep Tavily + the safe
-Genius-search fallback), refresh approved Lira visual baselines, and upgrade the
-VPS runtime from Node 22 to Node 24.
+Genius-search fallback) and refresh approved Lira visual baselines once the
+design pass settles.

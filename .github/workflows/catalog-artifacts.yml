@@ -18,7 +18,9 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # Node 20 went end-of-life in April 2026, and this job commits to
+          # master. Keep it on the runtime production actually uses.
+          node-version: 24
           cache: npm
 
       - run: npm ci
