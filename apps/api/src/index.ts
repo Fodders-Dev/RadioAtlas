@@ -375,9 +375,14 @@ const asNumber = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const fetchWithTimeout = async (url: string, ms: number) => {
+const fetchWithTimeout = async (url: string, ms: number, cancel?: AbortSignal) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ms);
+  // The caller's signal aborts the mirror race (see getCatalog); the local one
+  // is the per-request timeout. Both must reach the same fetch.
+  const relay = () => controller.abort();
+  cancel?.addEventListener('abort', relay, { once: true });
+  if (cancel?.aborted) controller.abort();
   try {
     return await fetch(url, {
       headers: {
@@ -389,19 +394,31 @@ const fetchWithTimeout = async (url: string, ms: number) => {
     });
   } finally {
     clearTimeout(timeout);
+    cancel?.removeEventListener('abort', relay);
   }
 };
 
-const fetchFromEndpoint = async (endpoint: string, limit: number, maxPages: number) => {
+const fetchFromEndpoint = async (
+  endpoint: string,
+  limit: number,
+  maxPages: number,
+  cancel?: AbortSignal
+) => {
   const collected: Station[] = [];
   for (let page = 0; page < maxPages; page += 1) {
+    // Between pages is the cheapest place to notice we lost the race: drop the
+    // rows collected so far instead of carrying them to the end.
+    if (cancel?.aborted) {
+      collected.length = 0;
+      throw new Error('catalog fetch cancelled');
+    }
     const url = new URL(endpoint);
     url.searchParams.set('order', 'clickcount');
     url.searchParams.set('reverse', 'true');
     url.searchParams.set('limit', String(limit));
     url.searchParams.set('offset', String(page * limit));
 
-    const response = await fetchWithTimeout(url.toString(), CATALOG_FETCH_TIMEOUT_MS);
+    const response = await fetchWithTimeout(url.toString(), CATALOG_FETCH_TIMEOUT_MS, cancel);
     if (!response.ok) {
       throw new Error(`Radio Browser error: ${response.status}`);
     }
@@ -449,8 +466,17 @@ const getCatalog = async (mode: 'fast' | 'full') => {
   const maxPages = mode === 'fast' ? 1 : MAX_PAGES;
 
   let raw: Station[] = [];
+  // The mirrors are raced, and until 2026-08-15 the losers were never stopped:
+  // `Promise.any` settles on the first winner while the other three keep
+  // downloading and keep accumulating their own copy of the catalogue. Four
+  // mirrors x up to 12 pages x 10 000 stations is four complete catalogues in
+  // memory at once, every 30 minutes — which is what pushed a ~450MB process
+  // past its 896MB pm2 cap (measured: 1020-1114MB, four kills on 2026-08-15,
+  // one of them mid-conversation for a real listener). It was also downloading
+  // the catalogue four times over, ~300MB of traffic per refresh.
+  const race = new AbortController();
   const tasks = RADIO_BROWSER_URLS.map((endpoint) =>
-    fetchFromEndpoint(endpoint, limit, maxPages).then((data) => {
+    fetchFromEndpoint(endpoint, limit, maxPages, race.signal).then((data) => {
       if (!data.length) {
         throw new Error('Empty response');
       }
@@ -475,6 +501,10 @@ const getCatalog = async (mode: 'fast' | 'full') => {
       }
     }
   }
+
+  // A winner exists: stop the others before touching the result, so their
+  // in-flight pages are dropped rather than parsed into memory nobody wants.
+  race.abort();
 
   const byId = new Map<string, Station>();
   raw.forEach((item) => {

@@ -439,6 +439,47 @@ behind it, not a broken harvester.
 Gate it off with `HARVESTER_ENABLED=0` in `ecosystem.config.cjs` (the script
 no-ops and exits).
 
+## Catalogue refresh memory
+
+`getCatalog('full')` refreshes every 30 minutes (`CACHE_TTL_MS`) and that
+refresh is the API's memory high-water mark. Measured against the live
+60 309-station catalogue on 2026-08-15, after pm2 killed the process four times
+in one day (1020-1114MB against the 896MB `max_memory_restart`), once
+mid-request for a real listener:
+
+| what | cost |
+| --- | --- |
+| the catalogue parsed (steady state) | ~74MB of objects, ~130MB heap with its search index |
+| `attachSearchIndex` | a full second copy of every station object, +48MB |
+| refresh overlap (new copy built while the old is still referenced) | +134MB |
+| **losing mirrors, before the fix** | **~74MB each, x3** |
+| **`JSON.stringify` for the snapshot, before the fix** | **+137MB string, +69MB Buffer** |
+
+Two of those were waste and are gone:
+
+- **The mirror race did not stop the losers.** `RADIO_BROWSER_URLS` defaults to
+  four mirrors, raced with `Promise.any`, each pulling up to 12 pages x 10 000
+  stations. The winner settled the race and the other three kept downloading
+  and accumulating their own complete catalogue. They now share an
+  `AbortController` that fires the moment a winner exists. Besides the memory,
+  this stops downloading the catalogue four times per refresh.
+- **The snapshot was serialised whole.** `persistCatalogSnapshot` is now a
+  chunked, temp-file-then-rename write; byte-identical output, peak measured at
+  +40MB instead of +206MB.
+
+If the API starts getting memory-killed again, check these in order:
+
+```bash
+grep "exceeds --max-memory-restart" /root/.pm2/pm2.log | tail -5   # NOT in the app logs
+pm2 jlist | node -pe '...'                                          # current rss
+```
+
+Idle RSS is ~400MB and that is expected — it is the catalogue. Anything above
+~700MB sustained means a refresh overlapped with something else; the levers are
+`CATALOG_MAX_PAGES` (12), `RADIO_BROWSER_URLS` (fewer mirrors), and
+`CACHE_TTL_MS`. Do not raise `max_memory_restart` past ~900MB without checking
+`free -m` first: the box has 3.9GB total and shares it with the rodnya services.
+
 ## Observability alerts
 - Prometheus scrape target: `/observability/prometheus` (requires `X-Internal-Token`)
 - Important gauges:

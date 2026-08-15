@@ -504,18 +504,46 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   file next to a good backup, a flush loop that reads the file on every
   iteration, and a cold start that must not be mistaken for corruption.
 
+## What was eating 700MB (done)
+
+- [x] Measured rather than guessed, against the real 60 309-station catalogue.
+  Steady state is the catalogue itself: ~74MB of parsed objects, ~130MB heap
+  once `attachSearchIndex` adds its full second copy of every station object.
+  That is the ~400MB idle RSS and it is not waste.
+- [x] The 30-minute refresh is the high-water mark, and two of its costs were
+  pure waste:
+  - **Four mirrors, no cancellation.** `RADIO_BROWSER_URLS` defaults to four
+    endpoints raced with `Promise.any`, each pulling up to 12 pages x 10 000
+    stations. The winner settled the race; the other three kept downloading and
+    accumulating a complete catalogue each. Now they share an `AbortController`
+    that fires as soon as a winner exists — which also stops fetching the whole
+    catalogue four times every half hour.
+  - **`JSON.stringify` of the whole catalogue** for the fallback snapshot: one
+    68.5M-character string (+137MB on the heap, UTF-16 because of the Cyrillic)
+    plus a +69MB Buffer for `writeFile`. Measured 206MB, in one shot, to write
+    a file that only matters when the mirrors are down. Chunked write, measured
+    peak +40MB, byte-identical output, and now written temp-then-rename so a
+    kill mid-write cannot leave a truncated snapshot.
+- [x] One hypothesis was measured and REJECTED: normalising in place instead of
+  `.map(normalizeStation)` saved 2-3MB, not the expected 74MB — the replaced
+  objects are not collected mid-loop anyway. Reverted rather than kept on faith.
+  (The first harness that "showed" a 100MB difference was measuring GC lag: in
+  both orderings, whichever variant ran second scored ~100MB worse. Each variant
+  now runs in its own process.)
+- [x] The mirror fix is covered by an integration test that races a fast mirror
+  against slow ones and asserts the losers' sockets are actually disconnected —
+  verified to fail without the `abort()`.
+
 ## Next:
 
-Next, and NOT a waiting item: **the API is being memory-killed under real
-load.** Three restarts on 2026-08-15 (12:10:57, 12:11:27, 12:37:57) at
-1114MB / 1012MB / 1031MB against the 896MB `max_memory_restart` cap, and the
-12:10 one killed a real listener's `/api/ai/chat` mid-request — Caddy logged the
-502 with their Telegram Android user agent. This is the #151 pattern recurring
-above the cap it was raised to. Raising it again is not free: the box has 3.9GB
-total and ~1.3GB available, shared with the neighbour services, so the next step
-is finding what allocates ~700MB above the ~400MB idle baseline (the parsed
-58MB catalog artifact and concurrent Лира working sets are the first suspects),
-not another bump.
+Next: confirm the memory fix on production over a few refresh cycles. Four pm2
+memory kills on 2026-08-15 (1020-1114MB against the 896MB cap) are the
+before-picture; watch `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
+and the `runtime:rss_mb` gauge across a 30-minute boundary. Expected peak is
+now roughly 400MB idle plus a ~130MB refresh overlap. If it still climbs, the
+next levers are `CATALOG_MAX_PAGES`, fewer `RADIO_BROWSER_URLS`, and making
+`attachSearchIndex` stop copying every station object — NOT another cap bump,
+because the box has 3.9GB shared with the rodnya services.
 
 The rest is a WAITING item, not a coding one. Every signal the roadmap
 asked to watch exists and survives a deploy; what is missing is traffic. Let
