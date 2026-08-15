@@ -565,9 +565,47 @@ Options, in the order they should be considered, all of them the owner's call:
 3. Lower `CATALOG_MAX_PAGES` (12 pages x 10 000). That shrinks the catalogue
    itself, so it is a product decision rather than a memory one.
 
+## Night pass: the box, not just the process (done)
+
+- [x] `/catalog/summary` took 60s and then 13ms on the next call. Not a hang:
+  **swap was at 2000MB of 2047MB**, the catalogue had been paged out, and the
+  request was faulting it back in. RadioAtlas is the largest single process
+  (673MB) but is NOT among the top swap users — the python bots, searxng and the
+  remnawave containers are. The machine is oversubscribed as a whole.
+- [x] That settles the earlier "raise the cap" option: **no**. More resident
+  memory for RadioAtlas comes out of a machine that is already swapping, and it
+  is the neighbours that get pushed out.
+- [x] `CATALOG_CACHE_TTL_MS`, default **6 hours** instead of 30 minutes. The
+  refresh IS the peak (292MB -> 789MB), and nothing downstream wanted 30
+  minutes: the web app caches its Home summary for 6h, and Radio Browser's
+  ~62 400 stations change by a handful a day. 48 spikes a day become 4.
+- [x] `CATALOG_DATA_DIR`. The fallback snapshot also defaulted to a path inside
+  the release directory — the same trap as the metrics store and the harvester
+  database — so every deploy threw away the freshest catalogue. Production now
+  writes it to `shared/data/catalog`.
+- [x] Fixed a defect in my own test from the previous pass: the mirror-race
+  integration test spawned the API with fake mirrors and persisted its two
+  fixture stations over `apps/api/data/catalog-full.json`, i.e. `npm test`
+  destroyed the developer's 70MB local snapshot. Proven fixed by comparing the
+  file's size and mtime across a full suite run.
+
+### Two more hypotheses measured and rejected
+
+- Replacing `attachSearchIndex`'s per-station copy with a WeakMap side table:
+  **20MB** of a 789MB peak, not the ~50MB expected. Not worth rewriting the
+  search hot path and its contract test for 2.5%.
+- "The fetch pulls ~110k stations and throws half away": wrong. Radio Browser
+  publishes 62 369 and we keep 62 337. `MAX_PAGES=12` is a ceiling the paging
+  loop never reaches.
+
 ## Next:
 
-Next: decide between the three memory options above — the measurement is done
+Next: with the TTL at 6 hours the spike happens 4 times a day instead of 48;
+confirm over a day that `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
+stays at four. The box-level problem is separate and belongs to the owner: 2GB
+of swap is fully used and RadioAtlas is not the main occupant.
+
+Superseded (kept for the reasoning): deciding between the three memory options — the measurement is done
 and the answer is a judgement call about the box, not more code. Keep an eye on
 `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`: it has been flat at
 four since the fix, and any new entry means the 107MB of headroom was not

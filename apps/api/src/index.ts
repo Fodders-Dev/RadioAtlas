@@ -32,7 +32,20 @@ const DEFAULT_API_URLS = [
 ];
 
 const USER_AGENT = 'RadioAtlas/1.0';
-const CACHE_TTL_MS = 1000 * 60 * 30;
+// How long a fetched catalogue stays authoritative before the next request
+// rebuilds it. This was 30 minutes, and the rebuild is the API's memory
+// high-water mark: it holds the previous catalogue and its search index while
+// assembling the replacement (measured 2026-08-15: 292MB steady -> 789MB peak).
+// On a 3.9GB box that is already swapping - 2000MB of 2047MB swap in use, most
+// of it belonging to the neighbouring services - doing that 48 times a day is
+// the single biggest thing RadioAtlas does to the machine.
+//
+// Six hours instead, because nothing downstream wanted 30 minutes: the web app
+// caches its Home summary for 6h anyway, Radio Browser publishes ~62 400
+// stations that change by a handful a day, and a stream that dies between
+// refreshes is caught by the playability/health path rather than by a fresh
+// catalogue. Override with CATALOG_CACHE_TTL_MS if a deploy ever needs otherwise.
+const CACHE_TTL_MS = Math.max(60_000, Number(process.env.CATALOG_CACHE_TTL_MS) || 1000 * 60 * 60 * 6);
 const PAGE_LIMIT = 10000;
 const FAST_LIMIT = 10000;
 // Radio Browser publishes ~80–110k stations on most days. We pull up to

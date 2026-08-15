@@ -113,3 +113,23 @@ test('a snapshot failure cannot reject into a fire-and-forget call site', async 
     assert.deepEqual(leftovers, [], 'a failed write must not leave a temp file');
   });
 });
+
+test('CATALOG_DATA_DIR moves the snapshot off the default path', async () => {
+  // Two reasons this exists. On the VPS the default resolves inside
+  // /opt/RadioAtlas/releases/<sha>/, so every deploy discarded the freshest
+  // catalogue and left only the bundled artifact as a fallback. And locally,
+  // the integration test that spawns the API with fake mirrors used to persist
+  // its two fixture stations over the developer's own 70MB snapshot.
+  const dir = await mkdtemp(join(tmpdir(), 'radioatlas-datadir-'));
+  process.env.CATALOG_DATA_DIR = join(dir, 'somewhere', 'else');
+  try {
+    const mod = await import('../src/catalogCache.js?case=datadir');
+    await mod.persistCatalogSnapshot('full', [station(1)]);
+    const written = await readFile(join(dir, 'somewhere', 'else', 'catalog-full.json'), 'utf8');
+    assert.deepEqual(JSON.parse(written), [station(1)]);
+    assert.deepEqual(await mod.readPersistedCatalog('full'), [station(1)]);
+  } finally {
+    delete process.env.CATALOG_DATA_DIR;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

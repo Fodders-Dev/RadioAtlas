@@ -1,12 +1,34 @@
 import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 type CatalogMode = 'fast' | 'full';
 
-const DATA_DIR_URL = new URL('../data/', import.meta.url);
+/**
+ * Where the fallback catalogue snapshot lives.
+ *
+ * The default resolves next to the built API — which on the VPS means
+ * `/opt/RadioAtlas/releases/<sha>/apps/api/data/`, i.e. INSIDE the release. The
+ * snapshot is therefore recreated from scratch by every deploy and deleted with
+ * the release it belonged to, which is the same trap the observability store
+ * and the harvester database were both caught in. Production sets
+ * `CATALOG_DATA_DIR` to the shared volume (see `ecosystem.config.cjs`).
+ *
+ * It also gives tests somewhere harmless to write: an integration test that
+ * spawns the API with fake mirrors used to overwrite the developer's own
+ * 70MB catalogue snapshot with its two fixture stations.
+ */
+const configuredDir = String(process.env.CATALOG_DATA_DIR || '').trim();
+// `resolve` + `pathToFileURL` rather than URL joining: it handles either path
+// separator without this file needing to care which platform it is on.
+const dataFile = (name: string) =>
+  configuredDir
+    ? pathToFileURL(resolve(configuredDir, name))
+    : new URL(`../data/${name}`, import.meta.url);
+const DATA_DIR_PATH = configuredDir ? resolve(configuredDir) : fileURLToPath(new URL('../data/', import.meta.url));
 const DATA_FILE_URLS: Record<CatalogMode, URL> = {
-  fast: new URL('../data/catalog-fast.json', import.meta.url),
-  full: new URL('../data/catalog-full.json', import.meta.url)
+  fast: dataFile('catalog-fast.json'),
+  full: dataFile('catalog-full.json')
 };
 
 export const readPersistedCatalog = async <T>(mode: CatalogMode) => {
@@ -42,7 +64,7 @@ const SNAPSHOT_CHUNK = 500;
 let pendingWriteId = 0;
 
 export const persistCatalogSnapshot = async <T>(mode: CatalogMode, stations: T[]) => {
-  await mkdir(DATA_DIR_URL, { recursive: true });
+  await mkdir(DATA_DIR_PATH, { recursive: true });
   const target = fileURLToPath(DATA_FILE_URLS[mode]);
   // The temp name is unique per call. A shared `<target>.tmp` looked fine until
   // two snapshot writes overlapped — the boot warm-up and a request-triggered

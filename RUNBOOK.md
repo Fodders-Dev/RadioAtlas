@@ -91,6 +91,8 @@ sequence.
   ```
   Requests with no `Origin` header (curl, server-to-server, liveness probes) pass through with no CORS headers attached. Browsers receiving a response without `Access-Control-Allow-Origin` for a non-allow-listed origin will refuse the response automatically; the API does **not** 403 on a mismatched origin so that legitimate same-origin POSTs that happen to include an `Origin` header are not broken.
 - `NODE_ENV`: set to `production` on every production deploy. Drives the `ALLOWED_ORIGINS` requirement above (and future production-only guards).
+- `CATALOG_CACHE_TTL_MS`: how long a fetched catalogue stays authoritative. Defaults to 6 hours. The rebuild is the API's memory high-water mark (292MB steady -> 789MB peak), so this is a memory knob as much as a freshness one; the web app caches its Home summary for 6h anyway. Minimum 60s.
+- `CATALOG_DATA_DIR`: where the fallback catalogue snapshot is written. Production pins it to `/opt/RadioAtlas/shared/data/catalog`; the default resolves next to `apps/api/dist`, which on the VPS is inside the release directory, so every deploy discarded the freshest catalogue and left only the bundled artifact to fall back on. Tests point it at a temp directory — without it, the mirror-race integration test overwrites the developer's own 70MB snapshot with its two fixture stations.
 - `OBSERVABILITY_STORE_PATH`: absolute path of the metrics file. Production pins it to `/opt/RadioAtlas/shared/data/observability/metrics.json` through `ecosystem.config.cjs`; leaving it unset resolves next to `apps/api/dist`, which on the VPS means inside the release directory and therefore wiped by the next deploy. See "Where the metrics live" below. `OBSERVABILITY_RETENTION_MS` (7 days) and `OBSERVABILITY_BACKUP_COUNT` (2) tune the same store.
 - `SCENE_ARTWORK_ENABLED`: optional cached station-atmosphere generator. Keep `0`
   until the Cloudflare account and token below are configured. Public web clients
@@ -484,6 +486,33 @@ To reproduce the measurement: wait for `CACHE_TTL_MS` (30 min) to lapse, then
 `curl 'http://127.0.0.1:3001/catalog/summary?seed=$(date +%s)'` and sample
 `ps -o rss= -p $(pm2 pid radioatlas-api)`. Note pm2 rewrites the process title,
 so `ps | grep index.js` finds nothing — take the pid from pm2.
+
+### The box is oversubscribed, and mostly not by us
+
+Checked 2026-08-15 while `/catalog/summary` took 60s and then 13ms: **swap was
+at 2000MB of 2047MB.** That is the real explanation for a request that hangs and
+then answers instantly — the catalogue had been paged out and had to be faulted
+back in.
+
+Who is actually using the machine (RSS / swap):
+
+```
+RadioAtlas api   673 MB   (largest single process; not in the top swap users)
+python main.py   334 MB   289 MB swapped
+remnawave rw-*   360 MB   118 MB swapped
+dockerd          175 MB
+rodnya backend    83 MB
+minio / searxng   67 / 37 MB   150 MB swapped (searxng)
+```
+
+Consequences for this service:
+
+- **Do not raise `max_memory_restart`.** Giving RadioAtlas more resident memory
+  takes it from a machine that is already swapping, and the processes that get
+  pushed out are the neighbours.
+- Reducing RadioAtlas's peak helps the whole box, which is why
+  `CATALOG_CACHE_TTL_MS` now defaults to 6 hours: the refresh is the peak, and
+  it used to happen 48 times a day.
 
 If the API starts getting memory-killed again, check these in order:
 

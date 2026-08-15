@@ -129,6 +129,10 @@ test.before(async () => {
       CATALOG_ARTIFACT_ONLY: '0',
       CATALOG_FETCH_TIMEOUT_MS: '8000',
       OBSERVABILITY_STORE_PATH: join(observabilityDir, 'metrics.json'),
+      // Without this the spawned API persists its fixture catalogue over the
+      // developer's own apps/api/data/catalog-full.json — 70MB of real stations
+      // replaced by two fakes, every time `npm test` runs.
+      CATALOG_DATA_DIR: join(observabilityDir, 'catalog'),
       BILLING_RECONCILE_ENABLED: '0',
       AI_ENABLED: '0',
       TELEGRAM_BOT_TOKEN: '',

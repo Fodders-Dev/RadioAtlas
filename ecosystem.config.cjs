@@ -29,7 +29,12 @@ module.exports = {
         // ones. Checked on 2026-08-15: three live release dirs held three
         // disjoint stores, and `ai_agent_run:*` / `ai_model_error:*` existed in
         // exactly one of them, which makes "watch the AI counters" impossible.
-        OBSERVABILITY_STORE_PATH: '/opt/RadioAtlas/shared/data/observability/metrics.json'
+        OBSERVABILITY_STORE_PATH: '/opt/RadioAtlas/shared/data/observability/metrics.json',
+        // Same reason again: the fallback catalogue snapshot defaults to
+        // apps/api/data/, which on this box is inside the release directory, so
+        // every deploy threw away the freshest copy of the catalogue and left
+        // only the bundled artifact to fall back on.
+        CATALOG_DATA_DIR: '/opt/RadioAtlas/shared/data/catalog'
       }
     },
     {
