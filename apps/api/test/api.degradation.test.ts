@@ -15,6 +15,17 @@ const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 const upstreamBaseUrl = `http://127.0.0.1:${upstreamPort}`;
 
 let apiProcess: ChildProcessWithoutNullStreams | null = null;
+/**
+ * The API's own stderr. It used to be printed only if the process EXITED
+ * non-zero, which is the one failure mode these tests do not have: a spawned
+ * API that answers 502 is alive and says why on stderr, and the assertion threw
+ * `502 !== 200` with the explanation sitting in a buffer nobody read. Cost a
+ * CI-only failure that could not be reproduced locally.
+ */
+let apiStderr = '';
+const apiStderrTail = (lines = 12) =>
+  apiStderr.split(String.fromCharCode(10)).filter(Boolean).slice(-lines).join(' | ') ||
+  '(api stderr was empty)';
 let upstreamServer: Server | null = null;
 let upstreamCounters = {
   statusJson: 0,
@@ -181,13 +192,12 @@ test.before(async () => {
     }
   });
 
-  let stderr = '';
   apiProcess.stderr.on('data', (chunk) => {
-    stderr += chunk.toString();
+    apiStderr += chunk.toString();
   });
   apiProcess.on('exit', (code) => {
     if (code && code !== 0) {
-      console.error(stderr);
+      console.error(apiStderr);
     }
   });
 
@@ -232,7 +242,7 @@ test('slow catalog source falls back to cached artifact and records observabilit
   // are asserted, and the count is polled so it does not matter WHICH request
   // recorded it.
   const { response, body } = await getJson<CatalogSummaryPayload>('/catalog/summary?seed=19');
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 200, `summary failed; api stderr: ${apiStderrTail()}`);
   assert.equal(typeof body.counts.stations, 'number');
   assert.ok(body.counts.stations > 0, 'the artifact fallback must still return stations');
 
