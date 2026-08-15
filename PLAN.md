@@ -534,16 +534,44 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   against slow ones and asserts the losers' sockets are actually disconnected —
   verified to fail without the `abort()`.
 
+## Measured on production after the fix (2026-08-15)
+
+Sampled every 10s for an hour, then a refresh triggered deliberately once the
+30-minute TTL had expired (the refresh is lazy — it needs a request, so a quiet
+hour never triggers one):
+
+```
+steady          292-294 MB   (flat across ~27 minutes)
+refresh         591 -> 789 MB peak -> 732 -> 480 -> 474 MB
+```
+
+- **789MB against the 896MB cap.** Before: 1020-1114MB, four kills in a day.
+  No kills since.
+- **The headroom is 107MB, which is thin.** One Лира turn during a refresh
+  (~+80MB) lands at ~870MB. This is mitigated, not comfortably solved.
+- The remaining peak is structural: the refresh holds the previous catalogue
+  and its search index while building the replacement. That is inherent to
+  swapping atomically, not waste.
+
+Options, in the order they should be considered, all of them the owner's call:
+
+1. Raise `max_memory_restart` to ~1.1GB now that the peak is bounded and
+   measured. The box has 3904MB total and ~978MB available at the moment of the
+   spike, shared with the rodnya services — so this is a real tradeoff, not a
+   free knob.
+2. Stop `attachSearchIndex` copying every station object (`{...station}` per
+   row). Worth ~48MB at steady state and ~48MB more at the peak, at the cost of
+   mutating the cached catalogue rows in place.
+3. Lower `CATALOG_MAX_PAGES` (12 pages x 10 000). That shrinks the catalogue
+   itself, so it is a product decision rather than a memory one.
+
 ## Next:
 
-Next: confirm the memory fix on production over a few refresh cycles. Four pm2
-memory kills on 2026-08-15 (1020-1114MB against the 896MB cap) are the
-before-picture; watch `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
-and the `runtime:rss_mb` gauge across a 30-minute boundary. Expected peak is
-now roughly 400MB idle plus a ~130MB refresh overlap. If it still climbs, the
-next levers are `CATALOG_MAX_PAGES`, fewer `RADIO_BROWSER_URLS`, and making
-`attachSearchIndex` stop copying every station object — NOT another cap bump,
-because the box has 3.9GB shared with the rodnya services.
+Next: decide between the three memory options above — the measurement is done
+and the answer is a judgement call about the box, not more code. Keep an eye on
+`grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`: it has been flat at
+four since the fix, and any new entry means the 107MB of headroom was not
+enough.
 
 The rest is a WAITING item, not a coding one. Every signal the roadmap
 asked to watch exists and survives a deploy; what is missing is traffic. Let

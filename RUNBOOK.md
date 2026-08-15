@@ -467,6 +467,24 @@ Two of those were waste and are gone:
   chunked, temp-file-then-rename write; byte-identical output, peak measured at
   +40MB instead of +206MB.
 
+Measured on production after both fixes (10s sampling, refresh triggered by hand
+once the TTL had expired — the refresh is lazy and a quiet hour never triggers
+one):
+
+```
+steady          292-294 MB
+refresh         591 -> 789 MB peak -> 732 -> 480 MB
+```
+
+789MB against a 896MB cap. That is 107MB of headroom, and one Лира turn during
+a refresh is roughly +80MB — so this is mitigated rather than solved, and the
+remaining peak is the refresh legitimately holding two catalogues at once.
+
+To reproduce the measurement: wait for `CACHE_TTL_MS` (30 min) to lapse, then
+`curl 'http://127.0.0.1:3001/catalog/summary?seed=$(date +%s)'` and sample
+`ps -o rss= -p $(pm2 pid radioatlas-api)`. Note pm2 rewrites the process title,
+so `ps | grep index.js` finds nothing — take the pid from pm2.
+
 If the API starts getting memory-killed again, check these in order:
 
 ```bash
