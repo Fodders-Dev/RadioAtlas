@@ -2018,3 +2018,43 @@ test('TASTE-AWARE VIBE: a disliked genre the mapper returns is dropped before se
     ?.body.messages.find((message: any) => message.role === 'user')?.content;
   assert.ok(String(vibeUserMessage || '').includes('избегай trance'), 'taste hint reached the mapper');
 });
+
+/**
+ * The 2026-08-15 provider A/B: both DeepSeek and OpenAI answered «Почему людям
+ * так нравится джаз?» with station cards and an `open-station` action. Only the
+ * predicate was covered by tests; nothing pinned the end-to-end behaviour, so
+ * the planner was free to hand its search results to an answer nobody asked to
+ * listen to.
+ *
+ * The second half of the assertion is the part that makes the gate tunable in
+ * production: the turn reports WHICH predicate fired, so an operator can tell
+ * a gate that never fires from one that fires too often. The message itself is
+ * never retained.
+ */
+test('OPINION GATE: an open question about a genre drops the planner cards and says why', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Джаз цепляет живой импровизацией и тем, что он никогда не повторяется.'
+  });
+  const result = await chatWithAssistant(ask('Почему людям так нравится джаз?'), makeDeps(fetchImpl));
+
+  assert.deepEqual(result.stations, [], 'an opinion question must not arrive with a rack of stations');
+  assert.deepEqual(result.actions, [{ kind: 'none' }], 'and must not auto-open one either');
+  assert.ok(result.cardGate, 'the turn must report the gate it applied');
+  assert.ok(result.cardGate?.reasons.includes('opinion'), 'the opinion predicate is the one that fired');
+  assert.equal(result.cardGate?.released, false, 'nothing rescued the cards here');
+  assert.ok((result.cardGate?.droppedCards ?? 0) > 0, 'the planner really had collected cards to drop');
+});
+
+test('OPINION GATE: a request wearing a question mark keeps its cards and is reported as released', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
+    compose: 'Держи бодрое.'
+  });
+  // «поставить» is an infinitive and does not match MUSIC_REQUEST_VERB, so this
+  // phrasing is exactly the one the narrow predicate has to leave alone.
+  const result = await chatWithAssistant(ask('посоветуй джаз, почему бы и нет?'), makeDeps(fetchImpl));
+
+  assert.ok(result.stations.length > 0, 'a real request keeps its cards');
+  assert.equal(result.cardGate?.droppedCards, 0);
+});

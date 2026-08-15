@@ -21,7 +21,15 @@ module.exports = {
       restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3001,
+        // PERSISTENT metrics OUTSIDE the release dir, for the same reason as
+        // STATION_INTEL_DB_PATH below. The default store path resolves next to
+        // apps/api/dist, i.e. inside /opt/RadioAtlas/releases/<sha>/ - so every
+        // deploy started an EMPTY store and prune_old_releases deleted the old
+        // ones. Checked on 2026-08-15: three live release dirs held three
+        // disjoint stores, and `ai_agent_run:*` / `ai_model_error:*` existed in
+        // exactly one of them, which makes "watch the AI counters" impossible.
+        OBSERVABILITY_STORE_PATH: '/opt/RadioAtlas/shared/data/observability/metrics.json'
       }
     },
     {

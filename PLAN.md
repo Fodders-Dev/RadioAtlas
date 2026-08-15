@@ -368,11 +368,56 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] `stationFailures` is reported separately in the run summary, and RUNBOOK
   documents how to read a run and how to trigger one by hand.
 
+## Metrics that survive a deploy (done)
+
+- [x] The counters `PLAN.md` asked an operator to WATCH could not be watched.
+  `/observability` reported
+  `storePath: /opt/RadioAtlas/releases/<sha>/data/observability/metrics.json` —
+  the store resolved next to `apps/api/dist`, so it lived inside the release.
+  Every deploy booted the API against an empty file, and the disk cleanup from
+  the previous session (`current + 2`) deletes the older releases outright.
+  On 2026-08-15 three live release directories held three disjoint stores, and
+  `ai_agent_run:*` / `ai_model_error:*` existed in exactly one of them.
+- [x] `OBSERVABILITY_STORE_PATH` is pinned to
+  `/opt/RadioAtlas/shared/data/observability/metrics.json` in
+  `ecosystem.config.cjs`, next to the `STATION_INTEL_DB_PATH` line that already
+  documents this exact failure mode for the harvester database.
+- [x] The three surviving release stores were merged into the shared file before
+  the fix shipped: counters summed (each store covers a disjoint window),
+  gauges taken from the newest writer, ring buffers concatenated and re-trimmed.
+  48 counters and the 4 retained agent runs were preserved.
+- [x] The mistake cannot return silently: `isEphemeralStorePath` drives a boot
+  WARNING, `/observability` exposes `persistence.ephemeral`, and a test asserts
+  the pm2 config keeps the path outside `releases/`.
+- [x] Read of the merged window: `ai_chat_request` 4, `ai_agent_run:completed`
+  4, `ai_model_error` absent. DeepSeek is answering normally; the sample is too
+  small to conclude anything else.
+
+## Opinion-question gate: counted, because there are no transcripts (done)
+
+- [x] "Re-check the gate against real transcripts" turned out to be impossible
+  as written. A retained agent run carries provider, model, route, steps, tool
+  timings, verifier result and tokens — deliberately no prompt text — so there
+  is no transcript in telemetry to check it against, and there should not be.
+- [x] The gate now reports itself instead: `ChatResult.cardGate` carries the
+  closed set of predicates that matched, whether `isExplicitMusicRequest`
+  rescued the cards, and how many cards were actually dropped. It is operator
+  telemetry only; the `/ai/chat` response body is an explicit allow-list and
+  never carries it.
+- [x] Counters `ai_cards_gate:<reason>`, `ai_cards_gate_dropped` and
+  `ai_cards_gate_released`. RUNBOOK documents how to read them: a reason at
+  zero is an argument AGAINST widening it, and a rising `released` count is the
+  signal that a predicate has grown greedy enough to match real requests.
+- [x] Added the end-to-end coverage the A/B failure never had: an opinion
+  question drops the planner's cards and returns `{kind:'none'}` rather than
+  `open-station`, and a request wearing a question mark keeps them.
+
 ## Next:
 
-Next: watch `ai_model_error:*` plus `ai_agent_run:failed` now that a dead
-provider is actually visible, and re-check the opinion-question gate against
-real transcripts before widening its vocabulary. Keep watching production
+Next: let `ai_cards_gate:*` and `ai_model_error:*` accumulate over a real
+traffic window now that the store survives a deploy, and only then decide
+whether the opinion vocabulary needs widening (a reason stuck at zero is not
+evidence for widening it). Keep watching production
 constraint-filter and agent-receipt telemetry and expand the audited exclusion
 vocabulary from real misses (DeepSeek remains the production default). Then
 connect a licensed lyrics-content provider (or keep Tavily + the safe

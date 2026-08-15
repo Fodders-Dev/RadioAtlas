@@ -8,6 +8,8 @@ import {
   bumpCounter,
   getObservabilitySnapshot,
   hydrateObservabilityStore,
+  isEphemeralStorePath,
+  observabilityStorePath,
   setGauge,
   renderPrometheusMetrics
 } from './observabilityStore.js';
@@ -62,6 +64,17 @@ export const installObservability = (
   options: { internalToken?: string | null } = {}
 ) => {
   void hydrateObservabilityStore();
+
+  // A store that lives inside a release directory is wiped by the next deploy
+  // and deleted by prune_old_releases. That is not worth refusing traffic over,
+  // but an operator told to WATCH `ai_model_error:*` should not have to
+  // discover on their own that the history keeps restarting.
+  if (isEphemeralStorePath(observabilityStorePath)) {
+    console.error(
+      `[Observability] WARNING: metrics store ${observabilityStorePath} sits inside a release directory - ` +
+        'every deploy resets it. Point OBSERVABILITY_STORE_PATH at a shared, non-release path.'
+    );
+  }
 
   let lastCpuUsage = process.cpuUsage();
   let lastCpuSampleTs = Date.now();

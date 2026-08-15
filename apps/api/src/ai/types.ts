@@ -141,6 +141,32 @@ export type ChatResult = {
    * on every healthy turn.
    */
   modelErrors?: ModelErrorKind[];
+  /**
+   * Why the station-card gate fired on this turn. Operator telemetry only: the
+   * `/ai/chat` response body is an explicit allow-list and never carries it.
+   *
+   * The gate is the only thing standing between «Почему людям так нравится
+   * джаз?» and a rack of stations nobody asked to hear, and the retained agent
+   * run deliberately keeps no prompt text - so without this there is no way to
+   * tell an over-firing gate from a gate that never fires at all.
+   */
+  cardGate?: CardGateSignal;
+};
+
+/** Closed set - each value is a predicate that already exists in `brain.ts`. */
+export type CardGateReason = 'knowledge' | 'song' | 'song_topic' | 'opinion';
+
+export type CardGateSignal = {
+  /** Predicates that matched this message. Empty when the turn is a plain ask. */
+  reasons: CardGateReason[];
+  /**
+   * A predicate matched, but `isExplicitMusicRequest` kept the cards anyway -
+   * «почему бы не поставить что-то бодрое?». A rise here is the signal that a
+   * question-shaped predicate has grown too greedy.
+   */
+  released: boolean;
+  /** How many verified cards the gate actually removed. */
+  droppedCards: number;
 };
 
 export type AiModelProvider = 'deepseek' | 'openai';

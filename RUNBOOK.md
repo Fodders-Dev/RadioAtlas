@@ -31,6 +31,7 @@ Use Node.js 24+ and npm 10+. The API account and station-intelligence stores use
   ```
   Requests with no `Origin` header (curl, server-to-server, liveness probes) pass through with no CORS headers attached. Browsers receiving a response without `Access-Control-Allow-Origin` for a non-allow-listed origin will refuse the response automatically; the API does **not** 403 on a mismatched origin so that legitimate same-origin POSTs that happen to include an `Origin` header are not broken.
 - `NODE_ENV`: set to `production` on every production deploy. Drives the `ALLOWED_ORIGINS` requirement above (and future production-only guards).
+- `OBSERVABILITY_STORE_PATH`: absolute path of the metrics file. Production pins it to `/opt/RadioAtlas/shared/data/observability/metrics.json` through `ecosystem.config.cjs`; leaving it unset resolves next to `apps/api/dist`, which on the VPS means inside the release directory and therefore wiped by the next deploy. See "Where the metrics live" below. `OBSERVABILITY_RETENTION_MS` (7 days) and `OBSERVABILITY_BACKUP_COUNT` (2) tune the same store.
 - `SCENE_ARTWORK_ENABLED`: optional cached station-atmosphere generator. Keep `0`
   until the Cloudflare account and token below are configured. Public web clients
   can only read cached scenes; they cannot start generation.
@@ -118,7 +119,10 @@ you look for it. Since 2026-08-14 the run carries the failure out:
   provider+kind per 15 minutes. The other kinds are counted, not alerted —
   they are expected to recover on their own.
 - Alert on `ai_model_error:*:billing`, `ai_model_error:*:auth`, and on a
-  sustained rise in `ai_agent_run:failed`.
+  sustained rise in `ai_agent_run:failed`. These counters are only meaningful
+  because the store now survives a deploy — see "Where the metrics live".
+  A window that shows `ai_chat_request` but no `ai_agent_run:*` at all means the
+  process restarted, not that the runs vanished.
 - `modelErrors` never reaches the browser; `/ai/chat` still returns only
   reply/stations/serviceLinks/sources/actions plus the bounded `run` object.
 
@@ -376,7 +380,7 @@ Gate it off with `HARVESTER_ENABLED=0` in `ecosystem.config.cjs` (the script
 no-ops and exits).
 
 ## Observability alerts
-- Prometheus scrape target: `/observability/prometheus`
+- Prometheus scrape target: `/observability/prometheus` (requires `X-Internal-Token`)
 - Important gauges:
   - `runtime_process_cpu_percent`
   - `media_inflight_shared`
@@ -387,6 +391,54 @@ no-ops and exits).
   - `media_rate_limit:*`
   - `error:GET:/metadata`
   - `error:GET:/fetch`
+
+### Where the metrics live
+
+`/opt/RadioAtlas/shared/data/observability/metrics.json`, pinned by
+`OBSERVABILITY_STORE_PATH` in the api block of `ecosystem.config.cjs`.
+
+This matters more than it looks. Until 2026-08-15 the path resolved next to
+`apps/api/dist`, so the store lived **inside the release**: every deploy booted
+against an empty file and `prune_old_releases` deleted the older ones. Three
+live release directories held three disjoint stores, and the AI counters existed
+in exactly one of them — which is why "watch `ai_model_error:*`" quietly could
+not be done. The existing per-release stores were merged into the shared file
+once, by hand, before the fix shipped.
+
+Two guards keep it from coming back: the API logs
+`[Observability] WARNING: metrics store ... sits inside a release directory` at
+boot, `/observability` reports `persistence.ephemeral`, and
+`apps/api/test/observability.storePath.test.ts` asserts the pm2 config points
+outside `releases/`.
+
+Read the current store without the API (for example while it is restarting):
+
+```bash
+node -e 'const o=require("/opt/RadioAtlas/shared/data/observability/metrics.json");
+         console.log(Object.fromEntries(Object.entries(o.counters).filter(([k])=>k.startsWith("ai_"))))'
+```
+
+### Lira card-gate counters
+
+The gate that keeps station cards off an answer to a question reports which
+predicate fired. The retained agent run carries **no prompt text**, so these
+counters are the only production evidence available for tuning those predicates
+— there is nothing to grep for a transcript.
+
+- `ai_cards_gate:knowledge` / `:song` / `:song_topic` / `:opinion` — the
+  predicate matched this turn (a turn can match more than one).
+- `ai_cards_gate_dropped` — the gate actually removed cards from the reply.
+- `ai_cards_gate_released` — a predicate matched but `isExplicitMusicRequest`
+  kept the cards («посоветуй джаз, почему бы и нет?»).
+
+How to read it before widening any of these vocabularies:
+
+- `ai_cards_gate:opinion` staying at 0 over a real traffic window means nobody
+  phrases questions that way — that is an argument against widening it, not for.
+- `ai_cards_gate_released` climbing means a predicate has grown greedy and is
+  matching requests, and is being saved only by the escape hatch.
+- `ai_cards_gate_dropped` far below the sum of the reason counters means the
+  planner rarely had cards to drop, so the gate is mostly theoretical.
 
 ## API proxy (http streams + catalog)
 1. Build and run:

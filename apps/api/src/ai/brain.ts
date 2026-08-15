@@ -37,6 +37,8 @@ import { namedSubjectWords, subjectLanguageScope } from './subjectLanguage.js';
 import type {
   AssistantAction,
   AssistantDeps,
+  CardGateReason,
+  CardGateSignal,
   ChatInput,
   ChatResult,
   ChatTurn,
@@ -2155,17 +2157,27 @@ export const chatWithAssistant = async (
   // serviceLinks deliberately survive: "open this track on Yandex/Spotify" is
   // exactly what someone asking about a song wants next.
   const collectedStations = collectVerifiedStations(groundedObservations);
-  const answersAQuestion =
-    knowledgeQuestion ||
-    songKnowledgeIntent.any ||
-    songKnowledgeIntent.referencesCurrentTrack ||
-    isSongTopicQuestion(userMessage) ||
-    isMusicOpinionQuestion(userMessage);
+  const cardGateReasons: CardGateReason[] = [];
+  if (knowledgeQuestion) cardGateReasons.push('knowledge');
+  if (songKnowledgeIntent.any || songKnowledgeIntent.referencesCurrentTrack) cardGateReasons.push('song');
+  if (isSongTopicQuestion(userMessage)) cardGateReasons.push('song_topic');
+  if (isMusicOpinionQuestion(userMessage)) cardGateReasons.push('opinion');
+  const answersAQuestion = cardGateReasons.length > 0;
   // NOT `!musicIntent`: that predicate fires on a bare music descriptor, so the
   // word «песня» inside «Че за песня?» kept it true and this gate never ran.
   // A question loses its cards unless the listener actually ASKED for music.
-  const dropCards = answersAQuestion && !isExplicitMusicRequest(userMessage);
+  const explicitMusicRequest = isExplicitMusicRequest(userMessage);
+  const dropCards = answersAQuestion && !explicitMusicRequest;
   const stations = dropCards ? [] : collectedStations;
+  // Which predicate matched, whether the explicit-request escape hatch saved
+  // the cards, and how many were actually removed. Counted by the route; the
+  // message itself is never retained, so this is the only production evidence
+  // available for tuning these predicates.
+  const cardGate: CardGateSignal = {
+    reasons: cardGateReasons,
+    released: answersAQuestion && explicitMusicRequest,
+    droppedCards: dropCards ? collectedStations.length : 0
+  };
   if (dropCards && collectedStations.length > 0) {
     deps.log(`ai dropped ${collectedStations.length} off-topic station card(s) from a knowledge answer`);
   }
@@ -2179,6 +2191,7 @@ export const chatWithAssistant = async (
     return {
       ...buildFallbackResult({ surface, now, reason, stations, serviceLinks, sources }),
       usage,
+      cardGate,
       ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
     };
   }
@@ -2190,6 +2203,7 @@ export const chatWithAssistant = async (
     sources,
     actions: deriveActions(stations, userMessage),
     usage,
+    cardGate,
     // A planner step can die while the composer still answers. The turn is
     // usable, but the provider is not healthy — say so.
     ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})

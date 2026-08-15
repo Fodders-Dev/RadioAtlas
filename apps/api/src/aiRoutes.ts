@@ -342,6 +342,21 @@ export const recordChatTelemetry = (
       });
     });
   }
+  // The station-card gate, counted rather than transcribed. `PLAN.md` asks to
+  // re-check the opinion-question gate "against real transcripts" before
+  // widening its vocabulary — but a retained agent run deliberately carries no
+  // prompt text, so there are no transcripts to check. These three counters are
+  // what a production answer actually looks like: which predicate fires, how
+  // often it removes cards, and how often an explicit music request rescues
+  // them. A reason that never fires is not evidence for widening it; a rising
+  // `released` count is evidence that a predicate has grown too greedy.
+  if (result.cardGate) {
+    result.cardGate.reasons.forEach((reason) => {
+      bumpCounter(`ai_cards_gate:${reason}`);
+    });
+    if (result.cardGate.droppedCards > 0) bumpCounter('ai_cards_gate_dropped');
+    if (result.cardGate.released) bumpCounter('ai_cards_gate_released');
+  }
   if (result.agentRun) {
     bumpCounter(`ai_agent_run:${result.agentRun.status}`);
     bumpCounter(`ai_agent_route:${result.agentRun.route}`);

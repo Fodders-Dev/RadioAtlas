@@ -69,6 +69,24 @@ const defaultStorePath = resolve(
 );
 const storePath = resolve(process.env.OBSERVABILITY_STORE_PATH || defaultStorePath);
 
+/**
+ * A metrics file that lives inside `.../releases/<sha>/...` dies with its
+ * release. Every deploy boots the API against an empty store, and
+ * `prune_old_releases` deletes the previous ones outright - so a counter you
+ * were asked to WATCH over time silently only ever describes the window since
+ * the last push. Verified on production 2026-08-15: three concurrent release
+ * directories held three disjoint metric stores, and the AI counters
+ * (`ai_agent_run:*`, `ai_model_error:*`) existed in exactly one of them.
+ *
+ * Production must point `OBSERVABILITY_STORE_PATH` at the shared volume, the
+ * same way `STATION_INTEL_DB_PATH` already does (see `ecosystem.config.cjs`).
+ * This predicate exists so the mistake cannot silently return.
+ */
+export const isEphemeralStorePath = (candidate: string): boolean =>
+  /[\\/]releases[\\/][^\\/]+[\\/]/.test(String(candidate || ''));
+
+export const observabilityStorePath = storePath;
+
 const counters: CounterMap = new Map();
 const gauges: GaugeMap = new Map();
 const slowRequests: SlowRequestEntry[] = [];
@@ -326,6 +344,7 @@ export const getObservabilitySnapshot = () => ({
   updatedAt,
   persistence: {
     storePath,
+    ephemeral: isEphemeralStorePath(storePath),
     retentionMs: ENTRY_RETENTION_MS,
     backupCount: STORE_BACKUP_COUNT
   }
