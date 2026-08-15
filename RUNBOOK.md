@@ -235,6 +235,37 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 - Theme Studio themes are stored locally in browser storage.
 - The `?winamp=1` easter-egg/debug path is decorative Lite/Winamp only; it does not support Skin Lab or `.wsz` imports.
 
+## Writing a file the API cannot afford to lose
+
+Three files here survive a restart and matter after it: the metrics store, the
+fallback catalogue snapshot, and generated scene artwork. All three must be
+written the same way, and `sceneArtwork.ts` has had it right all along:
+
+```ts
+const temporary = resolve(dir, `.${randomUUID()}.tmp`);
+try {
+  await writeFile(temporary, contents);
+  await rename(temporary, target);      // atomic on POSIX
+} catch (error) {
+  await unlink(temporary).catch(() => {});
+  throw error;
+}
+```
+
+Every part earns its place, and two of them were learned the hard way on
+2026-08-15:
+
+- **rename, not writeFile.** A plain write is not atomic: a reader can see half
+  a file, and a process killed mid-write leaves a truncated one. That is how the
+  metrics store lost its history the first time.
+- **A UNIQUE temp name.** A shared `<target>.tmp` collides as soon as two writes
+  overlap — the first renames it away, the second fails `ENOENT`. It happened to
+  the catalogue snapshot (fatal: the call sites are fire-and-forget, so the
+  rejection killed the process) and then, hours later, to the metrics store.
+- **Unlink on failure**, or a failed write leaves a stray file per attempt.
+- **One writer at a time**, enforced inside the module. Debouncing the CALLER
+  only spaces out when writes start, not how long they take.
+
 ## SQLite contention
 
 `account-store.sqlite` has more than one opener: the API, a second API process
