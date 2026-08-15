@@ -85,6 +85,12 @@ export type StationIntelStore = {
 // share it exactly.
 export const STATION_INTEL_SCHEMA = `
   PRAGMA journal_mode = WAL;
+  -- WAL lets readers and ONE writer coexist; a second writer still gets
+  -- SQLITE_BUSY immediately unless it is told to wait. Two harvest passes can
+  -- overlap in practice — the hourly cron firing while an operator runs one by
+  -- hand (RUNBOOK documents exactly that) — and without this the second one
+  -- died with a fatal "database is locked" instead of waiting its turn.
+  PRAGMA busy_timeout = 5000;
 
   CREATE TABLE IF NOT EXISTS track_observations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

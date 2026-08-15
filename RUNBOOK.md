@@ -359,10 +359,18 @@ Run one pass by hand (it is a one-shot, so this is safe at any time):
 
 ```bash
 cd /opt/RadioAtlas/current/apps/api
-set -a; . /opt/RadioAtlas/shared/env/api.env; set +a
-HARVESTER_ENABLED=1 HARVEST_LIMIT=40 \
+HARVESTER_ENABLED=1 HARVEST_ORDER=stale HARVEST_LIMIT=40 \
+  API_BASE=http://127.0.0.1:3001 \
+  STATION_INTEL_DB_PATH=/opt/RadioAtlas/shared/data/station-intelligence.sqlite \
   node --import tsx ../../scripts/harvestMetadata.mjs
 ```
+
+`API_BASE` and `STATION_INTEL_DB_PATH` come from the pm2 `env` block in
+`ecosystem.config.cjs`, NOT from `shared/env/api.env` — sourcing api.env alone
+leaves the script on its defaults, which point at a dev port and a
+release-local database. The give-away is `already-harvested stations on record:
+0` plus every probe failing: that is the wrong database and a port with nothing
+behind it, not a broken harvester.
 
 Gate it off with `HARVESTER_ENABLED=0` in `ecosystem.config.cjs` (the script
 no-ops and exits).
