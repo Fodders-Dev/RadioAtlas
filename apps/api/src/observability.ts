@@ -40,18 +40,76 @@ export const recordClientEvent = (
 
 /**
  * Event names the web app is allowed to report. The counter key is built from
- * this value, so an open list means any caller can mint unlimited distinct
- * metric keys — and counters are the one structure the age-based prune never
- * touches. Kept in sync with reportClientEvent() call sites in the web app.
+ * this value, so the list must stay CLOSED: an open one lets any caller mint
+ * unlimited distinct metric keys, and counters are the one structure the
+ * age-based prune never touches.
+ *
+ * It also has to be COMPLETE, which it was not. Only the six infrastructure
+ * names below existed, while the web app has been emitting a full product,
+ * playback and session vocabulary through the same endpoint — so every one of
+ * those 41 events was answered `400 unknown event name`, dropped on the floor,
+ * and logged as a console error in every listener's browser. Observed on
+ * production 2026-08-15: a plain page load fired three of them.
+ *
+ * `apps/api/test/observability.clientEvents.test.ts` reads the web app sources
+ * and fails if a name is emitted but not listed here — that is the actual
+ * enforcement of "kept in sync", which a comment alone never was.
  */
 const ALLOWED_CLIENT_EVENTS = new Set([
+  // Infrastructure / diagnostics.
   'client_error',
   'deeplink_enter',
   'deeplink_error',
   'deeplink_play',
   'hls_error',
-  'share_story'
+  'share_story',
+  // Product analytics — `ProductAnalyticsEventName` in the web app.
+  'app_opened',
+  'home_station_impression',
+  'play_attempt',
+  'play_success',
+  'stream_failure',
+  'skip',
+  'like',
+  'search_query',
+  'queue_source',
+  'queue_reorder',
+  'queue_shuffle',
+  'queue_enqueue',
+  'queue_remove',
+  'queue_clear_upcoming',
+  'session_duration',
+  'station_details_opened',
+  'station_report_broken',
+  'station_hidden',
+  // Playback runtime — reportPlaybackEvent() in useAudioPlayer.
+  'audio_api_unavailable',
+  'audio_background_resume_attempt',
+  'audio_buffering_candidate_switch',
+  'audio_buffering_reconnect',
+  'audio_candidate_failed',
+  'audio_fallback_candidate',
+  'audio_lean_playback_mode',
+  'audio_no_playable_candidate',
+  'audio_playing',
+  'audio_reconnect_recovered',
+  'audio_reconnect_scheduled',
+  'audio_silent_stall',
+  'audio_visibility_change',
+  // Account session — reportSessionEvent() in SessionContext.
+  'session_authenticated',
+  'session_invalidated',
+  'session_refresh_error',
+  'session_signed_out',
+  'session_state',
+  'session_sync_error',
+  'session_sync_noop',
+  'session_sync_skipped',
+  'session_sync_start',
+  'session_sync_success'
 ]);
+
+export const allowedClientEvents = (): string[] => Array.from(ALLOWED_CLIENT_EVENTS);
 
 const hasInternalAccess = (candidate: string, configured: string | null | undefined) => {
   const expected = String(configured || '').trim();

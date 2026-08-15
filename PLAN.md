@@ -437,6 +437,25 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
 - [x] Incidental confirmation that the metrics fix works: the counters carried
   across a full pm2 daemon restart and a runtime replacement without resetting.
 
+## Client telemetry that never landed (done)
+
+- [x] Found by opening the production Mini App and reading the network log, not
+  by a test: every page load fires `POST /api/observability/client-event`
+  requests that come back **400**. Probed against production directly —
+  `app_opened`, `session_state`, `home_station_impression` and `play_attempt`
+  all answered `{"error":"unknown event name"}`, while `client_error` answered
+  `{"ok":true}`.
+- [x] Cause: the server's allow-list held the six infrastructure names it was
+  written with, while the web app grew a 47-name product/playback/session
+  vocabulary through the same endpoint. Every one of those events was dropped
+  at the door and logged as a console error in the listener's browser — the
+  app has been instrumented for behaviour it never actually recorded.
+- [x] The list stays closed (the counter key is caller-supplied and counters are
+  never pruned by age) but is now complete, grouped by family.
+- [x] The comment claiming it was "kept in sync with call sites in the web app"
+  is replaced by a test that reads the web app sources — both directions, so a
+  stale name is caught as well as a missing one.
+
 ## Next:
 
 Next: let `ai_cards_gate:*` and `ai_model_error:*` accumulate over a real

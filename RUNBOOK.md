@@ -478,6 +478,37 @@ node -e 'const o=require("/opt/RadioAtlas/shared/data/observability/metrics.json
          console.log(Object.fromEntries(Object.entries(o.counters).filter(([k])=>k.startsWith("ai_"))))'
 ```
 
+### Client events
+
+`POST /observability/client-event` is the web app's only telemetry channel and
+it is unauthenticated, so the accepted names are a **closed** list in
+`apps/api/src/observability.ts` — the counter key is built from the name, and
+counters are the one structure the age-based prune never touches.
+
+Closed is not the same as short. Until 2026-08-15 the list held six
+infrastructure names while the web app emitted 47, so every product, playback
+and account-session event was answered `400 unknown event name`, dropped, and
+logged as a console error in the listener's browser. The four families now
+accepted:
+
+- infrastructure: `client_error`, `deeplink_*`, `hls_error`, `share_story`
+- product: `app_opened`, `play_attempt`, `play_success`, `stream_failure`,
+  `skip`, `like`, `search_query`, `queue_*`, `station_*`, …
+- playback runtime: `audio_*`
+- account session: `session_*`
+
+Adding a `reportProductEvent`/`reportSessionEvent`/`reportPlaybackEvent` name in
+the web app without adding it here fails
+`apps/api/test/observability.clientEvents.test.ts`, which reads the web app
+sources rather than trusting a comment. To check a single name against a live
+API:
+
+```bash
+curl -sS -X POST http://127.0.0.1:3001/observability/client-event   -H 'Content-Type: application/json' -d '{"name":"play_attempt"}'
+```
+
+`{"ok":true}` accepted, `{"error":"unknown event name"}` rejected.
+
 ### Lira card-gate counters
 
 The gate that keeps station cards off an answer to a question reports which
