@@ -626,6 +626,24 @@ Options, in the order they should be considered, all of them the owner's call:
   `--max-old-space-size` (make V8 collect rather than grow) is the next lever —
   and a safer one than raising the pm2 cap on a box whose 2GB swap is full.
 
+## A red CI that was a production bug (done)
+
+- [x] `api.degradation` began failing with `502 !== 200` on CI and passing 4/4
+  locally. It reproduced twice, so not a flake — but the suite printed the
+  spawned API's stderr only when the process EXITED non-zero, which is the one
+  failure mode it does not have. The explanation sat in an unread buffer.
+- [x] With the assertion carrying that stderr, the cause was one line:
+  `Error: database is locked` from `listCatalogProfileOverrides`, i.e. SQLite
+  refusing a contended read while building the profiled catalogue.
+- [x] The account store runs in WAL mode but set **no `busy_timeout`**, so a
+  contended statement failed instantly instead of waiting. The
+  station-intelligence store has always set it. This is a production bug, not a
+  test artifact: the nightly backup unit opens the same database at 04:20 UTC,
+  and a listener would get a 502 Home screen for the duration.
+- [x] `PRAGMA busy_timeout = 5000` on the account store; both suites that spawn
+  an API now get their own `ACCOUNT_STORE_PATH` and `CATALOG_DATA_DIR` instead
+  of sharing the developer's files.
+
 ## Next:
 
 Next: with the TTL at 6 hours the spike happens 4 times a day instead of 48;

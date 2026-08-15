@@ -133,6 +133,11 @@ test.before(async () => {
       // developer's own apps/api/data/catalog-full.json — 70MB of real stations
       // replaced by two fakes, every time `npm test` runs.
       CATALOG_DATA_DIR: join(observabilityDir, 'catalog'),
+      // Its own account store too. Test files run in parallel, and a second
+      // spawned API sharing apps/api/data/account-store.sqlite is what made the
+      // degradation suite fail with `database is locked` -> 502 on CI while
+      // passing locally.
+      ACCOUNT_STORE_PATH: join(observabilityDir, 'account-store.sqlite'),
       BILLING_RECONCILE_ENABLED: '0',
       AI_ENABLED: '0',
       TELEGRAM_BOT_TOKEN: '',

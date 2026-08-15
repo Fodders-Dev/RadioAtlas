@@ -178,6 +178,10 @@ test.before(async () => {
       METADATA_RATE_LIMIT_PER_WINDOW: '4',
       FETCH_RATE_LIMIT_PER_WINDOW: '4',
       OBSERVABILITY_STORE_PATH: observabilityStorePath,
+      // Isolated per suite: parallel test files sharing one SQLite file is how
+      // this suite started failing with `database is locked` on CI.
+      ACCOUNT_STORE_PATH: join(observabilityDir, 'account-store.sqlite'),
+      CATALOG_DATA_DIR: join(observabilityDir, 'catalog'),
       EXTRACTOR_URL: upstreamBaseUrl,
       ENABLE_TEST_AUTH_FIXTURES: '1',
       TELEGRAM_BOT_TOKEN: '',

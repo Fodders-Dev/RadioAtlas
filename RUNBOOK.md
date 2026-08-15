@@ -235,6 +235,24 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 - Theme Studio themes are stored locally in browser storage.
 - The `?winamp=1` easter-egg/debug path is decorative Lite/Winamp only; it does not support Skin Lab or `.wsz` imports.
 
+## SQLite contention
+
+`account-store.sqlite` has more than one opener: the API, a second API process
+in any test or staging run, and the nightly backup unit that attaches to it at
+04:20 UTC. It runs in WAL mode, but until 2026-08-15 it set no `busy_timeout`,
+so a contended statement failed IMMEDIATELY with SQLITE_BUSY instead of waiting.
+
+What that looks like from outside: `/catalog/summary` answering **502**, because
+`listCatalogProfileOverrides` threw `database is locked` inside the profiled
+catalogue build. In production that is a listener seeing a broken Home screen
+because a backup happened to be running. It surfaced on CI, where two spawned
+APIs shared one database file.
+
+`PRAGMA busy_timeout = 5000` now matches what the station-intelligence store has
+always had. Tests that spawn an API should also point `ACCOUNT_STORE_PATH` (and
+`CATALOG_DATA_DIR`) at their own temp directory rather than sharing the
+developer's.
+
 ## Backups
 
 `account-store.sqlite` holds accounts, sessions, favourites, playlists, referrals,

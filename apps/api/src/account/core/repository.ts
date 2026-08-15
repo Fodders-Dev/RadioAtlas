@@ -69,6 +69,16 @@ export const getDb = async () => {
       db.exec(`
         PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
+        -- Without this SQLite fails a contended statement IMMEDIATELY with
+        -- SQLITE_BUSY instead of waiting, and this database has more than one
+        -- opener: the nightly backup unit attaches to it at 04:20 UTC, and any
+        -- second API process does too. CI found it the honest way: two spawned
+        -- APIs in one run, "database is locked" thrown out of
+        -- listCatalogProfileOverrides, and /catalog/summary answering 502. In
+        -- production that is a listener seeing a broken Home screen because a
+        -- backup happened to be running. The station-intelligence store has set
+        -- this pragma all along; the account store never did.
+        PRAGMA busy_timeout = 5000;
 
         CREATE TABLE IF NOT EXISTS accounts (
           id TEXT PRIMARY KEY,
