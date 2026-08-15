@@ -98,7 +98,6 @@ const alerts: ObservabilityAlert[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
 let flushTimer: NodeJS.Timeout | null = null;
-let flushPromise: Promise<void> | null = null;
 let updatedAt: number | null = null;
 
 const trimList = <T,>(target: T[], maxItems: number) => {
@@ -161,7 +160,7 @@ const scheduleFlush = () => {
     // flushes writing the same file at once, which is how they raced over the
     // temp name. Serialising also means the last one to run is the one that
     // wins, which is what a "latest state" snapshot wants anyway.
-    flushPromise = flushState().catch((error) => {
+    void flushState().catch((error) => {
       console.error('[Observability] failed to persist state', error);
     });
   }, FLUSH_DELAY_MS);

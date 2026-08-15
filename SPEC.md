@@ -100,7 +100,7 @@ Telegram Mini App for global internet radio. UX blends Radio++ (search/table/My 
 ## Data
 - Radio Browser API (https).
 - Catalog includes http/https; http streams open externally in production.
-- Cache catalog in memory + localStorage (TTL 30 min).
+- Cache catalog in memory + localStorage. The browser keeps its Home summary for 6 hours; the API keeps its fetched catalogue for `CATALOG_CACHE_TTL_MS` (6 hours), because rebuilding it is the API's memory high-water mark.
 - Favorites, recently played, and copied tracks live in localStorage on device (no server sync yet).
 - Generated station atmosphere is a separate visual layer, never a replacement
   for owner-provided station logos or Media Session artwork.

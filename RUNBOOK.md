@@ -443,8 +443,9 @@ no-ops and exits).
 
 ## Catalogue refresh memory
 
-`getCatalog('full')` refreshes every 30 minutes (`CACHE_TTL_MS`) and that
-refresh is the API's memory high-water mark. Measured against the live
+`getCatalog('full')` refreshes every `CATALOG_CACHE_TTL_MS` (6 hours since
+2026-08-15, 30 minutes before that) and that refresh is the API's memory
+high-water mark. Measured against the live
 60 309-station catalogue on 2026-08-15, after pm2 killed the process four times
 in one day (1020-1114MB against the 896MB `max_memory_restart`), once
 mid-request for a real listener:
@@ -482,7 +483,8 @@ refresh         591 -> 789 MB peak -> 732 -> 480 MB
 a refresh is roughly +80MB — so this is mitigated rather than solved, and the
 remaining peak is the refresh legitimately holding two catalogues at once.
 
-To reproduce the measurement: wait for `CACHE_TTL_MS` (30 min) to lapse, then
+To reproduce the measurement: wait for the TTL to lapse (or start the API with
+`CATALOG_CACHE_TTL_MS=60000`), then
 `curl 'http://127.0.0.1:3001/catalog/summary?seed=$(date +%s)'` and sample
 `ps -o rss= -p $(pm2 pid radioatlas-api)`. Note pm2 rewrites the process title,
 so `ps | grep index.js` finds nothing — take the pid from pm2.
