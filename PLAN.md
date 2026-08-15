@@ -612,14 +612,19 @@ Options, in the order they should be considered, all of them the owner's call:
 - [x] If that is the mechanism, the 6-hour TTL is the right lever and no further
   code is needed: four refreshes a day instead of forty-eight turns ~+65MB/hour
   into ~+130MB/day, against a process that is restarted by every deploy anyway.
-- [ ] **Being measured overnight.** `radioatlas-nightwatch` samples RSS, swap,
-  uptime and counters every minute into `/tmp/nightwatch.log` on the box. The
-  first refresh under the new TTL is due ~6h after the 20:50 boot. Flat until
-  then, and a single step at the refresh, confirms the ratchet. A steady climb
-  with no refresh means something else retains memory and the hunt continues.
-- [ ] If it does turn out to need more: `--max-old-space-size` (make V8 collect
-  rather than grow) is the next lever, and a safer one than raising the pm2 cap
-  on a box whose 2GB of swap is already full.
+- [x] **Measured.** Ordinary traffic does NOT ratchet: a Лира turn through the
+  real Mini App took RSS from 425MB to 492MB and it was back to 426MB within 45
+  seconds, then flat at ~425MB across the following samples. So the memory a
+  request borrows is returned; only the catalogue refresh — a far larger
+  transient — grows the heap permanently.
+- [x] That makes the 6-hour TTL the right and sufficient lever: the same ~33MB
+  per refresh now accrues 4 times a day instead of 48, against a process that
+  every deploy restarts anyway.
+- [ ] Still unproven, and only time can prove it: that no memory kill happens
+  over several days. `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
+  stands at five; the fifth was 20:43 on the pre-TTL code. If it moves,
+  `--max-old-space-size` (make V8 collect rather than grow) is the next lever —
+  and a safer one than raising the pm2 cap on a box whose 2GB swap is full.
 
 ## Next:
 
