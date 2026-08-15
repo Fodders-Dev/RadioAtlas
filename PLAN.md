@@ -348,6 +348,26 @@ Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces s
   request wearing a question mark («почему бы не поставить что-то бодрое?»)
   keeps its cards.
 
+## Harvester deadlock (done)
+
+- [x] The hourly station-metadata harvester had been running to
+  `processed=0 withTitle=0 recorded=0 failures=8 tripped=true` for hours,
+  recording nothing. Two causes compounded: `harvestMetadata.mjs` reported "the
+  fetch threw" as status 599, which fell inside the pipeline's 5xx
+  "upstream is failing" range, so eight unreachable streams in a row tripped the
+  circuit breaker; and a failed station was never stamped, so it kept
+  `last_harvested_at` NULL, sorted first in the next run's `stale` order, and
+  the same broken head was re-selected every hour.
+- [x] Station-level probe failures now have their own, much larger budget and no
+  longer count as upstream pressure; the sentinel is exported and imported
+  instead of duplicated as a literal. A genuine network-wide outage still stops
+  the run.
+- [x] Every failed probe — station-level or upstream — is stamped through the new
+  `markProbeFailure`, which records the attempt without asserting that the
+  station has no metadata. That is what breaks the deadlock.
+- [x] `stationFailures` is reported separately in the run summary, and RUNBOOK
+  documents how to read a run and how to trigger one by hand.
+
 ## Next:
 
 Next: watch `ai_model_error:*` plus `ai_agent_run:failed` now that a dead

@@ -207,7 +207,8 @@ export type HarvestDeps = {
   store: Pick<
     StationIntelStore,
     'recordObservation' | 'getSupportsMetadata' | 'setSupportsMetadata'
-  >;
+  > &
+    Partial<Pick<StationIntelStore, 'markProbeFailure'>>;
   now: () => number;
   concurrency?: number;
   perRequestPauseMs?: number;
@@ -216,6 +217,11 @@ export type HarvestDeps = {
   // cooldown after each request.
   minRequestIntervalMs?: number;
   consecutiveFailLimit?: number;
+  // Station-level probe failures get their own, much larger budget: a run of
+  // dead streams is ordinary harvesting, not an outage. It still has a ceiling
+  // so a genuine network-wide failure stops the run instead of grinding through
+  // the whole batch.
+  stationFailLimit?: number;
   sleep?: (ms: number) => Promise<void>;
   log?: (msg: string) => void;
   // Routed to a LOUD channel (console.error) by the script so a tripped breaker
@@ -229,12 +235,30 @@ export type HarvestSummary = {
   withoutTitle: number;
   recorded: number;
   failures: number;
+  // Subset of `failures` caused by an individual station rather than upstream.
+  stationFailures: number;
   tripped: boolean;
 };
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/**
+ * The harvest script reports "the fetch threw" (DNS failure, connection
+ * refused, timeout on a dead stream) with this synthetic status. It is NOT an
+ * upstream HTTP status and must never be counted as one.
+ *
+ * It used to fall inside the 5xx range, so eight dead streams in a row looked
+ * exactly like our own API failing and tripped the breaker. Combined with the
+ * fact that a failed station was never stamped, that deadlocked the harvester:
+ * unstamped stations sort first in 'stale' order, so every hourly run selected
+ * the same broken head of the queue, tripped after 8, recorded nothing, and
+ * left the queue identical for the next run. Production sat at
+ * `processed=0 failures=8 tripped=true` for hours.
+ */
+export const STATION_PROBE_FAILED_STATUS = 599;
+
 const isRateLimit = (status: number) => status === 429;
-const isServerError = (status: number) => status >= 500 && status < 600;
+const isServerError = (status: number) =>
+  status >= 500 && status < 600 && status !== STATION_PROBE_FAILED_STATUS;
 
 export const runHarvestBatch = async (
   batch: HarvestCandidate[],
@@ -245,8 +269,13 @@ export const runHarvestBatch = async (
   const minInterval = Math.max(0, deps.minRequestIntervalMs ?? 0);
   const sleep = deps.sleep ?? defaultSleep;
   const failLimit = Math.max(1, deps.consecutiveFailLimit ?? 8);
+  const stationFailLimit = Math.max(1, deps.stationFailLimit ?? failLimit * 5);
   const alert = deps.onAlert ?? deps.log ?? (() => {});
+  // Two budgets, because the two failures mean different things. Upstream
+  // pressure (429/5xx from our own API) means back off NOW. A station that will
+  // not answer means move on to the next station.
   const breaker = new CircuitBreaker(failLimit);
+  const stationBreaker = new CircuitBreaker(stationFailLimit);
 
   const summary: HarvestSummary = {
     processed: 0,
@@ -254,6 +283,7 @@ export const runHarvestBatch = async (
     withoutTitle: 0,
     recorded: 0,
     failures: 0,
+    stationFailures: 0,
     tripped: false
   };
 
@@ -275,8 +305,23 @@ export const runHarvestBatch = async (
 
   let cursor = 0;
   const next = (): HarvestCandidate | null => {
-    if (breaker.tripped || cursor >= batch.length) return null;
+    if (breaker.tripped || stationBreaker.tripped || cursor >= batch.length) return null;
     return batch[cursor++] ?? null;
+  };
+
+  // A station we could not reach is still a station we TRIED. Stamping it is
+  // what keeps the stale-ordered queue moving; without it the same unreachable
+  // head is re-selected on every run.
+  const noteStationFailure = (station: HarvestCandidate, reason: string) => {
+    summary.failures += 1;
+    summary.stationFailures += 1;
+    deps.store.markProbeFailure?.(station.stationUuid, deps.now());
+    if (stationBreaker.recordFailure()) {
+      summary.tripped = true;
+      alert(
+        `[HARVEST-ALERT] circuit breaker tripped after ${stationFailLimit} consecutive station failures (${reason}) — the network or every selected stream is unreachable`
+      );
+    }
   };
 
   const worker = async () => {
@@ -286,8 +331,13 @@ export const runHarvestBatch = async (
       try {
         result = await deps.fetchMetadata(station.urlResolved);
       } catch {
-        summary.failures += 1;
-        if (breaker.recordFailure()) trip('fetch error');
+        noteStationFailure(station, 'fetch error');
+        if (pause) await sleep(pause);
+        continue;
+      }
+
+      if (result.status === STATION_PROBE_FAILED_STATUS) {
+        noteStationFailure(station, 'stream unreachable');
         if (pause) await sleep(pause);
         continue;
       }
@@ -296,12 +346,16 @@ export const runHarvestBatch = async (
         summary.failures += 1;
         // Respect Retry-After on a 429 before the breaker decides.
         if (isRateLimit(result.status) && result.retryAfterMs) await sleep(result.retryAfterMs);
+        // Upstream pushed back: stamp the station too, so a run cut short here
+        // does not re-present the same head next time.
+        deps.store.markProbeFailure?.(station.stationUuid, deps.now());
         if (breaker.recordFailure()) trip(`${result.status}`);
         if (pause) await sleep(pause);
         continue;
       }
 
       breaker.recordSuccess();
+      stationBreaker.recordSuccess();
       summary.processed += 1;
       const parsed = result.status === 200 ? parseTrackTitle(result.title) : null;
       const hadTitle = Boolean(parsed);

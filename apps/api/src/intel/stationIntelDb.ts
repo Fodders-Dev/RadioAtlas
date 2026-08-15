@@ -65,6 +65,13 @@ export type StationIntelStore = {
     checkedAt: number,
     titleAt: number | null
   ) => void;
+  // Stamp a probe we could not complete (stream refused/timed out, or our own
+  // API pushed back). It records THAT we tried without asserting anything about
+  // metadata support — a network blip must not brand a station as title-less.
+  // Rotation is the point: without this stamp a permanently broken stream keeps
+  // last_harvested_at NULL, sorts first in 'stale' order forever, and every run
+  // dies on the same handful of stations.
+  markProbeFailure: (stationUuid: string, checkedAt: number) => void;
   // station_uuid → last_harvested_at (epoch ms), for all probed stations. Drives
   // least-recently-harvested-first rotation. Never-probed stations are absent.
   harvestedAtMap: () => Map<string, number>;
@@ -155,6 +162,13 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
                    last_title_at = COALESCE(excluded.last_title_at, station_meta_state.last_title_at),
                    last_harvested_at = excluded.last_harvested_at`
   );
+  const markFailureStmt = db.prepare(
+    `INSERT INTO station_meta_state (station_uuid, supports_metadata, last_checked_at, last_title_at, last_harvested_at)
+     VALUES (?, NULL, ?, NULL, ?)
+     ON CONFLICT(station_uuid)
+     DO UPDATE SET last_checked_at = excluded.last_checked_at,
+                   last_harvested_at = excluded.last_harvested_at`
+  );
   const harvestedAtStmt = db.prepare(
     `SELECT station_uuid, last_harvested_at FROM station_meta_state WHERE last_harvested_at IS NOT NULL`
   );
@@ -191,6 +205,9 @@ export const createStationIntelStore = (db: SqliteDb): StationIntelStore => {
     setSupportsMetadata: (stationUuid, value, checkedAt, titleAt) => {
       // checkedAt IS the probe time → also stamp last_harvested_at (rotation).
       setStateStmt.run(stationUuid, value, checkedAt, titleAt, checkedAt);
+    },
+    markProbeFailure: (stationUuid, checkedAt) => {
+      markFailureStmt.run(stationUuid, checkedAt, checkedAt);
     },
     harvestedAtMap: () => {
       const map = new Map<string, number>();

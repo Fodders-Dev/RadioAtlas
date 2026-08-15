@@ -328,6 +328,45 @@ Deploy flow:
   - `bash /opt/RadioAtlas/current/deploy/server/install-health-guard.sh`
 - This installs a `systemd` timer that checks `http://127.0.0.1:3001/health` every 2 minutes and restarts `radioatlas-api` through `pm2` if the API stops responding.
 
+## Station metadata harvester
+
+A pm2 cron one-shot (`radioatlas-harvester`, hourly at :07, `autorestart:false`)
+that probes stations through our own `/metadata` and records observed tracks and
+artists into `station-intelligence.sqlite`. It feeds Lira's recent-track/top-
+artist enrichment and the generated-scene prompts. Between ticks pm2 shows it as
+`stopped` with pid 0 — that is normal for a cron app, not a fault.
+
+Read a run from the `done:` line in `radioatlas-harvester-out.log`:
+
+```
+done: processed=172 withTitle=114 withoutTitle=58 recorded=114 \
+      failures=19 stationFailures=19 tripped=false pruned=0
+```
+
+- `processed=0` with `tripped=true` on consecutive runs is the failure mode to
+  watch for. It means the run died on the head of the queue before touching
+  anything, and — because `stale` order re-selects the least-recently-harvested
+  stations first — the NEXT run will pick the same head. Confirm with
+  `already-harvested stations on record:` staying frozen across runs.
+- `stationFailures` counts individual unreachable streams (refused, DNS,
+  timeout). Ordinary harvesting: a large number here is not an incident. These
+  are stamped as attempted, so they rotate to the back of the queue.
+- `failures - stationFailures` is upstream pressure from our OWN api (429/5xx).
+  That is the number that should stay at zero; a persistent non-zero value means
+  `/metadata` is rate-limiting or overloaded and the breaker is doing its job.
+
+Run one pass by hand (it is a one-shot, so this is safe at any time):
+
+```bash
+cd /opt/RadioAtlas/current/apps/api
+set -a; . /opt/RadioAtlas/shared/env/api.env; set +a
+HARVESTER_ENABLED=1 HARVEST_LIMIT=40 \
+  node --import tsx ../../scripts/harvestMetadata.mjs
+```
+
+Gate it off with `HARVESTER_ENABLED=0` in `ecosystem.config.cjs` (the script
+no-ops and exits).
+
 ## Observability alerts
 - Prometheus scrape target: `/observability/prometheus`
 - Important gauges:

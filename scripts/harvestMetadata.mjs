@@ -33,6 +33,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  STATION_PROBE_FAILED_STATUS,
   harvestQualityScore,
   runHarvestBatch,
   selectHarvestBatch
@@ -131,7 +132,10 @@ const main = async () => {
       const body = await res.json().catch(() => null);
       return { status: 200, title: body && typeof body.title === 'string' ? body.title : null };
     } catch {
-      return { status: 599, title: null }; // network/timeout → counts as a failure
+      // The stream (not our API) refused or timed out. Imported rather than
+      // hardcoded: when this literal was a local 599 it silently fell inside the
+      // pipeline's 5xx "upstream is failing" range and tripped the breaker.
+      return { status: STATION_PROBE_FAILED_STATUS, title: null };
     }
   };
 
@@ -154,7 +158,8 @@ const main = async () => {
   log(
     `done: processed=${summary.processed} withTitle=${summary.withTitle} ` +
       `withoutTitle=${summary.withoutTitle} recorded=${summary.recorded} ` +
-      `failures=${summary.failures} tripped=${summary.tripped} pruned=${pruned}`
+      `failures=${summary.failures} stationFailures=${summary.stationFailures} ` +
+      `tripped=${summary.tripped} pruned=${pruned}`
   );
   if (summary.tripped) {
     console.error('[harvest] [HARVEST-ALERT] run stopped by the circuit breaker — investigate upstream (429s/5xx) before re-running.');
