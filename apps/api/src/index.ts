@@ -440,6 +440,18 @@ const readCatalogArtifact = async (mode: 'fast' | 'full') => {
   );
 };
 
+/**
+ * The snapshot is a fallback for when the mirrors are down - useful, but never
+ * worth the process for. Every call site is fire-and-forget, and an unhandled
+ * rejection is fatal in Node, so a full disk (this box has been at 96% before)
+ * or an overlapping write could take the API down while it is serving traffic.
+ */
+const persistCatalogSnapshotSafely = <T>(mode: 'fast' | 'full', stations: T[]) => {
+  void persistCatalogSnapshot(mode, stations).catch((error) => {
+    console.error('[Catalog] failed to persist the snapshot', error);
+  });
+};
+
 const readCatalogSnapshot = async (mode: 'fast' | 'full') => {
   const parsed = await readPersistedCatalog<Station>(mode);
   return applyCuratedOverlay(
@@ -494,7 +506,7 @@ const getCatalog = async (mode: 'fast' | 'full') => {
       try {
         const artifactStations = await readCatalogArtifact(mode);
         recordCatalogFallback('artifact');
-        void persistCatalogSnapshot(mode, artifactStations);
+        persistCatalogSnapshotSafely(mode, artifactStations);
         return cacheCatalog(mode, artifactStations);
       } catch {
         throw networkError;
@@ -523,7 +535,7 @@ const getCatalog = async (mode: 'fast' | 'full') => {
       .filter((station) => Boolean(station.url_resolved))
   );
 
-  void persistCatalogSnapshot(mode, stations);
+  persistCatalogSnapshotSafely(mode, stations);
   return cacheCatalog(mode, stations);
 };
 

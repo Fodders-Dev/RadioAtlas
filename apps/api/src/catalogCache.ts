@@ -39,25 +39,37 @@ const SNAPSHOT_CHUNK = 500;
  * temp file and is renamed into place: a process killed mid-write used to leave
  * a truncated snapshot that `readPersistedCatalog` could only throw on.
  */
+let pendingWriteId = 0;
+
 export const persistCatalogSnapshot = async <T>(mode: CatalogMode, stations: T[]) => {
   await mkdir(DATA_DIR_URL, { recursive: true });
   const target = fileURLToPath(DATA_FILE_URLS[mode]);
-  const pending = `${target}.tmp`;
-  const handle = await open(pending, 'w');
+  // The temp name is unique per call. A shared `<target>.tmp` looked fine until
+  // two snapshot writes overlapped — the boot warm-up and a request-triggered
+  // refresh — and the second `rename` failed with ENOENT because the first had
+  // already moved the file away. Since the call sites are fire-and-forget, that
+  // rejection took the whole API process down. CI caught it; production had not
+  // happened to overlap yet.
+  pendingWriteId += 1;
+  const pending = `${target}.${process.pid}.${pendingWriteId}.tmp`;
   try {
-    await handle.write('[');
-    for (let index = 0; index < stations.length; index += SNAPSHOT_CHUNK) {
-      const chunk = stations.slice(index, index + SNAPSHOT_CHUNK);
-      const serialized = chunk.map((station) => JSON.stringify(station)).join(',');
-      await handle.write(index === 0 ? serialized : `,${serialized}`);
+    const handle = await open(pending, 'w');
+    try {
+      await handle.write('[');
+      for (let index = 0; index < stations.length; index += SNAPSHOT_CHUNK) {
+        const chunk = stations.slice(index, index + SNAPSHOT_CHUNK);
+        const serialized = chunk.map((station) => JSON.stringify(station)).join(',');
+        await handle.write(index === 0 ? serialized : `,${serialized}`);
+      }
+      await handle.write(']');
+    } finally {
+      await handle.close();
     }
-    await handle.write(']');
-  } finally {
-    await handle.close();
-  }
-  try {
     await rename(pending, target);
   } catch (error) {
+    // ANY failure - a serialization error, a full disk, a lost rename - takes
+    // the partial file with it. Temp names are unique per call, so a leak here
+    // would accumulate one dead 70MB file per refresh.
     await unlink(pending).catch(() => {});
     throw error;
   }
