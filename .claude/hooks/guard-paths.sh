@@ -40,6 +40,11 @@ deny() {
 }
 
 case "$normalized" in
+  # Templates are the exception, and they are the file people actually need to
+  # edit: .env.example is tracked, carries no value, and documents the ones that
+  # exist. Blocking it taught nothing and cost a turn.
+  *.env.example|*.env.sample|*.env.template)
+    ;;
   *.env|*.env.*|*/shared/env/*)
     deny "secrets live only in the server's env files; nothing here should write one" ;;
   */apps/api/data/*)

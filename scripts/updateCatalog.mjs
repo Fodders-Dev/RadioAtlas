@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const API_URLS = [
   'https://de1.api.radio-browser.info/json/stations/search',
@@ -43,7 +43,14 @@ const asNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const pickStation = (raw) => {
+// The same threshold the globe's resolver uses, so the artifact and the client
+// agree on what counts as a coordinate.
+const nullIslandToAbsent = (lat, lon) =>
+  lat !== null && lon !== null && Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001
+    ? { geo_lat: null, geo_long: null }
+    : { geo_lat: lat, geo_long: lon };
+
+export const pickStation = (raw) => {
   // Carry Radio Browser's own stream-health signal through into our
   // artifact so the recommender can demote known-broken stations
   // without our user having to click them first. Stripped to a
@@ -71,8 +78,14 @@ const pickStation = (raw) => {
     language: raw.language || '',
     codec: raw.codec || '',
     bitrate: Number(raw.bitrate || 0),
-    geo_lat: asNumber(raw.geo_lat),
-    geo_long: asNumber(raw.geo_long),
+    // Null island is not a location. Upstream ships a handful of rows at
+    // exactly 0,0 — one in the current dump — and the globe's resolver already
+    // refuses them (`geoResolver.ts`: both components under 1e-6 do not count
+    // as station coordinates), so carrying them into the artifact only means
+    // every consumer has to know the same trick. Written as absent instead, so
+    // the country fallback places the station like any other coordinate-less
+    // row.
+    ...nullIslandToAbsent(asNumber(raw.geo_lat), asNumber(raw.geo_long)),
     ...(lastcheckok !== undefined ? { lastcheckok } : {}),
     ...(lastIso ? { lastchecktime_iso8601: lastIso } : {}),
     // Popularity signals. These used to live ONLY on the live Radio Browser
@@ -163,7 +176,14 @@ const main = async () => {
   }
 };
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only fetch when this file IS the command. Importing it — which is how
+// `pickStation` gets tested — must not start a 60k-station download.
+const invokedDirectly =
+  process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

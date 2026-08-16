@@ -6,7 +6,13 @@ import { feature } from 'topojson-client';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const CATALOG_PATH = join(ROOT, 'apps', 'webapp', 'public', 'catalog-full.json');
+// The catalogue dump moved out of apps/webapp/public/ when the API became the
+// server that serves it; this script kept reading the old path and had been
+// exiting ENOENT ever since. `artifacts/catalog-full.json` is where the nightly
+// workflow writes it, and CATALOG_PATH is the same override scripts/
+// harvestMetadata.mjs takes, so both can be pointed at a dump under test.
+const CATALOG_PATH =
+  process.env.CATALOG_PATH || join(ROOT, 'artifacts', 'catalog-full.json');
 const WORLD_PATH = join(ROOT, 'apps', 'webapp', 'src', 'assets', 'countries-110m.json');
 
 const POINTS_PER_COUNTRY = 196;

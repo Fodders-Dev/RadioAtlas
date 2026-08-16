@@ -3,7 +3,10 @@
   "permissions": {
     "deny": [
       "Read(//**/.env)",
-      "Read(//**/.env.*)",
+      "Read(//**/.env.local)",
+      "Read(//**/.env.development)",
+      "Read(//**/.env.production)",
+      "Read(//**/.env.test)",
       "Read(//**/shared/env/**)",
       "Read(//**/apps/api/data/**)",
       "Read(//**/artifacts/catalog-*.json)",
