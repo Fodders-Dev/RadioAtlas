@@ -29,7 +29,7 @@ npm run typecheck          # sources, all workspaces          ~12s
 npm run typecheck:test     # test sources (separate, load-bearing) ~11s
 npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
-npm run test:scripts       # ops scripts outside the workspaces ~1s
+npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
 npm --workspace apps/webapp run test:unit   # vitest, 604 tests ~34s
 npm run test:webapp        # Playwright, 240 specs — NOT in CI  ~3min
 npm run dev:webapp         # + npm run dev:api in a second terminal

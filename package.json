@@ -21,7 +21,7 @@
     "test:webapp": "npm --workspace apps/webapp run test:e2e",
     "test:api": "npm --workspace apps/api run test",
     "test:bot": "npm --workspace apps/bot run test",
-    "test:scripts": "node --test scripts/generateScenePack.test.mjs deploy/server/s3put.test.mjs .claude/hooks/guard-bash.test.mjs",
+    "test:scripts": "node --test scripts/generateScenePack.test.mjs deploy/server/s3put.test.mjs deploy/server/deployScripts.test.mjs .claude/hooks/guard-bash.test.mjs",
     "eval:lira": "npm --workspace apps/api run eval:lira --",
     "test": "npm run typecheck && npm run typecheck:test && npm run test:api && npm run test:bot && npm run test:scripts && npm run test:webapp"
   }
