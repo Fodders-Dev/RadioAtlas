@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./apps/*/.env)",
+      "Read(./apps/*/.env.*)",
+      "Bash(rm -rf *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh workflow run *)",
+      "Bash(gh run cancel *)",
+      "Bash(pm2 *)",
+      "Bash(systemctl *)",
+      "Bash(apt-get *)",
+      "Bash(npm publish*)"
+    ],
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm --workspace * run *)",
+      "Bash(npm test*)",
+      "Bash(npx playwright test*)",
+      "Bash(npx tsx *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:docs.anthropic.com)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-paths.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

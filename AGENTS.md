@@ -1,51 +1,37 @@
 # AGENTS.md
 
-## Project Snapshot
-- This repository is `RadioAtlas`, a Telegram Mini App for global internet radio.
-- It is an npm workspaces monorepo:
-  - `apps/webapp` - React/Vite Telegram Mini App
-  - `apps/bot` - Telegram bot
-  - `apps/api` - optional API proxy for catalog and stream proxying
-  - `apps/extractor` - optional extractor service for non-direct audio links
-- UX target is a mix of Radio Garden navigation and a Winamp-style player shell.
-- Main data source is Radio Browser. Prefer `https` streams; `http` streams usually need external open or the optional API proxy.
+Instructions for AI coding agents working on RadioAtlas.
 
-## Read These First
-1. `CODEX_RULES.md` - repo-specific working style; follow it unless direct user instructions override it.
-2. `README.md` - repo structure, env, and deployment overview.
-3. `PLAN.md` - current project status and the next priority. Keep `Next:` up to date when the task meaningfully changes direction.
-4. `RUNBOOK.md` - commands, env vars, audio/debug/deploy notes.
-5. `SPEC.md` - product and UX expectations.
+**The current, maintained instructions live in [`CLAUDE.md`](./CLAUDE.md).**
+Read that file first — it holds the layout, the real commands, the definition of
+done, and the facts that are not inferable from the code (push to `master` is
+the production deploy; Playwright is deliberately outside CI; there is no linter
+in this project).
 
-## Current State
-- Core MVP is already built: bot, webapp, globe/search/browse/favorites flow, mini player, local persistence, and Winamp skin support.
-- `PLAN.md` is the source of truth for what is still open.
-- Current next item at the time this file was added: harden Winamp bridge transport sync edge cases and add visual regression snapshots.
+Deeper, situational guidance lives in `.claude/rules/`, loaded by Claude Code
+when the matching files are touched, and useful to any agent that reads them
+directly:
 
-## Working Agreements
-- Default to autonomous execution. If the user asks for something underspecified, choose the next logical step and do it.
-- Keep the repo in a runnable state after each meaningful change.
-- Avoid unnecessary questions. Ask only when blocked by missing credentials, deployment targets, or an irreversible decision.
-- Do not revert unrelated user changes in the worktree.
-- When behavior changes, update docs if the change affects setup, workflow, UX, or operations.
+| File | Covers |
+| --- | --- |
+| `.claude/rules/windows-shell.md` | This machine: the broken system ssh, backslash mangling |
+| `.claude/rules/api.md` | `apps/api`: what may reach the browser, persistent files, telemetry |
+| `.claude/rules/webapp.md` | `apps/webapp`: cold-start budget, playback rules, analytics |
+| `.claude/rules/e2e-tests.md` | The Playwright suite and how not to "fix" a flake |
 
-## Commands
-- Install deps: `npm install`
-- Run webapp: `npm run dev:webapp`
-- Run bot: `npm run dev:bot`
-- Run API proxy: `npm run dev:api`
-- Full build: `npm run build`
-- Full test suite: `npm test`
-- Focused tests:
-  - `npm run test:webapp`
-  - `npm run test:api`
-  - `npm run test:bot`
-- Data helpers:
-  - `npm run catalog:update`
-  - `npm run geo:check`
+And the long-form project documents:
 
-## Change Checklist
-- Run the smallest relevant test set for the files you changed.
-- If you touch multiple apps or shared behavior, prefer `npm test`.
-- If you change audio, proxying, deep links, or deploy behavior, verify the relevant notes in `RUNBOOK.md`.
-- If you complete or supersede a project milestone, update `PLAN.md`.
+- `PLAN.md` — project state; `## Next:` is what to do next
+- `RUNBOOK.md` — commands, env, deploy, incident history
+- `SPEC.md` — product and UX expectations
+- `README.md` — setup and deployment overview
+
+<!--
+History: until 2026-08-16 this file described a Winamp-style player shell, a
+"Winamp bridge" to harden, and `.wsz` skin support. All of that was removed from
+the runtime months earlier (see PLAN.md 17.0 and 17.9) — the file had simply not
+been touched since April. A companion CODEX_RULES.md from January prescribed a
+DONE/FILES/RUN/NEED response format and a from-scratch MVP definition of done,
+both long obsolete; it was removed rather than rewritten. Keep this file thin
+and pointing at CLAUDE.md so it cannot drift like that again.
+-->
