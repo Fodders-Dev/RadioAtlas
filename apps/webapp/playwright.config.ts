@@ -14,6 +14,17 @@ const OBSERVABILITY_STORE_PATH = join(
   'radioatlas-playwright',
   `observability-${process.pid}-${Date.now()}.json`
 );
+// The third store the spawned API writes. Without it `catalogCache` resolves
+// `../data/` relative to its own source file, so every e2e run read and rewrote
+// the developer's own 70MB catalogue snapshot — the exact accident
+// `.claude/rules/e2e-tests.md` was written about, still open here because the
+// other two stores were pinned and this one was not. An empty directory is
+// correct: the API falls back to the tracked artifact.
+const CATALOG_DATA_DIR = join(
+  tmpdir(),
+  'radioatlas-playwright',
+  `catalog-${process.pid}-${Date.now()}`
+);
 const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
 export default defineConfig({
@@ -45,6 +56,7 @@ export default defineConfig({
         ENABLE_TEST_AUTH_FIXTURES: '1',
         ACCOUNT_STORE_PATH,
         OBSERVABILITY_STORE_PATH,
+        CATALOG_DATA_DIR,
         BILLING_RECONCILE_ENABLED: '0'
       }
     },
