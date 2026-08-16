@@ -860,6 +860,41 @@ days before the design pass rewrites these screens anyway, and loosening the
 tolerance would weaken the check. They belong to the baseline refresh already on
 this list.
 
+## Лира's glass was dead in the bundle, not in the design (done)
+
+A guard written during the Search rebuild — `assertBackdropFilterOrder.mjs` —
+was wired to nothing: no npm script, no workflow, no test. Its only mention in
+the tracked tree was a CSS comment claiming it "enforces this mechanically".
+Running it for the first time produced fourteen flags.
+
+Measured on the real bundle before touching anything: 76 standard
+`backdrop-filter` declarations against 89 prefixed ones. Twelve values existed
+ONLY as `-webkit-backdrop-filter`, all of them in `ChatSheet.css` — the scrim,
+the card, the header, the bubbles, the prompt cards, the station cards, the
+input and the composer. The bundler treats the pair as one prefix group and
+keeps the last of the two, so writing the standard property first deletes it.
+
+The half that turns this from a style nit into a live defect: Chrome 148 answers
+`CSS.supports('-webkit-backdrop-filter', 'blur(1px)')` with **false**. The
+surviving declaration is one the browser does not parse, and the
+`@supports not (backdrop-filter: ...)` fallback cannot fire either, because the
+browser does support the standard property — what was missing was the
+declaration. Every glass surface of the Лира chat has been shipping transparent
+and unblurred in the engine Telegram uses on Android and on desktop.
+
+Nothing could have caught it: Playwright runs the dev server, unminified, where
+declaration order is irrelevant. Every screenshot showed perfect glass.
+
+- Twelve pairs in `ChatSheet.css` reordered, prefixed first. After: 89 standard
+  against 89 prefixed, nothing missing its twin.
+- Two further flags — `StationPlaceCard.css` and `FullPlayerOverlay.css` — were
+  NOT this bug: they had no prefixed twin at all, and the bundler adds one.
+  Written out by hand anyway, because no build target is pinned anywhere in this
+  repo, so that autoprefixing is a default rather than a decision.
+- `src/glassPrefixOrder.test.ts` runs the guard inside the suite CI actually
+  executes. Verified in both directions: reintroducing one reversed pair turns
+  the suite red on `ChatSheet.css:18`.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

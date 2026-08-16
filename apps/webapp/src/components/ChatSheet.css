@@ -15,8 +15,8 @@
   background:
     radial-gradient(circle at 50% 12%, color-mix(in oklab, var(--accent) 24%, transparent), transparent 46%),
     rgba(1, 5, 16, 0.72);
-  backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
   cursor: pointer;
 }
 
@@ -46,8 +46,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     inset 0 -1px 0 rgba(85, 124, 255, 0.18),
     inset 18px 0 42px rgba(112, 70, 255, 0.06);
-  backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
+  backdrop-filter: blur(36px) saturate(180%);
   transform: translateX(-50%);
 }
 
@@ -152,8 +152,8 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025)),
     color-mix(in oklab, var(--surface-overlay-strong, #071326) 40%, transparent);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(28px) saturate(175%);
   -webkit-backdrop-filter: blur(28px) saturate(175%);
+  backdrop-filter: blur(28px) saturate(175%);
 }
 
 .chat-identity,
@@ -311,8 +311,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.24),
     inset 0 -8px 18px rgba(18, 18, 76, 0.16),
     0 8px 20px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(18px) saturate(170%);
   -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
   cursor: pointer;
 }
 
@@ -395,8 +395,8 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     0 0 26px rgba(122, 74, 255, 0.26);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .chat-welcome h2 {
@@ -444,8 +444,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.32),
     inset 0 -12px 28px rgba(16, 8, 74, 0.13),
     0 12px 32px rgba(0, 3, 18, 0.18);
-  backdrop-filter: blur(24px) saturate(175%);
   -webkit-backdrop-filter: blur(24px) saturate(175%);
+  backdrop-filter: blur(24px) saturate(175%);
   cursor: pointer;
   transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
 }
@@ -542,8 +542,8 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.19),
     0 10px 28px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(20px) saturate(165%);
   -webkit-backdrop-filter: blur(20px) saturate(165%);
+  backdrop-filter: blur(20px) saturate(165%);
 }
 
 .chat-bubble--user {
@@ -654,8 +654,8 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 9px 22px rgba(0, 0, 0, 0.13);
-  backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
   cursor: pointer;
   animation: chat-card-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -790,8 +790,8 @@
   font-size: 0.73rem;
   font-weight: 720;
   text-decoration: none;
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .chat-service-chip span {
@@ -811,8 +811,8 @@
   color: var(--text, #eef7ff);
   background: rgba(255, 255, 255, 0.045);
   text-decoration: none;
-  backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .chat-source-icon {
@@ -853,8 +853,8 @@
     linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025)),
     rgba(5, 13, 34, 0.58);
   box-shadow: 0 -18px 42px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
 }
 
 .chat-composer-glass {
@@ -872,8 +872,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.27),
     inset 0 -10px 28px rgba(24, 17, 85, 0.12),
     0 10px 26px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
 }
 
 .chat-input-field {

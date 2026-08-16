@@ -38,6 +38,15 @@ Feed supersedes on the next swipe — the honest success rate is
 dirty-only, and there is a test asserting that mounting the app rewrites
 nothing. Do not "fix" that by writing eagerly.
 
+## Glass: `-webkit-backdrop-filter` comes FIRST
+
+The bundler keeps the last of the pair, and Chrome does not parse the `-webkit-`
+spelling, so writing the standard property first deletes it from the production
+bundle and the surface ships with no blur. No test can see it — Playwright runs
+the unminified dev server — which is how the whole Лира chat shipped flat for
+months. `npm --workspace apps/webapp run test:unit` runs the guard;
+`scripts/assertBackdropFilterOrder.mjs` is the guard itself.
+
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the

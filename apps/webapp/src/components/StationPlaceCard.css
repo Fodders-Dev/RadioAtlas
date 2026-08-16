@@ -19,6 +19,7 @@
     radial-gradient(120% 120% at 24% 12%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%),
     color-mix(in srgb, #04080f 46%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.06);
   backdrop-filter: blur(10px) saturate(1.06);
 }
 
