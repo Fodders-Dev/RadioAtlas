@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { geoContains } from 'd3-geo';
+import { feature } from 'topojson-client';
+import worldData from '../assets/countries-110m.json';
 import {
   buildStateAnchors,
   resolveStationCoords,
@@ -187,6 +190,88 @@ describe('resolveStationCoords', () => {
         Math.abs(p.lon - tulaLon) <= 0.25
     );
     expect(inside).toBe(true);
+  });
+});
+
+describe('synthesized dots stay inside the country they claim', () => {
+  // Measured over the whole 62k catalogue before this was enforced: 583
+  // synthesized dots (1.27%) landed inside a NEIGHBOURING country — 57 Mexican
+  // stations in the United States, 31 German ones in Czechia, 29 Dutch ones in
+  // Germany. The cause was a fixed ±0.12° jitter applied to a pool point
+  // without asking whether the result was still home.
+  const world = feature(worldData as never, (worldData as never as any).objects.countries)
+    .features as any[];
+  const polygonFor = (name: string) =>
+    world.find((item) => item?.properties?.name === name);
+
+  const stationsFor = (country: string, count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      stationuuid: `${country}-${index}`,
+      country
+    }));
+
+  // Small countries with long land borders are where the offset used to cross.
+  for (const [country, polygonName] of [
+    ['Netherlands', 'Netherlands'],
+    ['Belgium', 'Belgium'],
+    ['Switzerland', 'Switzerland'],
+    ['Germany', 'Germany']
+  ] as const) {
+    it(`places every ${country} station inside ${country}`, () => {
+      const polygon = polygonFor(polygonName);
+      expect(polygon).toBeDefined();
+      const outside: string[] = [];
+      for (const station of stationsFor(country, 120)) {
+        const resolved = resolveStationCoords(station);
+        expect(resolved).not.toBeNull();
+        if (!geoContains(polygon, [resolved!.lon, resolved!.lat])) {
+          outside.push(`${station.stationuuid} at ${resolved!.lat},${resolved!.lon}`);
+        }
+      }
+      expect(outside).toEqual([]);
+    });
+  }
+
+  it('still spreads them: no two stations share a position', () => {
+    // The first fix collapsed a station onto its bare pool point whenever the
+    // offset missed, which put 40 UAE stations on one pixel in Dubai. The
+    // offset now mirrors before it shrinks.
+    const seen = new Set<string>();
+    for (const station of stationsFor('United Arab Emirates', 60)) {
+      const resolved = resolveStationCoords(station);
+      expect(resolved).not.toBeNull();
+      seen.add(`${resolved!.lat.toFixed(4)},${resolved!.lon.toFixed(4)}`);
+    }
+    expect(seen.size).toBe(60);
+  });
+
+  it('gives the same station the same point on a second pass', () => {
+    // Sample points are now created per slot on demand. An earlier version
+    // grew a shared pool instead, which changed `seed % pool.length` mid-pass
+    // and moved dots between renders.
+    const station = { stationuuid: 'stability-1', country: 'Norway' };
+    const first = resolveStationCoords(station);
+    const others = stationsFor('Norway', 300).map((s) => resolveStationCoords(s));
+    expect(others.every(Boolean)).toBe(true);
+    const second = resolveStationCoords(station);
+    expect(second!.lat).toBe(first!.lat);
+    expect(second!.lon).toBe(first!.lon);
+  });
+
+  it('rejects a state anchor that sits outside its own country', () => {
+    // A cluster built from wrong coordinates used to be trusted blindly.
+    const anchors: StateAnchors = new Map([
+      ['russia::Мордор', { lat: 48.85, lon: 2.35, n: 4 }] // Paris
+    ]);
+    setStateAnchors(anchors);
+    const resolved = resolveStationCoords({
+      stationuuid: 'bad-anchor-1',
+      country: 'Russia',
+      state: 'Мордор'
+    });
+    expect(resolved).not.toBeNull();
+    const russia = polygonFor('Russia');
+    expect(geoContains(russia, [resolved!.lon, resolved!.lat])).toBe(true);
   });
 });
 

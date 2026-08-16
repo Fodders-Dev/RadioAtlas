@@ -43,12 +43,20 @@ const asNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-// The same threshold the globe's resolver uses, so the artifact and the client
-// agree on what counts as a coordinate.
-const nullIslandToAbsent = (lat, lon) =>
-  lat !== null && lon !== null && Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001
-    ? { geo_lat: null, geo_long: null }
-    : { geo_lat: lat, geo_long: lon };
+// The same rules the globe's resolver applies, so the artifact and the client
+// agree on what counts as a coordinate: null island is not a location, and
+// neither is latitude 340. The resolver already refuses both and falls back to
+// the country, so a station carrying them was never drawn there — the value
+// only survived to be re-discovered by every consumer in turn.
+const usableCoordsOnly = (lat, lon) => {
+  const unusable =
+    lat === null ||
+    lon === null ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lon) > 180 ||
+    (Math.abs(lat) < 0.000001 && Math.abs(lon) < 0.000001);
+  return unusable ? { geo_lat: null, geo_long: null } : { geo_lat: lat, geo_long: lon };
+};
 
 export const pickStation = (raw) => {
   // Carry Radio Browser's own stream-health signal through into our
@@ -78,14 +86,11 @@ export const pickStation = (raw) => {
     language: raw.language || '',
     codec: raw.codec || '',
     bitrate: Number(raw.bitrate || 0),
-    // Null island is not a location. Upstream ships a handful of rows at
-    // exactly 0,0 — one in the current dump — and the globe's resolver already
-    // refuses them (`geoResolver.ts`: both components under 1e-6 do not count
-    // as station coordinates), so carrying them into the artifact only means
-    // every consumer has to know the same trick. Written as absent instead, so
-    // the country fallback places the station like any other coordinate-less
-    // row.
-    ...nullIslandToAbsent(asNumber(raw.geo_lat), asNumber(raw.geo_long)),
+    // Coordinates that are not coordinates are written as absent, so the
+    // country fallback places the station like any other coordinate-less row.
+    // The current dump has one station at exactly 0,0 and one outside the valid
+    // range; `npm run geo:check` is what found them.
+    ...usableCoordsOnly(asNumber(raw.geo_lat), asNumber(raw.geo_long)),
     ...(lastcheckok !== undefined ? { lastcheckok } : {}),
     ...(lastIso ? { lastchecktime_iso8601: lastIso } : {}),
     // Popularity signals. These used to live ONLY on the live Radio Browser

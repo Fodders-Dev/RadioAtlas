@@ -49,6 +49,23 @@ test('a real coordinate on one axis and zero on the other is kept', () => {
   assert.equal(meridian.geo_long, 0);
 });
 
+test('coordinates outside the valid range are written as absent', () => {
+  // One row in the current dump carries a latitude the Earth does not have.
+  const station = pickStation(raw({ geo_lat: 340.5, geo_long: 12 }));
+  assert.equal(station.geo_lat, null);
+  assert.equal(station.geo_long, null);
+
+  const longitude = pickStation(raw({ geo_lat: 51.5, geo_long: -400 }));
+  assert.equal(longitude.geo_lat, null);
+  assert.equal(longitude.geo_long, null);
+});
+
+test('the poles and the antimeridian are still valid places', () => {
+  const pole = pickStation(raw({ geo_lat: -90, geo_long: 180 }));
+  assert.equal(pole.geo_lat, -90);
+  assert.equal(pole.geo_long, 180);
+});
+
 test('ordinary coordinates pass through untouched', () => {
   const station = pickStation(raw({ geo_lat: 55.75, geo_long: 37.61 }));
   assert.equal(station.geo_lat, 55.75);

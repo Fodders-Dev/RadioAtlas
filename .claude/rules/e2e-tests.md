@@ -57,5 +57,13 @@ The suite starts the API through `apps/api`'s `serve:e2e`, never `dev` —
 `dev` is `tsx watch`, and editing an API source mid-run restarts the shared
 server and fails whichever specs are mid-request.
 
+**The webapp side has the same trap and no such escape**: Vite runs in dev mode
+with HMR on, so editing anything under `apps/webapp/src` mid-run pushes an
+update into the browser. It reaches every module that imports the edited one, so
+a one-line comment in `lib/geoResolver.ts` reloaded three screens and cost a
+239/240 run whose single failure was `[data-home-feed-entry]` missing at page
+load. Start the suite, then keep your hands off `src/` until it finishes; a
+failure that only appears in a run you edited during is not a finding.
+
 Ports: each spawning suite owns a range (34100–37699 are taken). Pick a free one;
 an overlap takes down a neighbouring suite, not yours.

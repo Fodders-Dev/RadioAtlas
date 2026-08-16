@@ -931,6 +931,71 @@ Two things this did NOT fix, both worth knowing before trusting the numbers:
   against this file's own 1% ceiling. The check is honest about the branch it
   measures and silent about the two it does not.
 
+## The globe drew 583 stations in the wrong country (done)
+
+The follow-up the last section promised, measured against the real resolver
+rather than a copy of it. `geoResolver.ts` was loaded directly, fed the
+catalogue in the shape `/catalog/points` ships, and given the state anchors
+`GlobeScreen` builds; then d3-geo was asked whether each dot was inside the
+polygon of the country the station claims.
+
+**583 synthesized dots — 1.27% — were inside a NEIGHBOURING country.** 57
+Mexican stations in the United States, 31 German in Czechia, 29 Dutch in
+Germany, 22 Swiss in France. A further 1,162 sat outside every polygon, which
+is mostly the 110m world being coarse around coastlines and not worth chasing.
+The cause: a pool point is sampled inside the country, and then a fixed ±0.12°
+jitter was added to it without asking whether the result was still home.
+
+Two things had to survive the fix. The jitter exists so stations sharing a pool
+point do not stack on one pixel: dropping straight back to the pool point cost
+2,527 stations their own position and built a stack of 40 in Dubai, whose
+anchor is two kilometres from the water. The offset now **mirrors before it
+shrinks** — same radius, other side of the point — and only then steps down.
+
+- Synthesized dots in another country: **583 → 0**. Off every polygon:
+  1,162 → 1. Stacking: 0 → 0.
+- The 158 dots still outside their country all come from Radio Browser's own
+  coordinates, which we deliberately do not move. The ±2° bbox check that
+  catches the gross ones is untouched.
+
+### The globe's first mount got 2.3 seconds cheaper
+
+Measuring the fix turned up something bigger. Sample pools were built eagerly:
+2,048 rejection-sampled points for every country the payload touched, whether it
+shipped 7,000 stations or eleven. Measured in Chrome on the real 59k payload,
+that was **6.3 seconds** of the Globe's first mount — and resolving the stations
+afterwards was 60ms. Essentially the whole wait was sampling, and most of it was
+thrown away.
+
+Points are now sampled per SLOT, on demand: a slot's point is a pure function of
+(country, slot), so a country pays for the slots its stations actually land in.
+Chrome, 59,039 points, alternating runs:
+
+| | first mount | second pass |
+| --- | --- | --- |
+| before | 6182 / 6454 ms | 60 / 59 ms |
+| after | 2758 / 2733 ms | 868 / 864 ms |
+
+The second pass is dearer because that is where the containment check now lives
+with the sampling already cached. A session pays 2.8s + 0.9s per re-resolve
+instead of 6.3s + 0.06s, so the Globe is ahead after the first mount and stays
+ahead for the two or three re-resolves a session actually does. Memoising the
+resolved point per station would take the repeat cost to nothing at roughly 6MB
+— measured as not worth it yet, and written down so it is not re-derived.
+
+### `geo:check` now runs the product's code
+
+It used to carry its own copy of the algorithm: still 196 points per country
+after the resolver moved to 2048, no jitter, no idea state anchors existed. It
+reported `stationsOutsideCountry: 0` while the product was misplacing 583 dots.
+It imports the resolver now, and it gates on the number that matters — a
+synthesized dot in the wrong country is a hard failure.
+
+It also found two rows the artifact should never have carried: one station at
+exactly 0,0 and one with a latitude the Earth does not have. Both are normalised
+away at the generator; until the nightly workflow rewrites the artifact,
+`npm run geo:check` reports them and exits 1, which is the truth.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

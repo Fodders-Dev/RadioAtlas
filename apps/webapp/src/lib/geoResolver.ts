@@ -37,11 +37,13 @@ type CountryGeoRecord = {
   key: string;
   name: string;
   centroid: CountryPoint | null;
-  // Lazily built on first access. Building is the expensive step (a
-  // few thousand rejection-sampled geoContains checks per country),
-  // and most rendered globes only ever touch ~50 of the 240
-  // territories, so eager construction wastes seconds on startup.
-  samplePool: CountryPoint[] | null;
+  // slot number → the point sampled for it, filled on first request and kept.
+  // Sampling is the expensive step here — a rejection-sampled geoContains per
+  // try — so only the slots stations actually land in are ever paid for: a
+  // country with twelve stations costs twelve samples, not two thousand.
+  slotPoints?: Map<number, CountryPoint> | null;
+  // undefined = not computed yet, null = this feature has no usable bounds.
+  sampleBox?: SampleBox | null;
   feature: unknown;
   // Bounding box around all of this country's polygons. Cached so
   // we can sanity-check that a station's claimed (geo_lat, geo_long)
@@ -79,12 +81,12 @@ const COUNTRY_ALIASES: Record<string, string> = {
 // Big countries with hundreds of stations (Russia 3k, US 7k, Germany
 // 5.7k, China 2k) collapsed onto only 196 unique positions, so dozens
 // of stations stacked on a single pixel and the globe looked sparse.
-// 2048 slots gives Russia ~1700 unique positions visible. Higher
-// MAX_SAMPLE_TRIES makes sure rejection sampling can hit the target
-// for territories with low land-area-to-bounding-box ratio (Russia,
-// Indonesia, Norway).
+// 2048 slots gives Russia ~1700 unique positions visible.
+//
+// This is now the number of SLOTS a country has, not the number of points it
+// builds: a slot is sampled the first time a station lands in it, so a country
+// with twelve stations costs twelve samples. See sampleSlotPoint.
 const POINTS_PER_COUNTRY = 2048;
-const MAX_SAMPLE_TRIES = 32000;
 
 const clampLat = (value: number) => Math.max(-85, Math.min(85, value));
 const clampLon = (value: number) => Math.max(-180, Math.min(180, value));
@@ -166,22 +168,34 @@ const toContinent = (lat: number, lon: number): ContinentId => {
   return 'Other';
 };
 
-const buildSamplePool = (
-  countryFeature: any,
-  key: string,
-  centroid: CountryPoint | null
-) => {
-  const bounds = geoBounds(countryFeature);
-  if (!bounds || bounds.length !== 2) {
-    return centroid ? [centroid] : [];
-  }
+// A country's sample points used to be built as one eager batch of 2048 the
+// first time anything asked for a position in that country. Measured in Chrome
+// on the real 59k-point payload, filling every country that way costs 6.3
+// SECONDS on the Globe's first mount, and resolving the stations afterwards
+// costs 60ms — so essentially the whole wait is sampling, and most of it is
+// thrown away. 2048 points is the right size for the United States and absurd
+// for the hundred-odd countries that ship fewer than fifty stations each.
+//
+// Points are now sampled one SLOT at a time. A slot's point is a pure function
+// of (country, slot number): its own seeded RNG, rejection-sampled against the
+// polygon, cached on the record. A country therefore pays for exactly the slots
+// its stations land in — and, unlike a pool that grows, the point for a slot
+// never changes, so no dot moves when the payload is resolved a second time.
+type SampleBox = {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  lonSpan: number;
+};
 
+const sampleBoxFor = (countryFeature: any): SampleBox | null => {
+  const bounds = geoBounds(countryFeature);
+  if (!bounds || bounds.length !== 2) return null;
   const [[minLon, minLat], [maxLon, maxLat]] = bounds as [
     [number, number],
     [number, number]
   ];
   const lonSpan = maxLon >= minLon ? maxLon - minLon : maxLon + 360 - minLon;
-
   if (
     !Number.isFinite(minLon) ||
     !Number.isFinite(maxLon) ||
@@ -189,25 +203,83 @@ const buildSamplePool = (
     !Number.isFinite(maxLat) ||
     !Number.isFinite(lonSpan)
   ) {
-    return centroid ? [centroid] : [];
+    return null;
   }
+  return { minLat, maxLat, minLon, lonSpan };
+};
 
-  const points: CountryPoint[] = [];
-  if (centroid && geoContains(countryFeature, [centroid[1], centroid[0]])) {
-    points.push([clampLat(centroid[0]), clampLon(centroid[1])]);
+// Enough tries that even a country whose land is a few percent of its bounding
+// box practically always finds a point. France is the case that set this
+// number: its 110m feature includes French Guiana, so the bounding box runs
+// from 54°W to 8°E and land is about 2% of it. At 256 tries a handful of slots
+// still missed, and the three stations that shared one of them were drawn in
+// Asturias — France's centroid with Guiana in the average sits in the Atlantic
+// off northern Spain, and that was the fallback.
+const MAX_TRIES_PER_SLOT = 512;
+// If a slot still misses, borrow a neighbour's point rather than the centroid:
+// a neighbour's point was sampled against the polygon, the centroid was not.
+const SLOT_FALLBACK_HOPS = 3;
+
+const sampleSlotPoint = (
+  countryFeature: any,
+  key: string,
+  box: SampleBox,
+  slot: number
+): CountryPoint | null => {
+  const random = mulberry32(fnv1a(`${key}:${slot}`));
+  for (let tries = 0; tries < MAX_TRIES_PER_SLOT; tries += 1) {
+    const lon = wrapLon(box.minLon + box.lonSpan * random());
+    const lat = box.minLat + (box.maxLat - box.minLat) * random();
+    if (geoContains(countryFeature, [lon, lat])) {
+      return [clampLat(lat), clampLon(lon)];
+    }
   }
+  return null;
+};
 
-  const random = mulberry32(fnv1a(key));
-  let tries = 0;
-  while (points.length < POINTS_PER_COUNTRY && tries < MAX_SAMPLE_TRIES) {
-    tries += 1;
-    const lon = wrapLon(minLon + lonSpan * random());
-    const lat = minLat + (maxLat - minLat) * random();
-    if (!geoContains(countryFeature, [lon, lat])) continue;
-    points.push([clampLat(lat), clampLon(lon)]);
+// Jitter exists so that stations sharing a pool point do not stack on one
+// pixel, and until now it was applied blind. Measured over the whole 62k
+// catalogue, that put 583 synthesized dots — 1.27% of them — inside a
+// NEIGHBOURING country: 57 Mexican stations in the United States, 31 German
+// ones in Czechia, 29 Dutch ones in Germany. The offset is ~13km and most
+// borders here are drawn from a 110m world, so the effect is invisible in a
+// screenshot and obvious to anyone who tapped a dot.
+//
+// Distance is the wrong instrument (a legal point can sit 1km from a border,
+// an illegal one 13km inside a bay), so this asks the polygon. The offset
+// SHRINKS rather than disappearing: each station keeps its own direction, so a
+// row of stations near a border spreads along it instead of collapsing onto one
+// pixel. Dropping straight to the origin cost 2,527 stations their own position
+// and built one stack of 198; shrinking costs 0.1° at worst, about a kilometre.
+//
+// Only the stations whose full offset misses pay for the extra tries — 4% of
+// them — and the first check is the one everybody pays.
+//
+// Returns null when even the un-offset origin is outside the country, which is
+// how a bad state anchor is detected.
+// Mirror before shrinking. Coastal anchors are the reason: Dubai's cluster sits
+// two kilometres from the water, so half of every offset box is sea, and simply
+// shrinking put forty UAE stations on one pixel. Flipping the offset keeps the
+// full radius and looks for land on the other side of the anchor first.
+const JITTER_SCALES = [1, -1, 0.5, -0.5, 0.25, -0.25, 0.1];
+const keepInsideCountry = (
+  record: CountryGeoRecord,
+  lat: number,
+  lon: number,
+  offsetLat: number,
+  offsetLon: number
+): CountryPoint | null => {
+  const feature = record.feature;
+  if (!feature) return [clampLat(lat + offsetLat), clampLon(lon + offsetLon)];
+  for (const scale of JITTER_SCALES) {
+    const candidate: CountryPoint = [
+      clampLat(lat + offsetLat * scale),
+      clampLon(lon + offsetLon * scale)
+    ];
+    if (geoContains(feature as any, [candidate[1], candidate[0]])) return candidate;
   }
-
-  return points.length ? points : centroid ? [centroid] : [];
+  const origin: CountryPoint = [clampLat(lat), clampLon(lon)];
+  return geoContains(feature as any, [origin[1], origin[0]]) ? origin : null;
 };
 
 const buildCountryGeoIndex = (): CountryGeoIndex => {
@@ -251,16 +323,48 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
       key,
       name,
       centroid,
-      samplePool: null,
+      slotPoints: null,
       feature: item,
       bbox
     });
   });
 
-  const ensureSamplePool = (record: CountryGeoRecord): CountryPoint[] => {
-    if (record.samplePool) return record.samplePool;
-    record.samplePool = buildSamplePool(record.feature, record.key, record.centroid);
-    return record.samplePool;
+  // The point for one slot of one country, sampled on first request and kept.
+  // Falls back to the centroid for the handful of territories whose land is too
+  // thin a share of their bounding box to hit in 256 tries.
+  const pointForSlot = (record: CountryGeoRecord, slot: number): CountryPoint | null => {
+    let cache = record.slotPoints;
+    if (!cache) {
+      cache = new Map();
+      record.slotPoints = cache;
+    }
+    const cached = cache.get(slot);
+    if (cached) return cached;
+    if (record.sampleBox === undefined) {
+      record.sampleBox = sampleBoxFor(record.feature);
+    }
+    let point: CountryPoint | null = null;
+    if (record.sampleBox) {
+      for (let hop = 0; hop <= SLOT_FALLBACK_HOPS && !point; hop += 1) {
+        point = sampleSlotPoint(
+          record.feature,
+          record.key,
+          record.sampleBox,
+          (slot + hop * 397) % POINTS_PER_COUNTRY
+        );
+      }
+    }
+    // Last resort, and only when it is honest: a centroid can sit outside its
+    // own country (France's, with French Guiana in the average, is at sea).
+    const resolved =
+      point ??
+      (record.centroid &&
+      geoContains(record.feature as any, [record.centroid[1], record.centroid[0]])
+        ? record.centroid
+        : null);
+    if (!resolved) return null;
+    cache.set(slot, resolved);
+    return resolved;
   };
 
   const resolveCountry = (country?: string | null) => {
@@ -326,19 +430,24 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
         // of stacking on its centroid.
         const jLat = (rng() - 0.5) * 0.36;
         const jLon = (rng() - 0.5) * 0.36;
-        return {
-          lat: clampLat(anchor.lat + jLat),
-          lon: clampLon(anchor.lon + jLon),
-          source: 'country-pool',
-          countryKey: country.key
-        };
+        const placed = keepInsideCountry(country, anchor.lat, anchor.lon, jLat, jLon);
+        if (placed) {
+          return {
+            lat: placed[0],
+            lon: placed[1],
+            source: 'country-pool',
+            countryKey: country.key
+          };
+        }
+        // The anchor itself is outside the country it belongs to — a state
+        // cluster built from coordinates that were wrong. Fall through to the
+        // pool rather than trust it.
       }
     }
 
-    const pool = ensureSamplePool(country);
-    if (pool.length) {
+    {
       const seed = fnv1a(station.stationuuid || station.name || country.key);
-      const point = pool[seed % pool.length];
+      const point = pointForSlot(country, seed % POINTS_PER_COUNTRY);
       if (point) {
         // Apply a small per-station jitter so colliding pool indices
         // don't stack on the same pixel. Range ~0.12° (~13 km at the
@@ -348,9 +457,14 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
         const jitterRng = mulberry32(seed ^ 0x9e3779b9);
         const jitterLat = (jitterRng() - 0.5) * 0.24;
         const jitterLon = (jitterRng() - 0.5) * 0.24;
+        // The pool point itself passed geoContains when the pool was built, so
+        // the fallback inside keepInsideCountry is always a legal position.
+        const placed =
+          keepInsideCountry(country, point[0], point[1], jitterLat, jitterLon) ??
+          ([clampLat(point[0]), clampLon(point[1])] as CountryPoint);
         return {
-          lat: clampLat(point[0] + jitterLat),
-          lon: clampLon(point[1] + jitterLon),
+          lat: placed[0],
+          lon: placed[1],
           source: 'country-pool',
           countryKey: country.key
         };
@@ -399,8 +513,10 @@ export const resolveCountryCoords = (country?: string | null) => {
       continent: toContinent(record.centroid[0], record.centroid[1]) as ContinentId
     };
   }
-  if (record.samplePool && record.samplePool[0]) {
-    const [lat, lon] = record.samplePool[0];
+  // No centroid: fall back to any point already sampled inside this country.
+  const anySlot = record.slotPoints?.values().next().value;
+  if (anySlot) {
+    const [lat, lon] = anySlot;
     return { lat, lon, continent: toContinent(lat, lon) };
   }
   return null;

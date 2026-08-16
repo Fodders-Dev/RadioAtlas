@@ -552,6 +552,12 @@ a real bucket exists; only the live credentials are untested.
      mechanism in it is worse than a gap. -->
 - The larger direct-Radio-Browser fallback stays lazy and is cached separately.
 - Refresh catalog artifacts with `npm run catalog:update`.
+- `npm run geo:check` audits where the globe puts its dots: it runs the real
+  `geoResolver.ts` over the whole dump with the state anchors the Globe builds,
+  and fails if a synthesized dot lands in the wrong country, or if the artifact
+  carries coordinates that are not coordinates (0,0 or out of range). Takes
+  about 30s and reads `artifacts/catalog-full.json`; `CATALOG_PATH` points it
+  at another dump.
 
 ## Legacy Lite/Winamp easter egg
 - The main player uses the native RadioAtlas Full Player overlay.

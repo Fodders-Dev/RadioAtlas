@@ -38,6 +38,19 @@ Feed supersedes on the next swipe — the honest success rate is
 dirty-only, and there is a test asserting that mounting the app rewrites
 nothing. Do not "fix" that by writing eagerly.
 
+## The globe places a dot, so the dot must be in the right country
+
+Only ~12k of 59k stations ship coordinates; the rest are synthesized by
+`lib/geoResolver.ts`. A synthesized position is one WE chose, so it is verified
+against the country polygon before it is returned — a fixed jitter used to push
+583 of them across a border. If you touch that path, `npm run geo:check` is the
+gate: it runs the real resolver over the whole catalogue and fails on a dot
+drawn in the wrong country.
+
+Sample points are created per slot on demand and cached, so a country costs what
+its stations use. Do not go back to building a fixed 2048 per country: that was
+6.3 of the 6.4 seconds the Globe spent on its first mount.
+
 ## Glass: `-webkit-backdrop-filter` comes FIRST
 
 The bundler keeps the last of the pair, and Chrome does not parse the `-webkit-`
