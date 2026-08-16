@@ -79,6 +79,19 @@ green CI does **not** mean the webapp is verified. Run it locally for UI work.
 - Production access: `ssh rodnya` (see `.claude/rules/windows-shell.md` first,
   the system ssh on this machine is broken).
 
+## What refuses to run
+
+`.claude/hooks/` blocks a few commands outright, before the permission layer and
+in every mode, because each one has already cost this project something:
+recursive force-deletes, anything that discards uncommitted work (`git reset
+--hard`, `git clean -f`, `git checkout --`), force pushes, `pm2 update` (it
+hangs on this box and takes the neighbours' apps down with it), and writes to
+any `.env`. Reading a `.env`, `apps/api/data/` or a catalogue artifact is denied
+too. Paid runs — `artwork:generate`, `eval:lira`, `catalog:update` — ask first.
+
+If one of these is genuinely the right move, say which and let the developer run
+it; do not look for a way around the guard.
+
 ## How this project works
 
 Measurement beats plausibility. Several "obvious" optimisations here were

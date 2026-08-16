@@ -2,18 +2,24 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Read(./apps/*/.env)",
-      "Read(./apps/*/.env.*)",
-      "Bash(rm -rf *)",
-      "Bash(git reset --hard *)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/shared/env/**)",
+      "Read(//**/apps/api/data/**)",
+      "Read(//**/artifacts/catalog-*.json)",
+      "Read(//**/node_modules/**)",
+      "Bash(rm -rf*)",
+      "Bash(rm -fr*)",
+      "Bash(git reset --hard*)",
       "Bash(git clean -f*)",
       "Bash(git push --force*)",
-      "Bash(git push -f *)"
+      "Bash(git push -f*)"
     ],
     "ask": [
-      "Bash(git push *)",
+      "Bash(git push*)",
+      "Bash(npm run artwork:generate*)",
+      "Bash(npm run eval:lira*)",
+      "Bash(npm run catalog:update*)",
       "Bash(gh workflow run *)",
       "Bash(gh run cancel *)",
       "Bash(pm2 *)",
@@ -46,6 +52,15 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-paths.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.sh\""
           }
         ]
       }
