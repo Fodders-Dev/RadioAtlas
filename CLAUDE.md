@@ -12,6 +12,9 @@ throughout. Production is live at https://radioatlas.ru and has real listeners.
 | `apps/bot` | Telegram bot: deep links, `/record`, billing webhooks | `src/index.ts` |
 | `apps/extractor` | Optional Java/Gradle service for non-direct audio links. Rarely touched. | — |
 
+`apps/extractor` has no `package.json`, so despite `workspaces: ["apps/*"]` it is
+not an npm workspace — `build`/`typecheck`/`test --workspaces` never touch it.
+
 The API is the only process that holds secrets and the only one that talks to
 providers (Radio Browser, DeepSeek, Tavily, Cloudflare). The browser gets an
 explicit allow-list of fields, never raw provider data.
@@ -22,17 +25,20 @@ These exist; do not invent others. **There is no linter or formatter in this
 project** — no eslint, no prettier. "Run the linter" is not a thing here.
 
 ```bash
-npm run typecheck          # sources, all workspaces
-npm run typecheck:test     # test sources, all workspaces (separate, load-bearing)
-npm run test:api           # node:test, ~530 tests
-npm run test:bot           # node:test
-npm run test:scripts       # ops scripts
-npm --workspace apps/webapp run test:unit   # vitest, ~600 tests
-npm run test:webapp        # Playwright, 240 specs — NOT part of CI
-npm test                   # everything above
+npm run typecheck          # sources, all workspaces          ~12s
+npm run typecheck:test     # test sources (separate, load-bearing) ~11s
+npm run test:api           # node:test, 527 tests             ~15s
+npm run test:bot           # node:test, 87 tests               ~2s
+npm run test:scripts       # ops scripts outside the workspaces ~1s
+npm --workspace apps/webapp run test:unit   # vitest, 604 tests ~34s
+npm run test:webapp        # Playwright, 240 specs — NOT in CI  ~3min
 npm run dev:webapp         # + npm run dev:api in a second terminal
-npm run build
+npm run build              # api → bot → webapp                ~10s
 ```
+
+**Neither `npm test` nor CI runs everything.** `npm test` chains typecheck →
+api → bot → scripts → Playwright and skips the 604 webapp unit tests; CI runs
+those and skips Playwright. Run `test:unit` yourself for any webapp change.
 
 ## Verifying your own work
 
