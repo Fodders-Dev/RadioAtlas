@@ -1,5 +1,6 @@
 import type express from 'express';
 import os from 'node:os';
+import { getHeapStatistics } from 'node:v8';
 import {
   appendAlert,
   appendClientEvent,
@@ -137,6 +138,9 @@ export const installObservability = (
   let lastCpuUsage = process.cpuUsage();
   let lastCpuSampleTs = Date.now();
   const cpuAlertThreshold = Number(process.env.OBSERVABILITY_CPU_ALERT_PERCENT || 85);
+  // Fixed for the life of the process, so read it once rather than per sample.
+  const heapSizeLimit = getHeapStatistics().heap_size_limit;
+
   const sampleRuntime = () => {
     const now = Date.now();
     const elapsedMs = Math.max(1, now - lastCpuSampleTs);
@@ -161,6 +165,12 @@ export const installObservability = (
     setGauge('runtime:heap_used_mb', Number((memory.heapUsed / 1024 / 1024).toFixed(2)));
     setGauge('runtime:heap_total_mb', Number((memory.heapTotal / 1024 / 1024).toFixed(2)));
     setGauge('runtime:external_mb', Number(((memory.external + memory.arrayBuffers) / 1024 / 1024).toFixed(2)));
+    // What V8 will ACTUALLY allow, straight from V8. `--max-old-space-size` is
+    // passed by pm2, and pm2 also rewrites the process title — which clobbers
+    // argv, so /proc/<pid>/cmdline cannot confirm the flag arrived. This gauge
+    // can: it reads ~640 when the cap is in force and ~2GB or more when it is
+    // not, whatever the config file claims.
+    setGauge('runtime:heap_limit_mb', Number((heapSizeLimit / 1024 / 1024).toFixed(2)));
     if (cpuPercent >= cpuAlertThreshold) {
       appendAlert({
         kind: 'server-error',
