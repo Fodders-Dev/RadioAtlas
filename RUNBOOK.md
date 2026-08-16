@@ -745,6 +745,26 @@ curl -sS -X POST http://127.0.0.1:3001/observability/client-event   -H 'Content-
 
 `{"ok":true}` accepted, `{"error":"unknown event name"}` rejected.
 
+### Playback counters: what `play_attempt` is not
+
+`play_attempt` counts every play the UI starts. `play_success` counts the ones
+that reached audio. **Their ratio is not a success rate**, and reading it as one
+is an easy mistake — 248 attempts against 38 successes looks like a catastrophe
+and is not.
+
+The missing ones are supersessions: the Feed starts a play for every card it
+passes and replaces all but the last. That path returned silently, so those
+attempts left no trace at all. `play_superseded` now counts them, and the
+arithmetic reconciles:
+
+```
+play_attempt  =  play_success + stream_failure + play_superseded + (in flight)
+```
+
+Read `play_success / (play_attempt - play_superseded)` when you want a success
+rate, and treat a large `play_superseded` as ordinary Feed browsing rather than
+a problem.
+
 ### Lira constraint, receipt and grounding counters
 
 Three more things the roadmap says to watch, none of which emitted a number

@@ -69,6 +69,9 @@ const ALLOWED_CLIENT_EVENTS = new Set([
   'home_station_impression',
   'play_attempt',
   'play_success',
+  // The Feed supersedes a play on every swipe; without this the attempt count
+  // has no denominator anyone can reconcile.
+  'play_superseded',
   'stream_failure',
   'skip',
   'like',

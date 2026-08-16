@@ -786,39 +786,62 @@ catalogue endpoints queue behind a refresh.
   five minutes later hit a profiled cache that had only just been built. A 13ms
   response gave it away — a real refresh takes ~71 seconds.
 
+## The attempt counter had no honest denominator (done)
+
+A day of real telemetry read `play_attempt 248 / play_success 38` — a 15%
+success rate, if the two were comparable. They are not:
+
+- `RadioContext` starts a play, emits `play_attempt`, and when the result comes
+  back `'playback superseded'` it returned **silently** — no success, no
+  failure. The Feed supersedes a play on every swipe, so 248 - 38 - 3 = 207
+  attempts had simply vanished.
+- `play_superseded` now counts them, so the arithmetic reconciles and nobody
+  else reads that ratio as a broken player. RUNBOOK gives the corrected formula.
+- The API allow-list had to learn the name too, and the drift test written
+  yesterday caught it immediately — which is exactly what it was for.
+
+### A flake that nearly cost a good change
+
+The full E2E suite went 240 -> 238 right after this change, twice, with
+different specs failing each run. A control run with the change reverted came
+back 240, which looked conclusive. It was luck: a SECOND control run also
+returned 238, failing on `feed-filters.spec.ts:439` — the same spec that fails
+in most runs regardless. The change is exonerated; the suite is simply flakier
+on a loaded machine than the earlier three green runs suggested.
+
+Worth keeping as method: one control run is not a control. The first
+explanation this produced (throttling the event to reduce beacon volume) was a
+fix for a problem that did not exist, and was reverted once the second control
+landed.
+
 ## Next:
 
-Next: confirm over a few days that
-`grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stays at six, and
-watch `runtime:heap_total_mb` — if it sits at 640 the cap is being hit and the
-working set genuinely needs more, which is a different problem from V8 simply
-declining to collect. The box-level problem is separate and belongs to the owner: 2GB
-of swap is fully used and RadioAtlas is not the main occupant.
+Next, watching rather than coding — every signal the roadmap asked for now
+exists, survives a deploy, and has a documented way to be read:
 
-Superseded (kept for the reasoning): deciding between the three memory options — the measurement is done
-and the answer is a judgement call about the box, not more code. Keep an eye on
-`grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`: it has been flat at
-four since the fix, and any new entry means the 107MB of headroom was not
-enough.
-
-The rest is a WAITING item, not a coding one. Every signal the roadmap
-asked to watch exists and survives a deploy; what is missing is traffic. Let
-`ai_cards_gate:*`, `ai_exclusion_*`, `ai_action_receipt_*`, `ai_web_search_*`
-and `ai_model_error:*` accumulate over a real window, then act on what they say:
-
-- `ai_cards_gate:opinion` stuck at zero is an argument AGAINST widening the
+- **Memory.** `grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stands
+  at six; the sixth was 16:00 on 2026-08-16, before the heap cap. If it moves,
+  check `runtime:heap_total_mb` first — sitting at 640 means the working set
+  genuinely needs more, which is a different problem from V8 declining to
+  collect.
+- **Playback.** `play_success / (play_attempt - play_superseded)` is the success
+  rate; the raw ratio is not. `audio_silent_stall` climbing alongside
+  `audio_visibility_change` would mean the background-tab fix regressed.
+- **Лира.** `ai_cards_gate:opinion` stuck at zero argues AGAINST widening the
   opinion vocabulary; `ai_cards_gate_released` climbing means a predicate has
-  grown greedy enough to match real requests.
-- `ai_exclusion_unmatched` against `ai_exclusion_clause` is the ratio that
-  decides whether the hand-audited exclusion vocabulary is short.
-  `ai_exclusion_emptied` climbing means a `stationPattern` is too broad.
-- `ai_action_receipt_failed` means Lira is promising what the app cannot do.
-- `ai_web_search_degraded` means she is answering without the sources she was
-  supposed to cite — check the Tavily cap or key before concluding anything
-  about answer quality.
-- DeepSeek remains the production default; `AI_PROVIDER` is unset on the box.
+  grown greedy. `ai_exclusion_unmatched` against `ai_exclusion_clause` decides
+  whether the exclusion vocabulary is short. `ai_action_receipt_failed` means
+  Lira promises what the app cannot do; `ai_web_search_degraded` means she
+  answers without the sources she should cite — check the Tavily cap before
+  concluding anything about answer quality. DeepSeek remains the production
+  default; `AI_PROVIDER` is unset on the box.
 
-Not code: a licensed lyrics-content provider is an owner purchase decision.
-Production runs Tavily plus the safe Genius-search fallback today, which SPEC
-already describes as an acceptable steady state. Approved Lira visual baselines
-wait for the design pass to settle.
+Owner decisions, not code: 2GB of swap on the box is fully used and RadioAtlas
+is not the main occupant; a licensed lyrics-content provider is a purchase, and
+production runs Tavily plus the safe Genius-search fallback meanwhile. Approved
+Lira visual baselines wait for the design pass.
+
+Known flake: the full E2E suite drops 1-2 specs per run on a loaded machine —
+`feed-filters.spec.ts:439` most often — and they pass in isolation. Confirmed
+with and without unrelated changes, so treat a 238/240 as noise unless the SAME
+spec fails repeatedly.

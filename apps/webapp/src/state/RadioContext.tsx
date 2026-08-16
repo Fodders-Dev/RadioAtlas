@@ -1288,6 +1288,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const result = await runtimePlayer.playStation(lite);
     if (!result.ok) {
       if (result.error === 'playback superseded') {
+        // Counted, not silent. Swiping the Feed starts a play for every card it
+        // passes and supersedes all but the last, so these used to vanish
+        // between `play_attempt` and `play_success` and make the ratio read like
+        // a catastrophic failure rate: 248 attempts, 38 successes, 3 failures —
+        // and 207 attempts unaccounted for. A denominator nobody can explain is
+        // worse than no denominator.
+        reportProductEvent(
+          'play_superseded',
+          {
+            ...stationAnalyticsMeta(lite),
+            sourceId,
+            mode: sessionModeFromSourceId(sourceId)
+          },
+          {
+            // Counted exactly, like the attempt and success it reconciles: a
+            // throttled count would leave the same unexplained gap in a smaller
+            // form. One sendBeacon per superseded play is cheap next to the
+            // artwork and metadata requests a Feed swipe already makes.
+            dedupeKey: `play_superseded:${lite.stationuuid}:${Date.now()}`
+          }
+        );
         return false;
       }
       const outcome = normalizePlaybackOutcome(result.error);

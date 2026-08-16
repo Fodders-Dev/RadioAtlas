@@ -6,6 +6,10 @@ export type ProductAnalyticsEventName =
   | 'home_station_impression'
   | 'play_attempt'
   | 'play_success'
+  // A play that was replaced by a newer one before it could finish — the Feed
+  // does this on every swipe. Without it, `play_attempt` has no honest
+  // denominator.
+  | 'play_superseded'
   | 'stream_failure'
   | 'skip'
   | 'like'
