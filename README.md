@@ -29,12 +29,37 @@ errors and API-backed images/features will use their fallbacks. Run
 
 ## Tests
 ```bash
+npx playwright install chromium   # once per Playwright version, see below
 npm run test:webapp
 ```
 
+`npm run test:webapp` is the Playwright end-to-end suite, and it is the only
+suite here that needs a real browser binary. Nothing in this repository ever
+downloads one: Playwright ships no install hook, so `npm install` does not fetch
+a browser, no npm script calls the installer, and the CI workflow deliberately
+stops before the end-to-end step. On a fresh clone the suite therefore dies at
+launch with `browserType.launch: Executable doesn't exist at ...`, and the only
+reason it ever seems to work without the extra command is that some other
+project on the same machine already populated Playwright's shared browser cache.
+Chromium alone is enough because `apps/webapp/playwright.config.ts` declares no
+`projects`, so the suite runs on the default browser and never touches Firefox
+or WebKit.
+
+The download is pinned to a browser revision, not to your machine: Playwright
+1.57 wants `chromium-1200`, and `@playwright/test` is declared as `^1.47.2`, so
+an `npm ci` that lands on a newer minor walks into the same "Executable doesn't
+exist" wall with a full cache. Run the install again after a Playwright bump.
+
+The suite also starts its own API and Vite servers on fixed ports. If it aborts
+before the first spec with `is already used`, read "Running the E2E suite
+locally" in `RUNBOOK.md` — that is a leftover server from an earlier session, not
+a broken checkout.
+
 ## Deploy mini app
 1. Create bot via BotFather and grab `BOT_TOKEN`.
-2. Deploy `apps/webapp` to Vercel (or any https host).
+2. Serve `apps/webapp` over HTTPS. For this repository that is the VPS below —
+   a push to `master` builds and switches the release, and there is deliberately
+   no second deploy target.
 3. Set bot WebApp URL in BotFather (Menu Button -> Web App).
 4. Configure envs and redeploy:
    - `apps/bot/.env`: `BOT_TOKEN`, `WEBAPP_URL`, optional `WEBAPP_DEEPLINK`

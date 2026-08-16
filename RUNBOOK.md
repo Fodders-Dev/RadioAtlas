@@ -218,6 +218,92 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
 
+## Running the E2E suite locally
+
+Two failures here happen before a single spec runs, so they look like a broken
+checkout rather than a broken environment. Both are environment.
+
+### No browser is installed, and nothing in this repo installs one
+
+`npm run test:webapp` needs a browser binary, and no script, workflow or install
+hook in this repository ever downloads it. Neither `playwright` nor
+`@playwright/test` declares a `postinstall`, so `npm ci` and `npm install` fetch
+the library and not the browser; the CI workflow stops at the ops-script tests,
+so the gate never notices. Run the download once per Playwright revision — it is
+pinned per version, not per machine, so a bump to `@playwright/test` (declared
+`^1.47.2`, currently resolving to 1.57, which wants `chromium-1200`) re-raises
+the same failure on a machine whose cache is full:
+
+```bash
+npx playwright install chromium
+```
+
+Without it the suite fails with `browserType.launch: Executable doesn't exist
+at ...`. Chromium is sufficient: `apps/webapp/playwright.config.ts` declares no
+`projects`, so the run never asks for Firefox or WebKit. Beware that a machine
+which already has a Playwright cache from some other project — the MCP browser
+tools populate one — passes this without the command, which is exactly how the
+gap survived: it is invisible on every box that has already hit it elsewhere.
+
+### `http://127.0.0.1:4311/health is already used`
+
+`playwright.config.ts` spawns two servers of its own before testing: the API
+through `npm --prefix ../api run serve:e2e` on port **4311**, and Vite on
+`PLAYWRIGHT_WEBAPP_PORT` (default **5174**). Only the webapp port has an
+environment override — the API port is a literal on line 6 of the config, so
+there is no way to move the suite off 4311. `reuseExistingServer` is false
+unless `PLAYWRIGHT_REUSE_SERVER=1`.
+
+The abort is an HTTP probe, not a port check: Playwright GETs the configured
+`url` and treats 2xx/3xx as "already used". So this exact message means another
+**e2e API** is answering `/health`. Something else holding 4311 — anything not
+speaking HTTP, or anything answering 404 there — produces no such message at
+all; Playwright spawns its own API, which then dies on `EADDRINUSE` in the
+server log. In the root `npm test` chain this lands last, after typecheck and
+the api/bot/script suites have already passed, so what an orphan costs is the
+final exit code and a minute, not the earlier results.
+
+The usual culprit is an e2e API that outlived the run that spawned it.
+`serve:e2e` is plain `tsx src/index.ts` with no watcher, so in a process list it
+is indistinguishable from a dev API; the port is what identifies it, and
+`curl http://127.0.0.1:4311/health` answering `{"ok":true}` when no suite is
+running is the confirmation.
+
+Find the owner and end it:
+
+```bash
+netstat -ano | grep :4311
+```
+```powershell
+Get-NetTCPConnection -LocalPort 4311 -State Listen | ForEach-Object {
+  Get-CimInstance Win32_Process -Filter "ProcessId = $($_.OwningProcess)" |
+    Select-Object ProcessId, CreationDate, CommandLine
+}
+Stop-Process -Id <pid> -Force
+```
+
+Print the command line before killing anything: a bare PID in a section whose
+premise is "you cannot tell these two apart" has you kill blind. The e2e API
+reads `... tsx ... src/index.ts` with no `watch`; your own `npm run dev:api`
+supervisor carries `watch` and sits on 3001.
+
+The other escape is to let the suite attach to what is already there:
+
+```bash
+PLAYWRIGHT_REUSE_SERVER=1 npm run test:webapp
+```
+
+That is a diagnostic shortcut, not a fix, and it is the more dangerous of the
+two. It attaches to whatever answers on 4311 and 5174 regardless of who started
+it — an API from another worktree or another branch, serving a different account
+store, a different observability store and a different catalogue than the config
+would have handed a fresh server. (All three are pinned to temp paths by
+`playwright.config.ts`; `CATALOG_DATA_DIR` only joined them on 2026-08-17, so
+before that even a fresh e2e server was reading the developer's own snapshot.) A suite that passes that way has tested the
+neighbouring checkout, which is how green results survive genuinely broken code.
+Use it to iterate on a spec you are actively debugging, never to conclude that
+the suite is green.
+
 ## Measuring geometry in an E2E test
 
 `boundingBox()` returns the TRANSFORMED box. Any assertion about size or
@@ -456,8 +542,14 @@ a real bucket exists; only the live credentials are untested.
 ## Cache
 - Client catalog responses use an IndexedDB TTL cache with localStorage fallback; Home summary TTL is 6 hours.
 - Clear cache via Settings screen.
-- The webapp build embeds a compact 32-station Home bootstrap derived from
-  `artifacts/catalog-fast.json`; it renders before IndexedDB/API revalidation.
+<!-- Removed 2026-08-17: "The webapp build embeds a compact 32-station Home
+     bootstrap derived from artifacts/catalog-fast.json". No such embed exists —
+     no build step reads artifacts/, apps/webapp/public/ holds no station
+     payload, and nothing in apps/webapp/src carries one. The line was written
+     in July, three months after 271b38c deleted both the static file and the
+     fetch that read it. It is left as a comment because this is the file
+     CLAUDE.md tells you to read BEFORE diagnosing production, and a fabricated
+     mechanism in it is worse than a gap. -->
 - The larger direct-Radio-Browser fallback stays lazy and is cached separately.
 - Refresh catalog artifacts with `npm run catalog:update`.
 
@@ -467,7 +559,8 @@ a real bucket exists; only the live credentials are untested.
 - Skin Lab and `.wsz`/`.zip` skin imports are removed from the runtime.
 
 ## Deploy (Telegram Mini App)
-1. Host `apps/webapp` on HTTPS (Vercel recommended).
+1. Host `apps/webapp` on HTTPS. Here that is the VPS in the next section,
+   behind Caddy; a push to `master` is the deploy.
 2. Create a bot via BotFather and set Web App URL (Menu Button).
 3. Set `BOT_TOKEN` + `WEBAPP_URL` in `apps/bot/.env`.
 4. Set `VITE_TG_BOT` in `apps/webapp/.env` and redeploy.
@@ -503,24 +596,42 @@ a real bucket exists; only the live credentials are untested.
 4. Push to the default branch (`master` right now; `main` is also supported by the workflow).
 
 Deploy flow:
-- Canonical workflow: `.github/workflows/deploy-server.yml`.
+- Canonical workflow: `.github/workflows/deploy-server.yml`, and there is deliberately no second
+  deploy config in the tree. A root `vercel.json` and an `apps/webapp/vercel.json` outlived the
+  Vercel host they were written for and were deleted on 2026-08-17; the webapp one rewrote
+  `/api/*` to `http://212.69.84.167:3001`, which stopped answering when the API moved to the
+  loopback-only bind in `apps/api/src/index.ts` (still overridable with `API_BIND_HOST`, which
+  nothing in the deploy sets). Caddy is the edge and `apps/webapp/src/lib/apiBase.ts` holds the
+  canonical base. `deploy/post-deploy-smoke.sh` greps the served shell for a legacy Vercel origin
+  and exits 1 on a hit, but nothing runs it: its only caller is a manual step in
+  `deploy/OAUTH_SETUP.md`, and the workflow's own smoke is the inline `curl .../api/health`, which
+  never fetches the shell. Recreate the Vercel files only alongside a Vercel workflow something
+  actually runs.
 - GitHub Actions uploads the repository over SSH directly into `/opt/RadioAtlas/releases/<git_sha>`.
 - The server runs `deploy/server/deploy-release.sh <git_sha>`.
 - Shared env files from `/opt/RadioAtlas/shared/env` are copied into the release before build.
 - `npm ci`, `npm --workspace apps/webapp run build`, `npm --workspace apps/api run build`, and `npm --workspace apps/bot run build` run on the server.
-- The webapp build is pinned to the release SHA through `SOURCE_COMMIT=<git_sha>`.
-  `deploy-release.sh` then requires at least one generated CSS asset ending in
-  `-<short_sha>.css` before switching `/opt/RadioAtlas/current`. This prevents a
-  stale VPS environment variable from reusing a one-year-immutable CSS URL.
+- The webapp build is pinned to the release SHA through `SOURCE_COMMIT=<git_sha>`, which
+  `apps/webapp/vite.config.ts` truncates to seven characters and compiles into the bundle as
+  `__APP_COMMIT__`. `assert_webapp_build_provenance` in `deploy-release.sh` then greps the
+  freshly built `dist/index.html` and `dist/assets` for that short SHA and aborts before
+  switching `/opt/RadioAtlas/current` if it is missing. The hazard is real because the build
+  runs on the VPS, whose own git checkout is frozen: without the check a release can be built
+  from the wrong source and nothing downstream notices. This gate used to demand a CSS asset
+  literally named `-<short_sha>.css`, which meant stamping the commit into asset filenames —
+  and that rotated *every* chunk hash on *every* release (25 byte-identical 1MB maplibre
+  copies piled up in one release's assets dir, and every listener re-downloaded the bundle
+  after each deploy). The stamp is gone, the CSS hash is content-derived again, and the
+  provenance grep guards the same hazard directly.
 - PM2 launches `apps/api/dist/index.js` and `apps/bot/dist/index.js` directly from the release workspace instead of routing through `npm --workspace`.
 - `/opt/RadioAtlas/current` is switched to the new release after a successful build, then PM2 reloads from `ecosystem.config.cjs`.
 - Deploy now waits for `http://127.0.0.1:3001/health` before reporting success, and dumps `pm2` status/logs if the API fails to come back.
-- **T_audit_4 — external smoke**: after the SSH deploy returns, the workflow curls the **public** URL (`https://radioatlas.duckdns.org/api/health`) from the GH Actions runner with `--max-time 10 --retry 3 --retry-delay 5`. Non-2xx or a body missing `{ok:true}` **hard-fails** the job — this is the gate the 2026-05-27 incident bypassed (the in-script healthcheck hits `127.0.0.1:3001`, not the public Caddy edge). To run the same probe manually:
+- **T_audit_4 — external smoke**: after the SSH deploy returns, the workflow curls the **public** URL (`https://radioatlas.ru/api/health`) from the GH Actions runner with `--max-time 10 --retry 3 --retry-delay 5`. Non-2xx or a body missing `{ok:true}` **hard-fails** the job — this is the gate the 2026-05-27 incident bypassed (the in-script healthcheck hits `127.0.0.1:3001`, not the public Caddy edge). It names the canonical host rather than the `radioatlas.duckdns.org` alias, and it must: the probe does not pass `--location`, so aiming it at a redirected alias would measure the redirect instead of the edge and fail the `!= 200` check on every deploy. To run the same probe manually:
   ```
-  curl -sS -o /tmp/smoke.json -w 'HTTP %{http_code}\n' --max-time 10 --retry 3 --retry-delay 5 https://radioatlas.duckdns.org/api/health && cat /tmp/smoke.json
+  curl -sS -o /tmp/smoke.json -w 'HTTP %{http_code}\n' --max-time 10 --retry 3 --retry-delay 5 https://radioatlas.ru/api/health && cat /tmp/smoke.json
   ```
   Expect `HTTP 200` + `{"ok":true}`.
-- **T_audit_6 — chunk preservation**: `deploy-release.sh` rsyncs the previous release's `apps/webapp/dist/assets/*` into the new release additively (`rsync -a --ignore-existing`) before the symlink swap. Vite content-hashes chunks, so a deploy that rebuilds (say) `Home.tsx` would delete `Home-{oldHash}.js`; preserving it keeps every cached `index-*.js` resolvable for at least one more deploy. If a deeper chain still misses, the webapp's `ErrorBoundary` falls back to a single timestamp-guarded `location.reload()` (cooldown 10s — never loops on a genuinely broken build). Run `bash deploy/server/test-preserve-chunks.sh` to verify the rsync flags behave as expected (skips on hosts without `rsync`).
+- **T_audit_6 — chunk preservation**: `deploy-release.sh` rsyncs the previous release's `apps/webapp/dist/assets/*` into the new release additively (`rsync -a --ignore-existing`) before the symlink swap. Vite content-hashes chunks, so a deploy that rebuilds (say) `Home.tsx` would delete `Home-{oldHash}.js`; preserving it keeps every cached `index-*.js` resolvable for at least one more deploy. It is additive but not unbounded: carried chunks older than `CHUNK_RETENTION_DAYS` (default **14**) are expired from the new release, which is safe because Caddy serves `index.html` as `no-store` — only a session that was already open across a deploy needs an old chunk, and those live hours. Without that expiry the carried assets compounded with the retired filename stamp into 661 files under 43 basenames in a single release. `npm run test:scripts` runs the rsync-flag test (it skips on hosts without `rsync`, so it proves something on Linux and CI, not on Windows).
 - After the release switch, Caddy serves the new `current/apps/webapp/dist` automatically: it resolves the `current` symlink per request, so no edge reload is needed. The deploy no longer touches nginx (T_infra_1).
 
 ## Incident capture
@@ -988,4 +1099,8 @@ In repo settings -> Secrets and variables -> Actions:
 - Runs `deploy/server/deploy-release.sh <git_sha>` remotely
 - Script runs `npm ci`, builds webapp/api/bot, switches `/opt/RadioAtlas/current` symlink, and verifies the local API health endpoint
 - PM2 reloads services with the new release
-- Keeps only last 5 releases
+- Keeps the release `current` points at plus `RELEASE_KEEP_EXTRA` older ones — default 2, so
+  three release directories survive — and `rm -rf`s the rest. Chunk preservation only ever
+  reads the single previous release, so the extras exist purely for a manual rollback; at
+  ~530MB each, a deeper history was costing gigabytes of a 59GB disk for a rollback depth
+  nobody has used.

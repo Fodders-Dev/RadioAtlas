@@ -721,9 +721,33 @@ app.listen(port, bindHost, () => {
 //
 // NOT awaited before listen, and /health is a trivial route, so the deploy
 // healthcheck poll is unaffected (it rides through the one-time ~1s parse via
-// retries). Only 'full' is warmed: every route uses it; nothing routes to 'fast'
-// (the webapp loads catalog-fast.json as a static file), and warming it would
-// just double the boot transient with a second parse.
+// retries).
+//
+// Only 'full' is warmed, because 'fast' is unreachable at runtime rather than
+// merely unpopular. Every call passes 'full': the six route builders in
+// catalog/service.ts call getProfiledCatalog('full') directly, the two
+// catalogToolProvider handlers and the warm below pass 'full' through the
+// exported getCatalog, and no HTTP route accepts a mode parameter that could
+// select otherwise. So the whole 'fast' half — the one-page fetch above, the
+// fastCache, the catalog-fast.json snapshot in CATALOG_DATA_DIR, and the
+// bundled artifacts/catalog-fast.json behind it — is never entered at all;
+// warming it would parse a second catalogue into a cache no request can read.
+//
+// This used to claim the reason was that "the webapp loads catalog-fast.json
+// as a static file". It does not, and it already did not when that was
+// written: 271b38c (2026-04-23) deleted the webapp's '/catalog-fast.json'
+// fetch, five weeks before this comment arrived in e379dcc. The webapp's
+// degraded path is apps/webapp/src/lib/radioBrowserFallback.ts, which calls
+// the Radio Browser mirrors from the browser and never touches this API.
+//
+// Worth knowing before re-deriving that claim, because the corroborating
+// evidence outlived the file. Caddy's @appStatic matcher still lists
+// /catalog-fast.json, and it was right when it was written: the asset really
+// did live in apps/webapp/public/ from 2026-01-12 until 271b38c deleted it
+// alongside the fetch, and public/ is copied verbatim into dist/. Nothing
+// repopulates it now, so the path 404s. The Playwright stub is broader than it
+// looks — it sits in tests/helpers.ts inside mockStations, which ~32 specs
+// call, not in five specs. Both describe a fetch the app stopped making.
 //
 // Failure is non-fatal — the catalog lazy-loads on first request as before, with
 // the #40 deep-link retry covering the residual race.
