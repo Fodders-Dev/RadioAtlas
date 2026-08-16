@@ -895,6 +895,42 @@ declaration order is irrelevant. Every screenshot showed perfect glass.
   executes. Verified in both directions: reintroducing one reversed pair turns
   the suite red on `ChatSheet.css:18`.
 
+## The guards that ran nowhere (done)
+
+Finding the glass defect started the same question everywhere else: what else in
+this repo is written as enforcement and executed by nothing? Four answers, all
+now inside `npm run test:scripts`, which CI runs.
+
+- **`geo:check`** audits the globe's country fallback across the whole dump —
+  the path that places 49,230 of 62,407 stations, and the only thing that
+  exercises it at scale. It read `apps/webapp/public/catalog-full.json`, which
+  stopped existing when the dump moved to `artifacts/`, so it had been exiting
+  ENOENT rather than checking anything. Repointed, it found one station at
+  exactly 0,0 on its first real run. The resolver already refuses null island,
+  so nothing was misdrawn; the artifact was carrying a value every consumer had
+  to know to ignore, and `updateCatalog.mjs` now writes the pair as absent.
+- **`test-prune-caches.sh` and `test-preserve-chunks.sh`** test the two failures
+  that filled this VPS to 96% on 2026-08-14, and the rsync contract that decides
+  whether a deploy serves half a bundle. Neither had an npm script; one was
+  referenced in no file in the repository at all.
+- **The Claude Code hooks** got a battery of their own, in both directions. A
+  guard that blocks too much is a guard someone switches off: the bash one
+  refused to commit a message quoting the commands it blocks, and the path one
+  refused edits to `.env.example`.
+
+Two things this did NOT fix, both worth knowing before trusting the numbers:
+
+- `geo:check` reports one zeroed row until the nightly workflow regenerates the
+  artifact. The row is upstream data, the fix is at the generator, and the gate
+  stays fatal in the meantime — an earlier attempt deleted that gate to get a
+  green command, which is exactly the shortcut this file exists to prevent.
+- Its `stationsOutsideCountry: 0` is not the product's number. The script models
+  the resolver's country-pool branch only: no per-station jitter, and no state
+  anchors, which `GlobeScreen` feeds it in production. An adversarial replay of
+  the real jitter over the same pools put 3.24% outside their country polygon,
+  against this file's own 1% ceiling. The check is honest about the branch it
+  measures and silent about the two it does not.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now
