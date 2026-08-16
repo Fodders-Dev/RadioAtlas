@@ -146,11 +146,21 @@ export const installObservability = (
     const cpuPercent =
       ((usage.user + usage.system) / 1000 / elapsedMs / Math.max(1, os.cpus().length)) * 100;
     const load = os.loadavg();
-    const rssMb = process.memoryUsage().rss / 1024 / 1024;
+    const memory = process.memoryUsage();
+    const rssMb = memory.rss / 1024 / 1024;
     setGauge('runtime:process_cpu_percent', Number(cpuPercent.toFixed(2)));
     setGauge('runtime:loadavg_1m', Number(load[0]?.toFixed(2) || 0));
     setGauge('runtime:loadavg_5m', Number(load[1]?.toFixed(2) || 0));
     setGauge('runtime:rss_mb', Number(rssMb.toFixed(2)));
+    // RSS is what pm2's max_memory_restart watches, but it is NOT what
+    // --max-old-space-size bounds: that flag caps the V8 old space alone, and
+    // setting it below the real working set turns a graceful pm2 restart into a
+    // fatal OOM. Record the heap separately so the flag can be sized from
+    // measurement instead of from RSS, which also carries external buffers,
+    // code and fragmentation.
+    setGauge('runtime:heap_used_mb', Number((memory.heapUsed / 1024 / 1024).toFixed(2)));
+    setGauge('runtime:heap_total_mb', Number((memory.heapTotal / 1024 / 1024).toFixed(2)));
+    setGauge('runtime:external_mb', Number(((memory.external + memory.arrayBuffers) / 1024 / 1024).toFixed(2)));
     if (cpuPercent >= cpuAlertThreshold) {
       appendAlert({
         kind: 'server-error',

@@ -760,10 +760,39 @@ via our /stream  same 6-second burst pattern, unchanged
   delivery leaving thin margin on a mobile connection.
 - `tools/probe-stream.mjs` keeps the method; RUNBOOK explains how to read it.
 
+## Heap cap, measured before it shipped (done)
+
+Kill #6 landed at 16:00 on 2026-08-16 — 959MB after 10 hours — so the six-hour
+TTL made the climb slower, not absent. It also showed what the climb costs a
+listener: during that window `/catalog/summary`, `/search` and `/areas` all
+stopped answering for over a minute while `/health` stayed instant, because the
+catalogue endpoints queue behind a refresh.
+
+- Added `runtime:heap_used_mb`, `runtime:heap_total_mb` and
+  `runtime:external_mb` gauges first. `--max-old-space-size` bounds the V8 old
+  space, not RSS, and the gap between them is ~90MB of code, stacks and
+  fragmentation — sizing the flag from RSS is how a graceful pm2 restart becomes
+  a fatal OOM.
+- Measured against a real refresh (62 423 stations, 71s refetch):
+  ```
+  default   rss 557MB  heapUsed 352MB  heapTotal 468MB
+  640MB     rss 479MB  heapUsed 278MB  heapTotal 394MB   refresh completed fine
+  ```
+- Shipped `--max-old-space-size=640`. The cap is never reached, so it changes
+  V8's growth policy rather than squeezing the working set: the process settles
+  ~78MB lower and keeps ~165MB of RSS headroom under the pm2 cap.
+- The first measurement of this was wrong in the now-familiar way: it waited a
+  fixed 25s for the boot warm, the fetch was still running, and the "refresh"
+  five minutes later hit a profiled cache that had only just been built. A 13ms
+  response gave it away — a real refresh takes ~71 seconds.
+
 ## Next:
 
-Next: nothing outstanding on memory. Confirm over a few days that
-`grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stays at five. The box-level problem is separate and belongs to the owner: 2GB
+Next: confirm over a few days that
+`grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stays at six, and
+watch `runtime:heap_total_mb` — if it sits at 640 the cap is being hit and the
+working set genuinely needs more, which is a different problem from V8 simply
+declining to collect. The box-level problem is separate and belongs to the owner: 2GB
 of swap is fully used and RadioAtlas is not the main occupant.
 
 Superseded (kept for the reasoning): deciding between the three memory options — the measurement is done

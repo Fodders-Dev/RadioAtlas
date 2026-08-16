@@ -604,6 +604,37 @@ Consequences for this service:
   `CATALOG_CACHE_TTL_MS` now defaults to 6 hours: the refresh is the peak, and
   it used to happen 48 times a day.
 
+### The heap cap, and why it is not the pm2 cap
+
+`node_args: '--max-old-space-size=640'` on `radioatlas-api`. The two limits are
+different things and confusing them is expensive:
+
+- `max_memory_restart: 896M` watches **RSS** and ends in a graceful pm2 restart.
+- `--max-old-space-size` bounds the **V8 old space** and ends in a fatal OOM.
+
+RSS is heap plus external buffers, code, stacks and fragmentation — measured
+here as ~90MB above `heapTotal`. Size the flag from the heap, never from RSS.
+
+Measured against a real catalogue refresh, the heaviest moment the process has
+(2026-08-16, 62 423 stations, a 71-second refetch):
+
+```
+default   rss 557MB  heapUsed 352MB  heapTotal 468MB
+640MB     rss 479MB  heapUsed 278MB  heapTotal 394MB   refresh completed normally
+```
+
+The cap is never reached (394 of 640): it changes V8's growth policy rather than
+squeezing the working set, which is the whole point — the process settles ~78MB
+lower and still has ~165MB of RSS headroom under the pm2 cap for a Лира turn
+(+67MB) or a harvester tick (+42MB).
+
+To re-measure after any change to the catalogue path, run an API with a short
+`CATALOG_CACHE_TTL_MS`, wait for the boot warm to FINISH, wait out the
+hard-coded 5-minute profiled cache, then request `/catalog/search` and confirm
+the response took tens of seconds — a fast answer means you measured a cache
+hit, not a refresh. `runtime:heap_used_mb`, `runtime:heap_total_mb` and
+`runtime:external_mb` are gauges on `/observability` for exactly this.
+
 If the API starts getting memory-killed again, check these in order:
 
 ```bash

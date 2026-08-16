@@ -17,6 +17,25 @@ module.exports = {
       // Not a leak (heap plateaus at ~373M one-at-a-time). The box has ~2GB free,
       // so give node room to GC under burst before pm2 trips. (task_25d9a620)
       max_memory_restart: '896M',
+      // Make V8 COLLECT rather than grow. pm2 watches RSS; this bounds the old
+      // space, and the gap between them (~90MB of code, stacks and
+      // fragmentation, measured) is why the two numbers are not interchangeable
+      // — sizing this from RSS is how you turn a graceful pm2 restart into a
+      // fatal OOM.
+      //
+      // Measured against a real catalogue refresh, the process's heaviest
+      // moment (2026-08-16, 62 423 stations, 71s refetch):
+      //   default   rss 557MB  heapUsed 352MB  heapTotal 468MB
+      //   640MB     rss 479MB  heapUsed 278MB  heapTotal 394MB, refresh fine
+      // The cap is not even reached — 394 of 640 — so it changes V8's growth
+      // policy rather than squeezing the working set, and it still leaves the
+      // ~165MB of RSS headroom under max_memory_restart that a Лира turn (+67MB)
+      // or a harvester tick (+42MB) needs.
+      //
+      // Why it is here at all: without it the process climbed to 959MB and pm2
+      // killed it (2026-08-16 16:00), taking Home/Search/Browse down with it for
+      // a minute — the catalogue endpoints queue behind a refresh.
+      node_args: '--max-old-space-size=640',
       min_uptime: '10s',
       restart_delay: 2000,
       env: {
