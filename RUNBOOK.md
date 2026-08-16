@@ -244,6 +244,36 @@ The suite also runs the API through `apps/api`'s `serve:e2e` script, NOT `dev`.
 `dev` is `tsx watch`: editing an API source while the suite runs restarts the
 shared server mid-request and fails whichever specs are talking to it.
 
+### Why `toBeVisible()` was not a gate
+
+The failing test did wait — `await expect(page.locator('.station-feed-card-name')
+.first()).toBeVisible()` — and it gated on nothing. That element is
+`opacity: 0` until `[data-focus=true]`, and **Playwright counts an opacity-0
+element as visible**: it checks display, visibility and a non-empty box. So the
+wait resolved at the instant the overlay mounted, i.e. at t=0 of the animation.
+
+The threshold arithmetic: the assertion passes only once the overlay's scale
+reaches 43.5/44 = 0.98864, which on `cubic-bezier(0.22, 0.9, 0.24, 1)` is ~47ms
+into the 240ms. A `toBeVisible()` on a fading-in element buys none of it.
+
+### Three things not to reach for when this suite is red
+
+- **`emulateMedia({ reducedMotion: 'reduce' })` or `animations: 'disabled'`** to
+  settle geometry. Both work, and both quietly change the subject from "what a
+  default-settings user gets" to "what a reduced-motion user gets". Wait for the
+  animation instead.
+- **Raising a tolerance** — `43.5` for the touch-target floor, `0.04` for the
+  visual baselines, `toBeLessThanOrEqual(0)` for document overflow. These are the
+  product contracts; the measurement is what was wrong, never the number.
+- **`retries` in `playwright.config.ts`.** It would hide exactly the signal that
+  made this diagnosable: a spec failing twice on the same line is a defect, and
+  retries erase the difference between that and noise.
+
+If a test ever needs Playwright's `page.clock`, install it AFTER boot, not
+before `goto`: `clock.install()` fakes `requestIdleCallback`, which the app uses
+to preload the playback runtime, so a pre-`goto` install deletes the code path
+under test.
+
 ## Is a station's stream actually flaky?
 
 `tools/probe-stream.mjs` reads a live stream and reports throughput plus every

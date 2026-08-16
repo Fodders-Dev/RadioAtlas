@@ -887,6 +887,15 @@ is not the main occupant; a licensed lyrics-content provider is a purchase, and
 production runs Tavily plus the safe Genius-search fallback meanwhile. Approved
 Lira visual baselines wait for the design pass.
 
+Unproven and deliberately not touched, from an adversarial review of 17
+candidate diagnoses (3 survived): `account-sync.spec.ts` paces clicks rather
+than the 1400ms `CLOUD_LIBRARY_SYNC_DELAY_MS` commit window, and
+`mobile.spec.ts`'s three-viewport overflow test shares one 30s budget across
+three cold loads. Both failed ONCE, neither has recurred since the watcher fix,
+and each edit is larger than the evidence. Reproduce first
+(`--repeat-each=20 --workers=6`); if it will not reproduce, there is nothing to
+fix.
+
 Known flake, now narrowed: the full E2E suite is 240/240 most runs, and the
 residual failures are the two `visual.spec.ts` baselines diffing 0.05-0.06
 against a 0.04 tolerance. Regenerate those WITH the design pass, not before.
