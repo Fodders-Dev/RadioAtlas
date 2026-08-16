@@ -934,3 +934,42 @@ export const playHomeStation = async (page: Page, name: string) => {
   await row.waitFor({ state: 'visible' });
   await row.locator('.play-btn').first().click();
 };
+
+/**
+ * Wait until nothing on the page is still animating, then measure.
+ *
+ * `boundingBox()` reports the TRANSFORMED box, so geometry read while a mount
+ * animation is mid-flight is the animation's geometry, not the product's. The
+ * Feed lands on `.station-feed-overlay { animation: station-feed-expand 240ms }`,
+ * which starts at `scale(0.965)` — and 44px * 0.965 = 42.46px, under the 43.5px
+ * floor the touch-target test asserts. That is the whole flake: the test's only
+ * wait was for a card name to become visible, which happens at the START of
+ * those 240ms.
+ *
+ * It only showed under parallel load (a serial full-suite run passes 240/240),
+ * because contention decides whether the measuring round-trip lands inside the
+ * window. Reproduce with:
+ *   npx playwright test tests/feed-filters.spec.ts --grep "44px" --repeat-each=12 --workers=6
+ *
+ * This waits for the real thing rather than disabling motion, so the assertion
+ * still describes what a user with default settings gets.
+ */
+export const waitForAnimationsToSettle = async (page: Page, selector = 'body') => {
+  await page.waitForFunction(
+    (root) => {
+      const scope = document.querySelector(root);
+      if (!scope) return false;
+      const running = scope.getAnimations({ subtree: true }).filter((animation) => {
+        if (animation.playState !== 'running') return false;
+        // An INFINITE animation never leaves 'running' — the Feed has a pulsing
+        // live dot — so waiting on it hangs forever. Only finite animations can
+        // settle, and only those move geometry to a final resting place.
+        const timing = animation.effect?.getComputedTiming?.();
+        return timing ? timing.iterations !== Infinity : true;
+      });
+      return running.length === 0;
+    },
+    selector,
+    { timeout: 5000 }
+  );
+};

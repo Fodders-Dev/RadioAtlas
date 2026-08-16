@@ -28,7 +28,12 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm --prefix ../api run dev',
+      // NOT `run dev` — that is `tsx watch`, a file WATCHER. Editing any API
+      // source while the suite runs restarts the shared server mid-flight, and
+      // whichever specs happen to be in a request at that moment fail. It looks
+      // exactly like flakiness: a different spec each run, all passing in
+      // isolation. The suite must not depend on whether someone is typing.
+      command: 'npm --prefix ../api run serve:e2e',
       url: `http://127.0.0.1:${API_PORT}/health`,
       reuseExistingServer: REUSE_EXISTING_SERVER,
       stdout: 'pipe',

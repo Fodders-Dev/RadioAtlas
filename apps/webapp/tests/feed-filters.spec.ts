@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import {
+  installMediaMocks,
+  mockStations,
+  seedRadioState,
+  stations,
+  waitForAnimationsToSettle
+} from './helpers';
 
 // «Лента» filter chips.
 //
@@ -434,6 +440,11 @@ test('every feed control clears the 44px touch-target floor', async ({ page }) =
   await seedRadioState(page, { activeSection: 'feed', stationExposure: SEEN_STATIONS });
   await page.goto('/?api=/api');
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  // The card name appears at the START of the overlay's 240ms mount animation,
+  // which begins at scale(0.965): boundingBox() would report 42.46px for a 44px
+  // control and fail this floor. Measure the settled geometry, which is what the
+  // contract means.
+  await waitForAnimationsToSettle(page, '.station-feed-overlay');
 
   const selectors = [
     '.station-feed-close',
@@ -465,6 +476,9 @@ test('GEOMETRY: one card is exactly one scroller viewport, chips and peek strip 
   await seedRadioState(page, { activeSection: 'feed', stationExposure: SEEN_STATIONS });
   await page.goto('/?api=/api');
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
+  // Same mount animation, same hazard: every height compared below is a
+  // transformed height until it settles.
+  await waitForAnimationsToSettle(page, '.station-feed-overlay');
 
   const cardCount = await page.locator('.station-feed-card').count();
   expect(cardCount).toBeGreaterThan(1);

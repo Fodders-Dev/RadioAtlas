@@ -218,6 +218,32 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
 
+## Measuring geometry in an E2E test
+
+`boundingBox()` returns the TRANSFORMED box. Any assertion about size or
+position taken while a mount animation is in flight measures the animation, not
+the product — and it only fails under parallel load, because contention decides
+whether the round-trip lands inside the window.
+
+The Feed is the sharp case: `.station-feed-overlay` animates from
+`scale(0.965)` over 240ms, so a 44px control measures 42.46px and misses a
+43.5px floor. Use the helper before measuring:
+
+```ts
+await waitForAnimationsToSettle(page, '.station-feed-overlay');
+```
+
+It waits only for FINITE animations — the Feed's live dot pulses forever, and
+waiting on that hangs the test instead of fixing it.
+
+Do not fix this class by loosening a threshold. The touch-target floor, the
+no-overflow rule and the #86 never-auto-switch rule are product contracts; the
+measurement is what was wrong, not the number.
+
+The suite also runs the API through `apps/api`'s `serve:e2e` script, NOT `dev`.
+`dev` is `tsx watch`: editing an API source while the suite runs restarts the
+shared server mid-request and fails whichever specs are talking to it.
+
 ## Is a station's stream actually flaky?
 
 `tools/probe-stream.mjs` reads a live stream and reports throughput plus every
