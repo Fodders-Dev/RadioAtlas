@@ -226,6 +226,12 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 - Dock QA: collapse to the one-row live controller, open/close Full Player, and confirm the collapsed presentation is restored.
 - Telegram WebView may block mixed content; keep https-only or add proxy.
 - Track metadata is best-effort and depends on CORS/ICY support.
+- Silent-stall watchdog: it recovers a stream whose `currentTime` stays flat for
+  9s while unpaused. It reads the position directly rather than trusting
+  `timeupdate` delivery, because a backgrounded tab withholds those events while
+  playback continues — before 2026-08-16 that made it tear down healthy streams
+  the moment a listener returned to the app. `audio_silent_stall` climbing
+  alongside `audio_visibility_change` is the signature of that class of bug.
 - Heavy metadata/fetch probing is protected server-side with rate limiting, in-flight dedupe, caching, and shared concurrency caps.
 - Runtime gauges and latency percentiles are exposed at `/observability` and `/observability/prometheus`.
 

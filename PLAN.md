@@ -703,6 +703,38 @@ harvester cycle, no deploys in the window:
 - Kill counter frozen at five for over three hours, the fifth being 20:43 on the
   pre-TTL code.
 
+## The first thing the new telemetry caught (done)
+
+The client analytics unblocked yesterday morning recorded their first real
+listening session overnight, and it described a defect nobody had reported:
+
+```
+play_attempt 11 / play_success 8      audio_silent_stall 4
+audio_reconnect_scheduled 7           audio_reconnect_recovered 8
+```
+
+- Every one of those problems belongs to a **single listener on a single
+  station**, «Родные Нулевые - Русское Радио», across a session where they put
+  the phone away and came back four times.
+- The tell: at 18:07:56, after the app had been hidden for almost two minutes,
+  `audio_visibility_change` (visible) and `audio_silent_stall` arrive in the
+  SAME second, followed by a reconnect.
+- Cause: the silent-stall watchdog judged "no progress" from
+  `Date.now() - lastProgress.at`, and that clock is refreshed by `timeupdate`
+  events — which a backgrounded tab throttles or withholds while the audio keeps
+  playing. So the first tick after the listener returned saw two minutes of
+  apparent silence and tore down a healthy stream. For a radio app whose whole
+  use case is a phone in a pocket, the watchdog was interrupting exactly the
+  listening it exists to protect.
+- Fix: the watchdog now reads `audio.currentTime` and refuses to recover when
+  the position has actually MOVED, whatever the event clock says. Real position
+  movement was already the definition of "alive" in `handleTimeUpdate`; the
+  watchdog simply never consulted it, though it had been storing the position
+  all along.
+- `shouldRecoverFromSilentStall` keeps the whole decision, so the case is a unit
+  test rather than a story: position moved + a 120s stale clock must NOT recover,
+  a genuinely flat position still must. Verified to fail without the guard.
+
 ## Next:
 
 Next: nothing outstanding on memory. Confirm over a few days that

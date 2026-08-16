@@ -98,8 +98,23 @@ export const shouldRecoverFromSilentStall = (state: {
   recovering: boolean;
   status: PlayerStatus;
   msSinceProgress: number;
+  /**
+   * Has `currentTime` actually MOVED since the last check? This is the ground
+   * truth, and `msSinceProgress` is not: that clock is refreshed by `timeupdate`
+   * events, which a backgrounded tab throttles or withholds entirely while the
+   * audio keeps playing perfectly well.
+   *
+   * Production, 2026-08-15 18:07:56 — the first turn of this data the app ever
+   * recorded: a listener came back to a Mini App that had been hidden for almost
+   * two minutes, and `audio_visibility_change` and `audio_silent_stall` landed in
+   * the SAME second, followed by a reconnect. The stream was fine; the watchdog
+   * tore it down because nobody had told it the clock stops when the screen does.
+   * Four such stalls and six reconnects in one session, all on one listener.
+   */
+  positionMoved?: boolean;
   thresholdMs?: number;
 }): boolean =>
+  !state.positionMoved &&
   !state.paused &&
   state.hasPlayed &&
   state.hasStation &&
@@ -909,12 +924,22 @@ export const useAudioPlayer = ({
     // quiet WITHOUT firing waiting/stalled/error/ended, which the event-driven
     // recovery would otherwise miss entirely.
     const stallWatchdog = window.setInterval(() => {
+      const position = audio.currentTime || 0;
+      // Same epsilon and reasoning as handleTimeUpdate: real position MOVEMENT
+      // means the stream is alive. Reading it here rather than trusting the
+      // `timeupdate`-driven clock is what makes the watchdog safe across a
+      // backgrounded tab, where those events stop arriving but playback does not.
+      const positionMoved = Math.abs(position - lastProgressRef.current.time) > 0.05;
+      if (positionMoved) {
+        lastProgressRef.current = { time: position, at: Date.now() };
+      }
       const shouldRecover = shouldRecoverFromSilentStall({
         paused: audio.paused,
         hasPlayed: candidateHasPlayedRef.current,
         hasStation: Boolean(requestedStationRef.current || currentRef.current),
         recovering: waitingTimeoutRef.current !== null || reconnectRef.current.timer !== null,
         status: statusRef.current,
+        positionMoved,
         msSinceProgress: Date.now() - lastProgressRef.current.at
       });
       if (!shouldRecover) return;
