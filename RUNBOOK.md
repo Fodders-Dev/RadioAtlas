@@ -218,6 +218,39 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 ## Deep link
 - Share links use `startapp=station_<uuid>`; webapp auto-plays if station exists.
 
+## Is a station's stream actually flaky?
+
+`tools/probe-stream.mjs` reads a live stream and reports throughput plus every
+gap in delivery, which answers the question a listener complaint cannot:
+
+```bash
+node tools/probe-stream.mjs "https://rr-00.hostingradio.ru/rr0096.aacp" 180 rodnye
+node tools/probe-stream.mjs "http://127.0.0.1:3001/stream?url=<encoded>" 60 via-proxy
+```
+
+Run it on the VPS, not a laptop: a datacentre IP is what production actually
+uses, and several hosts answer it differently (the probe sends a browser
+User-Agent and follows redirects for that reason).
+
+Read it like this, using the 2026-08-16 investigation of «Родные Нулевые» as the
+worked example:
+
+- **Throughput against the nominal bitrate** is the real health check. That
+  station delivered 99 kbps against a declared 96 — no shortfall, nothing wrong.
+- **Gaps are not automatically stalls.** It showed 27 gaps of 2-3s over three
+  minutes and 95 over ten — every one of them between 2.0 and 3.3s, one every
+  ~6 seconds: the server flushes in large blocks rather than streaming
+  continuously. A flaky stream looks different: irregular gaps, and throughput
+  that falls short of the nominal bitrate. A control station on the same box (TGRT FM) had none,
+  so the pattern is that server's, not ours — and our `/stream` proxy reproduced
+  it unchanged, adding nothing.
+- A buffered `<audio>` element rides through a 3s delivery gap without
+  `currentTime` ever going flat, so this cannot trip the 9s silent-stall
+  watchdog. It does leave less margin on a mobile connection, which is the
+  plausible reading of that listener's two genuine `audio_buffering_reconnect`
+  events — as distinct from the four `audio_silent_stall` events, which were the
+  watchdog bug fixed the same day.
+
 ## Audio troubleshooting
 - If stream fails, confirm `https://` and test with browser.
 - For HLS streams, ensure `hls.js` loads (check console).

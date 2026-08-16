@@ -735,6 +735,31 @@ audio_reconnect_scheduled 7           audio_reconnect_recovered 8
   test rather than a story: position moved + a 120s stale clock must NOT recover,
   a genuinely flat position still must. Verified to fail without the guard.
 
+## The station itself: not flaky (measured)
+
+Asked directly after the watchdog fix: was «Родные Нулевые - Русское Радио»
+(`470bb4ed`, 96kbps AAC+) also just a bad stream? Probed from the VPS:
+
+```
+direct, 180s     99 kbps against a declared 96; 27 gaps of 2-3s, one every ~6s
+direct, 600s     97 kbps; 95 gaps, ALL of them 2.0-3.3s, same ~6s rhythm
+control TGRT FM  137 kbps, no gap >= 2s
+via our /stream  same 6-second burst pattern, unchanged
+```
+
+- **Throughput is exactly nominal** — the stream is not starved and does not
+  drop out. Ten minutes produced not one gap longer than 3.3s, i.e. no dropout
+  at all beyond the regular rhythm. The station is healthy.
+- The 2-3s gaps are its server flushing in blocks rather than streaming
+  continuously. The control station has none, so it is that host's behaviour;
+  our proxy passes it through without adding anything.
+- A buffered `<audio>` rides through a 3s gap without `currentTime` going flat,
+  so it cannot trip the 9s silent-stall watchdog. That confirms the four
+  `audio_silent_stall` events were the watchdog bug, not the stream. The two
+  `audio_buffering_reconnect` events are the ones plausibly explained by bursty
+  delivery leaving thin margin on a mobile connection.
+- `tools/probe-stream.mjs` keeps the method; RUNBOOK explains how to read it.
+
 ## Next:
 
 Next: nothing outstanding on memory. Confirm over a few days that
