@@ -996,6 +996,21 @@ exactly 0,0 and one with a latitude the Earth does not have. Both are normalised
 away at the generator; until the nightly workflow rewrites the artifact,
 `npm run geo:check` reports them and exits 1, which is the truth.
 
+## The deploy that took twenty minutes (open)
+
+Deploying the geo fix took 20m44s against a normal 1m10s, and
+`https://radioatlas.ru/` timed out for most of it — while the API answered on
+loopback in 4ms and `current` still pointed at the old release. The edge was
+starved, not broken. Full evidence in `RUNBOOK.md`; the short version is that a
+human push ships the nightly artifact commit along with its own (a
+`GITHUB_TOKEN` commit does not trigger a deploy by itself), the upload rsync has
+no `--link-dest` so it re-sends the whole tree, and 107MB of changed JSON on a
+2-core box that a neighbour was also using pinned it.
+
+**This recurs on the first push of any day.** The candidate fix is one rsync
+flag, written out in the runbook, deliberately not shipped unattended: getting
+it wrong fails every deploy, which is worse than a slow one.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

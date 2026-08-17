@@ -640,6 +640,54 @@ Deploy flow:
 - **T_audit_6 — chunk preservation**: `deploy-release.sh` rsyncs the previous release's `apps/webapp/dist/assets/*` into the new release additively (`rsync -a --ignore-existing`) before the symlink swap. Vite content-hashes chunks, so a deploy that rebuilds (say) `Home.tsx` would delete `Home-{oldHash}.js`; preserving it keeps every cached `index-*.js` resolvable for at least one more deploy. It is additive but not unbounded: carried chunks older than `CHUNK_RETENTION_DAYS` (default **14**) are expired from the new release, which is safe because Caddy serves `index.html` as `no-store` — only a session that was already open across a deploy needs an old chunk, and those live hours. Without that expiry the carried assets compounded with the retired filename stamp into 661 files under 43 basenames in a single release. `npm run test:scripts` runs the rsync-flag test (it skips on hosts without `rsync`, so it proves something on Linux and CI, not on Windows).
 - After the release switch, Caddy serves the new `current/apps/webapp/dist` automatically: it resolves the `current` symlink per request, so no edge reload is needed. The deploy no longer touches nginx (T_infra_1).
 
+## 2026-08-17 — a deploy took 20 minutes and the site was unreachable for most of it
+
+A push at 06:10 UTC took **20m44s** to deploy where every deploy before it took
+about 1m10s, and for most of that window `https://radioatlas.ru/` timed out —
+from the outside AND from the box itself. It was not a bad release: `current`
+still pointed at the previous SHA the whole time, and the API answered
+`http://127.0.0.1:3001/health` in **4ms** throughout. What was starved was the
+edge, not the app.
+
+What the box looked like during it:
+
+```
+load average: 10.7 → 14.8      (2 vCPU)
+Mem: 3904 total, 127 free      Swap: 2047 total, 1610 used
+vmstat: r=16-24, sy=69-71%, wa=0        # kernel time, not disk wait
+rsync --server ... /opt/RadioAtlas/releases/<sha>/   ETIME 14:11
+git-remote-https ... FoddersGameBot.git              # a NEIGHBOUR, mid-fetch
+```
+
+Two things had to line up. The push carried the nightly `chore: refresh catalog
+artifacts` commit as well as its own, because that workflow's commit does not
+trigger a deploy on its own — GitHub does not run workflows for pushes made with
+`GITHUB_TOKEN` — so the first human push after it ships **both**. The deploy
+rsync has no `--link-dest` and the release directory is created empty, so it
+transfers the whole tree every time; with `artifacts/` changed that is about
+107MB of JSON instead of a few hundred KB of delta. And a neighbouring service
+happened to be fetching from GitHub at the same time on the same 2-core box.
+
+Caddy stayed `active` and kept its listener on 443, but a request to it over
+loopback timed out with zero bytes, which is what CPU starvation looks like from
+the outside.
+
+**Not fixed yet, and it will recur on the first push of any day.** The
+one-line candidate is `--link-dest` on the upload step, so unchanged files are
+hard-linked from the previous release instead of retransmitted:
+
+```
+rsync -az --delete --exclude '.git' --exclude 'node_modules' \
+  --link-dest "$APP_ROOT/releases/$PREVIOUS_SHA" \
+  ./ "$USER@$HOST:$APP_ROOT/releases/$RELEASE_SHA/"
+```
+
+It needs the previous SHA resolved on the runner and a fallback when there is no
+previous release, and a wrong path there fails the deploy outright — which is
+why it is written down rather than shipped in the middle of the night. Verify by
+watching the duration of the first push after a nightly artifact refresh: about
+a minute means it worked.
+
 ## Incident capture
 - Save current production logs and process state:
   - `bash /opt/RadioAtlas/current/deploy/server/capture-incident-artifacts.sh`
