@@ -1049,9 +1049,17 @@ human push ships the nightly artifact commit along with its own (a
 no `--link-dest` so it re-sends the whole tree, and 107MB of changed JSON on a
 2-core box that a neighbour was also using pinned it.
 
-**This recurs on the first push of any day.** The candidate fix is one rsync
-flag, written out in the runbook, deliberately not shipped unattended: getting
-it wrong fails every deploy, which is worse than a slow one.
+The upload step now hard-links unchanged files against the previous release
+(`--link-dest`), which stops us sending 132MB to a shared 2-core box on every
+deploy. Testing the mechanism on the box first was worth it: `--link-dest` alone
+would have linked nothing, because rsync compares size + mtime and a git
+checkout restamps every file — `--checksum` is what makes it work, at 0.4s for
+the tree.
+
+**Still open:** whether that was the cure. The evidence for the outage fits the
+neighbour's concurrent fetch just as well as it fits our payload, and the
+deploys after it were back to a minute regardless. `--stats` is now in the
+command, so the next slow one reports what it actually sent.
 
 ## Next:
 

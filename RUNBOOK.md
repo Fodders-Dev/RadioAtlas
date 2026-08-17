@@ -672,21 +672,26 @@ Caddy stayed `active` and kept its listener on 443, but a request to it over
 loopback timed out with zero bytes, which is what CPU starvation looks like from
 the outside.
 
-**Not fixed yet, and it will recur on the first push of any day.** The
-one-line candidate is `--link-dest` on the upload step, so unchanged files are
-hard-linked from the previous release instead of retransmitted:
+**What was changed afterwards, and what is still unproven.** The upload step now
+passes `--link-dest` against `readlink -f current`, plus `--checksum` and
+`--stats`. Two things were measured on the box before that shipped:
 
-```
-rsync -az --delete --exclude '.git' --exclude 'node_modules' \
-  --link-dest "$APP_ROOT/releases/$PREVIOUS_SHA" \
-  ./ "$USER@$HOST:$APP_ROOT/releases/$RELEASE_SHA/"
-```
+- `--link-dest` on its own would have linked NOTHING. rsync's quick check is
+  size + mtime, and a git checkout stamps every file with the checkout time —
+  `package.json` is byte-identical across two releases and its mtimes are nine
+  minutes apart. `--checksum` is what makes the comparison real, and it is
+  cheap: 0.107s to hash the 37MB catalogue, ~0.4s for the 132MB tree.
+- Hard links cannot corrupt the previous release here. rsync writes a changed
+  file new and renames it, and every in-place write later in the deploy
+  (`cp` of the env files, the `sed -i` on `apps/bot/.env`) targets a gitignored
+  file that was never in the transfer and so was never linked.
 
-It needs the previous SHA resolved on the runner and a fallback when there is no
-previous release, and a wrong path there fails the deploy outright — which is
-why it is written down rather than shipped in the middle of the night. Verify by
-watching the duration of the first push after a nightly artifact refresh: about
-a minute means it worked.
+This stops us sending 132MB per deploy to a shared 2-core box, which is worth
+doing on its own. It is NOT proven to be the cure for the outage above: the
+evidence is equally consistent with the neighbour's fetch being the trigger, and
+the three deploys after it were back to about a minute either way. `--stats` is
+in the command so the next slow deploy reports what it actually sent instead of
+leaving another inference.
 
 ## Incident capture
 - Save current production logs and process state:

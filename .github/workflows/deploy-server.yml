@@ -25,15 +25,49 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
 
+      # Every release directory starts empty, so this used to send the whole
+      # 132MB working tree on every deploy, to a 2-core box that is shared with
+      # other services and whose swap is permanently in use. --link-dest
+      # hard-links each file that is identical to the previous release instead
+      # of transferring it: the wire carries the diff, the disk carries one
+      # copy, and prune_old_releases stays correct because deleting a release
+      # only drops link counts.
+      #
+      # --checksum is NOT optional here, and that was measured rather than
+      # assumed. rsync's default quick check is size + mtime, and a git checkout
+      # stamps every file with the checkout time: package.json is byte-identical
+      # across two releases (same sha1) with mtimes nine minutes apart, so the
+      # quick check calls it changed and --link-dest alone would link nothing at
+      # all. Comparing content costs 0.1s for the 37MB catalogue on this box,
+      # about 0.4s for the whole tree.
+      #
+      # Safe against the rest of the deploy: rsync writes a changed file new and
+      # renames it, so it never writes through a shared inode, and every
+      # in-place write later in deploy-release.sh targets a .env file, which is
+      # gitignored and therefore never linked.
+      #
+      # Best-effort by construction: no `current` symlink — a fresh box, a first
+      # deploy — means an empty flag and exactly the behaviour that shipped
+      # before this. --stats is here so the next slow deploy leaves evidence
+      # instead of an inference.
       - name: Upload release
         env:
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "mkdir -p $APP_ROOT/releases/$RELEASE_SHA"
-          rsync -az --delete \
+          TARGET="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          PREVIOUS="$(ssh "$TARGET" "readlink -f $APP_ROOT/current 2>/dev/null || true")"
+          LINK_DEST=""
+          if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$APP_ROOT/releases/$RELEASE_SHA" ]; then
+            LINK_DEST="--link-dest=$PREVIOUS"
+            echo "Linking unchanged files against $PREVIOUS"
+          else
+            echo "No usable previous release; sending a full copy."
+          fi
+          ssh "$TARGET" "mkdir -p $APP_ROOT/releases/$RELEASE_SHA"
+          rsync -az --delete --checksum --stats $LINK_DEST \
             --exclude '.git' \
             --exclude 'node_modules' \
-            ./ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$APP_ROOT/releases/$RELEASE_SHA/"
+            ./ "$TARGET:$APP_ROOT/releases/$RELEASE_SHA/"
 
       - name: Configure optional scene artwork
         env:
