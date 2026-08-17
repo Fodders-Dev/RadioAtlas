@@ -16,6 +16,11 @@ artifacts/
 .claude/launch.json
 .claude/settings.local.json
 .claude/worktrees/
+# QA screenshots an agent took while checking a screen. 42 of them, 29MB, and
+# several are of screens that no longer exist (Skin Lab). They are working notes
+# from one session, not a baseline anything compares against — the visual
+# baselines Playwright uses live in apps/webapp/tests/visual.spec.ts-snapshots.
+.claude/qa-snaps/
 apps/extractor/bin/
 apps/webapp/vite-plan*.log
 apps/webapp/vite-*.log

@@ -681,17 +681,32 @@ passes `--link-dest` against `readlink -f current`, plus `--checksum` and
   `package.json` is byte-identical across two releases and its mtimes are nine
   minutes apart. `--checksum` is what makes the comparison real, and it is
   cheap: 0.107s to hash the 37MB catalogue, ~0.4s for the 132MB tree.
-- Hard links cannot corrupt the previous release here. rsync writes a changed
-  file new and renames it, and every in-place write later in the deploy
-  (`cp` of the env files, the `sed -i` on `apps/bot/.env`) targets a gitignored
-  file that was never in the transfer and so was never linked.
+- Nothing can corrupt the previous release through it. rsync writes a changed
+  file new and renames it, and every in-place write later in the deploy (`cp` of
+  the env files, the `sed -i` on `apps/bot/.env`) targets a gitignored file that
+  was never in the transfer.
 
-This stops us sending 132MB per deploy to a shared 2-core box, which is worth
-doing on its own. It is NOT proven to be the cure for the outage above: the
-evidence is equally consistent with the neighbour's fetch being the trigger, and
-the three deploys after it were back to about a minute either way. `--stats` is
-in the command so the next slow deploy reports what it actually sent instead of
-leaving another inference.
+Measured on the first deploy that used it, from `--stats`:
+
+```
+Number of regular files transferred: 3      (of 650)
+Total file size: 89,304,773 bytes
+sent 37,866 bytes  received 3,503 bytes     speedup 2,158
+```
+
+**It saves wire, not disk**, and that was not the intention going in: `-a`
+preserves mtimes, a git checkout stamps every file with the checkout time, so
+source and previous release always differ in a preserved attribute and rsync
+copies from local disk instead of hard-linking. `stat -c %h` on the new release
+is 1, and each release is still its own 132MB. Dropping `-t` would make it link;
+untested, and 260MB is not worth another change to this path while the disk has
+15GB free.
+
+It is NOT proven to be the cure for the outage above: the evidence fits the
+neighbour's concurrent fetch as well as it fits our payload, and the deploys
+after it were back to about a minute either way. `--stats` is in the command so
+the next slow deploy reports what it actually sent instead of leaving another
+inference.
 
 ## Incident capture
 - Save current production logs and process state:

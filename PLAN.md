@@ -1049,12 +1049,17 @@ human push ships the nightly artifact commit along with its own (a
 no `--link-dest` so it re-sends the whole tree, and 107MB of changed JSON on a
 2-core box that a neighbour was also using pinned it.
 
-The upload step now hard-links unchanged files against the previous release
-(`--link-dest`), which stops us sending 132MB to a shared 2-core box on every
-deploy. Testing the mechanism on the box first was worth it: `--link-dest` alone
-would have linked nothing, because rsync compares size + mtime and a git
-checkout restamps every file — `--checksum` is what makes it work, at 0.4s for
-the tree.
+The upload step now points rsync at the previous release with `--link-dest`, so
+anything already on the box comes off local disk instead of the wire. Measured
+on the first run: **3 files of 650 transferred, 38KB sent instead of 89MB**.
+
+Two things the box taught before and after shipping it. `--link-dest` alone
+would have matched nothing, because rsync compares size + mtime and a git
+checkout restamps every file — `--checksum` is what makes the comparison real,
+at 0.1s for the 37MB catalogue. And for the same mtime reason it does not
+hard-link either: it copies locally, so the saving is wire and remote CPU, not
+disk. The comment and the runbook say so now; the first version of both claimed
+a disk saving that `stat -c %h` immediately disproved.
 
 **Still open:** whether that was the cure. The evidence for the outage fits the
 neighbour's concurrent fetch just as well as it fits our payload, and the

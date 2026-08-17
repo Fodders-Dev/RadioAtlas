@@ -26,12 +26,19 @@ jobs:
           ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
 
       # Every release directory starts empty, so this used to send the whole
-      # 132MB working tree on every deploy, to a 2-core box that is shared with
-      # other services and whose swap is permanently in use. --link-dest
-      # hard-links each file that is identical to the previous release instead
-      # of transferring it: the wire carries the diff, the disk carries one
-      # copy, and prune_old_releases stays correct because deleting a release
-      # only drops link counts.
+      # 89MB working tree on every deploy, to a 2-core box that is shared with
+      # other services and whose swap is permanently in use. --link-dest points
+      # rsync at the previous release, so anything already there is taken from
+      # local disk instead of the wire. Measured on the first run: 3 files of
+      # 650 transferred, 38KB sent instead of 89MB, speedup 2158.
+      #
+      # It does NOT save disk, and that surprised the change: `-a` preserves
+      # mtimes, a git checkout stamps every file with the checkout time, so the
+      # source and the previous release always differ in a preserved attribute
+      # and rsync copies locally rather than hard-linking. Each release is still
+      # its own 132MB on disk. Dropping `-t` would let it link, at the cost of
+      # every file's mtime becoming the deploy time — untested, and not worth
+      # touching this path again for 260MB on a disk with 15GB free.
       #
       # --checksum is NOT optional here, and that was measured rather than
       # assumed. rsync's default quick check is size + mtime, and a git checkout
@@ -41,10 +48,10 @@ jobs:
       # all. Comparing content costs 0.1s for the 37MB catalogue on this box,
       # about 0.4s for the whole tree.
       #
-      # Safe against the rest of the deploy: rsync writes a changed file new and
-      # renames it, so it never writes through a shared inode, and every
-      # in-place write later in deploy-release.sh targets a .env file, which is
-      # gitignored and therefore never linked.
+      # Safe against the rest of the deploy either way: rsync writes a changed
+      # file new and renames it, and every in-place write later in
+      # deploy-release.sh targets a .env file, which is gitignored and so was
+      # never in the transfer at all.
       #
       # Best-effort by construction: no `current` symlink — a fresh box, a first
       # deploy — means an empty flag and exactly the behaviour that shipped
