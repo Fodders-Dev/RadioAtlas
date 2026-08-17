@@ -44,6 +44,25 @@ export type AgentRunTraceEntry = AgentRunSummary & {
 type CounterMap = Map<string, number>;
 type GaugeMap = Map<string, number>;
 
+/**
+ * One hour of counter INCREMENTS, not totals.
+ *
+ * Counters here are cumulative and the store now survives deploys, which makes
+ * the totals unreadable as a rate: production showed 248 play_attempt against
+ * 38 play_success and 1 play_superseded, a 15% success rate that is really the
+ * sum of a pre-fix era when supersedes were not counted at all and a post-fix
+ * era with almost no traffic in it. Nobody can subtract those by eye. Storing
+ * per-hour increments lets `/observability` answer "in the last hour" and "in
+ * the last day", which is the question the runbook actually asks.
+ *
+ * Increments, not snapshots, because an idle hour then costs ~20 bytes.
+ */
+export type CounterBucket = {
+  /** Epoch hour: Math.floor(ts / 3_600_000). */
+  hour: number;
+  counters: Record<string, number>;
+};
+
 type PersistedObservabilityState = {
   counters: Record<string, number>;
   gauges: Record<string, number>;
@@ -52,6 +71,7 @@ type PersistedObservabilityState = {
   clientEvents: ClientEventEntry[];
   agentRuns?: AgentRunTraceEntry[];
   alerts: ObservabilityAlert[];
+  counterBuckets?: CounterBucket[];
   updatedAt: number | null;
 };
 
@@ -89,6 +109,7 @@ export const observabilityStorePath = storePath;
 
 const counters: CounterMap = new Map();
 const gauges: GaugeMap = new Map();
+const counterBuckets: CounterBucket[] = [];
 const slowRequests: SlowRequestEntry[] = [];
 const requestSamples: RequestSampleEntry[] = [];
 const clientEvents: ClientEventEntry[] = [];
@@ -102,6 +123,73 @@ let updatedAt: number | null = null;
 
 const trimList = <T,>(target: T[], maxItems: number) => {
   target.splice(maxItems);
+};
+
+/** 24 hours of history plus the hour in progress. */
+const MAX_COUNTER_BUCKETS = 25;
+const HOUR_MS = 3_600_000;
+
+/**
+ * Adds an increment to the bucket for `now`'s hour, opening it if needed and
+ * dropping anything older than the retention window. Exported for its own test:
+ * everything interesting about windowed counters is in here and in
+ * `summariseCounterWindows`, so both are pure and take their clock as an
+ * argument rather than reading it.
+ */
+export const recordBucketIncrement = (
+  buckets: CounterBucket[],
+  key: string,
+  amount: number,
+  now: number
+) => {
+  const hour = Math.floor(now / HOUR_MS);
+  let bucket = buckets.length ? buckets[buckets.length - 1] : undefined;
+  if (!bucket || bucket.hour !== hour) {
+    // An out-of-order timestamp (a clock step back) must not open a bucket
+    // BEFORE one that already exists, or the window sums would double-count.
+    if (bucket && hour < bucket.hour) {
+      bucket.counters[key] = (bucket.counters[key] || 0) + amount;
+      return;
+    }
+    bucket = { hour, counters: {} };
+    buckets.push(bucket);
+    while (buckets.length > MAX_COUNTER_BUCKETS) buckets.shift();
+  }
+  bucket.counters[key] = (bucket.counters[key] || 0) + amount;
+};
+
+/**
+ * Sums the buckets covering the last `hours` hours. Returns only the counters
+ * that actually moved, so an idle window is an empty object rather than 250
+ * zeroes.
+ */
+export type CounterWindow = { since: number; counters: Record<string, number> };
+
+const sumWindow = (buckets: CounterBucket[], currentHour: number, hours: number): CounterWindow => {
+  const firstHour = currentHour - (hours - 1);
+  const totals: Record<string, number> = {};
+  let covered = false;
+  for (const bucket of buckets) {
+    if (bucket.hour < firstHour || bucket.hour > currentHour) continue;
+    covered = true;
+    for (const [key, value] of Object.entries(bucket.counters)) {
+      totals[key] = (totals[key] || 0) + value;
+    }
+  }
+  return {
+    // The window starts at the top of its first hour, not `now - hours`,
+    // because that is what the buckets actually cover.
+    since: covered ? firstHour * HOUR_MS : currentHour * HOUR_MS,
+    counters: totals
+  };
+};
+
+export const summariseCounterWindows = (buckets: CounterBucket[], now: number) => {
+  const currentHour = Math.floor(now / HOUR_MS);
+  return {
+    last1h: sumWindow(buckets, currentHour, 1),
+    last24h: sumWindow(buckets, currentHour, 24)
+  };
 };
 
 const pruneByAge = <T extends { ts: number }>(target: T[]) => {
@@ -233,6 +321,22 @@ const loadPersistedState = async () => {
             gauges.set(key, value);
           }
         });
+        // Absent in stores written before hourly buckets existed, and that is
+        // the normal case on the first boot after this ships: the windows are
+        // simply empty until an hour of traffic has accumulated.
+        counterBuckets.splice(
+          0,
+          counterBuckets.length,
+          ...(parsed.counterBuckets || [])
+            .filter(
+              (bucket): bucket is CounterBucket =>
+                Boolean(bucket) &&
+                typeof bucket.hour === 'number' &&
+                Number.isFinite(bucket.hour) &&
+                Boolean(bucket.counters)
+            )
+            .slice(-MAX_COUNTER_BUCKETS)
+        );
         slowRequests.splice(0, slowRequests.length, ...(parsed.slowRequests || []).slice(0, MAX_SLOW_REQUESTS));
         requestSamples.splice(
           0,
@@ -304,6 +408,7 @@ const writeStateToDisk = async () => {
     clientEvents,
     agentRuns,
     alerts,
+    counterBuckets,
     updatedAt
   };
   // Write-then-rename, because a plain writeFile is not atomic and this store
@@ -366,6 +471,7 @@ export const hydrateObservabilityStore = async () => {
 
 export const bumpCounter = (key: string, amount = 1) => {
   counters.set(key, (counters.get(key) || 0) + amount);
+  recordBucketIncrement(counterBuckets, key, amount, Date.now());
   scheduleFlush();
 };
 
@@ -455,6 +561,9 @@ export const getObservabilitySnapshot = () => ({
   clientEvents,
   agentRuns,
   alerts,
+  // Cumulative counters answer "how many ever"; these answer "how many now",
+  // which is the only form in which a success rate means anything.
+  counterWindows: summariseCounterWindows(counterBuckets, Date.now()),
   updatedAt,
   persistence: {
     storePath,

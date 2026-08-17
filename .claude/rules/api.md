@@ -47,6 +47,11 @@ allow-list in `observability.ts`, kept honest by
 Retained agent runs deliberately carry **no prompt text**. When a question needs
 production evidence about what users asked, add a counter, not a transcript.
 
+Counters are cumulative and the store now outlives deploys, so a total is not a
+rate: read `counterWindows.last1h` / `.last24h` from the snapshot, which carry
+per-hour increments for the counters that moved. A new counter needs nothing
+extra to appear there.
+
 ## Memory
 
 The catalogue refresh is the heaviest moment the process has and the VPS is

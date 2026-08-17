@@ -1022,6 +1022,22 @@ exactly 0,0 and one with a latitude the Earth does not have. Both are normalised
 away at the generator; until the nightly workflow rewrites the artifact,
 `npm run geo:check` reports them and exits 1, which is the truth.
 
+## The counters could not answer the question they exist for (done)
+
+`Next:` says to watch the playback ratio. Reading it on production gave 248
+`play_attempt`, 38 `play_success`, 1 `play_superseded`, 3 `stream_failure` — 206
+attempts unaccounted for, and a "15% success rate" that is not a rate at all.
+The reconciliation fix from 2026-08-16 works; what it cannot do is retroactively
+count the supersedes that happened before it, and the store now survives deploys,
+so the totals mix the two eras permanently. Every counter in this system has the
+same problem the moment its meaning changes.
+
+`/observability` now carries `counterWindows.last1h` and `.last24h`: per-hour
+increments, only for counters that moved, with the timestamp the window really
+starts at. An idle hour costs about twenty bytes, so a day of history is smaller
+than one retained agent run. The windowing is two pure functions taking the
+clock as an argument, and their test is the reason they are pure.
+
 ## The deploy that took twenty minutes (open)
 
 Deploying the geo fix took 20m44s against a normal 1m10s, and
@@ -1048,7 +1064,10 @@ exists, survives a deploy, and has a documented way to be read:
   genuinely needs more, which is a different problem from V8 declining to
   collect.
 - **Playback.** `play_success / (play_attempt - play_superseded)` is the success
-  rate; the raw ratio is not. `audio_silent_stall` climbing alongside
+  rate; the raw ratio is not — and read it from `counterWindows`, because the
+  top-level counters are totals since the store file was created. Checked on
+  2026-08-17: 248/38/1/3 cumulative, 206 attempts unaccounted for, all of it
+  from before supersedes were counted at all. `audio_silent_stall` climbing alongside
   `audio_visibility_change` would mean the background-tab fix regressed.
 - **Лира.** `ai_cards_gate:opinion` stuck at zero argues AGAINST widening the
   opinion vocabulary; `ai_cards_gate_released` climbing means a predicate has

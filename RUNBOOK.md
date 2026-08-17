@@ -986,6 +986,28 @@ Read `play_success / (play_attempt - play_superseded)` when you want a success
 rate, and treat a large `play_superseded` as ordinary Feed browsing rather than
 a problem.
 
+**Compute it from `counterWindows`, never from `counters`.** The store survives
+deploys, so the top-level counters are totals since the file was created, and
+they cannot be read as a rate across a change in what is counted: on 2026-08-17
+they stood at 248 attempts, 38 successes, 1 supersede and 3 failures — 206
+unaccounted for — which is not a 15% success rate but the sum of a pre-fix era
+that did not count supersedes and a post-fix era with almost no traffic. The
+payload carries `counterWindows.last1h` and `counterWindows.last24h`, each an
+object of increments with a `since` timestamp, and only the counters that
+actually moved:
+
+```bash
+node -e '
+  const o = require("/tmp/o.json").counterWindows.last24h;
+  const c = o.counters;
+  const den = (c.play_attempt || 0) - (c.play_superseded || 0);
+  console.log(`since ${new Date(o.since).toISOString()}: ${c.play_success || 0}/${den}`);
+'
+```
+
+An empty window is an idle window, not a broken one — this box sees very little
+traffic at night.
+
 ### Lira constraint, receipt and grounding counters
 
 Three more things the roadmap says to watch, none of which emitted a number

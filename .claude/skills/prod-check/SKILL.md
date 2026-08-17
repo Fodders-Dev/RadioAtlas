@@ -55,8 +55,10 @@ report presence and length only.
 - `/catalog/summary` answering in tens of seconds is not a hang — it is the
   6-hour catalogue refresh, during which catalogue endpoints queue. Check again
   a minute later before diagnosing.
-- Playback health: `play_success / (play_attempt - play_superseded)`. The raw
-  ratio is not a success rate.
+- Playback health: `play_success / (play_attempt - play_superseded)`, computed
+  from `counterWindows.last1h` or `.last24h` — NOT from the top-level counters,
+  which are totals since the store file was created and span every change in
+  what was counted. An empty window means an idle hour, not a broken one.
 - `ai_web_search_degraded` rising means Лира is answering without the sources
   she should cite — check the Tavily cap before judging answer quality.
 - A silent-stall count rising alongside visibility changes means the
