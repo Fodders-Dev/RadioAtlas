@@ -222,6 +222,14 @@ test('home surface stays stable during play actions', async ({ page }) => {
   expect(playedStationId).toBeTruthy();
   await playedTile.locator('.home-station-primary-action').click();
   await expect(page.locator('[data-home-resume]')).toBeVisible();
+  // Wait for the thing this test is about to assert, not for a neighbour of it.
+  // The resume chip and the hero's on-air override are two separate renders, and
+  // on a slower machine the chip wins: this read returned heroMode
+  // 'recommendation' on the first CI run of the browser job while passing six
+  // times in a row locally. Waiting on the attribute itself keeps the assertion
+  // exactly as strict — if the hero never flips, this times out and the test
+  // still fails, which is the outcome that would mean something.
+  await expect(page.locator('[data-home-hero][data-home-hero-mode="now-playing"]')).toHaveCount(1);
 
   const after = await readHomeSurfaceSignature(page);
   // Rail composition stays the same after a normal rail play; the discovery

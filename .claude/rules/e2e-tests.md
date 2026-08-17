@@ -34,6 +34,14 @@ forever and waiting on it hangs the test instead of fixing it.
 `toBeVisible()` is not a settle gate: Playwright counts an `opacity: 0` element
 as visible, so waiting for a fading-in element resolves at t=0 of its animation.
 
+**Wait for the thing you are about to assert, not for a neighbour of it.** The
+first CI run of the browser job failed on `visual.spec.ts` reading
+`data-home-hero-mode` as `recommendation` after a play — it had waited for the
+resume chip, which is a different render, and on a slower machine the chip wins.
+The same spec passed six times in a row locally. Waiting on the attribute under
+assertion costs nothing in strictness: if it never arrives, the wait times out
+and the test still fails.
+
 Read several elements' geometry in ONE `page.evaluate` — two `boundingBox()`
 calls are two round-trips at different moments, and the test then measures the
 difference between its own reads.
