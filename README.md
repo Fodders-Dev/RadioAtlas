@@ -27,6 +27,12 @@ Without it the UI still opens, but Vite will log expected `/api/image` proxy
 errors and API-backed images/features will use their fallbacks. Run
 `npm run dev:bot` separately only when testing Telegram bot flows.
 
+Open `http://localhost:5173` — the app talks to the API through the dev server's
+`/api` proxy. If a screen looks empty, check that
+`curl -i http://localhost:5173/api/health` answers `application/json` and not
+`text/html`: HTML means the request fell through to the SPA fallback, which
+looks like a working page with no data rather than like an error.
+
 ## Tests
 ```bash
 npx playwright install chromium   # once per Playwright version, see below

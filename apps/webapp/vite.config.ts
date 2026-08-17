@@ -174,7 +174,18 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.PORT || process.env.VITE_API_PROXY_PORT || 3001}`,
+        // NOT process.env.PORT. In this process PORT means the port THIS dev
+        // server listens on — every launcher sets it that way — so reading it
+        // here pointed the proxy at the dev server itself. `/api/health` then
+        // rewrote to `/health`, hit the SPA fallback and returned index.html
+        // with a 200 and no proxy error in the log, so the app simply had no
+        // catalogue: an empty globe, no stations, no Russia, nothing to explain
+        // it. Only VITE_API_PROXY_PORT means "the API's port".
+        //
+        // 127.0.0.1, not localhost: the API binds to IPv4 only, and on Windows
+        // `localhost` resolves to ::1 first, which is a connection refused that
+        // Node's http client does not retry over IPv4.
+        target: `http://127.0.0.1:${process.env.VITE_API_PROXY_PORT || 3001}`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }

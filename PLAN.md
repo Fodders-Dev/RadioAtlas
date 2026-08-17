@@ -1038,6 +1038,47 @@ starts at. An idle hour costs about twenty bytes, so a day of history is smaller
 than one retained agent run. The windowing is two pure functions taking the
 clock as an argument, and their test is the reason they are pure.
 
+## The local app never reached its own API (done)
+
+Reported from the outside — "нет никого", then "и Россия не отображается" — and
+both were one cause with three layers, none of them in the globe code the night
+was spent on.
+
+`apiBase.ts` returned `/api` only when the page was served over https, so on
+`http://localhost:5173` the base was empty and every catalogue call went to
+`http://localhost:5173/catalog/points`. Vite answered with the SPA fallback:
+200, `text/html`, no error in any console. `GlobeScreen` then had zero points,
+and `usePointsLayer = points.length > 0` — the station layer is gated on the
+payload arriving, not on zoom — so no amount of zooming ever showed a dot. The
+only way in was `?api=/api`, which the Playwright specs pass and nothing else
+documented.
+
+Underneath that, the proxy those requests never reached was broken too: its
+target was `process.env.PORT || VITE_API_PROXY_PORT || 3001`, and in the dev
+server's own process `PORT` is the dev server's port, so it proxied to itself.
+Now `VITE_API_PROXY_PORT` only, and `127.0.0.1` rather than `localhost` —
+measured: `[::1]:3001` is refused because the API binds IPv4 only.
+
+### The placeholder pills are placed by the resolver now
+
+Chasing "Россия не отображается" turned up a real second defect. The API builds
+the area pills from stations that carry coordinates and has no geometry to
+check them with, so Radio Browser's bad rows go through: eight stations claim a
+latitude below 60°S, all eight are junk, five of them Radio Caprice filed under
+Russia. The placeholder drew Russian pills in Antarctica and the South Atlantic.
+
+The fix is client-side, deliberately. A geometry-free rule was measured first —
+per-country median with a 6×MAD window — and it rejects 4.77% of coordinate-
+carrying stations, including Malmö, Lviv, Honolulu, Martinique, Khabarovsk and
+Kemerovo: Russia's median is pinned to Moscow, so anything past the Urals falls
+outside the window. Instead `lib/globeAreas.ts` runs each pill through
+`resolveStationCoords`, the same function that places the dots — it already owns
+the polygons, already rejects coordinates outside a country's bbox, and already
+knows where to put one that fails. A plausible pill comes back byte-identical
+(Kamchatka at 158°E does not move); the 82°S one lands in Russia. A second copy
+of the geometry in the API is exactly the drift that left `geo:check` auditing
+an algorithm the globe had stopped using.
+
 ## The deploy that took twenty minutes (open)
 
 Deploying the geo fix took 20m44s against a normal 1m10s, and

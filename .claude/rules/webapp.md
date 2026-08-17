@@ -38,6 +38,20 @@ Feed supersedes on the next swipe — the honest success rate is
 dirty-only, and there is a test asserting that mounting the app rewrites
 nothing. Do not "fix" that by writing eagerly.
 
+## Running it locally: the API base is not obvious
+
+On `http://localhost` the app uses `/api`, which the Vite dev server proxies —
+and both halves of that had to be fixed before `npm run dev:webapp` +
+`npm run dev:api` worked at all. The failure mode is silent and total: requests
+land on the SPA fallback, every catalogue call returns `index.html` with a 200,
+and the app renders an empty globe with nothing in the console. If you see no
+stations anywhere, check `content-type` on `/api/catalog/points` before anything
+else.
+
+The proxy target reads `VITE_API_PROXY_PORT`, never `PORT` — in the dev server's
+own process `PORT` is ITS port — and points at `127.0.0.1`, because the API
+binds IPv4 only and Windows resolves `localhost` to `::1` first.
+
 ## The globe places a dot, so the dot must be in the right country
 
 Only ~12k of 59k stations ship coordinates; the rest are synthesized by

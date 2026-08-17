@@ -6,6 +6,7 @@ import {
   resolveStationCoords,
   setStateAnchors
 } from '../lib/geoResolver';
+import { placeArea } from '../lib/globeAreas';
 import { formatLocalTime } from '../lib/localTime';
 import { normalizeStationName } from '../lib/stationUtils';
 import { useDebounce } from '../lib/useDebounce';
@@ -340,14 +341,20 @@ export const GlobeScreen = () => {
       });
       return result;
     }
-    return overviewAreas.map((area) => ({
-      id: area.id,
-      lat: area.lat,
-      lon: area.lon,
-      label: area.label,
-      subtitle: area.subtitle,
-      count: area.count
-    }));
+    return overviewAreas.map((area) => {
+      // The pill's own coordinates are an average of whatever the API had, and
+      // the API cannot tell a Moscow station filed at 82°S from a real one.
+      // placeArea runs it through the same resolver that places the dots.
+      const placed = placeArea(area);
+      return {
+        id: placed.id,
+        lat: placed.lat,
+        lon: placed.lon,
+        label: placed.label,
+        subtitle: placed.subtitle,
+        count: placed.count
+      };
+    });
     // stateAnchorMap is in the dep list so this recomputes whenever
     // a fresh anchor map lands — guarantees the dots and the
     // focusPoint use the SAME resolveStationCoords result.

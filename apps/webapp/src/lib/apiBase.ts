@@ -47,9 +47,24 @@ const shouldDiscardLegacyBase = (value: string) => {
   return LEGACY_API_HOSTS.has(getCandidateHost(value));
 };
 
+// The dev server proxies /api to the API (see vite.config.ts), so on a local
+// origin that prefix is as real as it is behind Caddy in production. Without
+// this, `npm run dev:webapp` + `npm run dev:api` — the pair the README tells you
+// to run — produced an app with NO catalogue and no error to explain it:
+// requests went to `http://localhost:5173/catalog/points`, Vite answered with
+// the SPA fallback, and the globe sat there with zero stations. The only way in
+// was `?api=/api`, which is what the Playwright specs pass and nothing else
+// documented.
+const LOCAL_API_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+const isLocalDevHost = () => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  return LOCAL_API_HOSTS.has(host) || host.endsWith('.localhost');
+};
+
 const getDefaultApiBase = () => {
-  if (!isSecureApiCandidate()) return '';
-  return '/api';
+  if (isSecureApiCandidate() || isLocalDevHost()) return '/api';
+  return '';
 };
 
 export const getApiBase = () => {
