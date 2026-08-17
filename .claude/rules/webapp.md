@@ -48,8 +48,12 @@ gate: it runs the real resolver over the whole catalogue and fails on a dot
 drawn in the wrong country.
 
 Sample points are created per slot on demand and cached, so a country costs what
-its stations use. Do not go back to building a fixed 2048 per country: that was
-6.3 of the 6.4 seconds the Globe spent on its first mount.
+its stations use, and a multi-part country is sampled one polygon at a time
+weighted by that polygon's area. Both are load-bearing: a fixed 2048 points per
+country was 6.3 of the 6.4 seconds the Globe spent on its first mount, and
+sampling France's whole bounding box (Guiana included, 3% land) was half of what
+remained. If you change the weighting, keep it proportional to area — anything
+else moves dots off the islands.
 
 ## Glass: `-webkit-backdrop-filter` comes FIRST
 

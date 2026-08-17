@@ -1,4 +1,4 @@
-import { geoBounds, geoCentroid, geoContains } from 'd3-geo';
+import { geoArea, geoBounds, geoCentroid, geoContains } from 'd3-geo';
 import { feature } from 'topojson-client';
 import type { ContinentId } from '../types';
 import worldData from '../assets/countries-110m.json';
@@ -44,6 +44,10 @@ type CountryGeoRecord = {
   slotPoints?: Map<number, CountryPoint> | null;
   // undefined = not computed yet, null = this feature has no usable bounds.
   sampleBox?: SampleBox | null;
+  // One entry per polygon of a multi-part country, with a cumulative
+  // area weight, so sampling can aim at the land instead of the ocean between
+  // the parts.
+  sampleParts?: SamplePart[] | null;
   feature: unknown;
   // Bounding box around all of this country's polygons. Cached so
   // we can sanity-check that a station's claimed (geo_lat, geo_long)
@@ -208,13 +212,48 @@ const sampleBoxFor = (countryFeature: any): SampleBox | null => {
   return { minLat, maxLat, minLon, lonSpan };
 };
 
-// Enough tries that even a country whose land is a few percent of its bounding
-// box practically always finds a point. France is the case that set this
-// number: its 110m feature includes French Guiana, so the bounding box runs
-// from 54°W to 8°E and land is about 2% of it. At 256 tries a handful of slots
-// still missed, and the three stations that shared one of them were drawn in
-// Asturias — France's centroid with Guiana in the average sits in the Atlantic
-// off northern Spain, and that was the fallback.
+// Rejection sampling costs (slots used) / (acceptance rate) containment tests,
+// and acceptance is land ÷ bounding box. Profiled over the real catalogue, one
+// country was HALF of all the sampling work in a mount: France, at 3%
+// acceptance, because its 110m feature carries French Guiana and the box
+// therefore runs from 54°W to 8°E across the Atlantic. Greece, Indonesia,
+// Chile, Japan and New Zealand were the next worst, all for the same reason —
+// islands and long thin land in a box full of sea.
+//
+// So a country is sampled one POLYGON PART at a time: pick a part with
+// probability proportional to its true spherical area, then rejection-sample
+// inside that part's own box against that part alone. The distribution over
+// land is unchanged — area-weighted choice followed by a uniform draw inside
+// the part is a uniform draw over the whole country — but France's metropolitan
+// part accepts at ~45% instead of 3%, and testing one polygon is cheaper than
+// testing a multipolygon with sixty rings.
+type SamplePart = {
+  feature: unknown;
+  box: SampleBox;
+  upTo: number;
+};
+
+const buildSampleParts = (countryFeature: any): SamplePart[] => {
+  const geometry = countryFeature?.geometry;
+  if (!geometry) return [];
+  const polygons: any[] =
+    geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates];
+  const parts: SamplePart[] = [];
+  let running = 0;
+  for (const coordinates of polygons) {
+    const partFeature = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates } };
+    const box = sampleBoxFor(partFeature);
+    const area = geoArea(partFeature as any);
+    if (!box || !Number.isFinite(area) || area <= 0) continue;
+    running += area;
+    parts.push({ feature: partFeature, box, upTo: running });
+  }
+  // Normalise so a draw in [0,1) selects a part.
+  return parts.map((part) => ({ ...part, upTo: part.upTo / running }));
+};
+
+// Enough tries that a part whose land is a few percent of its own box still
+// practically always finds a point.
 const MAX_TRIES_PER_SLOT = 512;
 // If a slot still misses, borrow a neighbour's point rather than the centroid:
 // a neighbour's point was sampled against the polygon, the centroid was not.
@@ -224,13 +263,22 @@ const sampleSlotPoint = (
   countryFeature: any,
   key: string,
   box: SampleBox,
+  parts: SamplePart[],
   slot: number
 ): CountryPoint | null => {
   const random = mulberry32(fnv1a(`${key}:${slot}`));
   for (let tries = 0; tries < MAX_TRIES_PER_SLOT; tries += 1) {
-    const lon = wrapLon(box.minLon + box.lonSpan * random());
-    const lat = box.minLat + (box.maxLat - box.minLat) * random();
-    if (geoContains(countryFeature, [lon, lat])) {
+    let target: unknown = countryFeature;
+    let area = box;
+    if (parts.length > 1) {
+      const pick = random();
+      const part = parts.find((candidate) => pick < candidate.upTo) ?? parts[parts.length - 1];
+      target = part.feature;
+      area = part.box;
+    }
+    const lon = wrapLon(area.minLon + area.lonSpan * random());
+    const lat = area.minLat + (area.maxLat - area.minLat) * random();
+    if (geoContains(target as any, [lon, lat])) {
       return [clampLat(lat), clampLon(lon)];
     }
   }
@@ -342,6 +390,7 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
     if (cached) return cached;
     if (record.sampleBox === undefined) {
       record.sampleBox = sampleBoxFor(record.feature);
+      record.sampleParts = buildSampleParts(record.feature);
     }
     let point: CountryPoint | null = null;
     if (record.sampleBox) {
@@ -350,6 +399,7 @@ const buildCountryGeoIndex = (): CountryGeoIndex => {
           record.feature,
           record.key,
           record.sampleBox,
+          record.sampleParts ?? [],
           (slot + hop * 397) % POINTS_PER_COUNTRY
         );
       }

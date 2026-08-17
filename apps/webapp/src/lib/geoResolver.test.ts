@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { geoContains } from 'd3-geo';
+import { geoArea, geoContains } from 'd3-geo';
 import { feature } from 'topojson-client';
 import worldData from '../assets/countries-110m.json';
 import {
@@ -243,6 +243,40 @@ describe('synthesized dots stay inside the country they claim', () => {
       seen.add(`${resolved!.lat.toFixed(4)},${resolved!.lon.toFixed(4)}`);
     }
     expect(seen.size).toBe(60);
+  });
+
+  it('spreads an archipelago by area, not by polygon count', () => {
+    // Multi-part countries are sampled one polygon at a time, weighted by that
+    // polygon's true spherical area — France was half of all the sampling work
+    // in a mount because its box spans the Atlantic to French Guiana. Weighting
+    // by anything else (part count, bounding box) would quietly move dots:
+    // Greece has ~40 polygons and one of them is 93% of the country.
+    const greece = polygonFor('Greece');
+    const parts = (
+      greece.geometry.type === 'MultiPolygon'
+        ? greece.geometry.coordinates
+        : [greece.geometry.coordinates]
+    ).map((coordinates: unknown) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Polygon', coordinates }
+    }));
+    const areas = parts.map((part: never) => geoArea(part));
+    const mainland = areas.indexOf(Math.max(...areas));
+    const mainlandShareOfArea = areas[mainland] / areas.reduce((a: number, b: number) => a + b, 0);
+
+    let onMainland = 0;
+    let placed = 0;
+    for (const station of stationsFor('Greece', 400)) {
+      const resolved = resolveStationCoords(station);
+      if (!resolved) continue;
+      placed += 1;
+      if (geoContains(parts[mainland] as never, [resolved.lon, resolved.lat])) onMainland += 1;
+    }
+    expect(placed).toBe(400);
+    // Measured over the real catalogue: 93.0% of the area, 92.1% of the dots.
+    expect(onMainland / placed).toBeGreaterThan(mainlandShareOfArea - 0.08);
+    expect(onMainland / placed).toBeLessThan(mainlandShareOfArea + 0.06);
   });
 
   it('gives the same station the same point on a second pass', () => {

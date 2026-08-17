@@ -983,6 +983,32 @@ ahead for the two or three re-resolves a session actually does. Memoising the
 resolved point per station would take the repeat cost to nothing at roughly 6MB
 — measured as not worth it yet, and written down so it is not re-derived.
 
+### And then France turned out to be half the remaining cost
+
+Profiling the sampler over the real catalogue: rejection sampling costs
+(slots used) ÷ (acceptance rate) containment tests, and one country was **49.7%
+of all of it**. France accepts at 3%, because its 110m feature carries French
+Guiana and the bounding box therefore runs from 54°W to 8°E across the Atlantic.
+Greece, Indonesia, Chile, Japan and New Zealand followed, all for the same
+reason: islands, or long thin land, in a box full of sea. The hundred-odd
+countries with fewer than 128 stations were 6.5% of the work between them.
+
+A country is now sampled one polygon part at a time, with the part chosen in
+proportion to its true spherical area (`geoArea`), and the containment test run
+against that part alone. Area-weighted choice followed by a uniform draw inside
+the part is still a uniform draw over the country, so nothing about the picture
+changes — verified against the real catalogue: mainland Greece is 93.0% of the
+country's area and took 92.0% of its dots before, 92.1% after. There is a test
+pinning that, and it passes on both samplers, which is the point of it.
+
+| Chrome, 59,039 points | first mount | second pass |
+| --- | --- | --- |
+| eager pools (the original) | 6182 / 6454 ms | 60 / 59 ms |
+| per-slot sampling | 2271 / 2261 ms | 748 / 762 ms |
+| + area-weighted parts | **1415 / 1369 ms** | 756 / 757 ms |
+
+The second pass is now the containment check on the jitter and nothing else.
+
 ### `geo:check` now runs the product's code
 
 It used to carry its own copy of the algorithm: still 196 points per country
