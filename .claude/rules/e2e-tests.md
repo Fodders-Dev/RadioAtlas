@@ -6,10 +6,19 @@ paths:
 
 # Working on the Playwright suite
 
-240 specs, ~3 minutes. CI runs them in a **non-gating** job — a red run is a
-warning annotation, never a blocked merge — because flakes in a blocking gate
-get the gate switched off. That makes it your job to run it locally for UI work,
-to read the CI job rather than the green tick, and to keep both trustworthy.
+240 specs, ~3 minutes in parallel. CI runs a **non-gating** job — a red run
+never blocks a merge — because flakes in a blocking gate get the gate switched
+off. That makes it your job to run it locally for UI work, to read the CI job
+rather than the green tick, and to keep both trustworthy.
+
+CI runs `npm --workspace apps/webapp run test:e2e:ci`, which is
+`--grep-invert "visual baseline" --workers=1`, and both halves are load-bearing.
+The baselines are all `-win32.png` and Playwright appends `process.platform`, so
+they cannot pass on Linux; `--ignore-snapshots` is not enough because the
+capture still happens and a 1440×1688 clip failed on a runner with
+`Protocol error (Page.captureScreenshot)`. And serial is the direct treatment
+for the documented flake cause: the same 224 specs failed twice in one parallel
+run here and were 225/225 on two serial ones.
 
 The job becomes a gate on evidence, not on optimism: twenty consecutive green
 runs on CI hardware with no spec failing twice on the same line. The criterion

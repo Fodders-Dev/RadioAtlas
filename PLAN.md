@@ -1083,6 +1083,26 @@ Measured for the timeout rather than guessed: the suite serially — which is wh
 Playwright's 50%-of-cores default gives a 2-core runner — is 240 passed in 5.6
 minutes, against 3.0 at the default worker count.
 
+### What the job found in its first two runs
+
+Run 1: `visual.spec.ts` asserted the Home hero had flipped to `now-playing`
+after waiting for the resume chip, which is a different render. Six passes in a
+row here, `recommendation` on the runner. It waits for the attribute it asserts
+now — no weaker, because a hero that never flips still times out.
+
+Run 2: `page.screenshot: Protocol error (Page.captureScreenshot)` on a
+1440×1688 clip. `--ignore-snapshots` skips the comparison, not the capture, so
+the CI command now skips the pixel specs by title instead. The three behavioural
+specs inside `visual.spec.ts` take no screenshots and still run.
+
+And the flake the original comment was about reproduced locally the moment the
+schedule changed: dropping the visual specs put two others over the edge in one
+parallel run — `.station-feed-overlay` never appearing, and a `mouse.move`
+timing out mid-drag. `--workers=1` is now in the CI command, and the same 224
+specs are 225/225 on two serial runs. Serial is what a 2-core runner would do
+anyway; being explicit means the result does not depend on which machine GitHub
+hands out.
+
 ## The local app never reached its own API (done)
 
 Reported from the outside — "нет никого", then "и Россия не отображается" — and

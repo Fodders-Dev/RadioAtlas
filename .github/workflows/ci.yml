@@ -71,13 +71,23 @@ jobs:
   # notice a screen that throws on mount, a route that 404s, or a control that
   # stops being clickable.
   #
-  # It runs `test:e2e:ci`, which is the suite with `--ignore-snapshots`. Every
-  # committed baseline is a `-win32.png`, Playwright appends `process.platform`,
-  # and on ubuntu-latest all 23 screenshot assertions would therefore fail on
-  # every run looking for `-linux.png` — a job that can never go green teaches
-  # nobody anything. The non-pixel assertions inside those specs still run.
-  # Linux baselines are a separate decision: they are the product's appearance,
-  # and they would need regenerating and reviewing on CI hardware.
+  # It runs `test:e2e:ci` — the suite minus the specs titled "visual baseline",
+  # which is 224 of the 240. Two reasons, one predicted and one learned from the
+  # runs themselves:
+  #
+  #   1. Every committed baseline is a `-win32.png` and Playwright appends
+  #      `process.platform`, so on ubuntu-latest those assertions look for
+  #      `-linux.png` and fail on every run. A job that cannot go green teaches
+  #      nobody anything.
+  #   2. `--ignore-snapshots` was the first attempt and it is not enough: it
+  #      skips the COMPARISON, not the capture. Run 2 of this job died on
+  #      `page.screenshot: Protocol error (Page.captureScreenshot): Unable to
+  #      capture screenshot` — a 1440x1688 clip on a 2-core runner.
+  #
+  # The three behavioural specs that live in visual.spec.ts take no screenshots
+  # and still run. Linux baselines stay a separate decision: they are the
+  # product's appearance, and they would need regenerating and reviewing on CI
+  # hardware, not silently accepting whatever a runner draws.
   #
   # continue-on-error keeps a red run out of the merge path. PROMOTE IT on
   # evidence: twenty consecutive green runs of THIS job, with no spec failing
@@ -121,9 +131,14 @@ jobs:
       # test. It needs no secrets — every boot-fatal check in the API is gated
       # on NODE_ENV=production, which Actions does not set.
       #
-      # Measured serially on a developer box, which is what a 2-core runner
-      # gives you (Playwright's default is 50% of cores): 240 specs in 5.6
-      # minutes, against 3.0 with the default worker count.
+      # `--workers=1` is deliberate and is the whole reason this job has a
+      # chance of being trustworthy. The flakes that kept the suite out of CI
+      # were attributed to parallel load, and that reproduced here: the same 224
+      # specs that pass serially failed twice in one parallel run
+      # (`.station-feed-overlay` never appearing, and a `mouse.move` timing out
+      # mid-drag). Serially they are 225/225 twice, 6.4 and 6.1 minutes. A
+      # 2-core runner would give one worker anyway — this makes it explicit
+      # rather than a property of whatever hardware GitHub hands out.
       - name: Playwright
         run: npm --workspace apps/webapp run test:e2e:ci
 
