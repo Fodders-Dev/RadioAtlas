@@ -59,3 +59,78 @@ jobs:
       # parallel load, and a blocking gate that goes red for no reason is a gate
       # that gets switched off within a week. Browser coverage stays a local
       # pre-merge step until the flakes are fixed; see e2e-fullsuite-flakes.
+      #
+      # It does run, though — as the separate non-blocking job below, which is
+      # how the flakes get measured on CI hardware instead of argued about.
+
+  # The browser suite, reporting but NOT gating.
+  #
+  # The reason it was kept out entirely was real: specs that fail under parallel
+  # load make a gate people learn to ignore. The reason to run it anyway is just
+  # as real — the unit suites never open a browser, so nothing else here would
+  # notice a screen that throws on mount, a route that 404s, or a control that
+  # stops being clickable.
+  #
+  # It runs `test:e2e:ci`, which is the suite with `--ignore-snapshots`. Every
+  # committed baseline is a `-win32.png`, Playwright appends `process.platform`,
+  # and on ubuntu-latest all 23 screenshot assertions would therefore fail on
+  # every run looking for `-linux.png` — a job that can never go green teaches
+  # nobody anything. The non-pixel assertions inside those specs still run.
+  # Linux baselines are a separate decision: they are the product's appearance,
+  # and they would need regenerating and reviewing on CI hardware.
+  #
+  # continue-on-error keeps a red run out of the merge path. PROMOTE IT on
+  # evidence: twenty consecutive green runs of THIS job, with no spec failing
+  # twice on the same line. The workflow's own conclusion cannot tell you that —
+  # continue-on-error is defined to keep the run green — so read the job:
+  #   gh run list --workflow=ci.yml --json databaseId -q '.[].databaseId' |
+  #     xargs -I{} gh run view {} --json jobs \
+  #       --jq '.jobs[] | select(.name | startswith("browser")) | .conclusion'
+  # Note that `concurrency.cancel-in-progress` above cancels this job when a
+  # newer push lands, and a cancelled run is neither green nor a failure —
+  # it just breaks the streak.
+  #
+  # Until then a failure here is a lead, not a verdict: reproduce it locally
+  # with `--repeat-each=12 --workers=6` before touching the spec.
+  browser:
+    name: browser suite (reports, does not gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.x'
+          cache: npm
+
+      - run: npm ci
+
+      # Nothing else in this repository installs a browser — no postinstall, no
+      # npm script — so a fresh runner has none. Chromium only: the config
+      # declares no `projects`, so the suite never asks for Firefox or WebKit.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The suite starts its own API and Vite through playwright.config.ts. The
+      # API runs with CATALOG_ARTIFACT_ONLY=1, so it serves the catalogue
+      # artifact committed here instead of racing the live Radio Browser
+      # mirrors: no network dependency, no 8s × MAX_PAGES chain inside a 30s
+      # test. It needs no secrets — every boot-fatal check in the API is gated
+      # on NODE_ENV=production, which Actions does not set.
+      #
+      # Measured serially on a developer box, which is what a 2-core runner
+      # gives you (Playwright's default is 50% of cores): 240 specs in 5.6
+      # minutes, against 3.0 with the default worker count.
+      - name: Playwright
+        run: npm --workspace apps/webapp run test:e2e:ci
+
+      - name: Upload the report when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/webapp/playwright-report/
+          retention-days: 7

@@ -6,9 +6,15 @@ paths:
 
 # Working on the Playwright suite
 
-240 specs, ~3 minutes, deliberately **outside CI** because flakes in a blocking
-gate get the gate switched off. That makes it your job to run it locally for UI
-work, and to keep it trustworthy.
+240 specs, ~3 minutes. CI runs them in a **non-gating** job — a red run is a
+warning annotation, never a blocked merge — because flakes in a blocking gate
+get the gate switched off. That makes it your job to run it locally for UI work,
+to read the CI job rather than the green tick, and to keep both trustworthy.
+
+The job becomes a gate on evidence, not on optimism: twenty consecutive green
+runs on CI hardware with no spec failing twice on the same line. The criterion
+is written into `.github/workflows/ci.yml` next to the `continue-on-error` it
+would delete.
 
 ## Measuring geometry
 
@@ -65,5 +71,24 @@ a one-line comment in `lib/geoResolver.ts` reloaded three screens and cost a
 load. Start the suite, then keep your hands off `src/` until it finishes; a
 failure that only appears in a run you edited during is not a finding.
 
-Ports: each spawning suite owns a range (34100–37699 are taken). Pick a free one;
-an overlap takes down a neighbouring suite, not yours.
+Ports: each spawning suite owns a range, and an overlap takes down a
+neighbouring suite rather than yours — which is why two of them overlapped for
+months without anyone noticing. Taken as of 2026-08-17:
+
+| Range | Suite |
+| --- | --- |
+| 34100–34599 | `api.contract` |
+| 34600–34999 | `api.degradation` |
+| 35100–35599 | `billing.webhook` |
+| 35600–35999 | `billing.reconcile` |
+| 36000–36099 | `session.lifecycle` |
+| 36100–36499 | `cors` |
+| 36600–36999 | `auth.providerLink` |
+| 37100–37499 | `catalog.deleted` |
+| 37500–38099 | `fixtures.production-guard` (three blocks) |
+| 38200–38399 | `catalog.mirrorRace` |
+| 38500–38699 | `auth.telegramCallback` |
+| 4311 / 5174 | the Playwright suite's own API and Vite |
+
+Suites that ask the OS for an ephemeral port (`media.ssrf`, `sceneArtwork`,
+`shareRoutes`) need no range and are the better pattern for anything new.

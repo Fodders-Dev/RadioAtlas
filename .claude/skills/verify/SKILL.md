@@ -30,9 +30,10 @@ On a non-zero exit: `grep "error TS" /tmp/v-tc.log | head`.
 | `scripts/**`, `deploy/**` | `npm run test:scripts` |
 | anything wide | `npm test` |
 
-Playwright (`test:webapp`) takes ~3 minutes and is **not in CI**. A green CI does
-not mean the webapp is verified. Run it in the background and read its exit code
-rather than watching it.
+Playwright (`test:webapp`) takes ~3 minutes. CI runs it in a job that reports
+without gating, so a green CI tick still does not mean the webapp is verified —
+either open that job or run the suite yourself. Run it in the background and read
+its exit code rather than watching it.
 
 ## Reading a Playwright result
 

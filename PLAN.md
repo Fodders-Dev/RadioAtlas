@@ -1038,6 +1038,51 @@ starts at. An idle hour costs about twenty bytes, so a day of history is smaller
 than one retained agent run. The windowing is two pure functions taking the
 clock as an argument, and their test is the reason they are pure.
 
+## The browser suite runs in CI now, and still does not gate (done)
+
+`ci.yml` said Playwright stays out "until the flakes are fixed", which is a
+condition nobody was measuring: the suite only ever ran on one developer's
+machine, so there was no evidence either way. It runs on CI now as a separate
+job with `continue-on-error`, so a red run is a warning annotation and never a
+blocked merge — the failure mode the original comment was protecting against.
+
+Evidence it is worth running at all: five consecutive 240/240 runs on this
+machine tonight, after the animation-settle fix. Evidence it should not gate
+yet: none from CI hardware, which is exactly what the job now collects. The
+promotion criterion is written next to the flag it would delete — twenty
+consecutive green runs with no spec failing twice on the same line.
+
+An adversarial review of the first version found it would have been permanently
+red, and the three things it found were all real:
+
+- **Every visual baseline is `-win32.png`.** Playwright appends
+  `process.platform`, so on ubuntu-latest all 23 screenshot assertions look for
+  `-linux.png` and fail on every run — a job that cannot go green cannot satisfy
+  its own promotion criterion. CI runs `test:e2e:ci`, the suite with
+  `--ignore-snapshots`; the non-pixel assertions in those specs still run, and
+  Linux baselines stay a separate decision because they are the product's
+  appearance.
+- **The e2e API was racing the live Radio Browser mirrors.** The config never
+  set `CATALOG_ARTIFACT_ONLY`, and `/catalog/points` is not among the routes
+  `tests/helpers.ts` stubs, so a Globe spec waited on somebody else's network
+  inside a 30s timeout — and a request landing before the boot warm finished
+  started a second four-mirror race, two catalogues in memory beside Chromium
+  and Vite. Now set, as `api.contract.test.ts` has done for months.
+- **The failure upload had nothing to upload.** No `reporter` was configured, so
+  Playwright wrote no `playwright-report/` and `upload-artifact` warned and
+  passed — the report missing in exactly the case it is wanted.
+
+The same review turned up two API test files sharing a port range
+(`billing.reconcile` and `session.lifecycle` at 35600+400) and a third
+overlapping two others (`auth.telegramCallback` at 37200+400 across
+`catalog.deleted` and `fixtures.production-guard`). Both run inside one
+`test:api`, so each was a flake that reproduces about once in four hundred runs
+and never on purpose. Ranges are now listed in `.claude/rules/e2e-tests.md`.
+
+Measured for the timeout rather than guessed: the suite serially — which is what
+Playwright's 50%-of-cores default gives a 2-core runner — is 240 passed in 5.6
+minutes, against 3.0 at the default worker count.
+
 ## The local app never reached its own API (done)
 
 Reported from the outside — "нет никого", then "и Россия не отображается" — and

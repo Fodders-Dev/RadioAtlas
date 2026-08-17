@@ -31,7 +31,7 @@ npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
 npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
 npm --workspace apps/webapp run test:unit   # vitest, 604 tests ~34s
-npm run test:webapp        # Playwright, 240 specs — NOT in CI  ~3min
+npm run test:webapp        # Playwright, 240 specs — CI runs it, does NOT gate ~3min
 npm run dev:webapp         # + npm run dev:api in a second terminal
 npm run build              # api → bot → webapp                ~10s
 ```
@@ -59,8 +59,10 @@ A task is done when:
 4. Commands, architecture or workflow changed → this file and `.claude/rules/`
    updated in the same commit. Stale instructions are worse than none.
 
-Playwright is deliberately outside CI (specs flake under parallel load), so a
-green CI does **not** mean the webapp is verified. Run it locally for UI work.
+CI runs Playwright in a separate job that **reports without gating**
+(`continue-on-error`), because specs that flake under parallel load make a gate
+people stop believing. So a green CI still does **not** mean the webapp is
+verified — check that job, and run the suite locally for UI work.
 
 ## Things you cannot infer from the code
 

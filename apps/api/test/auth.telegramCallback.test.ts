@@ -14,7 +14,11 @@ import test from 'node:test';
 // secret = sha256(botToken), signature = hmac-sha256(dataCheckString).
 
 const apiRoot = fileURLToPath(new URL('../', import.meta.url));
-const port = 37200 + Math.floor(Math.random() * 400);
+// 38500+, not 37200+: 37200-37599 overlapped catalog.deleted (37100-37499) and
+// the first fixtures.production-guard block (37500-37699). Same `test:api` run,
+// so the collision is a flake that reproduces once in a few hundred runs and
+// never when you look for it.
+const port = 38500 + Math.floor(Math.random() * 200);
 const baseUrl = `http://127.0.0.1:${port}`;
 const BOT_TOKEN = 'callback-test-bot-token';
 const WEBAPP_URL = 'https://radioatlas.test';

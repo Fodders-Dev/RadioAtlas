@@ -223,13 +223,14 @@ licensed lyrics-display provider before ever rendering complete lyrics in-app.
 Two failures here happen before a single spec runs, so they look like a broken
 checkout rather than a broken environment. Both are environment.
 
-### No browser is installed, and nothing in this repo installs one
+### No browser is installed locally, and nothing but CI installs one
 
-`npm run test:webapp` needs a browser binary, and no script, workflow or install
-hook in this repository ever downloads it. Neither `playwright` nor
-`@playwright/test` declares a `postinstall`, so `npm ci` and `npm install` fetch
-the library and not the browser; the CI workflow stops at the ops-script tests,
-so the gate never notices. Run the download once per Playwright revision — it is
+`npm run test:webapp` needs a browser binary, and nothing in this repository
+downloads it for you. Neither `playwright` nor `@playwright/test` declares a
+`postinstall`, so `npm ci` and `npm install` fetch the library and not the
+browser. CI's `browser` job runs `npx playwright install --with-deps chromium`
+itself, which is why it can run the suite on a bare runner and your checkout
+cannot. Run the download once per Playwright revision — it is
 pinned per version, not per machine, so a bump to `@playwright/test` (declared
 `^1.47.2`, currently resolving to 1.57, which wants `chromium-1200`) re-raises
 the same failure on a machine whose cache is full:

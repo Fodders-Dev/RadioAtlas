@@ -8,7 +8,11 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const apiRoot = fileURLToPath(new URL('../', import.meta.url));
-const port = 35600 + Math.floor(Math.random() * 400);
+// 36000+, not 35600+: billing.reconcile.test.ts already owns 35600-35999, both
+// files run inside the same `test:api`, and a shared range collides about once
+// in four hundred runs — which is exactly the shape of a flake nobody can
+// reproduce. Ranges are listed in .claude/rules/e2e-tests.md.
+const port = 36000 + Math.floor(Math.random() * 100);
 const baseUrl = `http://127.0.0.1:${port}`;
 
 let apiProcess: ChildProcessWithoutNullStreams | null = null;

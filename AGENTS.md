@@ -5,7 +5,7 @@ Instructions for AI coding agents working on RadioAtlas.
 **The current, maintained instructions live in [`CLAUDE.md`](./CLAUDE.md).**
 Read that file first — it holds the layout, the real commands, the definition of
 done, and the facts that are not inferable from the code (push to `master` is
-the production deploy; Playwright is deliberately outside CI; there is no linter
+the production deploy; CI runs Playwright without gating on it; there is no linter
 in this project).
 
 Deeper, situational guidance lives in `.claude/rules/`, loaded by Claude Code

@@ -40,10 +40,11 @@ npm run test:webapp
 ```
 
 `npm run test:webapp` is the Playwright end-to-end suite, and it is the only
-suite here that needs a real browser binary. Nothing in this repository ever
-downloads one: Playwright ships no install hook, so `npm install` does not fetch
-a browser, no npm script calls the installer, and the CI workflow deliberately
-stops before the end-to-end step. On a fresh clone the suite therefore dies at
+suite here that needs a real browser binary. Nothing downloads one for your
+checkout: Playwright ships no install hook, so `npm install` does not fetch a
+browser and no npm script calls the installer. CI installs its own in the
+`browser` job — which reports without gating, so read it rather than the green
+tick. On a fresh clone the suite dies at
 launch with `browserType.launch: Executable doesn't exist at ...`, and the only
 reason it ever seems to work without the extra command is that some other
 project on the same machine already populated Playwright's shared browser cache.

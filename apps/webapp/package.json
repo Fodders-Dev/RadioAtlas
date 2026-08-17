@@ -13,7 +13,8 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
-    "generate-catalog": "node update-catalog.js"
+    "generate-catalog": "node update-catalog.js",
+    "test:e2e:ci": "playwright test --ignore-snapshots"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",
