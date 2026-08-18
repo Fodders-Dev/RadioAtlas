@@ -3,6 +3,33 @@
 Telegram Mini App for global internet radio. npm workspaces monorepo, TypeScript
 throughout. Production is live at https://radioatlas.ru and has real listeners.
 
+## What the work is for
+
+This is a business before it is a hobby. Every change should be able to answer
+"how does this get RadioAtlas paid?" — and the honest answer is almost always
+indirect, because the only thing anyone will ever pay for here is a radio that
+plays instantly, remembers what they loved, and gives them a reason to open it
+again tomorrow. So the two goals normally point the same way: **make it worth
+paying for by making it worth using.**
+
+When they genuinely conflict, say so out loud and let the owner choose. Do not
+resolve it silently in either direction, and do not dress up a technical
+preference as a business case.
+
+Two standing limits on "earn first", both the owner's own:
+
+- **Never put behind a payment something that already works for free.** Charging
+  for what a listener already has is how you lose the listener and the payment.
+- **Never fabricate.** No invented listener counts, no padded numbers, no
+  station data blended out of popularity to look alive. The product's value is
+  that what it says is true.
+
+Infrastructure work — CI, tests, guards, telemetry — earns its place by making
+the product shippable or by revealing what is broken for listeners. That is a
+real answer to the question above, but it is not a licence to stay there: if a
+week of work has produced no change a listener would notice, that is a signal,
+not an achievement.
+
 ## Layout
 
 | Workspace | What it owns | Entry |

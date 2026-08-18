@@ -51,7 +51,14 @@ noise:
 
 ## Before a push
 
-`git push` to `master` deploys to production. Additionally:
+`git push` to `master` deploys to production, so this is also the last moment to
+answer the question CLAUDE.md opens with: **what does this change do for a
+listener, or for revenue?** Infrastructure counts when it makes the product
+shippable or shows what is broken for listeners — but if the answer is "neither,
+it was interesting", say that in the report rather than letting it pass as
+progress.
+
+Additionally:
 
 ```bash
 npm --workspace apps/api run build > /tmp/v-build.log 2>&1; echo "build=$?"
