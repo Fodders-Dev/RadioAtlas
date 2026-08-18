@@ -398,7 +398,16 @@ export const HomeHeroCard = ({
             {heroClock ? (
               <>
                 {heroPlace ? ' · ' : ''}
-                <span className="home-hero-clock">{heroClock}</span>
+                {/* Labelled, not bare. A first-time listener meets this screen
+                    with no idea what a lone "21:46" next to a city means —
+                    read as a timestamp it says nothing, read as "it is 21:46
+                    THERE, right now" it is the entire promise of the product on
+                    the first line of the first screen. Same number, and the
+                    honesty is unchanged: stationLocalTime already returns null
+                    for any country with more than one timezone. */}
+                <span className="home-hero-clock">
+                  {t('home.heroClockNow').replace('{time}', heroClock)}
+                </span>
               </>
             ) : null}
           </div>

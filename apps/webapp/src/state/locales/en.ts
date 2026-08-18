@@ -178,6 +178,7 @@ export const enDictionary = {
     "catalogUnavailableCopy": "Search and playback still work. Refresh the front page and try again.",
     "personalTitle": "For you",
     "seeAll": "See all",
+    "heroClockNow": "{time} there now",
     "firstRunTitle": "This is live radio, not a playlist",
     "firstRunBody": "Somewhere a broadcast is on right now — tune in and you are there. Save a station and it stays here.",
     "firstRunBrowse": "Browse all stations",
