@@ -1120,6 +1120,61 @@
   text-shadow: 0 1px 10px rgba(0, 6, 16, 0.55);
 }
 
+/* What this station is playing RIGHT NOW.
+   Rendered only when a real, fresh title arrived (see homeCards.tsx) — there is
+   no empty state and no reserved space, because ~40% of stations never name a
+   track and six lines of «недоступно» would be worse than silence.
+   The overlay is bottom-anchored, so this line grows UP over the artwork: the
+   tile keeps its size and the shelf never reflows when a title lands late. */
+.screen-home-next .home-station-now,
+.screen-home-next .home-rail-card.is-dense .home-station-now {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin-top: 1px;
+  overflow: hidden;
+  color: rgba(255, 214, 216, 0.94);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-shadow: 0 1px 10px rgba(0, 6, 16, 0.7);
+}
+
+.screen-home-next .home-station-now-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The same lit-indicator idiom as the hero's LIVE dot, one size down: a tight
+   halo reads as "on air", a wide one reads as neon (PR #194). */
+.screen-home-next .home-station-now-mark {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff4a51;
+  box-shadow: 0 0 4px rgba(255, 74, 81, 0.7);
+  animation: home-station-now-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes home-station-now-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-home-next .home-station-now-mark {
+    animation: none;
+  }
+}
+
 .screen-home-next .home-station-primary-action {
   position: absolute;
   inset: 0;
@@ -1724,6 +1779,11 @@
   .screen-home-next .home-station-meta,
   .screen-home-next .home-rail-card.is-dense .home-station-meta {
     font-size: 0.74rem;
+  }
+
+  .screen-home-next .home-station-now,
+  .screen-home-next .home-rail-card.is-dense .home-station-now {
+    font-size: 0.72rem;
   }
 
   /* Reference: «Продолжить слушать» is a 2-up grid of large cards on mobile,

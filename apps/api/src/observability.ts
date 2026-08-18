@@ -67,6 +67,7 @@ const ALLOWED_CLIENT_EVENTS = new Set([
   // Product analytics — `ProductAnalyticsEventName` in the web app.
   'app_opened',
   'home_station_impression',
+  'home_now_playing_preview',
   'play_attempt',
   'play_success',
   // The Feed supersedes a play on every swipe; without this the attempt count

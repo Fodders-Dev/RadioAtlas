@@ -217,6 +217,7 @@ export const ruDictionary = {
     "liveNowTitle": "Слушают сейчас",
     "liveNowCopy": "Живой эфир: станции, которые слушают прямо сейчас",
     "tryNowTitle": "Попробуйте сейчас",
+    "tileNowPlaying": "Сейчас играет",
     "continueListeningTitle": "Продолжить слушать",
     "discoverNewTitle": "Открой новые станции",
     "allGenres": "Все жанры",

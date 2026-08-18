@@ -1237,6 +1237,11 @@ export const Home = () => {
           dense={denseLayout}
           module={{ ...leadRail, titleKey: 'home.tryNowTitle' }}
           variant={railVariant(leadRail.id)}
+          // The first shelf, and the only one that previews live tracks: this
+          // is where somebody picks their first station ever, and «Beach House
+          // — Space Song» is a reason to tap that a station name is not. Every
+          // other shelf stays silent on purpose — see HomeStationTileProps.
+          showNowPlaying
           currentStationId={currentStationId}
           activeTrack={activeTrack}
           isFavorite={isFavorite}

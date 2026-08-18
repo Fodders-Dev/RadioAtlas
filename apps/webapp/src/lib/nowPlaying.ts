@@ -3,6 +3,7 @@ import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 import { buildStationStreamTargets } from './stationStreams';
+import { createMetadataRefreshQueue, type RefreshPriority } from './metadataRefreshQueue';
 import { normalizeTrustedTrackTitle } from './trackTrust';
 
 const STREAM_TITLE = /StreamTitle='([^']+)'/i;
@@ -393,10 +394,10 @@ const LAST_KNOWN_TRACKS_STORAGE_KEY = 'radio:last-known-tracks:v2';
 const LAST_KNOWN_TRACKS_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 14;
 const LAST_KNOWN_TRACKS_LIMIT = 600;
 const MAX_METADATA_CONCURRENCY = 2;
+// Strictly below the total, so a slot is always reachable for the station
+// somebody is actually listening to — see metadataRefreshQueue.ts.
+const MAX_PREVIEW_METADATA_CONCURRENCY = 1;
 const stationSnapshotEntries = new Map<string, StationSnapshotEntry>();
-const queuedStationKeys = new Set<string>();
-const refreshQueue: string[] = [];
-let activeRefreshCount = 0;
 let storedTrackCache: Record<string, { track: string; updatedAt: number }> | null = null;
 
 export const stationSnapshotKey = (station: StationLite) => station.stationuuid || station.url_resolved || station.name;
@@ -601,28 +602,20 @@ const refreshStationSnapshot = async (entry: StationSnapshotEntry) => {
   return entry.inFlight;
 };
 
-const pumpStationSnapshotQueue = () => {
-  while (activeRefreshCount < MAX_METADATA_CONCURRENCY && refreshQueue.length) {
-    const key = refreshQueue.shift();
-    if (!key) break;
-    queuedStationKeys.delete(key);
+const stationRefreshQueue = createMetadataRefreshQueue({
+  maxConcurrent: MAX_METADATA_CONCURRENCY,
+  maxPreviewConcurrent: MAX_PREVIEW_METADATA_CONCURRENCY,
+  run: (key) => {
     const entry = stationSnapshotEntries.get(key);
-    if (!entry || !entry.listeners.size || entry.inFlight) {
-      continue;
-    }
-    activeRefreshCount += 1;
-    void refreshStationSnapshot(entry).finally(() => {
-      activeRefreshCount = Math.max(activeRefreshCount - 1, 0);
-      pumpStationSnapshotQueue();
-    });
+    // Released, or already refreshing: nothing to do, and the queue must not
+    // spend a slot discovering that.
+    if (!entry || !entry.listeners.size || entry.inFlight) return null;
+    return refreshStationSnapshot(entry);
   }
-};
+});
 
-function queueStationSnapshotRefresh(key: string) {
-  if (queuedStationKeys.has(key)) return;
-  queuedStationKeys.add(key);
-  refreshQueue.push(key);
-  pumpStationSnapshotQueue();
+function queueStationSnapshotRefresh(key: string, priority: RefreshPriority = 'listener') {
+  stationRefreshQueue.enqueue(key, priority);
 }
 
 /**
@@ -691,7 +684,7 @@ export const observeStationNowPlaying = (
     // while the render path correctly refuses to show it — the row would then
     // render nothing forever without ever probing.
     if (!isFreshNowPlayingTrack(entry.snapshot)) {
-      queueStationSnapshotRefresh(entry.key);
+      queueStationSnapshotRefresh(entry.key, 'preview');
     }
   } else if (!options.passive) {
     if (

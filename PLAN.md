@@ -1266,10 +1266,66 @@ cheaper rather than guessing at this one:
   `unknown` while the raw `detail` in the same event said
   `The operation was aborted.` Seven cases, every string taken from production.
 
+## The first shelf now says what is playing on it (done)
+
+Home's three pillars — a live shared moment, not losing what you found, a reason
+to come back — were all real and all buried behind the full-screen player. This
+is the first of them pulled onto the surface a newcomer actually sees.
+
+The «Попробуйте сейчас» shelf previews the track. Six tiles, the exact place
+somebody picks their first station ever, and «Beach House — Space Song» is a
+reason to tap that a station name is not.
+
+Three decisions carry the change, and all three are about restraint:
+
+- **No track, no line.** ~40% of stations never emit a title. A reserved row, a
+  dash or «недоступно» would have turned the most valuable shelf into six
+  apologies; absence is the honest render, and the bottom-anchored overlay means
+  a late title grows over the artwork instead of reflowing the shelf.
+- **Fresh or nothing.** The 14-day localStorage cache stamps resurrected tracks
+  `status: 'ready'`, so a status check would present last Tuesday's song as
+  live. The gate is `isFreshNowPlayingTrack`, and a mutation test proves it is
+  load-bearing rather than decorative.
+- **One shelf, six tiles, one attempt.** `resolveOnce` existed and was tested
+  but had no production caller until now; this is it. A desktop rail renders
+  ~20 stations, so previews stop at six.
+
+That last one exposed a policy that had never had to exist. A refresh can hold
+one of only two metadata slots for ~20 seconds, and previews would have queued
+ahead of the station somebody is actually hearing. `metadataRefreshQueue.ts`
+now serves listeners first AND caps previews strictly below the total, because
+ordering alone does not help if both slots are already busy previewing something
+nobody chose. Extracted rather than patched in place: the failure is silent —
+nothing breaks, the player's track line just takes a minute to appear.
+
+`home_now_playing_preview` reports, once per Home session, how many of the tiles
+that asked were showing a track six seconds in. The case for this whole change
+is that a real track is a reason to tap, and that case is only true if listeners
+see tracks. If it comes back one in six, the answer is different stations on
+that shelf, not a different font.
+
+Three visual baselines moved. The third is `search-screen`, and it was not
+expected: the desktop table's `passive` mode renders whatever the shared cache
+already holds, so the rows Home previewed now show their track there too. That
+is the passive mode working as designed, so it was accepted rather than
+suppressed.
+
 ## Next:
 
-Next, watching rather than coding — every signal the roadmap asked for now
-exists, survives a deploy, and has a documented way to be read:
+Next is the second pillar on the surface: «не потерять найденное». The shelf
+now says what is playing; nothing yet says «you liked this one» where a newcomer
+can see it.
+
+Watch two things after this deploy, and one of them is new:
+
+- **`home_now_playing_preview`.** `shown / previewed` says whether the shelf
+  came alive at all. Below about a third, the shelf needs stations that name
+  their tracks — that is a catalogue decision, not a UI one.
+- **`play_attempt` by `sourceId`** for the lead rail, before and after. This is
+  the whole point: more taps, or the line is decoration.
+
+Everything below still stands, and every signal the roadmap asked for exists,
+survives a deploy, and has a documented way to be read:
 
 - **Memory.** `grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stands
   at six; the sixth was 16:00 on 2026-08-16, before the heap cap. If it moves,

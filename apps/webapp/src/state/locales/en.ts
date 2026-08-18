@@ -217,6 +217,7 @@ export const enDictionary = {
     "liveNowTitle": "Listening now",
     "liveNowCopy": "Live: stations people are on right now",
     "tryNowTitle": "Try it now",
+    "tileNowPlaying": "Now playing",
     "continueListeningTitle": "Continue listening",
     "discoverNewTitle": "Discover new stations",
     "allGenres": "All genres",

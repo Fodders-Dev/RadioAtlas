@@ -30,6 +30,21 @@ no CDN import may come back.
   of all plays failing on stations that answered in 88ms. The guard is
   `candidateSwitchGuard.ts`; `playPendingRef` is what it reads.
 
+## Metadata: two slots, and the listener owns one
+
+A now-playing refresh is a serial chain of up to ~6 probes and can hold its slot
+for the better part of 20 seconds, and there are only two slots. So the queue
+(`lib/metadataRefreshQueue.ts`) distinguishes a `listener` — the station somebody
+is actually hearing — from a `preview`, which is a card on a shelf that can wait:
+listeners are served first, AND previews may never occupy every slot, because
+ordering alone does not help if both slots are already busy when the listener
+arrives.
+
+Any list surface that wants to show a track must use `resolveOnce` — one attempt,
+never SSE, never the polling set — and must render NOTHING when there is no fresh
+track. ~40% of stations never emit a title, and `isFreshNowPlayingTrack` is the
+gate that stops a 14-day-old cached track being presented as live.
+
 ## Analytics
 
 `reportProductEvent` names are typed in `lib/productAnalytics.ts` and must also

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { StationArtwork } from '../components/StationArtwork';
 import { StationScene } from '../components/StationScene';
 import type {
@@ -6,13 +6,16 @@ import type {
   HomeRailModule,
   HomeResumeModule
 } from '../lib/homeSurface';
+import { reportProductEvent } from '../lib/productAnalytics';
 import { stationLocalTime } from '../lib/stationClock';
+import { isFreshNowPlayingTrack, observeStationNowPlaying } from '../lib/nowPlaying';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary } from '../state/RadioContext';
 import { getStationBadgeState } from '../lib/stationStatusBadge';
 import { StationStatusBadge } from '../components/StationStatusBadge';
+import type { NowPlayingSnapshot } from '../domain/contracts';
 import type { StationLite } from '../types';
 import type { VisualizerFrame } from '../lib/useAudioPlayer';
 
@@ -92,6 +95,17 @@ const HERO_WAVEFORM_BARS = [
   })
 );
 
+/**
+ * How many tiles of a previewing shelf actually ask what is playing.
+ *
+ * A dense (mobile) rail renders 6 and stops; a desktop rail renders the whole
+ * module — around twenty stations — and without this cap every one of them
+ * would queue a probe for a card three screens along a horizontal scroller that
+ * nobody has scrolled. Six is what fits on the surface this product is actually
+ * used on.
+ */
+const NOW_PLAYING_PREVIEW_LIMIT = 6;
+
 type HomeStationTileProps = {
   station: StationLite;
   playlist: StationLite[];
@@ -107,6 +121,66 @@ type HomeStationTileProps = {
   // renders an artwork-only chip (no text/actions) for the logo-strip lane.
   featured?: boolean;
   logoOnly?: boolean;
+  /** Reports whether this tile ended up showing a track. Preview tiles only. */
+  onNowPlayingResult?: (stationId: string, shown: boolean) => void;
+  /**
+   * Show what this station is playing RIGHT NOW, under the name.
+   *
+   * Deliberately opt-in per shelf rather than on by default. Every tile that
+   * asks costs one metadata probe (up to ~20s of serial fallbacks against two
+   * global concurrency slots), and the value is not uniform: on the shelf where
+   * somebody picks their first station ever, a real track is the reason to tap;
+   * on the fifth shelf down it is a probe nobody reads.
+   */
+  showNowPlaying?: boolean;
+};
+
+/**
+ * The tile's now-playing line — or nothing at all.
+ *
+ * `null` is the normal, frequent answer and it must render as ABSENCE, not as a
+ * placeholder: about 40% of stations never emit a track title, and a shelf of
+ * «Название трека пока недоступно» would be six lines promising something that
+ * is never coming (see lib/nowPlayingLine.ts). Nothing is the honest render.
+ *
+ * The station being listened to needs no probe — the player already knows, and
+ * `activeTrack` is live. Everything else resolves AT MOST ONCE and never joins
+ * the polling set, so a shelf cannot become a metadata heartbeat.
+ */
+const useTileNowPlaying = ({
+  station,
+  enabled,
+  activeTrack
+}: {
+  station: StationLite;
+  enabled: boolean;
+  activeTrack: string | null;
+}) => {
+  const [snapshot, setSnapshot] = useState<NowPlayingSnapshot | null>(null);
+  const shouldObserve = enabled && !activeTrack;
+  // The effect keys on the station ID, never on the object: Home rebuilds its
+  // surface modules on every catalogue tick, so a dependency on identity would
+  // tear down and re-subscribe — and "resolve at most once" would quietly become
+  // "resolve once per render".
+  const stationId = station.stationuuid;
+  const stationRef = useRef(station);
+  stationRef.current = station;
+
+  useEffect(() => {
+    if (!shouldObserve) {
+      setSnapshot(null);
+      return;
+    }
+    return observeStationNowPlaying(stationRef.current, setSnapshot, { resolveOnce: true });
+  }, [shouldObserve, stationId]);
+
+  if (activeTrack) return enabled ? activeTrack.trim() || null : null;
+  if (!snapshot) return null;
+  // isFreshNowPlayingTrack, not `status === 'ready'`: the 14-day localStorage
+  // cache resurrects tracks and stamps them ready, and presenting a track from
+  // last Tuesday under a «сейчас играет» affordance is fabrication.
+  if (!isFreshNowPlayingTrack(snapshot)) return null;
+  return snapshot.track?.trim() || null;
 };
 
 const HomeStationTile = ({
@@ -116,12 +190,25 @@ const HomeStationTile = ({
   tone,
   dense = false,
   isActive,
+  activeTrack,
   onPlay,
   featured = false,
-  logoOnly = false
+  logoOnly = false,
+  showNowPlaying = false,
+  onNowPlayingResult
 }: HomeStationTileProps) => {
   const { t } = useLocale();
   const { playabilityProfile, stationHealthProfile } = useLibrary();
+  const previewsNowPlaying = showNowPlaying && !logoOnly;
+  const nowPlaying = useTileNowPlaying({
+    station,
+    enabled: previewsNowPlaying,
+    activeTrack
+  });
+  useEffect(() => {
+    if (!previewsNowPlaying) return;
+    onNowPlayingResult?.(station.stationuuid, Boolean(nowPlaying));
+  }, [previewsNowPlaying, station.stationuuid, nowPlaying, onNowPlayingResult]);
   // Phase B-PR2: a broken station that survives into a rail (demoted, not
   // dropped) shows the shared 🚫/⚠ badge instead of looking healthy. Computed
   // inline (the tile is not memoised, so this adds no re-render cost).
@@ -192,6 +279,16 @@ const HomeStationTile = ({
           <div className="home-station-meta" title={stationLocation(station)}>
             {stationLocation(station)}
           </div>
+          {/* Only when a real, fresh title arrived. No track, no line — the
+              overlay is bottom-anchored, so this grows over the artwork and
+              never resizes the tile or shifts its neighbours. */}
+          {nowPlaying ? (
+            <div className="home-station-now" title={nowPlaying}>
+              <span className="visually-hidden">{t('home.tileNowPlaying')}: </span>
+              <span className="home-station-now-mark" aria-hidden="true" />
+              <span className="home-station-now-text">{nowPlaying}</span>
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="home-station-actions">
@@ -558,10 +655,58 @@ export const HomeResumeStrip = ({
   );
 };
 
+/**
+ * Counts how much of the shelf actually came alive, once, a few seconds in.
+ *
+ * The case for the line is that a real track is a reason to tap — and that case
+ * is only true if listeners SEE tracks. About 40% of stations never emit a
+ * title, and the showcase is better than the catalogue but not by enough to
+ * assume. So this reports one number per Home session: of the tiles that asked,
+ * how many were showing something. If the answer turns out to be one in six, the
+ * honest conclusion is that this shelf needs different stations, not a different
+ * font.
+ *
+ * Deliberately a snapshot at a moment, not a final tally: a probe can take ~20s,
+ * and what matters is what the listener saw while they were deciding.
+ */
+const NOW_PLAYING_REPORT_DELAY_MS = 6_000;
+
+const useNowPlayingPreviewReport = (enabled: boolean) => {
+  const resultsRef = useRef(new Map<string, boolean>());
+  const reportedRef = useRef(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const results = resultsRef.current;
+    const timer = window.setTimeout(() => {
+      if (reportedRef.current) return;
+      reportedRef.current = true;
+      const previewed = results.size;
+      if (!previewed) return;
+      let shown = 0;
+      for (const value of results.values()) if (value) shown += 1;
+      reportProductEvent('home_now_playing_preview', { previewed, shown });
+    }, NOW_PLAYING_REPORT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [enabled]);
+
+  return useCallback((stationId: string, shown: boolean) => {
+    const previous = resultsRef.current.get(stationId);
+    // Once true, stays true: a track that arrived and was then replaced by a
+    // silent poll was still on screen.
+    resultsRef.current.set(stationId, Boolean(previous) || shown);
+  }, []);
+};
+
 type HomeRailProps = {
   module: HomeRailModule;
   dense?: boolean;
   variant?: 'default' | 'featured-lead' | 'logo-strip';
+  /**
+   * Preview what each station is playing right now. Opt-in per shelf — see
+   * HomeStationTileProps.showNowPlaying for why this is not a default.
+   */
+  showNowPlaying?: boolean;
   currentStationId: string | null;
   activeTrack: string | null;
   isFavorite: (stationId: string) => boolean;
@@ -574,6 +719,7 @@ export const HomeRail = ({
   module,
   dense = false,
   variant = 'default',
+  showNowPlaying = false,
   currentStationId,
   activeTrack,
   isFavorite,
@@ -584,6 +730,7 @@ export const HomeRail = ({
   const { t } = useLocale();
   const railRef = useRef<HTMLDivElement | null>(null);
   const visibleStations = module.stations.slice(0, dense ? 6 : module.stations.length);
+  const nowPlayingResults = useNowPlayingPreviewReport(showNowPlaying);
   const scrollRail = (direction: -1 | 1) => {
     const node = railRef.current;
     if (!node) return;
@@ -694,6 +841,8 @@ export const HomeRail = ({
             // on mobile top-voted renders full cards so name + location are
             // readable (owner's discovery-rail spec).
             logoOnly={variant === 'logo-strip' && !dense}
+            showNowPlaying={showNowPlaying && index < NOW_PLAYING_PREVIEW_LIMIT}
+            onNowPlayingResult={nowPlayingResults}
             onPlay={onPlay}
             onToggleFavorite={onToggleFavorite}
           />

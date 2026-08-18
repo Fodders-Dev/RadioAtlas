@@ -4,6 +4,12 @@ import { reportClientEvent } from './observability';
 export type ProductAnalyticsEventName =
   | 'app_opened'
   | 'home_station_impression'
+  // How many of the previewing tiles on the first shelf were actually showing a
+  // track a few seconds in. ~40% of stations never emit a title, so without this
+  // there is no way to tell «the shelf came alive» from «the shelf looks exactly
+  // as it did before» — and the whole case for the line is that a real track is
+  // a reason to tap.
+  | 'home_now_playing_preview'
   | 'play_attempt'
   | 'play_success'
   // A play that was replaced by a newer one before it could finish — the Feed
