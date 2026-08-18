@@ -1199,8 +1199,7 @@ exists, survives a deploy, and has a documented way to be read:
 
 Owner decisions, not code: 2GB of swap on the box is fully used and RadioAtlas
 is not the main occupant; a licensed lyrics-content provider is a purchase, and
-production runs Tavily plus the safe Genius-search fallback meanwhile. Approved
-Lira visual baselines wait for the design pass.
+production runs Tavily plus the safe Genius-search fallback meanwhile.
 
 Unproven and deliberately not touched, from an adversarial review of 17
 candidate diagnoses (3 survived): `account-sync.spec.ts` paces clicks rather
@@ -1211,7 +1210,16 @@ and each edit is larger than the evidence. Reproduce first
 (`--repeat-each=20 --workers=6`); if it will not reproduce, there is nothing to
 fix.
 
-Known flake, now narrowed: the full E2E suite is 240/240 most runs, and the
-residual failures are the two `visual.spec.ts` baselines diffing 0.05-0.06
-against a 0.04 tolerance. Regenerate those WITH the design pass, not before.
-Any other spec failing twice on the same line is a real defect, not noise.
+The two `visual.spec.ts` baselines that used to diff 0.05-0.06 against a 0.04
+tolerance are no longer stale: `visual.spec.ts` is 18/18 and those two are 6/6
+serially, measured 2026-08-18. Nothing is waiting on a design pass; the note
+outlived the diff and is deleted rather than carried.
+
+What visual coverage does NOT have is Linux: every committed baseline is a
+`-win32.png`, Playwright appends `process.platform`, and CI therefore compares
+no pixels at all (`test:e2e:ci` skips the "visual baseline" specs). Getting them
+means letting a runner draw the screens once, LOOKING at what it drew, and
+committing those PNGs — a decision about the product's appearance, not a config
+change, which is why nobody should do it silently.
+
+Any spec failing twice on the same line is a real defect, not noise.

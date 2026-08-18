@@ -45,8 +45,9 @@ noise:
   `npx playwright test <spec> --repeat-each=12 --workers=6` before changing
   anything. Do not fix by relaxing an assertion; see
   `.claude/rules/e2e-tests.md`.
-- Two known-stale visual baselines (`visual.spec.ts`, library + theme studio)
-  diff 0.05–0.06 against a 0.04 tolerance and are waiting for the design pass.
+- The two baselines this file used to call stale (library + theme studio) now
+  pass: 18/18 on `visual.spec.ts`, and 6/6 on those two specifically, checked
+  2026-08-18. Do not carry that warning forward without re-measuring it.
 
 ## Before a push
 
