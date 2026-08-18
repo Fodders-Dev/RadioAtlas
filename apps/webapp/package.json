@@ -14,7 +14,7 @@
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "generate-catalog": "node update-catalog.js",
-    "test:e2e:ci": "playwright test --grep-invert \"visual baseline\" --workers=1"
+    "test:e2e:ci": "playwright test --workers=1"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",

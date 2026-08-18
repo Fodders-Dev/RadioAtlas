@@ -1215,11 +1215,15 @@ tolerance are no longer stale: `visual.spec.ts` is 18/18 and those two are 6/6
 serially, measured 2026-08-18. Nothing is waiting on a design pass; the note
 outlived the diff and is deleted rather than carried.
 
-What visual coverage does NOT have is Linux: every committed baseline is a
-`-win32.png`, Playwright appends `process.platform`, and CI therefore compares
-no pixels at all (`test:e2e:ci` skips the "visual baseline" specs). Getting them
-means letting a runner draw the screens once, LOOKING at what it drew, and
-committing those PNGs — a decision about the product's appearance, not a config
-change, which is why nobody should do it silently.
+Linux baselines now exist, so CI compares pixels for the first time. A manual
+`visual-baselines.yml` drew all 23 on a runner and uploaded them; they were
+looked at before being committed, which is the half that cannot be automated —
+the thing under test is what the product looks like. The two odd things in them
+turned out to be shared with the Windows set: the magenta rectangle is
+Playwright's own mask over a volatile element, and the dock sitting mid-page is
+what a full-page screenshot does with `position: fixed`.
+
+Two `-win32.png` files were referenced by no spec at all — leftovers from a test
+deleted in 9619d04 — and went with the same commit.
 
 Any spec failing twice on the same line is a real defect, not noise.

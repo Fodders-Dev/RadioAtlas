@@ -11,14 +11,20 @@ never blocks a merge — because flakes in a blocking gate get the gate switched
 off. That makes it your job to run it locally for UI work, to read the CI job
 rather than the green tick, and to keep both trustworthy.
 
-CI runs `npm --workspace apps/webapp run test:e2e:ci`, which is
-`--grep-invert "visual baseline" --workers=1`, and both halves are load-bearing.
-The baselines are all `-win32.png` and Playwright appends `process.platform`, so
-they cannot pass on Linux; `--ignore-snapshots` is not enough because the
-capture still happens and a 1440×1688 clip failed on a runner with
-`Protocol error (Page.captureScreenshot)`. And serial is the direct treatment
-for the documented flake cause: the same 224 specs failed twice in one parallel
-run here and were 225/225 on two serial ones.
+CI runs `npm --workspace apps/webapp run test:e2e:ci` — the whole suite at
+`--workers=1`. Serial is the direct treatment for the documented flake cause
+(the same specs failed twice in one parallel run here and were 225/225 on two
+serial ones) and it is also what lets the screenshots capture: at the default
+worker count a 1440×1688 clip failed on a runner with
+`Protocol error (Page.captureScreenshot)`.
+
+**Baselines are per platform.** Playwright appends `process.platform`, so every
+screenshot has a `-win32.png` and a `-linux.png` and they are NOT
+interchangeable — font rasterisation differs. Regenerate the one for the machine
+you are on (`--update-snapshots` locally, the manual `visual-baselines.yml`
+workflow for Linux) and never hand-copy one platform's file to the other. A
+baseline with no spec referencing it is dead weight: two lived here for months
+after their spec was deleted.
 
 The job becomes a gate on evidence, not on optimism: twenty consecutive green
 runs on CI hardware with no spec failing twice on the same line. The criterion

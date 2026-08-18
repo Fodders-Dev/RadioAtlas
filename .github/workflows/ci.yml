@@ -71,23 +71,18 @@ jobs:
   # notice a screen that throws on mount, a route that 404s, or a control that
   # stops being clickable.
   #
-  # It runs `test:e2e:ci` — the suite minus the specs titled "visual baseline",
-  # which is 224 of the 240. Two reasons, one predicted and one learned from the
-  # runs themselves:
+  # It runs the WHOLE suite, pixels included. That took three attempts to earn.
+  # The pixel specs were skipped at first because every baseline was a
+  # `-win32.png` and Playwright appends `process.platform`, so on ubuntu-latest
+  # they looked for `-linux.png` and failed on every run; `--ignore-snapshots`
+  # was not the answer either, because it skips the comparison and not the
+  # capture, and run 2 died on `page.screenshot: Protocol error
+  # (Page.captureScreenshot)` at the default worker count.
   #
-  #   1. Every committed baseline is a `-win32.png` and Playwright appends
-  #      `process.platform`, so on ubuntu-latest those assertions look for
-  #      `-linux.png` and fail on every run. A job that cannot go green teaches
-  #      nobody anything.
-  #   2. `--ignore-snapshots` was the first attempt and it is not enough: it
-  #      skips the COMPARISON, not the capture. Run 2 of this job died on
-  #      `page.screenshot: Protocol error (Page.captureScreenshot): Unable to
-  #      capture screenshot` — a 1440x1688 clip on a 2-core runner.
-  #
-  # The three behavioural specs that live in visual.spec.ts take no screenshots
-  # and still run. Linux baselines stay a separate decision: they are the
-  # product's appearance, and they would need regenerating and reviewing on CI
-  # hardware, not silently accepting whatever a runner draws.
+  # Linux baselines now exist. They were drawn by `visual-baselines.yml`, a
+  # manual job that uploads and commits nothing, and a person looked at them
+  # before they were committed — which is the only part of this that cannot be
+  # automated, because the thing under test is what the product looks like.
   #
   # continue-on-error keeps a red run out of the merge path. PROMOTE IT on
   # evidence: twenty consecutive green runs of THIS job, with no spec failing
@@ -133,12 +128,14 @@ jobs:
       #
       # `--workers=1` is deliberate and is the whole reason this job has a
       # chance of being trustworthy. The flakes that kept the suite out of CI
-      # were attributed to parallel load, and that reproduced here: the same 224
+      # were attributed to parallel load, and that reproduced here: the same
       # specs that pass serially failed twice in one parallel run
       # (`.station-feed-overlay` never appearing, and a `mouse.move` timing out
       # mid-drag). Serially they are 225/225 twice, 6.4 and 6.1 minutes. A
       # 2-core runner would give one worker anyway — this makes it explicit
-      # rather than a property of whatever hardware GitHub hands out.
+      # rather than a property of whatever hardware GitHub hands out. It is also
+      # what let the screenshots capture at all: the `Protocol error` above was
+      # the default worker count.
       - name: Playwright
         run: npm --workspace apps/webapp run test:e2e:ci
 

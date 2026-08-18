@@ -89,9 +89,12 @@ recursive force-deletes, anything that discards uncommitted work (`git reset
 --hard`, `git clean -f`, `git checkout --`), force pushes, `pm2 update` (it
 hangs on this box and takes the neighbours' apps down with it), and writes to
 any `.env`. Reading a `.env`, `apps/api/data/` or a catalogue artifact is denied
-too. Paid runs — `artwork:generate`, `eval:lira`, `catalog:update` — ask first.
-`git push` does NOT ask: the owner works with full access and a confirmation on
-every deploy was noise. Force-pushing is still refused outright.
+too. Only two classes still ask: things that spend money (`artwork:generate`,
+`eval:lira`, `npm publish`) and things that touch the neighbours' services on
+the shared box (`systemctl`, `apt-get`). `git push`, `gh workflow run`, `pm2`
+and `catalog:update` do NOT ask — the owner works with full access, and a
+dialog on every ordinary action is noise that trains you to click through the
+one that mattered. Force-pushing is refused outright, not asked about.
 
 If one of these is genuinely the right move, say which and let the developer run
 it; do not look for a way around the guard.

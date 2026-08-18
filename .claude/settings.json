@@ -21,13 +21,9 @@
     "ask": [
       "Bash(npm run artwork:generate*)",
       "Bash(npm run eval:lira*)",
-      "Bash(npm run catalog:update*)",
-      "Bash(gh workflow run *)",
-      "Bash(gh run cancel *)",
-      "Bash(pm2 *)",
+      "Bash(npm publish*)",
       "Bash(systemctl *)",
-      "Bash(apt-get *)",
-      "Bash(npm publish*)"
+      "Bash(apt-get *)"
     ],
     "allow": [
       "Bash(npm run *)",
