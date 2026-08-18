@@ -90,6 +90,8 @@ recursive force-deletes, anything that discards uncommitted work (`git reset
 hangs on this box and takes the neighbours' apps down with it), and writes to
 any `.env`. Reading a `.env`, `apps/api/data/` or a catalogue artifact is denied
 too. Paid runs — `artwork:generate`, `eval:lira`, `catalog:update` — ask first.
+`git push` does NOT ask: the owner works with full access and a confirmation on
+every deploy was noise. Force-pushing is still refused outright.
 
 If one of these is genuinely the right move, say which and let the developer run
 it; do not look for a way around the guard.
