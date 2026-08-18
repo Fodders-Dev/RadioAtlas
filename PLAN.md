@@ -1244,6 +1244,28 @@ What this predicts, and what to check tomorrow rather than assume: `play_success
 / (play_attempt - play_superseded)` should rise, and `audio_candidate_failed`
 with detail `The operation was aborted.` should stop appearing.
 
+**Still unverified as of the evening of 2026-08-18**: zero play attempts have
+happened since the deploy, so the 24h window is entirely pre-fix. The prediction
+above is a prediction.
+
+Two things were done while waiting, both of which make the next diagnosis
+cheaper rather than guessing at this one:
+
+- **A wiring test that fails without the guard.** `decideCandidateSwitch` was
+  already unit-tested, but the defect was never in the decision — it was that
+  nobody asked. The new test drives the real hook with a `play()` that never
+  resolves and asserts `load()` is not called again; with the guard removed it
+  fails with the production symptom. Writing it caught a false green worth
+  remembering: `handleWaiting` bails on its first line when the element is
+  paused, and a mocked `play()` leaves jsdom's `paused` true forever, so the
+  first version of both tests passed while asserting nothing at all.
+- **The failure kinds now name the browser's own words.** `AbortError`,
+  `NotSupportedError`, `NotAllowedError` and the decode/network messages all
+  used to fall through to `unknown` — which is the single reason a third of
+  plays could fail for weeks with nobody able to say why, since the counter said
+  `unknown` while the raw `detail` in the same event said
+  `The operation was aborted.` Seven cases, every string taken from production.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

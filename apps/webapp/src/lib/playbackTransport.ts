@@ -208,6 +208,37 @@ const playbackFailureKindFromMessage = (message: string, options: { blockedMixed
   if (message === 'no playable candidate') return 'no-playable-candidate';
   if (message === 'media source not supported') return 'unsupported-transport';
   if (message === 'media network error') return 'stream-unavailable';
+  // The browser's own words, which are what actually arrive here most of the
+  // time. Everything below used to fall through to 'unknown', and that single
+  // gap is why a third of all plays could fail for weeks without anyone being
+  // able to say why: the telemetry recorded `failureKind=unknown` while the raw
+  // `detail` — sitting in the same event — said `The operation was aborted.`
+  // DOMException.name is not always available by the time a message reaches
+  // this function, so both the name and the message text are matched.
+  const lowered = message.toLowerCase();
+  if (lowered.includes('aborterror') || lowered.includes('operation was aborted')) {
+    // Someone called load() or pause() over an unsettled play(). After the
+    // candidate-switch guard this should be rare; if it climbs again, that guard
+    // has a hole rather than the station being dead.
+    return 'play-failed';
+  }
+  if (
+    lowered.includes('notsupportederror') ||
+    lowered.includes('operation is not supported') ||
+    lowered.includes('no supported source')
+  ) {
+    return 'unsupported-transport';
+  }
+  if (lowered.includes('notallowederror') || lowered.includes("user didn't interact")) {
+    // Autoplay policy: the listener has to tap, and that is not a broken stream.
+    return 'play-failed';
+  }
+  if (lowered.includes('media decode error') || lowered.includes('decode')) {
+    return 'unsupported-transport';
+  }
+  if (lowered.includes('networkerror') || lowered.includes('network error')) {
+    return 'stream-unavailable';
+  }
   return 'unknown';
 };
 
