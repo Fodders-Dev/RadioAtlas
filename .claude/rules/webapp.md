@@ -23,6 +23,12 @@ no CDN import may come back.
   usually in a pocket: a backgrounded tab throttles timers and withholds
   `timeupdate` while audio keeps playing, so anything judged from wall-clock
   time will misfire. Judge from `audio.currentTime` movement instead.
+- **A recovery path must never touch the element while `play()` is pending.**
+  `audio.load()` on top of an unsettled `play()` rejects it with AbortError, the
+  catch treats that as a dead candidate, and the watchdog and the candidate loop
+  then walk the same list against each other until it is empty. That was a third
+  of all plays failing on stations that answered in 88ms. The guard is
+  `candidateSwitchGuard.ts`; `playPendingRef` is what it reads.
 
 ## Analytics
 

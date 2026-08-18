@@ -1208,6 +1208,42 @@ and 3 silent stalls behind it. At six opens a day that is where the product is
 losing people, and it is now measurable per hour rather than as a total since
 the store was created.
 
+## A third of plays failed, and we were doing it to ourselves (done)
+
+The first honest success rate this project has ever had, from the hourly
+windows: **21 successes out of 32 real attempts in 24 hours, 65.6%**, with 11
+`stream_failure`. The reconciliation is exact — 33 = 21 + 1 superseded + 11
+failed — so a third of the time a listener pressed play and got nothing.
+
+Chasing it took four steps and each one killed a theory:
+
+1. The failing stations were named in the retained events. Probed directly:
+   **all alive**, HTTP 200 with audio content types in 88–290ms.
+2. Codecs looked promising — one was FLAC-in-Ogg, which WebKit cannot play — but
+   the catalogue is 95.5% MP3/AAC. 4.5% cannot explain 34%.
+3. The failure kind said `unknown`, which is why nobody had chased this before.
+   The raw `detail` was the answer and it was already being collected:
+   **`The operation was aborted.`**, three times out of five, on
+   `https://radioatlas.ru/api/stream`.
+4. That is a DOMException from `audio.play()`, and the thing aborting it is
+   ours.
+
+The mechanism: a slow station emits `waiting`; the buffering watchdog waits its
+grace and calls the next candidate; that calls `audio.load()`; and the `play()`
+of the current candidate — still pending, because the station is merely slow —
+rejects with AbortError. The catch sees a live session, records a candidate
+failure, and advances too. Two walkers then chew through one candidate list on
+one `<audio>` element, aborting each other, until the list is empty and the
+listener is told the station has no playable stream.
+
+`candidateSwitchGuard.ts` holds the watchdog while a `play()` is in flight — at
+most twice, 2.5s each, because a promise that never settles is exactly the hang
+the watchdog exists for. Five unit tests, and the browser suite is 240/240.
+
+What this predicts, and what to check tomorrow rather than assume: `play_success
+/ (play_attempt - play_superseded)` should rise, and `audio_candidate_failed`
+with detail `The operation was aborted.` should stop appearing.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

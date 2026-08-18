@@ -3,6 +3,7 @@ import type { PlaybackCandidate, PlaybackFailure, PlaybackFailurePhase } from '.
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
+import { decideCandidateSwitch } from './candidateSwitchGuard';
 import { reportClientEvent } from './observability';
 import { buildStationStreamTargets } from './stationStreams';
 import {
@@ -265,6 +266,13 @@ export const useAudioPlayer = ({
   const playbackSessionRef = useRef(0);
   const candidateStartedAtRef = useRef(0);
   const candidateHasPlayedRef = useRef(false);
+  // True between `audio.play()` and its promise settling. The buffering
+  // watchdog reads it: calling load() for the next candidate during that window
+  // rejects the pending play with AbortError, and the two of them then walk the
+  // same candidate list in opposite directions until it is empty. See
+  // candidateSwitchGuard.ts for the measurement behind this.
+  const playPendingRef = useRef(false);
+  const playPendingDeferralsRef = useRef(0);
   const statusRef = useRef<PlayerStatus>('idle');
   const isPlayingRef = useRef(false);
 
@@ -586,7 +594,13 @@ export const useAudioPlayer = ({
           audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
         }
-        await audio.play();
+        playPendingRef.current = true;
+        try {
+          await audio.play();
+        } finally {
+          playPendingRef.current = false;
+          playPendingDeferralsRef.current = 0;
+        }
         if (!isSessionCurrent(sessionId)) {
           audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
@@ -837,6 +851,22 @@ export const useAudioPlayer = ({
           : Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
+          // Never tear down a play() that is still in flight — that is the
+          // AbortError which used to be reported as a dead station.
+          const decision = decideCandidateSwitch({
+            playPending: playPendingRef.current,
+            deferrals: playPendingDeferralsRef.current
+          });
+          if (decision.action === 'defer') {
+            playPendingDeferralsRef.current = decision.deferrals;
+            pushEvent('audio: play still pending, holding the candidate switch');
+            waitingTimeoutRef.current = window.setTimeout(
+              () => audio.dispatchEvent(new Event('waiting')),
+              decision.recheckMs
+            );
+            return;
+          }
+          playPendingDeferralsRef.current = 0;
           if ((requestedStationRef.current || currentRef.current) && isSessionCurrent(activeSession)) {
             tryNextCandidate(activeSession).then((switched) => {
               if ((!requestedStationRef.current && !currentRef.current) || !isSessionCurrent(activeSession)) {
