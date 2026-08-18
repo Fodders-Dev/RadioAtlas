@@ -594,6 +594,9 @@ export const Globe = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
+  // False until the cold-mount repaint pulse below has finished. See the
+  // kickInterval for why it exists and who reads it.
+  const [warmedUp, setWarmedUp] = useState(false);
   const externalZoomRef = useRef<number | null>(null);
   const lastEmittedScaleRef = useRef<number>(1);
   // Callbacks referenced from event handlers attached once on the map;
@@ -706,6 +709,14 @@ export const Globe = ({
       if (kickAttempts >= 12) {
         window.clearInterval(kickInterval);
         map.off('sourcedata', handleSatelliteData);
+        // Observable in the DOM because "the globe has stopped fighting its own
+        // cold mount" is otherwise invisible, and a test that wants steady-state
+        // behaviour can only approximate it with a sleep. globe-drag.spec.ts
+        // used to wait 600ms — tuned on a fast machine, and squarely inside this
+        // window — then drive 48 synthetic mouse moves against a renderer that
+        // was still being pulsed twelve times. On a 2-core CI runner that ran
+        // the 30s test budget out on `mouse.move`.
+        setWarmedUp(true);
       }
     }, 250);
 
@@ -1015,7 +1026,11 @@ export const Globe = ({
   }, [ready, zoomLevel]);
 
   return (
-    <div className="globe globe-maplibre" ref={containerRef}>
+    <div
+      className="globe globe-maplibre"
+      ref={containerRef}
+      data-globe-warmup={warmedUp ? 'done' : 'active'}
+    >
       <div
         className="globe-reticle"
         data-state={reticleState}

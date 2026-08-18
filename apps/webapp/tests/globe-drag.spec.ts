@@ -25,6 +25,14 @@ test.describe('globe drag responsiveness', () => {
   test('vigorous rotate keeps the globe interactive (reticle search integration)', async ({
     page
   }) => {
+    // This one spec drives 48 synthetic mouse moves through a real MapLibre
+    // drag, and each of them is a round trip that waits on the renderer. It is
+    // not a 30-second test and never was: measured serially on a fast developer
+    // box it ran 22.3s and 23.9s against the default budget — passing, with a
+    // second and a half to spare, which is why it failed the moment it met a
+    // 2-core CI runner. The assertions are untouched; the budget now matches
+    // what the work costs.
+    test.setTimeout(90_000);
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
@@ -35,9 +43,16 @@ test.describe('globe drag responsiveness', () => {
       .getByRole('button', { name: /Глобус|Globe/ })
       .click();
     await expect(page.locator('.globe canvas')).toBeVisible();
-    // Let MapLibre finish its first style/tile load so the drag exercises
-    // steady-state move handling, not cold-mount work.
-    await page.waitForTimeout(600);
+    // Wait for the globe to stop fighting its own cold mount, rather than for a
+    // number that happened to be enough on the machine it was written on. The
+    // component pulses triggerRepaint twelve times over three seconds to work
+    // around a MapLibre globe-projection bug, and the old `waitForTimeout(600)`
+    // put this drag inside that window: 48 synthetic moves against a renderer
+    // being force-repainted. It held here and ran the 30s budget out on
+    // `mouse.move` on a 2-core CI runner.
+    await expect(page.locator('.globe[data-globe-warmup="done"]')).toHaveCount(1, {
+      timeout: 15_000
+    });
 
     const box = await page.locator('.globe canvas').boundingBox();
     expect(box).not.toBeNull();
