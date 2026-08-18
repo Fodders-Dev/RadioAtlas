@@ -2,10 +2,12 @@ import type express from 'express';
 import {
   MAX_LIVE_ENTRIES,
   getLiveStations,
+  getPresenceStats,
   recordPresenceBeat,
   releasePresence,
   sweepPresence
 } from './listeningPresence.js';
+import { setGauge } from './observabilityStore.js';
 
 /**
  * Endpoints for live listener presence. See listeningPresence.ts for the privacy design.
@@ -105,14 +107,55 @@ export const registerListeningRoutes = (app: express.Express) => {
   });
 };
 
+/**
+ * Peaks, because an instantaneous reading of a small audience is always 0.
+ *
+ * `/listening/live` is empty whether three people are spread across three
+ * stations or nobody has opened the app since Tuesday, and until now nothing
+ * told those two apart — the claim that the k=3 floor is what keeps the feature
+ * invisible had never been measured. These four gauges are the measurement, and
+ * they carry counts only: no station id, no token, nothing that could point at
+ * a person. The peaks reset each hour so a single busy minute last week cannot
+ * masquerade as a healthy afternoon.
+ */
+const PEAK_WINDOW_MS = 3_600_000;
+let peakListeners = 0;
+let peakStationListeners = 0;
+let peakWindowStartedAt = 0;
+
+export const reportPresenceGauges = (now = Date.now()) => {
+  if (now - peakWindowStartedAt >= PEAK_WINDOW_MS) {
+    peakWindowStartedAt = now;
+    peakListeners = 0;
+    peakStationListeners = 0;
+  }
+  const stats = getPresenceStats();
+  if (stats.listeners > peakListeners) peakListeners = stats.listeners;
+  if (stats.topStation > peakStationListeners) peakStationListeners = stats.topStation;
+  setGauge('presence:live_listeners', stats.listeners);
+  setGauge('presence:live_stations', stats.stations);
+  setGauge('presence:peak_listeners_1h', peakListeners);
+  // The one that answers the actual question: has ANY single station ever had
+  // enough people on it at once to clear MIN_PUBLIC_LISTENERS?
+  setGauge('presence:peak_station_listeners_1h', peakStationListeners);
+};
+
 /** Boot wrapper: one interval sweeps both the presence store and the rate buckets. */
 export const startPresenceSweeper = (intervalMs: number) => {
   const timer = setInterval(() => {
     sweepPresence();
     sweepBuckets();
+    reportPresenceGauges();
   }, intervalMs);
   timer.unref?.();
   return timer;
+};
+
+/** Test seam. */
+export const __resetPresencePeaks = () => {
+  peakListeners = 0;
+  peakStationListeners = 0;
+  peakWindowStartedAt = 0;
 };
 
 /** Test seam. */

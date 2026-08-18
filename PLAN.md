@@ -1172,6 +1172,42 @@ neighbour's concurrent fetch just as well as it fits our payload, and the
 deploys after it were back to a minute regardless. `--stats` is now in the
 command, so the next slow one reports what it actually sent.
 
+## Live listeners: the threshold was never the reason (measured)
+
+`PLAN.md` and the notes have said for weeks that `/listening/live` is empty
+because the privacy floor of three listeners on one station is too high for the
+current audience. That was an inference. The hourly counter windows shipped
+yesterday made it checkable, and the last 24 hours on production say:
+
+```
+app_opened      6          play_attempt 33   play_success 21   play_superseded 1
+```
+
+Six app opens in a day. `app_opened` is deduped at 60s per client, so that is
+six real opens, not many collapsed into one. Three people on the SAME station at
+the SAME time is not a threshold problem — it is arithmetic. Lowering k to two
+would trade away the privacy property for approximately nothing, and lowering it
+is the one change the design says never to make.
+
+So the feature is not broken and nothing about it needs fixing. What was missing
+is the instrument: four aggregate gauges now report `presence:live_listeners`,
+`live_stations`, `peak_listeners_1h` and `peak_station_listeners_1h`. Peaks,
+because a 30-second sample of a small audience reads zero almost every time; and
+counts only, never a station id in a key, because a gauge saying "somebody is on
+this niche station" is exactly what the floor exists to prevent.
+
+When `peak_station_listeners_1h` starts touching 2 and 3, the surface will light
+up on its own. Until then the honest reading is that there is no crowd to show.
+
+### The number that does deserve attention
+
+The same 24 hours: **21 successes out of 32 real attempts, 65.6%**. A listener
+who taps play has better than a one-in-three chance of nothing happening, with
+14 `audio_candidate_failed`, 25 reconnects scheduled, 20 buffering reconnects
+and 3 silent stalls behind it. At six opens a day that is where the product is
+losing people, and it is now measurable per hour rather than as a total since
+the store was created.
+
 ## Next:
 
 Next, watching rather than coding — every signal the roadmap asked for now

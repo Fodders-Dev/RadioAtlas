@@ -147,6 +147,32 @@ export const getLiveStations = (limit = 10): { stationId: string; listeners: num
     .sort((a, b) => b.listeners - a.listeners || a.stationId.localeCompare(b.stationId))
     .slice(0, Math.max(0, limit));
 
+/**
+ * Aggregate shape of the store, for the operator only.
+ *
+ * The reason this exists: `/listening/live` publishes nothing below the privacy
+ * floor, which is correct and which also means the surface looks identical
+ * whether three people are listening to three different stations or nobody has
+ * opened the app in a week. Nothing anywhere recorded which of those it was, so
+ * "the threshold is why the feature never shows" was an inference, never a
+ * measurement.
+ *
+ * A single sample is useless here — a 30s tick on a small audience reads 0
+ * almost always — so the caller also tracks peaks. What is returned carries no
+ * station id and no token: counts only.
+ */
+export const getPresenceStats = () => {
+  let topStation = 0;
+  for (const count of store.counts.values()) {
+    if (count > topStation) topStation = count;
+  }
+  return {
+    listeners: store.entries.size,
+    stations: store.counts.size,
+    topStation
+  };
+};
+
 /** Test seam. */
 export const __resetPresence = () => {
   store.entries.clear();

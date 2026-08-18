@@ -61,6 +61,11 @@ report presence and length only.
   what was counted. An empty window means an idle hour, not a broken one.
 - `ai_web_search_degraded` rising means Лира is answering without the sources
   she should cite — check the Tavily cap before judging answer quality.
+- `presence:peak_station_listeners_1h` is the one that says whether the live
+  listeners surface CAN show anything: `/listening/live` publishes a station
+  only at three simultaneous listeners, so until this peak reaches 3 the empty
+  block is arithmetic, not a bug. The instantaneous
+  `presence:live_listeners` will read 0 almost every time it is sampled.
 - A silent-stall count rising alongside visibility changes means the
   background-tab fix regressed.
 
