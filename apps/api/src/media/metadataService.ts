@@ -3,6 +3,7 @@ import type { MediaRouteOptions, MetadataLookupResult } from './types.js';
 import {
   fetchWithDeadline,
   parseAndValidateHttpUrl,
+  raceWithDeadline,
   readJsonWithLimit,
   readTextWithLimit,
   sendJsonError
@@ -124,37 +125,95 @@ const metadataStreamTimeoutMs = (options: MediaRouteOptions) =>
 const metadataCacheMaxEntries = (options: MediaRouteOptions) =>
   options.metadataCacheMaxEntries || DEFAULT_METADATA_CACHE_MAX_ENTRIES;
 
+/**
+ * Stop WAITING on a metadata probe after `ms`, whether or not the socket lets go.
+ *
+ * The probe timeouts above were aspirational, not real. `fetchWithDeadline`'s
+ * AbortController does not interrupt a stuck TCP/TLS connect while the request
+ * carries the SSRF pinned Agent — the reason `raceWithDeadline` exists at all
+ * (see its header in shared.ts: measured ~10.3s on the production VPS against a
+ * 1.5s abort). /metadata never got that treatment, so every probe against a
+ * black-holed host:port cost undici's own 10s connect timeout instead of our 5s.
+ *
+ * MEASURED on 60 top-voted catalogue stations, this machine, 2026-08-18, by
+ * timestamping each phase: the status-probe phase took 10.3-10.8s on 8 separate
+ * stations under a 5s `metadataProbeTimeoutMs`, and the ICY phase 10.7s under a
+ * 7s `metadataStreamTimeoutMs`. Production agrees — the retained slow entries
+ * for /metadata peak at 14 451ms, which the 5s+7s budget cannot produce.
+ * Racing the promise makes both numbers true: worst observed request over the
+ * same 60 stations fell from 27 977ms to 12 298ms.
+ *
+ * We still abort (best effort) so the socket is released as soon as undici
+ * allows, exactly as `fetchCandidate` does for speculative stream candidates.
+ */
+const withWallClock = async <T>(
+  work: Promise<T>,
+  ms: number,
+  abort: AbortController,
+  fallback: T
+): Promise<T> => {
+  try {
+    return await raceWithDeadline(work, ms, () => {
+      abort.abort(new Error('metadata probe deadline exceeded'));
+    });
+  } catch {
+    return fallback;
+  }
+};
+
 const fetchMetadataPayload = async (
   targetUrl: string,
   responseType: 'json' | 'text',
   options: MediaRouteOptions
 ) => {
-  try {
-    const { response, cleanup } = await fetchWithDeadline(
-      targetUrl,
-      {
-        headers: {
-          'User-Agent': options.userAgent,
-          Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
-        }
-      },
-      metadataProbeTimeoutMs(options)
-    );
+  const abort = new AbortController();
+  const work = (async () => {
     try {
-      if (!response.ok) {
-        return null;
-      }
+      const { response, cleanup } = await fetchWithDeadline(
+        targetUrl,
+        {
+          headers: {
+            'User-Agent': options.userAgent,
+            Accept: responseType === 'json' ? 'application/json,text/plain,*/*' : 'text/plain,text/html,*/*'
+          }
+        },
+        metadataProbeTimeoutMs(options),
+        abort.signal
+      );
+      try {
+        if (!response.ok) {
+          return null;
+        }
 
-      return responseType === 'json'
-        ? await readJsonWithLimit(response, options.fetchResponseLimitBytes)
-        : await readTextWithLimit(response, options.fetchResponseLimitBytes);
-    } finally {
-      cleanup();
+        return responseType === 'json'
+          ? await readJsonWithLimit(response, options.fetchResponseLimitBytes)
+          : await readTextWithLimit(response, options.fetchResponseLimitBytes);
+      } finally {
+        cleanup();
+      }
+    } catch {
+      return null;
     }
-  } catch {
-    return null;
-  }
+  })();
+  return withWallClock(work, metadataProbeTimeoutMs(options), abort, null);
 };
+
+/**
+ * Whether the AzuraCast now-playing probe can possibly answer for this stream.
+ *
+ * The probe is built as `https://<host>/api/nowplaying`, and `host` carries the
+ * stream's port. For an `http:` stream on an explicit port that means opening
+ * TLS against a plaintext Icecast/Shoutcast audio port: the server reads the
+ * ClientHello as a malformed request line and simply waits, so the probe cannot
+ * succeed — it can only cost a timeout.
+ *
+ * MEASURED over 140 top-voted catalogue stations (2026-08-18): of the 40 whose
+ * url is `http:` with an explicit port, the AzuraCast probe produced a title for
+ * 0, returned HTTP 200 for 0, and ran into the deadline for 17. Over the whole
+ * 140 it resolved 2 stations, both of them default-port hosts, which this keeps.
+ */
+export const shouldProbeAzuraCast = (streamUrl: URL): boolean =>
+  !(streamUrl.protocol === 'http:' && streamUrl.port !== '');
 
 const fetchIcecastMetadata = async (
   origin: string,
@@ -242,17 +301,34 @@ const fetchStreamMetadata = async (
     // timeouts stacked (~tens of seconds) before we even reached the ICY fetch.
     // Run them concurrently and pick by the SAME priority (icecast > shoutcast >
     // azura) — identical output, but the worst case collapses to one timeout.
-    const [icecastTitle, shoutcastTitle, azuraTitle] = await Promise.all([
-      fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, options, log).catch(() => null),
-      fetchShoutcastMetadata(parsedUrl.origin, options, log).catch(() => null),
-      fetchAzuraMetadata(parsedUrl.host, options, log).catch(() => null)
-    ]);
+    //
+    // They still START together, but they are now AWAITED in priority order.
+    // `Promise.all` made every station wait for the slowest of the three even
+    // when the winner had already answered — measured on this machine, three
+    // stations whose icecast status answered in 96-724ms still took 10.7s
+    // because the AzuraCast probe was stuck in a TLS connect. Awaiting in
+    // priority order returns exactly the same title (icecast > shoutcast >
+    // azura, unchanged) as soon as it is known to be the winner.
+    const icecastProbe = fetchIcecastMetadata(parsedUrl.origin, parsedUrl.pathname, options, log).catch(
+      () => null
+    );
+    const shoutcastProbe = fetchShoutcastMetadata(parsedUrl.origin, options, log).catch(() => null);
+    const azuraProbe = shouldProbeAzuraCast(parsedUrl)
+      ? fetchAzuraMetadata(parsedUrl.host, options, log).catch(() => null)
+      : Promise.resolve(null);
+
+    // The losing probes keep running after an early return, and they append to
+    // `logs` as they finish. Hand back a snapshot so the body we cache and send
+    // is the one that was true at the moment we decided.
+    const icecastTitle = await icecastProbe;
     if (icecastTitle) {
-      return { title: icecastTitle, logs, source: 'icecast-status' };
+      return { title: icecastTitle, logs: [...logs], source: 'icecast-status' };
     }
+    const shoutcastTitle = await shoutcastProbe;
     if (shoutcastTitle) {
-      return { title: shoutcastTitle, logs, source: 'shoutcast-status' };
+      return { title: shoutcastTitle, logs: [...logs], source: 'shoutcast-status' };
     }
+    const azuraTitle = await azuraProbe;
     if (azuraTitle) {
       return { title: azuraTitle, logs, source: 'azuracast' };
     }
@@ -265,92 +341,109 @@ const fetchStreamMetadata = async (
   // without this, a station with no icy-metaint (or a hung body) left the socket
   // dangling until GC. Aborting in `finally` releases it immediately.
   const streamAbort = new AbortController();
-  try {
-    const { response, cleanup } = await fetchWithDeadline(
-      url,
-      {
-        headers: {
-          'Icy-MetaData': '1',
-          'User-Agent': options.userAgent
-        }
-      },
-      metadataStreamTimeoutMs(options),
-      streamAbort.signal
-    );
+  // Same wall-clock bound as the status probes, for the same reason: with the
+  // SSRF pinned Agent the abort does not cut a stuck connect, so the configured
+  // 7s ceiling was really undici's 10s connect timeout. MEASURED here at 10.7s
+  // on two unreachable hosts before this race was added.
+  const icyWork = (async (): Promise<MetadataLookupResult | null> => {
     try {
-      log(`Status: ${response.status}`);
-      const metaintHeader = response.headers.get('icy-metaint');
-      log(`MetaInt: ${metaintHeader}`);
-
-      if (!metaintHeader) return { title: null, logs };
-
-      const metaint = Number(metaintHeader);
-      if (Number.isNaN(metaint) || metaint <= 0) {
-        log('Invalid metaint');
-        return { title: null, logs };
-      }
-
-      const body = response.body;
-      if (!body) {
-        log('No body');
-        return { title: null, logs };
-      }
-
-      const reader = body.getReader ? body.getReader() : null;
-      if (!reader) {
-        log('No reader');
-        return { title: null, logs };
-      }
-
-      let buffer = new Uint8Array(0);
-      const maxBytes = metaint + 16384;
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (!value) continue;
-
-        const next = new Uint8Array(buffer.length + value.length);
-        next.set(buffer);
-        next.set(value, buffer.length);
-        buffer = next;
-
-        if (buffer.length >= metaint + 1) {
-          const lengthByte = buffer[metaint] || 0;
-          const metaLen = lengthByte * 16;
-
-          if (metaLen === 0) {
-            log('Empty metadata block found');
-            return { title: null, logs };
+      const { response, cleanup } = await fetchWithDeadline(
+        url,
+        {
+          headers: {
+            'Icy-MetaData': '1',
+            'User-Agent': options.userAgent
           }
+        },
+        metadataStreamTimeoutMs(options),
+        streamAbort.signal
+      );
+      try {
+        log(`Status: ${response.status}`);
+        const metaintHeader = response.headers.get('icy-metaint');
+        log(`MetaInt: ${metaintHeader}`);
 
-          if (buffer.length >= metaint + 1 + metaLen) {
-            const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
-            log('Raw meta found');
-            const title = extractIcyTrackTitle(metaBytes, log);
-            if (title) {
-              return { title, logs, source: 'icy-stream' };
+        if (!metaintHeader) return { title: null, logs };
+
+        const metaint = Number(metaintHeader);
+        if (Number.isNaN(metaint) || metaint <= 0) {
+          log('Invalid metaint');
+          return { title: null, logs };
+        }
+
+        const body = response.body;
+        if (!body) {
+          log('No body');
+          return { title: null, logs };
+        }
+
+        const reader = body.getReader ? body.getReader() : null;
+        if (!reader) {
+          log('No reader');
+          return { title: null, logs };
+        }
+
+        let buffer = new Uint8Array(0);
+        const maxBytes = metaint + 16384;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!value) continue;
+
+          const next = new Uint8Array(buffer.length + value.length);
+          next.set(buffer);
+          next.set(value, buffer.length);
+          buffer = next;
+
+          if (buffer.length >= metaint + 1) {
+            const lengthByte = buffer[metaint] || 0;
+            const metaLen = lengthByte * 16;
+
+            if (metaLen === 0) {
+              log('Empty metadata block found');
+              return { title: null, logs };
             }
-            log('StreamTitle missing or not usable after decoding');
-            return { title: null, logs };
+
+            if (buffer.length >= metaint + 1 + metaLen) {
+              const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
+              log('Raw meta found');
+              const title = extractIcyTrackTitle(metaBytes, log);
+              if (title) {
+                return { title, logs, source: 'icy-stream' };
+              }
+              log('StreamTitle missing or not usable after decoding');
+              return { title: null, logs };
+            }
+          }
+
+          if (buffer.length > maxBytes) {
+            log('Max bytes reached');
+            break;
           }
         }
-
-        if (buffer.length > maxBytes) {
-          log('Max bytes reached');
-          break;
-        }
+      } finally {
+        // Abort BEFORE cleanup: cleanup() unbinds streamAbort from the fetch's
+        // internal controller, so aborting after it would be a no-op and the
+        // (possibly hung / never-fully-read) stream socket would linger until GC.
+        // Aborting first, while still bound, drops the connection immediately.
+        streamAbort.abort();
+        cleanup();
       }
-    } finally {
-      // Abort BEFORE cleanup: cleanup() unbinds streamAbort from the fetch's
-      // internal controller, so aborting after it would be a no-op and the
-      // (possibly hung / never-fully-read) stream socket would linger until GC.
-      // Aborting first, while still bound, drops the connection immediately.
-      streamAbort.abort();
-      cleanup();
+    } catch (error) {
+      log(`Error: ${error instanceof Error ? error.message : String(error)}`);
     }
-  } catch (error) {
-    log(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  })();
+
+  const icyResult = await withWallClock(
+    icyWork,
+    metadataStreamTimeoutMs(options),
+    streamAbort,
+    null
+  );
+  if (icyResult) {
+    return icyResult;
   }
 
   return { title: null, logs };
