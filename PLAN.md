@@ -1310,6 +1310,49 @@ already holds, so the rows Home previewed now show their track there too. That
 is the passive mode working as designed, so it was accepted rather than
 suppressed.
 
+## «Перемешать избранное» played nothing, and blamed the library (done)
+
+The production ring on 2026-08-18, read directly rather than inferred:
+
+    0ms   play_attempt    a76c54e8  q=120
+    0ms   play_superseded ad239b28
+    2ms   play_attempt    c8c5de5f  q=120
+    8ms   play_attempt    54340297  q=120
+    9ms   play_superseded c8c5de5f
+
+**36 attempts, 36 supersedes, zero successes, 191 milliseconds** — and then the
+toast «нечего играть», to a listener with **120 saved stations**.
+
+Two things in that trace prove the mechanism between them. The queue held 120
+items while `playStationQueue` caps a walk at 20, so 36 attempts cannot come from
+one walk. And the attempt at 8ms starts before the attempt at 2ms has returned,
+which a loop that `await`s cannot do. So: two walkers over one list on one
+`<audio>` element — an impatient second tap on a list that had not visibly
+reacted yet.
+
+What turned a harmless second tap into a wipe was the return type. The attempt
+answered `boolean`, so `superseded` — which means "somebody newer owns the audio
+element now" — was indistinguishable from "this station is dead". Each walker
+read the other's takeover as a failure, advanced, and superseded it right back,
+all the way down, and the loser then announced that none of the listener's
+favourites could be played.
+
+This is the same defect as the AbortError one, one floor up: two walkers, one
+list, one element. The fix is the same shape too. `PlayAttemptOutcome` is now
+three-valued, both walkers (`playStationQueue` and `playNext`) go through
+`state/radio/queueWalk.ts`, a new walk retires the old one instead of racing it,
+and only `exhausted` — the one outcome where we actually tried and actually
+failed — may tell a listener their list is unplayable.
+
+Mutation-checked: putting the supersede-as-failure behaviour back turns two
+tests red, including the one that asserts we never claim a list is unplayable
+after handing over.
+
+Worth naming the cost of the old shape: this ran in production against real
+favourites, and the retained counters say it is 80% of every superseded play on
+the box. The second pillar of the product is «не потерять найденное», and the
+one button dedicated to it did the opposite.
+
 ## Next:
 
 Next is the second pillar on the surface: «не потерять найденное». The shelf

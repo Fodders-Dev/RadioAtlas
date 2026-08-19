@@ -149,6 +149,16 @@ export type PlayStationOptions = {
   sourceLabel?: string;
 };
 
+/**
+ * What one play attempt did. NOT a boolean.
+ *
+ * `superseded` means somebody newer owns the audio element — a second tap, a
+ * station picked directly, another walk of a list. It is not a verdict on the
+ * station, and anything that reads it as failure will move to the next item and
+ * race whoever took over.
+ */
+export type PlayAttemptOutcome = 'played' | 'failed' | 'superseded';
+
 export type PlayStationInternalOptions = PlayStationOptions & {
   recordHistory?: boolean;
   addToRecent?: boolean;

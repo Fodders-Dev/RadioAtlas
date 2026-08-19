@@ -117,9 +117,11 @@ import {
   resolveUpdater,
   snapshotsEqual
 } from './radio/helpers';
+import { walkStationQueue } from './radio/queueWalk';
 import type {
   LibraryContextValue,
   PlaybackContextValue,
+  PlayAttemptOutcome,
   PlayStationInternalOptions,
   PlayStationOptions,
   QueueSnapshot,
@@ -1217,10 +1219,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  /**
+   * Why this is not a boolean.
+   *
+   * `superseded` does not mean "this station did not play". It means somebody
+   * newer is in charge of the audio element — a second tap, a station picked
+   * directly, another queue walk. A walker that reads it as failure moves to
+   * the NEXT station and starts racing whoever superseded it, and both then
+   * chew through one list on one <audio> element. That is exactly the shape of
+   * the AbortError defect one floor down (candidateSwitchGuard.ts), and it was
+   * measured in production on 2026-08-18: one «Перемешать избранное» burned 36
+   * attempts in 191 ms, every one superseded, ending on «нечего играть» over a
+   * library of 120 saved stations.
+   */
+  // Which walk of a station list is currently in charge. Bumped by every new
+  // walk, so an older one stops at its next checkpoint instead of racing.
+  const queueWalkRef = useRef(0);
+
   const playStationInternal = async (
     station: Station | StationLite,
     options?: PlayStationInternalOptions
-  ) => {
+  ): Promise<PlayAttemptOutcome> => {
     const lite = toLite(station);
     rememberStations([lite]);
     const sourceId = options?.sourceId || queueRef.current.sourceId || null;
@@ -1267,7 +1286,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         mode: sessionModeFromSourceId(sourceId)
       });
       notify(t('toast.missingStream'));
-      return false;
+      return 'failed';
     }
 
     reportProductEvent(
@@ -1309,7 +1328,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             dedupeKey: `play_superseded:${lite.stationuuid}:${Date.now()}`
           }
         );
-        return false;
+        return 'superseded';
       }
       const outcome = normalizePlaybackOutcome(result.error);
       recordPlaybackOutcomeForStation(lite, outcome);
@@ -1328,7 +1347,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       if (!options?.suppressErrorToast) {
         notify(resolvePlaybackToastMessage(result.error));
       }
-      return false;
+      return 'failed';
     }
 
     const playedStation = result.station ?? lite;
@@ -1393,7 +1412,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       options?.recordHistory !== false,
       options?.historyCursorTarget
     );
-    return true;
+    return 'played';
   };
 
   const playStation = (station: Station | StationLite, options?: PlayStationOptions) =>
@@ -1416,27 +1435,29 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       items.slice(0, maxAttempts).forEach((station) => {
         recordSessionEventForStation(station, 'queued', sourceId);
       });
+      // A second tap REPLACES the walk in progress instead of racing it. An
+      // impatient double-tap on a list that has not visibly reacted yet used to
+      // start two walkers over one <audio> element, and they superseded each
+      // other all the way down.
+      const walk = (queueWalkRef.current += 1);
 
-      for (let index = 0; index < maxAttempts; index += 1) {
-        const station = items[index];
-        if (!station) continue;
-        const queueSnapshot: QueueSnapshot = {
-          items,
-          currentIndex: index,
-          sourceId,
-          sourceLabel
-        };
-        const ok = await playStationInternal(station, {
-          sourceId,
-          sourceLabel,
-          playlist: items,
-          queueSnapshot,
-          suppressErrorToast: true
-        });
-        if (ok) return;
-      }
+      const result = await walkStationQueue({
+        items,
+        maxAttempts,
+        stillCurrent: () => queueWalkRef.current === walk,
+        attempt: (station, index) =>
+          playStationInternal(station, {
+            sourceId,
+            sourceLabel,
+            playlist: items,
+            queueSnapshot: { items, currentIndex: index, sourceId, sourceLabel },
+            suppressErrorToast: true
+          })
+      });
 
-      notify(t('toast.noPlayable'));
+      // Only `exhausted` earns the notice: it is the one outcome where we
+      // actually tried this listener's stations and they actually failed.
+      if (result === 'exhausted') notify(t('toast.noPlayable'));
     })();
 
   useEffect(() => {
@@ -1700,24 +1721,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      for (
-        let nextIndex = currentQueue.currentIndex + 1;
-        nextIndex < currentQueue.items.length;
-        nextIndex += 1
-      ) {
-        const nextStation = currentQueue.items[nextIndex];
-        if (!nextStation) continue;
-        const ok = await playStationInternal(nextStation, {
-          queueSnapshot: {
-            ...currentQueue,
-            currentIndex: nextIndex
-          },
-          suppressErrorToast: true
-        });
-        if (ok) return true;
-      }
+      const from = currentQueue.currentIndex + 1;
+      const remaining = currentQueue.items.slice(from);
+      const walk = (queueWalkRef.current += 1);
+      // Same policy as playStationQueue, and the same reason: a supersede here
+      // is a newer owner of the audio element, not a dead station. Advancing
+      // past it turns one Next into a race down the rest of the queue.
+      const result = await walkStationQueue({
+        items: remaining,
+        maxAttempts: remaining.length,
+        stillCurrent: () => queueWalkRef.current === walk,
+        attempt: (nextStation, offset) =>
+          playStationInternal(nextStation, {
+            queueSnapshot: {
+              ...currentQueue,
+              currentIndex: from + offset
+            },
+            suppressErrorToast: true
+          })
+      });
 
-      return false;
+      return result === 'played';
     };
 
     // Owner decision — NEVER jump to a random station. At the end of the queue

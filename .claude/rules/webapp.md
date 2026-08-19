@@ -29,6 +29,15 @@ no CDN import may come back.
   then walk the same list against each other until it is empty. That was a third
   of all plays failing on stations that answered in 88ms. The guard is
   `candidateSwitchGuard.ts`; `playPendingRef` is what it reads.
+- **A supersede is not a failure.** `PlayAttemptOutcome` is three-valued for
+  this reason: `superseded` means somebody newer owns the `<audio>` element — a
+  second tap, a station picked directly, another walk of a list — not that the
+  station is dead. Anything that reads it as failure advances to the next item
+  and races whoever took over. Measured 2026-08-18: one «Перемешать избранное»
+  produced 36 attempts in 191 ms, all superseded, ending on «нечего играть» over
+  a library of 120 saved stations. Both walkers now go through
+  `state/radio/queueWalk.ts`, and only its `exhausted` result may tell a listener
+  their list is unplayable.
 
 ## Metadata: two slots, and the listener owns one
 
