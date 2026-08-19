@@ -288,7 +288,7 @@ export const enDictionary = {
     "catalogPulseGenres": "Genres",
     "revivedKicker": "Back on air",
     "revivedTitle": "Worth returning to",
-    "revivedCopy": "Stations from your interests and recent sessions that should come back into rotation.",
+    "revivedCopy": "You saved these — they stay here.",
     "revivedCopyCompact": "Stations worth bringing back.",
     "deltaKicker": "Since last session",
     "sessionDeltaTitle": "What changed",

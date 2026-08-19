@@ -222,8 +222,18 @@ export const createHomeSurfaceFeed = ({
     querySuggestion: pickQuerySuggestion(heroModule, heroStation)
   };
 
+  // The HERO is blocked from the shelves; its companions are not.
+  //
+  // Companions used to be blocked too, and that quietly deleted three stations
+  // from the surface: on a phone they are not rendered at all
+  // (homeCards.tsx drops them when dense/compact), and they are drawn from the
+  // same pool as the hero — which, for a listener with favourites, is their own
+  // saved stations. So the block protected nothing and starved the one shelf
+  // able to show them. On desktop they do render beside the hero, where the
+  // overlap is three small chips repeating three tiles; that is the cheaper
+  // wrong than a shelf that never appears on the surface this product is used on.
   const blockedStationIds = new Set<string>(
-    uniqueStations([heroStation, ...companionStations]).map((station) => station.stationuuid)
+    heroStation ? [heroStation.stationuuid] : []
   );
   const usedSourceIds = new Set<string>();
   const rails: HomeRailModule[] = [];
@@ -246,6 +256,27 @@ export const createHomeSurfaceFeed = ({
     discoveryFeed.freshSignals,
     blockedStationIds,
     seed + 31
+  );
+  // SECOND, right behind the discovery shelf, because it is the listener's own.
+  //
+  // This shelf is their followed stations, or — far more often — their
+  // favourites. It used to be pushed ELEVENTH, and a phone renders the first
+  // ten (DENSE_RAIL_LIMIT), so on the surface this product is actually used on
+  // it was never reachable at all. Liking a station made it vanish: it leaves
+  // the recommendation pool the moment it is owned, and nothing on Home showed
+  // it again. Meanwhile the first-run card promises «Сохранишь станцию, и она
+  // останется здесь», and «здесь» did not exist.
+  //
+  // It stays behind `fresh-now` rather than replacing it: Home retitles
+  // rails[0] to «Попробуйте сейчас» and previews what is playing on it, which
+  // is the newcomer's entry point and belongs to nobody's library.
+  pushRailModule(
+    rails,
+    usedSourceIds,
+    'revived-stations',
+    discoveryFeed.revivedStations,
+    blockedStationIds,
+    seed + 83
   );
   pushRailModule(
     rails,
@@ -299,14 +330,6 @@ export const createHomeSurfaceFeed = ({
     discoveryFeed.sessionDelta,
     blockedStationIds,
     seed + 43
-  );
-  pushRailModule(
-    rails,
-    usedSourceIds,
-    'revived-stations',
-    discoveryFeed.revivedStations,
-    blockedStationIds,
-    seed + 83
   );
   pushRailModule(
     rails,

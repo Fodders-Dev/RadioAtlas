@@ -54,6 +54,25 @@ never SSE, never the polling set — and must render NOTHING when there is no fr
 track. ~40% of stations never emit a title, and `isFreshNowPlayingTrack` is the
 gate that stops a 14-day-old cached track being presented as live.
 
+## Home: the listener's own stations outrank the catalogue
+
+«К чему вернуться» (`revived-stations`) is the saved/followed stations and sits
+SECOND in the rail pool, right behind the discovery shelf. Three things keep it
+alive and all three were once broken at the same time, so do not undo one
+thinking it is redundant:
+
+- The hero blocks only ITS OWN station from the shelves. Its `companionStations`
+  must not be blocked: they come from the same list, and on a phone they are not
+  rendered at all — blocking them deleted three stations from the surface.
+- `revivedStationsList` is NOT filtered against `blockedIds`. A saved station
+  belongs to the shelf of saved stations first; a discovery shelf yields to it.
+- The shelf is exempt from `HOME_MIN_RAIL_STATIONS`. That floor exists so a
+  two-tile row of stations nobody asked for does not read as filler; one station
+  somebody deliberately saved is not filler.
+
+The first-run card promises «Сохранишь станцию, и она останется здесь». Anything
+that makes that false again is a defect, not a layout preference.
+
 ## Analytics
 
 `reportProductEvent` names are typed in `lib/productAnalytics.ts` and must also

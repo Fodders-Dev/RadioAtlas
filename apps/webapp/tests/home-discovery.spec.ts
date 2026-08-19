@@ -392,3 +392,63 @@ test.describe('T_audit_10 cold-load stale-cache surface', () => {
     await expect(page.locator('[data-action="refresh-feed"]')).toHaveCount(1);
   });
 });
+
+test.describe('the listener’s own shelf', () => {
+  // «К чему вернуться» is the saved stations. It was unreachable twice over: pushed
+  // ELEVENTH into a pool a phone renders ten of, and — the deeper one — built
+  // from a 4-station list that the hero and its three UNRENDERED companions
+  // consumed entirely, so it could not have rendered at any position.
+  //
+  // The screen this runs at is the canonical Telegram width.
+  test.beforeEach(async ({ page }) => {
+    await installMediaMocks(page);
+    await mockStations(page);
+    await seedSummary(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+  });
+
+  const openWithFavorites = async (page: Page, favorites: typeof stations) => {
+    await seedRadioState(page, { favorites, playbackHistory: [stations[0]] });
+    await page.goto('/?api=/api');
+    await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForFunction(() => window.scrollY === 0);
+  };
+
+  test('a saved station comes back on Home, second among the shelves', async ({ page }) => {
+    await openWithFavorites(page, stations.slice(0, 4));
+
+    const own = page.locator('[data-home-rail="revived-stations"]');
+    await expect(own).toHaveCount(1, { timeout: 10_000 });
+    expect(await railTiles(page, 'revived-stations')).toBeGreaterThan(0);
+
+    // Second shelf: the discovery rail keeps the lead (Home retitles it
+    // «Попробуйте сейчас» and previews what is playing on it).
+    const railIds = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[data-home-rail]')).map((el) =>
+        el.getAttribute('data-home-rail')
+      )
+    );
+    expect(railIds.indexOf('revived-stations')).toBe(1);
+  });
+
+  test('two saved stations are still a shelf, not clutter to be hidden', async ({ page }) => {
+    // HOME_MIN_RAIL_STATIONS hides thin shelves because a two-tile row of
+    // stations nobody asked for is filler. Stations somebody deliberately saved
+    // are not filler, and without the exemption the first-run promise
+    // («Сохранишь станцию, и она останется здесь») stays false for exactly the
+    // listener it is made to.
+    await openWithFavorites(page, stations.slice(0, 3));
+    await expect(page.locator('[data-home-rail="revived-stations"]')).toHaveCount(1, {
+      timeout: 10_000
+    });
+  });
+
+  test('is absent for somebody who has saved nothing', async ({ page }) => {
+    await seedRadioState(page, { playbackHistory: [stations[0]] });
+    await page.goto('/?api=/api');
+    await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
+    // No empty state, no placeholder shelf — nothing at all.
+    await expect(page.locator('[data-home-rail="revived-stations"]')).toHaveCount(0);
+  });
+});

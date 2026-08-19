@@ -247,10 +247,29 @@ export const createDiscoveryFeed = ({
       .map((follow) => catalog.find((station) => station.stationuuid === follow.stationId) || null)
       .filter(Boolean)
   );
-  const revivedStationsList = withoutStationIds(
-    seededSort(followedPool.length ? followedPool : favorites, showcaseSeed + 63, (station) => station.stationuuid),
-    blockedIds
-  ).slice(0, 4);
+  // Ten, not four. This list feeds TWO things: it outranks fresh-signals when the
+  // listener has favourites (see scoreDiscoveryModule) and so becomes the hero,
+  // and it is also the «К чему вернуться» shelf. At four, the hero and its three
+  // companions consumed the entire list and the shelf could never render — the
+  // real reason a saved station appeared nowhere below the fold, quite apart
+  // from where the shelf sat in the rail order.
+  // NOT filtered against `blockedIds`, unlike every other shelf here.
+  //
+  // `blockStations(freshSignals)` runs above and claims the whole discovery
+  // pool. In production that pool already excludes the listener's own stations
+  // (Home builds `discoveryCatalog` from `recommendationCatalog`), so the two
+  // never met. But when the pool is small the exclusion is skipped, fresh-now
+  // claims the favourites, and the shelf made OF those favourites came back
+  // empty — the listener's own stations silently eaten by a shelf of
+  // recommendations they did not ask for.
+  //
+  // A saved station belongs to the shelf of saved stations first. Anything else
+  // yields to it, not the other way round.
+  const revivedStationsList = seededSort(
+    followedPool.length ? followedPool : favorites,
+    showcaseSeed + 63,
+    (station) => station.stationuuid
+  ).slice(0, 10);
   blockStations(revivedStationsList);
 
   const collectionStationIds = new Set(collections.flatMap((collection) => collection.stationIds));

@@ -1379,6 +1379,50 @@ nothing, however good.
 That is an owner decision, not a code decision, so it goes no further here than
 naming it.
 
+## The station you saved was on Home nowhere (done)
+
+The first-run card promises «Сохранишь станцию, и она останется здесь». It was
+not true, and finding out why took three layers — the first of which was the
+only one visible from outside.
+
+**One.** «К чему вернуться» — the shelf that IS the saved stations — was pushed
+ELEVENTH into the rail pool, and a phone renders the first ten
+(`DENSE_RAIL_LIMIT`). Reordering alone would have fixed nothing, because:
+
+**Two.** With favourites present the same module scores 76 against fresh-now's
+70 (`scoreDiscoveryModule`), so it becomes the HERO module — and the hero seeded
+`blockedStationIds` with its station plus three `companionStations` drawn from
+the same list. The list was `.slice(0, 4)`. Hero plus companions consumed all
+four, so the shelf could not render at any position. Worse, on a phone those
+companions are not rendered at all (`homeCards.tsx` drops them when
+dense/compact): three stations deleted from the surface by something that shows
+nothing. The hero alone is blocked now, and the list is ten deep so the shelf
+fills like every other shelf beside it.
+
+**Three.** The shelf was also filtered against `blockedIds`, which
+`blockStations(freshSignals)` fills first. In production the two never meet —
+Home feeds discovery a catalogue with the listener's own stations already
+removed — but when that pool is small the exclusion is skipped and a shelf of
+recommendations quietly ate the favourites it was built from. A saved station
+belongs to the shelf of saved stations first; everything else yields to it.
+
+Two smaller things went with it. The shelf is exempt from the thin-shelf floor,
+because that rule exists to stop a two-tile row of stations NOBODY ASKED FOR
+reading as filler — and one station somebody deliberately saved is the opposite
+of filler; without the exemption the promise stayed false for exactly the
+newcomer it is made to. And the copy said «Станции из твоих интересов и прошлых
+сессий, которые стоит вернуть в ротацию», which is a sentence that avoids saying
+anything; it now says «Ты их сохранил — они остаются здесь».
+
+All three fixes are mutation-checked: restoring the companion block fails four
+unit tests, restoring `slice(0, 4)` fails one, and removing the thin-shelf
+exemption turns the mobile e2e red.
+
+The visual baselines did not move, and that is correct rather than suspicious:
+`home-shell-populated` clips the top of a 1440-wide page and ends at the first
+shelf's tiles, so the new second shelf sits just past the captured region. The
+behaviour is pinned by DOM assertions at 390×844 instead.
+
 ## Next:
 
 Next is not more building. Read the section above first: three listener-facing
@@ -1386,21 +1430,15 @@ fixes are live and have been seen by nobody, and both new measurements are
 waiting on an audience that has not arrived. Getting people in front of what
 already exists is the only work that changes anything now.
 
-When building resumes, the second pillar is where it goes: «не потерять
-найденное». Half of it is now true — a saved library plays — but Home still
-shows a listener their own stations nowhere. Measured this session: the ONLY
-history-derived shelf is «Продолжить слушать», it begins at ~0.84 of a viewport
-height at 390x844, and the floating nav covers the band it lands in, so its
-tiles are never visible without scrolling. Favourites appear on Home not at all:
-liking a station removes it from the recommendation pool (it joins
-`ownedStationIds`) and it surfaces nowhere else. The first-run card promises
-«Сохранишь станцию, и она останется здесь», and «здесь» does not exist.
+The second pillar is now mostly true: a saved library plays, and a saved station
+comes back on Home as the second shelf. What is left of it is «Продолжить
+слушать», which begins at ~0.84 of a viewport height at 390x844 and lands in the
+band the floating nav covers, so its tiles are never visible without scrolling —
+worth moving, but it is the smaller half now.
 
-Two shelves that would fix it are already BUILT and unreachable: `revived-
-stations` («К чему вернуться», favourites) and `resume-context` («Что
-изменилось») sit at positions 11 and 12 of the rail pool while mobile takes the
-first 10. The cheapest honest change on this whole list is a reorder, not a
-feature.
+`resume-context` («Что изменилось») is still at the bottom of the rail pool and
+still unreachable on a phone. It has not been touched because, unlike the saved
+shelf, nobody has argued it earns a place above nine catalogue shelves.
 
 Watch two things after this deploy, and one of them is new:
 

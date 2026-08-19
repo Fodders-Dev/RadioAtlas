@@ -288,7 +288,7 @@ export const ruDictionary = {
     "catalogPulseGenres": "Жанров",
     "revivedKicker": "Снова в эфире",
     "revivedTitle": "К чему вернуться",
-    "revivedCopy": "Станции из твоих интересов и прошлых сессий, которые стоит вернуть в ротацию.",
+    "revivedCopy": "Ты их сохранил — они остаются здесь.",
     "revivedCopyCompact": "Станции, к которым стоит вернуться.",
     "deltaKicker": "С прошлой сессии",
     "sessionDeltaTitle": "Что изменилось",

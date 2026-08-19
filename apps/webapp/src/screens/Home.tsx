@@ -60,6 +60,10 @@ const DENSE_RAIL_LIMIT = 10;
 const FIRST_RUN_RAIL_LIMIT = 1;
 const FIRST_RUN_RAIL_ID = 'top-voted';
 const HOME_MIN_RAIL_STATIONS = 3;
+// Shelves built from what the listener saved, not from the catalogue. They are
+// never "thin": one saved station is a shelf worth showing, because it is the
+// only thing on Home that the listener put there.
+const OWN_LIBRARY_RAIL_IDS = new Set(['revived-stations']);
 
 // «Быстрый выбор» — curated glass quick-pick chips under the hero (the reference
 // look). Each opens the Поиск tab pre-filled with a mood/genre query.
@@ -836,7 +840,21 @@ export const Home = () => {
       // T2.20: hide thin secondary shelves — a 1–2 tile row reads as clutter,
       // not a shelf — but always keep the primary rail so Home never renders
       // railless (matters only for tiny catalogues; production rails carry 6).
-      if (rails.length > 0 && stations.length < HOME_MIN_RAIL_STATIONS) return;
+      //
+      // The listener's OWN shelf is exempt, and the distinction is not a
+      // loophole. The rule is about discovery shelves, where a two-tile row of
+      // stations nobody asked for is filler. One station somebody deliberately
+      // saved is not filler — it is the only thing on this screen they chose.
+      // Without this exemption the first-run promise stays false for exactly
+      // the listener it is made to: save your first station, and a shelf capped
+      // at 4 with a floor of 3 shows you nothing.
+      if (
+        rails.length > 0 &&
+        stations.length < HOME_MIN_RAIL_STATIONS &&
+        !OWN_LIBRARY_RAIL_IDS.has(rail.id)
+      ) {
+        return;
+      }
       stations.forEach((station) => usedStationIds.add(station.stationuuid));
       rails.push({ ...rail, stations });
     });
@@ -1075,9 +1093,17 @@ export const Home = () => {
   const secondaryRailsBase = leadRail
     ? visibleRails.filter((module) => module.id !== leadRail.id)
     : visibleRails;
+  // The listener's own shelf goes first among the secondary rails, ahead of the
+  // hoisted fallback. The pool already orders it second, but Home can append
+  // `home-new-stations` when the surface came back thin, and that shelf used to
+  // hoist itself to the front — pushing the only shelf on this screen the
+  // listener actually chose back down under the fold.
+  const ownRail = secondaryRailsBase.find((module) => OWN_LIBRARY_RAIL_IDS.has(module.id));
   const newStationsRail = secondaryRailsBase.find((module) => module.id === 'home-new-stations');
-  const secondaryRails = newStationsRail
-    ? [newStationsRail, ...secondaryRailsBase.filter((module) => module.id !== newStationsRail.id)]
+  const hoistedRails = [ownRail, newStationsRail].filter(Boolean) as HomeRailModule[];
+  const hoistedIds = new Set(hoistedRails.map((module) => module.id));
+  const secondaryRails = hoistedRails.length
+    ? [...hoistedRails, ...secondaryRailsBase.filter((module) => !hoistedIds.has(module.id))]
     : secondaryRailsBase;
 
   return (
