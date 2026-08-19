@@ -299,6 +299,59 @@ export const filterStationsByPlayability = (
       !isStationSuppressedByHealth(healthProfile, station, now)
   );
 
+/**
+ * The station is one we already know is broken — the SAME predicate set that
+ * draws the 🚫 badge next to it in every station list (`isStationBroken` in
+ * `stationStatusBadge.ts`): our own recent hard playback failures, a health
+ * suppression, or a fresh upstream "dead" verdict from Radio Browser.
+ *
+ * Exported so an ordering decision and the badge the listener can see can never
+ * drift apart: the station marked broken on screen is the station we try last.
+ */
+export const isStationKnownBroken = (
+  station: StationLite,
+  profile: StationPlayabilityProfile | null | undefined,
+  now = Date.now(),
+  healthProfile?: StationHealthProfile | null
+): boolean =>
+  isStationHardHiddenByPlayability(profile, station, now) ||
+  isStationSuppressedByHealth(healthProfile, station, now) ||
+  isStationHardHiddenByUpstream(station, now);
+
+/**
+ * Same stations, safer order.
+ *
+ * `filterStationsByPlayability` DROPS a broken station. That is right for a
+ * discovery rail and wrong for a list the listener built themselves: a
+ * favourite they saved must not quietly vanish, and a queue must not get
+ * shorter than the one they asked for. This helper keeps every station and
+ * every duplicate — it only moves the known-broken ones to the BACK, so a queue
+ * that starts at the front does not open on a stream that failed twice in the
+ * last six hours.
+ *
+ * Stable inside each group: a shuffle stays shuffled, a hand-ordered collection
+ * stays hand-ordered. Returns the input array itself when nothing is broken, so
+ * a `useMemo` consumer sees no new identity in the common case.
+ *
+ * NOT for `playStation(station)`. Reordering a LIST is fine; reordering away
+ * from the single station a listener tapped would be the app choosing a
+ * different station by itself, which this project never does.
+ */
+export const orderStationsByPlayability = (
+  stations: StationLite[],
+  profile: StationPlayabilityProfile | null | undefined,
+  now = Date.now(),
+  healthProfile?: StationHealthProfile | null
+): StationLite[] => {
+  const playable: StationLite[] = [];
+  const broken: StationLite[] = [];
+  stations.forEach((station) => {
+    if (isStationKnownBroken(station, profile, now, healthProfile)) broken.push(station);
+    else playable.push(station);
+  });
+  return broken.length ? [...playable, ...broken] : stations;
+};
+
 // Diversification window: when picking the next station for the
 // final ranked list, look back at the previous DIVERSITY_WINDOW
 // items and avoid any candidate whose primary country / primary

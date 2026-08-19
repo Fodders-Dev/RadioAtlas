@@ -4,6 +4,7 @@ import {
   getStationPlayabilityScore,
   getUpstreamHealthScore,
   isStationHardHiddenByUpstream,
+  orderStationsByPlayability,
   rankStationsForHome,
   rankStationsForSearch,
   recordPlaybackOutcome
@@ -403,5 +404,128 @@ describe('rankStationsForSearch — personal taste tie-breaker (примесь �
       playabilityProfile: DEFAULT_PLAYABILITY_PROFILE
     }).map((s) => s.stationuuid);
     expect(withCb).toEqual(without);
+  });
+});
+
+// A listener's own favourites are handed to the queue by «Перемешать
+// избранное» in the Library, which today consults NOTHING: a favourite that
+// has hard-failed twice in the last six hours is as likely to be the station
+// the shuffle opens on as any other. These tests pin the ordering primitive
+// that fixes that — demote, never drop, never skip.
+describe('orderStationsByPlayability — demote the known-broken, drop nothing', () => {
+  const NOW = Date.UTC(2026, 4, 7, 12, 0, 0);
+  const HOUR = 60 * 60 * 1000;
+
+  const hardFailedTwice = (uuid: string, now: number) =>
+    recordPlaybackOutcome(
+      recordPlaybackOutcome(DEFAULT_PLAYABILITY_PROFILE, uuid, 'no-playable-candidate', now - 1000),
+      uuid,
+      'stream-unavailable',
+      now
+    );
+
+  it('moves a repeatedly failed station to the back instead of removing it', () => {
+    const dead = station('dead', 'Dead FM', 'US', 'rock');
+    const a = station('a', 'A FM', 'US', 'rock');
+    const b = station('b', 'B FM', 'DE', 'jazz');
+    const ordered = orderStationsByPlayability(
+      [dead, a, b],
+      hardFailedTwice('dead', NOW),
+      NOW
+    );
+
+    expect(ordered.map((s) => s.stationuuid)).toEqual(['a', 'b', 'dead']);
+    // Nothing is hidden: the favourite the listener saved is still in the list.
+    expect(ordered).toHaveLength(3);
+  });
+
+  it('keeps the order the listener/shuffle chose inside each group', () => {
+    const list = [
+      station('x1', 'X1', 'US', 'rock'),
+      station('bad1', 'Bad1', 'US', 'rock'),
+      station('x2', 'X2', 'US', 'rock'),
+      station('bad2', 'Bad2', 'US', 'rock'),
+      station('x3', 'X3', 'US', 'rock')
+    ];
+    let profile = hardFailedTwice('bad1', NOW);
+    profile = recordPlaybackOutcome(profile, 'bad2', 'play-failed', NOW - 1000);
+    profile = recordPlaybackOutcome(profile, 'bad2', 'attach-failed', NOW);
+
+    expect(orderStationsByPlayability(list, profile, NOW).map((s) => s.stationuuid)).toEqual([
+      'x1',
+      'x2',
+      'x3',
+      'bad1',
+      'bad2'
+    ]);
+  });
+
+  it('demotes a health-suppressed station too (same predicate set as the 🚫 badge)', () => {
+    const sick = station('sick', 'Sick FM', 'US', 'rock');
+    const ok = station('ok', 'Ok FM', 'US', 'rock');
+    const ordered = orderStationsByPlayability(
+      [sick, ok],
+      DEFAULT_PLAYABILITY_PROFILE,
+      NOW,
+      healthSuppressed('sick', NOW)
+    );
+    expect(ordered.map((s) => s.stationuuid)).toEqual(['ok', 'sick']);
+  });
+
+  it('demotes a station Radio Browser just confirmed dead', () => {
+    const upstreamDead = station('u', 'Upstream Dead', 'US', 'rock', {
+      lastcheckok: 0,
+      lastcheckok_at: NOW - HOUR
+    });
+    const ok = station('ok', 'Ok FM', 'US', 'rock');
+    expect(
+      orderStationsByPlayability([upstreamDead, ok], DEFAULT_PLAYABILITY_PROFILE, NOW).map(
+        (s) => s.stationuuid
+      )
+    ).toEqual(['ok', 'u']);
+  });
+
+  it('stops punishing once the failures fall out of the recent window', () => {
+    const list = [station('dead', 'Dead FM', 'US', 'rock'), station('a', 'A FM', 'US', 'rock')];
+    const profile = hardFailedTwice('dead', NOW - 7 * HOUR);
+    expect(orderStationsByPlayability(list, profile, NOW).map((s) => s.stationuuid)).toEqual([
+      'dead',
+      'a'
+    ]);
+  });
+
+  it('un-demotes a station as soon as it plays again', () => {
+    const list = [station('dead', 'Dead FM', 'US', 'rock'), station('a', 'A FM', 'US', 'rock')];
+    const failed = hardFailedTwice('dead', NOW - HOUR);
+    expect(orderStationsByPlayability(list, failed, NOW)[0].stationuuid).toBe('a');
+
+    const recovered = recordPlaybackOutcome(failed, 'dead', 'success', NOW);
+    expect(orderStationsByPlayability(list, recovered, NOW).map((s) => s.stationuuid)).toEqual([
+      'dead',
+      'a'
+    ]);
+  });
+
+  it('returns the input array itself when nothing is broken', () => {
+    const list = [station('a', 'A FM', 'US', 'rock'), station('b', 'B FM', 'DE', 'jazz')];
+    expect(orderStationsByPlayability(list, DEFAULT_PLAYABILITY_PROFILE, NOW)).toBe(list);
+  });
+
+  it('keeps duplicates — it reorders a queue, it does not shorten one', () => {
+    const a = station('a', 'A FM', 'US', 'rock');
+    const dead = station('dead', 'Dead FM', 'US', 'rock');
+    const ordered = orderStationsByPlayability(
+      [dead, a, dead, a],
+      hardFailedTwice('dead', NOW),
+      NOW
+    );
+    expect(ordered).toHaveLength(4);
+    expect(ordered.map((s) => s.stationuuid)).toEqual(['a', 'a', 'dead', 'dead']);
+  });
+
+  it('handles an empty list and a missing profile', () => {
+    expect(orderStationsByPlayability([], null, NOW)).toEqual([]);
+    const list = [station('a', 'A FM', 'US', 'rock')];
+    expect(orderStationsByPlayability(list, null, NOW)).toBe(list);
   });
 });

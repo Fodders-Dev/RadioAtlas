@@ -19,6 +19,7 @@ import {
 } from '../lib/librarySearch';
 import { stationsForRegions } from '../lib/regionRecommendations';
 import { shuffleStations } from '../lib/shuffleStations';
+import { orderStationsByPlayability } from '../lib/stationPlayability';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
@@ -169,6 +170,8 @@ export const Library = () => {
   const {
     knownStations,
     favorites,
+    playabilityProfile,
+    stationHealthProfile,
     recent,
     collections,
     followedStations,
@@ -586,7 +589,10 @@ export const Library = () => {
   const playCollection = (collection: (typeof collections)[number], shuffle = false) => {
     const collectionStations = resolveCollectionStations(collection);
     if (!collectionStations.length) return;
-    playStationQueue(shuffle ? shuffleStations(collectionStations) : collectionStations, {
+    // Shuffled: demote what we know is broken, same as the other shuffles.
+    // Unshuffled: the order is the one the listener built, and it stays exactly
+    // as they built it.
+    playStationQueue(shuffle ? shuffleForPlayback(collectionStations) : collectionStations, {
       sourceId: `collection-${collection.id}`,
       sourceLabel: collection.name
     });
@@ -627,16 +633,37 @@ export const Library = () => {
 
     return merged;
   }, [collections, favorites, followedStationRows, recentStations, stationMap]);
+  /**
+   * Shuffle, then sink the ones we already know are broken.
+   *
+   * Only the SHUFFLE entry points get this. Their order is random by
+   * definition, so demoting inside it takes nothing away from the listener —
+   * whereas a hand-ordered collection is an order somebody chose, and this
+   * project does not quietly rearrange those.
+   *
+   * Nothing is dropped and nothing is skipped: every saved station stays in the
+   * queue, and the ones pushed to the back are exactly the ones already wearing
+   * a 🚫 in this very list. The walk tries at most 20, so this is the difference
+   * between spending those 20 attempts on stations that can play and spending
+   * them on stations we watched fail this afternoon.
+   */
+  const shuffleForPlayback = (stations: StationLite[]) =>
+    orderStationsByPlayability(
+      shuffleStations(stations),
+      playabilityProfile,
+      undefined,
+      stationHealthProfile
+    );
   const playLibraryShuffle = () => {
     if (!libraryShuffleStations.length) return;
-    playStationQueue(shuffleStations(libraryShuffleStations), {
+    playStationQueue(shuffleForPlayback(libraryShuffleStations), {
       sourceId: 'library-shuffle',
       sourceLabel: t('library.shuffleLibrarySource')
     });
   };
   const playFavoritesShuffle = () => {
     if (!favorites.length) return;
-    playStationQueue(shuffleStations(favorites), {
+    playStationQueue(shuffleForPlayback(favorites), {
       sourceId: 'favorites-shuffle',
       sourceLabel: t('library.tabs.favorites')
     });
