@@ -13,6 +13,21 @@ runtime, Theme Studio, Lite or the Full Player overlay — those are lazy on
 purpose and there are tests asserting it. React is bundled from our own origin;
 no CDN import may come back.
 
+**That includes fonts, and for months it did not.** `index.html` carried a
+render-blocking stylesheet from a font CDN. Measured on the real bundle at
+390x844: a REFUSED request still paints in ~356 ms, but a HANGING one — no
+response, no refusal, which is what a filtered or throttled network produces —
+gives **no paint at all within 25 seconds**, while every one of our own bytes has
+arrived at 73 ms. Manrope is now self-hosted from `public/fonts/`, declared in
+`boot.css` (the first stylesheet, so the request starts earliest) with
+`font-display: swap`, and preloaded in `index.html` for the two subsets a
+Russian-first UI always needs. One variable file per subset with Google's own
+`unicode-range` split, so a page pays only for the scripts its text uses.
+
+`src/criticalPathNoCdn.test.ts` is the guard. The only external script allowed is
+the Telegram SDK. Do not add a font, stylesheet or icon from another origin —
+and if a display face is ever added for a theme, it self-hosts too.
+
 ## Playback is the product
 
 - **The station never switches by itself.** Camera motion on the Globe, opening

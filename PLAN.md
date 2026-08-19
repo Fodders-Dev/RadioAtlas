@@ -1423,6 +1423,43 @@ The visual baselines did not move, and that is correct rather than suspicious:
 shelf's tiles, so the new second shelf sits just past the captured region. The
 behaviour is pinned by DOM assertions at 390×844 instead.
 
+## The app could show a blank screen, and it was the fonts (done)
+
+Found while measuring what a display typeface would cost for a design pass. The
+answer turned out to be that the app was already paying more than one, and
+paying it in the worst currency.
+
+`index.html` carried a render-blocking `<link rel="stylesheet">` to a font CDN —
+verified by reading the deployed `index.html` on the production disk, not just
+the source. Measured against the real bundle at 390x844, one variant per
+process:
+
+| the CDN | first paint |
+| --- | --- |
+| link removed | 364 ms |
+| refuses immediately | 356 ms |
+| live, warm DNS | ~550 ms |
+| live, cold DNS+TLS | our own JS did not run until 3 173 ms |
+| **hangs** | **no paint at all in 25 000 ms** |
+
+The hang case reproduced twice: the paint entries come back empty. A refusal is
+survivable; a hang is not, and a hang is precisely what a filtered or throttled
+network produces. This app lives inside Telegram, in Russia, on those networks.
+
+Self-hosting is not a cost here, it is a refund. The CDN was serving 39 336 B on
+the wire for two families, one of which — Space Grotesk — sat in every font
+stack as the fallback after Manrope and **has no Cyrillic subset at all**, so in
+a Russian UI it could never render a single glyph it was asked for. It is gone.
+Manrope now ships as six variable subset files (75 KB on disk) with Google's own
+`unicode-range` split, so a Russian UI with Latin station names downloads latin
++ cyrillic (~39 KB) and never fetches greek or vietnamese unless a station name
+needs them — from an origin whose connection is already open.
+
+`criticalPathNoCdn.test.ts` is the guard that should have existed: the rule was
+written down in `.claude/rules/webapp.md` from the start, and nothing enforced
+it. Mutation-checked both ways — putting a CDN stylesheet back fails it, and
+dropping `font-display: swap` from a single face fails it.
+
 ## Next:
 
 Next is not more building. Read the section above first: three listener-facing
