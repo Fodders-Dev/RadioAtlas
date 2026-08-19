@@ -1353,11 +1353,54 @@ favourites, and the retained counters say it is 80% of every superseded play on
 the box. The second pillar of the product is «не потерять найденное», and the
 one button dedicated to it did the opposite.
 
+## The shelf shipped to nobody (measured)
+
+Three fixes went to production between 2026-08-18 20:32 and 2026-08-19 08:00,
+all three listener-facing. Then the counters were read, and the most useful
+number of the night was an absence.
+
+The newest client event retained on the box is **6.6 hours OLDER than the deploy
+of the first one**, and 11 hours older than the moment it was read. Nobody has
+opened the app since before any of this shipped. `app_opened` stands at 23,
+cumulative, since the store file was created.
+
+So `home_now_playing_preview` reporting nothing is not a broken counter — the
+shelf has never been rendered to a human. Nor can the playback fix from
+2026-08-18 be confirmed: it needs plays, and there have been none. Both
+measurements are correctly built and waiting on an audience.
+
+Which relocates the bottleneck, and it is worth saying plainly. It is no longer
+"what should the product do" — the first screen now says what is playing, a
+saved library plays instead of announcing itself unplayable, and the slowest
+route got faster. It is that nobody arrives. Every remaining engineering idea in
+this file competes against that one, and loses: a feature nobody sees earns
+nothing, however good.
+
+That is an owner decision, not a code decision, so it goes no further here than
+naming it.
+
 ## Next:
 
-Next is the second pillar on the surface: «не потерять найденное». The shelf
-now says what is playing; nothing yet says «you liked this one» where a newcomer
-can see it.
+Next is not more building. Read the section above first: three listener-facing
+fixes are live and have been seen by nobody, and both new measurements are
+waiting on an audience that has not arrived. Getting people in front of what
+already exists is the only work that changes anything now.
+
+When building resumes, the second pillar is where it goes: «не потерять
+найденное». Half of it is now true — a saved library plays — but Home still
+shows a listener their own stations nowhere. Measured this session: the ONLY
+history-derived shelf is «Продолжить слушать», it begins at ~0.84 of a viewport
+height at 390x844, and the floating nav covers the band it lands in, so its
+tiles are never visible without scrolling. Favourites appear on Home not at all:
+liking a station removes it from the recommendation pool (it joins
+`ownedStationIds`) and it surfaces nowhere else. The first-run card promises
+«Сохранишь станцию, и она останется здесь», and «здесь» does not exist.
+
+Two shelves that would fix it are already BUILT and unreachable: `revived-
+stations` («К чему вернуться», favourites) and `resume-context` («Что
+изменилось») sit at positions 11 and 12 of the rail pool while mobile takes the
+first 10. The cheapest honest change on this whole list is a reorder, not a
+feature.
 
 Watch two things after this deploy, and one of them is new:
 
