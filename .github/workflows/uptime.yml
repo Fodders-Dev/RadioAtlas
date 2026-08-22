@@ -1,0 +1,100 @@
+name: Is the radio on the air
+
+# On 2026-08-19 production was unreachable twice. The first time for about five
+# hours. Nobody noticed either one: the app has no listeners yet, so there is
+# nobody to complain, and both failures were found by accident while doing
+# something else.
+#
+# Both looked IDENTICAL from outside, and the shape is the whole reason this
+# file exists: TCP connected instantly, and then the TLS handshake never
+# completed. Caddy was alive and answering plain :80 in 8 ms the entire time.
+# A check that pings the host, or resolves DNS, or fetches http://, would have
+# reported everything healthy for all five hours.
+#
+# So this check measures the thing that actually broke: a full HTTPS request,
+# handshake included, finishing inside a deadline.
+#
+# It runs on GitHub rather than on the box, because nothing running on a box can
+# tell you the box is unreachable.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 15 minutes. GitHub's scheduler is best-effort and drifts under load,
+    # so a tighter cron buys less than it looks like it does; 15 minutes turns
+    # "found it five hours later, by accident" into "found it before lunch".
+    - cron: '*/15 * * * *'
+
+concurrency:
+  # A late run must never queue up behind an earlier one and then alert about a
+  # window that has already closed.
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: probe radioatlas.ru from outside
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: The app answers over HTTPS, handshake and all
+        run: |
+          set -u
+
+          # --max-time covers the WHOLE request, so a stalled handshake trips it
+          # exactly like a stalled body would. --connect-timeout stays lower so
+          # an unreachable host is reported as unreachable rather than slow.
+          probe() {
+            curl --silent --show-error --output /dev/null \
+                 --connect-timeout 8 --max-time 20 \
+                 --write-out '%{http_code} %{time_appconnect} %{time_total}' \
+                 "$1"
+          }
+
+          check() {
+            url="$1"
+            label="$2"
+            if ! result=$(probe "$url" 2>&1); then
+              echo "$label: curl failed — $result"
+              return 1
+            fi
+            code=$(echo "$result" | cut -d' ' -f1)
+            appconnect=$(echo "$result" | cut -d' ' -f2)
+            total=$(echo "$result" | cut -d' ' -f3)
+            echo "$label: HTTP $code, handshake ${appconnect}s, total ${total}s"
+            if [ "$code" != "200" ]; then
+              echo "$label: expected 200"
+              return 1
+            fi
+            # A completed handshake always reports a non-zero appconnect time.
+            # Zero here would mean we somehow measured a request that never
+            # negotiated TLS — the exact failure this file is about.
+            case "$appconnect" in
+              0|0.000000|'') echo "$label: TLS never completed"; return 1 ;;
+            esac
+            return 0
+          }
+
+          # One retry, 30 s apart, before calling it an outage. A deploy takes
+          # about 90 seconds and can blip; a check that cries wolf gets muted,
+          # and a muted check is worse than no check at all.
+          attempt() {
+            check "https://radioatlas.ru/" "app" && check "https://radioatlas.ru/api/health" "api"
+          }
+
+          if attempt; then
+            echo "on the air"
+            exit 0
+          fi
+
+          echo "first attempt failed; waiting 30 s and trying once more"
+          sleep 30
+
+          if attempt; then
+            echo "on the air (recovered on the second attempt)"
+            exit 0
+          fi
+
+          echo "::error::radioatlas.ru is not answering over HTTPS from outside the box"
+          exit 1

@@ -709,6 +709,52 @@ after it were back to about a minute either way. `--stats` is in the command so
 the next slow deploy reports what it actually sent instead of leaving another
 inference.
 
+## 2026-08-19 — the site was down twice, for two different reasons, and nobody noticed
+
+Two outages in one day, both invisible from inside the app, both found by
+accident while doing unrelated work. This is the same family as the 2026-08-17
+entry above: **the edge starved, not the app.** Three occurrences now.
+
+**Morning, ~5 hours.** No TLS handshake completed — from outside AND from the box
+on loopback — for our vhost and for a neighbour's on the same Caddy. Plain `:80`
+answered in 8ms; our API answered `127.0.0.1:3001/health` in 18ms throughout. The
+box had **135 MB free of 3904**, swap **1801/2047**, load average 8.9, and Caddy's
+RSS had been squeezed to **12 MB**. The single largest process was ours:
+`radioatlas-api` at **619 MB**, 5h uptime, no restarts. `pm2 restart
+radioatlas-api` freed it (135 MB free to 1609, swap to 1555) and HTTPS returned
+immediately with a 66ms handshake.
+
+**Evening, again.** Same symptom, different cause, and this time NOT us. Memory
+was fine — swap 896/2047 with 1151 MB free — but the box has **2 cores** and
+`vmstat` reported **35% steal, sustained, with 0% idle**, system time above 40%.
+squid and a neighbour's python were each burning ~50% CPU while our node sat at
+**1% and answered in 6ms**. A TLS handshake is expensive arithmetic; with a third
+of the CPU taken by the hypervisor and the rest contended, Caddy could not finish
+one. Nothing in our code fixes that.
+
+**Resolution.** The owner changed the server's IP (radioatlas.ru is now
+77.67.89.164) and the VM landed on different hardware. Measured 3 hours later:
+**steal 0%, idle 91-93%, load 0.18, swap 2 MB of 2047**, handshake 56ms from the
+box and 0.79s from a Russian ISP. The move solved it; no tuning was needed.
+
+**How to tell these apart quickly, because they look identical:**
+
+    free -m                 # morning shape: free < 200 MB, swap near full
+    vmstat 4 3              # evening shape: st ~35, id 0
+    ps -eo rss,comm --sort=-rss | head    # who is actually biggest
+    curl --resolve radioatlas.ru:443:127.0.0.1 https://radioatlas.ru/   # from the box
+
+If memory is the shape and we are the biggest process, restarting our API is
+correct and safe. If steal is the shape, it is the host, and neither restarting
+nor `systemctl` on Caddy creates CPU — that one is an owner decision about where
+the box lives. Never restart Caddy to "fix" it: it is shared with the
+neighbours, and it was never the thing that was broken.
+
+**Detection.** `.github/workflows/uptime.yml` now probes a full HTTPS request
+from GitHub every 15 minutes and fails the job when the handshake does not
+complete. It exists because ping, DNS and `http://` would each have reported
+everything healthy for all five hours of the morning outage.
+
 ## Incident capture
 - Save current production logs and process state:
   - `bash /opt/RadioAtlas/current/deploy/server/capture-incident-artifacts.sh`
