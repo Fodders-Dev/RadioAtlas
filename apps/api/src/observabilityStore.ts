@@ -469,11 +469,41 @@ export const hydrateObservabilityStore = async () => {
   await loadPersistedState();
 };
 
+/**
+ * A ceiling on how many DISTINCT counters may exist, because path normalisation
+ * is a list somebody has to remember to extend and one day will not.
+ *
+ * Every key costs an entry here plus up to MAX_COUNTER_BUCKETS hourly buckets,
+ * and the whole store is serialised to disk on every flush. Production was found
+ * on 2026-08-23 carrying one counter per station whose scene had been fetched —
+ * harmless at six, a memory and disk problem at 46 048, which is what it becomes
+ * the day people actually browse.
+ *
+ * New keys are REFUSED rather than old ones evicted. These are cumulative
+ * totals that people reconcile against each other (play_attempt against
+ * play_success against play_superseded); silently dropping one to make room
+ * would turn a number somebody trusts into a lie. Refusing is visible, and the
+ * refusals are themselves counted.
+ */
+const MAX_COUNTER_KEYS = 2_000;
+const COUNTER_OVERFLOW_KEY = 'observability:counter_keys_refused';
+
 export const bumpCounter = (key: string, amount = 1) => {
+  if (
+    key !== COUNTER_OVERFLOW_KEY &&
+    !counters.has(key) &&
+    counters.size >= MAX_COUNTER_KEYS
+  ) {
+    bumpCounter(COUNTER_OVERFLOW_KEY, 1);
+    return;
+  }
   counters.set(key, (counters.get(key) || 0) + amount);
   recordBucketIncrement(counterBuckets, key, amount, Date.now());
   scheduleFlush();
 };
+
+/** Test seam: the ceiling is only observable through behaviour otherwise. */
+export const counterKeyCount = () => counters.size;
 
 export const appendSlowRequest = (entry: SlowRequestEntry) => {
   slowRequests.unshift(entry);

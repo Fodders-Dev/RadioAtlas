@@ -15,10 +15,29 @@ import {
   renderPrometheusMetrics
 } from './observabilityStore.js';
 
-const normalizePath = (path: string) =>
+/**
+ * Collapse identifiers out of a path BEFORE it becomes a counter key.
+ *
+ * Every distinct key here mints a counter plus up to 25 hourly buckets, and
+ * nothing about a station id is bounded — there are 46 048 of them. Production
+ * on 2026-08-23 was already carrying keys like
+ * `request:GET:/artwork/scene/a2624589-8279-4be3-9ea0-514dcd29cef8`, one per
+ * station whose scene had ever been fetched, and the store is persisted to disk.
+ * With no listeners that was six keys; the day people arrive and browse, it is
+ * one key per station they pass.
+ *
+ * `/stations/` and `/areas/` were collapsed from the start and cover their
+ * `/catalog/...` prefixes too, since these are substring replacements. The three
+ * added below were simply missed — which is the argument for the ceiling in
+ * `bumpCounter` as well: the next route added here will be missed too.
+ */
+export const normalizePath = (path: string) =>
   path
     .replace(/\/stations\/[^/]+/g, '/stations/:id')
-    .replace(/\/areas\/[^/]+/g, '/areas/:id');
+    .replace(/\/areas\/[^/]+/g, '/areas/:id')
+    .replace(/\/artwork\/scene\/[^/]+/g, '/artwork/scene/:id')
+    .replace(/\/artwork\/scenes\/[^/]+/g, '/artwork/scenes/:file')
+    .replace(/\/share\/story\/[^/]+/g, '/share/story/:slug');
 
 export const recordCatalogFallback = (source: 'snapshot' | 'artifact') => {
   bumpCounter(`catalog_fallback:${source}`);
