@@ -36,6 +36,30 @@ module.exports = {
       // killed it (2026-08-16 16:00), taking Home/Search/Browse down with it for
       // a minute — the catalogue endpoints queue behind a refresh.
       node_args: '--max-old-space-size=640',
+      // 01:00 UTC = 04:00 Moscow, the quietest hour this product has.
+      //
+      // This is a MITIGATION, not a cure, and it is here because the note above
+      // ("Not a leak — heap plateaus at ~373M") does not hold at a longer
+      // horizon. Measured on production 2026-08-23, same process, two ages:
+      //
+      //             2h old            19h old
+      //   rss       361 MB            689 MB
+      //   heapUsed  157 MB            413 MB
+      //   external   30 MB            194 MB
+      //
+      // About +19 MB of RSS an hour, seventeen hours running, with no plateau in
+      // sight, and a restart returns it to 157 MB. The catalogue is NOT the
+      // cause: one parsed copy of 62 870 stations measures 119 MB, which is
+      // what the fresh heap already is. The cause is not yet found.
+      //
+      // Left alone, the process climbs until max_memory_restart reaps it at
+      // 896 MB — six times in the pm2 log so far — at whatever hour it happens
+      // to reach it, which is as likely to be evening as night. This makes that
+      // moment predictable and cheap instead of random, and keeps our footprint
+      // near 400 MB on a 3.9 GB box we share with other people's services.
+      //
+      // Delete it the day the growth is found and fixed, not before.
+      cron_restart: '0 1 * * *',
       min_uptime: '10s',
       restart_delay: 2000,
       env: {

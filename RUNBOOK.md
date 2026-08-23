@@ -755,6 +755,16 @@ from GitHub every 15 minutes and fails the job when the handshake does not
 complete. It exists because ping, DNS and `http://` would each have reported
 everything healthy for all five hours of the morning outage.
 
+**Why the API process is often young.** `cron_restart: '0 1 * * *'` in
+`ecosystem.config.cjs` restarts it daily at 01:00 UTC (04:00 Moscow). Measured
+2026-08-23: RSS climbs about 19 MB an hour — 361 MB at two hours old, 689 MB at
+nineteen, heap 157 to 413, external 30 to 194 — with no plateau, and a restart
+returns it to the floor. Left alone it reaches `max_memory_restart` (896 MB) and
+pm2 reaps it at whatever hour that happens to be. The scheduled restart makes
+that moment predictable instead of random; it is NOT a fix, and the cause of the
+growth is still open. A process with a few hours of uptime around 01:00 UTC is
+therefore expected, not a symptom.
+
 ## Incident capture
 - Save current production logs and process state:
   - `bash /opt/RadioAtlas/current/deploy/server/capture-incident-artifacts.sh`
