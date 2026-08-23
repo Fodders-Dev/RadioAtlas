@@ -116,8 +116,36 @@ jobs:
       # Nothing else in this repository installs a browser — no postinstall, no
       # npm script — so a fresh runner has none. Chromium only: the config
       # declares no `projects`, so the suite never asks for Firefox or WebKit.
+      # `--with-deps` shells out to `apt-get` under sudo, and apt on a GitHub
+      # runner stalls when unattended-upgrades is holding the dpkg lock. That is
+      # not hypothetical: it ate two entire 25-minute jobs here on 2026-08-19,
+      # both cancelled by the job timeout with the log ending on
+      # `Terminate orphan process: npm exec playwright install --with-deps
+      # chromium`. The baselines were never drawn, and because the upload step
+      # runs `if: always()` it cheerfully uploaded the repository's OWN committed
+      # PNGs — an artifact that looked like a result and contained nothing new.
+      #
+      # So: cache the browser so most runs download nothing, bound each attempt
+      # so a stalled apt fails in five minutes instead of twenty-five, and retry,
+      # because a dpkg lock is usually gone by the second try.
+      - name: Cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 18
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::chromium install attempt $attempt did not finish; retrying"
+            sleep 20
+          done
+          echo "::error::chromium could not be installed in three bounded attempts"
+          exit 1
 
       # The suite starts its own API and Vite through playwright.config.ts. The
       # API runs with CATALOG_ARTIFACT_ONLY=1, so it serves the catalogue

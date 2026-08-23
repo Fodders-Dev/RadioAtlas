@@ -32,8 +32,36 @@ jobs:
 
       - run: npm ci
 
+      # `--with-deps` shells out to `apt-get` under sudo, and apt on a GitHub
+      # runner stalls when unattended-upgrades is holding the dpkg lock. That is
+      # not hypothetical: it ate two entire 25-minute jobs here on 2026-08-19,
+      # both cancelled by the job timeout with the log ending on
+      # `Terminate orphan process: npm exec playwright install --with-deps
+      # chromium`. The baselines were never drawn, and because the upload step
+      # runs `if: always()` it cheerfully uploaded the repository's OWN committed
+      # PNGs — an artifact that looked like a result and contained nothing new.
+      #
+      # So: cache the browser so most runs download nothing, bound each attempt
+      # so a stalled apt fails in five minutes instead of twenty-five, and retry,
+      # because a dpkg lock is usually gone by the second try.
+      - name: Cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 18
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::chromium install attempt $attempt did not finish; retrying"
+            sleep 20
+          done
+          echo "::error::chromium could not be installed in three bounded attempts"
+          exit 1
 
       # --workers=1 on purpose: the browser job's second run died on
       # `page.screenshot: Protocol error (Page.captureScreenshot)` with the
@@ -43,15 +71,22 @@ jobs:
         working-directory: apps/webapp
         run: npx playwright test tests/visual.spec.ts --update-snapshots --workers=1
 
-      - name: What was drawn
-        if: always()
+      # An artifact that looks like a result and is not one is worse than a red
+      # job. When the draw step was killed by the timeout, the old `if: always()`
+      # upload shipped the repository's OWN committed PNGs, and they compared
+      # byte-identical against the repo — which reads as "nothing changed"
+      # instead of "nothing ran". So say plainly what this run actually touched.
+      - name: What this run actually changed
         run: |
-          ls -la apps/webapp/tests/visual.spec.ts-snapshots/ | grep -- '-linux' || true
+          changed=$(git status --porcelain -- apps/webapp/tests/visual.spec.ts-snapshots/ | wc -l)
+          echo "baselines rewritten by this run: $changed"
+          git status --porcelain -- apps/webapp/tests/visual.spec.ts-snapshots/ || true
           echo "---"
-          ls apps/webapp/tests/visual.spec.ts-snapshots/ | grep -c -- '-linux' || true
+          echo "linux baselines present: $(ls apps/webapp/tests/visual.spec.ts-snapshots/ | grep -c -- '-linux')"
 
+      # No `if: always()`. The upload is only meaningful when the draw step ran
+      # to completion; otherwise there is nothing here that this job produced.
       - name: Upload for a human to look at
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: linux-visual-baselines
