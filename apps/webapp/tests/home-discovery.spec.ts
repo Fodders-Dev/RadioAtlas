@@ -452,3 +452,76 @@ test.describe('the listener’s own shelf', () => {
     await expect(page.locator('[data-home-rail="revived-stations"]')).toHaveCount(0);
   });
 });
+
+test.describe('what a returning listener sees without scrolling', () => {
+  // Measured at 390x844, the canonical Telegram width: the floating navigation
+  // starts at y=772, so everything that matters has to finish above it. Before
+  // this ordering, «Продолжить слушать» began at 707 with its first tile at 761
+  // — eleven pixels of tile before the nav covered it, on every open. There is
+  // room below the chips for exactly ONE shelf, and this pins who gets it.
+  const NAV_TOP = 772;
+
+  test.beforeEach(async ({ page }) => {
+    await installMediaMocks(page);
+    await mockStations(page);
+    await seedSummary(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+  });
+
+  const openAt390 = async (page: Page, seed: Parameters<typeof seedRadioState>[1]) => {
+    await seedRadioState(page, seed);
+    await page.goto('/?api=/api');
+    await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForFunction(() => window.scrollY === 0);
+  };
+
+  // Read every element in ONE evaluate: two boundingBox() calls are two
+  // round-trips at different moments, and the test would measure the gap
+  // between its own reads rather than the layout.
+  const firstShelf = (page: Page) =>
+    page.evaluate(() => {
+      const resume = document.querySelector('[data-home-resume]');
+      const resumeTile = resume?.querySelector('[data-home-station]');
+      const rail = document.querySelector('[data-home-rail]');
+      const railTile = rail?.querySelector('[data-home-station]');
+      const box = (el: Element | null | undefined) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom) };
+      };
+      return {
+        resumeTile: box(resumeTile),
+        railId: rail?.getAttribute('data-home-rail') ?? null,
+        railTile: box(railTile)
+      };
+    });
+
+  test('a listener with history sees «Продолжить слушать» whole, above the nav', async ({ page }) => {
+    await openAt390(page, {
+      favorites: [stations[4], stations[8], stations[2]],
+      recent: [stations[1], stations[6], stations[9]],
+      playbackHistory: [stations[0], stations[4], stations[8]],
+      queue: [stations[1], stations[6], stations[9]]
+    });
+
+    const { resumeTile } = await firstShelf(page);
+    expect(resumeTile, 'the resume strip must render for a listener with history').not.toBeNull();
+    expect(
+      resumeTile!.bottom,
+      `the tile ends at ${resumeTile!.bottom} and the navigation starts at ${NAV_TOP}`
+    ).toBeLessThan(NAV_TOP);
+  });
+
+  test('a listener with nothing to resume still gets the discovery shelf first', async ({ page }) => {
+    // Strictly additive: the reorder only happens when there IS something to
+    // resume. Somebody who saved stations but never finished listening loses
+    // nothing.
+    await openAt390(page, { favorites: [stations[4], stations[8], stations[2]] });
+
+    const { resumeTile, railId, railTile } = await firstShelf(page);
+    expect(resumeTile).toBeNull();
+    expect(railId).toBe('fresh-now');
+    expect(railTile!.bottom).toBeLessThan(NAV_TOP);
+  });
+});

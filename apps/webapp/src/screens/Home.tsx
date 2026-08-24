@@ -1258,6 +1258,37 @@ export const Home = () => {
         </section>
       ) : null}
 
+      {/* «Продолжить слушать» goes FIRST on a phone, and the reason is a
+          measurement rather than a preference. At 390x844 the usable height
+          below the chips is 502 to 772 — the floating navigation starts at 772 —
+          which is room for exactly ONE shelf. Rendered in its old place it began
+          at 707 with its first tile at 761: eleven pixels of tile before the nav
+          covered it, on every open, for every returning listener.
+
+          One slot, filled by whatever is most relevant. Somebody who has
+          listened before gets what they were listening to; somebody who has not
+          has no resume module at all, so the slot falls through to the discovery
+          shelf exactly as before, at 502. Nothing is taken from a newcomer.
+
+          DENSE ONLY, and that is not a dodge. Desktop has the vertical room and
+          a different layout, and the resume strip there is a 2-up grid that can
+          hold a single card — putting that one card in the prime slot pushed the
+          discovery rails off a 1440-wide screen and dropped the above-fold tile
+          count from four to one. The measurement that motivated this was taken
+          at 390x844; the change belongs where the measurement was. */}
+      {denseLayout && resumeModule ? (
+        <HomeResumeStrip
+          dense={denseLayout}
+          module={resumeModule}
+          currentStationId={currentStationId}
+          activeTrack={activeTrack}
+          isFavorite={isFavorite}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+        />
+      ) : null}
+
       {leadRail ? (
         <HomeRail
           dense={denseLayout}
@@ -1299,7 +1330,7 @@ export const Home = () => {
         />
       ) : null}
 
-      {resumeModule ? (
+      {!denseLayout && resumeModule ? (
         <HomeResumeStrip
           dense={denseLayout}
           module={resumeModule}
