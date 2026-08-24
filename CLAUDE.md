@@ -134,5 +134,22 @@ something for performance or reliability, measure before and after — and run
 each variant in its own process, because GC lag makes whichever runs second look
 worse.
 
+**Two points are not a trend, and a stable number is not a growing one.** Both
+mistakes were made in a single investigation on 2026-08-23/24, hours apart:
+
+- *"RSS grows ~19 MB an hour and never plateaus"* — from samples at 2 h and 19 h
+  of uptime. A 25-point series taken afterwards showed RSS **falling** 484 → 351
+  MB in a comparable window, and `external` stepping up early and then flat at
+  ~65 MB. The older note it "corrected" — nothing leaks, the working set
+  saturates — had been right all along.
+- *"196 socket descriptors leak every four hours"* — from ONE reading. The next
+  one, 2.5 hours later, said 195. A stable pool, not a leak.
+
+Both were stated confidently, both were wrong, and each sent hours after a
+phantom. Before naming a cause: how many samples, over what span, and does the
+number come back down by itself? A saturating ratchet and a leak are
+indistinguishable until you watch one long enough to stop. If the answer is two
+samples, the honest sentence is "I do not know yet".
+
 Do not weaken a test to make it pass. Touch-target floors, overflow assertions
 and visual tolerances are product contracts; a flaky measurement is the bug.

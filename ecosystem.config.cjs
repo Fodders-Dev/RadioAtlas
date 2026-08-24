@@ -38,27 +38,36 @@ module.exports = {
       node_args: '--max-old-space-size=640',
       // 01:00 UTC = 04:00 Moscow, the quietest hour this product has.
       //
-      // This is a MITIGATION, not a cure, and it is here because the note above
-      // ("Not a leak — heap plateaus at ~373M") does not hold at a longer
-      // horizon. Measured on production 2026-08-23, same process, two ages:
+      // CORRECTION, and it corrects THIS comment as first written. It claimed the
+      // note above ("Not a leak — heap plateaus at ~373M") no longer held, on the
+      // strength of two production samples at 2 h and 19 h of uptime. A 25-point
+      // series taken the next day says the opposite, and the older note was right:
       //
-      //             2h old            19h old
-      //   rss       361 MB            689 MB
-      //   heapUsed  157 MB            413 MB
-      //   external   30 MB            194 MB
+      //   rss        oscillates 351-485 MB and comes back down on its own
+      //              (484 flat for 40 min, then 372, then 366 flat for an hour)
+      //   heapUsed   oscillates 156-185 MB, creeping ~2.4 MB/h
+      //   external   steps up early — 27.6, 41.4, 50.4, 64.3 over four hours —
+      //              and then PLATEAUS: 64.96 at seven hours
       //
-      // About +19 MB of RSS an hour, seventeen hours running, with no plateau in
-      // sight, and a restart returns it to 157 MB. The catalogue is NOT the
-      // cause: one parsed copy of 62 870 stations measures 119 MB, which is
-      // what the fresh heap already is. The cause is not yet found.
+      // So the working set saturates, exactly as the note above says. The 19 h
+      // sample that looked alarming (689/413/194) came from a process that had
+      // lived through a nightly scene batch and real traffic; a quiet one settles
+      // near 400 MB RSS with external around 65 MB.
       //
-      // Left alone, the process climbs until max_memory_restart reaps it at
-      // 896 MB — six times in the pm2 log so far — at whatever hour it happens
-      // to reach it, which is as likely to be evening as night. This makes that
-      // moment predictable and cheap instead of random, and keeps our footprint
-      // near 400 MB on a 3.9 GB box we share with other people's services.
+      // The restart stays anyway, and the reason is smaller but still real: on a
+      // 3.9 GB box shared with other people's services, our saturation point is
+      // the largest single process on it, and `max_memory_restart` has reaped us
+      // six times at 896 MB — at whatever hour we happened to get there. This
+      // makes that moment predictable and cheap rather than random, at the cost
+      // of two seconds of downtime when nobody is listening.
       //
-      // Delete it the day the growth is found and fixed, not before.
+      // What is NOT the cause, each ruled out by measurement: the catalogue (one
+      // parsed copy of 62 870 stations is 119 MB, which is what a fresh heap
+      // already is), the second profiled cache copy (a shallow spread shares the
+      // strings — 11 MB), retained serialized payloads (no such cache exists),
+      // the SQLite page cache (no cache_size pragma anywhere, the DB is 18 MB),
+      // socket descriptors (196 orphaned at 4 h28, 195 at 6 h54 — a stable pool,
+      // not a leak) and CPU (0.24%).
       cron_restart: '0 1 * * *',
       min_uptime: '10s',
       restart_delay: 2000,

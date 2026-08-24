@@ -1460,6 +1460,47 @@ written down in `.claude/rules/webapp.md` from the start, and nothing enforced
 it. Mutation-checked both ways — putting a CDN stylesheet back fails it, and
 dropping `font-display: swap` from a single face fails it.
 
+## The memory hunt, and what it actually found (measured)
+
+The owner said the project kept overloading the server. He was right that our
+footprint is the largest single process on a box we share, and wrong that it is
+growing without bound — and so was I, twice, before the data settled.
+
+**What is true.** A quiet API process saturates. Measured over a 25-point series
+on 2026-08-24, four-minute samples: `rss` oscillates 351-485 MB and comes back
+down on its own; `heapUsed` oscillates 156-185 MB and creeps about 2.4 MB an
+hour; `external` steps up early — 27.6, 41.4, 50.4, 64.3 over four hours — and
+then flattens at 64.96 by hour seven. Socket descriptors are a stable pool: 196
+orphaned at 4 h28 of uptime, 195 at 6 h54. The floor is the catalogue, and it is
+honest: one parsed copy of the 62 870-station artifact measures **119 MB**, and a
+fresh heap is 157 MB.
+
+**What was a false alarm, twice.** First, "+19 MB an hour with no plateau" — two
+samples, 2 h and 19 h. Then, "196 descriptors leaking, ~44 an hour" — one sample.
+Both were stated confidently in a report to the owner and both were refuted by
+the next measurement. The rule that came out of it is in CLAUDE.md, next to
+"measurement beats plausibility", because that principle was already written down
+and did not stop either mistake: what was missing was a threshold on how many
+points make a trend.
+
+The 19-hour sample that started the hunt (689 MB rss / 413 heap / 194 external)
+is real but is not a steady climb: that process had lived through a nightly
+scene batch — scenes generate in one burst at 05:00 UTC, 12 on 21.08 and 18 on
+23.08, not spread through the day — and whatever traffic the day brought.
+
+**What the hunt DID find, and both were real.** A render-blocking font CDN that
+gives no paint at all for 25 seconds when it hangs rather than refuses, and a
+request counter minted per station UUID — six keys with no listeners, 46 048 the
+day people browse. Both are fixed and have guards. Neither had anything to do
+with the memory question that started the search.
+
+**What is left.** `cron_restart` at 01:00 UTC caps our footprint at a predictable
+hour instead of letting `max_memory_restart` reap us at a random one; it has
+fired six times historically. The one unmeasured event is the scene batch: it did
+not run on 24.08 while the sampler was watching. If it matters, moving the
+restart to just after 05:00 UTC would leave the process carrying the batch for an
+hour instead of twenty. Not worth doing on a guess.
+
 ## Next:
 
 Next is not more building. Read the section above first: three listener-facing
