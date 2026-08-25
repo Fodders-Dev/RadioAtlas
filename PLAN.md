@@ -1536,17 +1536,19 @@ is the largest unused channel this product has, and it is the same codebase.
 ## Next:
 
 Next is getting people in front of what already exists — and after the link
-preview above, the ladder is clear and ordered by cost:
+preview above, the ladder is clear and ordered by cost. **Rung one is done:** the
+manifest, the service worker and the three icons shipped, so the app installs on
+a phone home screen and as a real window on Windows and macOS. `installable.test.ts`
+guards it, because every way that breaks is silent — the app still loads, still
+plays, and simply stops offering to install.
 
-1. **A PWA manifest and a service worker.** A day of work, and it buys the phone
-   home screen AND the desktop app in one move: an installed PWA on Windows or
-   macOS is a real window with its own icon, so "a desktop app would be handy"
-   needs no separate program.
-2. **Station pages a search engine can read.** The real work and the real
+1. **Station pages a search engine can read.** The real work and the real
    channel. Prerendered or server-rendered, one per station, answering the
-   «слушать радио <город>» searches that already happen.
-3. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
-   cheap once 1 exists.
+   «слушать радио <город>» searches that already happen. Today `index.html` ships
+   an empty `<div id="root">`, so a crawler sees no words at all — not one
+   station name. That is the thing to fix, and it gates everything below it.
+2. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
+   and the manifest it needs now exists.
 4. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
    under guideline 4.2. An audio app has a case; it is still a lottery, and it
    is the only item here that cannot be undone cheaply.

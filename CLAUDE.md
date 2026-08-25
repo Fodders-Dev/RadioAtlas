@@ -57,14 +57,14 @@ npm run typecheck:test     # test sources (separate, load-bearing) ~11s
 npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
 npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
-npm --workspace apps/webapp run test:unit   # vitest, 604 tests ~34s
+npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
 npm run test:webapp        # Playwright, 240 specs — CI runs it, does NOT gate ~3min
 npm run dev:webapp         # + npm run dev:api in a second terminal
 npm run build              # api → bot → webapp                ~10s
 ```
 
 **Neither `npm test` nor CI runs everything.** `npm test` chains typecheck →
-api → bot → scripts → Playwright and skips the 604 webapp unit tests; CI runs
+api → bot → scripts → Playwright and skips the 693 webapp unit tests; CI runs
 those and skips Playwright. Run `test:unit` yourself for any webapp change.
 
 ## Verifying your own work

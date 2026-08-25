@@ -38,3 +38,19 @@ ReactDOM.createRoot(rootElement).render(
     <BootstrapApp />
   </React.StrictMode>
 );
+
+// Registered on `load`, never before it. The cold start is a contract here: the
+// first paint must not compete with anything, and a service worker registration
+// is work the listener does not need in order to hear a station. It caches only
+// the content-hashed /assets/ directory — see public/sw.js for the list of
+// things it deliberately refuses to touch, audio first among them.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // An unregistered worker costs installability, nothing else: every byte it
+      // would have cached is still fetched normally. Failing loudly here would
+      // put a console error in front of a listener for a feature they did not
+      // ask for.
+    });
+  });
+}

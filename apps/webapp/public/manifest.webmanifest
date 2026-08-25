@@ -1,0 +1,32 @@
+{
+  "name": "RadioAtlas — живое радио мира",
+  "short_name": "RadioAtlas",
+  "description": "Станции со всего света, живой эфир и то, что играет прямо сейчас. Где-то сейчас идёт передача — включи и окажешься там.",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#08111c",
+  "theme_color": "#0b1514",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
