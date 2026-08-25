@@ -1501,12 +1501,61 @@ not run on 24.08 while the sampler was watching. If it matters, moving the
 restart to just after 05:00 UTC would leave the process carrying the batch for an
 hour instead of twenty. Not worth doing on a guess.
 
+## A link to RadioAtlas showed nothing at all (done)
+
+Sharing is the only route the first listeners have to a product nobody has heard
+of — and a link dropped into a chat rendered a bare URL. No picture, no
+description, not even a title beyond the single word. Measured on the source
+before touching it: the whole `<head>` carried a charset, a viewport, a theme
+colour, two cache directives and `<title>RadioAtlas</title>`. There was no
+`description`, no Open Graph, no `robots.txt`, no sitemap, and no manifest.
+
+So the growth mechanism the owner had been reasoning about — people reaching for
+what their friends are already in — was failing on a handful of tags, in the one
+file everybody edits for something else.
+
+The preview image is a committed PNG rather than a route, because a crawler must
+not depend on our API being up and the picture is cached for weeks regardless.
+It is drawn by `scripts/buildOgCover.mjs` with the same satori + resvg pair the
+story cards already use, and their Noto fonts, which is why the Cyrillic renders
+at all.
+
+It carries NO numbers, and neither does the description. "46 048 stations" is
+true today and stale the first time the catalogue moves — baked into a preview
+that Telegram and Google hold for a long time, it becomes a number we cannot
+correct. `linkPreview.test.ts` enforces that: a three-digit run in the
+description fails the suite, along with a missing tag or an `og:image` pointing
+at a file that is not in `public/`. Both halves mutation-checked.
+
+What this does NOT do is make the site findable. That needs station pages a
+search engine can read, and this SPA serves an empty `<div id="root">` to a
+crawler. People search for «радио Токио онлайн» in their millions and there are
+46 048 stations here, each a page that could answer one of those searches. That
+is the largest unused channel this product has, and it is the same codebase.
+
 ## Next:
 
-Next is not more building. Read the section above first: three listener-facing
-fixes are live and have been seen by nobody, and both new measurements are
-waiting on an audience that has not arrived. Getting people in front of what
-already exists is the only work that changes anything now.
+Next is getting people in front of what already exists — and after the link
+preview above, the ladder is clear and ordered by cost:
+
+1. **A PWA manifest and a service worker.** A day of work, and it buys the phone
+   home screen AND the desktop app in one move: an installed PWA on Windows or
+   macOS is a real window with its own icon, so "a desktop app would be handy"
+   needs no separate program.
+2. **Station pages a search engine can read.** The real work and the real
+   channel. Prerendered or server-rendered, one per station, answering the
+   «слушать радио <город>» searches that already happen.
+3. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
+   cheap once 1 exists.
+4. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
+   under guideline 4.2. An audio app has a case; it is still a lottery, and it
+   is the only item here that cannot be undone cheaply.
+
+The one genuinely native-only argument is background playback and lock-screen
+control — not the stores, not prestige. Radio is listened to with the phone in a
+pocket. How well the web build holds that today is NOT measured; there is
+`audio_background_resume_attempt` telemetry, so it has been fought over before.
+Measure it on a real phone before letting it decide anything.
 
 The second pillar is now mostly true: a saved library plays, and a saved station
 comes back on Home as the second shelf. What is left of it is «Продолжить

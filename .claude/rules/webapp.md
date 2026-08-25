@@ -88,6 +88,27 @@ thinking it is redundant:
 The first-run card promises «Сохранишь станцию, и она останется здесь». Anything
 that makes that false again is a defect, not a layout preference.
 
+## The head of index.html is a growth surface, not boilerplate
+
+`index.html` carries the link preview: `description`, the Open Graph set and
+`twitter:card`. Until they existed a link to RadioAtlas dropped into a chat
+rendered a bare URL — no picture, no text — and sharing is the only way the first
+listeners reach a product nobody has heard of. They are easy to delete by
+accident, because that file is edited for other reasons, and nothing inside the
+app looks different when they are gone. `src/linkPreview.test.ts` is the guard.
+
+Two rules it enforces, both learned the hard way elsewhere in this repo:
+
+- **No counts in a preview.** «46 048 станций» is true today and stale the first
+  time the catalogue moves, and Telegram and Google cache a preview for a long
+  time — so it becomes a number we cannot correct. The test fails on a
+  three-digit run.
+- **`og:image` must be a committed file, not a route.** A crawler must not depend
+  on the API being up, and a preview pointing at a 404 renders an empty grey box
+  instead of falling back to text. Redraw it with
+  `node scripts/buildOgCover.mjs`, which uses the same satori + resvg pair and
+  Noto fonts as the story cards.
+
 ## Analytics
 
 `reportProductEvent` names are typed in `lib/productAnalytics.ts` and must also

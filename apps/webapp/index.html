@@ -33,7 +33,48 @@
          spend. `crossorigin` is required on font preloads even same-origin. -->
     <link rel="preload" href="/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
-    <title>RadioAtlas</title>
+    <!-- Link preview and search. Until this existed, a link to RadioAtlas
+         dropped into any chat showed nothing at all: no picture, no line of
+         text, not even a description — just a bare URL. That is a growth
+         mechanism failing on two missing tags, and sharing is the only way the
+         first listeners arrive at a product nobody has heard of.
+
+         No counts anywhere. "46 048 stations" is true today and stale the first
+         time the catalogue moves, and it would be baked into a cached preview
+         that Telegram and Google hold for a long time.
+
+         og:image is a committed PNG rather than a route: a crawler must not
+         depend on our API being up, and the picture is cached for weeks anyway.
+         Redraw it with `node scripts/buildOgCover.mjs`. -->
+    <meta
+      name="description"
+      content="Живое радио мира. Станции со всего света, живой эфир и то, что играет прямо сейчас. Где-то сейчас идёт передача — включи и окажешься там."
+    />
+    <link rel="canonical" href="https://radioatlas.ru/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RadioAtlas" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://radioatlas.ru/" />
+    <meta property="og:title" content="RadioAtlas — живое радио мира" />
+    <meta
+      property="og:description"
+      content="Станции со всего света, живой эфир и то, что играет прямо сейчас. Где-то сейчас идёт передача — включи и окажешься там."
+    />
+    <meta property="og:image" content="https://radioatlas.ru/og-cover.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="RadioAtlas — живое радио мира" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RadioAtlas — живое радио мира" />
+    <meta
+      name="twitter:description"
+      content="Станции со всего света, живой эфир и то, что играет прямо сейчас."
+    />
+    <meta name="twitter:image" content="https://radioatlas.ru/og-cover.png" />
+
+    <title>RadioAtlas — живое радио мира</title>
   </head>
   <body>
     <div id="root"></div>

@@ -41,7 +41,15 @@ describe('nothing on the critical path comes from somebody else', () => {
   const html = readSource('index.html');
 
   it('loads no stylesheet, font or icon from another origin', () => {
+    // `canonical` is metadata for a search engine, not a resource: a browser
+    // never fetches it, so it cannot hold a paint hostage no matter where it
+    // points — and ours points at our own domain anyway. Every other rel here
+    // declares something the browser WILL go and get, which is the whole subject
+    // of this file. Narrowed for that reason, not to make a red test green; the
+    // stylesheet case below still fails if a CDN link comes back.
+    const METADATA_ONLY = new Set(['canonical']);
     const external = tagsOf(html, 'link')
+      .filter((tag) => !METADATA_ONLY.has((attr(tag, 'rel') || '').toLowerCase()))
       .map((tag) => attr(tag, 'href'))
       .filter((href): href is string => href !== null && EXTERNAL.test(href));
 
