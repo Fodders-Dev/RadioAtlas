@@ -1542,14 +1542,28 @@ a phone home screen and as a real window on Windows and macOS. `installable.test
 guards it, because every way that breaks is silent — the app still loads, still
 plays, and simply stops offering to install.
 
-1. **Station pages a search engine can read.** The real work and the real
-   channel. Prerendered or server-rendered, one per station, answering the
-   «слушать радио <город>» searches that already happen. Today `index.html` ships
-   an empty `<div id="root">`, so a crawler sees no words at all — not one
-   station name. That is the thing to fix, and it gates everything below it.
-2. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
+**Rung two is done too:** `scripts/buildStationPages.mts` runs after `vite build`
+and prerenders the top 5 000 stations as `dist/station/<uuid>/index.html`, plus a
+sitemap and the first `robots.txt` this project has ever had. Caddy already serves
+`dist` with `try_files {path} /index.html`, so the files need no new route and
+cost nothing at runtime — which matters on a box whose swap is full. The station
+set is `resolvePromotable`, the same one the app promotes, so dead streams get no
+page and one broadcaster gets one page instead of the nine rows Radio Browser
+lists it under. `getStartParam` now also reads `/station/<uuid>` from the path, so
+a stranger arriving from a search result lands on the station they searched for.
+
+⚠ **Unverified until the first deploy:** that Caddy's `try_files {path}` matches a
+DIRECTORY and lets `file_server` serve its `index.html`. If it does not, the URL
+falls through to the SPA, which still opens the right station for a human but
+serves the crawler an empty shell. `curl -s https://radioatlas.ru/station/<uuid> |
+grep -c "<h1"` answers it in one line. If it comes back 0, the fix is
+`try_files {path} {path}/index.html /index.html` in the Caddyfile.
+
+The remaining rungs:
+
+1. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
    and the manifest it needs now exists.
-4. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
+2. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
    under guideline 4.2. An audio app has a case; it is still a lottery, and it
    is the only item here that cannot be undone cheaply.
 

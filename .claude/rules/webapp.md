@@ -109,6 +109,42 @@ Two rules it enforces, both learned the hard way elsewhere in this repo:
   `node scripts/buildOgCover.mjs`, which uses the same satori + resvg pair and
   Noto fonts as the story cards.
 
+## index.html is also the template for 5 000 station pages
+
+`scripts/buildStationPages.mts` runs after `vite build` and produces one
+indexable page per station at `dist/station/<uuid>/index.html` by substituting
+into the BUILT shell: the `<title>`, the canonical link, six meta tags, and the
+contents of `#root`. Caddy serves them with no new route, because it already runs
+`try_files {path} /index.html` over `dist`.
+
+That makes several shapes in `index.html` load bearing, and the failure is the
+nastiest kind — **the build still succeeds and every page silently inherits the
+home page's title and description**, which is duplicate content across thousands
+of URLs and ranks worse than having no pages at all. `src/prerenderAnchors.test.ts`
+is the guard. Keep `<div id="root"></div>` empty, keep the canonical link on one
+line, and keep a `content=""` on every rewritten meta tag.
+
+Two content rules the generator obeys and any change to it must keep:
+
+- **No popularity numbers on a page.** `votes`/`clickcount` decide WHICH stations
+  get a page and are never printed on one. They are deliberately not projected
+  onto the wire by `toStationLite` so popularity is never dressed up as a
+  listener count, and a page sitting in Google's cache is the worst place to
+  start doing it.
+- **No raw tags.** The catalogue's tag soup is not a genre. `stationGenreSlug`
+  plus the locale's `genre` dictionary is the filter; a station whose tags map to
+  nothing simply gets no genre line. Country names come from `Intl.DisplayNames`
+  against `countrycode`, not from a hand-written translation table.
+
+The station set is `resolvePromotable` from the API — the same set the app
+promotes — so proven-dead streams get no page and one broadcaster gets one page
+rather than the nine rows Radio Browser lists it under. Do not reimplement that
+choice here; import it.
+
+`getStartParam` reads `/station/<uuid>` from the path as its LAST source, so a
+visitor arriving from a search result opens that station while no existing
+Telegram deep link changes meaning.
+
 ## Analytics
 
 `reportProductEvent` names are typed in `lib/productAnalytics.ts` and must also

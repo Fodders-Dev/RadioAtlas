@@ -210,6 +210,19 @@ const readUrlParamSource = (value: string) => {
   return new URLSearchParams(normalized);
 };
 
+// A station page that a search engine indexed is reached at `/station/<uuid>` —
+// a real web address, not a Telegram deep link. It has to mean the same thing,
+// or somebody who searched for a station, found us, and clicked would land on
+// Home and have to search again inside the app for what they had already found.
+//
+// Read from the path rather than a parameter, and checked LAST, so that no
+// existing deep link can change meaning: a Telegram start_param still wins, and
+// so does any explicit `?station=`.
+const readStationPath = (pathname: string): string | null => {
+  const match = pathname.match(/^\/station\/([^/?#]+)\/?$/i);
+  return match?.[1] ? `station_${match[1]}` : null;
+};
+
 export const getStartParam = (): string | null => {
   const tg = readWindowTelegram();
   const tgParam = tg?.initDataUnsafe?.start_param;
@@ -226,6 +239,7 @@ export const getStartParam = (): string | null => {
     hashParams.get('startapp') ||
     hashParams.get('start_param') ||
     hashParams.get('station') ||
+    readStationPath(window.location.pathname) ||
     null
   );
 };

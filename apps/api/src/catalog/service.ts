@@ -529,7 +529,12 @@ const dayNumber = (now = Date.now()) => Math.floor(now / 86_400_000);
 // array it belongs to.
 const promotableCache = new WeakMap<CatalogStation[], CatalogStation[]>();
 
-const resolvePromotable = (stations: CatalogStation[]) => {
+// Exported for scripts/buildStationPages.mts, which prerenders one indexable
+// page per station and must select EXACTLY the set the app itself promotes.
+// Reimplementing the choice there would put two answers to "which stations are
+// real and worth showing" in the repo, and they would drift — the dead-stream
+// list and the two-pass dedupe are both hard-won.
+export const resolvePromotable = (stations: CatalogStation[]) => {
   const cached = promotableCache.get(stations);
   if (cached) return cached;
 

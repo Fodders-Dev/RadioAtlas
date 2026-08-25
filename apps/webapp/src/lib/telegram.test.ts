@@ -335,6 +335,60 @@ describe('getStartParam', () => {
       window.history.replaceState(null, '', originalHref);
     }
   });
+
+  // /station/<uuid> is the address a search engine indexes and a stranger
+  // clicks. If it did not resolve to a station, that whole channel would land
+  // people on Home and make them search again for what they had already found.
+  const withPath = (path: string, assert: () => void) => {
+    const originalHref = window.location.href;
+    window.history.replaceState(null, '', path);
+    try {
+      assert();
+    } finally {
+      window.history.replaceState(null, '', originalHref);
+    }
+  };
+
+  it('reads a station from the /station/<id> path a search result points at', () => {
+    restoreTelegram();
+    withPath('/station/3f8a-uuid', () => {
+      expect(getStartParam()).toBe('station_3f8a-uuid');
+    });
+  });
+
+  it('tolerates the trailing slash a directory-served page is reached by', () => {
+    restoreTelegram();
+    withPath('/station/3f8a-uuid/', () => {
+      expect(getStartParam()).toBe('station_3f8a-uuid');
+    });
+  });
+
+  it('ignores paths that are not a station page', () => {
+    restoreTelegram();
+    withPath('/', () => expect(getStartParam()).toBeNull());
+    withPath('/station', () => expect(getStartParam()).toBeNull());
+    withPath('/station/a/b', () => expect(getStartParam()).toBeNull());
+  });
+
+  // Precedence is the part that could break something that already works: the
+  // path is read LAST, so neither a Telegram open nor an explicit ?station=
+  // changes meaning because this exists.
+  it('never outranks a Telegram start_param', () => {
+    installTelegram({
+      initData: 'auth_date=1&hash=abc',
+      initDataUnsafe: { start_param: 'station_from_telegram' }
+    });
+    withPath('/station/from_path', () => {
+      expect(getStartParam()).toBe('station_from_telegram');
+    });
+  });
+
+  it('never outranks an explicit ?station= parameter', () => {
+    restoreTelegram();
+    withPath('/station/from_path?station=station_from_query', () => {
+      expect(getStartParam()).toBe('station_from_query');
+    });
+  });
 });
 
 describe('shareStationLink (T_share_1 flow order)', () => {
