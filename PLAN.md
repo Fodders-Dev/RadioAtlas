@@ -1577,9 +1577,29 @@ The remaining rungs:
 
 The one genuinely native-only argument is background playback and lock-screen
 control — not the stores, not prestige. Radio is listened to with the phone in a
-pocket. How well the web build holds that today is NOT measured; there is
-`audio_background_resume_attempt` telemetry, so it has been fought over before.
-Measure it on a real phone before letting it decide anything.
+pocket.
+
+**And note that a TWA does not answer it.** A Trusted Web Activity is Chrome
+rendering this same web app, so whatever background playback does today, it does
+identically inside the wrapper. The TWA buys distribution — being findable in the
+Play Store — and nothing else. Background playback is an argument for a NATIVE
+app, which is a different and far larger investment.
+
+That argument now has instrumentation. `audio_background_resume_attempt` only
+ever recorded that we WENT to the background; `audio_background_survived` and
+`audio_background_died` record what happened, judged from `audio.currentTime`
+movement (never wall clock — a hidden tab throttles timers while the audio plays
+on). Trips under 10 s are recorded as neither, because a flick to another app and
+back cannot be told from a death.
+
+⚠ It will take a while to say anything. Prod, 24 h to 2026-08-26: **51 play
+attempts, 11 backgroundings**. A ratio off eleven samples is not a ratio. Let it
+run for weeks, and read it from `counterWindows`, not from the totals.
+
+While measuring: playback health over that same window was **84%** (42 successes
+of 50 non-superseded attempts). The all-time totals say 34%, and they are
+misleading — they span every change in what was counted. 50 attempts is a thin
+sample too; treat 84% as a first reading, not a fact.
 
 The second pillar is now mostly true: a saved library plays, and a saved station
 comes back on Home as the second shelf. What is left of it is «Продолжить

@@ -162,6 +162,22 @@ lost. `play_attempt` counts every play the UI starts, including the ones the
 Feed supersedes on the next swipe — the honest success rate is
 `play_success / (play_attempt - play_superseded)`.
 
+**The name must be a quoted literal sitting directly inside the report call.**
+`apps/api/test/observability.clientEvents.test.ts` reads these sources with a
+regex to check the allow-list against reality, and it matches only that shape. A
+computed name — a ternary picking between two events, a variable — reads as "not
+emitted by the web app" and fails the API suite. Write two call sites instead.
+The same regex also reads COMMENTS, so a comment that spells the pattern out
+registers whatever name it quotes as a real event and fails the other half of
+the same test. Both mistakes were made adding `audio_background_survived`.
+
+Read rates from `counterWindows.<window>.counters`, never from the top-level
+counters: those are totals since the store file was created and span every change
+in what was counted. Measured 2026-08-26, the same box gave 34% success from
+totals and **84%** from the last-24h window (42 of 50 non-superseded attempts).
+The window is the true one. Note also that a window is `{since, counters}`, not a
+flat map — reading it as flat makes a busy day look like an idle one.
+
 ## Persistence
 
 `usePersistentState` deliberately does not write on mount. Storage writes are

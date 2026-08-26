@@ -108,7 +108,14 @@ const ALLOWED_CLIENT_EVENTS = new Set([
   'station_hidden',
   // Playback runtime — reportPlaybackEvent() in useAudioPlayer.
   'audio_api_unavailable',
+  // The pair that finally answers whether playback SURVIVES the background.
+  // `audio_background_resume_attempt` only ever said we went there; these two say
+  // what happened, judged from position movement. Their ratio is the evidence for
+  // or against ever building a native app — a TWA runs the same web engine and
+  // would not change it.
+  'audio_background_died',
   'audio_background_resume_attempt',
+  'audio_background_survived',
   'audio_buffering_candidate_switch',
   'audio_buffering_reconnect',
   'audio_candidate_failed',

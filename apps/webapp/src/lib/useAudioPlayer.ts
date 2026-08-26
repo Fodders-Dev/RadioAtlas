@@ -86,6 +86,35 @@ const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
 const STALL_WATCHDOG_INTERVAL_MS = 3000;
 const STALL_WATCHDOG_THRESHOLD_MS = 9000;
 
+// Below this, a trip to the background tells us nothing: flicking to another app
+// and straight back can show no measurable position change even when playback was
+// perfectly healthy, and counting that as a death would manufacture a problem.
+const BACKGROUND_JUDGE_MIN_MS = 10_000;
+// Position must advance by at least this share of the time spent hidden to count
+// as alive. Deliberately generous — buffering, a reconnect and an inexact clock
+// should all still read as survival; only real silence should not.
+const BACKGROUND_ALIVE_RATIO = 0.5;
+
+/**
+ * Did playback survive a trip to the background, or die there quietly?
+ *
+ * Extracted as a pure function so the judgement is unit-testable without a DOM
+ * audio element — the same reason `shouldRecoverFromSilentStall` is.
+ *
+ * Judged from POSITION MOVEMENT, never from wall clock: a hidden tab throttles
+ * timers and withholds `timeupdate` while the audio keeps playing, so anything
+ * clock-driven reports healthy playback as dead.
+ */
+export const judgeBackgroundPlayback = (input: {
+  paused: boolean;
+  hiddenMs: number;
+  advancedMs: number;
+}): 'survived' | 'died' | 'unknown' => {
+  if (input.hiddenMs < BACKGROUND_JUDGE_MIN_MS) return 'unknown';
+  if (input.paused) return 'died';
+  return input.advancedMs > input.hiddenMs * BACKGROUND_ALIVE_RATIO ? 'survived' : 'died';
+};
+
 // Pure trigger decision for the silent-stall watchdog (extracted so the tricky
 // false-positive/negative logic is unit-testable without a DOM audio element).
 // Recover ONLY when we believe we're actively playing a station, aren't manually
@@ -233,6 +262,10 @@ export const useAudioPlayer = ({
   // watchdog compares against this. Reset on each 'playing'; bumped on real
   // timeupdate progress.
   const lastProgressRef = useRef<{ time: number; at: number }>({ time: 0, at: 0 });
+  // Set when the page is hidden while audio is playing, read when it comes back:
+  // the only way to learn whether playback SURVIVED the background, rather than
+  // just that we went there. See handleVisibility.
+  const backgroundedRef = useRef<{ position: number; at: number; session: number } | null>(null);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -988,8 +1021,59 @@ export const useAudioPlayer = ({
       });
     }, STALL_WATCHDOG_INTERVAL_MS);
 
+    /*
+     * `audio_background_resume_attempt` only ever recorded that we WENT to the
+     * background. Whether playback then survived was never recorded at all —
+     * which is why "how well does the web build hold background playback" has
+     * been unanswerable, and that is the one question deciding whether a native
+     * app is worth building (a TWA would not change it: it is the same web
+     * engine). Prod, 24 h to 2026-08-26: 11 backgroundings, 3 silent stalls, and
+     * nothing linking the two.
+     */
+    const reportBackgroundOutcome = () => {
+      const marker = backgroundedRef.current;
+      backgroundedRef.current = null;
+      if (!marker) return;
+      // Somebody started a different station while we were away; the question no
+      // longer has an answer, and guessing one would poison the counter.
+      if (marker.session !== playbackSessionRef.current) return;
+
+      const hiddenMs = Date.now() - marker.at;
+      const advancedMs = ((audio.currentTime || 0) - marker.position) * 1000;
+      const verdict = judgeBackgroundPlayback({ paused: audio.paused, hiddenMs, advancedMs });
+      if (verdict === 'unknown') return;
+
+      // Two call sites rather than one with a ternary name, and that is load
+      // bearing. The API's allow-list guard scans these sources for a quoted
+      // event name sitting directly inside the report call, so a computed name
+      // reads as "not emitted by the web app" and fails the build. Do not tidy
+      // this into one call: the events would then be answered 400 and lost.
+      // (Nor spell the scanned pattern out in a comment — it gets picked up as
+      // an event name of its own. Both mistakes were made getting this in.)
+      const outcome = {
+        dedupeKey: `audio_background_outcome:${marker.session}:${marker.at}`,
+        dedupeMs: 5_000,
+        meta: {
+          hiddenSeconds: Math.round(hiddenMs / 1000),
+          advancedSeconds: Math.round(advancedMs / 1000)
+        }
+      };
+      if (verdict === 'survived') {
+        reportPlaybackEvent('audio_background_survived', outcome);
+      } else {
+        reportPlaybackEvent('audio_background_died', outcome);
+      }
+    };
+
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden' && !audio.paused) {
+        // Remember where the stream was, so the return can tell whether it kept
+        // going. Position and not wall clock, for the reason above.
+        backgroundedRef.current = {
+          position: audio.currentTime || 0,
+          at: Date.now(),
+          session: playbackSessionRef.current
+        };
         reportPlaybackEvent('audio_background_resume_attempt', {
           dedupeKey: `audio_background_resume_attempt:${playbackSessionRef.current}`,
           dedupeMs: 5_000,
@@ -999,6 +1083,7 @@ export const useAudioPlayer = ({
         });
         audio.play().catch(() => {});
       } else {
+        if (document.visibilityState === 'visible') reportBackgroundOutcome();
         reportPlaybackEvent('audio_visibility_change', {
           dedupeKey: `audio_visibility_change:${playbackSessionRef.current}:${document.visibilityState}`,
           dedupeMs: 5_000,
