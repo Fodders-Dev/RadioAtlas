@@ -27,7 +27,12 @@
          window with its own icon — which is the desktop app, without a second
          program to write. See public/sw.js for what the worker will and will not
          touch; audio and the shell are deliberately left alone. -->
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- `.json` and not `.webmanifest` on purpose: Caddy has no MIME entry for
+         the latter, so production served the manifest with NO Content-Type at
+         all (measured 2026-08-26), and its @appStatic rule already names
+         /manifest.json — so this spelling also earns the one-day cache instead
+         of no-store, with no edge config change. -->
+    <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <!-- Manrope is served from our own origin now; src/boot.css carries the
          @font-face rules and the measurement that made that non-negotiable (a

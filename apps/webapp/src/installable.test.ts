@@ -24,7 +24,7 @@ const publicDir = join(webappRoot, 'public');
 
 const html = readFileSync(join(webappRoot, 'index.html'), 'utf8');
 const mainTsx = readFileSync(join(webappRoot, 'src', 'main.tsx'), 'utf8');
-const manifestPath = join(publicDir, 'manifest.webmanifest');
+const manifestPath = join(publicDir, 'manifest.json');
 
 type Icon = { src: string; sizes: string; type: string; purpose?: string };
 type Manifest = {
@@ -50,7 +50,7 @@ describe('the app can actually be installed', () => {
   });
 
   it('parses, and states the fields an install prompt requires', () => {
-    expect(existsSync(manifestPath), 'public/manifest.webmanifest is missing').toBe(true);
+    expect(existsSync(manifestPath), 'public/manifest.json is missing').toBe(true);
     const manifest: Manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
     expect(manifest.name.length).toBeGreaterThan(0);
