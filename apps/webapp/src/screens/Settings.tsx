@@ -4,7 +4,7 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
-import { getTelegramWebApp, isInsideTelegramClient } from '../lib/telegram';
+import { getTelegramWebApp, isInsideTelegramClient, openLinkOrFallback } from '../lib/telegram';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 
 type ClearAction = 'cache' | 'favorites' | 'recent';
@@ -240,6 +240,26 @@ export const Settings = () => {
                 t('settings.clearRecentConfirm', { count: recent.length }),
                 !recent.length
               )}
+            </div>
+          </div>
+          {/* The policy lives beside the data controls on purpose: this is the
+              screen somebody opens when they want to know what is held about
+              them, and a document nobody can find is not a disclosure. Opened
+              through openLinkOrFallback because a plain target="_blank" is
+              unreliable inside the Telegram WebView. */}
+          <div className="settings-data-row">
+            <div>
+              <div className="settings-label">{t('settings.privacyLabel')}</div>
+              <div className="settings-desc">{t('settings.privacyDesc')}</div>
+            </div>
+            <div className="settings-data-action">
+              <button
+                type="button"
+                className="chip"
+                onClick={() => openLinkOrFallback('https://radioatlas.ru/privacy.html')}
+              >
+                {t('settings.privacyOpen')}
+              </button>
             </div>
           </div>
         </div>
