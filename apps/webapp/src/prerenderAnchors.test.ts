@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -64,5 +66,33 @@ describe('index.html still carries the anchors the station prerender substitutes
 
   it('has a <title> the station name can replace', () => {
     expect(html).toMatch(/<title>[^<]*<\/title>/i);
+  });
+
+  /*
+   * The whole design rests on this: the station text is written INSIDE #root, and
+   * createRoot().render() replaces the container's children, so React wipes it on
+   * mount. If that ever stopped being true — a React major, a switch to
+   * hydrateRoot — every visitor arriving from a search result would see the
+   * prerendered heading stranded above the running app, on every station page at
+   * once. It is documented React behaviour, which is exactly the kind of thing
+   * worth pinning rather than trusting across an upgrade.
+   */
+  it('lets React wipe prerendered content on mount, so nobody sees it twice', async () => {
+    const container = document.createElement('div');
+    container.id = 'root';
+    container.innerHTML = '<h1>Prerendered station name</h1>';
+    document.body.appendChild(container);
+
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(createElement('main', null, 'the app'));
+    });
+
+    expect(container.querySelector('h1'), 'prerendered heading survived the mount').toBeNull();
+    expect(container.textContent).toBe('the app');
+
+    await act(async () => root.unmount());
+    container.remove();
   });
 });

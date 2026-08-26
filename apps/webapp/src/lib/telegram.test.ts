@@ -349,17 +349,31 @@ describe('getStartParam', () => {
     }
   };
 
-  it('reads a station from the /station/<id> path a search result points at', () => {
+  // THE form a search result points at. scripts/buildStationPages.mts writes
+  // `station/<uuid>.html` because Caddy's try_files matches files but not
+  // directories on this host — so the extension is load bearing, not cosmetic,
+  // and stripping it here is what makes the landing open the right station.
+  it('reads a station from the /station/<id>.html page a search result points at', () => {
     restoreTelegram();
-    withPath('/station/3f8a-uuid', () => {
+    withPath('/station/3f8a-uuid.html', () => {
       expect(getStartParam()).toBe('station_3f8a-uuid');
     });
   });
 
-  it('tolerates the trailing slash a directory-served page is reached by', () => {
+  it('also accepts the extensionless form, in case the server grows clean URLs', () => {
     restoreTelegram();
+    withPath('/station/3f8a-uuid', () => {
+      expect(getStartParam()).toBe('station_3f8a-uuid');
+    });
     withPath('/station/3f8a-uuid/', () => {
       expect(getStartParam()).toBe('station_3f8a-uuid');
+    });
+  });
+
+  it('does not mistake a dot in the id itself for the extension', () => {
+    restoreTelegram();
+    withPath('/station/abc.def', () => {
+      expect(getStartParam()).toBe('station_abc.def');
     });
   });
 

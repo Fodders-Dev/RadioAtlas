@@ -12,14 +12,23 @@
  * people go looking for «слушать радио <город>».
  *
  * WHY STATIC FILES RATHER THAN SERVER RENDERING. Caddy already serves the built
- * webapp with `root * .../dist` and `try_files {path} /index.html`, so a file at
- * `dist/station/<uuid>/index.html` is served at `/station/<uuid>` with no new
- * route, no runtime cost and no extra memory — and this VPS is oversubscribed
- * with its swap full, so a per-request renderer would be the wrong shape.
- * If try_files ever fails to match the directory, the request falls through to
- * the SPA, which reads the same path via getStartParam and opens the same
- * station: a human still lands correctly, only the crawler loses. Graceful, but
- * verify it on prod after the first deploy rather than trusting this paragraph.
+ * webapp with `root * .../dist` and `try_files {path} /index.html`, so a file in
+ * dist is served with no new route, no runtime cost and no extra memory — and
+ * this VPS is oversubscribed with its swap full, so a per-request renderer would
+ * be the wrong shape.
+ *
+ * WHY `<uuid>.html` AND NOT `<uuid>/index.html`. Because the directory form does
+ * not work here, and that is measured, not assumed. Probed against production
+ * 2026-08-26: `/fonts/` — a directory that certainly exists in dist — returns the
+ * 5152-byte SPA shell, byte-identical to `/`, as do `/fonts` and `/globe/`. So
+ * `try_files {path}` matches FILES but falls through on directories, and a
+ * `station/<uuid>/index.html` would have been invisible to every crawler while
+ * looking perfectly fine to a human (the SPA reads the path and opens the right
+ * station either way — which is exactly why this would not have been noticed).
+ *
+ * A one-line Caddyfile change would buy the prettier URL, but Caddy is the edge
+ * for other services on this shared box, and a bad config there takes the
+ * neighbours down with us. An extension in the URL costs nothing in ranking.
  *
  * WHAT MAY NOT GO ON THESE PAGES, both rules from this repo, not invented here:
  *
@@ -59,6 +68,14 @@ const LIMIT = Number(process.env.STATION_PAGES || 5000);
 // Derived from the function itself, so this script cannot drift from the type
 // the catalogue actually uses.
 type Station = Parameters<typeof resolvePromotable>[0][number];
+
+/**
+ * The one place the public shape of a station address is decided. `getStartParam`
+ * in the webapp parses this same shape back out of the path, and its test names
+ * the extension explicitly — if this ever changes, that test is the one that
+ * must change with it.
+ */
+const stationPath = (uuid: string) => `/station/${uuid}.html`;
 
 const escapeHtml = (value: string) =>
   value
@@ -132,7 +149,7 @@ const describe = (station: Station, name: string) => {
 };
 
 const renderPage = (shell: string, station: Station, name: string) => {
-  const url = `${ORIGIN}/station/${station.stationuuid}`;
+  const url = `${ORIGIN}${stationPath(station.stationuuid)}`;
   const title = `${name} — слушать онлайн`;
   const description = describe(station, name);
   const country = countryOf(station);
@@ -220,12 +237,12 @@ const main = async () => {
   const stationDir = join(DIST, 'station');
   await rm(stationDir, { recursive: true, force: true });
 
+  await mkdir(stationDir, { recursive: true });
+
   let bytes = 0;
   for (const { station, name } of chosen) {
     const page = renderPage(shell, station, name);
-    const dir = join(stationDir, station.stationuuid);
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, 'index.html'), page, 'utf8');
+    await writeFile(join(stationDir, `${station.stationuuid}.html`), page, 'utf8');
     bytes += Buffer.byteLength(page);
   }
 
@@ -233,7 +250,7 @@ const main = async () => {
     `  <url><loc>${ORIGIN}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
     ...chosen.map(
       ({ station }) =>
-        `  <url><loc>${ORIGIN}/station/${station.stationuuid}</loc><changefreq>weekly</changefreq></url>`
+        `  <url><loc>${ORIGIN}${stationPath(station.stationuuid)}</loc><changefreq>weekly</changefreq></url>`
     )
   ].join('\n');
 

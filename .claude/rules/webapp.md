@@ -112,10 +112,19 @@ Two rules it enforces, both learned the hard way elsewhere in this repo:
 ## index.html is also the template for 5 000 station pages
 
 `scripts/buildStationPages.mts` runs after `vite build` and produces one
-indexable page per station at `dist/station/<uuid>/index.html` by substituting
-into the BUILT shell: the `<title>`, the canonical link, six meta tags, and the
-contents of `#root`. Caddy serves them with no new route, because it already runs
+indexable page per station at `dist/station/<uuid>.html` by substituting into the
+BUILT shell: the `<title>`, the canonical link, six meta tags, and the contents of
+`#root`. Caddy serves them with no new route, because it already runs
 `try_files {path} /index.html` over `dist`.
+
+**Flat `.html`, not `<uuid>/index.html`, and that is measured.** `try_files
+{path}` on this host matches files but falls through on DIRECTORIES: probed
+against production 2026-08-26, `/fonts/` returns the 5152-byte SPA shell,
+byte-identical to `/`. The directory form would have failed silently in the worst
+way — the SPA reads the path either way, so a human lands correctly and only the
+crawler gets nothing. If you ever want the extensionless URL, it needs
+`try_files {path} {path}/index.html /index.html` in the Caddyfile, and Caddy on
+that box is also the edge for other people's services.
 
 That makes several shapes in `index.html` load bearing, and the failure is the
 nastiest kind — **the build still succeeds and every page silently inherits the

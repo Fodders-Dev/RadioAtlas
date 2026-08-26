@@ -218,8 +218,14 @@ const readUrlParamSource = (value: string) => {
 // Read from the path rather than a parameter, and checked LAST, so that no
 // existing deep link can change meaning: a Telegram start_param still wins, and
 // so does any explicit `?station=`.
+//
+// The `.html` is real and deliberate — scripts/buildStationPages.mts writes
+// `station/<uuid>.html` because Caddy's `try_files {path}` matches files but NOT
+// directories on this host (measured against production 2026-08-26: `/fonts/`
+// returns the SPA shell). Accepted with or without it, so the address keeps
+// working if the server ever grows a clean-URL rule.
 const readStationPath = (pathname: string): string | null => {
-  const match = pathname.match(/^\/station\/([^/?#]+)\/?$/i);
+  const match = pathname.match(/^\/station\/([^/?#]+?)(?:\.html)?\/?$/i);
   return match?.[1] ? `station_${match[1]}` : null;
 };
 

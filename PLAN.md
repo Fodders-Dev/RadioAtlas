@@ -1543,21 +1543,29 @@ guards it, because every way that breaks is silent — the app still loads, stil
 plays, and simply stops offering to install.
 
 **Rung two is done too:** `scripts/buildStationPages.mts` runs after `vite build`
-and prerenders the top 5 000 stations as `dist/station/<uuid>/index.html`, plus a
+and prerenders the top 5 000 stations as `dist/station/<uuid>.html`, plus a
 sitemap and the first `robots.txt` this project has ever had. Caddy already serves
 `dist` with `try_files {path} /index.html`, so the files need no new route and
 cost nothing at runtime — which matters on a box whose swap is full. The station
 set is `resolvePromotable`, the same one the app promotes, so dead streams get no
 page and one broadcaster gets one page instead of the nine rows Radio Browser
-lists it under. `getStartParam` now also reads `/station/<uuid>` from the path, so
-a stranger arriving from a search result lands on the station they searched for.
+lists it under. `getStartParam` reads the same address back out of the path, so a
+stranger arriving from a search result lands on the station they searched for.
 
-⚠ **Unverified until the first deploy:** that Caddy's `try_files {path}` matches a
-DIRECTORY and lets `file_server` serve its `index.html`. If it does not, the URL
-falls through to the SPA, which still opens the right station for a human but
-serves the crawler an empty shell. `curl -s https://radioatlas.ru/station/<uuid> |
-grep -c "<h1"` answers it in one line. If it comes back 0, the fix is
-`try_files {path} {path}/index.html /index.html` in the Caddyfile.
+**The extension is measured, not stylistic.** This was first written to produce
+`station/<uuid>/index.html` on the assumption that `try_files {path}` matches a
+directory and `file_server` then serves its index. It does not, on this host.
+Probed against production 2026-08-26, before deploying: `/fonts/` — a directory
+that certainly exists in `dist` — returns the 5152-byte SPA shell, byte-identical
+to `/`, and so do `/fonts` and `/globe/`. try_files matches files and falls
+through on directories.
+
+That failure would have been invisible: the SPA reads the path either way, so a
+human lands on the right station and everything looks correct, while every
+crawler gets an empty shell — 5 000 pages of nothing, silently. A one-line
+Caddyfile rule (`try_files {path} {path}/index.html /index.html`) would buy the
+prettier URL, but Caddy is the edge for the neighbours' services on this shared
+box, and an extension costs nothing in ranking. Not worth their uptime.
 
 The remaining rungs:
 
