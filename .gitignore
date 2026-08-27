@@ -22,6 +22,15 @@ artifacts/
 # baselines Playwright uses live in apps/webapp/tests/visual.spec.ts-snapshots.
 .claude/qa-snaps/
 apps/extractor/bin/
+# The TWA wrapper. Only apps/android/twa-manifest.json is source — everything
+# else in there is regenerated from it by `bubblewrap build`, and several hundred
+# files of generated Gradle project would bury the one file anybody edits.
+apps/android/*
+!apps/android/twa-manifest.json
+!apps/android/README.md
+# A signing credential. Never commit this, under any name.
+*.keystore
+*.jks
 apps/webapp/vite-plan*.log
 apps/webapp/vite-*.log
 apps/api/data/

@@ -1,0 +1,37 @@
+{
+  "packageId": "ru.radioatlas.app",
+  "host": "radioatlas.ru",
+  "name": "RadioAtlas — живое радио мира",
+  "launcherName": "RadioAtlas",
+  "display": "standalone",
+  "orientation": "default",
+  "themeColor": "#0b1514",
+  "themeColorDark": "#0b1514",
+  "navigationColor": "#08111c",
+  "navigationColorDark": "#08111c",
+  "navigationDividerColor": "#08111c",
+  "navigationDividerColorDark": "#08111c",
+  "backgroundColor": "#08111c",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "webManifestUrl": "https://radioatlas.ru/manifest.json",
+  "iconUrl": "https://radioatlas.ru/icon-512.png",
+  "maskableIconUrl": "https://radioatlas.ru/icon-maskable-512.png",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 21,
+  "shortcuts": [],
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "radioatlas"
+  },
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://radioatlas.ru/"
+}
