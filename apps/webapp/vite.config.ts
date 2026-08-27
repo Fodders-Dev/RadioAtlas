@@ -83,7 +83,20 @@ export default defineConfig({
     //
     // `polyfill: false` because the polyfill exists for browsers without
     // modulepreload support, and this ships to a Telegram WebView.
-    modulePreload: { polyfill: false },
+    modulePreload: {
+      polyfill: false,
+      // Preload the entry's real dependencies — but NOT the degraded-mode
+      // catalogue. Every one of its eight call sites in CatalogContext sits
+      // inside a `catch` or behind a degradation check, so on a healthy API it
+      // is never imported at all; a preload link would download it for everyone
+      // to serve the minority whose API call failed. (It shows up here at all
+      // because it is a first-level dynamic import of a statically-imported
+      // module. It was invisible in local measurement for a funny reason: `vite
+      // preview` serves static files with no API behind them, so the fallback
+      // path fires every time and the chunk looked load-bearing.)
+      resolveDependencies: (_filename, deps) =>
+        deps.filter((dep) => !dep.includes('catalog-fallback'))
+    },
     rollupOptions: {
       output: {
         // #180 stamped the build commit into CSS filenames because this
