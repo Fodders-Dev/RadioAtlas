@@ -14,6 +14,7 @@ export {
   previewTelegramLink,
   previewVkLink,
   revokeOtherSessions,
+  deleteAccountCompletely,
   revokeSession,
   unlinkProvider
 } from '../accountStoreCore.js';

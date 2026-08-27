@@ -1571,6 +1571,22 @@ The remaining rungs:
 
 1. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
    and the manifest it needs now exists.
+
+   Two of its prerequisites are now done rather than pending. There is a privacy
+   policy at `/privacy.html` (Play demands a URL, and any app holding accounts
+   demands one anyway), and `DELETE /me` erases an account from inside the app,
+   which Play requires for any app with accounts and which the policy had been
+   promising while the button did not exist. What is still owner-only: a Play
+   Console account, a signing key, and `/.well-known/assetlinks.json` carrying
+   that key's fingerprint — without it the wrapper shows a URL bar and is
+   pointless.
+
+   ⚠ And the thing that should gate the decision is not paperwork. A TWA is
+   Chrome rendering this same web app, so background playback behaves
+   identically inside it; the counters that would answer whether it holds up
+   started collecting on 2026-08-26 and need weeks. Shipping a radio app to a
+   store where reviews are permanent, before knowing whether it survives a
+   pocket, is the risk worth avoiding.
 2. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
    under guideline 4.2. An audio app has a case; it is still a lottery, and it
    is the only item here that cannot be undone cheaply.

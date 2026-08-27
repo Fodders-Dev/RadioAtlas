@@ -336,6 +336,66 @@ export const revokeSession = async (token: string) => {
   return revoked;
 };
 
+/**
+ * Erase an account and everything personal attached to it.
+ *
+ * The privacy policy promises this, and Google Play requires an in-app path to
+ * it for any app with accounts. Until now the only things a person could do were
+ * unlink a provider and log out — neither of which removes anything.
+ *
+ * WHAT THE SCHEMA DOES FOR US. `PRAGMA foreign_keys = ON` is set at open, so
+ * deleting the row cascades to `providers`, `sessions`, `link_requests`,
+ * `audit_events` and `billing_purchases`, and nulls `station_profiles.
+ * owner_account_id` (a broadcaster's profile is not the listener's data and
+ * outlives them, ownerless).
+ *
+ * WHAT IT DOES NOT. `promotion_events.account_id` and
+ * `bot_subscriptions.account_id` carry NO foreign key, so a plain delete would
+ * leave rows pointing at an account that no longer exists — the account is gone
+ * from the schema's point of view while an id that identified somebody stays
+ * behind in two tables. Both are cleared here, first, inside the transaction.
+ *
+ * `bot_subscriptions` also has `opted_in` reset: the row is keyed by telegram_id
+ * and survives as delivery bookkeeping, but consent given by an account that no
+ * longer exists is not consent.
+ *
+ * No audit event is written. `audit_events` cascades away with the account, and
+ * a tombstone recording that this person deleted themselves would be a record
+ * about them surviving the deletion they asked for.
+ */
+export const deleteAccountCompletely = async (accountId: string) => {
+  const db = await getDb();
+  const countOf = (sql: string) => {
+    const row = db.prepare(sql).get(accountId) as { n?: number | bigint } | undefined;
+    return Number(row?.n ?? 0);
+  };
+
+  // Counted BEFORE the delete: afterwards there is nothing left to count, and
+  // the caller is owed an honest answer about what was actually removed.
+  const removed = {
+    providers: countOf('SELECT COUNT(*) AS n FROM providers WHERE account_id = ?'),
+    sessions: countOf('SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?'),
+    auditEvents: countOf('SELECT COUNT(*) AS n FROM audit_events WHERE account_id = ?'),
+    purchases: countOf('SELECT COUNT(*) AS n FROM billing_purchases WHERE account_id = ?')
+  };
+
+  db.exec('BEGIN');
+  try {
+    db.prepare('UPDATE promotion_events SET account_id = NULL WHERE account_id = ?').run(accountId);
+    db.prepare(
+      'UPDATE bot_subscriptions SET account_id = NULL, opted_in = 0 WHERE account_id = ?'
+    ).run(accountId);
+    const result = db.prepare('DELETE FROM accounts WHERE id = ?').run(accountId) as
+      | { changes?: number | bigint }
+      | undefined;
+    db.exec('COMMIT');
+    return { deleted: Number(result?.changes ?? 0) > 0, removed };
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+};
+
 export const revokeOtherSessions = async (accountId: string, currentToken: string) => {
   const db = await getDb();
   const result = db

@@ -51,6 +51,7 @@ export {
   previewTelegramLink,
   previewVkLink,
   revokeOtherSessions,
+  deleteAccountCompletely,
   revokeSession,
   unlinkProvider
 } from './account/authStore.js';

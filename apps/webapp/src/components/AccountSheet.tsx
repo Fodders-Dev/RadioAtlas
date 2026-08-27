@@ -136,6 +136,7 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     createTelegramInvoice,
     refreshSession,
     signOut,
+    deleteAccount,
     openTelegramAccess
   } = useSession();
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +148,11 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
   const [awaitingBillingReturn, setAwaitingBillingReturn] = useState(false);
   const [telegramWidgetFailed, setTelegramWidgetFailed] = useState(false);
   const [unlinkBusyKind, setUnlinkBusyKind] = useState<'telegram' | 'google' | 'vk' | null>(null);
+  // Two steps on purpose: deleting an account cannot be undone, and this sheet
+  // is full of chips that do reversible things. One more tap is cheap; a library
+  // somebody spent months building is not.
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [mergeStrategy, setMergeStrategy] = useState<LibraryMergeStrategy>('combine');
   const telegramProvider = profile?.providers.find((provider) => provider.kind === 'telegram') || null;
   const googleProvider = profile?.providers.find((provider) => provider.kind === 'google') || null;
@@ -581,6 +587,60 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
             )}
           </div>
         </div>
+
+        {/* Deleting the account. Kept as its own card, below everything else and
+            visibly apart from the reversible actions above: signing out and
+            unlinking a provider can both be undone by logging back in, and this
+            cannot. The privacy policy promises this path exists, and Play
+            requires an in-app one for any app with accounts. */}
+        {profile ? (
+          <div className="glass-card">
+            <div className="library-section-head">
+              <div>
+                <div className="section-title">{t('account.delete.title')}</div>
+                <div className="section-subtitle">{t('account.delete.subtitle')}</div>
+              </div>
+            </div>
+            {deleteConfirming ? (
+              <div className="settings-actions" role="group" aria-label={t('account.delete.confirm')}>
+                <span className="settings-desc" aria-live="polite">
+                  {t('account.delete.confirm')}
+                </span>
+                <button
+                  className="chip active"
+                  type="button"
+                  disabled={deleteBusy}
+                  onClick={async () => {
+                    setDeleteBusy(true);
+                    // signOut() runs inside deleteAccount, and only after the
+                    // server has confirmed — so a failure leaves the person
+                    // signed in with their data, which is the safe direction.
+                    const done = await deleteAccount();
+                    setDeleteBusy(false);
+                    setDeleteConfirming(false);
+                    if (done) onClose();
+                  }}
+                >
+                  {deleteBusy ? t('account.delete.busy') : t('account.delete.confirmAction')}
+                </button>
+                <button
+                  className="chip"
+                  type="button"
+                  disabled={deleteBusy}
+                  onClick={() => setDeleteConfirming(false)}
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            ) : (
+              <div className="settings-actions">
+                <button className="chip" type="button" onClick={() => setDeleteConfirming(true)}>
+                  {t('account.delete.action')}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {canInvite ? (
           <div className="glass-card account-invite-card">

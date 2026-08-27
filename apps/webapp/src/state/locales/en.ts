@@ -405,6 +405,14 @@ export const enDictionary = {
       "station_profile_updated": "Station profile updated"
     },
     "signOut": "Sign out",
+    "delete": {
+      "title": "Delete account",
+      "subtitle": "Saved stations, collections, linked logins and purchase history will be erased from the server. This cannot be undone.",
+      "action": "Delete account",
+      "confirm": "Delete the account and every saved station? There is no way back.",
+      "confirmAction": "Yes, delete",
+      "busy": "Deleting…"
+    },
     "syncStatus": "Sync",
     "providers": {
       "telegram": "Telegram",

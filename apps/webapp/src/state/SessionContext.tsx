@@ -102,6 +102,8 @@ type SessionContextValue = {
   confirmPendingLink: () => Promise<void>;
   dismissPendingLink: () => void;
   signOut: () => void;
+  /** Erase the account server-side, then sign out. Irreversible. */
+  deleteAccount: () => Promise<boolean>;
   // R1 (PR-A): server-authoritative bot-nudge opt-in. Returns hasTelegram/reachable
   // so the UI can prompt "open @bot → Start" when opted-in but not yet reachable.
   setBotOptIn: (
@@ -1474,6 +1476,43 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     });
   }, [reportSessionEvent, resetCloudLibrarySyncQueue]);
 
+  /**
+   * Erase the account on the server, then sign out locally.
+   *
+   * Deliberately NOT the same thing as signOut, and the difference is the whole
+   * point: signing out leaves everything where it is and lets you come back;
+   * this destroys the library, the linked logins and the purchase history, and
+   * signing back in with the same Telegram or Google identity hands you a new,
+   * empty account. The privacy policy promises this, and Play requires it.
+   *
+   * `?confirm=delete` is required by the API on top of the session, so a stray
+   * or retried call cannot destroy somebody's library without having said what
+   * it meant. The listener-facing confirmation is in AccountSheet.
+   *
+   * signOut() runs only after the server confirms. Clearing the local session
+   * first would leave somebody logged out believing they were deleted while
+   * their data sat on the server — the exact lie this feature exists to avoid.
+   */
+  const deleteAccount = useCallback(async () => {
+    const token = getStoredToken();
+    if (!apiBase || !token || !profile) return false;
+    try {
+      const response = await fetch(`${apiBase}/me?confirm=delete`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(failure?.error || `account deletion failed (${response.status})`);
+      }
+      signOut();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'account deletion failed');
+      return false;
+    }
+  }, [apiBase, profile, signOut]);
+
   const refreshSession = useCallback(async () => {
     const token = getStoredToken();
     if (!token) return false;
@@ -1812,6 +1851,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       confirmPendingLink,
       dismissPendingLink,
       signOut,
+      deleteAccount,
       setBotOptIn,
       replaceCloudLibrary,
       updateCollections,
@@ -1852,6 +1892,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       confirmPendingLink,
       dismissPendingLink,
       signOut,
+      deleteAccount,
       setBotOptIn,
       replaceCloudLibrary,
       updateCollections,

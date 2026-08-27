@@ -36,6 +36,33 @@ snapshot, and generated scene artwork. Rules learned the hard way:
 - A fire-and-forget `void somePromise()` with no `.catch` is a process killer:
   an unhandled rejection is fatal in Node.
 
+## Deleting an account
+
+`DELETE /me` (`deleteAccountCompletely` in `account/core/authService.ts`) is the
+only route in this codebase that destroys rather than revokes. The privacy policy
+promises it and Play requires it, so it has to be true, not approximately true.
+
+`PRAGMA foreign_keys = ON` is set when the database opens, so the cascade does
+most of the work: `providers`, `sessions`, `link_requests`, `audit_events` and
+`billing_purchases` go with the row, and `station_profiles.owner_account_id` is
+nulled (a broadcaster's profile is not the listener's data and outlives them).
+
+**Two tables have no foreign key and will NOT cascade:**
+`promotion_events.account_id` and `bot_subscriptions.account_id`. A plain delete
+leaves both holding an id that identified somebody, pointing at an account the
+schema no longer has. Both are cleared inside the same transaction. **If you add
+a table that references `accounts`, either give it a real foreign key or add it
+to that transaction** — nothing else in the system will notice that you didn't,
+and the person who asked to be deleted will still be in the database.
+
+No audit event is written for the deletion: `audit_events` cascades away with the
+account, and a tombstone recording that this person deleted themselves would be a
+record about them surviving the deletion they asked for.
+
+`?confirm=delete` is required on top of a valid session. Every other DELETE here
+is recoverable — a provider can be relinked, a session replaced by logging in
+again — and this one is not.
+
 ## Counters and telemetry
 
 Counter keys are the one structure the age-based prune never touches, so any key

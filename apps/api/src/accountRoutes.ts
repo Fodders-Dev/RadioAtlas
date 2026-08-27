@@ -5,6 +5,7 @@ import {
   getAccountByToken,
   setBotOptIn,
   revokeOtherSessions,
+  deleteAccountCompletely,
   revokeSession,
   unlinkProvider,
   updateAccountAlerts,
@@ -291,6 +292,51 @@ export const registerAccountRoutes = (app: express.Express) => {
 
     const revokedCount = await revokeOtherSessions(account.id, token);
     res.json({ ok: true, revokedCount });
+  });
+
+  /**
+   * Erase the account. Irreversible, and the only route in this file that
+   * destroys rather than revokes.
+   *
+   * `?confirm=delete` is required on top of a valid session. That is not
+   * ceremony: every other DELETE here is recoverable — an unlinked provider can
+   * be relinked, a revoked session can be replaced by logging in again — and
+   * this one is not. A mis-wired client, a retried request or a stray call
+   * cannot destroy somebody's library by accident without also having said what
+   * it meant. The listener-facing confirmation lives in the app; this is the
+   * belt underneath it.
+   */
+  app.delete('/me', async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) {
+      res.status(401).json({ error: 'authorization required' });
+      return;
+    }
+
+    const account = await getAccountByToken(token);
+    if (!account) {
+      res.status(401).json({ error: 'session is invalid' });
+      return;
+    }
+
+    if (req.query.confirm !== 'delete') {
+      res.status(400).json({ error: 'confirmation required' });
+      return;
+    }
+
+    try {
+      const result = await deleteAccountCompletely(account.id);
+      if (!result.deleted) {
+        res.status(404).json({ error: 'account not found' });
+        return;
+      }
+      // `removed` is counted before the delete, so it describes what actually
+      // went — the app shows it back, because "your account was deleted" is a
+      // claim worth being able to check.
+      res.json({ ok: true, removed: result.removed });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'account deletion failed' });
+    }
   });
 
   app.get('/me/audit', async (req, res) => {
