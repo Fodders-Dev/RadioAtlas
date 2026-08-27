@@ -51,6 +51,23 @@ is yours** — pick it, keep it in a password manager, and do not put it in this
 repo. Losing the upload key is recoverable through Play Console, but only
 awkwardly.
 
+### If you edit twa-manifest.json by hand, every field the template reads must exist
+
+This file was authored by hand rather than produced by `bubblewrap init`, and
+that has one cost worth knowing, because the failure is nowhere near the cause.
+
+Bubblewrap generates `app/build.gradle` by substituting manifest fields into a
+Groovy template **without checking they are present**. A missing field becomes an
+empty substitution, so `splashScreenFadeOutDuration: 300,` came out as
+`splashScreenFadeOutDuration: ,` and the build died forty lines of Gradle stack
+trace later with `Unexpected input: ','`. Nothing in the message mentions the
+manifest, the field, or JSON.
+
+So when a build fails on a Groovy syntax error, read the generated
+`app/build.gradle` at the reported line first. `grep -nE ":\s*,\s*$" app/build.gradle`
+finds every field the manifest failed to supply in one pass, rather than one per
+build.
+
 ## The assetlinks chicken-and-egg
 
 A TWA only runs without a browser address bar if
