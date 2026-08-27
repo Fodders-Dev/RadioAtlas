@@ -78,12 +78,30 @@ fingerprint is only available **after the first upload to Play Console**.
 
 So the order is fixed and cannot be shortened:
 
-1. build locally → 2. Play Console account → 3. upload → 4. read the fingerprint
-Google shows → 5. write `assetlinks.json` → 6. deploy the web app → 7. the
-wrapper stops showing an address bar.
+1. ~~build locally~~ **done** — `app-release-bundle.aab` and
+   `app-release-signed.apk`, signed with the local upload key.
+2. ~~publish the upload key's fingerprint~~ **done** —
+   `apps/webapp/public/.well-known/assetlinks.json` carries it, so a **sideloaded
+   APK** verifies and runs without an address bar. That is testable today, on a
+   real phone, with no Play account.
+3. Play Console account, then upload the `.aab`.
+4. Read the **app-signing** certificate SHA-256 that Play Console then shows.
+5. Append it to the same `sha256_cert_fingerprints` array — the format takes
+   several — and redeploy the web app.
 
-Skipping step 5 does not fail loudly. The app installs, opens and works — with a
-URL bar across the top, which is the thing a TWA exists to remove.
+Until step 5, an install **from the store** shows the address bar even though a
+sideloaded one does not, because Play re-signs with Google's certificate and that
+fingerprint is not yet listed. Nothing reports this. The app installs, opens and
+plays; it just wears a URL bar, which looks like a design choice rather than a
+missing line of JSON.
+
+The fingerprint of the local key was read out of the signed APK rather than the
+keystore, deliberately: `apksigner verify --print-certs app-release-signed.apk`
+needs no password, so the keystore password never has to be handled to get it.
+
+`src/assetLinks.test.ts` guards the file — chiefly that its `package_name` still
+matches this project's `packageId`, since changing one and forgetting the other
+breaks verification with no other symptom.
 
 **The delivery path for that file is already verified** (2026-08-27), which is
 worth knowing because it is the part that breaks silently:

@@ -15,14 +15,14 @@
   "startUrl": "/",
   "iconUrl": "https://radioatlas.ru/icon-512.png",
   "maskableIconUrl": "https://radioatlas.ru/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
     "alias": "radioatlas"
   },
   "appVersionName": "1.0.0",
-  "appVersionCode": 2,
+  "appVersionCode": 3,
   "shortcuts": [],
-  "splashScreenFadeOutDuration": 300,
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://radioatlas.ru/manifest.json",
   "fallbackType": "customtabs",

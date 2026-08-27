@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "ru.radioatlas.app",
+      "sha256_cert_fingerprints": [
+        "2D:6D:72:BE:B9:EE:A3:F1:41:7D:B0:6B:D2:C8:CC:79:83:9C:34:2D:3E:FA:83:63:BD:92:69:3A:33:C6:A8:AC"
+      ]
+    }
+  }
+]
