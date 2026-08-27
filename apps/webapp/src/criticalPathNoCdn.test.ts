@@ -93,4 +93,30 @@ describe('nothing on the critical path comes from somebody else', () => {
       expect(face).toContain('font-display: swap');
     }
   });
+
+  it('lets the browser discover the real JS without parsing a stub first', () => {
+    /*
+     * `build.modulePreload: false` was set in 271b38c alongside
+     * `external: ['react', …]` — the CDN-externalised React era, when preloading
+     * would have meant preloading somebody else's origin, which the rest of this
+     * file exists to forbid. That externalisation is gone. The flag stayed, and
+     * became a pure cost.
+     *
+     * Measured against the real bundle at 150 ms RTT / 1.6 Mbps: the entry chunk
+     * is 0.9 KB and statically imports ~97 KB (brotli) of real JS. Without the
+     * preload links the browser could not discover those until it had fetched
+     * AND parsed the entry — they began at 812 ms while the entry had finished
+     * at 379 ms. With them they begin at 183 ms, and DOMContentLoaded moves from
+     * ~1573 ms to ~1426 ms.
+     *
+     * Note the honest shape of that win: discovery moves ~630 ms earlier, but
+     * the end-to-end gain is ~147 ms, because at that bandwidth the transfer —
+     * not the round trip — is the limit. Faster link, bigger win.
+     */
+    const config = readSource('vite.config.ts');
+    expect(
+      config,
+      'modulePreload is disabled again; see the measurement above before restoring it'
+    ).not.toMatch(/modulePreload:\s*false/);
+  });
 });

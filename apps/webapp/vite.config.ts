@@ -69,7 +69,21 @@ export default defineConfig({
     __APP_COMMIT__: JSON.stringify(commitHash)
   },
   build: {
-    modulePreload: false,
+    // Was `false`, and that had a reason which no longer exists. It arrived in
+    // 271b38c in the SAME hunk as `external: ['react', 'react-dom/client', …]`
+    // plus `paths:` — the CDN-externalised React era, when emitting preloads
+    // would have meant preloading a third-party origin. That externalisation is
+    // gone (there is now a test forbidding any CDN import), but the flag stayed.
+    //
+    // What it cost, measured against the real bundle at 150 ms RTT / 1.6 Mbps:
+    // the entry chunk is 0.9 KB and statically imports ~97 KB (brotli) of real
+    // JS, which the browser cannot discover until it has fetched AND parsed that
+    // entry. The imports began at 810 ms while the entry had finished at 379 ms
+    // — about 430 ms of dead time on every cold start, for nothing.
+    //
+    // `polyfill: false` because the polyfill exists for browsers without
+    // modulepreload support, and this ships to a Telegram WebView.
+    modulePreload: { polyfill: false },
     rollupOptions: {
       output: {
         // #180 stamped the build commit into CSS filenames because this
