@@ -5707,16 +5707,31 @@ body {
 .player-dock-tray-panel {
   border-radius: 24px;
   border: 1px solid rgba(245, 249, 255, 0.18);
+  /* OPAQUE base, and therefore no backdrop-filter.
+   *
+   * These four are on screen for the whole of every scroll, so their blur was
+   * recomputed every frame over everything moving beneath them. Measured on a
+   * Galaxy S20 FE (Android 13, Samsung Internet) while scrolling Home: the
+   * browser's processes burned 157/160/175% CPU across three samples, and the
+   * GPU process alone took 90-125% of that — the renderer, i.e. our JavaScript,
+   * was a third of it. The cost was compositing, not code.
+   *
+   * The old base was rgba(12, 23, 39, 0.32) and needed the blur to be legible
+   * at all: the reported symptom was a nav that read as transparent, with its
+   * labels mixing into the content scrolling underneath. So this is one change
+   * answering two complaints — an opaque surface reads cleanly AND makes the
+   * blur pointless, because nothing shows through it to blur.
+   *
+   * The gradients stay: they are ordinary paint rather than compositor work,
+   * and they are what keeps this from looking like a flat grey bar. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.07) 18%, rgba(255, 255, 255, 0.025) 58%, rgba(255, 255, 255, 0.015)),
-    linear-gradient(135deg, rgba(132, 190, 255, 0.12), rgba(133, 243, 225, 0.08) 52%, rgba(255, 255, 255, 0.02)),
-    rgba(12, 23, 39, 0.32);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04) 18%, rgba(255, 255, 255, 0.015) 58%, rgba(255, 255, 255, 0.01)),
+    linear-gradient(135deg, rgba(132, 190, 255, 0.1), rgba(133, 243, 225, 0.06) 52%, rgba(255, 255, 255, 0.015)),
+    #0d1a2b;
   box-shadow:
     var(--glass-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(118, 181, 255, 0.08);
-  -webkit-backdrop-filter: blur(34px) saturate(180%);
-  backdrop-filter: blur(34px) saturate(180%);
 }
 
 .app-navigation-desktop::before,
@@ -5761,15 +5776,20 @@ body {
   display: none;
 }
 
+/* This one comes AFTER the shared glass rule above and would put the 44%
+ * translucent base back on three of the four surfaces that were just made
+ * opaque, so it has to carry the opaque base too. Splitting them was the
+ * failure mode here: a fix applied to the first rule alone is silently undone
+ * by the cascade, and the nav looks exactly as transparent as before. */
 .app-topbar-v2,
 .app-navigation-desktop,
 .app-navigation-mobile,
 .player-dock-bar,
 .player-dock-peek {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
-    linear-gradient(135deg, rgba(110, 171, 255, 0.12), rgba(122, 238, 216, 0.1)),
-    rgba(9, 20, 34, 0.44);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
+    linear-gradient(135deg, rgba(110, 171, 255, 0.1), rgba(122, 238, 216, 0.08)),
+    #0d1a2b;
 }
 
 .nav-brand,
