@@ -26,8 +26,28 @@ if (typeof window !== 'undefined') {
 // on a mid-range Android WebView; low-power devices get a flat translucent fill
 // instead. Stamped once at boot (getDeviceProfile caches), read by CSS via
 // :root[data-glass='lite'].
+// `?glass=off` is a DIAGNOSTIC, not a feature: it stamps 'off', which styles.css
+// turns into `backdrop-filter: none` everywhere, so the cost of every blur in the
+// app can be measured by loading the same page twice.
+//
+// It exists because the obvious inference was wrong once already. Scrolling Home
+// on a Galaxy S20 FE burned ~164% CPU with the GPU process taking most of it, so
+// the nav and dock were made opaque and their blur removed — and the number did
+// not move (~178% after, inside the noise of the method). Compositor load does
+// not automatically mean blur, and eighty-odd more `backdrop-filter` rules is far
+// too much to rewrite on a hypothesis that has already failed once. Turn them all
+// off, measure, and let the number decide before touching any of them.
 if (typeof document !== 'undefined') {
-  document.documentElement.dataset.glass = getDeviceProfile().lowPower ? 'lite' : 'full';
+  const forced =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('glass')
+      : null;
+  document.documentElement.dataset.glass =
+    forced === 'off' || forced === 'lite' || forced === 'full'
+      ? forced
+      : getDeviceProfile().lowPower
+        ? 'lite'
+        : 'full';
 }
 
 const rootElement = document.getElementById('root');

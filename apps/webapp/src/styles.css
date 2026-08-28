@@ -5709,21 +5709,31 @@ body {
   border: 1px solid rgba(245, 249, 255, 0.18);
   /* OPAQUE base, and therefore no backdrop-filter.
    *
-   * These four are on screen for the whole of every scroll, so their blur was
-   * recomputed every frame over everything moving beneath them. Measured on a
-   * Galaxy S20 FE (Android 13, Samsung Internet) while scrolling Home: the
-   * browser's processes burned 157/160/175% CPU across three samples, and the
-   * GPU process alone took 90-125% of that — the renderer, i.e. our JavaScript,
-   * was a third of it. The cost was compositing, not code.
+   * This is a LEGIBILITY fix. It was made for performance as well, and that half
+   * was measured and refuted — the note is kept because the wrong reason is the
+   * useful part.
    *
-   * The old base was rgba(12, 23, 39, 0.32) and needed the blur to be legible
-   * at all: the reported symptom was a nav that read as transparent, with its
-   * labels mixing into the content scrolling underneath. So this is one change
-   * answering two complaints — an opaque surface reads cleanly AND makes the
-   * blur pointless, because nothing shows through it to blur.
+   * The old base was rgba(12, 23, 39, 0.32), which needed the blur to be legible
+   * at all: the reported symptom was a nav that read as transparent, its labels
+   * mixing into the content scrolling underneath. Opaque fixes that, and makes
+   * the blur pointless as a side effect — nothing shows through it to blur.
    *
-   * The gradients stay: they are ordinary paint rather than compositor work,
-   * and they are what keeps this from looking like a flat grey bar. */
+   * What did NOT happen: scrolling got no faster. Measured on a Galaxy S20 FE
+   * (Android 13, Samsung Internet), swipes driven over adb, browser processes
+   * summed — ~164% CPU before (157/160/175), ~178% after (165/190/172/186).
+   * Inside the noise of the method, and certainly not the drop the reasoning
+   * predicted.
+   *
+   * The reasoning had looked solid: the GPU process was taking 90-125% of that
+   * CPU against the renderer's 43-47%, so the cost was compositing rather than
+   * our JavaScript — and blur is what loads a compositor. True premise, false
+   * conclusion. These four surfaces were not where it went. Anyone tempted to
+   * rewrite the other ~84 blur declarations on the same logic should first load
+   * the page with `?glass=off`, which turns all of them off at once, and let the
+   * number decide.
+   *
+   * The gradients stay: ordinary paint rather than compositor work, and what
+   * stops this looking like a flat grey bar. */
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04) 18%, rgba(255, 255, 255, 0.015) 58%, rgba(255, 255, 255, 0.01)),
     linear-gradient(135deg, rgba(132, 190, 255, 0.1), rgba(133, 243, 225, 0.06) 52%, rgba(255, 255, 255, 0.015)),
@@ -11138,4 +11148,27 @@ button.player-dock-status-pill:active {
       color-mix(in srgb, var(--accent) 12%, white)
     );
   color: var(--theme-text, #241a17);
+}
+
+/* DIAGNOSTIC, not a theme. `?glass=off` (see main.tsx) stamps this so every
+ * backdrop-filter in the app can be switched off at once and the same page
+ * measured twice.
+ *
+ * Deliberately last in the file and deliberately `!important`: its whole job is
+ * to beat all ~88 blur declarations wherever they live, including the ones
+ * inside media queries and theme blocks, without editing any of them.
+ *
+ * Why it exists: the nav and dock were made opaque and their blur removed on the
+ * theory that compositing cost was blur cost, and scrolling CPU did not move
+ * (~164% before, ~178% after — inside the method's noise). Rewriting the other
+ * eighty-odd declarations on a hypothesis that already failed once would be
+ * expensive guessing. This makes the experiment cost one page load.
+ *
+ * Surfaces will look flat and some will read poorly with this on. That is
+ * expected: it answers "what do the blurs cost", not "how should this look". */
+:root[data-glass='off'] *,
+:root[data-glass='off'] *::before,
+:root[data-glass='off'] *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
