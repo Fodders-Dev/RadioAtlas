@@ -1398,14 +1398,31 @@
   min-width: 0;
 }
 
-/* Home-scoped nav chrome: TRANSPARENT liquid glass (these overrides used to be
-   near-opaque 0.9/0.96 — the source of the matte bar on Home). Low-alpha bg +
-   bright rim; the base rule's backdrop blur carries the refraction. */
+/* Home-scoped nav chrome, OPAQUE — a deliberate reversal of the note that used to
+   sit here, and the reason is worth keeping.
+
+   This override was once near-opaque (0.9/0.96) and somebody dropped it to
+   rgba(…, 0.3) because opaque read as "a matte bar on Home". Their comment said
+   the base rule's backdrop blur carried the refraction, which was true until that
+   blur was removed for legibility — leaving 30% alpha with nothing behind it. On
+   a real phone the result was a nav whose labels sat directly on the station
+   cards scrolling underneath, unreadable.
+
+   The owner's call, looking at that screen: dense and opaque. So the matte bar is
+   back on purpose. If it should ever feel lighter again, raise the gradient on
+   top rather than thinning the base — the base is what makes the labels legible,
+   and there is no blur under it any more to do that job.
+
+   ⚠ This selector is two classes plus an attribute, so it beats
+   `.app-navigation-mobile` in styles.css regardless of file order — which is why
+   an earlier fix applied there changed nothing on Home. The nav's background is
+   declared in THREE stylesheets (styles.css, boot.css, this one); on Home this is
+   the one that wins. */
 .app-shell-v2[data-active-section='home'] .app-navigation-mobile {
   border-color: rgba(255, 255, 255, 0.26);
   background:
-    radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.16), transparent 48%),
-    rgba(10, 24, 44, 0.3);
+    radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.1), transparent 48%),
+    #0d1a2b;
   box-shadow:
     0 -12px 44px rgba(0, 8, 22, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
