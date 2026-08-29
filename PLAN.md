@@ -1533,6 +1533,62 @@ crawler. People search for «радио Токио онлайн» in their milli
 46 048 stations here, each a page that could answer one of those searches. That
 is the largest unused channel this product has, and it is the same codebase.
 
+## Scroll cost on a real phone (2026-08-29, shipped)
+
+The owner's own device was the report: «всё пизда какое лагучее... инпут лаг до
+небес... телефон нагретый уже». The cause is `backdrop-filter`, and it had been
+ruled out five days earlier on evidence that was broken twice over.
+
+Measured through the browser's own trace, Galaxy S20 FE against production,
+variants interleaved so heat could not favour one, repeats agreeing within 1%:
+
+|                        | blur on | blur off | delta |
+| ---------------------- | ------- | -------- | ----- |
+| GPU CompositorGpuThread | 9619ms  | 3504ms   | -64%  |
+| VizCompositorThread     | 4661ms  | 2743ms   | -41%  |
+| all six busy threads    | 30421ms | 21406ms  | -30%  |
+| scroll input p99        | 311ms   | 102ms    | -67%  |
+
+Raster was 0.19s of a 23s scroll and the renderer main thread ~12% busy, so it
+was never script, layout, style or painting. **The cost is per INSTANCE:** the
+page blurs 0.7 of a screen in total, but each backdrop-filter is a render pass
+and a tile-based mobile GPU flushes tile memory on every one. Killing only the
+~100 small repeated controls recovered the whole win, which is the good news for
+the design — nav, dock, hero and sheets cost essentially nothing and are
+untouched.
+
+**Why it was ruled out before, and why that matters more than the fix.** The
+first measurement was process CPU% from `top`, one reading per variant: 164 vs
+178 vs 179, three numbers that could not resolve the difference. And the switch
+used to take the measurement never switched: `:root[data-glass='off'] *` weighs
+(0,2,0), exactly what `.screen-home-next .home-action-btn` weighs, and that one
+is `!important` in the lazily-loaded Home chunk, so the tie went to the blur.
+With the switch on, production still had 71 of 141 backdrop-filters live. No
+error, no visible symptom, and a confident wrong answer that cost an evening.
+Both halves now have mutation-verified guards —
+`scripts/assertGlassOverrideWins.mjs` for the arithmetic, `glass-tier.spec.ts`
+for the browser.
+
+`lite` is now a real tier rather than a promise. `main.tsx` had claimed since it
+was written that low-power devices get a flat fill; that was three rules on
+Search while Home carried 141 live blurs on a device that had already stamped
+itself `data-glass='lite'`. It substitutes rather than deletes: removing the
+blur outright was measured to break the play control, because the frost is what
+flattens artwork behind a 44px disc. `lib/scenePlate.ts` samples the piece of
+scene under the control — a blur IS a local average, so the average is the
+faithful replacement, and the scenes are same-origin so nothing is tainted and
+no request is added.
+
+⚠ One method note worth keeping. Plain variance said the flat plate was
+*smoother* than the frosted one; it is not, it is darker, and variance scores a
+smooth gradient badly while scoring a crushed dark image well. The metric that
+matches the eye is high-frequency detail — mean |ΔL| between neighbouring CSS
+pixels — which puts blur-simply-removed at 8x the glass and every substitute at
+or below it. And while prototyping, "the wall shows through" was read off three
+separate screenshots and was wrong all three times: compared against what the
+CSS predicted, the pixels matched to within a few counts. Judge a surface by
+arithmetic against a prediction, not by looking at a photograph.
+
 ## Next:
 
 Next is getting people in front of what already exists — and after the link

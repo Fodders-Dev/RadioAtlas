@@ -224,6 +224,57 @@ the unminified dev server — which is how the whole Лира chat shipped flat 
 months. `npm --workspace apps/webapp run test:unit` runs the guard;
 `scripts/assertBackdropFilterOrder.mjs` is the guard itself.
 
+## Glass costs per INSTANCE, and the tiers are load bearing
+
+`backdrop-filter` is the most expensive thing this UI does on a phone, and the
+cost is not what anyone guesses. Measured on a Galaxy S20 FE against production
+2026-08-29, browser trace, interleaved repeats agreeing within 1%: turning every
+blur off took the GPU compositor thread from 9619ms to 3504ms (**-64%**) over a
+fixed scroll, the six busy threads from 30.4s to 21.4s, and scroll input p99
+from **311ms to 102ms**. Raster was 0.19s of a 23s scroll and the renderer main
+thread was ~12% busy — so it is neither painting nor script.
+
+**Per instance, not per pixel.** The whole page blurs 0.7 of a screen, but every
+backdrop-filter is its own render pass and a tile-based mobile GPU flushes tile
+memory on each one. Killing only the ~100 small repeated controls recovered the
+entire win; the big signature surfaces — nav, dock, hero, sheets — cost
+essentially nothing. Do not "optimise" those. Do think before adding a blur to
+anything that repeats per station.
+
+Three tiers, stamped once on `<html data-glass>` by `main.tsx`:
+
+- `full` — the design as drawn.
+- `lite` — low-power devices (`getDeviceProfile()`; `hardwareConcurrency <= 4`
+  or `deviceMemory <= 4`, which is most mid-range Androids AND a GitHub Linux
+  runner). Flattens the small repeated controls and hands them a substitute
+  fill. `lite` is not "the blur removed": removing it outright was measured to
+  break the play control, because the frost is what flattens artwork behind a
+  44px disc. `lib/scenePlate.ts` samples the piece of scene under the control
+  and writes `--station-plate` on the tile — a blur is a local average, so the
+  average is the faithful replacement, and the scenes are same-origin so the
+  canvas is not tainted.
+- `off` — a DIAGNOSTIC, not a look. `?glass=off` turns every blur off so the
+  same page can be measured twice.
+
+**The two guards exist because this went wrong once, silently.** `?glass=off`
+was written as `:root[data-glass='off'] *`, which weighs (0,2,0) — the same as
+`.screen-home-next .home-action-btn`, which is `!important` in the lazily-loaded
+Home chunk and therefore wins the tie. Half the blurs stayed on, the measurement
+taken through the switch said blur was innocent, and that wrong answer was acted
+on. Nothing errored. So: `scripts/assertGlassOverrideWins.mjs` (run from
+`src/glassOverrideWins.test.ts`) recomputes the specificity of every override
+against every blur declaration and fails if an override cannot win, and
+`tests/glass-tier.spec.ts` asserts in a real browser that `?glass=off` leaves
+EXACTLY zero. Both are mutation-verified against the historical selector.
+
+The repeated attribute selectors in the override blocks are not a typo — they
+are the weight. Do not "tidy" them; the script recomputes the arithmetic, so
+let it tell you the count rather than guessing one.
+
+`visual.spec.ts` pins the tier, because a runner with 4 cores renders `lite` and
+a developer machine renders `full`, and those baselines were being captured
+under different tiers before anyone noticed.
+
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the
