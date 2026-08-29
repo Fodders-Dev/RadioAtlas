@@ -256,6 +256,32 @@ Three tiers, stamped once on `<html data-glass>` by `main.tsx`:
 - `off` — a DIAGNOSTIC, not a look. `?glass=off` turns every blur off so the
   same page can be measured twice.
 
+**`lite` is not "less glass" — it is glass computed once.** `lib/scenePlate.ts`
+takes the piece of scene under a tile's play control, blurs it in a canvas when
+the bitmap decodes, and hands it over as a background image. That is what iOS
+does: `UIVisualEffectView` blurs a SNAPSHOT and reuses it, while CSS
+`backdrop-filter` re-blurs from nothing, in its own render pass, per element,
+per frame. Our backdrop there is a static picture, so the blur is free to be
+cached. Measured on the shipped build, 143 live blurs vs 9:
+
+| | backdrop-filter | frosted snapshot |
+| --- | --- | --- |
+| GPU CompositorGpuThread | 10780ms | 3028ms (**-72%**) |
+| all six busy threads | 31717ms | 21825ms (-31%) |
+| scroll input p99 | 204ms | **89ms** |
+| compositor gaps over 25ms | 7-10% | **0.5-0.7%** |
+
+⚠ Read the gap distribution, not the "fps" you can compute from presentation
+events — that comes out at 114-200, above the panel's 59.2Hz, because the event
+counts surface submissions rather than frames. The p99 gap of 17.4ms (one vsync)
+is the number that says frames are landing.
+
+⚠ And do NOT raise `FROST_FILTER` to close the saturation gap against the real
+blur. That was tried and shipped for one deploy: `saturate(420%)` moved measured
+saturation from 0.41 toward 0.59 and turned an evening sky GREEN, because
+averaging leaves tiny channel differences and multiplying them invents hues. The
+metric improved while the colour became a lie.
+
 **The two guards exist because this went wrong once, silently.** `?glass=off`
 was written as `:root[data-glass='off'] *`, which weighs (0,2,0) — the same as
 `.screen-home-next .home-action-btn`, which is `!important` in the lazily-loaded

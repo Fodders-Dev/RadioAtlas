@@ -1610,6 +1610,52 @@ luminance.
 Before trusting any pixel measured off this device, put a known swatch in the
 same screenshot.
 
+## Glass at 60fps, computed once (2026-08-29, shipped)
+
+The owner's objection was right and my framing was wrong. I had said the big
+signature glass surfaces stay; on a phone they did not — after the first `lite`
+pass there were 9 live backdrop-filters left and all nine were in the DESKTOP
+nav, which a phone never renders. On the surface this product is used on, the
+glass was gone.
+
+«Что мешает сделать как в Apple» is the answer. `UIVisualEffectView` blurs a
+SNAPSHOT of the backdrop and reuses it; CSS `backdrop-filter` re-blurs from
+nothing, in its own render pass, per element, per frame. The backdrop under a
+tile's play control is a static scene image that never moves relative to the
+control — so the blur is computed once in a canvas off the already-decoded
+bitmap and handed over as a background image. Real glass, real pixels, no
+per-frame cost. `lib/scenePlate.ts`.
+
+Measured on the shipped build, interleaved, 143 live blurs against 9:
+
+| | backdrop-filter | frosted snapshot |
+| --- | --- | --- |
+| GPU CompositorGpuThread | 10780ms | 3028ms (**-72%**) |
+| VizCompositorThread | 5386ms | 2902ms (-46%) |
+| all six busy threads | 31717ms | 21825ms (-31%) |
+| scroll input p99 | 204ms | **89ms** |
+| compositor gaps over 25ms | 7-10% | **0.5-0.7%** |
+
+That last row is the answer to "60 кадров вообще реально": the p99 gap goes from
+50ms — three dropped frames in a row — to 17.4ms, which is one vsync at the
+panel's measured 59.2Hz. Late frames fall fourteenfold. Both things at once, as
+asked; the blur just has to be computed once instead of 143 times a frame.
+
+⚠ Two traps recorded, both paid for here. The "fps" you can compute from
+presentation events reads 114-200, ABOVE the panel's refresh, because the event
+counts surface submissions and not frames — use the gap distribution. And do not
+raise the frost's filter to close the saturation gap: `saturate(420%)` moved the
+metric from 0.41 toward the real blur's 0.59 and turned an evening sky green,
+because averaging leaves tiny channel differences and multiplying them invents
+hues that were never in the picture. It shipped for one deploy before the eye
+caught what the number could not.
+
+⚠⚠ And the instrument trap that voided an entire round of measurement: the app
+persists its active section. An earlier probe of mine had clicked «Моё», so
+every later trace was taken on the Library while I believed it was Home — which
+is where a confident "-2%, blur is not the cost" came from. The probes now
+navigate to Home explicitly and refuse to trace until the surface is populated.
+
 ## The empty tail under a first run (2026-08-29, shipped)
 
 The other half of the same report — «если пролистать главную ниже, то ничего
