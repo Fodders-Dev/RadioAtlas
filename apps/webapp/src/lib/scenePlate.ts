@@ -124,13 +124,21 @@ const FROST_EDGE = 5;
 // 0.14 matched the original's texture exactly (0.00412 vs 0.00414); it does
 // not move brightness, which was the hypothesis it disproved.
 const FROST_BLEED = 0.14;
-// The design's filter, applied to the AVERAGED pixels — see the two-pass note
-// in readSceneFrost — and pushed well past the original's literal values
-// because averaging cancels colour. Measured against the real thing: at the
-// literal `saturate(210%) brightness(106%)` the frost reached 0.41 saturation
-// against the original's 0.59; this reaches 0.52, and glyph contrast lands at
-// 3.20 — better than the frosted original's own 2.57, which does not clear 3:1.
-const FROST_FILTER = 'saturate(420%) brightness(140%) contrast(112%)';
+// The design's own values, applied to the AVERAGED pixels — see the two-pass
+// note in readSceneFrost.
+//
+// ⚠ Do not raise these to chase the saturation number. That was tried and
+// shipped for one deploy: pushing to `saturate(420%) brightness(140%)` moved
+// measured saturation from 0.41 toward the original's 0.59 and made the control
+// WORSE — averaging leaves tiny channel differences, and multiplying them by
+// four turns them into hues that were never in the picture. On a photograph of
+// an evening sky the disc came out green. The metric improved and the colour
+// became a lie; the eye was right and the number was measuring the wrong thing.
+//
+// At these values the frost stays truthful to what is behind it, and glyph
+// contrast is 3.48 — comfortably past 3:1, which the real frosted control
+// (2.57) does not reach.
+const FROST_FILTER = 'saturate(210%) brightness(106%) contrast(105%)';
 let sharedCanvas: HTMLCanvasElement | null = null;
 let frostCanvas: HTMLCanvasElement | null = null;
 
