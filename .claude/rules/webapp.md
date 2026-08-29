@@ -271,9 +271,17 @@ The repeated attribute selectors in the override blocks are not a typo — they
 are the weight. Do not "tidy" them; the script recomputes the arithmetic, so
 let it tell you the count rather than guessing one.
 
-`visual.spec.ts` pins the tier, because a runner with 4 cores renders `lite` and
-a developer machine renders `full`, and those baselines were being captured
-under different tiers before anyone noticed.
+`visual.spec.ts` pins the tier with `?glass=` rather than letting
+`getDeviceProfile()` pick it, because the tier is derived from the HARDWARE the
+test happens to run on — so the same spec can render two different apps on two
+machines, and a screenshot suite whose subject depends on a core count is not
+measuring what it claims to.
+
+⚠ That is insurance, not a repair, and the difference is worth stating because
+the first draft of this note asserted the repair. Regenerating the Linux
+baselines after pinning changed **0 of 23**, so that runner was already
+resolving to `full`; there was no live divergence to fix. Nothing here has ever
+been observed rendering `lite` in CI.
 
 ## Layout rules that are contracts, not preferences
 
