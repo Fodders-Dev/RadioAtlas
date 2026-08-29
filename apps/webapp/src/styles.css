@@ -11154,21 +11154,125 @@ button.player-dock-status-pill:active {
  * backdrop-filter in the app can be switched off at once and the same page
  * measured twice.
  *
- * Deliberately last in the file and deliberately `!important`: its whole job is
- * to beat all ~88 blur declarations wherever they live, including the ones
- * inside media queries and theme blocks, without editing any of them.
+ * THE ATTRIBUTE IS REPEATED ON PURPOSE, and removing the repeats silently
+ * breaks the switch. `:root[data-glass='off'] *` weighs (0,2,0) — exactly what
+ * `.screen-home-next .home-action-btn` weighs, and that one is `!important` in
+ * a LATER stylesheet (homeReference.css ships in the lazy Home chunk), so the
+ * tie went to the blur. Measured against production on 2026-08-29: with
+ * `?glass=off` the page still had 71 live backdrop-filters out of 141, and the
+ * compositor still reported 48 layers promoted for BackdropFilter. `:root` plus five
+ * repeats weighs (0,6,0), which clears the heaviest blur declaration in the app
+ * (.screen-home-next .home-hero-card.is-dense .home-primary-btn.home-hero-play,
+ * (0,5,0)). The exact count is not a magic number to preserve by hand —
+ * scripts/assertGlassOverrideWins.mjs recomputes both sides on every run and
+ * fails if a new blur rule ever outweighs the switch.
  *
- * Why it exists: the nav and dock were made opaque and their blur removed on the
- * theory that compositing cost was blur cost, and scrolling CPU did not move
- * (~164% before, ~178% after — inside the method's noise). Rewriting the other
- * eighty-odd declarations on a hypothesis that already failed once would be
- * expensive guessing. This makes the experiment cost one page load.
+ * That failure is why the first answer here was wrong. The comment this
+ * replaces said blur had been ruled out because CPU did not move when it was
+ * switched off — but it was never switched off; only half of it was, and the
+ * instrument (process CPU% from `top`, one reading per variant) could not have
+ * seen the difference anyway. With the switch actually working and the browser's
+ * own trace as the instrument, blur is the dominant cost on a mid-range phone:
+ * see the `lite` tier below for the numbers.
  *
  * Surfaces will look flat and some will read poorly with this on. That is
  * expected: it answers "what do the blurs cost", not "how should this look". */
-:root[data-glass='off'] *,
-:root[data-glass='off'] *::before,
-:root[data-glass='off'] *::after {
+:root[data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'] *,
+:root[data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'] *::before,
+:root[data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'][data-glass='off'] *::after {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * The `lite` glass tier — a real one. main.tsx has promised since it was
+ * written that "low-power devices get a flat translucent fill instead"; until
+ * now that promise was kept by three rules on the Search screen and nowhere
+ * else, while Home carried 141 live backdrop-filters on the same device.
+ *
+ * Measured on a Galaxy S20 FE against production, 2026-08-29, Chrome DevTools
+ * trace, two interleaved repeats per variant (repeats agreed within 1%):
+ *
+ *                        blur on   blur off   delta
+ *   CompositorGpuThread    9619ms     3504ms    -64%
+ *   VizCompositorThread    4661ms     2743ms    -41%
+ *   all six busy threads  30421ms    21406ms    -30%
+ *   scroll input p99        311ms      102ms    -67%
+ *
+ * The cost is per-INSTANCE, not per-pixel: the whole page only blurs 0.7 of a
+ * screen, but every backdrop-filter is its own render pass, and a tile-based
+ * mobile GPU flushes tile memory on each one. Which is why this tier touches
+ * the SMALL REPEATED CONTROLS and leaves the big signature surfaces — nav,
+ * dock, hero, sheets — completely alone: killing only the small ones recovered
+ * the entire win (-64% / -30%), so the glass the design is actually about costs
+ * essentially nothing and stays.
+ *
+ * Substitutes, not deletions. Removing the blur outright was measured to break
+ * the play control: the frost is what flattens the artwork behind a 44px disc,
+ * and without it the arrow sits on raw photography. Plate luminance stddev
+ * inside the disc, sampled from device pixels — glass 0.033, blur simply
+ * removed 0.086 (2.6x busier, the failure), this fill 0.010 — with glyph
+ * contrast rising from 2.64 to 7.58. The fills below are tuned to that
+ * measurement, not to taste.
+ *
+ * Same specificity anchor as the diagnostic above, for the same reason. */
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn::before,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn::after,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn::before,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn::after,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-quick-chip,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-feed-hero,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .nav-utility-btn,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .app-topbar-action,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .mobile-nav-chat-fab,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .station-artwork {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* The play disc, on a station tile, over arbitrary photography. Bright lens
+   highlight top-left over a dark base: the highlight keeps the liquid-glass
+   read that the box-shadow rim already carries, the base is what the frost used
+   to do. It cannot pick up the artwork's colour the way the blur did — that is
+   the honest cost of this tier, and it is only paid by devices that said they
+   were low-power. */
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn {
+  background:
+    radial-gradient(
+      circle at 30% 22%,
+      rgba(255, 255, 255, 0.34) 0%,
+      rgba(255, 255, 255, 0.13) 34%,
+      rgba(255, 255, 255, 0.06) 60%,
+      transparent 61%
+    ),
+    rgba(9, 17, 30, 0.72) !important;
+}
+
+/* Pills sit on the app's own dark ground rather than on photography, so they
+   need far less: enough fill to read as a raised surface, no plate.
+ *
+ * The topbar circles (.nav-utility-btn / .app-topbar-action) are deliberately
+ * NOT given a fill, only their blur removed. They already carry a real
+ * background of their own, and more importantly the live «в эфире» CTA wears
+ * `.nav-utility-btn` as well — a blanket fill here at !important would have
+ * repainted its teal state grey on exactly the phones this tier targets. */
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-quick-chip {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)),
+    rgba(10, 20, 35, 0.55) !important;
+}
+
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .mobile-nav-chat-fab {
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06) 58%),
+    rgba(13, 26, 43, 0.82) !important;
+}
+
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-feed-hero {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(10, 18, 32, 0.6) !important;
 }

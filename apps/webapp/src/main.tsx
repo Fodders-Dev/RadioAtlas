@@ -30,13 +30,22 @@ if (typeof window !== 'undefined') {
 // turns into `backdrop-filter: none` everywhere, so the cost of every blur in the
 // app can be measured by loading the same page twice.
 //
-// It exists because the obvious inference was wrong once already. Scrolling Home
-// on a Galaxy S20 FE burned ~164% CPU with the GPU process taking most of it, so
-// the nav and dock were made opaque and their blur removed — and the number did
-// not move (~178% after, inside the noise of the method). Compositor load does
-// not automatically mean blur, and eighty-odd more `backdrop-filter` rules is far
-// too much to rewrite on a hypothesis that has already failed once. Turn them all
-// off, measure, and let the number decide before touching any of them.
+// It exists because the obvious inference was wrong once already — and then the
+// correction was wrong too, which is the part worth remembering. Scrolling Home
+// on a Galaxy S20 FE burned ~164% CPU, the nav and dock were made opaque, the
+// number did not move (~178%), and blur was written off. Both halves of that
+// were broken: `top`'s process total, read once per variant, could not resolve
+// the difference, and the switch itself lost the cascade and left half the
+// blurs running (see the specificity note in styles.css).
+//
+// Measured properly — the browser's own trace, interleaved repeats agreeing
+// within 1% — blur is the dominant cost: -64% on the GPU compositor thread and
+// scroll input p99 from 311ms to 102ms. 'lite' is the tier that acts on it.
+//
+// The lesson for the next person: when a switch reports "no effect", check that
+// the switch is on before believing it. Both probes now assert what they turned
+// off, because a diagnostic that silently does nothing is worse than no
+// diagnostic at all — it produces a confident wrong answer.
 if (typeof document !== 'undefined') {
   const forced =
     typeof window !== 'undefined'

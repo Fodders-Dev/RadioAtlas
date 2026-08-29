@@ -1,6 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
+// Baselines must not depend on how many cores the machine running them has.
+//
+// `getDeviceProfile()` stamps `data-glass='lite'` when hardwareConcurrency <= 4,
+// which is exactly what a GitHub-hosted Linux runner reports and not what this
+// developer machine reports — so the linux and win32 baselines in this suite
+// have been captured under DIFFERENT glass tiers all along. That was nearly
+// invisible while `lite` only altered three rules on Search. It stops being
+// invisible now that `lite` flattens the repeated small controls on Home, where
+// most of these baselines live.
+//
+// Pinned to 'full' because that is the design as drawn; the lite tier gets its
+// own contract in glass-tier.spec.ts rather than a second set of images.
+const VISUAL_GLASS_TIER = 'full';
+
 const waitForStableMetrics = async (
   page: Page,
   selector?: string,
@@ -48,7 +62,7 @@ const waitForStableMetrics = async (
 const openFullPlayerOverlay = async (page: Page) => {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     if (attempt > 0) {
-      await page.goto('/?api=/api');
+      await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
     }
     await page.locator('.nav-rail-item').filter({ hasText: 'Поиск' }).first().click();
     await page.locator('.station-row .play-btn').first().click();
@@ -79,7 +93,7 @@ const openHome = async (
   options?: Parameters<typeof seedRadioState>[1]
 ) => {
   await seedRadioState(page, options);
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible({ timeout: 15_000 });
   // (No dock wait here: with nothing playing the dormant dock renders nothing,
   // and the feed-entry assertion above is already the load anchor. Do NOT use
@@ -287,7 +301,7 @@ test('library screen visual baseline', async ({ page }) => {
 test('settings sheet mobile visual baseline', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page);
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
   await page.locator('.mobile-settings-trigger').click();
 
@@ -338,7 +352,7 @@ test('full player overlay visual baseline', async ({ page }) => {
       }
     ]
   });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await openFullPlayerOverlay(page);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(() => {
@@ -374,7 +388,7 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
       }
     ]
   });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await page.locator('#search-hero-input').first().fill('Tokyo');
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
@@ -423,7 +437,7 @@ test('full player overlay mobile visual baseline', async ({ page }) => {
 test('globe mobile visual baseline (single global dock)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, { activeSection: 'search' });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await page.locator('#search-hero-input').first().fill('Tokyo');
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await page.getByRole('button', { name: /Играть выдачу|Play results/ }).click();
@@ -456,7 +470,7 @@ test('globe mobile visual baseline (single global dock)', async ({ page }) => {
 test('search mobile visual baseline (results + filters sheet)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, { activeSection: 'search' });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await page.locator('#search-hero-input').first().fill('jpop');
   await expect(page.locator('[data-search-station-card]').first()).toBeVisible();
   await waitForStableMetrics(page, '.screen-search-v3');
@@ -502,7 +516,7 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
       }
     ]
   });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('.library-queue-now-card')).toBeVisible();
   await waitForStableMetrics(page, '.screen-library-v2');
 
@@ -528,7 +542,7 @@ test('library mobile visual baseline (queue + collections)', async ({ page }) =>
 test('discovery feed mobile visual baseline (card + actions)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, { activeSection: 'feed' });
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('.station-feed-card-name').first()).toBeVisible();
   // Opening the feed no longer auto-plays when a station is already current (the
   // #86 fix), so we pin the card chrome rather than waiting on a live pill (which
@@ -585,7 +599,7 @@ test('discovery feed mobile visual baseline (card + actions)', async ({ page }) 
 test('theme studio list mobile visual baseline (dark + warm light)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page);
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await page.locator('.mobile-settings-trigger').click();
@@ -614,7 +628,7 @@ test('theme studio list mobile visual baseline (dark + warm light)', async ({ pa
 test('theme editor mobile visual baseline (form + gradient sheet)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page);
-  await page.goto('/?api=/api');
+  await page.goto(`/?api=/api&glass=${VISUAL_GLASS_TIER}`);
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
   await page.locator('.mobile-settings-trigger').click();
