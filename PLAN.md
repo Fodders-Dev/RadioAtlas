@@ -1634,12 +1634,21 @@ always there. Tail 334 → 216px in the fixture, and Home's own padding 250 → 
 which every screen ALSO reserves through `--screen-bottom-safe-v2`. So a 72px
 nav is being cleared twice, for 216px total.
 
-Not fixed here, deliberately. The shell's padding is the fallback for any screen
-that does NOT set its own bottom padding, and "which screens rely on it" is a
-sweep, not an assumption — the cost of guessing wrong is content sitting under
-the navigation on a surface nobody checked. Worth doing with a test that walks
-every section at 390×844 and asserts the last content clears the nav; worth
-about 92px on first run when it is done.
+The sweep has since been done, and it says the shell's copy is redundant.
+`tests/nav-clearance.spec.ts` walks all four sections at 390×844, scrolls each
+to its end and asserts the lowest reachable control clears the nav. With the
+shell's bottom padding reduced to `calc(8px + var(--shell-safe-bottom))` — the
+edge inset only, no second nav clearance — **all four sections still pass**,
+along with `dock-reserve.spec.ts`. So the trim is a two-line change and it is
+proven, not assumed.
+
+⚠ It is deliberately NOT shipped yet, and the reason is sequencing rather than
+doubt. The owner asked to look at the first-run screen again now that the dock
+reserve is gone, before deciding anything about the shelf count; landing a
+second change to the same geometry would mean he is looking at something other
+than what was described to him. One variable at a time. The spec is committed
+either way — it is the evidence the trim needs, and it is worth having on its
+own: until it existed, this contract was asserted on Home only.
 
 **What is still open is the product question, and it is the owner's.**
 `FIRST_RUN_RAIL_LIMIT = 1` is deliberate and measured — a newcomer's screen was
