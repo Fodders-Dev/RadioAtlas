@@ -1628,10 +1628,18 @@ control that was not on screen. The shell now carries `data-dock`, and the
 reserve is conditional; the nav's own clearance is untouched, because the nav is
 always there. Tail 334 → 216px in the fixture, and Home's own padding 250 → 124.
 
-⚠ The remaining 92px is NOT Home's. It sits on the shared content container
-above it, is identical on every tab, and trimming it is a separate change with a
-much wider blast radius. Said here so the next person does not read 216px as
-"already minimal".
+⚠ The remaining 92px is NOT Home's, and it is now located exactly: at ≤430px
+`.app-shell-v2` carries `padding-bottom: calc(var(--dock-offset-v2) + 8px)`
+(styles.css:6116) — and `--dock-offset-v2` is the floating nav's clearance,
+which every screen ALSO reserves through `--screen-bottom-safe-v2`. So a 72px
+nav is being cleared twice, for 216px total.
+
+Not fixed here, deliberately. The shell's padding is the fallback for any screen
+that does NOT set its own bottom padding, and "which screens rely on it" is a
+sweep, not an assumption — the cost of guessing wrong is content sitting under
+the navigation on a surface nobody checked. Worth doing with a test that walks
+every section at 390×844 and asserts the last content clears the nav; worth
+about 92px on first run when it is done.
 
 **What is still open is the product question, and it is the owner's.**
 `FIRST_RUN_RAIL_LIMIT = 1` is deliberate and measured — a newcomer's screen was
