@@ -114,6 +114,7 @@ export const enDictionary = {
     "unfavorite": "Unfavorite",
     "addToPlaylist": "Add to playlist",
     "addToPlaylistAria": "Add {station} to a playlist",
+    "rowActionsAria": "Actions for {station}",
     "hideFromRecommendations": "Hide from recommendations",
     "unhideFromRecommendations": "Show in recommendations again",
     "verified": "Verified",

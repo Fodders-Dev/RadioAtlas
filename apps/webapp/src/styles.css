@@ -2461,16 +2461,21 @@ input {
   flex: 0 0 auto;
 }
 
+/* 44px, because that is the floor and it is a contract, not a preference.
+   These were 32-36px on production, and the same row squeezed its station name,
+   country and genre into 38px between them — measured at 360px, the canonical
+   Telegram width. Both numbers had one cause: five actions in a row with space
+   for two. Three of them now live in the sheet the row body opens. */
 .station-table.compact .station-compact-play,
 .station-table.compact .station-fav-btn,
 .station-table.compact .station-playlist-btn,
 .station-table.compact .station-share-btn,
 .station-table.compact .station-hide-btn {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
-  border-radius: 12px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 14px;
 }
 
 .station-table.compact .station-compact-play {
@@ -5410,10 +5415,10 @@ button.app-brand-pill {
 
   .station-table.compact .station-compact-play,
   .station-table.compact .station-fav-btn {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    min-height: 36px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
   }
 
   .station-compact-main {
@@ -6748,8 +6753,60 @@ body {
   line-clamp: 2;
 }
 
+/* The row's actions sheet. Reuses the playlist dialog's shell (scrim, card,
+   head) so there is one bottom-sheet look in this file rather than two; only
+   the list of choices is its own. */
+.station-row-actions-sheet-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.station-row-actions-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.station-row-actions-sheet-item:hover,
+.station-row-actions-sheet-item:focus-visible {
+  border-color: rgba(245, 250, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.station-row-actions-sheet-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.station-row-actions-sheet-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
 .station-table.compact .station-compact-actions {
-  min-width: 78px;
+  /* Two 44px targets and the gap between them — no more, so the name keeps the
+     rest. Was 78px, which is what five buttons collapse to when they are asked
+     to fit somewhere they do not. */
+  min-width: 94px;
+  flex: 0 0 auto;
 }
 
 /* Genre card containment */

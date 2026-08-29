@@ -114,6 +114,7 @@ export const ruDictionary = {
     "unfavorite": "Убрать лайк",
     "addToPlaylist": "В плейлист",
     "addToPlaylistAria": "Добавить {station} в плейлист",
+    "rowActionsAria": "Что сделать со станцией {station}",
     "hideFromRecommendations": "Скрыть из рекомендаций",
     "unhideFromRecommendations": "Вернуть в рекомендации",
     "verified": "Проверено",

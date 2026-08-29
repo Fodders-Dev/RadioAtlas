@@ -124,6 +124,9 @@ const StationTableRow = memo(({
     shouldWatchViewport ? active || index < seedWindow : active
   );
   const [snapshot, setSnapshot] = useState<NowPlayingSnapshot>(IDLE_ROW_SNAPSHOT);
+  // Compact rows only: the row body opens the actions sheet. See
+  // StationRowActionsSheet for why five buttons could not stay on the row.
+  const [actionsOpen, setActionsOpen] = useState(false);
   const shouldObserve = active || (shouldWatchViewport && isNearViewport);
 
   // Test-only render spy (see __radioatlasRowRenderCounts__). No-op in
@@ -237,8 +240,16 @@ const StationTableRow = memo(({
           <button
             className="station-compact-main station-compact-toggle"
             type="button"
-            onClick={toggleStation}
-            aria-label={playLabel}
+            // Was a second play button in disguise — the same `toggleStation`
+            // the explicit play control beside it already runs. Spending the
+            // row's whole body on a duplicate is what left no room for the
+            // three actions that now live in the sheet it opens.
+            onClick={() => setActionsOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={actionsOpen}
+            aria-label={t('stationTable.rowActionsAria', {
+              station: normalizeStationName(station.name)
+            })}
           >
             <StationArtwork station={station} size="card" />
             <div className="station-compact-copy">
@@ -299,62 +310,11 @@ const StationTableRow = memo(({
                 <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
               </svg>
             </button>
-            <button
-              className="icon-btn station-playlist-btn"
-              onClick={() => onAddToPlaylist(station)}
-              type="button"
-              aria-label={t('stationTable.addToPlaylistAria', {
-                station: normalizeStationName(station.name)
-              })}
-              title={t('stationTable.addToPlaylist')}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 5h11v2H4V5Zm0 5h9v2H4v-2Zm0 5h8v2H4v-2Zm12-4h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3Z" />
-              </svg>
-            </button>
-            <button
-              className="icon-btn station-share-btn"
-              onClick={(event) => {
-                event.stopPropagation();
-                onShare(station);
-              }}
-              type="button"
-              aria-label={t('common.share')}
-              title={t('common.share')}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
-              </svg>
-            </button>
-            <button
-              className={`icon-btn station-hide-btn ${hidden ? 'active' : ''}`}
-              onClick={toggleHidden}
-              type="button"
-              aria-label={
-                hidden
-                  ? t('stationTable.unhideFromRecommendations') ||
-                    'Показывать снова в рекомендациях'
-                  : t('stationTable.hideFromRecommendations') ||
-                    'Скрыть из рекомендаций'
-              }
-              title={
-                hidden
-                  ? t('stationTable.unhideFromRecommendations') ||
-                    'Показывать снова в рекомендациях'
-                  : t('stationTable.hideFromRecommendations') ||
-                    'Скрыть из рекомендаций'
-              }
-            >
-              {/* Eye-off icon when station is currently hidden,
-                  open eye when normal — tap to toggle. */}
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                {hidden ? (
-                  <path d="M2.1 3.5 3.5 2.1l18.4 18.4-1.4 1.4-2.5-2.5A12 12 0 0 1 12 20c-5.5 0-10.1-3.4-12-8 .8-2 2.2-3.7 4-5L2.1 3.5zM12 7c2.8 0 5 2.2 5 5 0 .6-.1 1.2-.3 1.7l-2.3-2.3c0-.1.1-.3.1-.4 0-1.4-1.1-2.5-2.5-2.5-.1 0-.3 0-.4.1L9.3 6.3C10.1 7.1 11 7 12 7zm0 10c-3.7 0-7-1.7-9-4.5C4 11 5.5 9.5 7.4 8.6l1.6 1.6c-.6.6-.9 1.4-.9 2.3 0 1.9 1.6 3.5 3.5 3.5.9 0 1.7-.3 2.3-.9l1.6 1.6C14.3 16.6 13.2 17 12 17z" />
-                ) : (
-                  <path d="M12 5C5.5 5 1 12 1 12s4.5 7 11 7 11-7 11-7-4.5-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
-                )}
-              </svg>
-            </button>
+            {/* Only two controls stay on the row, and the number is arithmetic
+                rather than taste: a 288px shell minus 42 artwork, 8 gap and 140
+                for a name worth reading leaves 98px — exactly two 44px targets.
+                «В плейлист», «Поделиться» and «Скрыть» moved into the sheet the
+                row body opens; see StationRowActionsSheet. */}
           </div>
           {sourceLabel ? (
             <span className="station-source-badge station-source-badge-compact" title={sourceLabel}>
@@ -465,10 +425,191 @@ const StationTableRow = memo(({
           </div>
         </>
       )}
+      {actionsOpen ? (
+        <StationRowActionsSheet
+          station={station}
+          isPlaying={isActivePlaying}
+          liked={liked}
+          hidden={hidden}
+          onClose={() => setActionsOpen(false)}
+          onPlay={toggleStation}
+          onToggleFavorite={() => onToggleFavorite(station)}
+          onAddToPlaylist={() => onAddToPlaylist(station)}
+          onShare={() => onShare(station)}
+          onToggleHidden={toggleHidden}
+        />
+      ) : null}
     </div>
   );
 });
 StationTableRow.displayName = 'StationTableRow';
+
+type StationRowActionsSheetProps = {
+  station: StationLite;
+  isPlaying: boolean;
+  liked: boolean;
+  hidden: boolean;
+  onClose: () => void;
+  onPlay: () => void;
+  onToggleFavorite: () => void;
+  onAddToPlaylist: () => void;
+  onShare: () => void;
+  onToggleHidden: () => void;
+};
+
+/**
+ * The row's secondary actions, one tap away instead of crammed into the row.
+ *
+ * Measured on production at 360px, which is the canonical Telegram width: the
+ * compact row gave its five action buttons 192px of a 288px shell and left the
+ * station's name, country and genre **38px between them**. «Baden-Württemberg,
+ * Germany» rendered at 29% of its length. The buttons were not fine either —
+ * 32-36px against this project's 44px touch-target floor, which is a contract
+ * and not a preference.
+ *
+ * Both numbers come from the same cause and the arithmetic is unforgiving:
+ * 288 - 42 (artwork) - 8 (gap) - 140 (a name worth reading) leaves 98px, which
+ * is exactly two 44px controls. So two stay on the row — play, and the like
+ * that a library is made of — and everything else lives here, behind the row
+ * body, which was already a button whose only job duplicated the play button
+ * beside it.
+ */
+const StationRowActionsSheet = ({
+  station,
+  isPlaying,
+  liked,
+  hidden,
+  onClose,
+  onPlay,
+  onToggleFavorite,
+  onAddToPlaylist,
+  onShare,
+  onToggleHidden
+}: StationRowActionsSheetProps) => {
+  const { t } = useLocale();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const titleId = useId();
+  useDialog(rootRef, { isOpen: true, onClose });
+
+  if (typeof document === 'undefined') return null;
+
+  // Every action closes the sheet after running: this is a menu, not a panel,
+  // and leaving it open over the row it just acted on hides the result.
+  const run = (action: () => void) => () => {
+    action();
+    onClose();
+  };
+
+  const items: Array<{ key: string; label: string; onClick: () => void; icon: ReactNode }> = [
+    {
+      key: 'play',
+      label: isPlaying ? t('common.pause') : t('common.play'),
+      onClick: run(onPlay),
+      icon: (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {isPlaying ? <path d="M7 5h4v14H7zm6 0h4v14h-4z" /> : <path d="M8 5v14l11-7z" />}
+        </svg>
+      )
+    },
+    {
+      key: 'favorite',
+      label: liked ? t('stationTable.unfavorite') : t('stationTable.favorite'),
+      onClick: run(onToggleFavorite),
+      icon: (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4L12 21.2z" />
+        </svg>
+      )
+    },
+    {
+      key: 'playlist',
+      label: t('stationTable.addToPlaylist'),
+      onClick: run(onAddToPlaylist),
+      icon: (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5h11v2H4V5Zm0 5h9v2H4v-2Zm0 5h8v2H4v-2Zm12-4h2v3h3v2h-3v3h-2v-3h-3v-2h3v-3Z" />
+        </svg>
+      )
+    },
+    {
+      key: 'share',
+      label: t('common.share'),
+      onClick: run(onShare),
+      icon: (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z" />
+        </svg>
+      )
+    },
+    {
+      key: 'hide',
+      label: hidden
+        ? t('stationTable.unhideFromRecommendations')
+        : t('stationTable.hideFromRecommendations'),
+      onClick: run(onToggleHidden),
+      icon: (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5c5 0 9 4.5 9 7s-4 7-9 7-9-4.5-9-7 4-7 9-7Zm0 2c-3.6 0-6.6 3.2-6.9 5 .3 1.8 3.3 5 6.9 5s6.6-3.2 6.9-5c-.3-1.8-3.3-5-6.9-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
+        </svg>
+      )
+    }
+  ];
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      className="station-playlist-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <button
+        className="station-playlist-dialog-scrim"
+        type="button"
+        onClick={onClose}
+        aria-label={t('common.close')}
+        data-dialog-backdrop
+      />
+      <div className="station-playlist-dialog-card">
+        <div className="station-playlist-dialog-head">
+          <div>
+            <div className="bottom-sheet-kicker">{stationLocation(station)}</div>
+            <div className="bottom-sheet-title" id={titleId}>
+              {normalizeStationName(station.name)}
+            </div>
+          </div>
+          <button
+            className="bottom-sheet-close"
+            type="button"
+            onClick={onClose}
+            aria-label={t('common.close')}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="station-row-actions-sheet-list">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              className="station-row-actions-sheet-item"
+              type="button"
+              onClick={item.onClick}
+            >
+              <span className="station-row-actions-sheet-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 type StationPlaylistDialogProps = {
   station: StationLite;
