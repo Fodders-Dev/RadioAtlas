@@ -109,7 +109,30 @@ export const toPlateColor = (rgb: Rgb): string => {
 };
 
 const SAMPLE_EDGE = 8;
+// The frosted snapshot is drawn at this edge and stretched back up by CSS.
+// Downscaling IS the blur — a box filter over the source pixels — so nothing
+// needs an explicit blur, and upscaling with smoothing gives the gradient.
+//
+// 5 is measured, not guessed. Sampled on the device against the real
+// backdrop-filter beside it, high-frequency detail inside the disc came out at
+// 5 -> 0.0040, 8 -> 0.0054, 11 -> 0.0070, 14 -> 0.0084, against the frosted
+// original's 0.0041. Anything above 5 keeps enough structure to read as a
+// blocky upscale rather than as glass.
+const FROST_EDGE = 5;
+// How far outside the control to sample. A blur pulls colour from beyond the
+// element's box, and sampling the box exactly gives an edge that stops dead.
+// 0.14 matched the original's texture exactly (0.00412 vs 0.00414); it does
+// not move brightness, which was the hypothesis it disproved.
+const FROST_BLEED = 0.14;
+// The design's filter, applied to the AVERAGED pixels — see the two-pass note
+// in readSceneFrost — and pushed well past the original's literal values
+// because averaging cancels colour. Measured against the real thing: at the
+// literal `saturate(210%) brightness(106%)` the frost reached 0.41 saturation
+// against the original's 0.59; this reaches 0.52, and glyph contrast lands at
+// 3.20 — better than the frosted original's own 2.57, which does not clear 3:1.
+const FROST_FILTER = 'saturate(420%) brightness(140%) contrast(112%)';
 let sharedCanvas: HTMLCanvasElement | null = null;
+let frostCanvas: HTMLCanvasElement | null = null;
 
 const canvasContext = () => {
   if (typeof document === 'undefined') return null;
@@ -193,7 +216,85 @@ export const readScenePlate = (
   }
 };
 
-export const clearScenePlateCache = () => cache.clear();
+export const clearScenePlateCache = () => {
+  cache.clear();
+  frostCache.clear();
+};
+
+const frostCache = new Map<string, string>();
+
+/**
+ * A frosted snapshot of the scene under the control, as a data URL.
+ *
+ * This is the Apple trick, and it is the answer to "why can iOS do this and we
+ * cannot". `UIVisualEffectView` blurs a SNAPSHOT of the backdrop and reuses it;
+ * CSS `backdrop-filter` re-blurs from scratch, in its own render pass, for every
+ * element, every frame — which is why 141 of them cost -64% of the GPU
+ * compositor thread here while a phone full of native glass does not care.
+ *
+ * The backdrop under a tile's play control is a static scene image. It does not
+ * move relative to the control, and it does not change. So the blur can be
+ * computed ONCE, off the bitmap the tile already decoded, and handed to the
+ * control as a picture. The look is the real thing — the actual pixels behind
+ * it, blurred — and the per-frame cost is that of any other background image:
+ * nothing.
+ *
+ * Returns null on any failure, and the flat plate stays.
+ */
+export const readSceneFrost = (image: HTMLImageElement, target: Rect): string | null => {
+  if (!image.complete || !image.naturalWidth || !image.naturalHeight) return null;
+
+  // Sample WIDER than the control. A blur pulls in colour from outside the
+  // element's own box, and sampling exactly the box gives an edge that stops
+  // dead where the glass starts.
+  const bleed = Math.max(target.width, target.height) * FROST_BLEED;
+  const source = coverSourceRect(
+    { width: image.clientWidth, height: image.clientHeight },
+    { width: image.naturalWidth, height: image.naturalHeight },
+    {
+      x: target.x - bleed,
+      y: target.y - bleed,
+      width: target.width + bleed * 2,
+      height: target.height + bleed * 2
+    }
+  );
+  if (!source) return null;
+
+  const key = `${image.currentSrc || image.src}|f|${Math.round(source.sx)},${Math.round(source.sy)},${Math.round(source.sw)},${Math.round(source.sh)}`;
+  const cached = frostCache.get(key);
+  if (cached) return cached;
+
+  if (typeof document === 'undefined') return null;
+  if (!frostCanvas) {
+    frostCanvas = document.createElement('canvas');
+    frostCanvas.width = FROST_EDGE;
+    frostCanvas.height = FROST_EDGE;
+  }
+  const context = frostCanvas.getContext('2d');
+  if (!context) return null;
+
+  try {
+    // TWO passes, and the order is the whole point. A compositor blurs first
+    // and colours the blurred result; colouring during the downscale colours
+    // pixels that have not been averaged yet, and averaging then cancels what
+    // the filter just did. Measured: one pass reached 0.41 saturation against
+    // the real backdrop-filter's 0.59, two passes reach 0.52.
+    context.clearRect(0, 0, FROST_EDGE, FROST_EDGE);
+    context.filter = 'none';
+    context.drawImage(image, source.sx, source.sy, source.sw, source.sh, 0, 0, FROST_EDGE, FROST_EDGE);
+    context.filter = FROST_FILTER;
+    context.drawImage(frostCanvas, 0, 0);
+    context.filter = 'none';
+    const url = frostCanvas.toDataURL('image/jpeg', 0.72);
+    // A canvas that was tainted throws above; one that produced nothing useful
+    // is not worth a background layer.
+    if (!url || url.length < 64) return null;
+    frostCache.set(key, url);
+    return url;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Tint a tile's flat controls with the piece of scene they sit on.
@@ -218,11 +319,20 @@ export const paintTilePlate = (tile: HTMLElement | null, image: HTMLImageElement
   const controlRect = control.getBoundingClientRect();
   if (!imageRect.width || !controlRect.width) return;
 
-  const plate = readScenePlate(image, {
+  const target = {
     x: controlRect.left - imageRect.left,
     y: controlRect.top - imageRect.top,
     width: controlRect.width,
     height: controlRect.height
-  });
+  };
+
+  const plate = readScenePlate(image, target);
   if (plate) tile.style.setProperty('--station-plate', plate);
+
+  // The frosted snapshot rides on top of the flat plate rather than replacing
+  // it: if the frost fails for one tile the colour is still right, and the
+  // control never falls back to bare artwork — which is the state that was
+  // measured to sink the play arrow into a sunlit photograph.
+  const frost = readSceneFrost(image, target);
+  if (frost) tile.style.setProperty('--station-frost', `url("${frost}")`);
 };

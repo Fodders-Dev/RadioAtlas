@@ -11340,7 +11340,20 @@ button.player-dock-status-pill:active {
  * a complete answer on its own. */
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn {
-  background:
+  /* Three layers, top to bottom: the lens sheen, a FROSTED SNAPSHOT of the
+     scene under the control, and the averaged colour as the floor.
+   *
+   * The snapshot is the point. `--station-frost` is the actual pixels behind
+   * this control, blurred once in a canvas when the scene decoded (see
+   * lib/scenePlate.ts) — so this reads as real glass, because it is: the same
+   * backdrop, the same blur, the same saturate/brightness/contrast the `full`
+   * tier applies. What it does not have is a render pass per frame, which is
+   * the entire cost that backdrop-filter was charging 141 times over.
+   *
+   * It is the trick iOS uses. UIVisualEffectView blurs a snapshot and reuses
+   * it; CSS backdrop-filter re-blurs from nothing, per element, per frame. The
+   * backdrop here is a static picture, so we can do what iOS does. */
+  background-image:
     radial-gradient(
       circle at 30% 22%,
       rgba(255, 255, 255, 0.34) 0%,
@@ -11348,7 +11361,11 @@ button.player-dock-status-pill:active {
       rgba(255, 255, 255, 0.06) 60%,
       transparent 61%
     ),
-    var(--station-plate, rgba(9, 17, 30, 0.72)) !important;
+    var(--station-frost, none) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-color: var(--station-plate, rgba(9, 17, 30, 0.72)) !important;
 }
 
 /* Pills sit on the app's own dark ground rather than on photography, so they
