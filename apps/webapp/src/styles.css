@@ -11233,11 +11233,19 @@ button.player-dock-status-pill:active {
 }
 
 /* The play disc, on a station tile, over arbitrary photography. Bright lens
-   highlight top-left over a dark base: the highlight keeps the liquid-glass
-   read that the box-shadow rim already carries, the base is what the frost used
-   to do. It cannot pick up the artwork's colour the way the blur did — that is
-   the honest cost of this tier, and it is only paid by devices that said they
-   were low-power. */
+   highlight top-left over a base that is the tile's OWN picture, averaged.
+ *
+ * `--station-plate` is written by lib/scenePlate.ts when the scene bitmap
+ * decodes: a backdrop-filter is a local average of what is behind the element,
+ * so the faithful replacement for one is that same average, and the control
+ * goes on being tinted by the station's artwork instead of turning into an
+ * identical grey slab on every tile. It is affordable because the scenes are
+ * same-origin, so the colour is read from the bitmap the tile already decoded —
+ * no second fetch, and no render pass.
+ *
+ * The fallback is not decoration: a tile with no scene, a scene still loading,
+ * or a canvas that ever becomes tainted all land on the neutral plate, which is
+ * a complete answer on its own. */
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn {
   background:
@@ -11248,7 +11256,7 @@ button.player-dock-status-pill:active {
       rgba(255, 255, 255, 0.06) 60%,
       transparent 61%
     ),
-    rgba(9, 17, 30, 0.72) !important;
+    var(--station-plate, rgba(9, 17, 30, 0.72)) !important;
 }
 
 /* Pills sit on the app's own dark ground rather than on photography, so they

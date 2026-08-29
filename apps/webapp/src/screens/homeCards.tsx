@@ -13,6 +13,7 @@ import { normalizeStationName, stationLocation, stationTags } from '../lib/stati
 import { useCompactLayout } from '../lib/useCompactLayout';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary } from '../state/RadioContext';
+import { paintTilePlate } from '../lib/scenePlate';
 import { getStationBadgeState } from '../lib/stationStatusBadge';
 import { StationStatusBadge } from '../components/StationStatusBadge';
 import type { NowPlayingSnapshot } from '../domain/contracts';
@@ -216,6 +217,10 @@ const HomeStationTile = ({
     healthProfile: stationHealthProfile,
     playabilityProfile
   });
+  const tileRef = useRef<HTMLElement>(null);
+  const handleSceneReady = useCallback((image: HTMLImageElement) => {
+    paintTilePlate(tileRef.current, image);
+  }, []);
 
   // T2.23 logo-strip variant: artwork-only chip that still plays on click and
   // keeps an accessible name (no visible text/metadata/actions).
@@ -246,6 +251,7 @@ const HomeStationTile = ({
 
   return (
     <article
+      ref={tileRef}
       className={`home-station-tile home-station-tile-${tone} ${dense ? 'is-dense' : ''} ${isActive ? 'is-active' : ''} ${featured ? 'home-station-tile--featured' : ''}`.trim()}
       data-home-station={station.stationuuid}
     >
@@ -253,7 +259,16 @@ const HomeStationTile = ({
           the card and fails soft to a deterministic procedural gradient — never
           the raw station logo, which is frequently a generic placeholder. Name +
           location overlay the bottom; the whole tile is the play target. */}
-      <StationScene station={station} className="home-station-scene" priority={featured} />
+      <StationScene
+        station={station}
+        className="home-station-scene"
+        priority={featured}
+        // Under the `lite` glass tier the play control loses its backdrop-filter
+        // and would otherwise be a neutral slab on every tile alike. This hands
+        // it the colour of the scene it actually sits on, which is what the
+        // blur was computing anyway — a local average — for none of the cost.
+        onImageReady={handleSceneReady}
+      />
       <span className="home-station-scrim" aria-hidden="true" />
       {/* Owner ask: show the station's own emblem ON TOP of the generated scene —
           "симбиоз" between the two — for the stations that actually have one.

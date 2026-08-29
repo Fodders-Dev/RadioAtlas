@@ -8,6 +8,13 @@ type StationSceneProps = {
   station: StationLite | null;
   className?: string;
   priority?: boolean;
+  /**
+   * Fired once the scene bitmap is decoded and measurable. The surface that owns
+   * the card decides what to do with it — Home reads the colour under its play
+   * control so the flat `lite` plate is tinted by the tile's own picture. The
+   * scene stays decorative and knows nothing about controls.
+   */
+  onImageReady?: (image: HTMLImageElement) => void;
 };
 
 const BROKEN_SCENE_URLS = new Set<string>();
@@ -28,7 +35,8 @@ const seedOf = (station: StationLite | null) =>
 export const StationScene = ({
   station,
   className = '',
-  priority = false
+  priority = false,
+  onImageReady
 }: StationSceneProps) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const [resolvedScene, setResolvedScene] = useState({ stationId: '', url: '' });
@@ -102,6 +110,10 @@ export const StationScene = ({
     rerenderBrokenSource((version) => version + 1);
   };
 
+  const handleImageLoad = (event: { currentTarget: HTMLImageElement }) => {
+    onImageReady?.(event.currentTarget);
+  };
+
   return (
     <div
       ref={rootRef}
@@ -122,6 +134,7 @@ export const StationScene = ({
           decoding="async"
           referrerPolicy="no-referrer"
           onError={handleImageError}
+          onLoad={handleImageLoad}
         />
       ) : null}
       <span className="station-scene-tint" />
