@@ -1589,6 +1589,27 @@ separate screenshots and was wrong all three times: compared against what the
 CSS predicted, the pixels matched to within a few counts. Judge a surface by
 arithmetic against a prediction, not by looking at a photograph.
 
+⚠⚠ And then the arithmetic disagreed too — because `Page.captureScreenshot` on
+this phone does not return the page's colours. Samsung Internet on the S20 FE
+hands back a colour-transformed image: a pure `#ff0000` div, `position: fixed`,
+`z-index: 2147483647`, owing nothing to any tile, captures as **(173, 35, 23)**.
+That one control explained an afternoon of contradictory readings at once,
+including a "the control renders 3x darker than its own CSS says, cause unknown"
+that had no cause — the page was right and the camera was wrong.
+
+What survives it: every A/B here, since both sides went through the same
+transform, and all the performance numbers, which come from the trace and not
+from pixels. What does NOT survive it: absolute colour and contrast claims (the
+glyph contrast figures are indicative, not WCAG), and any comparison between
+images of DIFFERENT brightness — the transform compresses dark tones hardest, so
+the dark plate's detail score is flattered. "At least as smooth as the glass" is
+defensible; "twice as smooth" was an artifact. The blur-removed-vs-glass
+comparison is safe only because those two sit within 2% of the same mean
+luminance.
+
+Before trusting any pixel measured off this device, put a known swatch in the
+same screenshot.
+
 ## Next:
 
 Next is getting people in front of what already exists — and after the link
