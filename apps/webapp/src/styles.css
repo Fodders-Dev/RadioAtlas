@@ -11307,15 +11307,30 @@ button.player-dock-status-pill:active {
  * contrast rising from 2.64 to 7.58. The fills below are tuned to that
  * measurement, not to taste.
  *
+ * THE LIST BELOW IS SHORT ON PURPOSE, and the rule behind it is measured:
+ * **few and in-flow is free; fixed, or many, is not.** Decomposed on the device
+ * against the shipped build, all four variants interleaved:
+ *
+ *   every blur on (143)                GPU 10780ms  p99 204ms  late 8.5%
+ *   all chrome keeps real blur         GPU  4684ms  p99 107ms  late 0.7%
+ *   only IN-FLOW chrome keeps it       GPU  3338ms  p99  92ms  late 0.6%
+ *   everything flat (this tier)        GPU  3154ms  p99  78ms  late 0.6%
+ *
+ * So the quick chips, the live-air line and the hero's play button keep their
+ * REAL backdrop-filter: three of them, in the page flow, and they cost +6% of
+ * the GPU compositor thread with the dropped-frame share unchanged. What stays
+ * flattened is what is expensive — the fixed chrome (the chat orb, the topbar
+ * circles), which has to re-blur a CHANGING backdrop every frame of a scroll,
+ * and the per-station repeats, where the cost is the count. Per instance the
+ * fixed chrome runs ~136ms against a repeat's ~63ms.
+ *
+ * Do not add an element here without measuring it. Half of them do not need to
+ * be here, and that was true of this list until it was taken apart.
+ *
  * Same specificity anchor as the diagnostic above, for the same reason. */
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn::before,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn::after,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn::before,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn::after,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-quick-chip,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-feed-hero,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .nav-utility-btn,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .app-topbar-action,
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .mobile-nav-chat-fab,
@@ -11338,8 +11353,7 @@ button.player-dock-status-pill:active {
  * The fallback is not decoration: a tile with no scene, a scene still loading,
  * or a canvas that ever becomes tainted all land on the neutral plate, which is
  * a complete answer on its own. */
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn,
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-primary-btn {
+:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-action-btn {
   /* Three layers, top to bottom: the lens sheen, a FROSTED SNAPSHOT of the
      scene under the control, and the averaged colour as the floor.
    *
@@ -11368,28 +11382,8 @@ button.player-dock-status-pill:active {
   background-color: var(--station-plate, rgba(9, 17, 30, 0.72)) !important;
 }
 
-/* Pills sit on the app's own dark ground rather than on photography, so they
-   need far less: enough fill to read as a raised surface, no plate.
- *
- * The topbar circles (.nav-utility-btn / .app-topbar-action) are deliberately
- * NOT given a fill, only their blur removed. They already carry a real
- * background of their own, and more importantly the live «в эфире» CTA wears
- * `.nav-utility-btn` as well — a blanket fill here at !important would have
- * repainted its teal state grey on exactly the phones this tier targets. */
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-quick-chip {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)),
-    rgba(10, 20, 35, 0.55) !important;
-}
-
 :root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .mobile-nav-chat-fab {
   background:
     radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06) 58%),
     rgba(13, 26, 43, 0.82) !important;
-}
-
-:root[data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'][data-glass='lite'] .home-feed-hero {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    rgba(10, 18, 32, 0.6) !important;
 }
