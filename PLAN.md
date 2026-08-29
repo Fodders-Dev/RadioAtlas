@@ -1610,6 +1610,37 @@ luminance.
 Before trusting any pixel measured off this device, put a known swatch in the
 same screenshot.
 
+## The empty tail under a first run (2026-08-29, shipped)
+
+The other half of the same report — «если пролистать главную ниже, то ничего
+там не отображается» — is not the shelf count. It is the scroll padding.
+
+A stranger's Home, measured against production at 390×844: hero 304px, the
+live-air line 60px, the first-run card 181px, quick picks 94px, one shelf 184px.
+Content ends at **894px in an 844px viewport**, and the document ran to
+**1228px**. A third of the page was empty, and the emptiness is what invites the
+scroll that finds nothing.
+
+`--screen-bottom-safe-v2` budgeted the mini player's height unconditionally,
+while `MiniPlayerDock` renders nothing at all until something plays. So a
+listener who had not yet pressed play scrolled through ~130px reserved for a
+control that was not on screen. The shell now carries `data-dock`, and the
+reserve is conditional; the nav's own clearance is untouched, because the nav is
+always there. Tail 334 → 216px in the fixture, and Home's own padding 250 → 124.
+
+⚠ The remaining 92px is NOT Home's. It sits on the shared content container
+above it, is identical on every tab, and trimming it is a separate change with a
+much wider blast radius. Said here so the next person does not read 216px as
+"already minimal".
+
+**What is still open is the product question, and it is the owner's.**
+`FIRST_RUN_RAIL_LIMIT = 1` is deliberate and measured — a newcomer's screen was
+11 rails, 3315px and ~64 station names nobody had asked for, and one shelf of
+«Народный выбор» is the gentlest entry for someone who has chosen nothing. But
+the owner, who knows this product, read his own first-run screen as broken. That
+is evidence about the design, not about the code, and it should be decided with
+him rather than quietly re-tuned.
+
 ## Next:
 
 Next is getting people in front of what already exists — and after the link

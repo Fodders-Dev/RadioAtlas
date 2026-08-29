@@ -2514,6 +2514,31 @@ input {
   --glass-shadow: 0 18px 42px rgba(3, 10, 20, 0.08);
 }
 
+/* No dock on screen, no space reserved for one.
+ *
+ * The mini player renders NOTHING while nothing is playing — MiniPlayerDock
+ * returns null on `!player.current`, deliberately, so a dormant dock does not
+ * eat 66px and cover the rails. But `--fixed-bottom-stack-v2` budgeted its
+ * height unconditionally, so every screen carried ~96px (132px on small
+ * phones) of scroll padding for a control that was not there.
+ *
+ * On a returning listener that tail is invisible under ten shelves. On a first
+ * run it is not: Home is 894px of content in an 844px viewport, and the page
+ * ran to 1228px — a third of it empty. That is the "scroll down and there is
+ * nothing there" this was reported as, and it is manufactured by the padding,
+ * not by the shelf count.
+ *
+ * `--dock-offset-v2` stays: that term is the clearance the floating NAV needs,
+ * and the nav is always there. Only the dock's own height goes.
+ *
+ * Declared on the shell rather than as a term inside the :root formula because
+ * a custom property's var()s resolve against the element that DECLARES them —
+ * see the note above. Overriding a term here would change nothing. */
+.app-shell-v2[data-dock='none'] {
+  --fixed-bottom-stack-v2: var(--dock-offset-v2);
+  --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
+}
+
 body {
   background: var(--theme-bg-image);
 }
@@ -6077,6 +6102,16 @@ body {
     --mobile-nav-height-v2: 60px;
     --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + var(--shell-safe-bottom));
     --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 132px);
+    --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
+  }
+
+  /* Same no-dock rule as the one at the top level, restated for this width.
+     It has to be restated rather than inherited for the reason the block above
+     spells out: these two are declared on :root, so their var()s resolve
+     against :root and an override of any TERM on the shell cannot reach them.
+     Only re-declaring the derived properties on the shell works. */
+  .app-shell-v2[data-dock='none'] {
+    --fixed-bottom-stack-v2: var(--dock-offset-v2);
     --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   }
 

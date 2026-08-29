@@ -283,6 +283,37 @@ baselines after pinning changed **0 of 23**, so that runner was already
 resolving to `full`; there was no live divergence to fix. Nothing here has ever
 been observed rendering `lite` in CI.
 
+## Bottom chrome: reserve space for what is on screen, not for what could be
+
+`--screen-bottom-safe-v2` is every screen's bottom scroll padding, and it used
+to budget the mini player's height unconditionally. The dock renders NOTHING
+while nothing is playing — `MiniPlayerDock` returns null on `!player.current`,
+deliberately, so a dormant dock does not eat 66px and cover the rails — so that
+budget was reserving ~96px (132px at ≤430px) for a control that was not there.
+
+Invisible under ten shelves; not invisible on a first run. Measured against
+production at 390×844: Home was **894px of content in an 844px viewport and the
+document ran to 1228px** — a third of the page empty, under a screen that has
+one shelf on it by design. That is what "пролистал ниже — там ничего нет" was,
+and the padding manufactured it, not the shelf count.
+
+The shell now carries `data-dock="bar" | "none"` (App.tsx, same `!player.current`
+test as the dock's own), and `.app-shell-v2[data-dock='none']` drops the dock's
+share. `--dock-offset-v2` stays in both states: that term is the clearance the
+floating NAV needs, and the nav is always there.
+
+⚠ It has to be the DERIVED properties that get re-declared on the shell, not a
+term inside them. A custom property's `var()`s resolve against the element that
+DECLARES the property, so `--fixed-bottom-stack-v2` declared on `:root` will
+keep using `:root`'s terms no matter what the shell overrides. The same trap is
+already documented at the `@media (max-width: 430px)` block for the nav height.
+
+`tests/dock-reserve.spec.ts` holds both halves against each other — the reserve
+is gone when idle AND the last tile still clears the nav when scrolled to the
+bottom — because trimming the padding is the obvious way to break the thing the
+padding exists for. Mutation-checked: pinning `data-dock` to `bar` puts the tail
+back to 334px, the exact figure measured on production.
+
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the

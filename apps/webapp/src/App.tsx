@@ -420,6 +420,15 @@ const App = () => {
     <div
       className="app-shell-v2"
       data-low-power={lowPowerShell ? 'true' : 'false'}
+      // Whether the mini player is on screen at all. The dock renders NOTHING
+      // while nothing is playing (MiniPlayerDock's `isDormantDock`, same
+      // `!player.current` test), but every screen's bottom scroll padding
+      // budgeted its height unconditionally — so a listener who had not yet
+      // pressed play scrolled through ~130px of reserved space for a control
+      // that was not there. On first run, where Home is one screen of content,
+      // that dead tail is a third of the page and reads as "there is nothing
+      // below", which is exactly how it was reported.
+      data-dock={player.current ? 'bar' : 'none'}
       data-player-presentation={playerPresentation}
       data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
       data-active-section={activeSection}
