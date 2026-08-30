@@ -1191,6 +1191,52 @@ export const Home = () => {
         </button>
       </div>
 
+      {/* STATIONS BEFORE WORDS, and the order is measured rather than felt.
+          Measured on production at 390x844, first run: the hero ran 0-304, the
+          live-air strip to 364, the explanatory card to 570, the quick chips to
+          688, and the one shelf began at 710 — with the floating nav starting at
+          772 and the first tile at 764. Eight pixels of station, then the nav on
+          top of it: a listener who had never heard this app saw NO station at
+          all without scrolling, having first been told in prose that it is live
+          radio.
+
+          Moving the shelf above the card and the chips puts the first tile at
+          440 and six of them fully visible, on the same screen, with nothing
+          removed — the card and the chips simply follow the thing they describe.
+          The shelf COUNT is untouched; this is order, not quantity. */}
+      {denseLayout && resumeModule ? (
+        <HomeResumeStrip
+          dense={denseLayout}
+          module={resumeModule}
+          currentStationId={currentStationId}
+          activeTrack={activeTrack}
+          isFavorite={isFavorite}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+        />
+      ) : null}
+
+      {leadRail ? (
+        <HomeRail
+          dense={denseLayout}
+          module={{ ...leadRail, titleKey: 'home.tryNowTitle' }}
+          variant={railVariant(leadRail.id)}
+          // The first shelf, and the only one that previews live tracks: this
+          // is where somebody picks their first station ever, and «Beach House
+          // — Space Song» is a reason to tap that a station name is not. Every
+          // other shelf stays silent on purpose — see HomeStationTileProps.
+          showNowPlaying
+          currentStationId={currentStationId}
+          activeTrack={activeTrack}
+          isFavorite={isFavorite}
+          onPlay={handlePlayStation}
+          onToggleFavorite={toggleFavorite}
+          onExplore={openSearch}
+        />
+      ) : null}
+
+
       {/* First run: the shop window is gated off above, so this is what stands
           between the hero and an empty screen. Two sentences, both load-bearing
           — «живой эфир» is the shared-moment pillar, «останется здесь» is the
@@ -1276,38 +1322,6 @@ export const Home = () => {
           discovery rails off a 1440-wide screen and dropped the above-fold tile
           count from four to one. The measurement that motivated this was taken
           at 390x844; the change belongs where the measurement was. */}
-      {denseLayout && resumeModule ? (
-        <HomeResumeStrip
-          dense={denseLayout}
-          module={resumeModule}
-          currentStationId={currentStationId}
-          activeTrack={activeTrack}
-          isFavorite={isFavorite}
-          onPlay={handlePlayStation}
-          onToggleFavorite={toggleFavorite}
-          onExplore={openSearch}
-        />
-      ) : null}
-
-      {leadRail ? (
-        <HomeRail
-          dense={denseLayout}
-          module={{ ...leadRail, titleKey: 'home.tryNowTitle' }}
-          variant={railVariant(leadRail.id)}
-          // The first shelf, and the only one that previews live tracks: this
-          // is where somebody picks their first station ever, and «Beach House
-          // — Space Song» is a reason to tap that a station name is not. Every
-          // other shelf stays silent on purpose — see HomeStationTileProps.
-          showNowPlaying
-          currentStationId={currentStationId}
-          activeTrack={activeTrack}
-          isFavorite={isFavorite}
-          onPlay={handlePlayStation}
-          onToggleFavorite={toggleFavorite}
-          onExplore={openSearch}
-        />
-      ) : null}
-
       {liveNow.length ? (
         <HomeRail
           dense={denseLayout}
