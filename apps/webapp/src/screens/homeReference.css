@@ -1422,7 +1422,7 @@
   border-color: rgba(255, 255, 255, 0.26);
   background:
     radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.1), transparent 48%),
-    #0d1a2b;
+    rgba(13, 26, 43, 0.72);
   box-shadow:
     0 -12px 44px rgba(0, 8, 22, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
