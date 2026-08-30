@@ -145,6 +145,22 @@ Two content rules the generator obeys and any change to it must keep:
   nothing simply gets no genre line. Country names come from `Intl.DisplayNames`
   against `countrycode`, not from a hand-written translation table.
 
+**The pages link to each other, and that was not free before.** Measured against
+production 2026-08-30: the home page a crawler receives carried ZERO links to
+any station page (the SPA shell is empty for a crawler), and a station page
+carried exactly one `<a>` — back home. All 5 000 were orphans, discoverable
+through sitemap.xml and nothing else. A crawler will fetch that; it has no
+reason to rank it, and a person who lands there has no way onward except
+installing the app.
+
+Each page now carries up to six neighbours — same country and genre first, then
+country, then genre — drawn ONLY from the chosen set, so a link can never point
+at a page that was not generated. 4 966 of 5 000 get links; the rest have
+neither a country code nor a mappable genre. Body text went from 195 to ~370
+characters, all of it the stations' own names. `src/stationPageRelated.test.ts`
+holds the picker (mutation-checked); the build prints the linked count, so a
+picker that silently returns nothing is visible rather than green.
+
 The station set is `resolvePromotable` from the API — the same set the app
 promotes — so proven-dead streams get no page and one broadcaster gets one page
 rather than the nine rows Radio Browser lists it under. Do not reimplement that

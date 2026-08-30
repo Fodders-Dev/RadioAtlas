@@ -64,6 +64,10 @@ const ORIGIN = process.env.SITE_ORIGIN || 'https://radioatlas.ru';
  * the build's peak RSS, do not assume.
  */
 const LIMIT = Number(process.env.STATION_PAGES || 5000);
+// Neighbours printed on each page. Six is enough to make the set crawlable —
+// every page reachable from every other in a few hops — without turning the
+// page into a link farm, which is the failure mode on the other side.
+const RELATED_LINKS = 6;
 
 // Derived from the function itself, so this script cannot drift from the type
 // the catalogue actually uses.
@@ -105,13 +109,16 @@ const usableName = (station: Station): string | null => {
   return name;
 };
 
-const genreLabel = (station: Station): string | null => {
-  // Only `name` and `tags` are read by stationGenreSlug; the cast narrows to
-  // that rather than pretending a catalogue row is a wire-shaped Station.
-  const slug = stationGenreSlug({
+// Only `name` and `tags` are read by stationGenreSlug; the cast narrows to that
+// rather than pretending a catalogue row is a wire-shaped Station.
+const genreSlugOf = (station: Station): string | null =>
+  stationGenreSlug({
     name: station.name,
     tags: station.tags
-  } as Parameters<typeof stationGenreSlug>[0]);
+  } as Parameters<typeof stationGenreSlug>[0]) || null;
+
+const genreLabel = (station: Station): string | null => {
+  const slug = genreSlugOf(station);
   if (!slug) return null;
   const label = (ruDictionary.genre as Record<string, string | undefined>)[slug];
   return label ?? null;
@@ -148,7 +155,57 @@ const describe = (station: Station, name: string) => {
   return `Слушать ${name} онлайн бесплатно — прямой эфир${tail}. Без регистрации, на RadioAtlas.`;
 };
 
-const renderPage = (shell: string, station: Station, name: string) => {
+type Related = { uuid: string; name: string };
+
+/**
+ * Neighbours for one station, drawn only from pages that actually exist.
+ *
+ * Measured against production before writing this: the home page a crawler
+ * receives contains **zero** links to any station page, and a station page
+ * contains exactly one `<a>` — to the home page. So all 5 000 were orphans,
+ * discoverable through sitemap.xml and through nothing else, linking nowhere.
+ * A search engine will crawl that; it has no reason to rank it, and a person
+ * who lands there has no way onward except installing the app.
+ *
+ * Same country and genre first, then same country, then same genre — which is
+ * also the order a listener would find useful, so the block is not decoration
+ * for a crawler. Names are the stations' own; nothing here is generated.
+ */
+export const relatedFor = (
+  station: Station,
+  byCountry: Map<string, Related[]>,
+  byGenre: Map<string, Related[]>,
+  limit: number
+): Related[] => {
+  const countryKey = (station.countrycode || '').trim().toUpperCase();
+  const genreKey = genreSlugOf(station) || '';
+  const country = byCountry.get(countryKey) || [];
+  const genre = byGenre.get(genreKey) || [];
+  const genreSet = new Set(genre.map((entry) => entry.uuid));
+
+  const picked: Related[] = [];
+  const seen = new Set<string>([station.stationuuid]);
+  const take = (pool: Related[]) => {
+    for (const entry of pool) {
+      if (picked.length >= limit) return;
+      if (seen.has(entry.uuid)) continue;
+      seen.add(entry.uuid);
+      picked.push(entry);
+    }
+  };
+
+  take(country.filter((entry) => genreSet.has(entry.uuid)));
+  take(country);
+  take(genre);
+  return picked;
+};
+
+const renderPage = (
+  shell: string,
+  station: Station,
+  name: string,
+  related: Related[] = []
+) => {
   const url = `${ORIGIN}${stationPath(station.stationuuid)}`;
   const title = `${name} — слушать онлайн`;
   const description = describe(station, name);
@@ -197,6 +254,19 @@ const renderPage = (shell: string, station: Station, name: string) => {
     `<h1 style="margin:0 0 .75rem;font-size:1.75rem;line-height:1.2">${escapeHtml(name)}</h1>`,
     `<p style="margin:0 0 1rem;opacity:.8;line-height:1.5">${escapeHtml(describe(station, name))}</p>`,
     facts ? `<ul style="margin:0 0 1.25rem;padding-left:1.1rem;opacity:.7;line-height:1.7">${facts}</ul>` : '',
+    related.length
+      ? [
+          `<p style="margin:0 0 .5rem;opacity:.7">Похожие станции</p>`,
+          `<ul style="margin:0 0 1.25rem;padding-left:1.1rem;line-height:1.8">`,
+          related
+            .map(
+              (entry) =>
+                `<li><a href="${escapeHtml(stationPath(entry.uuid))}" style="color:#78d6ff">${escapeHtml(entry.name)}</a></li>`
+            )
+            .join(''),
+          `</ul>`
+        ].join('')
+      : '',
     `<p style="margin:0;opacity:.6"><a href="/" style="color:#78d6ff">Все радиостанции мира на RadioAtlas</a></p>`,
     `</div>`
   ].join('');
@@ -239,9 +309,34 @@ const main = async () => {
 
   await mkdir(stationDir, { recursive: true });
 
-  let bytes = 0;
+  // Indexes over the CHOSEN set only, so a related link can never point at a
+  // page that was not generated. Insertion order is the popularity order the
+  // sort above produced, which makes the first neighbours the ones a listener
+  // is most likely to have heard of.
+  const byCountry = new Map<string, Related[]>();
+  const byGenre = new Map<string, Related[]>();
   for (const { station, name } of chosen) {
-    const page = renderPage(shell, station, name);
+    const entry: Related = { uuid: station.stationuuid, name };
+    const countryKey = (station.countrycode || '').trim().toUpperCase();
+    if (countryKey) {
+      const bucket = byCountry.get(countryKey);
+      if (bucket) bucket.push(entry);
+      else byCountry.set(countryKey, [entry]);
+    }
+    const genreKey = genreSlugOf(station);
+    if (genreKey) {
+      const bucket = byGenre.get(genreKey);
+      if (bucket) bucket.push(entry);
+      else byGenre.set(genreKey, [entry]);
+    }
+  }
+
+  let bytes = 0;
+  let linked = 0;
+  for (const { station, name } of chosen) {
+    const related = relatedFor(station, byCountry, byGenre, RELATED_LINKS);
+    if (related.length) linked += 1;
+    const page = renderPage(shell, station, name, related);
     await writeFile(join(stationDir, `${station.stationuuid}.html`), page, 'utf8');
     bytes += Buffer.byteLength(page);
   }
@@ -278,8 +373,14 @@ const main = async () => {
   console.log(
     `buildStationPages: ${chosen.length} pages ` +
       `(${promotable.length} promotable of ${stations.length} rows), ` +
+      `${linked} with related links, ` +
       `${(bytes / 1024 / 1024).toFixed(1)} MB, sitemap + robots.txt`
   );
 };
 
-await main();
+// Run only as the build step, never on import: `stationPageRelated.test.ts`
+// imports `relatedFor` from here, and a module that writes 39MB of HTML the
+// moment it is imported is not testable.
+if (process.argv[1]?.endsWith('buildStationPages.mts')) {
+  await main();
+}

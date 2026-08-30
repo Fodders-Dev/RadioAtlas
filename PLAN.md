@@ -1610,6 +1610,39 @@ luminance.
 Before trusting any pixel measured off this device, put a known swatch in the
 same screenshot.
 
+## Five thousand pages nobody could reach (2026-08-30, shipped)
+
+The prerendered station pages were verified end-to-end on production for the
+first time since they shipped, and the prerendering itself is sound: 5 001 URLs
+in the sitemap, `robots.txt` correct, a page is 7 239 bytes against the shell's
+5 152, each carries its own `<title>`, description, canonical and og set, `#root`
+is filled with real text, six sampled pages had six distinct titles, and no
+popularity number appears anywhere. All of that works.
+
+What did not work was reachability. Measured, not assumed:
+
+- the home page a crawler receives contains **0** links to any station page —
+  the SPA shell is empty, and the app has no router, so there is nothing to link
+- a station page contained exactly **1** `<a>`, back to the home page
+
+So all 5 000 were orphans: discoverable through sitemap.xml alone, linking
+nowhere, linked from nowhere. A crawler will fetch that. It has no reason to
+rank it — link structure is a ranking input and there was none — and a person
+who lands there has no way onward except installing the app.
+
+Each page now carries up to six neighbours, same country and genre first, then
+country, then genre, drawn only from the generated set so a link can never 404.
+Verified on the built output rather than on the generator's own report: 5 000
+files, 5.8 links per page across a 40-page sample, **0** links to a missing page,
+**0** self-links. Body text 195 -> ~370 characters, all of it real station names
+— a country station links to «.977 Country», «Outlaw – Country Music Radio»,
+«99.9 Kiss Country». 4 966 of 5 000 get links; the remaining 34 have neither a
+country code nor a mappable genre, and get none rather than something invented.
+
+⚠ Still owner-only, and still the actual bottleneck: nobody has told Google any
+of this exists. Search Console needs the property verified and the sitemap
+submitted. Until then the pages are correct, connected, and unvisited.
+
 ## Glass at 60fps, computed once (2026-08-29, shipped)
 
 The owner's objection was right and my framing was wrong. I had said the big
