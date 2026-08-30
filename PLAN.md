@@ -1639,9 +1639,25 @@ files, 5.8 links per page across a 40-page sample, **0** links to a missing page
 «99.9 Kiss Country». 4 966 of 5 000 get links; the remaining 34 have neither a
 country code nor a mappable genre, and get none rather than something invented.
 
-⚠ Still owner-only, and still the actual bottleneck: nobody has told Google any
-of this exists. Search Console needs the property verified and the sitemap
-submitted. Until then the pages are correct, connected, and unvisited.
+**Yandex and Bing have now been told, without an account.** There is no longer
+an anonymous way to hand over a sitemap — Google retired its ping endpoint in
+2023 and Bing retired its own — but IndexNow needs only a key file at the site
+root, so `npm run seo:indexnow` does the whole thing. All 5 001 URLs accepted,
+200 OK, 2026-08-30. Accepted means received; it does not mean crawled, indexed
+or ranked.
+
+Two notes for the next run. The first attempt returned 403
+`SiteVerificationNotCompleted` — the engine had not yet fetched the freshly
+deployed key — and succeeded four minutes later, so that error means "wait",
+not "broken". And the key check compares CONTENTS rather than status, because a
+file that does not exist here comes back **206 with the SPA shell**: Caddy's
+`try_files` falls through to index.html, so a status check would have called a
+missing key a success.
+
+⚠ Google is the half that cannot be automated and remains the actual
+bottleneck: it does not participate in IndexNow, and Search Console needs a
+signed-in account plus a verified property. Until the owner does that once, the
+pages are correct, connected, submitted to Yandex — and invisible to Google.
 
 ## Glass at 60fps, computed once (2026-08-29, shipped)
 
