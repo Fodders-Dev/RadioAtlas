@@ -325,6 +325,42 @@ baselines after pinning changed **0 of 23**, so that runner was already
 resolving to `full`; there was no live divergence to fix. Nothing here has ever
 been observed rendering `lite` in CI.
 
+## The dock is the bar for the station you asked for, not only the one on air
+
+`player.current` means ON AIR: `play()` clears it and only `handlePlaying` sets
+it, so nothing can claim a station is playing before it is. Keep that.
+
+What must NOT be gated on it is the dock. It was, and every station change
+unmounted the player bar for as long as the stream took to connect — seconds on
+a phone, longer when the candidate list gets walked. Reported as «нажимаю
+следующую станцию и плеер пропадает, пока станция не заиграет», and it read as a
+bug because it was one.
+
+`player.pending` is the station that has been requested and has not produced
+audio yet; the dock renders on `current ?? pending`. That also un-hid a state
+the dock already had: its «Буферизация» pill reads `current && status ===
+'buffering'`, which during buffering was unreachable code.
+
+⚠ `tests/dock-while-connecting.spec.ts` installs its OWN slower `play()`,
+because the shared media mock fires `playing` synchronously — the connecting
+window is zero in the standard fixture, so a test written against it passes
+whether or not the bug exists. Any future test about connecting behaviour needs
+the same treatment.
+
+## Stations before words on Home
+
+Measured on production at 390x844, first run: hero 0-304, live-air strip to 364,
+the explanatory card to 570, quick chips to 688, and the single shelf beginning
+at 710 — with the floating nav at 772 and the first tile at 764. Eight pixels of
+station before the nav covered it: a listener who had never heard this app saw
+NO station without scrolling, having first been told in prose that it is live
+radio.
+
+The shelf now sits above the card and the chips: first tile at 440, six fully
+visible. Nothing was removed and the shelf COUNT is untouched — the card and the
+chips simply follow the thing they describe. If that order is ever revisited,
+measure the first tile's top against the nav's, not the page's total height.
+
 ## Bottom chrome: reserve space for what is on screen, not for what could be
 
 `--screen-bottom-safe-v2` is every screen's bottom scroll padding, and it used

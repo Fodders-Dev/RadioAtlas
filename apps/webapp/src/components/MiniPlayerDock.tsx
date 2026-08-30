@@ -100,7 +100,16 @@ export const MiniPlayerDock = () => {
     };
   }, [visualizerActive, subscribeVisualizer]);
 
-  const current = player.current;
+  // The station this bar is ABOUT — on air, or the one being connected to.
+  //
+  // Gating on `player.current` alone made the bar disappear on every station
+  // change, because play() clears `current` and only restores it when audio
+  // starts. See the `pending` note in useAudioPlayer.
+  //
+  // It also made the dock's own «Подключаемся» pill unreachable: that branch
+  // reads `current && status === 'buffering'`, and during buffering there was
+  // no current. The state existed and could never render. It renders now.
+  const current = player.current ?? player.pending;
   const liked = current ? isFavorite(current.stationuuid) : false;
   const stationHidden = current
     ? isStationHiddenFromRecommendations(current.stationuuid)

@@ -310,6 +310,22 @@ export const useAudioPlayer = ({
   const isPlayingRef = useRef(false);
 
   const [current, setCurrent] = useState<StationLite | null>(null);
+  /**
+   * The station somebody has ASKED for but which has not produced audio yet.
+   *
+   * `current` deliberately means "on air": play() clears it and only
+   * `handlePlaying` sets it, so nothing in the app can claim a station is
+   * playing before it is. That is right, and it had one consequence nobody
+   * intended — the dock is gated on `current`, so between the tap and the first
+   * sound there was no station, and the player bar vanished and came back.
+   * Reported as a bug, and it is one: "нажимаю следующую станцию и плеер
+   * пропадает, пока станция не заиграет".
+   *
+   * So the wait gets its own state rather than `current` being loosened, which
+   * would have quietly changed what "playing" means for metadata, analytics and
+   * the never-auto-switch rule.
+   */
+  const [pending, setPending] = useState<StationLite | null>(null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -811,6 +827,8 @@ export const useAudioPlayer = ({
           prev?.stationuuid === requestedStation.stationuuid ? prev : requestedStation
         );
       }
+      // On air now, so the waiting state has nothing left to hold.
+      setPending(null);
       setStatus('playing');
       setIsPlaying(true);
       setErrorMessage(null);
@@ -942,6 +960,7 @@ export const useAudioPlayer = ({
           if (!switched) {
             requestedStationRef.current = null;
             setCurrent(null);
+            setPending(null);
             setStatus('error');
             setIsPlaying(false);
             const finalFailure = toPlaybackFailure('no playable candidate', {
@@ -1365,6 +1384,8 @@ export const useAudioPlayer = ({
 
     requestedStationRef.current = resolvedStation;
     setCurrent(null);
+    // The bar keeps showing THIS station while it connects.
+    setPending(resolvedStation);
     setStatus('buffering');
     setIsPlaying(false);
     const plans = sourceUrls.map((sourceUrl) =>
@@ -1513,6 +1534,7 @@ export const useAudioPlayer = ({
     lastErrorRef.current = null;
     requestedStationRef.current = null;
     setCurrent(null);
+    setPending(null);
     setIsPlaying(false);
     setStatus('idle');
     setErrorMessage(null);
@@ -1521,6 +1543,7 @@ export const useAudioPlayer = ({
 
   return {
     current,
+    pending,
     status,
     isPlaying,
     failure: playbackFailure,

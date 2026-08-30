@@ -16,6 +16,7 @@ const createDefaultEqBands = () =>
 
 export const createPlaybackPlayerPlaceholder = (): ReturnType<typeof useAudioPlayer> => ({
   current: null,
+  pending: null,
   status: 'idle',
   isPlaying: false,
   failure: null,
