@@ -61,11 +61,19 @@ npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
 npm run test:webapp        # Playwright, 240 specs — CI runs it, does NOT gate ~3min
 npm run dev:webapp         # + npm run dev:api in a second terminal
 npm run build              # api → bot → webapp                ~10s
+npm run seo:indexnow       # tell Yandex/Bing the station pages exist (manual)
 ```
 
 **Neither `npm test` nor CI runs everything.** `npm test` chains typecheck →
 api → bot → scripts → Playwright and skips the 693 webapp unit tests; CI runs
 those and skips Playwright. Run `test:unit` yourself for any webapp change.
+
+`seo:indexnow` is deliberately NOT part of the deploy. IndexNow is for URLs
+that changed, and resubmitting all 5 000 on every push is what the protocol asks
+you not to do — run it when the page set actually moves. It reaches Yandex and
+Bing; **Google does not participate**, and Search Console is the owner's to do
+by hand, once. The key file lives in `apps/webapp/public/` and must be deployed
+before a submission can succeed.
 
 ## Verifying your own work
 
