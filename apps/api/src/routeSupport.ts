@@ -1,4 +1,5 @@
 import type express from 'express';
+import { telegramApiRoot } from './telegramApiRoot.js';
 import {
   getAccountAuditTrail,
   getBotOptInForAccount,
@@ -95,7 +96,7 @@ export const createTelegramInvoiceLink = async (
     throw new Error('telegram billing is not configured');
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
+  const response = await fetch(`${telegramApiRoot}/bot${botToken}/createInvoiceLink`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -148,7 +149,7 @@ export const fetchTelegramStarTransactions = async (
     throw new Error('telegram billing is not configured');
   }
   const response = await fetch(
-    `https://api.telegram.org/bot${botToken}/getStarTransactions`,
+    `${telegramApiRoot}/bot${botToken}/getStarTransactions`,
     {
       method: 'POST',
       headers: {

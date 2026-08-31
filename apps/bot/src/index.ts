@@ -6,6 +6,7 @@ import { rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Bot, Context, InlineKeyboard, InputFile } from 'grammy';
+import { resolveTelegramApiRoot } from './telegramApiRoot.js';
 import ffmpegStaticPath from 'ffmpeg-static';
 import { recordReachability } from './botReachability.js';
 import { forwardBillingWebhook } from './billingForward.js';
@@ -72,7 +73,22 @@ const { apiUrl, webAppUrl, withSharedApi, withMiniAppParam } = createBotUrlRunti
   sourceCommit: process.env.SOURCE_COMMIT
 });
 
-const bot = new Bot(token);
+// Where to reach Telegram. Default is their host; on the Russian box that host
+// does not answer at all, so this is configuration — see telegramApiRoot.ts,
+// including why an invalid value stops the process instead of falling back.
+const apiRootResult = resolveTelegramApiRoot(process.env.TELEGRAM_API_ROOT);
+if ('error' in apiRootResult) {
+  throw new Error(apiRootResult.error);
+}
+if (!apiRootResult.isDefault) {
+  // Worth one line at startup: a bot talking to Telegram through somewhere else
+  // is the kind of thing that should never be a surprise while debugging.
+  console.log(`telegram: api root ${apiRootResult.root}`);
+}
+
+const bot = new Bot(token, {
+  client: { apiRoot: apiRootResult.root }
+});
 
 const miniAppKeyboard = (label: string, param: string) =>
   webAppUrl ? new InlineKeyboard().webApp(label, withMiniAppParam(param)) : undefined;

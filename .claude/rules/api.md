@@ -120,6 +120,35 @@ Off unless `MEDIA_FOREIGN_EGRESS_BASE` is set, and a malformed value is refused
 rather than half-used — this path only ever runs when something is already
 broken, which is the worst moment to discover a typo.
 
+## Telegram is not reachable from the host this runs on
+
+Measured 2026-08-31 from the Russian box: `api.telegram.org`, `telegram.org`
+and `oauth.telegram.org` all fail to connect — TCP to :443 never opens, no
+response in 20 s, three attempts each. Everything else the service depends on is
+fine from there (Radio Browser `de1`/`all.api`, DeepSeek, Tavily, Google and VK
+sign-in, Cloudflare R2), so this is specific and not a general outage.
+
+That matters here because the API calls Telegram for **billing** —
+`createInvoiceLink` and `getStarTransactions` in `routeSupport.ts`. On a host
+that cannot reach Telegram, payments do not work.
+
+`telegramApiRoot.ts` makes the host configuration (`TELEGRAM_API_ROOT`,
+defaulting to Telegram's own). The bot has its own copy of the same fifteen
+lines, deliberately duplicated: separate workspaces, no shared package, and a
+dependency between them would cost more than the duplication. Both have tests
+that name each other — change one, change both.
+
+⚠⚠ **The bot token is in the PATH of every Bot API call** (`/bot<TOKEN>/method`).
+Whatever `TELEGRAM_API_ROOT` points at sees the token on every request. It may
+only be a host we own, over https, whose access log does not record paths. The
+resolver enforces the transport half: plaintext is refused for anything but
+loopback, and so are non-http schemes and any query or fragment.
+
+⚠ An invalid value **throws at startup** rather than falling back to Telegram's
+host. A fallback would leave billing quietly pointed somewhere it cannot reach,
+which is indistinguishable from the outage this exists to fix, and would give
+nobody a way to tell a typo from a blockade.
+
 ## Memory
 
 The catalogue refresh is the heaviest moment the process has and the VPS is
