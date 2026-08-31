@@ -24,9 +24,36 @@ arrived at 73 ms. Manrope is now self-hosted from `public/fonts/`, declared in
 Russian-first UI always needs. One variable file per subset with Google's own
 `unicode-range` split, so a page pays only for the scripts its text uses.
 
-`src/criticalPathNoCdn.test.ts` is the guard. The only external script allowed is
-the Telegram SDK. Do not add a font, stylesheet or icon from another origin —
-and if a display face is ever added for a theme, it self-hosts too.
+**And it included the Telegram SDK, which was the exception until it wasn't.**
+`index.html` loaded it synchronously from `telegram.org`, and that host does not
+answer from Russia: measured 2026-08-31 from the RU server, three attempts, DNS
+resolves and TCP to :443 never connects — no response in 20 s, while the same
+file is 200 in 0.10 s from the Netherlands box. A synchronous script that hangs
+holds the parser, so the page never rendered, and radioatlas.ru would not open
+on a Russian mobile network without a VPN. Moving to a Russian host did not help
+because the blocker was never our host.
+
+The old comment there argued the exception was safe: a failed load leaves
+`window.Telegram` undefined and every call site degrades gracefully. True, and
+beside the point — that is a REFUSED load. The SDK is now vendored into
+`public/vendor/` and served from our own origin, still synchronous because
+`window.Telegram.WebApp` must exist before the app module runs. Refresh it with
+`node scripts/updateTelegramSdk.mjs`.
+
+⚠ The block is per-network, not universal. From the owner's home connection
+`telegram.org` loads fine; from a datacentre and from Beeline mobile it does
+not. So verify this class of thing FROM A SERVER or a phone — on a developer
+machine everything looks healthy.
+
+`src/criticalPathNoCdn.test.ts` is the guard and it now allows **no** external
+script at all. Do not add a font, stylesheet, script or icon from another origin
+— and if a display face is ever added for a theme, it self-hosts too.
+
+⚠ One of the same family is still open: `AccountSheet.tsx` injects
+`telegram-widget.js` at runtime for the login button. It is `async` so it does
+not block paint, and an always-visible bot deep-link chip covers the same job —
+but its only fallback is `onerror`, which a HANG never fires, so from Russia
+that slot stays blank rather than falling back.
 
 ## Playback is the product
 

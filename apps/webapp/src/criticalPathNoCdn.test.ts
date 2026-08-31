@@ -29,8 +29,10 @@ const readSource = (relative: string) => readFileSync(join(webappRoot, relative)
 
 const EXTERNAL = /^(https?:)?\/\//i;
 
-const tagsOf = (html: string, tag: string) =>
-  html.match(new RegExp(`<${tag}\\b[^>]*>`, 'gi')) || [];
+// Explicitly string[]: `String.match() || []` infers a union with never[], and
+// indexOf() on that union rejects a string argument.
+const tagsOf = (html: string, tag: string): string[] =>
+  html.match(new RegExp(`<${tag}\\b[^>]*>`, 'gi')) ?? [];
 
 const attr = (tagText: string, name: string) => {
   const match = tagText.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, 'i'));
@@ -59,15 +61,45 @@ describe('nothing on the critical path comes from somebody else', () => {
     ).toEqual([]);
   });
 
-  it('loads exactly one external script, and it is the Telegram SDK', () => {
-    // The one documented exception: inside Telegram this host is on the critical
-    // path regardless, and every call site degrades gracefully when it fails
-    // (getTelegramWebApp() returns undefined and the app runs standalone).
+  it('loads NO external script at all, the Telegram SDK included', () => {
+    // There used to be one documented exception, on the grounds that inside
+    // Telegram that host is on the critical path anyway and every call site
+    // degrades gracefully when the load fails. The second half was true and the
+    // first was not: measured 2026-08-31 from the Russian host, TCP to
+    // telegram.org:443 never connects — three attempts, no response in 20 s.
+    //
+    // A hanging script is not a failing one. It blocks the parser, so the page
+    // never renders, and radioatlas.ru simply would not open on a Russian
+    // mobile network without a VPN. The SDK is vendored into
+    // public/vendor/telegram-web-app.js and served from our own origin, which
+    // keeps the synchronous ordering the app depends on and removes the only
+    // third party that could hold first paint hostage.
     const external = tagsOf(html, 'script')
       .map((tag) => attr(tag, 'src'))
       .filter((src): src is string => src !== null && EXTERNAL.test(src));
 
-    expect(external).toEqual(['https://telegram.org/js/telegram-web-app.js']);
+    expect(
+      external,
+      'an external script blocks first paint for every listener whose network filters that host'
+    ).toEqual([]);
+  });
+
+  it('still loads the Telegram SDK, from our own origin and synchronously', () => {
+    // Self-hosting must not turn into "quietly dropped": window.Telegram.WebApp
+    // has to exist before the Vite module script runs, or the mount effect that
+    // calls tg.ready() races it.
+    const scripts = tagsOf(html, 'script');
+    const sdk = scripts.find((tag) => (attr(tag, 'src') || '').includes('telegram-web-app.js'));
+    expect(sdk, 'index.html must still load the Telegram SDK').toBeDefined();
+    expect(attr(sdk!, 'src')).toBe('/vendor/telegram-web-app.js');
+    expect(sdk!, 'the SDK must not be deferred or async: ordering is the point').not.toMatch(
+      /(defer|async)/
+    );
+
+    const sdkIndex = scripts.indexOf(sdk!);
+    const moduleIndex = scripts.findIndex((tag) => (attr(tag, 'src') || '').includes('main.tsx'));
+    expect(moduleIndex).toBeGreaterThan(-1);
+    expect(sdkIndex, 'the SDK must come before the app module').toBeLessThan(moduleIndex);
   });
 
   it('ships its own typeface rather than borrowing one', () => {

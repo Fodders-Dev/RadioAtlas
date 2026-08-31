@@ -627,7 +627,13 @@ export const installMediaMocks = async (page: Page) => {
   // network conditions that aren't part of what we're testing.
   // Returning a 200 with an empty body keeps the script tag inert -
   // window.Telegram stays exactly what the fixture set.
-  await page.route('https://telegram.org/js/telegram-web-app.js', (route) =>
+  // ⚠ The SDK is now served from OUR origin (public/vendor/), because
+  // telegram.org does not answer from Russia and a synchronous script that
+  // hangs blocks first paint. The route below must match the vendored path —
+  // pointed at the old telegram.org URL it would match nothing, the real
+  // vendored SDK would run, and it would overwrite the window.Telegram fixture
+  // these tests depend on.
+  await page.route('**/vendor/telegram-web-app.js', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/javascript',
