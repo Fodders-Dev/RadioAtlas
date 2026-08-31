@@ -44,6 +44,17 @@ type AccountSheetProps = {
 const GOOGLE_SCRIPT_ID = 'google-identity-service';
 const TELEGRAM_WIDGET_CALLBACK = '__radioAtlasTelegramWidgetAuth__';
 
+/**
+ * How long to wait for Telegram's login widget before showing the fallback.
+ *
+ * Long enough that a slow-but-working connection still gets the real button —
+ * the widget is a third-party script plus an iframe — and short enough that
+ * somebody on a network which silently drops telegram.org is not left staring
+ * at an empty rectangle. Six seconds is well past a normal load and well short
+ * of the browser's own connect timeout, which is where the alternative sat.
+ */
+const TELEGRAM_WIDGET_TIMEOUT_MS = 6000;
+
 const normalizeTelegramWidgetAuthData = (value: unknown): TelegramWidgetAuthData | null => {
   if (!value || typeof value !== 'object') return null;
   const payload = value as Record<string, unknown>;
@@ -342,8 +353,26 @@ export const AccountSheet = ({ open, onClose }: AccountSheetProps) => {
     };
     container.appendChild(script);
 
+    // `onerror` covers a REFUSED load and nothing else, and the load this has
+    // to survive is not refused — it hangs. Measured 2026-08-31 from the
+    // Russian host: TCP to telegram.org:443 never connects, no response in
+    // 20 s, three attempts. A listener on that network would sit in front of an
+    // empty rectangle where the sign-in button belongs, with no error and no
+    // fallback, because the browser is still politely waiting.
+    //
+    // So time it out ourselves. The widget renders an <iframe> into the
+    // container when it works, which is a fact we can check rather than a
+    // guess about the network.
+    const widgetDeadline = window.setTimeout(() => {
+      if (!mounted) return;
+      if (!container.querySelector('iframe')) {
+        setTelegramWidgetFailed(true);
+      }
+    }, TELEGRAM_WIDGET_TIMEOUT_MS);
+
     return () => {
       mounted = false;
+      window.clearTimeout(widgetDeadline);
       delete window[TELEGRAM_WIDGET_CALLBACK];
       container.innerHTML = '';
     };
