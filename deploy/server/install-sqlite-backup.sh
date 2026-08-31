@@ -29,6 +29,19 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+# The R2 credentials live in the shared env file, and without this line the
+# unit runs with none of them: the snapshot still lands on local disk and the
+# upload fails, which is the worst shape of failure because the timer looks
+# installed and the off-box copy silently is not happening.
+#
+# ⚠ This was HAND-EDITED into the unit on the old server and never existed in
+# this script, so it did not survive the move to the RU box — found 2026-08-31,
+# when the live accounts DB was on the new machine and the only backup timer
+# was on the old one, failing. Anything the servers need belongs here, not in
+# a running unit somebody edits at 2am.
+#
+# Listed before Environment= so the unit's own settings always win.
+EnvironmentFile=-$APP_ROOT/shared/env/api.env
 Environment=RADIOATLAS_BACKUP_DIR=$BACKUP_DIR
 Environment=RADIOATLAS_BACKUP_KEEP=$KEEP
 ExecStart=$NODE_BIN --no-warnings $APP_ROOT/current/deploy/server/backup-sqlite.mjs
