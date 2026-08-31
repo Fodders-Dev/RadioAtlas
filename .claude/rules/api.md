@@ -79,6 +79,47 @@ rate: read `counterWindows.last1h` / `.last24h` from the snapshot, which carry
 per-hour increments for the counters that moved. A new counter needs nothing
 extra to appear there.
 
+## The second way out, for a host that cannot reach half the world
+
+The service runs on a Russian host now, and about **half the catalogue is
+`http://`** — those streams can ONLY play through this proxy, because an
+insecure stream on an `https://` page is mixed-content blocked in the browser.
+So this server's own reachability decides whether they play at all.
+
+Measured 2026-08-31 over 148 stations, two passes from each host:
+
+| | pass 1 | pass 2 |
+| --- | --- | --- |
+| RU host | 122/148 (82.4%) | 123/148 (83.1%) |
+| NL host | 135/148 (91.2%) | 135/148 (91.2%) |
+
+**Eleven stations (7.4%) failed from RU in BOTH passes and succeeded from NL in
+both** — one of them in the promoted pool of 48. Thirteen more were dead from
+both hosts: a broken station, which no egress fixes. Three flipped between the
+RU passes and are simply unstable, which is why this was run twice; a single
+pass would have reported 13 and been wrong by two.
+
+`media/foreignEgress.ts` is the fallback. Two rules about its shape:
+
+- **It is a fallback, not a route.** Only a request whose every direct candidate
+  failed pays the second hop. Sending everything abroad would double the
+  bandwidth on both boxes, add a round trip for every listener, and defeat the
+  point of being on a Russian host.
+- **The far end is this same API on the other host.** `/stream?url=…` already is
+  "fetch this and stream it back", with the same SSRF protection and rate
+  limits, so there is no second implementation to keep in sync and no new
+  service to run.
+
+⚠ `EGRESS_HOP_HEADER` is not decoration. If two hosts ever name each other, an
+unreachable station would bounce between them until something timed out, and the
+symptom would be a pegged CPU and a listener hearing silence — no error anybody
+would see. The header marks a request as already relayed and the handler refuses
+to relay it again.
+
+Off unless `MEDIA_FOREIGN_EGRESS_BASE` is set, and a malformed value is refused
+rather than half-used — this path only ever runs when something is already
+broken, which is the worst moment to discover a typo.
+
 ## Memory
 
 The catalogue refresh is the heaviest moment the process has and the VPS is

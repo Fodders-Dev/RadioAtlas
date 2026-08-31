@@ -3,6 +3,11 @@ import { PassThrough, Readable } from 'node:stream';
 import type express from 'express';
 import type { MediaRouteOptions } from './types.js';
 import {
+  fetchViaForeignEgress,
+  isEgressHop,
+  readForeignEgressConfig
+} from './foreignEgress.js';
+import {
   drainResponseBody,
   fetchCandidate,
   fetchUrlCandidates,
@@ -266,6 +271,10 @@ const createImageGuard = (options: MediaRouteOptions) =>
 
 export const createStreamHandler = (options: MediaRouteOptions) => {
   const guard = createStreamGuard(options);
+  // Read once: this is configuration, not per-request state, and a stream
+  // handler that re-parsed env on every request would be measuring the wrong
+  // thing under load.
+  const foreignEgress = readForeignEgressConfig(process.env, proxyTimeoutMs(options));
 
   return async (req: express.Request, res: express.Response) => {
     const parsed = await parseAndValidateHttpUrl(req.query.url);
@@ -330,6 +339,22 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
             // again.
             if (candidate.speculative) noteHttpsUpgradeFailure(candidate.url);
             lastError = error instanceof Error ? error : new Error('Upstream failed');
+          }
+        }
+
+        if (!upstream && foreignEgress && !isEgressHop(req.headers as Record<string, unknown>)) {
+          // Every direct candidate failed. Before calling the station dead, ask
+          // the host that is not behind this one's routing. Only a failure gets
+          // here, so the common path never pays the second hop.
+          const relayed = await fetchViaForeignEgress(
+            foreignEgress,
+            parsed.target,
+            { headers },
+            (url, init, timeoutMs) =>
+              fetchCandidate({ url: new URL(url), speculative: false }, init, timeoutMs)
+          );
+          if (relayed) {
+            upstream = relayed;
           }
         }
 
