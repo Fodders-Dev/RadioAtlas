@@ -77,6 +77,51 @@
   backdrop-filter: none;
 }
 
+/* ...unless the theme's backdrop is not a picture, which is nearly always.
+ *
+ * The rule above is right about the case it describes: with a Theme Studio
+ * print active, --theme-bg-image is an opaque photo covering the whole bar,
+ * nothing behind it can ever show, and a blur would be a filter pass with no
+ * output. tests/mobile.spec.ts pins that case — with a print applied the bar's
+ * computed backgroundImage must contain 'blob:' — and this rule does not touch
+ * it.
+ *
+ * But every bundled theme and the default resolve --theme-bg-image to a
+ * GRADIENT, and painting an opaque gradient over the bar buys nothing while
+ * costing the whole glass. That is why the player looked like a solid slab:
+ * the bar was opaque for a photograph that was not there. ThemeContext now
+ * writes data-theme-backdrop='image' | 'flat' so the two cases can differ.
+ *
+ * ⚠ Specificity is doing real work here. This selector weighs (0,5,0) and has
+ * to: the bar's paint is decided by a (0,4,0) rule in screens/homeReference.css
+ * on Home, and by a (0,2,0) rule here elsewhere. Anything lighter is silently
+ * ignored on the one screen that matters most.
+ *
+ * The legibility floor is measured, not assumed —
+ * tests/glass-legibility.spec.ts puts a deliberately bright band behind the bar
+ * and reads the station name's contrast off the rendered pixels. Swept against
+ * that gate (WCAG AA floor 4.5):
+ *
+ *   0.52  3.38 — fails      0.62  4.23 — fails      0.70  5.23
+ *   0.78  6.45               0.86  7.88
+ *
+ * 0.72 it is. That is less transparent than the nav's 0.52, and deliberately:
+ * the station name is smaller type over a busier strip, and it is the one word
+ * on this bar a listener actually needs. Even so it is a large change from what
+ * shipped — the bar was FULLY opaque with no blur at all. */
+:root[data-theme-backdrop='flat'] .app-shell-v2 .player-dock.player-dock-bar {
+  background-color: rgba(8, 17, 30, 0.72);
+  background-image:
+    radial-gradient(circle at 10% 0%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    0 20px 44px rgba(2, 9, 18, 0.34),
+    inset 0 1.2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -12px 26px -18px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+}
+
 .player-dock.player-dock-compact {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) repeat(3, 44px);

@@ -101,3 +101,64 @@ test('lite leaves the big signature surfaces alone', async ({ page }) => {
   // them. If this reaches 0 somebody has widened the tier into the design.
   expect(await activeBackdropFilters(page)).toBeGreaterThan(0);
 });
+
+/**
+ * The tier is not the only switch that can strip glass, and the other one was
+ * doing it to the two surfaces the design is most about.
+ *
+ * `lowPower` is true when `deviceMemory <= 4`. Chrome rounds that down to a
+ * power of two and caps it at 8, so a 6 GB phone reports 4 — the owner's
+ * 8-core Galaxy S20 FE trips it. Two rules keyed on `data-low-power` then hit
+ * the chrome: one removed the backdrop-filter, the other flattened the
+ * box-shadow with `!important`. Between them the nav and the player bar were
+ * the only surfaces in the app with NO glass at all, while 144 blurs elsewhere
+ * on the page — over flat dark ground, where a blur cannot show — kept running.
+ *
+ * Cost of putting it back, measured on that phone against production, three
+ * traces per variant in alternating order: compositor 5867/4921/6085 ms as
+ * shipped against 3462/4961/5309 with the glass, input p99 11.8/12.4/11.2
+ * against 14.2/12.6/11.4. Overlapping ranges on every metric.
+ *
+ * ⚠ The attribute is set here directly rather than by faking a device. What is
+ * under test is the CSS — whether these rules still exempt the chrome — and
+ * that is exactly what the attribute drives.
+ */
+test('a low-power device keeps the glass on the nav and the player bar', async ({ page }) => {
+  await openHome(page, 'full');
+  await page.locator('button.home-station-primary-action').first().click();
+  await expect(page.locator('.player-dock-bar')).toBeVisible({ timeout: 10_000 });
+
+  await page.evaluate(() => {
+    document.querySelector('.app-shell-v2')?.setAttribute('data-low-power', 'true');
+  });
+  await page.waitForTimeout(300);
+
+  const chrome = await page.evaluate(() =>
+    ['.app-navigation-mobile', '.player-dock-bar'].map((selector) => {
+      const el = document.querySelector(selector);
+      if (!el) return { selector, missing: true, blur: '', shadow: '' };
+      const cs = getComputedStyle(el);
+      return {
+        selector,
+        missing: false,
+        blur: cs.backdropFilter,
+        shadow: cs.boxShadow
+      };
+    })
+  );
+
+  for (const surface of chrome) {
+    expect(surface.missing, `${surface.selector} must be on screen`).toBe(false);
+    expect(
+      surface.blur,
+      `${surface.selector} lost its blur on a low-power device: ${surface.blur}`
+    ).toContain('blur');
+    // The lit top edge. Transparency without it is not glass, just a thinner
+    // panel — and that is precisely the state the !important shadow rule left
+    // these two in.
+    expect(
+      surface.shadow,
+      `${surface.selector} lost its lit edge on a low-power device: ${surface.shadow}`
+    ).toContain('inset');
+  }
+});

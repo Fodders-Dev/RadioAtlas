@@ -1837,15 +1837,52 @@ of 50 non-superseded attempts). The all-time totals say 34%, and they are
 misleading — they span every change in what was counted. 50 attempts is a thin
 sample too; treat 84% as a first reading, not a fact.
 
-The second pillar is now mostly true: a saved library plays, and a saved station
-comes back on Home as the second shelf. What is left of it is «Продолжить
-слушать», which begins at ~0.84 of a viewport height at 390x844 and lands in the
-band the floating nav covers, so its tiles are never visible without scrolling —
-worth moving, but it is the smaller half now.
+The second pillar is now true. A saved library plays, a saved station comes back
+on Home as the second shelf, and «Продолжить слушать» is no longer buried: it
+used to begin at ~0.84 of a viewport height at 390x844, with its first tile at
+764px against a floating nav at 772 — eight pixels of station before the nav
+covered it, so a first-time listener saw none without scrolling, having first
+been told in prose that this is live radio. The shelf now sits above the
+explanatory card and the quick chips: first tile at 440, six fully visible.
+Nothing was removed and no shelf count changed; the words about stations simply
+follow the stations.
 
 `resume-context` («Что изменилось») is still at the bottom of the rail pool and
 still unreachable on a phone. It has not been touched because, unlike the saved
 shelf, nobody has argued it earns a place above nine catalogue shelves.
+
+**The chrome is glass again, and the reason it was not is worth keeping.** The
+owner's report was blunt — «прозрачность не равно liquid glass» — and correct:
+what shipped was a blur under a nearly opaque fill, which is a slightly lighter
+panel. Two causes, both measured rather than argued. The player bar had NO
+backdrop-filter at all: `MiniPlayerDock.css` turns it off because the bar paints
+`--theme-bg-image` over itself, which is right when that is a Theme Studio photo
+and pointless when it is the gradient every bundled theme actually uses. And on
+the owner's own phone both the bar and the nav were being stripped by two
+`data-low-power` rules, because Chrome reports its 6 GB as `deviceMemory: 4` —
+while 144 blurs elsewhere on the page, over flat dark ground where a blur cannot
+show, kept running. Glass was removed from the only surfaces where it reads and
+kept where it does not.
+
+Cost of putting it back, on that phone against production, three traces per
+variant in alternating order: compositor 5867/4921/6085 ms as shipped against
+3462/4961/5309 with the glass; input p99 11.8/12.4/11.2 against 14.2/12.6/11.4.
+Overlapping on every metric — one more blur instance against 144. The legibility
+floor is now a gate (`tests/glass-legibility.spec.ts`, contrast read off rendered
+pixels against a deliberately bright backdrop), and the fills were chosen from a
+sweep against it, not by eye.
+
+⚠ Two things found on the way and NOT done, both worth a morning:
+
+- **The chrome's `::before` / `::after` gloss layers are dead CSS.** Nothing
+  gives them `content`, so every gradient and border declared on
+  `.app-navigation-mobile::before`, `.player-dock-bar::before` and
+  `.app-topbar-v2::before` paints nothing. Reviving them would change four
+  surfaces at once and move visual baselines, so it belongs in its own change.
+- **Most of the app's 144 blurs are invisible** — they sit over flat dark ground
+  where a blur has nothing to show, and each one still costs a compositor pass
+  per instance. Removing them is free visually and buys back exactly what the
+  chrome now spends.
 
 Watch two things after this deploy, and one of them is new:
 

@@ -1420,12 +1420,42 @@
    the one that wins. */
 .app-shell-v2[data-active-section='home'] .app-navigation-mobile {
   border-color: rgba(255, 255, 255, 0.26);
+  /* 0.52, not 0.72: the bar is glass again.
+     The blur behind it (42px, from the @media block in styles.css) had been
+     paying for nothing — a 0.72 fill leaves too little of the page showing to
+     tell a blur from a flat panel, and on the owner's phone the blur was being
+     stripped outright as "low power" besides.
+     ⚠ This is the rule that WINS on Home, and the alpha is declared in THREE
+     stylesheets — here, styles.css and boot.css — so a change made in one of
+     them alone is silently undone. That is exactly what happened on the first
+     attempt at this.
+     Two classes plus an attribute is (0,3,0), which clears every single-class
+     rule in styles.css. It does NOT clear an `!important`, and it does not even
+     outweigh the low-power block there, which is also (0,3,0) — that one used
+     to erase this box-shadow on the owner's own phone and now excludes the nav
+     for that reason. Weight is not a substitute for reading what else claims
+     the same property.
+     The floor on how far this can go is measured, not guessed:
+     tests/glass-legibility.spec.ts renders a deliberately bright band behind
+     the bar and reads the LABELS' contrast off the pixels. Swept against that
+     gate, alpha vs measured label contrast (WCAG AA floor 4.5):
+
+       0.72 shipped  7.81      0.62  6.68      0.52  5.49
+       0.44          4.58 — the edge          0.36  3.70 — fails
+
+     0.52 keeps ~22% of margin over the floor, and the band it is measured
+     against (white through lime and cyan) is harsher than any station artwork
+     that will ever be behind it. Going below 0.44 is not a tuning decision. */
   background:
-    radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.1), transparent 48%),
-    rgba(13, 26, 43, 0.72);
+    radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.14), transparent 48%),
+    rgba(13, 26, 43, 0.52);
+  /* Thickness: a lit top edge and a shaded bottom one, so the bar reads as a
+     pane with a near side rather than as a hole cut in the page. Plain
+     box-shadows — paint, not compositor work. */
   box-shadow:
     0 -12px 44px rgba(0, 8, 22, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    inset 0 1.2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -12px 26px -18px rgba(0, 0, 0, 0.55);
 }
 
 .app-shell-v2[data-active-section='home'] .mobile-nav-item[aria-current='page']::after {

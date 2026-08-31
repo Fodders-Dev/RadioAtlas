@@ -247,6 +247,17 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const accentRgb = parseCssColors(vars.accent)[0]?.rgb;
     root.style.setProperty('--accent-ink', accentRgb ? readableTextColors(accentRgb).text : '#08121d');
     root.style.setProperty('--theme-bg-image', vars.background);
+    // Is that background a PICTURE or a gradient? The player bar needs to know,
+    // and it is the only difference that matters to it.
+    //
+    // MiniPlayerDock.css paints --theme-bg-image over the whole bar and turns
+    // its backdrop-filter off, because an opaque photo makes a blur a filter
+    // pass with nothing to show — correct, and tests/mobile.spec.ts pins it:
+    // with a Theme Studio print active the bar's computed backgroundImage must
+    // contain 'blob:'. But every bundled theme, and the default, is a gradient,
+    // so the bar was opaque for a picture that was not there — which is most of
+    // why the app reads as having no glass at all.
+    root.dataset.themeBackdrop = /url\(/i.test(vars.background) ? 'image' : 'flat';
     root.style.setProperty('--theme-font-family', vars.font);
     root.style.setProperty('--theme-icon-radius', vars.iconRadius);
 

@@ -5774,6 +5774,17 @@ body {
     inset 0 -1px 0 rgba(118, 181, 255, 0.08);
 }
 
+/* Legibility is the reason this chrome was made nearly opaque in the first
+   place, so it is paid for explicitly rather than hoped for: the labels and the
+   station name carry their own shadow, and tests/glass-legibility.spec.ts
+   measures the rendered PIXELS, because the DOM reports declared colours and
+   knows nothing about what a blur put behind the text. */
+.app-navigation-mobile .mobile-nav-item span,
+.player-dock-station,
+.player-dock-title {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.62);
+}
+
 .app-navigation-desktop::before,
 .app-topbar-v2::before,
 .app-navigation-mobile::before,
@@ -5830,6 +5841,30 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
     linear-gradient(135deg, rgba(110, 171, 255, 0.1), rgba(122, 238, 216, 0.08)),
     rgba(13, 26, 43, 0.72);
+}
+
+/* The mobile tab bar is glass on every screen, not only on Home.
+ *
+ * Home has its own winning rule (screens/homeReference.css, two classes plus an
+ * attribute) and got the same 0.52 there. Without this one the bar would be
+ * glass on Home and a flat panel everywhere else — the kind of difference
+ * nobody reports as a bug and everybody feels as cheapness.
+ *
+ * ⚠ Deliberately NOT folded into the rule above. That one also paints the
+ * topbar and the desktop nav, and the topbar's blur is `none` (it is a
+ * .glass-card, flattened) — making it translucent would show the page through
+ * it UNBLURRED, which is not glass, just a leak. The mobile nav is the only
+ * surface in that list with a live blur behind it: blur(42px) saturate(190%)
+ * from the max-width:959px block. */
+.app-navigation-mobile {
+  background:
+    radial-gradient(120% 80% at 22% -12%, rgba(255, 255, 255, 0.14), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
+    rgba(13, 26, 43, 0.52);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1.2px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -12px 26px -18px rgba(0, 0, 0, 0.55);
 }
 
 .nav-brand,
@@ -9900,13 +9935,38 @@ button.player-dock-status-pill:active {
   transform: none !important;
 }
 
+/* The nav and the player bar are NOT in this list, and that is measured.
+ *
+ * `lowPower` is true when `deviceMemory <= 4`, and Chrome rounds that value
+ * down to a power of two and caps it at 8 — so a 6 GB phone reports 4. The
+ * owner's Galaxy S20 FE, 8 cores, therefore came up low-power, and this rule
+ * stripped backdrop-filter from exactly the nav, the dock and the topbar while
+ * 144 other blurs on the same page kept running. Glass was removed from the
+ * only surfaces where it reads and kept where nothing shows through it, which
+ * is most of why the app looked like it had no glass at all.
+ *
+ * Measured on that phone against production, three traces per variant taken in
+ * alternating order, each in its own process:
+ *
+ *   compositor ms   as shipped 5867 / 4921 / 6085   with glass 3462 / 4961 / 5309
+ *   input p99 ms    as shipped 11.8 / 12.4 / 11.2   with glass 14.2 / 12.6 / 11.4
+ *
+ * The ranges overlap on every metric, so the cost is not distinguishable from
+ * run-to-run spread — one more blur instance against 144. ⚠ Two of those six
+ * numbers taken alone would have supported either conclusion; the first pair
+ * alone said glass was 40% CHEAPER, which is a warm-up artifact.
+ *
+ * ⚠ For the NAV this is sufficient and verified: blur(42px) saturate(190%) from
+ * the @media (max-width: 959px) block comes back and nothing later re-declares
+ * it. For the DOCK it is necessary but NOT sufficient, and an earlier version
+ * of this comment claimed otherwise. MiniPlayerDock.css turns the dock's blur
+ * off with a TWO-class selector that outranks anything here; the dock's glass
+ * is decided there, against the theme backdrop, not by this list. */
 .app-shell-v2[data-low-power='true'] .glass-card,
 .app-shell-v2[data-low-power='true'] .app-topbar-v2,
-.app-shell-v2[data-low-power='true'] .player-dock-bar,
 .app-shell-v2[data-low-power='true'] .player-dock-tray-panel,
 .app-shell-v2[data-low-power='true'] .player-dock-tray,
 .app-shell-v2[data-low-power='true'] .mobile-nav-item,
-.app-shell-v2[data-low-power='true'] .app-navigation-mobile,
 .app-shell-v2[data-low-power='true'] .nav-utility-btn {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
@@ -10066,9 +10126,20 @@ button.player-dock-status-pill:active {
   }
 }
 
-.app-shell-v2[data-low-power='true'] .app-topbar-v2,
-.app-shell-v2[data-low-power='true'] .player-dock-bar,
-.app-shell-v2[data-low-power='true'] .app-navigation-mobile {
+/* The nav and the player bar are out of this one too, and leaving them in was
+ * worse than making no change at all.
+ *
+ * This rule flattens the shadow; it does NOT touch `background`. So on a device
+ * that trips `lowPower` — the owner's 8-core phone does, because Chrome reports
+ * its 6 GB as `deviceMemory: 4` — the two surfaces kept the new TRANSPARENCY
+ * while losing the lit top edge that pays for it. Transparency without the edge
+ * is not glass, it is a thinner panel.
+ *
+ * ⚠ `!important` is what decides here, not weight and not file order. The Home
+ * nav rule in screens/homeReference.css is also (0,3,0) and loads later, so it
+ * would have won on both counts and still lost. Anyone re-adding a surface here
+ * should know that raising its specificity will not save it. */
+.app-shell-v2[data-low-power='true'] .app-topbar-v2 {
   box-shadow: 0 6px 12px rgba(3, 9, 18, 0.1) !important;
 }
 

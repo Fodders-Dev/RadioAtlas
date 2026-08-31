@@ -325,6 +325,96 @@ baselines after pinning changed **0 of 23**, so that runner was already
 resolving to `full`; there was no live divergence to fix. Nothing here has ever
 been observed rendering `lite` in CI.
 
+## Changing how the chrome looks: ask the browser who wins
+
+The nav, the player bar and the topbar are the most over-declared surfaces in
+this codebase. The mobile nav's base fill alone is declared in THREE stylesheets
+— `styles.css`, `screens/homeReference.css` and `boot.css` — and the player
+bar's paint is claimed by nine rules across two files. A change made in the
+obvious place is silently undone, produces no error, and looks in the diff
+exactly like a change that worked.
+
+That is not a hypothetical: the first attempt at the glass pass edited the
+shared chrome block and moved NOTHING. A later single-class rule 100 lines down
+restored the same alpha, and on Home a `[data-active-section='home']` rule in a
+lazily-loaded chunk beats both. The nav still measured `rgba(13, 26, 43, 0.72)`
+afterwards.
+
+**Do not reason about it. Ask.** `CSS.getMatchedStylesForNode` over a CDP
+session lists every matching rule in cascade order with its file and line:
+
+```ts
+const client = await page.context().newCDPSession(page);
+await client.send('DOM.enable'); await client.send('CSS.enable');
+// DOM.getDocument → DOM.querySelector → CSS.getMatchedStylesForNode
+```
+
+Ten seconds, and it answers what an hour of reading cannot. Then verify the
+edit the same way — the winner should be your rule.
+
+Three specific traps, all paid for:
+
+- **`!important` is not beaten by weight.** Two rules keyed on
+  `[data-low-power='true']` hit the chrome: one strips `backdrop-filter`, the
+  other flattens `box-shadow` with `!important`. The second one is (0,3,0) —
+  the same weight as the Home nav rule that loads after it — so raising
+  specificity or moving the rule later does nothing.
+- **`lowPower` catches ordinary phones.** It is true when `deviceMemory <= 4`,
+  and Chrome rounds that down to a power of two and caps it at 8, so a 6 GB
+  phone reports 4. The owner's 8-core Galaxy S20 FE trips it, and both rules
+  above then stripped the glass from the nav and the dock — the two surfaces
+  where it reads — while 144 blurs elsewhere on the page, over flat dark
+  ground where a blur cannot show, kept running.
+- **The chrome's `::before` / `::after` gloss layers do not render.** Nothing in
+  the app gives `.app-navigation-mobile::before`, `.player-dock-bar::before` or
+  `.app-topbar-v2::before` a `content`, so every gradient and border declared on
+  them is dead CSS. Confirmed twice: `getComputedStyle(el, '::before').content`
+  returns `none`, and a full sweep of all ten `content: ''` declarations finds
+  no chrome selector. Adding a rule there paints nothing — and worse, a `mask`
+  added by such a rule WOULD survive into the later gloss block and clip it if
+  `content` ever appeared.
+
+## Glass is legibility before it is looks
+
+The chrome was made nearly opaque once, deliberately, because at a 0.32 fill the
+nav's labels mixed into whatever scrolled underneath. Any change that makes it
+glass again re-opens that, so the floor is measured:
+`tests/glass-legibility.spec.ts` pins a deliberately bright band behind the bar,
+screenshots the strip, hands the PNG back to the page, draws it on a canvas and
+reads the contrast off the PIXELS. The DOM cannot answer this — it reports the
+colour a rule declared and knows nothing about what a blur put behind the text.
+
+Measured alpha against that gate (WCAG AA floor 4.5):
+
+| fill | nav labels | | fill | dock title |
+| --- | --- | --- | --- | --- |
+| 0.72 | 7.81 | | 0.86 | 7.88 |
+| 0.62 | 6.68 | | 0.78 | 6.45 |
+| **0.52** | **5.49** | | **0.72** | **5.52** |
+| 0.44 | 4.58 — the edge | | 0.62 | 4.23 — fails |
+| 0.36 | 3.70 — fails | | 0.52 | 3.38 — fails |
+
+⚠ Two estimators were tried first and both were useless. The median with nothing
+behind the bar does not bite at all — dropping the fill to 0.04 changed nothing
+over a dark page. The 90th percentile reads the ICONS as bright background and
+reported 3.13:1 for chrome that was nearly opaque. The metric that works is the
+median WITH a bright worst case behind it, which is the defect stated as a
+number.
+
+## The player bar is opaque for a picture that is usually not there
+
+`MiniPlayerDock.css` turns the dock's `backdrop-filter` off, and it is right
+about the case it describes: with a Theme Studio print active,
+`--theme-bg-image` is an opaque photo covering the bar, nothing behind it can
+show, and the blur is a filter pass with no output. `tests/mobile.spec.ts` pins
+that — with a print applied the bar's computed `backgroundImage` must contain
+`blob:`.
+
+But every bundled theme and the default resolve that variable to a GRADIENT, so
+the bar was opaque for a photograph that was not there. `ThemeContext` now
+writes `data-theme-backdrop='image' | 'flat'`, and the flat case gets glass.
+Keep the two cases apart; do not "simplify" them back together.
+
 ## The dock is the bar for the station you asked for, not only the one on air
 
 `player.current` means ON AIR: `play()` clears it and only `handlePlaying` sets
