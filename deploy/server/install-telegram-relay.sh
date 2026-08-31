@@ -12,9 +12,17 @@ APP_ROOT="${APP_ROOT:-/opt/RadioAtlas}"
 PORT="${TELEGRAM_RELAY_PORT:-8399}"
 SERVICE=/etc/systemd/system/radioatlas-telegram-relay.service
 NODE_BIN="${NODE_BIN:-$(command -v node)}"
+# The relay may have to live OUTSIDE a release directory: the foreign host is
+# the one that no longer receives deploys, which is half the reason this exists.
+RELAY_SCRIPT="${RELAY_SCRIPT:-$APP_ROOT/current/deploy/server/telegram-relay.mjs}"
 
 if [[ -z "$NODE_BIN" ]]; then
   echo "node not found on PATH; set NODE_BIN" >&2
+  exit 1
+fi
+
+if [[ ! -f "$RELAY_SCRIPT" ]]; then
+  echo "relay script not found at $RELAY_SCRIPT; set RELAY_SCRIPT" >&2
   exit 1
 fi
 
@@ -27,7 +35,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=TELEGRAM_RELAY_PORT=$PORT
-ExecStart=$NODE_BIN --no-warnings $APP_ROOT/current/deploy/server/telegram-relay.mjs
+ExecStart=$NODE_BIN --no-warnings $RELAY_SCRIPT
 Restart=always
 RestartSec=3
 # The bot token is in the path of every request this carries. Nothing here may

@@ -11,12 +11,24 @@
 # entry, a transparent proxy) would silently reroute their traffic too.
 #
 # ⚠ The key it uses is generated here and authorised on the relay host with
-# `restrict,permitopen=` — it can open exactly one forward and cannot get a
-# shell. A general-purpose root key would be a much larger thing to leave lying
-# on a box that is, by construction, the one attackers can reach.
+# `restrict,port-forwarding,permitopen=` — it can open exactly one forward and
+# cannot get a shell. A general-purpose root key would be a much larger thing to
+# leave lying on a box that is, by construction, the one attackers can reach.
+#
+# ⚠ `restrict` turns EVERYTHING off, and `permitopen` alone does NOT turn
+# forwarding back on — `port-forwarding` has to be in that list too. Without it
+# the tunnel connects, systemd reports the unit active, and it forwards nothing:
+# a green service that does not work, which is the shape of failure this project
+# keeps paying for.
 set -euo pipefail
 
 PORT="${TELEGRAM_RELAY_PORT:-8399}"
+# The same pipe carries the stream fallback: the API on the foreign host already
+# exposes /stream?url=…, which is what media/foreignEgress.ts calls when every
+# direct candidate for a station has failed. One tunnel, two jobs — a second
+# channel would be a second thing to notice had died.
+MEDIA_PORT="${MEDIA_EGRESS_PORT:-3399}"
+MEDIA_REMOTE_PORT="${MEDIA_REMOTE_PORT:-3001}"
 RELAY_HOST="${RELAY_HOST:-}"
 KEY=/root/.ssh/radioatlas_telegram_tunnel
 SERVICE=/etc/systemd/system/radioatlas-telegram-tunnel.service
@@ -32,7 +44,7 @@ if [[ ! -f "$KEY" ]]; then
 fi
 
 echo "--- authorise this on the relay host, then re-run ---" >&2
-echo "restrict,permitopen=\"127.0.0.1:$PORT\" $(cat "$KEY.pub")" >&2
+echo "restrict,port-forwarding,permitopen=\"127.0.0.1:$PORT\",permitopen=\"127.0.0.1:$MEDIA_REMOTE_PORT\" $(cat "$KEY.pub")" >&2
 
 cat > "$SERVICE" <<EOF
 [Unit]
@@ -55,6 +67,7 @@ ExecStart=/usr/bin/ssh -N \\
   -o BatchMode=yes \\
   -i $KEY \\
   -L 127.0.0.1:$PORT:127.0.0.1:$PORT \\
+  -L 127.0.0.1:$MEDIA_PORT:127.0.0.1:$MEDIA_REMOTE_PORT \\
   $RELAY_HOST
 Restart=always
 RestartSec=5
@@ -77,4 +90,6 @@ if [[ "$code" != "401" ]]; then
 fi
 
 echo "Telegram reachable via 127.0.0.1:$PORT (401 on an invalid token, as expected)" >&2
-echo "Now set TELEGRAM_API_ROOT=http://127.0.0.1:$PORT in shared/env/bot.env and api.env" >&2
+echo "Now set, in shared/env/*.env on this host:" >&2
+echo "  bot.env + api.env : TELEGRAM_API_ROOT=http://127.0.0.1:$PORT" >&2
+echo "  api.env           : MEDIA_FOREIGN_EGRESS_BASE=http://127.0.0.1:$MEDIA_PORT" >&2
