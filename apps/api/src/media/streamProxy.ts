@@ -350,8 +350,28 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
             foreignEgress,
             parsed.target,
             { headers },
-            (url, init, timeoutMs) =>
-              fetchCandidate({ url: new URL(url), speculative: false }, init, timeoutMs)
+            // Plain fetch, NOT fetchCandidate, and that is deliberate.
+            //
+            // fetchCandidate goes through the SSRF guard, which refuses private
+            // addresses — correct for a station URL a listener supplied, and
+            // wrong here: this hop's host comes only from
+            // MEDIA_FOREIGN_EGRESS_BASE, is validated at parse time, and in the
+            // deployed shape is 127.0.0.1, the local end of an SSH tunnel. The
+            // guard was refusing our own relay, which is why every blocked
+            // station still answered 502 with the fallback configured.
+            //
+            // Nothing user-supplied can move the host: the target URL is
+            // encoded into a query parameter, and the far end applies its own
+            // SSRF checks to it, because it is this same handler.
+            async (url, init, timeoutMs) => {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), timeoutMs);
+              try {
+                return await fetch(url, { ...init, signal: controller.signal });
+              } finally {
+                clearTimeout(timer);
+              }
+            }
           );
           if (relayed) {
             upstream = relayed;
