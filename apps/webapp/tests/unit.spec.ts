@@ -171,7 +171,7 @@ test('playback candidate planning handles direct, mixed-content, proxy-first, an
   expect(unavailableApi.apiUnavailable).toBe(true);
 });
 
-test('secure direct audio keeps a same-origin proxy fallback for a stalled upstream', () => {
+test('a measured stalled upstream starts through the same-origin proxy without waiting', () => {
   installWindowStorage('https://radioatlas.ru/');
 
   const gamesboroUrl = 'https://radio.gamesboro.org/listen/gamesboro_radio/radio.mp3';
@@ -188,11 +188,11 @@ test('secure direct audio keeps a same-origin proxy fallback for a stalled upstr
     apiAvailable: true
   });
 
-  expect(plan.candidates.map((candidate) => candidate.mode)).toEqual(['direct', 'proxy']);
-  expect(plan.candidates[0]?.url).toBe(gamesboroUrl);
-  expect(plan.candidates[1]?.url).toBe(
+  expect(plan.candidates.map((candidate) => candidate.mode)).toEqual(['proxy', 'direct']);
+  expect(plan.candidates[0]?.url).toBe(
     '/api/stream?url=https%3A%2F%2Fradio.gamesboro.org%2Flisten%2Fgamesboro_radio%2Fradio.mp3'
   );
+  expect(plan.candidates[1]?.url).toBe(gamesboroUrl);
 });
 
 // T_share_fix: a shared http:// station opened via deep link never played —

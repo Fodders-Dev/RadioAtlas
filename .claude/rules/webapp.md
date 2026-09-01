@@ -75,10 +75,12 @@ that slot stays blank rather than falling back.
   listener has a usable route to it. Keep recognized direct audio first so a
   healthy stream does not spend our server bandwidth, but include the
   same-origin `/api/stream` candidate immediately after it. Gamesboro measured
-  at `readyState=0` over the direct route while the RU proxy sustained the
-  advertised stream; excluding `.mp3` from `needsApiAssist` left no failover.
-  Extensionless and HLS streams remain proxy-first, while constrained mobile
-  and Telegram runtimes may still force proxy-only playback.
+  at `readyState=0` for 25–30 seconds over the direct route while the RU proxy
+  sustained the advertised stream, so `radio.gamesboro.org` is the deliberately
+  narrow exception and runs proxy-first. Do not broaden that host list without
+  measuring both routes: every entry spends our server bandwidth. Extensionless
+  and HLS streams remain proxy-first, while constrained mobile and Telegram
+  runtimes may still force proxy-only playback.
 - **A recovery path must never touch the element while `play()` is pending.**
   `audio.load()` on top of an unsettled `play()` rejects it with AbortError, the
   catch treats that as a dead candidate, and the watchdog and the candidate loop

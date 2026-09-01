@@ -28,6 +28,19 @@ export type CandidatePlan = {
 
 const normalizeBase = (value?: string) => (value ? value.replace(/\/+$/, '') : '');
 
+// These upstreams were measured from the listener route, not merely marked
+// healthy by Radio Browser. Keep the list deliberately tiny: proxying every
+// direct MP3 would turn our server into the default bandwidth path.
+const PROXY_FIRST_UPSTREAM_HOSTS = new Set(['radio.gamesboro.org']);
+
+const shouldPreferProxyForUpstream = (url: string) => {
+  try {
+    return PROXY_FIRST_UPSTREAM_HOSTS.has(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
 export const isHls = (url: string) => url.toLowerCase().includes('.m3u8');
 export const isDirectAudioUrl = (url: string) =>
   /\.(mp3|aac|m4a|ogg|opus|flac|wav|aiff?|mp2)(\?|#|$)/i.test(url);
@@ -145,15 +158,21 @@ export const buildCandidates = ({
     Boolean(normalizedBase) && proxyRelevant && (apiAvailable || httpProxyMandatory);
   const shouldForceProxyCandidate = canUseProxy && shouldForceProxyStreaming();
   // A filename extension says what the response should contain, not whether the
-  // route can actually deliver it. Keep healthy MP3/AAC streams on the direct
-  // path, but retain the same-origin proxy as the next candidate when an
-  // upstream route stalls (Gamesboro is reachable from RU while its direct
-  // route can sit at readyState=0). Extensionless streams and HLS keep their
-  // existing proxy-first order; constrained runtimes still force the proxy.
+  // route can actually deliver it. Keep ordinary healthy MP3/AAC streams on the
+  // direct path with the same-origin proxy as fallback. A tiny set of measured
+  // bad routes is proxy-first instead: Gamesboro sat at readyState=0 for 25-30s
+  // on direct while the RU proxy started immediately. Extensionless streams and
+  // HLS keep their existing proxy-first order; constrained runtimes still force
+  // the proxy.
+  const measuredProxyFirst = canUseProxy && shouldPreferProxyForUpstream(url);
   const directAudioProxyFallback =
-    url.startsWith('https://') && isDirectAudioUrl(url) && !shouldForceProxyCandidate;
+    url.startsWith('https://') &&
+    isDirectAudioUrl(url) &&
+    !shouldForceProxyCandidate &&
+    !measuredProxyFirst;
   const shouldPreferProxyCandidate =
-    canUseProxy && shouldPreferProxy(normalizedBase) && !directAudioProxyFallback;
+    measuredProxyFirst ||
+    (canUseProxy && shouldPreferProxy(normalizedBase) && !directAudioProxyFallback);
   const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);

@@ -417,10 +417,11 @@ route open; `tests/sdk-fail-open.spec.ts` must still reach the Home shell.
 - A native browser player showing a pause icon is not evidence of playback.
   Inspect `currentTime`, `readyState`, and `buffered`: `currentTime=0` plus
   `readyState=0` is a startup stall even when `error` is null. Secure direct
-  MP3/AAC candidates run direct first and then through the same-origin
+  MP3/AAC candidates normally run direct first and then through the same-origin
   `/api/stream` fallback; extensionless and HLS sources remain proxy-first.
-  Gamesboro was the production example on 2026-09-01: its direct route barely
-  delivered data, while the RU proxy sustained the stream. Test the proxy as
+  Gamesboro was the production example on 2026-09-01: its direct route stayed at
+  `readyState=0` for 25–30 seconds, while the RU proxy sustained the stream, so
+  `radio.gamesboro.org` is a measured proxy-first exception. Test the proxy as
   `/api/stream?url=<encoded upstream>` — `/stream` without `/api` is the SPA.
 - For HLS streams, ensure `hls.js` loads (check console).
 - Globe QA: dragging/settling may select a preview but must not switch audio; use a direct point tap or the visible Play action to tune.
