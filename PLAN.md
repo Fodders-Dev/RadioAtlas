@@ -1755,6 +1755,103 @@ him rather than quietly re-tuned.
 
 ## Next:
 
+**Read this part first: the ground moved on 31.08-01.09.2026.** The service now
+runs on a RUSSIAN host, and that changed what "works" means. Everything below
+this block was written before the move and is still true about the product; it
+just no longer describes where the product lives.
+
+**The app was invisible to its own audience, and that was the single largest
+defect found here in months.** `index.html` loaded the Telegram WebApp SDK from
+`telegram.org`, and that host does not answer from Russia — measured from the RU
+box, three attempts, DNS resolves and TCP to :443 never connects, no response in
+20 s. The script was synchronous, so the parser stopped and `document.body` was
+still null after 5 s: a black screen, on mobile networks, without a VPN. Fixed in
+two steps — the SDK is vendored into `public/vendor/` and served from our own
+origin (`8e26b0e`), and it is `async`, because self-hosting does not help if the
+route hangs on one of OUR files either. Confirmed by the owner on Beeline
+without a VPN. ⚠ The block is per-network: from the owner's home connection
+telegram.org loads fine, which is why this survived so long. Verify this class
+of thing from a server or a phone, never from the developer machine.
+
+**Telegram is unreachable from the RU host in every direction**, which also
+breaks the bot (deep links, `/record`, billing webhooks) and the API's own
+billing calls (`createInvoiceLink`, `getStarTransactions`). The route is now:
+our process → `http://127.0.0.1:8399` → an SSH tunnel → a loopback relay on the
+Netherlands box → `https://api.telegram.org`. `TELEGRAM_API_ROOT` selects it;
+`deploy/server/telegram-relay.mjs` and the two installers build it. The same
+tunnel forwards `127.0.0.1:3399` to the foreign API, which is what
+`media/foreignEgress.ts` uses when every direct candidate for a station fails.
+
+⚠⚠ **The Netherlands box may not be switched off.** It no longer serves the
+site, but it holds the relay, and both Telegram and 11 measured stations go
+through it.
+
+**Station reachability, measured, 148 stations, two passes per host:** RU
+122/148 and 123/148, NL 135/148 both times. Eleven are consistently reachable
+only from abroad and all eleven now play through the app on the RU box. Thirteen
+more are dead from both — broken stations, which no egress fixes. And about half
+the catalogue is `http://`, which can only play through our proxy at all, so the
+server's own reachability decides for that half.
+
+**A stalled upstream is not a dead one, and the wait was the bug.** Gamesboro
+(`radio.gamesboro.org`) sat at `readyState=0` for 25-30 s over the direct route
+while the RU proxy sustained it. `ff3db56` gave secure HTTPS MP3/AAC a proxy
+candidate at all; `5437d9c` made that one measured host proxy-first, taking time
+to audio from ~30 s to ~1.5 s. ⚠ The narrow list is deliberate — every entry
+spends our bandwidth — but the generic defect is still there: the NEXT stalling
+station will again wait 25-30 s.
+
+Open, in the order they cost something:
+
+1. **Off-box backups are still broken.** The accounts DB lives on the RU box and
+   its nightly snapshot lands on local disk, but the R2 upload has answered
+   `403 AccessDenied` since at least 28.08 — a stale token, not a network
+   problem (R2 itself is reachable from that host). Owner action: a fresh
+   bucket-scoped token in `api.env`, then a REDEPLOY, not just a restart.
+2. **Was the bot token rotated?** It leaked into pm2 logs — grammY puts the full
+   URL, token included, into its error text. The logs no longer contain it, but
+   whether the token itself was replaced is unconfirmed.
+3. **The 25-30 s stall, generically — and it is now measured.** The grace
+   exists to protect slow-but-live streams, so the question was what a healthy
+   startup actually costs. Measured 01.09.2026 in Chromium over the DIRECT route
+   against 54 promoted https stations, one at a time, 20 s budget each. Of the
+   24 that produced audio, time to the first `currentTime` movement was:
+
+   | p50 | p75 | p90 | p95 | max |
+   | --- | --- | --- | --- | --- |
+   | 1602 ms | 2101 ms | 3100 ms | 3702 ms | **5915 ms** |
+
+   **A 6000 ms cutoff would have diverted none of them.** And of the 30 that
+   produced nothing in 20 s, **29 still had `readyState === 0`** — which is the
+   discriminator: a stalled upstream has nothing at all, while a slow-but-live
+   one has parsed metadata. That is a narrower and safer change than shortening
+   the grace for everybody: switch early ONLY when `readyState === 0` and
+   `buffered.length === 0`, leave the 15 s grace for anything that has begun to
+   arrive.
+
+   ⚠ Caveats that belong with the number: 24 healthy samples is thin, and the
+   run was on a home connection, so it says what healthy startup costs on a GOOD
+   route. A Russian mobile route is slower, and a cutoff tuned here could divert
+   healthy stations there — to the proxy, which still plays, at the cost of our
+   bandwidth. That is a far smaller harm than 25-30 s of silence, but it is a
+   real cost and should be re-measured from the phone before the number is
+   treated as settled.
+
+   ⚠ The 30 that produced nothing say nothing about what the app delivers: this
+   measured the direct route ONLY, and the proxy fallback is exactly what exists
+   for them.
+
+   ⚠ Do not edit `candidateSwitchGuard.ts` or call `audio.load()` over a pending
+   `play()`; that combination once failed a third of all plays.
+4. **`radioatlas-scene-seeder` is not installed on the RU box.** It spends money
+   nightly, so it is an owner decision rather than an oversight.
+5. **CP2077 Body Heat 98.7 and Pacific Dreams 88.9 are dead at the source.**
+   Verified 01.09 from two hosts: `82.65.103.36:8000` returns zero bytes and
+   times out from both the developer machine and the RU box. Radio Browser still
+   reports `lastcheckok=1` for both and offers no alternative row — a clean
+   example of formal health that is not a usable stream. Nothing to fix in the
+   app; if they matter, the work is finding a new source, not more proxying.
+
 Next is getting people in front of what already exists — and after the link
 preview above, the ladder is clear and ordered by cost. **Rung one is done:** the
 manifest, the service worker and the three icons shipped, so the app installs on
