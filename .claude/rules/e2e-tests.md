@@ -75,6 +75,30 @@ difference between its own reads.
    fails twice on the same line, it is a defect; otherwise reproduce it first
    with `--repeat-each=12 --workers=6`.
 
+## What this harness structurally cannot test
+
+The dev server serves `http://localhost`, and `isSecureProxyContext()` in
+`playbackTransport.ts` is strictly `location.protocol === 'https:'`. That is not
+a detail — it decides which playback candidates exist at all:
+
+- an **https** stream needs `apiAvailable`, which needs `needsApiAssist`, which
+  for a plain `.mp3`/`.aac` needs a secure page. On http there is no proxy
+  candidate, so there is exactly ONE candidate and nothing to fail over to;
+- an **http** stream does get a proxy candidate, but `shouldForceProxyForHttp`
+  then puts the proxy FIRST, so the direct route is never tried.
+
+So the production ordering — direct first, same-origin proxy as fallback — has
+no combination that reproduces here, and any spec written against "a stalled
+direct candidate hands over to the proxy" will fail for a reason that has
+nothing to do with the code under test. One was written on 2026-09-01 and
+deleted rather than bent into passing; the behaviour is covered by unit tests on
+the decision (`lib/candidateSwitchGuard.test.ts`) and verified against
+production, which is https.
+
+⚠ Before writing a playback-transport spec, check what `buildCandidates` would
+actually return for your URL on an http page. It is cheaper than reading a
+failure that looks like a product bug.
+
 ## Isolation
 
 A spawned API must get its own `ACCOUNT_STORE_PATH`, `CATALOG_DATA_DIR` and
