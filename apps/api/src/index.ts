@@ -539,7 +539,7 @@ const getCatalog = async (mode: 'fast' | 'full') => {
     }
   });
 
-  // Overlay BEFORE persist+cache so the curated rows ride the 30-min refresh and
+  // Overlay BEFORE persist+cache so the curated rows ride the six-hour refresh and
   // the snapshot written to disk is already overlaid (the snapshot-fallback boot
   // path must not serve the dead upstream rows).
   const stations = applyCuratedOverlay(

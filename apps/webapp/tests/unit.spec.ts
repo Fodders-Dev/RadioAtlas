@@ -7,7 +7,7 @@ import {
   pickBestStream
 } from '../src/screens/search/linkUtils';
 import { buildStationStreamTargets } from '../src/lib/stationStreams';
-import { buildCandidates } from '../src/lib/playbackTransport';
+import { buildCandidates, needsApiAssist } from '../src/lib/playbackTransport';
 import {
   catalogCacheStorageKey,
   clearCatalogCacheStorage,
@@ -153,8 +153,8 @@ test('playback candidate planning handles direct, mixed-content, proxy-first, an
     apiBase: 'https://api.radioatlas.test',
     apiAvailable: true
   });
-  expect(proxied.candidates.map((candidate) => candidate.mode)).toEqual(['proxy', 'direct']);
-  expect(proxied.candidates[0]?.url).toContain('/stream?url=');
+  expect(proxied.candidates.map((candidate) => candidate.mode)).toEqual(['direct', 'proxy']);
+  expect(proxied.candidates[1]?.url).toContain('/stream?url=');
 
   const hls = buildCandidates({
     url: 'https://cdn.radio.test/live/playlist.m3u8',
@@ -169,6 +169,30 @@ test('playback candidate planning handles direct, mixed-content, proxy-first, an
     apiAvailable: false
   });
   expect(unavailableApi.apiUnavailable).toBe(true);
+});
+
+test('secure direct audio keeps a same-origin proxy fallback for a stalled upstream', () => {
+  installWindowStorage('https://radioatlas.ru/');
+
+  const gamesboroUrl = 'https://radio.gamesboro.org/listen/gamesboro_radio/radio.mp3';
+  const station = {
+    stationuuid: '32f62475-8900-4364-9fee-d1909f06ae2d',
+    name: 'Gamesboro Radio - Video Game Music 24/7'
+  } as Parameters<typeof needsApiAssist>[0];
+
+  expect(needsApiAssist(station, [gamesboroUrl])).toBe(true);
+
+  const plan = buildCandidates({
+    url: gamesboroUrl,
+    apiBase: '/api',
+    apiAvailable: true
+  });
+
+  expect(plan.candidates.map((candidate) => candidate.mode)).toEqual(['direct', 'proxy']);
+  expect(plan.candidates[0]?.url).toBe(gamesboroUrl);
+  expect(plan.candidates[1]?.url).toBe(
+    '/api/stream?url=https%3A%2F%2Fradio.gamesboro.org%2Flisten%2Fgamesboro_radio%2Fradio.mp3'
+  );
 });
 
 // T_share_fix: a shared http:// station opened via deep link never played —

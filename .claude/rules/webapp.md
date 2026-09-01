@@ -71,6 +71,14 @@ that slot stays blank rather than falling back.
   usually in a pocket: a backgrounded tab throttles timers and withholds
   `timeupdate` while audio keeps playing, so anything judged from wall-clock
   time will misfire. Judge from `audio.currentTime` movement instead.
+- On a secure RadioAtlas page, a direct HTTPS MP3/AAC is not proof that the
+  listener has a usable route to it. Keep recognized direct audio first so a
+  healthy stream does not spend our server bandwidth, but include the
+  same-origin `/api/stream` candidate immediately after it. Gamesboro measured
+  at `readyState=0` over the direct route while the RU proxy sustained the
+  advertised stream; excluding `.mp3` from `needsApiAssist` left no failover.
+  Extensionless and HLS streams remain proxy-first, while constrained mobile
+  and Telegram runtimes may still force proxy-only playback.
 - **A recovery path must never touch the element while `play()` is pending.**
   `audio.load()` on top of an unsettled `play()` rejects it with AbortError, the
   catch treats that as a dead candidate, and the watchdog and the candidate loop

@@ -105,7 +105,7 @@ export const needsApiAssist = (station: StationLite, sourceUrls: string[]) =>
       url.startsWith('http://') ||
       isHls(url) ||
       (shouldForceProxyStreaming() && url.startsWith('https://')) ||
-      (isSecureProxyContext() && url.startsWith('https://') && !isDirectAudioUrl(url))
+      (isSecureProxyContext() && url.startsWith('https://'))
   );
 
 const modeForUrl = (url: string, isFallback: boolean): PlaybackCandidate['mode'] => {
@@ -143,8 +143,17 @@ export const buildCandidates = ({
     url.startsWith('http://') && !isHttpLocal && Boolean(normalizedBase);
   const canUseProxy =
     Boolean(normalizedBase) && proxyRelevant && (apiAvailable || httpProxyMandatory);
-  const shouldPreferProxyCandidate = canUseProxy && shouldPreferProxy(normalizedBase);
   const shouldForceProxyCandidate = canUseProxy && shouldForceProxyStreaming();
+  // A filename extension says what the response should contain, not whether the
+  // route can actually deliver it. Keep healthy MP3/AAC streams on the direct
+  // path, but retain the same-origin proxy as the next candidate when an
+  // upstream route stalls (Gamesboro is reachable from RU while its direct
+  // route can sit at readyState=0). Extensionless streams and HLS keep their
+  // existing proxy-first order; constrained runtimes still force the proxy.
+  const directAudioProxyFallback =
+    url.startsWith('https://') && isDirectAudioUrl(url) && !shouldForceProxyCandidate;
+  const shouldPreferProxyCandidate =
+    canUseProxy && shouldPreferProxy(normalizedBase) && !directAudioProxyFallback;
   const shouldForceProxyForHttp = url.startsWith('http://') && canUseProxy;
   const blockedMixedContent = url.startsWith('http://') && !isHttpLocal && !canUseProxy;
   const { directPreferred, proxyInputs } = buildUrlVariants(url);

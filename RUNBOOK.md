@@ -414,6 +414,14 @@ route open; `tests/sdk-fail-open.spec.ts` must still reach the Home shell.
 
 ## Audio troubleshooting
 - If stream fails, confirm `https://` and test with browser.
+- A native browser player showing a pause icon is not evidence of playback.
+  Inspect `currentTime`, `readyState`, and `buffered`: `currentTime=0` plus
+  `readyState=0` is a startup stall even when `error` is null. Secure direct
+  MP3/AAC candidates run direct first and then through the same-origin
+  `/api/stream` fallback; extensionless and HLS sources remain proxy-first.
+  Gamesboro was the production example on 2026-09-01: its direct route barely
+  delivered data, while the RU proxy sustained the stream. Test the proxy as
+  `/api/stream?url=<encoded upstream>` — `/stream` without `/api` is the SPA.
 - For HLS streams, ensure `hls.js` loads (check console).
 - Globe QA: dragging/settling may select a preview but must not switch audio; use a direct point tap or the visible Play action to tune.
 - Feed QA: opening Feed while a station is already current must not auto-switch it; the active card play/pause control owns manual transport.
@@ -849,6 +857,16 @@ Gate it off with `HARVESTER_ENABLED=0` in `ecosystem.config.cjs` (the script
 no-ops and exits).
 
 ## Catalogue refresh memory
+
+There are two catalogue refresh paths. `.github/workflows/catalog-artifacts.yml`
+runs `scripts/updateCatalog.mjs` daily at 03:25 UTC and commits refreshed
+artifacts. The running API also refreshes its in-memory Radio Browser catalogue
+lazily after the six-hour TTL below. Both paths ingest Radio Browser's current
+rows and formal health fields; neither measures sustained audio throughput, and
+a saved `StationLite` snapshot is not automatically rewritten just because a
+broadcaster moved to a new URL. Playback transport fallback is therefore still
+required for routes that are formally online but unusable from the listener's
+network.
 
 `getCatalog('full')` refreshes every `CATALOG_CACHE_TTL_MS` (6 hours since
 2026-08-15, 30 minutes before that) and that refresh is the API's memory
