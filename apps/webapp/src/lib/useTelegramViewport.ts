@@ -7,7 +7,11 @@
 // viewport/safe-area event. Outside Telegram it falls back to visualViewport so
 // the URL bar / on-screen keyboard are still tracked.
 import { useEffect } from 'react';
-import { getTelegramWebApp, type TelegramWebApp } from './telegram';
+import {
+  getTelegramWebApp,
+  subscribeTelegramSdkReady,
+  type TelegramWebApp
+} from './telegram';
 
 type CssVarTarget = { style: Pick<CSSStyleDeclaration, 'setProperty'> };
 
@@ -90,10 +94,21 @@ export const setupTelegramViewport = (deps: TelegramViewportDeps): (() => void) 
 export const useTelegramViewport = (): void => {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    return setupTelegramViewport({
-      webApp: getTelegramWebApp(),
-      win: window,
-      root: document.documentElement
-    });
+    let cleanupViewport = () => {};
+    const bindTelegramViewport = () => {
+      cleanupViewport();
+      cleanupViewport = setupTelegramViewport({
+        webApp: getTelegramWebApp(),
+        win: window,
+        root: document.documentElement
+      });
+    };
+
+    bindTelegramViewport();
+    const unsubscribeSdkReady = subscribeTelegramSdkReady(bindTelegramViewport);
+    return () => {
+      unsubscribeSdkReady();
+      cleanupViewport();
+    };
   }, []);
 };

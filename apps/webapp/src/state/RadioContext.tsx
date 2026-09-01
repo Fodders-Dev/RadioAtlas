@@ -87,7 +87,8 @@ import {
   isInsideTelegramClient,
   makeDeepLink,
   openLinkOrFallback,
-  shareStationLink
+  shareStationLink,
+  subscribeTelegramSdkReady
 } from '../lib/telegram';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import { useLocale } from './LocaleContext';
@@ -883,24 +884,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // ready() / expand() are documented to no-op on standalone web once
-    // the SDK is loaded, so it is safe to call them through the lenient
-    // getTelegramWebApp() helper without a strict client-only gate.
-    const tg = getTelegramWebApp();
-    tg?.ready?.();
-    tg?.expand?.();
-    if (tg?.isActive) {
-      logDebug(`WebApp active state: ${tg.isActive}`);
-    }
-    // T1.2: disableVerticalSwipes kills the system "swipe down to
-    // minimise" gesture that competes with our own dock-tray. Strict
-    // client gate so future SDK behaviour drift on standalone web
-    // cannot accidentally call it there - intent stays explicit.
-    // Mount-only; the SDK persists the disabled state for the WebApp
-    // lifetime, no re-enable needed.
-    if (isInsideTelegramClient() && tg?.disableVerticalSwipes) {
-      tg.disableVerticalSwipes();
-    }
+    const configureTelegram = () => {
+      // ready() / expand() are documented to no-op on standalone web once
+      // the SDK is loaded, so it is safe to call them through the lenient
+      // getTelegramWebApp() helper without a strict client-only gate.
+      const tg = getTelegramWebApp();
+      tg?.ready?.();
+      tg?.expand?.();
+      if (tg?.isActive) {
+        logDebug(`WebApp active state: ${tg.isActive}`);
+      }
+      // T1.2: disableVerticalSwipes kills the system "swipe down to
+      // minimise" gesture that competes with our own dock-tray. Strict
+      // client gate so future SDK behaviour drift on standalone web
+      // cannot accidentally call it there - intent stays explicit.
+      if (isInsideTelegramClient() && tg?.disableVerticalSwipes) {
+        tg.disableVerticalSwipes();
+      }
+    };
+
+    configureTelegram();
+    return subscribeTelegramSdkReady(configureTelegram);
   }, []);
 
   // T1.2: drive the Telegram closing-confirmation toggle off the
@@ -912,16 +916,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   // cleanup disables on unmount so a navigation tear-down does not
   // leave the close-confirm prompt armed.
   useEffect(() => {
-    if (!isInsideTelegramClient()) return;
-    const tg = getTelegramWebApp();
-    if (!tg) return;
-    if (player.isPlaying) {
-      tg.enableClosingConfirmation?.();
-    } else {
-      tg.disableClosingConfirmation?.();
-    }
+    let configuredWebApp: ReturnType<typeof getTelegramWebApp> = null;
+    const configureClosingConfirmation = () => {
+      if (!isInsideTelegramClient()) return;
+      const tg = getTelegramWebApp();
+      if (!tg) return;
+      configuredWebApp = tg;
+      if (player.isPlaying) {
+        tg.enableClosingConfirmation?.();
+      } else {
+        tg.disableClosingConfirmation?.();
+      }
+    };
+
+    configureClosingConfirmation();
+    const unsubscribeSdkReady = subscribeTelegramSdkReady(configureClosingConfirmation);
     return () => {
-      tg.disableClosingConfirmation?.();
+      unsubscribeSdkReady();
+      configuredWebApp?.disableClosingConfirmation?.();
     };
   }, [player.isPlaying]);
 

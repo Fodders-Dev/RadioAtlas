@@ -11,13 +11,13 @@
          the long immutable cache via vite's content hashing. -->
     <meta http-equiv="Cache-Control" content="no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
-    <!-- Telegram WebApp SDK, served from OUR origin. Still synchronous at the
-         top of <head> so `window.Telegram.WebApp` is populated BEFORE the Vite
-         module script below and therefore BEFORE any React useEffect runs:
-         `defer` would push execution past DOMContentLoaded and race the
-         mount-effect that calls tg.ready() / tg.expand(), and `async` is
-         unordered. Self-hosting changes where the bytes come from and nothing
-         else about that ordering.
+    <!-- Telegram WebApp SDK, served from OUR origin and discovered early, but
+         deliberately ASYNC. The radio shell must render even when this request
+         hangs on a broken mobile/VPN path. `defer` is not sufficient here: a
+         stalled defer script still holds DOMContentLoaded and Vite's module
+         execution, while async lets the app fail open. Telegram integrations
+         snapshot immediately and also listen for the ready event below, so a
+         late SDK is initialised without making it part of the render gate.
 
          ⚠ It used to load from telegram.org, and that made the whole app blank
          for the audience it is built for. Measured 2026-08-31 from the Russian
@@ -25,18 +25,19 @@
          resolves, the connection hangs, no response in 20 s. From the
          Netherlands host the same file is 200 in 0.10 s.
 
-         A HANGING request is not a failing one. The old comment here promised
-         that a failed load leaves `window.Telegram` undefined and every call
-         site degrades gracefully — true, and irrelevant: a synchronous script
-         that never answers blocks the parser, so nothing renders at all. This
-         is the same defect the fonts had (see .claude/rules/webapp.md: a
-         REFUSED request still paints in ~356 ms, a hanging one gives no paint
-         within 25 s), and it is why radioatlas.ru would not open on Russian
-         mobile networks without a VPN — including after the move to a Russian
-         server, because the blocker was never our server.
+         A HANGING request is not a failing one. The old synchronous tag blocked
+         the parser before <body>; in a real-browser reproduction document.body
+         was still null after 5 s. Self-hosting removed the telegram.org outage
+         but did not protect against a same-origin request hanging on one VPN
+         path. Async is the protection for both cases.
 
          Refresh the vendored copy with `node scripts/updateTelegramSdk.mjs`. -->
-    <script src="/vendor/telegram-web-app.js"></script>
+    <script
+      src="/vendor/telegram-web-app.js"
+      async
+      fetchpriority="high"
+      onload="window.dispatchEvent(new Event('radioatlas:telegram-sdk-ready'))"
+    ></script>
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png" />
     <!-- Installable on a phone home screen and, on Windows or macOS, as a real
          window with its own icon — which is the desktop app, without a second

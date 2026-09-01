@@ -36,8 +36,13 @@ because the blocker was never our host.
 The old comment there argued the exception was safe: a failed load leaves
 `window.Telegram` undefined and every call site degrades gracefully. True, and
 beside the point — that is a REFUSED load. The SDK is now vendored into
-`public/vendor/` and served from our own origin, still synchronous because
-`window.Telegram.WebApp` must exist before the app module runs. Refresh it with
+`public/vendor/` and served from our own origin. It is also `async`: self-hosting
+does not protect the parser when a particular VPN/mobile route hangs on one of
+our own files. A real Chromium reproduction with that request held open still
+had `document.body === null` after 5 s under the old synchronous tag. `defer` is
+not an alternative because it still holds Vite's module execution; the app's
+Telegram consumers snapshot immediately and subscribe to
+`radioatlas:telegram-sdk-ready` for a late SDK. Refresh the vendored file with
 `node scripts/updateTelegramSdk.mjs`.
 
 ⚠ The block is per-network, not universal. From the owner's home connection
@@ -46,8 +51,9 @@ not. So verify this class of thing FROM A SERVER or a phone — on a developer
 machine everything looks healthy.
 
 `src/criticalPathNoCdn.test.ts` is the guard and it now allows **no** external
-script at all. Do not add a font, stylesheet, script or icon from another origin
-— and if a display face is ever added for a theme, it self-hosts too.
+script at all. It also requires the vendored Telegram SDK to stay async. Do not
+add a font, stylesheet, script or icon from another origin — and if a display
+face is ever added for a theme, it self-hosts too.
 
 ⚠ One of the same family is still open: `AccountSheet.tsx` injects
 `telegram-widget.js` at runtime for the login button. It is `async` so it does

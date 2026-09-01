@@ -71,9 +71,9 @@ describe('nothing on the critical path comes from somebody else', () => {
     // A hanging script is not a failing one. It blocks the parser, so the page
     // never renders, and radioatlas.ru simply would not open on a Russian
     // mobile network without a VPN. The SDK is vendored into
-    // public/vendor/telegram-web-app.js and served from our own origin, which
-    // keeps the synchronous ordering the app depends on and removes the only
-    // third party that could hold first paint hostage.
+    // public/vendor/telegram-web-app.js and served from our own origin. It is
+    // async as well: self-hosting removes a third-party dependency, while async
+    // keeps a broken same-origin/VPN path from becoming a parser gate.
     const external = tagsOf(html, 'script')
       .map((tag) => attr(tag, 'src'))
       .filter((src): src is string => src !== null && EXTERNAL.test(src));
@@ -84,17 +84,23 @@ describe('nothing on the critical path comes from somebody else', () => {
     ).toEqual([]);
   });
 
-  it('still loads the Telegram SDK, from our own origin and synchronously', () => {
-    // Self-hosting must not turn into "quietly dropped": window.Telegram.WebApp
-    // has to exist before the Vite module script runs, or the mount effect that
-    // calls tg.ready() races it.
+  it('loads the Telegram SDK early, from our own origin, without gating the app', () => {
+    // Self-hosting must not turn into "quietly dropped". The browser should
+    // discover the SDK before the app module, but async is mandatory: a stalled
+    // defer script still delays module execution, while every Telegram consumer
+    // now handles the explicit late-ready event without a race.
     const scripts = tagsOf(html, 'script');
     const sdk = scripts.find((tag) => (attr(tag, 'src') || '').includes('telegram-web-app.js'));
     expect(sdk, 'index.html must still load the Telegram SDK').toBeDefined();
     expect(attr(sdk!, 'src')).toBe('/vendor/telegram-web-app.js');
-    expect(sdk!, 'the SDK must not be deferred or async: ordering is the point').not.toMatch(
-      /(defer|async)/
+    expect(sdk!, 'a hanging SDK request must not block parsing or module execution').toMatch(
+      /\basync\b/i
     );
+    expect(sdk!, 'defer still holds module execution behind a hanging SDK').not.toMatch(
+      /\bdefer\b/i
+    );
+    expect(attr(sdk!, 'fetchpriority')).toBe('high');
+    expect(attr(sdk!, 'onload')).toContain('radioatlas:telegram-sdk-ready');
 
     const sdkIndex = scripts.indexOf(sdk!);
     const moduleIndex = scripts.findIndex((tag) => (attr(tag, 'src') || '').includes('main.tsx'));

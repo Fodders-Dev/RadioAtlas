@@ -1,6 +1,7 @@
-// Centralised access to the Telegram WebApp SDK. index.html now loads
-// telegram-web-app.js synchronously, so `window.Telegram.WebApp` exists
-// in BOTH contexts post-load:
+// Centralised access to the Telegram WebApp SDK. index.html loads the vendored
+// telegram-web-app.js asynchronously: the app is a radio first and must still
+// render when that request hangs on a broken mobile/VPN path. On a healthy path
+// `window.Telegram.WebApp` exists in BOTH contexts post-load:
 //
 //   - inside the Telegram client:    SDK populated by Telegram's WebView
 //                                    inject, full functionality.
@@ -32,6 +33,17 @@
 //                             always an empty string.
 
 import { reportClientEvent } from './observability';
+
+// Fired by the async SDK tag in index.html after the vendored script executes.
+// Every subscriber also snapshots immediately on mount, so there is no race if
+// the script won before React mounted; this event covers the opposite ordering.
+export const TELEGRAM_SDK_READY_EVENT = 'radioatlas:telegram-sdk-ready';
+
+export const subscribeTelegramSdkReady = (callback: () => void): (() => void) => {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(TELEGRAM_SDK_READY_EVENT, callback);
+  return () => window.removeEventListener(TELEGRAM_SDK_READY_EVENT, callback);
+};
 
 export type TelegramWebApp = NonNullable<NonNullable<Window['Telegram']>['WebApp']>;
 

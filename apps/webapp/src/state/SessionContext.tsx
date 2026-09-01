@@ -21,7 +21,11 @@ import { getApiBase } from '../lib/apiBase';
 import { parseAuthReturn, stripAuthReturnParams } from '../lib/authReturn';
 import { reportClientEvent } from '../lib/observability';
 import { shouldExposeProductSurface } from '../lib/productSurfaceGuards';
-import { getTelegramWebApp, openTelegramLinkOrFallback } from '../lib/telegram';
+import {
+  getTelegramWebApp,
+  openTelegramLinkOrFallback,
+  subscribeTelegramSdkReady
+} from '../lib/telegram';
 import { cloudLibraryMatches } from './radio/helpers';
 import type { StationLite } from '../types';
 
@@ -1639,16 +1643,22 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       );
     };
 
-    syncRuntime();
-    const webApp = getTelegramWebApp();
-    webApp?.ready?.();
-    webApp?.expand?.();
+    const syncTelegramSdk = () => {
+      syncRuntime();
+      const webApp = getTelegramWebApp();
+      webApp?.ready?.();
+      webApp?.expand?.();
+    };
+
+    syncTelegramSdk();
+    const unsubscribeSdkReady = subscribeTelegramSdkReady(syncTelegramSdk);
 
     const intervalId = window.setInterval(syncRuntime, 300);
     const timeoutId = window.setTimeout(() => window.clearInterval(intervalId), 6000);
 
     return () => {
       cancelled = true;
+      unsubscribeSdkReady();
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };

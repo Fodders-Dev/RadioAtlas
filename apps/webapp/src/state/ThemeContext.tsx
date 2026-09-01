@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {
   getTelegramThemeParams,
+  subscribeTelegramSdkReady,
   subscribeTelegramThemeChange,
   type TelegramThemeParams
 } from '../lib/telegram';
@@ -112,10 +113,21 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [telegramThemeParams, setTelegramThemeParams] =
     useState<TelegramThemeParams | null>(() => getTelegramThemeParams());
   useEffect(() => {
-    const unsubscribe = subscribeTelegramThemeChange(() => {
+    let unsubscribeThemeChange = () => {};
+    const bindTelegramTheme = () => {
+      unsubscribeThemeChange();
       setTelegramThemeParams(getTelegramThemeParams());
-    });
-    return unsubscribe;
+      unsubscribeThemeChange = subscribeTelegramThemeChange(() => {
+        setTelegramThemeParams(getTelegramThemeParams());
+      });
+    };
+
+    bindTelegramTheme();
+    const unsubscribeSdkReady = subscribeTelegramSdkReady(bindTelegramTheme);
+    return () => {
+      unsubscribeSdkReady();
+      unsubscribeThemeChange();
+    };
   }, []);
 
   useEffect(() => {

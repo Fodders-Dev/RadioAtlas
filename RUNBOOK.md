@@ -394,6 +394,24 @@ worked example:
   events — as distinct from the four `audio_silent_stall` events, which were the
   watchdog bug fixed the same day.
 
+## Blank-screen troubleshooting
+
+The HTML shell must render even if the Telegram SDK cannot be downloaded.
+`/vendor/telegram-web-app.js` is intentionally self-hosted **and async**; changing
+it to synchronous or `defer` makes a hanging request a full-page outage before
+`<body>` exists. React consumers initialise from the current SDK state and
+listen for `radioatlas:telegram-sdk-ready` if the script arrives later.
+
+On the affected phone/network, open these separately:
+
+1. `https://radioatlas.ru/api/health`
+2. `https://radioatlas.ru/vendor/telegram-web-app.js`
+
+If health opens but the SDK stalls, the app should still render and the fault is
+specific to that asset/network path (VPN, mobile carrier, MTU/QUIC or filtering),
+not API health. Reproduce the safety property in Playwright by holding the SDK
+route open; `tests/sdk-fail-open.spec.ts` must still reach the Home shell.
+
 ## Audio troubleshooting
 - If stream fails, confirm `https://` and test with browser.
 - For HLS streams, ensure `hls.js` loads (check console).

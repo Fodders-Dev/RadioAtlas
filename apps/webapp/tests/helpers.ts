@@ -618,18 +618,17 @@ export const installMediaMocks = async (page: Page) => {
   await page.route('**/listening/live', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ stations: [], minListeners: 3 }) })
   );
-  // T1.1 added a synchronous <script src="https://telegram.org/js/
-  // telegram-web-app.js"> at the top of index.html so the SDK is
-  // available before React boots in production. In e2e we DON'T want
-  // the real CDN script to run: it would override the deliberate
+  // T1.1 added the Telegram SDK to index.html; it is now vendored and async so
+  // a hanging mobile/VPN request cannot gate React. In e2e we DON'T want the
+  // real script to run: it would override the deliberate
   // window.Telegram fixtures (undefined for non-Telegram tests, an
   // explicit shim for mobile.spec.ts) and also block page load on
   // network conditions that aren't part of what we're testing.
   // Returning a 200 with an empty body keeps the script tag inert -
   // window.Telegram stays exactly what the fixture set.
   // ⚠ The SDK is now served from OUR origin (public/vendor/), because
-  // telegram.org does not answer from Russia and a synchronous script that
-  // hangs blocks first paint. The route below must match the vendored path —
+  // telegram.org does not answer from Russia. The route below must match the
+  // vendored path —
   // pointed at the old telegram.org URL it would match nothing, the real
   // vendored SDK would run, and it would overwrite the window.Telegram fixture
   // these tests depend on.
