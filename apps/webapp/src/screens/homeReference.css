@@ -2182,7 +2182,15 @@
   .screen-home-next .home-hero-card,
   .screen-home-next .home-hero-card.is-dense {
     gap: 8px;
-    padding-top: 70px;
+    /* Keep the safe-area term. This longhand overrides the `padding` shorthand
+       at line 1634, which reads `calc(var(--shell-safe-top, 0px) + 74px)` — and
+       a longhand that drops the term silently deletes it, because there are TWO
+       `@media (max-width: 720px)` blocks in this file and the later one wins.
+       `--shell-safe-top` sums the device notch AND Telegram's own header
+       (boot.css:101), so without it the topbar lands on the station name inside
+       the app while a desktop browser shows nothing wrong: both insets are 0
+       there. Outside Telegram this is byte-identical to a flat 70px. */
+    padding-top: calc(var(--shell-safe-top, 0px) + 70px);
   }
 
   .screen-home-next .home-hero-topline {

@@ -1725,6 +1725,20 @@ input {
   text-align: center;
 }
 
+/* An empty state inside a card draws NO frame of its own.
+   `.glass-card` already paints a 1px border and a background, and the dashed
+   frame landed exactly 1px inside it: measured on production 2026-09-02 at
+   390x844, the panel was 294px tall and the dashed box 292px, so the two
+   rounded outlines ran side by side for the height of the card. Two frames one
+   pixel apart is the "коробка в коробке" the owner named, and only the outer
+   one separates anything. Scoped by structure rather than by name so an empty
+   state that is NOT inside a card keeps its own edge, which is what it is for. */
+.glass-card > .empty-state {
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
 /* ErrorBoundary fallbacks (T1.7). Reuse .empty-state's panel look; stack
    the title / body / actions with a little breathing room. */
 .error-boundary-fallback {
@@ -5390,9 +5404,13 @@ button.app-brand-pill {
     gap: 7px;
   }
 
-  .library-empty-state {
-    padding-bottom: var(--screen-bottom-safe-v2);
-  }
+  /* The empty state deliberately does NOT re-reserve the bottom clearance.
+     It used to carry `padding-bottom: var(--screen-bottom-safe-v2)`, which is
+     the SCREEN's scroll reservation pasted onto a CARD: measured on production
+     2026-09-02 at 390x844, the dashed card was 296px of which 108 were that
+     padding, its content ended at y=487 and its frame closed at y=596 with the
+     nav at 772. `.screen-library-v2` already reserves the same variable, so the
+     card was clearing a nav that its own parent had already cleared. */
 }
 
 @media (max-width: 520px) {

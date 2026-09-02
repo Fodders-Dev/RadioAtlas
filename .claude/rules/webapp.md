@@ -531,6 +531,40 @@ bottom — because trimming the padding is the obvious way to break the thing th
 padding exists for. Mutation-checked: pinning `data-dock` to `bar` puts the tail
 back to 334px, the exact figure measured on production.
 
+## Exactly one element pays the bottom reserve
+
+The floating nav is one bar. Measured on production 2026-09-02 at 390x844, the
+room for it was reserved **five times over**: `.app-shell-v2` 92px,
+`.app-content-shell` 88px (a hardcoded literal), `.app-stage-v2` 108px,
+`.screen-*` 108px, and — on Медиатека — `.library-empty-state` 108px, for a
+nav 84px tall. Three of those five sit in the SAME `@media (max-width: 900px)`
+block in `styles.css`, nested inside one another.
+
+`--screen-bottom-safe-v2` belongs to the SCROLL CONTAINER and to nothing inside
+it. A card that re-declares it is clearing a nav its own parent already cleared;
+the symptom is a box whose content stops 108px above its own bottom edge, which
+reads as "огромные пустые пространства" and is arithmetic, not taste.
+
+⚠ The shell-vs-screen half of this is measured, proven by
+`tests/nav-clearance.spec.ts` and **deliberately unshipped** — see PLAN.md's
+note: the owner asked to look at the first screen after the dock reserve came
+off before a second change lands on the same geometry. Do not ship it as a
+drive-by.
+
+## A longhand that drops a term deletes it, silently
+
+`homeReference.css` has **two** `@media (max-width: 720px)` blocks (around 1507
+and 2162) plus a `@media (max-width: 959px)`. The hero's padding is set in the
+first as `calc(var(--shell-safe-top, 0px) + 74px)` and was then overridden in
+the second by a bare `padding-top: 70px` — which silently removed
+`--shell-safe-top`, the sum of the device notch AND Telegram's own header
+(`boot.css:101`).
+
+Nothing looked wrong, because in a desktop browser both insets are 0 and the two
+declarations are byte-identical. Inside Telegram on a notched phone the topbar
+lands on the station name. When a longhand overrides a shorthand that carried a
+safe-area or dock term, carry the term with it.
+
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the
