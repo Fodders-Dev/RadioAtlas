@@ -3,11 +3,7 @@ import type { PlaybackCandidate, PlaybackFailure, PlaybackFailurePhase } from '.
 import type { StationLite } from '../types';
 import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
-import {
-  SILENT_STARTUP_PROBE_MS,
-  decideCandidateSwitch,
-  hasStreamStartedArriving
-} from './candidateSwitchGuard';
+import { decideCandidateSwitch } from './candidateSwitchGuard';
 import { reportClientEvent } from './observability';
 import { buildStationStreamTargets } from './stationStreams';
 import {
@@ -901,40 +897,11 @@ export const useAudioPlayer = ({
         const elapsedSinceAttach = candidateStartedAtRef.current
           ? Date.now() - candidateStartedAtRef.current
           : 0;
-        const startupRemaining = Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
-        // Look EARLY at a first candidate, but only to ask whether anything has
-        // arrived at all. If something has, the check below hands back the rest
-        // of the original grace — so a slow-but-live stream is untouched and a
-        // stalled one stops costing the listener 25-30 seconds of silence.
         const timeoutMs = candidateHasPlayedRef.current
           ? REBUFFER_GRACE_MS
-          : Math.min(SILENT_STARTUP_PROBE_MS, startupRemaining);
-        // Named, so the early check below can re-arm THIS decision directly.
-        // Re-dispatching `waiting` instead would re-enter the handler, which
-        // recomputes the deadline against a 4000 ms floor and pushed the
-        // slow-but-live switch from 15 s out to 19 s — a regression in exactly
-        // the case this change promises not to touch.
-        const decideNow = () => {
+          : Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
+        waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
-          // Slow is not stalled. If anything has arrived — metadata parsed, a
-          // buffered range, any position at all — this is a stream worth
-          // waiting for, and it gets the remainder of the full startup grace
-          // exactly as before. Only an element that has received NOTHING is
-          // switched at the early deadline.
-          if (!candidateHasPlayedRef.current) {
-            const arriving = hasStreamStartedArriving({
-              readyState: audio.readyState,
-              bufferedLength: audio.buffered.length,
-              currentTime: audio.currentTime
-            });
-            const graceLeft =
-              STARTUP_BUFFER_GRACE_MS - (Date.now() - candidateStartedAtRef.current);
-            if (arriving && graceLeft > 0) {
-              pushEvent('audio: data arriving, holding the candidate for the full startup grace');
-              waitingTimeoutRef.current = window.setTimeout(decideNow, graceLeft);
-              return;
-            }
-          }
           // Never tear down a play() that is still in flight — that is the
           // AbortError which used to be reported as a dead station.
           const decision = decideCandidateSwitch({
@@ -972,8 +939,7 @@ export const useAudioPlayer = ({
               scheduleReconnect(activeSession);
             });
           }
-        };
-        waitingTimeoutRef.current = window.setTimeout(decideNow, timeoutMs);
+        }, timeoutMs);
       }
       pushEvent('audio: waiting');
     };

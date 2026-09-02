@@ -88,16 +88,34 @@ a detail — it decides which playback candidates exist at all:
   then puts the proxy FIRST, so the direct route is never tried.
 
 So the production ordering — direct first, same-origin proxy as fallback — has
-no combination that reproduces here, and any spec written against "a stalled
-direct candidate hands over to the proxy" will fail for a reason that has
-nothing to do with the code under test. One was written on 2026-09-01 and
-deleted rather than bent into passing; the behaviour is covered by unit tests on
-the decision (`lib/candidateSwitchGuard.test.ts`) and verified against
-production, which is https.
+no combination that reproduces here. Any spec written against "a stalled direct
+candidate hands over to the proxy" fails for a reason that has nothing to do
+with the code under test.
 
 ⚠ Before writing a playback-transport spec, check what `buildCandidates` would
-actually return for your URL on an http page. It is cheaper than reading a
-failure that looks like a product bug.
+return for your URL on an http page. It is cheaper than reading a failure that
+looks like a product bug.
+
+## Measuring playback against production, and the three ways it lies to you
+
+The path above only exists on https, so it has to be measured against
+radioatlas.ru with Playwright pointed at it. Doing that on 2026-09-01 produced
+three consecutive numbers that were all meaningless, each for a different
+reason, and each looked like a result:
+
+1. **Hanging one station's URL and clicking "the first play control"** plays a
+   DIFFERENT station. Hang every non-same-origin request instead, or pin the
+   station and assert the element's `currentSrc` is the one you hung.
+2. **A fresh context gets the FIRST-RUN Home**, which has no station tiles at
+   all — the click found nothing and the run reported a timing anyway. Reach a
+   station through Search, the way a listener does.
+3. **Letting the run pick "a station with an audio extension"** keeps landing on
+   `http://` ones, which are proxy-first by design. Ask the catalogue by name
+   (`/api/catalog/search?q=…`) and take an `https://` row.
+
+The spec should refuse to report a number when the first source was already the
+proxy. A run that did not take the direct-first path is not a slow result, it is
+no result.
 
 ## Isolation
 

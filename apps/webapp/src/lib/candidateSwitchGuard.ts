@@ -28,48 +28,6 @@ export type CandidateSwitchDecision =
   | { action: 'switch' }
   | { action: 'defer'; recheckMs: number; deferrals: number };
 
-/**
- * How long a FIRST candidate that has produced nothing at all is given before
- * the watchdog looks at it, as opposed to the full 15 s startup grace.
- *
- * The grace exists to protect slow-but-live streams, and the honest way to
- * shorten it was to measure what a healthy start actually costs. Chromium, the
- * direct route, 54 promoted https stations one at a time, 2026-09-01 — of the 24
- * that produced audio, time to the first `currentTime` movement was p50 1602 ms,
- * p90 3100 ms, p95 3702 ms, **max 5915 ms**. A 6000 ms cutoff would have
- * diverted none of them; 8000 leaves a third again of headroom on top.
- *
- * ⚠ That was a home connection, so it is what a healthy start costs on a GOOD
- * route. The reason 8000 is nevertheless safe on a bad one is the predicate
- * below, not the number: this deadline only ever applies to an element that has
- * received NOTHING. A slow stream on a poor route has parsed metadata long
- * before this and is exempt by construction.
- */
-export const SILENT_STARTUP_PROBE_MS = 8000;
-
-/**
- * Has anything at all arrived for this candidate?
- *
- * This is the difference between a stalled upstream and a slow one, and it is
- * measurable rather than a guess. In the same run, of the 30 stations that
- * produced no audio within 20 s, **29 still had `readyState === 0`** — nothing
- * parsed, nothing buffered, position never moved. Gamesboro, the station this
- * whole line of work started from, sat exactly there for 25-30 s while trickling
- * ~1.3 KB/s: bytes on the wire, nothing a listener could hear.
- *
- * Takes primitives rather than the element so the decision can be tested without
- * a DOM, and so it cannot accidentally read something else off the audio.
- */
-export const hasStreamStartedArriving = ({
-  readyState,
-  bufferedLength,
-  currentTime
-}: {
-  readyState: number;
-  bufferedLength: number;
-  currentTime: number;
-}): boolean => readyState > 0 || bufferedLength > 0 || currentTime > 0;
-
 export const decideCandidateSwitch = ({
   playPending,
   deferrals
