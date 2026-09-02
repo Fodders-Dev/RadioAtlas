@@ -42,6 +42,17 @@ type AccountSheetProps = {
 };
 
 const GOOGLE_SCRIPT_ID = 'google-identity-service';
+
+/**
+ * How long to wait for Google's identity script before giving up on it.
+ *
+ * Matches TELEGRAM_WIDGET_TIMEOUT_MS below, and for the same reason: a script
+ * from another origin that HANGS fires neither `load` nor `error`, so without a
+ * deadline the promise never settles and the button is an empty rectangle
+ * forever. Six seconds is well past a normal load and well short of the
+ * browser's own connect timeout, which is where the alternative sat.
+ */
+const GOOGLE_SCRIPT_TIMEOUT_MS = 6000;
 const TELEGRAM_WIDGET_CALLBACK = '__radioAtlasTelegramWidgetAuth__';
 
 /**
@@ -89,8 +100,23 @@ const loadGoogleScript = async () => {
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve(Boolean(window.google?.accounts?.id));
-    script.onerror = () => resolve(false);
+    // `onload` and `onerror` between them cover a load that finishes and one
+    // that is REFUSED. They do not cover one that hangs — no event fires, the
+    // promise never settles, and the caller's `.then` never runs, so the
+    // sign-in slot stays an empty rectangle with no error and no end. That is
+    // the same failure that made the whole app a black screen (a synchronous
+    // SDK from a host that would not answer) and left the Telegram login widget
+    // blank, and it is the third time in this file's family.
+    let settled = false;
+    const finish = (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(deadline);
+      resolve(ready);
+    };
+    const deadline = window.setTimeout(() => finish(false), GOOGLE_SCRIPT_TIMEOUT_MS);
+    script.onload = () => finish(Boolean(window.google?.accounts?.id));
+    script.onerror = () => finish(false);
     document.head.appendChild(script);
   });
 };

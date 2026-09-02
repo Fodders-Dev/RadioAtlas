@@ -24,6 +24,31 @@ const createId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+/**
+ * A playlist URL is somebody else's host, typed in by a listener.
+ *
+ * `fetch` without a deadline does not fail on a route that hangs — it simply
+ * never settles, so the `finally` that clears `linkLoading` is unreachable and
+ * the «Импортировать плейлист» button spins for as long as the sheet is open,
+ * with no error to explain it. That is the same shape as the Telegram SDK
+ * outage: a hanging request is not a failing one, and only a timer tells them
+ * apart.
+ *
+ * The proxy target gets the same treatment. It is our own host, but this code
+ * runs on a phone whose route to it can be just as bad.
+ */
+const PLAYLIST_FETCH_TIMEOUT_MS = 12_000;
+
+const fetchWithDeadline = async (url: string, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+};
+
 export const useExternalLinks = ({ mode, t }: UseExternalLinksOptions) => {
   const apiBase = getApiBase();
   const [apiOnline, setApiOnline] = useState(() => Boolean(apiBase));
@@ -136,7 +161,7 @@ export const useExternalLinks = ({ mode, t }: UseExternalLinksOptions) => {
         let lastStatus = 0;
         for (const fetchUrl of fetchTargets) {
           try {
-            const next = await fetch(fetchUrl);
+            const next = await fetchWithDeadline(fetchUrl, PLAYLIST_FETCH_TIMEOUT_MS);
             if (!next.ok) {
               lastStatus = next.status;
               if (apiBase && fetchUrl.startsWith(`${apiBase}/`)) {
