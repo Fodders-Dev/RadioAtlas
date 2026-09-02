@@ -1803,11 +1803,20 @@ station will again wait 25-30 s.
 
 Open, in the order they cost something:
 
-1. **Off-box backups are still broken.** The accounts DB lives on the RU box and
-   its nightly snapshot lands on local disk, but the R2 upload has answered
-   `403 AccessDenied` since at least 28.08 — a stale token, not a network
-   problem (R2 itself is reachable from that host). Owner action: a fresh
-   bucket-scoped token in `api.env`, then a REDEPLOY, not just a restart.
+1. ~~Off-box backups are broken.~~ **Fixed 02.09.2026.** The R2 token issued on
+   26.07 stopped being accepted while the dashboard still showed it `Active`,
+   and the stored values were the right shape (32/64 hex), so it was the token
+   rather than a bad paste. A fresh ACCOUNT-scoped token (Cloudflare's own page
+   recommends those over user tokens for production) fixed it.
+
+   The gap was wider than the logs first suggested: listing the bucket shows the
+   previous snapshot was **21.08**, so twelve nights passed with no off-box
+   copy, not four. ⚠ The dashboard's object count lags — it still read 54 while
+   the bucket held 56 — so verify by LISTING, not by the panel.
+
+   ⚠ And the reason a restart was not enough: the deploy COPIES
+   `shared/env/*.env` into the release. Editing the shared file and restarting
+   pm2 leaves the process on the old copy.
 2. **Was the bot token rotated?** It leaked into pm2 logs — grammY puts the full
    URL, token included, into its error text. The logs no longer contain it, but
    whether the token itself was replaced is unconfirmed.
@@ -1843,8 +1852,16 @@ Open, in the order they cost something:
 
    ⚠ Do not edit `candidateSwitchGuard.ts` or call `audio.load()` over a pending
    `play()`; that combination once failed a third of all plays.
-4. **`radioatlas-scene-seeder` is not installed on the RU box.** It spends money
-   nightly, so it is an owner decision rather than an oversight.
+4. ~~`radioatlas-scene-seeder` is not installed on the RU box.~~ **It is, and
+   has been since a deploy after 31.08** — the note above was written the day
+   the timer was genuinely absent and went stale within hours.
+
+   What it actually costs, measured 02.09: the run queued **15** images, not the
+   60 the cap allows, because it only fills gaps — 69 of 84 ranked candidates
+   were already covered. 852 scenes on disk. So the daily spend to judge against
+   Workers AI's free allowance is 15, not 60, and the account's own Workers AI
+   analytics is the place to read it. ⚠ The `$0.00` on the R2 overview is R2's
+   billing, not Workers AI's; they are separate counters.
 5. **CP2077 Body Heat 98.7 and Pacific Dreams 88.9 are dead at the source.**
    Verified 01.09 from two hosts: `82.65.103.36:8000` returns zero bytes and
    times out from both the developer machine and the RU box. Radio Browser still
