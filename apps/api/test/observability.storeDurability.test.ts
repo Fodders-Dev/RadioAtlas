@@ -142,3 +142,40 @@ test('a missing store is an ordinary cold start, not a corruption', async () => 
     assert.equal(existsSync(`${store}.corrupt`), false, 'nothing was corrupt here');
   });
 });
+
+test('the daily series survives a restart, because it cannot be re-earned', async () => {
+  // The hourly buckets can be rebuilt in an hour. A 90-day series cannot: if it
+  // ever fell out of the persisted payload it would reset on every deploy, and
+  // nothing would error — the file would simply never hold more than today,
+  // which is the exact shortcoming it was added to fix.
+  await withStore(
+    async ({ store, mod }) => {
+      await mod.hydrateObservabilityStore();
+      const hydrated = mod.getObservabilitySnapshot().counterDaily;
+      assert.equal(hydrated.length, 1, 'the seeded day must survive hydration');
+      assert.equal(hydrated[0]!.counters['client_event:play_attempt'], 7);
+      assert.equal(hydrated[0]!.date, '2024-10-04', 'the date must be readable, not an epoch day');
+
+      mod.bumpCounter('client_event:play_attempt');
+      await settle();
+      const written = JSON.parse(readFileSync(store, 'utf8'));
+      assert.equal(Array.isArray(written.counterDays), true, 'the series must be persisted');
+      assert.equal(written.counterDays.length, 2, "today must APPEND, not replace the history");
+    },
+    ({ store }) => {
+      writeFileSync(
+        store,
+        JSON.stringify({
+          counters: {},
+          gauges: {},
+          slowRequests: [],
+          requestSamples: [],
+          clientEvents: [],
+          alerts: [],
+          counterDays: [{ day: 20_000, counters: { 'client_event:play_attempt': 7 } }],
+          updatedAt: Date.now()
+        })
+      );
+    }
+  );
+});

@@ -63,6 +63,25 @@ export type CounterBucket = {
   counters: Record<string, number>;
 };
 
+/**
+ * A day of a FEW counters, kept for a quarter of a year.
+ *
+ * The hourly buckets above answer "how is it going right now", and 25 hours is
+ * the right budget for 600+ keys. It is the wrong budget for "did that change
+ * help": on 2026-09-02 the effect of the previous day's black-screen fix could
+ * not be read out of this store at all, because every bucket in it was already
+ * after the fix. A question this project asks after every deploy — and that
+ * PLAN.md instructs the next person to ask — had no answer anywhere.
+ *
+ * So this is deliberately the other trade: a short allow-list of keys somebody
+ * actually reconciles, kept long enough to see a week-over-week move.
+ */
+export type CounterDay = {
+  /** Epoch day: Math.floor(ts / 86_400_000). */
+  day: number;
+  counters: Record<string, number>;
+};
+
 type PersistedObservabilityState = {
   counters: Record<string, number>;
   gauges: Record<string, number>;
@@ -72,6 +91,7 @@ type PersistedObservabilityState = {
   agentRuns?: AgentRunTraceEntry[];
   alerts: ObservabilityAlert[];
   counterBuckets?: CounterBucket[];
+  counterDays?: CounterDay[];
   updatedAt: number | null;
 };
 
@@ -110,6 +130,7 @@ export const observabilityStorePath = storePath;
 const counters: CounterMap = new Map();
 const gauges: GaugeMap = new Map();
 const counterBuckets: CounterBucket[] = [];
+const counterDays: CounterDay[] = [];
 const slowRequests: SlowRequestEntry[] = [];
 const requestSamples: RequestSampleEntry[] = [];
 const clientEvents: ClientEventEntry[] = [];
@@ -191,6 +212,91 @@ export const summariseCounterWindows = (buckets: CounterBucket[], now: number) =
     last24h: sumWindow(buckets, currentHour, 24)
   };
 };
+
+const DAY_MS = 86_400_000;
+/** A quarter of a year: enough for a week-over-week move and a season of them. */
+const MAX_COUNTER_DAYS = 90;
+
+/**
+ * The keys worth ninety days, and nothing else.
+ *
+ * The cardinality note on MAX_COUNTER_KEYS applies here with more force: this
+ * store carried 624 distinct counters on 2026-09-02, 587 of them per-route, and
+ * keeping all of them for a quarter is the disk-and-memory problem that note
+ * describes, on a box whose swap is already full. These are the ones somebody
+ * reconciles against each other:
+ *
+ *   - reach — did anybody arrive, and did they get as far as a session;
+ *   - playback — attempts against successes against SUPERSEDES, which is the
+ *     only honest form of a success rate (see `.claude/rules/webapp.md`);
+ *   - transport — whether our own proxy finished the streams it started.
+ *
+ * Adding one is cheap. Adding a per-station or per-route key is exactly the
+ * mistake this list exists to prevent, so add by name, never by prefix.
+ */
+export const DAILY_COUNTER_KEYS: ReadonlySet<string> = new Set([
+  'client_event:app_opened',
+  'client_event:session_authenticated',
+  'client_event:session_duration',
+  'client_event:play_attempt',
+  'client_event:play_success',
+  'client_event:play_superseded',
+  'client_event:audio_playing',
+  'client_event:stream_failure',
+  'client_event:skip',
+  'client_event:home_station_impression',
+  'client_event:audio_candidate_failed',
+  'client_event:audio_reconnect_recovered',
+  'media_execution_started:stream',
+  'media_success:stream'
+]);
+
+/**
+ * Adds an increment to the day bucket for `now`, for allow-listed keys only.
+ *
+ * Deliberately NOT derived from the hourly buckets: those hold 25 hours, so a
+ * restart, a gap or a quiet stretch would silently drop a day out of the
+ * series — and a series with invisible holes is worse than no series, because
+ * it still looks like an answer. Same clock-step guard as the hourly recorder,
+ * for the same reason: an out-of-order timestamp must not open a bucket BEFORE
+ * one that already exists, or the sums double-count.
+ */
+export const recordDailyIncrement = (
+  days: CounterDay[],
+  key: string,
+  amount: number,
+  now: number
+) => {
+  if (!DAILY_COUNTER_KEYS.has(key)) return;
+  const day = Math.floor(now / DAY_MS);
+  let bucket = days.length ? days[days.length - 1] : undefined;
+  if (!bucket || bucket.day !== day) {
+    if (bucket && day < bucket.day) {
+      bucket.counters[key] = (bucket.counters[key] || 0) + amount;
+      return;
+    }
+    bucket = { day, counters: {} };
+    days.push(bucket);
+    while (days.length > MAX_COUNTER_DAYS) days.shift();
+  }
+  bucket.counters[key] = (bucket.counters[key] || 0) + amount;
+};
+
+export type CounterDaySummary = { date: string; counters: Record<string, number> };
+
+/**
+ * The series, oldest first, each day carrying a readable date.
+ *
+ * The date string is not decoration. An epoch-day integer is the kind of
+ * friction that leaves a number unread, and this whole addition exists because
+ * a question went unanswered — so it has to be pipeable into `jq` and legible
+ * on sight.
+ */
+export const summariseCounterDays = (days: CounterDay[]): CounterDaySummary[] =>
+  days.map((entry) => ({
+    date: new Date(entry.day * DAY_MS).toISOString().slice(0, 10),
+    counters: entry.counters
+  }));
 
 const pruneByAge = <T extends { ts: number }>(target: T[]) => {
   const cutoff = Date.now() - ENTRY_RETENTION_MS;
@@ -337,6 +443,23 @@ const loadPersistedState = async () => {
             )
             .slice(-MAX_COUNTER_BUCKETS)
         );
+        // Same shape, different question. Absent in every store written before
+        // this shipped, so the series starts the day it is deployed and there
+        // is no way to backfill it — the hourly buckets it could have come from
+        // are already gone.
+        counterDays.splice(
+          0,
+          counterDays.length,
+          ...(parsed.counterDays || [])
+            .filter(
+              (entry): entry is CounterDay =>
+                Boolean(entry) &&
+                typeof entry.day === 'number' &&
+                Number.isFinite(entry.day) &&
+                Boolean(entry.counters)
+            )
+            .slice(-MAX_COUNTER_DAYS)
+        );
         slowRequests.splice(0, slowRequests.length, ...(parsed.slowRequests || []).slice(0, MAX_SLOW_REQUESTS));
         requestSamples.splice(
           0,
@@ -409,6 +532,7 @@ const writeStateToDisk = async () => {
     agentRuns,
     alerts,
     counterBuckets,
+    counterDays,
     updatedAt
   };
   // Write-then-rename, because a plain writeFile is not atomic and this store
@@ -497,8 +621,10 @@ export const bumpCounter = (key: string, amount = 1) => {
     bumpCounter(COUNTER_OVERFLOW_KEY, 1);
     return;
   }
+  const now = Date.now();
   counters.set(key, (counters.get(key) || 0) + amount);
-  recordBucketIncrement(counterBuckets, key, amount, Date.now());
+  recordBucketIncrement(counterBuckets, key, amount, now);
+  recordDailyIncrement(counterDays, key, amount, now);
   scheduleFlush();
 };
 
@@ -594,6 +720,9 @@ export const getObservabilitySnapshot = () => ({
   // Cumulative counters answer "how many ever"; these answer "how many now",
   // which is the only form in which a success rate means anything.
   counterWindows: summariseCounterWindows(counterBuckets, Date.now()),
+  // And this answers "did that change help", which the windows above cannot:
+  // they cover 25 hours, so anything deployed yesterday has no "before" in them.
+  counterDaily: summariseCounterDays(counterDays),
   updatedAt,
   persistence: {
     storePath,

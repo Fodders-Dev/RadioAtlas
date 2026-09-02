@@ -1113,17 +1113,55 @@ payload carries `counterWindows.last1h` and `counterWindows.last24h`, each an
 object of increments with a `since` timestamp, and only the counters that
 actually moved:
 
+⚠ **Every client counter carries a `client_event:` prefix, and the command
+printed here did not.** It read `c.play_attempt`, which is `undefined` in every
+store this project has ever written, so the line printed `0/0` no matter how
+much traffic the box had seen — an idle night and a busy day look identical.
+Verified against production 2026-09-02 over the same 24 hours: the bare names
+returned `undefined`, the prefixed ones returned 67 attempts, 46 successes and 7
+supersedes. Server-side counters carry their own prefixes too
+(`media_success:stream`), so only a key you have actually seen in the payload is
+safe to type.
+
 ```bash
 node -e '
   const o = require("/tmp/o.json").counterWindows.last24h;
-  const c = o.counters;
-  const den = (c.play_attempt || 0) - (c.play_superseded || 0);
-  console.log(`since ${new Date(o.since).toISOString()}: ${c.play_success || 0}/${den}`);
+  const n = (k) => o.counters["client_event:" + k] || 0;
+  const den = n("play_attempt") - n("play_superseded");
+  console.log(`since ${new Date(o.since).toISOString()}: ${n("play_success")}/${den}`);
 '
 ```
 
 An empty window is an idle window, not a broken one — this box sees very little
 traffic at night.
+
+### "Did that change help" is a different question, and needs `counterDaily`
+
+The windows above cannot answer it. They are built from hourly buckets capped at
+`MAX_COUNTER_BUCKETS = 25`, so the store holds **25 hours and no more** — on
+2026-09-02 the effect of the previous day's black-screen fix could not be read
+out of it at all, because every bucket in it was already after the fix. There
+was no "before" anywhere on the box.
+
+`counterDaily` is the answer: an array, oldest first, one entry per day with a
+readable `date`, covering 90 days for a short allow-list of counters
+(`DAILY_COUNTER_KEYS` in `observabilityStore.ts` — reach, playback and stream
+transport). It cannot be backfilled, so the series begins the day it deployed.
+
+```bash
+node -e '
+  const days = require("/tmp/o.json").counterDaily || [];
+  const n = (d, k) => d.counters["client_event:" + k] || 0;
+  for (const d of days) {
+    const den = n(d, "play_attempt") - n(d, "play_superseded");
+    console.log(`${d.date}  opened ${String(n(d, "app_opened")).padStart(4)}  played ${n(d, "play_success")}/${den}`);
+  }
+'
+```
+
+A day missing from the array is a day nothing on the list moved — the API opens
+a day only when an allow-listed counter arrives, so the gaps are real silence
+rather than lost data.
 
 ### Lira constraint, receipt and grounding counters
 

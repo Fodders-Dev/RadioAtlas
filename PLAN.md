@@ -1038,6 +1038,42 @@ starts at. An idle hour costs about twenty bytes, so a day of history is smaller
 than one retained agent run. The windowing is two pure functions taking the
 clock as an argument, and their test is the reason they are pure.
 
+## Telemetry could not answer "did that help" (done 02.09.2026)
+
+Two defects, found while trying to measure whether the 01.09 black-screen fix
+brought anybody in. Both had been silently true for months, and between them
+they meant the project's own instructions for reading its own numbers could not
+be followed.
+
+**The success-rate command in `RUNBOOK.md` always printed `0/0`.** It read
+`c.play_attempt`, and every client counter is keyed `client_event:play_attempt`
+— the API prefixes them at the point of increment. Verified against production
+over the same 24 hours: the bare names returned `undefined`, the prefixed ones
+returned 67 attempts, 46 successes and 7 supersedes. Nothing errored; the output
+was a plausible number that said the box was idle. This is the repeat failure
+mode of this project — silence that looks like an answer — and it is why the
+number went unread.
+
+**The store holds 25 hours, full stop.** `MAX_COUNTER_BUCKETS = 25` is the right
+budget for 600+ hourly keys, and the wrong one for a before/after: on 02.09 every
+bucket in the store was already after the fix, so the largest change shipped for
+reach in months was unmeasurable, and PLAN.md was in three places telling the
+next person to compare across a deploy or "let it run for weeks".
+
+`counterDaily` is the second half: 90 days, one entry per day with a readable
+`date`, for the fourteen names in `DAILY_COUNTER_KEYS` — reach, playback, stream
+transport. Deliberately an allow-list of exact names and not a prefix: 587 of the
+store's 624 keys are per-route, and keeping those for a quarter is precisely the
+cardinality problem `MAX_COUNTER_KEYS` was written about, on a box whose swap is
+already full. Fourteen keys times ninety days is smaller than one retained agent
+run.
+
+It is NOT derived from the hourly buckets — those expire, so any restart or
+quiet stretch would drop a day and leave a series with invisible holes, which is
+worse than no series because it still looks like an answer. And it cannot be
+backfilled: the series starts the day it deploys, which is the price of not
+having had it.
+
 ## The browser suite runs in CI now, and still does not gate (done)
 
 `ci.yml` said Playwright stays out "until the flakes are fixed", which is a
@@ -1817,9 +1853,9 @@ Open, in the order they cost something:
    ⚠ And the reason a restart was not enough: the deploy COPIES
    `shared/env/*.env` into the release. Editing the shared file and restarting
    pm2 leaves the process on the old copy.
-2. **Was the bot token rotated?** It leaked into pm2 logs — grammY puts the full
-   URL, token included, into its error text. The logs no longer contain it, but
-   whether the token itself was replaced is unconfirmed.
+2. ~~Was the bot token rotated?~~ **Yes, confirmed by the owner 02.09.2026.** It
+   had leaked into pm2 logs — grammY puts the full URL, token included, into its
+   error text.
 3. **The 25-30 s stall, generically — and it is now measured.** The grace
    exists to protect slow-but-live streams, so the question was what a healthy
    startup actually costs. Measured 01.09.2026 in Chromium over the DIRECT route
@@ -1944,7 +1980,10 @@ back cannot be told from a death.
 
 ⚠ It will take a while to say anything. Prod, 24 h to 2026-08-26: **51 play
 attempts, 11 backgroundings**. A ratio off eleven samples is not a ratio. Let it
-run for weeks, and read it from `counterWindows`, not from the totals.
+run for weeks, and read it from `counterDaily`, not from `counterWindows` and
+not from the totals. ⚠ That sentence was unfollowable when it was written:
+`counterWindows` comes from 25 hourly buckets, so "let it run for weeks" had
+nowhere to accumulate. The daily series exists as of 02.09.2026 for exactly this.
 
 While measuring: playback health over that same window was **84%** (42 successes
 of 50 non-superseded attempts). The all-time totals say 34%, and they are
@@ -1998,7 +2037,9 @@ sweep against it, not by eye.
   per instance. Removing them is free visually and buys back exactly what the
   chrome now spends.
 
-Watch two things after this deploy, and one of them is new:
+Watch two things after this deploy, and one of them is new. ⚠ Read them from
+`counterDaily`: a "before and after" cannot come from `counterWindows`, which
+holds 25 hours and therefore has no "before" a day after any deploy.
 
 - **`home_now_playing_preview`.** `shown / previewed` says whether the shelf
   came alive at all. Below about a third, the shelf needs stations that name
@@ -2016,7 +2057,9 @@ survives a deploy, and has a documented way to be read:
   collect.
 - **Playback.** `play_success / (play_attempt - play_superseded)` is the success
   rate; the raw ratio is not — and read it from `counterWindows`, because the
-  top-level counters are totals since the store file was created. Checked on
+  top-level counters are totals since the store file was created. ⚠ The keys
+  are `client_event:play_attempt` and so on; the bare names return `undefined`
+  and the rate silently computes as `0/0`. Checked on
   2026-08-17: 248/38/1/3 cumulative, 206 attempts unaccounted for, all of it
   from before supersedes were counted at all. `audio_silent_stall` climbing alongside
   `audio_visibility_change` would mean the background-tab fix regressed.

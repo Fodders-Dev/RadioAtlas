@@ -237,6 +237,12 @@ totals and **84%** from the last-24h window (42 of 50 non-superseded attempts).
 The window is the true one. Note also that a window is `{since, counters}`, not a
 flat map — reading it as flat makes a busy day look like an idle one.
 
+⚠ And the key is `client_event:play_attempt`, not `play_attempt`: the API
+prefixes every client event. Reading the bare name yields `undefined`, the rate
+computes as `0/0`, and nothing errors — the RUNBOOK shipped that mistake and it
+printed an idle box for months. For a before/after across a deploy the windows
+are useless anyway (they hold 25 hours); use `counterDaily`.
+
 ## Persistence
 
 `usePersistentState` deliberately does not write on mount. Storage writes are

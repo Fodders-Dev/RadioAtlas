@@ -79,6 +79,21 @@ rate: read `counterWindows.last1h` / `.last24h` from the snapshot, which carry
 per-hour increments for the counters that moved. A new counter needs nothing
 extra to appear there.
 
+⚠ **Client counters are keyed `client_event:<name>`, not `<name>`.** The
+RUNBOOK's own success-rate command got this wrong and printed `0/0` for months,
+which reads as an idle box rather than as a broken command. Type a key you have
+seen in the payload.
+
+Windows answer "how is it going now". They cannot answer **"did that change
+help"**: they come from 25 hourly buckets, so anything deployed yesterday has no
+"before" left to compare against — found on 2026-09-02, when the effect of the
+black-screen fix turned out to be unmeasurable. `counterDaily` is the other
+half: 90 days, one entry per day with a readable date, for the short allow-list
+in `DAILY_COUNTER_KEYS`. Adding a counter does NOT put it there, deliberately —
+587 of this store's 624 keys are per-route, and keeping those for a quarter is
+the cardinality problem `MAX_COUNTER_KEYS` exists to prevent, on a box whose
+swap is already full. Add by exact name when a number is worth a quarter.
+
 ## The second way out, for a host that cannot reach half the world
 
 The service runs on a Russian host now, and about **half the catalogue is
