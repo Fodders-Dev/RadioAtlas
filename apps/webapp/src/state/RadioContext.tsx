@@ -2314,6 +2314,18 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     notify(t('toast.cacheCleared'));
   };
 
+  /**
+   * Capture a find: the track that is playing, the station it came from, and
+   * the moment. The name is historical — this is the product's central action,
+   * not a clipboard helper, and the clipboard is a bonus on top of it.
+   *
+   * ⚠ The order is the whole point. This used to `await
+   * navigator.clipboard.writeText(...)` and only THEN call
+   * rememberTrackHistory, so a clipboard that was denied, unavailable over
+   * plain http, or simply rejected threw before the find existed — and the
+   * catch reported «не удалось скопировать» while silently losing the find
+   * itself. The find is the object; the clipboard is not allowed to veto it.
+   */
   const copyTrack = async () => {
     const station = player.current;
     const trustedTrack = normalizeTrustedTrackTitle(nowPlaying, station);
@@ -2321,14 +2333,36 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify(t('toast.noTrackInfo'));
       return;
     }
+    rememberTrackHistory(station, trustedTrack);
+    recordBehaviorForStation(station, 'track-copy');
+
+    let clipboard: 'ok' | 'failed' = 'failed';
     try {
       await navigator.clipboard.writeText(trustedTrack);
-      rememberTrackHistory(station, trustedTrack);
-      recordBehaviorForStation(station, 'track-copy');
-      notify(t('toast.trackCopied'));
+      clipboard = 'ok';
     } catch {
-      notify(t('toast.copyFailed'));
+      clipboard = 'failed';
     }
+
+    // Every catch is its own event, and the key is what makes that true.
+    //
+    // ⚠ `dedupeKey: null` does NOT work here, which cost a red test to find:
+    // `reportProductEvent` resolves the key with `??`, so `null` falls straight
+    // through to the default `<name>:<sessionId>`, and `shouldSend` — which has
+    // no window unless `dedupeMs` is given — then drops every find after the
+    // first. The counter would have been shaped like "finds" and quietly meant
+    // "sessions with at least one find": the silent-zero this project keeps
+    // getting caught by, shipped into the one number the new model rests on.
+    //
+    // No track title goes out. The station and the outcome answer every question
+    // the roadmap asks; what somebody listens to is theirs.
+    reportProductEvent(
+      'find_captured',
+      { ...stationAnalyticsMeta(station), clipboard },
+      { dedupeKey: `find_captured:${station.stationuuid}:${Date.now()}` }
+    );
+
+    notify(t(clipboard === 'ok' ? 'toast.findSaved' : 'toast.findSavedNoCopy'));
   };
 
   const queue = useMemo<QueueState>(

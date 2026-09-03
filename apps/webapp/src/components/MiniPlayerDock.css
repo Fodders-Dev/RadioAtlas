@@ -191,10 +191,36 @@
 }
 
 .player-dock .player-dock-track-button.active {
+  position: relative;
   min-height: 30px;
   padding: 0 10px;
   border-color: rgba(177, 243, 232, 0.28);
   background: rgba(174, 240, 228, 0.09);
+}
+
+/* The 44px touch floor WITHOUT moving anything.
+   Measured on production at 390x844: the dock is 376x77, of which the artwork
+   takes 58, the meta column 164 and the three action buttons 140 — the width is
+   spent, so a fourth 44px control does not fit, and growing the row instead
+   would push the dock past `--dock-offset-v2`, which is a constant that the
+   bottom scroll reserve is computed from. So the chip keeps its 30px of LAYOUT
+   and gains its hit area outward: 30 + 7 + 7 = 44.
+   The inset stops at 7px because the status pill sits 18px above; anything
+   deeper would start swallowing taps meant for that row. */
+.player-dock .player-dock-track-button.active::after {
+  content: '';
+  position: absolute;
+  inset: -7px -6px;
+}
+
+/* The bookmark, sized against the 12px track text rather than the 14px station
+   line — it marks the line it sits on, it does not compete with it. */
+.player-dock .player-dock-track-button.active > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: currentColor;
+  opacity: 0.85;
 }
 
 .player-dock .player-dock-track-button:not(.active) svg {

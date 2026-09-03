@@ -95,6 +95,7 @@ const ALLOWED_CLIENT_EVENTS = new Set([
   'stream_failure',
   'skip',
   'like',
+  'find_captured',
   'search_query',
   'queue_source',
   'queue_reorder',

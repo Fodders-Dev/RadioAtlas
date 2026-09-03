@@ -238,6 +238,7 @@ export const DAILY_COUNTER_KEYS: ReadonlySet<string> = new Set([
   'client_event:app_opened',
   'client_event:session_authenticated',
   'client_event:session_duration',
+  'client_event:find_captured',
   'client_event:play_attempt',
   'client_event:play_success',
   'client_event:play_superseded',

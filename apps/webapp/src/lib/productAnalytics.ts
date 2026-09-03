@@ -19,6 +19,10 @@ export type ProductAnalyticsEventName =
   | 'stream_failure'
   | 'skip'
   | 'like'
+  // The product's central act: a track kept, with the station it came from and
+  // the moment. Distinct from `like`, which saves the STATION as a source —
+  // conflating them would make both unreadable.
+  | 'find_captured'
   | 'search_query'
   | 'queue_source'
   | 'queue_reorder'

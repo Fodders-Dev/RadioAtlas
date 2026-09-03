@@ -617,26 +617,46 @@ export const MiniPlayerDock = () => {
             </div>
           )
         ) : null}
-        <button
-          className={`player-dock-track-button ${activeTrack ? 'active' : ''}`}
-          type="button"
-          data-last-heard={isLastHeard ? 'true' : undefined}
-          onClick={() => {
-            if (activeTrack) {
+        {/*
+          Catching a find is the product's central act, so it gets a control of
+          its own rather than a clickable label. Two things were wrong here:
+
+          - the glyph was the standard COPY mark (two offset sheets), which says
+            "put this text on the clipboard" and not "keep this find". It is now
+            a bookmark, deliberately unlike the heart that saves a STATION —
+            a station is a source you love, a track is a find you kept, and one
+            icon for both makes each unreadable.
+          - with no track the row still rendered a DISABLED button whose text was
+            the genre («Спорт» on RMC FR, measured on production). A dead control
+            captioned with something that is not a track teaches nothing, so the
+            silent case is now plain text and the control simply is not there.
+        */}
+        {activeTrack ? (
+          <button
+            className="player-dock-track-button active"
+            type="button"
+            data-capture-find="true"
+            data-last-heard={isLastHeard ? 'true' : undefined}
+            onClick={() => {
               void copyTrack();
-            }
-          }}
-          disabled={!activeTrack}
-          aria-label={trackAriaLabel}
-          title={trackAriaLabel}
-        >
-          <span className="player-dock-track-button-text">{trackTitle}</span>
-          {activeTrack ? (
+            }}
+            aria-label={trackAriaLabel}
+            title={trackAriaLabel}
+          >
+            <span className="player-dock-track-button-text">{trackTitle}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1Zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H10V7h9v14Z" />
+              <path d="M17 3H7a2 2 0 0 0-2 2v16l7-3.11L19 21V5a2 2 0 0 0-2-2Z" />
             </svg>
-          ) : null}
-        </button>
+          </button>
+        ) : (
+          <div
+            className="player-dock-track-button"
+            data-last-heard={isLastHeard ? 'true' : undefined}
+            title={trackAriaLabel}
+          >
+            <span className="player-dock-track-button-text">{trackTitle}</span>
+          </div>
+        )}
       </div>
 
       <div className="player-dock-actions">
