@@ -585,38 +585,21 @@ export const MiniPlayerDock = () => {
       ) : null}
 
       <div className="player-dock-meta">
-        <button
-          className="player-dock-station"
-          type="button"
-          // Tapping the station name opens the FULL PLAYER, which is where every
-          // other player puts the controls that don't fit a mini bar (transport,
-          // volume, queue). It used to open a details sheet — a dead end that
-          // left the owner asking «а как доп кнопки вызывать?».
-          onClick={() => {
-            if (current) {
-              openFullPlayer();
-            }
-          }}
-          disabled={!current}
-          title={current ? stationLocation(current) : undefined}
-        >
-          <div className="player-dock-title">{stationTitle}</div>
-        </button>
-        {playbackState ? (
-          playbackState.onAction ? (
-            <button
-              type="button"
-              className={`player-dock-status-pill is-${playbackState.tone}`}
-              onClick={playbackState.onAction}
-            >
-              {playbackState.label}
-            </button>
-          ) : (
-            <div className={`player-dock-status-pill is-${playbackState.tone}`}>
-              {playbackState.label}
-            </div>
-          )
-        ) : null}
+        {/*
+          ORDER IS THE PRODUCT MODEL, and it is DOM order rather than CSS
+          `order` so that reading and tab order match what the eye sees.
+
+          The find leads, the source follows: the track is what somebody
+          caught, the station is where it came from. Until 0.1a.1 it was the
+          other way round — the station at 14px/700 in full white above a
+          12px/500 track at 82% opacity — which said the source was the
+          object and the find was its caption. PRODUCT.md says the opposite,
+          and the owner read that off a screenshot before any measurement
+          caught it.
+
+          The status pill comes last so the two rows carrying the model stay
+          adjacent.
+        */}
         {/*
           Catching a find is the product's central act, so it gets a control of
           its own rather than a clickable label. Two things were wrong here:
@@ -657,6 +640,38 @@ export const MiniPlayerDock = () => {
             <span className="player-dock-track-button-text">{trackTitle}</span>
           </div>
         )}
+        <button
+          className="player-dock-station"
+          type="button"
+          // Tapping the station name opens the FULL PLAYER, which is where every
+          // other player puts the controls that don't fit a mini bar (transport,
+          // volume, queue). It used to open a details sheet — a dead end that
+          // left the owner asking «а как доп кнопки вызывать?».
+          onClick={() => {
+            if (current) {
+              openFullPlayer();
+            }
+          }}
+          disabled={!current}
+          title={current ? stationLocation(current) : undefined}
+        >
+          <div className="player-dock-title">{stationTitle}</div>
+        </button>
+        {playbackState ? (
+          playbackState.onAction ? (
+            <button
+              type="button"
+              className={`player-dock-status-pill is-${playbackState.tone}`}
+              onClick={playbackState.onAction}
+            >
+              {playbackState.label}
+            </button>
+          ) : (
+            <div className={`player-dock-status-pill is-${playbackState.tone}`}>
+              {playbackState.label}
+            </div>
+          )
+        ) : null}
       </div>
 
       <div className="player-dock-actions">

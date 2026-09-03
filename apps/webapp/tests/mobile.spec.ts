@@ -1868,11 +1868,23 @@ test('dock long station and track text stay readable without overflow', async ({
     };
   });
 
-  expect(textStyles.stationFontSize).toBe('14px');
-  expect(Number(textStyles.stationFontWeight)).toBeGreaterThanOrEqual(700);
+  // ⚠ These used to pin station 14px/700 over track 12px/500 by exact equality,
+  // and 0.1a.1 deliberately inverted them: the FIND is the product's central
+  // object and the station is where it came from, so the track carries the
+  // heavier type and the station became its caption. That is a product decision
+  // from PRODUCT.md, not a relaxed floor — and it is asserted as a RELATIONSHIP
+  // rather than as two more magic numbers, so the next deliberate change to the
+  // scale does not have to come back and edit a constant here. Only the
+  // direction is the contract.
+  expect(Number(textStyles.trackFontSize?.replace('px', ''))).toBeGreaterThan(
+    Number(textStyles.stationFontSize.replace('px', ''))
+  );
+  expect(Number(textStyles.trackFontWeight)).toBeGreaterThan(
+    Number(textStyles.stationFontWeight)
+  );
+  expect(Number(textStyles.trackFontWeight)).toBeGreaterThanOrEqual(700);
+  // Both lines still have to survive a long name on one line.
   expect(textStyles.stationWhiteSpace).toBe('nowrap');
-  expect(textStyles.trackFontSize).toBe('12px');
-  expect(Number(textStyles.trackFontWeight)).toBeGreaterThanOrEqual(500);
   expect(textStyles.trackWhiteSpace).toBe('nowrap');
   await expectNoDocumentHorizontalOverflow(page);
 });

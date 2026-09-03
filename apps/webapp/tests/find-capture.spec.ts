@@ -127,10 +127,21 @@ test('the find is reported once per catch, with no track title in it', async ({ 
   await expect.poll(async () => (await finds()).length, { timeout: 10_000 }).toBe(2);
 });
 
-test('the catch control is reachable by a thumb, and absent when there is no track', async ({
+test('the catch row is a real 44px target, not a band faked over its neighbours', async ({
   page
 }) => {
-  await openWithTrack(page);
+  // ⚠ Every width, and the phone ones are the point: `MiniPlayerDock.css` has a
+  // `@media (max-width: 430px)` block that redeclares this row's min-height, so
+  // a change made only in the base rules passes at Playwright's 1280 default and
+  // is invisible on the device the app actually runs in. That happened here.
+  for (const width of [360, 390, 426, 1280]) {
+    await page.setViewportSize({ width, height: width < 500 ? 800 : 720 });
+    await openWithTrack(page);
+    const height = await page
+      .locator('[data-capture-find]')
+      .evaluate((node) => Math.round(node.getBoundingClientRect().height));
+    expect(height, `the catch row owes 44px at ${width}px`).toBeGreaterThanOrEqual(44);
+  }
 
   const reach = await page.locator('[data-capture-find]').evaluate((node) => {
     const rect = node.getBoundingClientRect();
@@ -141,26 +152,55 @@ test('the catch control is reachable by a thumb, and absent when there is no tra
     };
     return {
       layoutHeight: Math.round(rect.height),
-      // Widened outward so the dock's own height never moves: growing the bar
-      // would desynchronise `--dock-offset-v2`, the constant the bottom scroll
-      // reserve is computed from.
-      //
-      // ⚠ These probes are 1px and 3px, not 5px and 5px, and the difference is
-      // the finding: measured at 360 / 390 / 426 the chip has 3px of clearance
-      // above and 6px below, so the honest maximum is 37px and the shipped band
-      // is 35. **The 44px floor is not reachable in this dock** — the sibling
-      // test proves why, since the first attempt at 44 ate the control above.
-      // Closing that gap needs the dock's layout to change, which is its own
-      // lane; see PLAN.md.
-      aboveTheBorder: hits(rect.top - 1),
-      belowTheBorder: hits(rect.bottom + 3)
+      // Inside its OWN box, top and bottom. 0.1a shipped 35px of hit area
+      // borrowed from outside the element, and the first attempt at 44 that way
+      // ate the control above it. The height is real now, so these probes stay
+      // within the border box.
+      nearTop: hits(rect.top + 3),
+      nearBottom: hits(rect.bottom - 3)
     };
   });
 
-  expect(reach.layoutHeight).toBeGreaterThanOrEqual(28);
-  expect(reach.aboveTheBorder, 'the touch target must extend above the chip').toBe(true);
-  expect(reach.belowTheBorder, 'the touch target must extend below the chip').toBe(true);
+  expect(reach.layoutHeight, 'the product’s central action owes 44px').toBeGreaterThanOrEqual(44);
+  expect(reach.nearTop).toBe(true);
+  expect(reach.nearBottom).toBe(true);
+});
 
+test('the find outranks its source, and the bookmark rides with the track', async ({ page }) => {
+  await openWithTrack(page);
+
+  const read = await page.evaluate(() => {
+    const track = document.querySelector('.player-dock-track-button-text');
+    const station = document.querySelector('.player-dock-title');
+    const capture = document.querySelector('[data-capture-find]');
+    const actions = document.querySelector('.player-dock-actions');
+    if (!track || !station || !capture || !actions) return null;
+    const t = getComputedStyle(track);
+    const s = getComputedStyle(station);
+    return {
+      trackPx: parseFloat(t.fontSize),
+      trackWeight: Number(t.fontWeight),
+      stationPx: parseFloat(s.fontSize),
+      stationWeight: Number(s.fontWeight),
+      bookmarkInsideTrackRow: Boolean(capture.querySelector('svg')),
+      bookmarkInActionGroup: actions.contains(capture),
+      // The station row still has to be READABLE — a caption, not a footnote.
+      stationOpacity: s.color
+    };
+  });
+
+  expect(read).not.toBeNull();
+  // The model, asserted as a direction rather than as constants: a find is the
+  // object, a station is where it came from. Until 0.1a.1 it was inverted and a
+  // screenshot caught it before any measurement did.
+  expect(read!.trackPx).toBeGreaterThan(read!.stationPx);
+  expect(read!.trackWeight).toBeGreaterThan(read!.stationWeight);
+
+  // ⚠ The defect this pins: with the bookmark sitting in the action group it
+  // read as a third transport button next to ⋮ and pause, and the link «this
+  // track → keep it» was lost. It belongs to the track row.
+  expect(read!.bookmarkInsideTrackRow).toBe(true);
+  expect(read!.bookmarkInActionGroup).toBe(false);
 });
 
 test('the widened hit area steals nothing from its neighbours', async ({ page }) => {

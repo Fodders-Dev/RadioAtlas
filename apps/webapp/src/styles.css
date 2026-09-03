@@ -2510,7 +2510,11 @@ input {
   --nav-inset-bottom-v2: 10px;
   --dock-gap-v2: 12px;
   --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 14px + var(--shell-safe-bottom));
-  --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 96px);
+  /* The dock's share of the bottom reserve. 96 -> 112 in 0.1a.1: the track row
+     became a real 44px touch target, which is the product's central action, and
+     the bar grew 64 -> 80px with it. `--dock-offset-v2` is NOT this number —
+     that one is the floating nav's clearance and does not change. */
+  --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 112px);
   --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   --glass-bg: rgba(216, 231, 255, 0.048);
   --glass-bg-strong: rgba(16, 25, 40, 0.11);
@@ -6141,7 +6145,9 @@ body {
        screen's scroll padding. Edit bottom-chrome geometry at :4560 / :10756. */
     --mobile-nav-height-v2: 60px;
     --dock-offset-v2: calc(var(--mobile-nav-height-v2) + 10px + var(--shell-safe-bottom));
-    --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 132px);
+    /* Phone widths carry the same +16 as the default above: the dock is one
+       bar and it grew once. */
+    --fixed-bottom-stack-v2: calc(var(--dock-offset-v2) + 148px);
     --screen-bottom-safe-v2: calc(var(--fixed-bottom-stack-v2) + 24px);
   }
 

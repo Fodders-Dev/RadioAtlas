@@ -170,10 +170,13 @@
     rgba(255, 255, 255, 0.05);
 }
 
+/* The SOURCE line. It used to be the loudest thing in the dock at 14px/700; the
+   find now leads and this is its caption — still readable, deliberately not a
+   footnote. See the note on the track row below. */
 .player-dock.player-dock-bar .player-dock-title,
 .player-dock.player-dock-peek .player-dock-title {
-  font-size: var(--text-sm);
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.35;
   letter-spacing: 0;
   white-space: nowrap;
@@ -181,63 +184,76 @@
   text-overflow: ellipsis;
 }
 
+/* THE FIND LEADS, THE SOURCE FOLLOWS.
+   The track row is the product's central action and now says so in three ways:
+   it comes FIRST in the meta column, it carries the heavier type, and it is a
+   real 44px tall rather than a band faked over its neighbours.
+
+   ⚠ The previous attempt met 44px with an `::after` inset and it was a defect:
+   the band swallowed the bottom 7px of `.player-dock-station`, turning a
+   deliberate tap on the station into a find nobody asked for. Height here is
+   real; `tests/find-capture.spec.ts` holds the no-theft half. */
+.player-dock .player-dock-meta {
+  display: grid;
+  grid-template-rows: 44px auto;
+  align-content: center;
+  /* Room for the divider that separates the find from stream control. */
+  padding-right: 10px;
+}
+
 .player-dock .player-dock-track-button {
-  min-height: 22px;
+  min-height: 44px;
   padding: 0;
+  gap: 8px;
   border-color: transparent;
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 
+/* 44px WITH a track and without one. A row that only grows when the station
+   names something makes the dock 62px on a silent station and 80px on a
+   talkative one — and `--fixed-bottom-stack-v2` reserves a CONSTANT. When there
+   is no track this row holds the genre or «Прямой эфир» as information, not as
+   an empty slot waiting for a button. */
 .player-dock .player-dock-track-button.active {
   position: relative;
-  min-height: 30px;
-  padding: 0 10px;
-  border-color: rgba(177, 243, 232, 0.28);
-  background: rgba(174, 240, 228, 0.09);
 }
 
-/* As much touch target as the dock actually has, and no more.
-   ⚠ 44px is NOT reachable here, and the first attempt at it was a defect: an
-   `inset: -7px` band met the floor on paper and silently swallowed the bottom
-   7px of `.player-dock-station`, the control above — a deliberate tap becoming
-   a find nobody asked for, invisible because the layout looks fine.
-   Measured with a spec, identical at 360 / 390 / 426: the chip is 28px, with
-   3px of clearance above it and 6px below. So the most that can be taken
-   without stealing is 37px, and 2px/5px is that minus a rounding margin:
-   28 + 2 + 5 = 35px.
-   Getting to 44 needs the dock's own layout to change — it would have to grow,
-   and `--dock-offset-v2` (a constant the bottom scroll reserve is computed
-   from) would have to grow with it. That is a lane of its own, recorded in
-   PLAN.md, not a value to nudge here.
-   `tests/find-capture.spec.ts` holds the no-theft half: raise these numbers and
-   it goes red rather than shipping a band that eats its neighbours. */
-.player-dock .player-dock-track-button.active::after {
-  content: '';
-  position: absolute;
-  inset: -2px -6px -5px;
-}
-
-/* The bookmark, sized against the 12px track text rather than the 14px station
-   line — it marks the line it sits on, it does not compete with it. */
+/* The bookmark rides WITH the title it marks, at the title's weight and in the
+   accent — that adjacency is what makes «this track → keep it» read as one
+   thing. ♥ stays in the control group and keeps its own meaning: the heart
+   loves a SOURCE, the bookmark keeps a FIND. */
 .player-dock .player-dock-track-button.active > svg {
-  width: 14px;
-  height: 14px;
+  width: 17px;
+  height: 17px;
   flex: 0 0 auto;
   fill: currentColor;
-  opacity: 0.85;
+  color: var(--accent, #7ef2d8);
+  opacity: 1;
+}
+
+/* The hairline is the whole reason the bookmark stopped reading as a third
+   transport button. Without it the eye grouped ▸ bookmark, ⋮, pause ◂ into one
+   row of controls and the link to the track was lost. */
+.player-dock .player-dock-actions {
+  padding-left: 10px;
+  border-left: 1px solid rgba(190, 225, 255, 0.14);
 }
 
 .player-dock .player-dock-track-button:not(.active) svg {
   display: none;
 }
 
+/* The FIND. This is the rule that actually wins — an earlier declaration of the
+   same weight loses to it, which is how the first attempt at this hierarchy
+   changed nothing and measured 12px afterwards. */
 .player-dock .player-dock-track-button-text {
-  font-size: var(--text-xs);
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.22;
   letter-spacing: 0;
+  color: rgb(245, 252, 255);
 }
 
 .player-dock .player-dock-tray-panel {
@@ -304,25 +320,29 @@
     grid-template-columns: 44px minmax(0, 1fr) repeat(3, 44px);
   }
 
+  /* ⚠ Phone widths carry the same hierarchy, and this block is why the first
+     attempt failed at 390px while passing at Playwright's 1280 default: every
+     value below overrides the base rules, so a change made only up there is
+     invisible on the device the app actually runs on. */
   .player-dock.player-dock-bar .player-dock-title,
   .player-dock.player-dock-peek .player-dock-title {
-    font-size: var(--text-sm);
+    font-size: 12px;
     line-height: 1.18;
   }
 
   .player-dock .player-dock-track-button {
     max-width: none;
-    min-height: 20px;
+    min-height: 44px;
   }
 
   .player-dock .player-dock-track-button.active {
-    min-height: 28px;
-    padding: 0 8px;
+    min-height: 44px;
+    padding: 0;
   }
 
   .player-dock .player-dock-track-button-text {
-    font-size: var(--text-xs);
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 700;
     line-height: 1.18;
   }
 
