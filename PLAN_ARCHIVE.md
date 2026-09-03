@@ -1,0 +1,2182 @@
+# RadioAtlas — архив
+
+⚠ **Это АРХИВ. Ничего здесь не является действующим решением.**
+
+Закрытые этапы, снятые измерения, техническая археология. Хранится, потому что
+это память о том, что уже мерили и почему решили именно так — переизмерять
+заново дорого, а забыть причину дороже.
+
+**Как этим пользоваться.** Отсюда можно взять ФАКТ («мы это мерили, вот число»)
+и ПРИЧИНУ («так решили, потому что…»). Отсюда нельзя взять ЗАДАЧУ или считать
+описанное здесь текущим устройством продукта.
+
+⚠ Конкретный пример ловушки, ради которого архив и отделён: ниже живёт старый
+первый запуск с `FIRST_RUN_RAIL_LIMIT = 1` и «Народным выбором». Действующий
+первый запуск — Лира и одна кнопка «Включай» (см. `PRODUCT.md`). Если встретишь
+здесь что-то, противоречащее `PRODUCT.md` или `PLAN.md`, — правы они, а не
+архив.
+
+---
+
+
+Ниже — архив измеренных решений и закрытых этапов. Не удалять: это память о
+том, что уже мерили и почему решили так.
+
+Core listening roadmap through Stage 16 is closed. Public/shared/paid surfaces stay deferred until the radio loop is proven stable on real Telegram mobile devices.
+
+## Radio Core Sprint (closed)
+
+- [x] Runtime failure recovery
+  - Startup failover still walks the queued station candidates.
+  - Runtime playback errors now record playability + health failure once and try the next queued station silently.
+  - Metadata-unavailable remains a passive now-playing state, not a negative playability signal.
+- [x] Session events as ranking input
+  - Local app state stores the latest 120 radio session events.
+  - `queued`, `play-started`, `play-success`, `skip`, `like`, `hide`, and `failed` now bias Home, Search, and Personal Radio for the current session.
+- [x] Search intent ranking
+  - Multi-token queries like `jazz japan` reward tag/place/name coverage.
+  - Explicit query intent outranks weak promoted or taste-biased matches.
+- [x] Personal Radio and Home quality
+  - Personal Radio avoids recently failed/hidden stations.
+  - Dense Home dedupes the top recommendation/resume/rail slots without reintroducing reason-copy.
+  - Empty-profile fallback is ranked through health/playability instead of raw shuffle.
+- [x] Queue continuity
+  - Personal Radio refills the tail near the end of the queue without changing the active station.
+  - Search/Globe/Collection queues keep finite failover only.
+
+## Player Loop Sprint (closed)
+
+- [x] Queue-first Full Player
+  - Full Player shows current + upcoming queue rows with play, move, and remove controls.
+  - Current row stays protected from reorder but can be removed to fail over to the next station.
+- [x] Queue continuity controls
+  - `clearUpcoming` keeps the current station playing and removes only the queue tail.
+  - `moveAtIndex` reorders upcoming stations without changing the active station.
+- [x] Dock stays compact
+  - Dock remains a quick controller; heavy queue edits live in Full Player.
+- [x] Details and Library paths
+  - Full Player keeps direct access to Station Details and can jump to the Library queue tab.
+
+## Performance Hardening Sprint (closed)
+
+- [x] Cold-start bundle hardening
+  - React/ReactDOM are bundled from the app origin; no `esm.sh`/React CDN path remains.
+  - Cold Home does not request Globe, HLS, fallback catalog, PlaybackRuntime, Theme Studio, Lite, or Full Player overlay chunks.
+  - PlaybackRuntime mounts after idle or first playback intent; low-power Telegram WebView waits until playback is requested.
+- [x] Catalog TTL cache
+  - Added local IndexedDB cache with localStorage fallback for summary, search, areas, area stations, station details, and fallback dataset.
+  - Fresh summary cache can render Home immediately while network refresh runs in the background.
+  - Manual refresh still forces network and updates cache.
+  - Clear cache now clears catalog TTL cache and last-known track cache.
+- [x] Theme asset deferral
+  - Theme startup loads manifests first, not every stored blob.
+  - Asset object URLs are created only for the active theme and visible Theme Studio previews.
+- [x] Persistent-state write hygiene
+  - `usePersistentState` no longer writes on mount by default.
+  - App/library/player storage writes are dirty-only; Home generated snapshot is session-local instead of an automatic localStorage write.
+- [x] Legacy skin/zip cleanup
+  - Removed unreachable Skin Lab / `.wsz` runtime files and `jszip` dependency.
+  - Decorative Lite easter egg remains; Theme Studio is the real theme path.
+- [x] Mobile performance gates
+  - Added tests for CDN-free cold load, lazy chunk isolation, cached summary offline render, fallback catalog lazy load, and no mount-time persistent rewrites.
+
+## Mobile Visual QA Sprint (done)
+
+- [x] Stage A: fixed bottom stack
+  - Add one safe bottom spacing contract for Home, Search, Library, and Globe scroll surfaces.
+  - Last station cards must scroll above mini player + bottom nav on 360/390/412.
+- [x] Stage B: Globe dense layer cleanup
+  - Reduce competing text in the dense focus sheet.
+  - Keep Tune Here controls and the reticle visually separated from the sheet.
+  - Replace the decorative globe texture path with a mobile-safe satellite globe plus zoomed satellite map mode.
+  - Invalidate stale tiny geo caches and load a larger geo fallback dataset when the API is unavailable.
+- [x] Stage C: mobile topbar fit
+  - Prevent long section titles like `Медиатека` from clipping on 360px.
+  - Compact status chip copy on dense widths.
+- [x] Stage D: Search result density
+  - Make dense search result cards readable first: wider title, less duplicated action chrome.
+  - Keep quick play/favorite reachable without horizontal overflow.
+- [x] Stage E: Full Player queue polish
+  - Reduce queue-row control noise on 360px.
+  - Keep current/upcoming actions explicit enough for Telegram WebView.
+
+## Discovery Feed Primary Surface (done)
+
+- [x] Retire the Home `Моя волна` CTA as a user-facing surface.
+  - Home now uses one large `Лента` hero in the primary slot with Feed and refresh as non-overlapping sibling actions.
+  - The internal personal-radio/taste engines remain available for ranking and queue continuity.
+- [x] Make Feed personal-fresh on every open.
+  - Feed excludes favorites, recent stations, and the currently playing station before weighting.
+  - Feed candidates are health/playability gated before they can autoplay on swipe.
+  - Card 0 is pinned to the strongest available personal pick; each Home Feed open re-rolls a transient seed.
+- [x] Refresh tests and visual baselines.
+  - Home/feed selectors now use `[data-home-feed-entry]`.
+  - Feed #86 no-auto-switch-on-open remains covered.
+  - Home and Library mobile visual baselines were regenerated for the new hero/tab layout.
+
+## Theme Studio (in progress)
+
+- [x] 17.0 Hide Webamp behind easter-egg gate
+  - Primary `winamp.expanded` path opens the native RadioAtlas `FullPlayerOverlay`.
+  - Legacy Lite/Webamp path remains available only with `?winamp=1`.
+  - Skin Lab / `.wsz` entry points are removed from Settings, dock tray, and legacy overlay controls.
+  - Old Webamp/Skin Lab compatibility code is removed when unreachable; decorative Lite stays as the easter egg.
+- [x] 17.1 Theme schema + IndexedDB storage
+  - Add local theme/assets types and persistence for RadioAtlas shell themes.
+- [x] 17.2 CSS theme injection
+  - Apply accent, background, and font tokens across Home, Globe, Dock, and Full Player without React remounts.
+- [x] 17.3 Theme Studio UI
+  - Add the real Theme Studio sheet for bundled themes and one-tap apply.
+  - Theme Studio opens from Settings and from the dock volume tray.
+  - Bundled/custom cards support apply, remix, edit for custom themes, and delete for custom themes.
+- [x] 17.4 Theme Builder
+  - Add background print upload, accent, font, icon style, custom player icon uploads, and remix/edit saves for local themes.
+- [x] 17.5 Decorative theme layers
+  - Add fixed-slot stickers/GIFs/emoji reactions for the shell surfaces.
+  - Builder can upload sticker/GIF assets and choose fixed slots/triggers.
+- [x] 17.6 Webamp easter egg
+  - Unlock the legacy Lite/Webamp path through the R++ brand gesture; keep `?winamp=1` as a dev bypass if useful.
+- [x] 17.7 Generated bundled theme pack
+  - Add RadioAtlas-generated SVG backgrounds and bundled Theme Studio presets for Aurora Field, Signal Grid, and Sunrise Dial.
+- [x] 17.8 Local print uploads for shell/player themes
+  - Theme Studio can save a user image print as a local background asset.
+  - Dock and native Full Player consume the active theme print, not only accent colors.
+  - Dock and native Full Player consume custom play/pause/next/prev/like icon assets.
+- [x] 17.9 Drop dead Webamp boot pipeline
+  - Legacy Lite is now a decorative-only easter egg.
+  - Removed the unused Webamp boot/runtime/transport pipeline and nonexistent vendor module path.
+
+## Deferred
+
+- [ ] Stage 18: marketplace, server theme publishing, currency, moderation, copyright checks.
+
+## Discovery freshness + Lira relevance (done)
+
+- [x] Cross-session exposure demotion. New `lib/stationExposure.ts` decaying
+  "shown/played" ledger; a soft rank penalty threads through the shared rankers
+  (`rankStationsForUser`, Home `scoreStation`) so Лента, Home «Для тебя» and
+  Personal Radio stop re-leading with «одно и то же» each open. The feed flushes
+  the cards you actually landed on; the play path records plays. Search browse
+  sinks recently-played stations to the tail (typed search stays relevance-first).
+- [x] Lira genre relevance. `buildSearchResponse` gains an AI-path genre-relevance
+  order (word-aware exact-tag > name > other, blended with quality) so a bare-genre
+  ask returns actual genre stations, not the most-voted substring match. The HTTP
+  Search ordering is unchanged (opt-in flag).
+- [x] Lira curated routes for the two live misses: «соул(попсовый)» → real soul
+  (not chillout/ambient); «популярное, но по мозгам не било / фоном / мягко» →
+  soft pop / adult-contemporary / easy-listening (not a global dance grab-bag).
+
+## UI/UX polish pass (done)
+
+- [x] Home and Search interaction cleanup.
+  - Whole station cards use one dedicated primary Play action instead of nested or duplicate Play targets; like/share remain independent keyboard actions.
+  - Mobile Search is denser without horizontal overflow, has localized result counts, readable 44px quick actions, and case-insensitive country facets.
+  - Home Feed entry and refresh are non-overlapping sibling actions inside one hero card; the complete subtitle remains visible at 360px and reduced-motion paths cover refresh/loading states.
+- [x] Predictable discovery playback.
+  - Globe drag/settle selects a preview but never surprise-switches audio; direct point taps and the visible Play CTA remain explicit tune actions.
+  - Globe no longer duplicates the active station beside the persistent dock.
+  - Feed exposes play/pause on the active card, restores focus to Home/navigation on close, and falls back to the snap-scroll index when an embedded Chromium misses an IntersectionObserver callback.
+- [x] Player, Library, and Settings clarity.
+  - Live dock can collapse to a one-row controller and restores that presentation after Full Player closes.
+  - Full Player surfaces the next queue item, keeps complete action labels, and can jump directly to recent tracks.
+  - Library preserves its selected tab and implements the native tab keyboard pattern; Settings groups destructive data actions into one divided card with inline confirmation and collapses developer diagnostics.
+- [x] Shared visual and accessibility hardening.
+  - Ordinary Home, station-row, and Settings content surfaces are flat and blur-free; topbar, dock, navigation, sheets, and immersive player/globe treatments retain glass where it helps hierarchy.
+  - Mobile topbar and compact-dock controls are locked to at least 44px; navigation labels are 10px and station names remain 13–14px.
+  - Dialogs skip backdrop controls for initial focus, restore focus consistently, and playback changes use one debounced polite live region.
+  - Added mobile Settings, destructive-confirmation, developer-panel, compact-dock, and single-dock Globe visual coverage; refreshed affected 360px baselines.
+
+## Responsive checkpoint before design reference (done)
+
+- [x] Removed the 431–600px topbar breakpoint gap and the oversized mobile
+  `fresh-now` grid; every compact discovery rail is now a bounded peek lane.
+- [x] Restored compact Home search, added stable genre shortcuts, and made sparse
+  catalog fallback rails available on wide layouts too.
+- [x] Restored Lira in ordinary local Vite navigation and documented the separate
+  API process needed for proxy images and real AI replies.
+
+## Generated station atmosphere foundation (done)
+
+- [x] Add a free-first Cloudflare Workers AI provider using FLUX.2 Klein 4B,
+  with secrets confined to the API process.
+- [x] Derive reusable scene keys from country, controlled station vibe, and a
+  versioned art direction instead of generating per station view.
+- [x] Add persistent PNG/JPEG caching with byte-derived MIME, single-flight
+  generation, a daily cap, bounded concurrency/queueing, and an
+  internal-token-protected batch command.
+- [x] Keep the public scene endpoint read-only and preserve existing station
+  logos/procedural gradients as fail-soft fallbacks.
+- [x] Opt only immersive editorial surfaces (Home hero, active Feed backdrop,
+  and Full Player backdrop) into cached scenes; station tiles, dock, Media
+  Session, and all identity artwork keep the owner logo → favicon → procedural
+  fallback chain.
+- [x] Document local/VPS configuration and cover provider, auth, caching, and
+  browser-client behavior with focused tests.
+
+## Station-specific music scenes (done)
+
+- [x] Replace shared `country + vibe` backgrounds with one versioned visual
+  identity per station; keep location as secondary art direction.
+- [x] Lead prompts with a safe station-name cue and a closed genre taxonomy,
+  including city pop/anime/future funk and game-soundtrack profiles.
+- [x] Enrich generation from harvested recent tracks and top artists while
+  keeping track rotation out of the paid cache key.
+- [x] Bump the production style to `atlas-music-v3`, seed by active style rather
+  than total legacy file count, and cover the Yumi Co. Radio mismatch directly.
+
+## Designer-reference Home (done)
+
+- [x] Restore the computed live recommendation as a full-bleed Home hero with
+  explicit Play/Pause, LIVE state, location/tags/current track, waveform, and a
+  separate real station-logo badge.
+- [x] Rebuild the first Home journey around 44px genre quick choices, compact
+  Feed + refresh, search, `Попробуйте сейчас`, `Продолжить слушать`, and
+  `Открой новые станции` rails.
+- [x] Use the approved cyan night-radio hierarchy on mobile while giving wide
+  Home a filled hero + utility side column instead of a narrow central desert.
+- [x] Keep Lira centered between Search and Globe on mobile and in the matching
+  position on desktop; keep the Home dock's volume/more/play controls usable.
+- [x] Finish the mobile density/readability recovery after the first reference
+  pass: bound the hero to 276–310px, restore visible genre shortcuts, separate
+  station artwork/actions from two-line copy, and replace the stale ~300px Home
+  bottom reserve with the measured dock/navigation stack.
+- [x] Freeze the hero during play/like bursts, retain rail taste re-ranking, and
+  preserve reduced-motion/focus contracts; add 360/390/426px geometry coverage
+  for touch targets and non-overlapping card rows.
+
+## Lira track intelligence (done)
+
+- [x] Resolve explicitly named and trusted current now-playing tracks for lyrics,
+  meaning, and creation-context questions.
+- [x] Ground factual history and author intent in web sources while keeping
+  interpretation clearly separate.
+- [x] Keep copyrighted lyrics out of full-text responses: return a source link
+  and at most a brief excerpt; analyze pasted text without repeating it at length.
+- [x] Cover lyrics, meaning, current-track, and no-search fail-soft behavior with
+  focused API/client tests.
+
+## Lira Liquid Glass companion (done)
+
+- [x] Replace the compact utility sheet with an immersive full-screen Liquid
+  Glass conversation surface, quick prompts, persistent local thread, rich
+  station/source cards, and a fixed keyboard-safe composer.
+- [x] Retune Lira as a lively, confident music friend with light friendly
+  flirting and explicit non-reciprocal romantic boundaries.
+- [x] Send trusted now-playing metadata from the Mini App and make song-meaning
+  turns read cleaned lyrics-page content before analysis when Tavily can provide
+  it; keep output to one short excerpt plus the attributed full-text link.
+- [x] Cover now-playing transport, raw-content search gating/cache separation,
+  prompt-injection fencing, and the song-analysis path with focused tests.
+
+## Lira playback context + exact artist stations (done)
+
+- [x] Reuse the approved lyre mark across navigation, header, assistant bubbles,
+  and typing state; remove the duplicate music-note glyphs.
+- [x] Answer natural current-track questions directly from the trusted live
+  player context and keep the active station available before metadata arrives.
+- [x] Prefer exact artist-name station matches (including `Exclusively The
+  Weeknd`) over generic genre slates without hijacking plain genre requests.
+- [x] Make the one-chat model explicit in the UI: return through the Lira nav
+  action, persistent local history, and confirmed clearing from the header.
+
+## Catalog and metadata reliability audit (done)
+
+- [x] Stop a six-second API cold start from pinning the reduced direct-browser
+  fallback for six hours: paint the emergency catalog, retry the primary in the
+  background, and cache only the recovered full summary.
+- [x] Defer non-hero generated-scene lookups until a card approaches the
+  viewport instead of probing every mounted Home rail on first paint.
+- [x] Remember definitive 401/403/404/410 metadata endpoint misses for 30
+  minutes so the active player does not repeat known-dead Icecast, Shoutcast,
+  and Azura probes on every poll.
+- [x] Cover the recovery/migration/probe behavior with unit and mobile E2E
+  checks; pass the 463-test web unit suite and 106 mobile/desktop/Home flows.
+
+## Lira bounded agent foundation (done)
+
+- [x] Wrap the existing music brain as a typed Worker behind a bounded
+  Supervisor with finite routes, task/run ids, runtime/tool ceilings, and
+  deterministic fallback behavior.
+- [x] Add code-owned action policy and verification; only catalog-grounded
+  play/pause, queue, and favorite writes can reach the Mini App client.
+- [x] Add a closed, idempotent browser action executor plus action receipts so
+  a later turn can observe executed, skipped, or failed state changes.
+- [x] Persist run/provider/model/status/step/tool/token telemetry in the existing
+  observability store and cover the direct-action and fail-closed paths.
+- [x] Generalize the model client: DeepSeek stays default, while opt-in OpenAI
+  uses the Responses API and defaults to the cost-oriented `gpt-5.6-luna` tier.
+- [x] Add a repeatable six-fixture provider A/B runner with identical catalog
+  context, contract grading, reply capture, latency/tokens, and cost estimates.
+- [x] Cover queue, favorite, play, pause, and returned action receipts through
+  a full inside-Telegram Playwright path; isolate E2E observability persistence
+  from local/dev metrics.
+
+## Lira agent polish: constraint fidelity and action UX (done)
+
+- [x] Reproduce recommendation failures against the public production UI:
+  explicit «без DnB / shoegaze» and «без шансона / бардов» constraints were
+  contradicted by the rendered station cards.
+- [x] Enforce explicit negative genre/content constraints after every tool lane
+  and before composition; if every catalog card is rejected, fall back to a
+  clean external-service query that omits the forbidden clause.
+- [x] Route Russian 2010s / modern Russian pop and electronic asks through
+  language-scoped `russian pop`, `russian hits`, and electronic catalog searches
+  instead of the chanson-heavy broad `russian` shelf; keep retro/classic-hits
+  and spoken `russian programming` cards out of that modern lane.
+- [x] Show polite, persistent receipts for real play, pause, queue, favorite,
+  skipped, and failed actions so the listener can distinguish Lira's promise
+  from the client's verified outcome.
+- [x] Reduce external-link clutter to three primary services with a native,
+  keyboard-accessible «ещё сервисы» disclosure for the remainder.
+
+## Provider outage visibility (done)
+
+- [x] 2026-08-14 incident: the DeepSeek balance hit zero, every model call
+  returned `402 Insufficient Balance`, and production Lira answered only with
+  deterministic fallbacks. Nothing alerted, because the run was still logged as
+  `completed` with `warnings: []` and `verifierPassed: true`.
+- [x] `modelClient` now classifies a failure into a closed `ModelErrorKind` set
+  (`billing`, `auth`, `rate_limit`, `provider_unavailable`, `timeout`,
+  `network`, `http`) without echoing provider prose into logs. A disabled model
+  stays unclassified — configuration is not an outage.
+- [x] `brain.ts` collects the kinds hit by the planner, vibe-tag, and composer
+  calls; `agentRunner` reports the run as `failed` with `model_error:<kind>`
+  warnings instead of a clean success.
+- [x] `ai_model_error` / `ai_model_error:<provider>:<kind>` counters, plus a
+  throttled observability alert for `billing` and `auth`. `modelErrors` is an
+  operator signal only and is never returned to the browser.
+- [x] Fixed on-box provider A/B (2026-08-14, repeat=1, six fixtures):
+  OpenAI `gpt-5.6-luna` 6/6 contracts, median 6.2 s, $0.0065 for the run;
+  DeepSeek 0/6 because of the exhausted balance. Once DeepSeek was topped up it
+  answered normally again, so the comparison is NOT a quality verdict and
+  DeepSeek remains the production default.
+- [x] `apps/api/test/observability.access.test.ts` no longer hydrates the
+  repo-local dev metrics store, so the suite is green on a developer machine
+  that has run the API — not just on a clean CI checkout.
+
+## Provider A/B with both providers funded (done)
+
+- [x] 2026-08-15, six fixtures x three repeats, identical catalog context:
+  DeepSeek `deepseek-v4-pro` 15/18 contracts, median 5.5 s, $0.0135;
+  OpenAI `gpt-5.6-luna` 16/18, median 4.6 s, $0.0210. Latency and quality are
+  close enough that cost keeps DeepSeek as the production default; OpenAI stays
+  the evaluated alternative and the standby when DeepSeek is unavailable.
+- [x] Both providers failed the SAME fixture, which made it a product gap rather
+  than a model difference: «Почему людям так нравится джаз?» came back with
+  station cards and an `open-station` action. None of the knowledge, song, or
+  trivia predicates matched an open-ended opinion question, so whatever the
+  planner had collected was attached to an answer nobody asked to listen to.
+- [x] Added `isMusicOpinionQuestion` to the card gate — deliberately narrow, so a
+  request wearing a question mark («почему бы не поставить что-то бодрое?»)
+  keeps its cards.
+
+## Harvester deadlock (done)
+
+- [x] The hourly station-metadata harvester had been running to
+  `processed=0 withTitle=0 recorded=0 failures=8 tripped=true` for hours,
+  recording nothing. Two causes compounded: `harvestMetadata.mjs` reported "the
+  fetch threw" as status 599, which fell inside the pipeline's 5xx
+  "upstream is failing" range, so eight unreachable streams in a row tripped the
+  circuit breaker; and a failed station was never stamped, so it kept
+  `last_harvested_at` NULL, sorted first in the next run's `stale` order, and
+  the same broken head was re-selected every hour.
+- [x] Station-level probe failures now have their own, much larger budget and no
+  longer count as upstream pressure; the sentinel is exported and imported
+  instead of duplicated as a literal. A genuine network-wide outage still stops
+  the run.
+- [x] Every failed probe — station-level or upstream — is stamped through the new
+  `markProbeFailure`, which records the attempt without asserting that the
+  station has no metadata. That is what breaks the deadlock.
+- [x] `stationFailures` is reported separately in the run summary, and RUNBOOK
+  documents how to read a run and how to trigger one by hand.
+
+## Metrics that survive a deploy (done)
+
+- [x] The counters `PLAN.md` asked an operator to WATCH could not be watched.
+  `/observability` reported
+  `storePath: /opt/RadioAtlas/releases/<sha>/data/observability/metrics.json` —
+  the store resolved next to `apps/api/dist`, so it lived inside the release.
+  Every deploy booted the API against an empty file, and the disk cleanup from
+  the previous session (`current + 2`) deletes the older releases outright.
+  On 2026-08-15 three live release directories held three disjoint stores, and
+  `ai_agent_run:*` / `ai_model_error:*` existed in exactly one of them.
+- [x] `OBSERVABILITY_STORE_PATH` is pinned to
+  `/opt/RadioAtlas/shared/data/observability/metrics.json` in
+  `ecosystem.config.cjs`, next to the `STATION_INTEL_DB_PATH` line that already
+  documents this exact failure mode for the harvester database.
+- [x] The three surviving release stores were merged into the shared file before
+  the fix shipped: counters summed (each store covers a disjoint window),
+  gauges taken from the newest writer, ring buffers concatenated and re-trimmed.
+  48 counters and the 4 retained agent runs were preserved.
+- [x] The mistake cannot return silently: `isEphemeralStorePath` drives a boot
+  WARNING, `/observability` exposes `persistence.ephemeral`, and a test asserts
+  the pm2 config keeps the path outside `releases/`.
+- [x] Read of the merged window: `ai_chat_request` 4, `ai_agent_run:completed`
+  4, `ai_model_error` absent. DeepSeek is answering normally; the sample is too
+  small to conclude anything else.
+
+## Opinion-question gate: counted, because there are no transcripts (done)
+
+- [x] "Re-check the gate against real transcripts" turned out to be impossible
+  as written. A retained agent run carries provider, model, route, steps, tool
+  timings, verifier result and tokens — deliberately no prompt text — so there
+  is no transcript in telemetry to check it against, and there should not be.
+- [x] The gate now reports itself instead: `ChatResult.cardGate` carries the
+  closed set of predicates that matched, whether `isExplicitMusicRequest`
+  rescued the cards, and how many cards were actually dropped. It is operator
+  telemetry only; the `/ai/chat` response body is an explicit allow-list and
+  never carries it.
+- [x] Counters `ai_cards_gate:<reason>`, `ai_cards_gate_dropped` and
+  `ai_cards_gate_released`. RUNBOOK documents how to read them: a reason at
+  zero is an argument AGAINST widening it, and a rising `released` count is the
+  signal that a predicate has grown greedy enough to match real requests.
+- [x] Added the end-to-end coverage the A/B failure never had: an opinion
+  question drops the planner's cards and returns `{kind:'none'}` rather than
+  `open-station`, and a request wearing a question mark keeps them.
+
+## VPS runtime: Node 22 -> 24 (done)
+
+- [x] The box was on Node 22.22.0 while README and `node:sqlite` usage assumed
+  24+. Upgraded via NodeSource `node_24.x` to **24.19.0** (npm 11.17.0).
+- [x] The runtime is shared, so the blast radius was checked before touching it:
+  `rodnya-backend` and `rodnya-web-static` run `/usr/bin/node` directly (pure
+  JS, no native modules, `engines >=22`), FoddersGameBot runs in Docker and is
+  unaffected, and RadioAtlas's native modules are all N-API prebuilds refetched
+  by the per-deploy `npm ci`. Both rodnya units were restarted and verified.
+- [x] `pm2 update` — the documented way to move the daemon to a new node —
+  **hung** on pm2 6.0.14: it killed the daemon and every app and never
+  returned, taking the API down. Recovery was `pm2 start ecosystem.config.cjs
+  --update-env`, which is what the deploy script uses anyway. RUNBOOK now says
+  not to use `pm2 update` on this box.
+- [x] Verified after the upgrade: `/health`, public `https://radioatlas.ru/api/health`,
+  `/catalog/summary`, a live Lira turn, the harvester one-shot (`processed=194
+  failures=6 tripped=false`), and the story card rendering **live** rather than
+  serving the static fallback — that last one is the only check that proves the
+  native satori/resvg path survived the major bump.
+- [x] CI and `engines.node` moved to the same major, so the gate keeps testing
+  the runtime production actually runs. The nightly catalog-artifacts job left
+  Node 20 (end-of-life since April 2026) even though it commits to master.
+- [x] Incidental confirmation that the metrics fix works: the counters carried
+  across a full pm2 daemon restart and a runtime replacement without resetting.
+
+## Client telemetry that never landed (done)
+
+- [x] Found by opening the production Mini App and reading the network log, not
+  by a test: every page load fires `POST /api/observability/client-event`
+  requests that come back **400**. Probed against production directly —
+  `app_opened`, `session_state`, `home_station_impression` and `play_attempt`
+  all answered `{"error":"unknown event name"}`, while `client_error` answered
+  `{"ok":true}`.
+- [x] Cause: the server's allow-list held the six infrastructure names it was
+  written with, while the web app grew a 47-name product/playback/session
+  vocabulary through the same endpoint. Every one of those events was dropped
+  at the door and logged as a console error in the listener's browser — the
+  app has been instrumented for behaviour it never actually recorded.
+- [x] The list stays closed (the counter key is caller-supplied and counters are
+  never pruned by age) but is now complete, grouped by family.
+- [x] The comment claiming it was "kept in sync with call sites in the web app"
+  is replaced by a test that reads the web app sources — both directions, so a
+  stale name is caught as well as a missing one.
+
+## Constraint, receipt and grounding telemetry (done)
+
+- [x] Same finding as the card gate, three more times over. "Keep watching
+  production constraint-filter and agent-receipt telemetry" could not be done:
+  the constraint filter emitted one log line, action receipts were parsed and
+  validated and then counted nowhere, and the grounding provider's own
+  ok/empty/capped/error status reached the model as context and stopped there.
+- [x] `ai_exclusion_*`: clause seen, which repo-owned id matched, cards removed,
+  and — the one that decides whether to widen the vocabulary —
+  `ai_exclusion_unmatched`, a listener excluding something the list does not
+  know. Plus `ai_exclusion_emptied`, where the constraint was kept so
+  thoroughly that no station survived.
+- [x] `ai_action_receipt:<kind>:<status>` and `ai_action_receipt_failed`: a
+  client that could not carry out an action Lira promised is now visible.
+- [x] `ai_web_search:<status>` and `ai_web_search_degraded`: an exhausted Tavily
+  cap or a provider outage stops being indistinguishable from Lira simply
+  choosing not to cite anything.
+- [x] Every key space stays closed and repo-owned. The excluded clause is
+  reduced to a boolean — a counter key built from chat text would be unbounded
+  key minting, and counters are never pruned by age.
+- [x] Covered end to end through the brain (a known exclusion, an unknown one,
+  and a plain request) plus the route-level counter contracts.
+- [x] Production config checked while here: `AI_ENABLED=1`,
+  `AI_WEB_SEARCH_ENABLED=1` with a Tavily key present, `AI_PROVIDER` unset so
+  DeepSeek remains the default. So the lyrics path in production is the
+  Tavily + safe Genius-search fallback described in SPEC; the licensed-provider
+  decision is a purchase, not a code gap.
+
+## The persistent metrics store had to survive being killed (done)
+
+- [x] Ninety minutes after the store moved to a path that survives deploys, it
+  lost history anyway: `ai_chat_request` went 6 → 3. Cause found in the logs —
+  pm2 restarted the API for exceeding `max_memory_restart` mid-flush, the next
+  boot read a truncated file (`Unexpected end of JSON input`), hydration failed,
+  and the process then wrote its own near-empty state over everything.
+- [x] Two defects, both harmless while the store was disposable and both fatal
+  once it was not. `writeFile` is not atomic; and the backup rotation `rename`d
+  the live file away BEFORE writing the new one, leaving a window with no store
+  at all — several times a second under load.
+- [x] Writes are now write-then-`rename`. Backups are copied after a successful
+  write, at most once a minute instead of on every flush.
+- [x] The rotated backups were written and never read. Hydration now falls back
+  to them and preserves an unreadable live file as `.corrupt` rather than
+  silently replacing it.
+- [x] Covered by a test that reproduces the production shape: a truncated live
+  file next to a good backup, a flush loop that reads the file on every
+  iteration, and a cold start that must not be mistaken for corruption.
+
+## What was eating 700MB (done)
+
+- [x] Measured rather than guessed, against the real 60 309-station catalogue.
+  Steady state is the catalogue itself: ~74MB of parsed objects, ~130MB heap
+  once `attachSearchIndex` adds its full second copy of every station object.
+  That is the ~400MB idle RSS and it is not waste.
+- [x] The 30-minute refresh is the high-water mark, and two of its costs were
+  pure waste:
+  - **Four mirrors, no cancellation.** `RADIO_BROWSER_URLS` defaults to four
+    endpoints raced with `Promise.any`, each pulling up to 12 pages x 10 000
+    stations. The winner settled the race; the other three kept downloading and
+    accumulating a complete catalogue each. Now they share an `AbortController`
+    that fires as soon as a winner exists — which also stops fetching the whole
+    catalogue four times every half hour.
+  - **`JSON.stringify` of the whole catalogue** for the fallback snapshot: one
+    68.5M-character string (+137MB on the heap, UTF-16 because of the Cyrillic)
+    plus a +69MB Buffer for `writeFile`. Measured 206MB, in one shot, to write
+    a file that only matters when the mirrors are down. Chunked write, measured
+    peak +40MB, byte-identical output, and now written temp-then-rename so a
+    kill mid-write cannot leave a truncated snapshot.
+- [x] One hypothesis was measured and REJECTED: normalising in place instead of
+  `.map(normalizeStation)` saved 2-3MB, not the expected 74MB — the replaced
+  objects are not collected mid-loop anyway. Reverted rather than kept on faith.
+  (The first harness that "showed" a 100MB difference was measuring GC lag: in
+  both orderings, whichever variant ran second scored ~100MB worse. Each variant
+  now runs in its own process.)
+- [x] The mirror fix is covered by an integration test that races a fast mirror
+  against slow ones and asserts the losers' sockets are actually disconnected —
+  verified to fail without the `abort()`.
+
+## Measured on production after the fix (2026-08-15)
+
+Sampled every 10s for an hour, then a refresh triggered deliberately once the
+30-minute TTL had expired (the refresh is lazy — it needs a request, so a quiet
+hour never triggers one):
+
+```
+steady          292-294 MB   (flat across ~27 minutes)
+refresh         591 -> 789 MB peak -> 732 -> 480 -> 474 MB
+```
+
+- **789MB against the 896MB cap.** Before: 1020-1114MB, four kills in a day.
+  No kills since.
+- **The headroom is 107MB, which is thin.** One Лира turn during a refresh
+  (~+80MB) lands at ~870MB. This is mitigated, not comfortably solved.
+- The remaining peak is structural: the refresh holds the previous catalogue
+  and its search index while building the replacement. That is inherent to
+  swapping atomically, not waste.
+
+Options, in the order they should be considered, all of them the owner's call:
+
+1. Raise `max_memory_restart` to ~1.1GB now that the peak is bounded and
+   measured. The box has 3904MB total and ~978MB available at the moment of the
+   spike, shared with the rodnya services — so this is a real tradeoff, not a
+   free knob.
+2. Stop `attachSearchIndex` copying every station object (`{...station}` per
+   row). Worth ~48MB at steady state and ~48MB more at the peak, at the cost of
+   mutating the cached catalogue rows in place.
+3. Lower `CATALOG_MAX_PAGES` (12 pages x 10 000). That shrinks the catalogue
+   itself, so it is a product decision rather than a memory one.
+
+## Night pass: the box, not just the process (done)
+
+- [x] `/catalog/summary` took 60s and then 13ms on the next call. Not a hang:
+  **swap was at 2000MB of 2047MB**, the catalogue had been paged out, and the
+  request was faulting it back in. RadioAtlas is the largest single process
+  (673MB) but is NOT among the top swap users — the python bots, searxng and the
+  remnawave containers are. The machine is oversubscribed as a whole.
+- [x] That settles the earlier "raise the cap" option: **no**. More resident
+  memory for RadioAtlas comes out of a machine that is already swapping, and it
+  is the neighbours that get pushed out.
+- [x] `CATALOG_CACHE_TTL_MS`, default **6 hours** instead of 30 minutes. The
+  refresh IS the peak (292MB -> 789MB), and nothing downstream wanted 30
+  minutes: the web app caches its Home summary for 6h, and Radio Browser's
+  ~62 400 stations change by a handful a day. 48 spikes a day become 4.
+- [x] `CATALOG_DATA_DIR`. The fallback snapshot also defaulted to a path inside
+  the release directory — the same trap as the metrics store and the harvester
+  database — so every deploy threw away the freshest catalogue. Production now
+  writes it to `shared/data/catalog`.
+- [x] Fixed a defect in my own test from the previous pass: the mirror-race
+  integration test spawned the API with fake mirrors and persisted its two
+  fixture stations over `apps/api/data/catalog-full.json`, i.e. `npm test`
+  destroyed the developer's 70MB local snapshot. Proven fixed by comparing the
+  file's size and mtime across a full suite run.
+
+### Two more hypotheses measured and rejected
+
+- Replacing `attachSearchIndex`'s per-station copy with a WeakMap side table:
+  **20MB** of a 789MB peak, not the ~50MB expected. Not worth rewriting the
+  search hot path and its contract test for 2.5%.
+- "The fetch pulls ~110k stations and throws half away": wrong. Radio Browser
+  publishes 62 369 and we keep 62 337. `MAX_PAGES=12` is a ceiling the paging
+  loop never reaches.
+
+## The memory does not spike, it ratchets (observing)
+
+- [x] Kill #5 arrived at 20:43 on the code that ALREADY had the mirror-abort
+  and chunked-snapshot fixes: 1010MB after 5.5 hours of uptime. So the earlier
+  reading was incomplete — the process does not merely spike during a refresh
+  and come back, it comes back a little higher each time.
+- [x] The numbers fit a ratchet rather than a leak: boot at 15:08, ~480MB after
+  the first refresh, 842MB at 20:41, killed at 1010MB. Eleven refreshes in
+  between, roughly +33MB retained per refresh. V8 grows its heap to hold the
+  transient and does not hand the pages back; repeatedly allocating and freeing
+  60k-object arrays fragments what it keeps.
+- [x] If that is the mechanism, the 6-hour TTL is the right lever and no further
+  code is needed: four refreshes a day instead of forty-eight turns ~+65MB/hour
+  into ~+130MB/day, against a process that is restarted by every deploy anyway.
+- [x] **Measured.** Ordinary traffic does NOT ratchet: a Лира turn through the
+  real Mini App took RSS from 425MB to 492MB and it was back to 426MB within 45
+  seconds, then flat at ~425MB across the following samples. So the memory a
+  request borrows is returned; only the catalogue refresh — a far larger
+  transient — grows the heap permanently.
+- [x] That makes the 6-hour TTL the right and sufficient lever: the same ~33MB
+  per refresh now accrues 4 times a day instead of 48, against a process that
+  every deploy restarts anyway.
+- [ ] Still unproven, and only time can prove it: that no memory kill happens
+  over several days. `grep "exceeds --max-memory-restart" /root/.pm2/pm2.log`
+  stands at five; the fifth was 20:43 on the pre-TTL code. If it moves,
+  `--max-old-space-size` (make V8 collect rather than grow) is the next lever —
+  and a safer one than raising the pm2 cap on a box whose 2GB swap is full.
+
+## A red CI that was a production bug (done)
+
+- [x] `api.degradation` began failing with `502 !== 200` on CI and passing 4/4
+  locally. It reproduced twice, so not a flake — but the suite printed the
+  spawned API's stderr only when the process EXITED non-zero, which is the one
+  failure mode it does not have. The explanation sat in an unread buffer.
+- [x] With the assertion carrying that stderr, the cause was one line:
+  `Error: database is locked` from `listCatalogProfileOverrides`, i.e. SQLite
+  refusing a contended read while building the profiled catalogue.
+- [x] The account store runs in WAL mode but set **no `busy_timeout`**, so a
+  contended statement failed instantly instead of waiting. The
+  station-intelligence store has always set it. This is a production bug, not a
+  test artifact: the nightly backup unit opens the same database at 04:20 UTC,
+  and a listener would get a 502 Home screen for the duration.
+- [x] `PRAGMA busy_timeout = 5000` on the account store; both suites that spawn
+  an API now get their own `ACCOUNT_STORE_PATH` and `CATALOG_DATA_DIR` instead
+  of sharing the developer's files.
+
+## The ratchet saturates (measured)
+
+Four real catalogue refreshes against the live mirrors, on the current code,
+in a local API with no other traffic (each round waited out BOTH the raw TTL and
+the hard-coded 5-minute profiled-cache TTL, and each is confirmed by a ~70s
+response — a cache hit answers in milliseconds):
+
+```
+after boot warm     193MB
+after refresh 1     556MB   (+363)
+after refresh 2     629MB   (+73)
+after refresh 3     629MB   (+0)
+after refresh 4     628MB   (-1)
+```
+
+- **It is not linear.** V8 grows the heap to fit the refresh working set over
+  the first two refreshes and then stops: rounds three and four cost nothing.
+  The plateau, ~629MB with no traffic at all, sits below the 896MB cap.
+- So production's 480MB -> 1010MB over eleven refreshes was not eleven refreshes
+  each keeping ~33MB. It was that plateau PLUS the traffic and the hourly
+  harvester burst on top of it.
+- Which makes the six-hour TTL worth more than the arithmetic suggested: the
+  process now spends nearly all its life at the low baseline (437MB observed on
+  production over an hour) instead of repeatedly climbing to the plateau.
+- No further code change is justified by this evidence. The number to watch is
+  still the kill counter.
+
+The first version of this measurement was wrong and is worth remembering as a
+trap: it drove `/catalog/summary`, which is served from an HOURLY bucket cache
+and never reaches the catalogue, so four "refreshes" were four 3ms cache hits
+that "proved" 0.3MB per refresh. A refresh needs a request that goes through the
+profiled catalogue AND both caches lapsed, and it takes ~70 seconds — so the
+response time is itself the check that a refresh happened.
+
+## Nothing ratchets permanently (measured across a full cycle)
+
+Production, 63 minutes of one-per-two-minute sampling across a complete
+harvester cycle, no deploys in the window:
+
+```
+22:25 - 23:06   462-463MB    flat for 41 minutes, no traffic, no refresh
+23:08           464MB        harvester tick starts
+23:10           481MB
+23:12           504MB        peak during the tick
+23:14           416MB        tick ends - and it lands BELOW where it began
+23:16 - 23:28   414-415MB    flat
+```
+
+- The hourly harvester burst costs **+42MB transiently and returns all of it**,
+  settling ~48MB below the pre-tick baseline. The earlier 437 -> 468MB reading
+  that suggested a per-tick ratchet was simply the transient caught mid-tick.
+- Together with the other two measurements — a Лира turn returns its +67MB in
+  45 seconds, and the refresh ratchet saturates after two rounds — **nothing in
+  this process accumulates without bound.** The 480MB -> 1010MB climb before the
+  fixes was refreshes every 30 minutes never letting the process leave the
+  elevated plateau, not a leak.
+- Kill counter frozen at five for over three hours, the fifth being 20:43 on the
+  pre-TTL code.
+
+## The first thing the new telemetry caught (done)
+
+The client analytics unblocked yesterday morning recorded their first real
+listening session overnight, and it described a defect nobody had reported:
+
+```
+play_attempt 11 / play_success 8      audio_silent_stall 4
+audio_reconnect_scheduled 7           audio_reconnect_recovered 8
+```
+
+- Every one of those problems belongs to a **single listener on a single
+  station**, «Родные Нулевые - Русское Радио», across a session where they put
+  the phone away and came back four times.
+- The tell: at 18:07:56, after the app had been hidden for almost two minutes,
+  `audio_visibility_change` (visible) and `audio_silent_stall` arrive in the
+  SAME second, followed by a reconnect.
+- Cause: the silent-stall watchdog judged "no progress" from
+  `Date.now() - lastProgress.at`, and that clock is refreshed by `timeupdate`
+  events — which a backgrounded tab throttles or withholds while the audio keeps
+  playing. So the first tick after the listener returned saw two minutes of
+  apparent silence and tore down a healthy stream. For a radio app whose whole
+  use case is a phone in a pocket, the watchdog was interrupting exactly the
+  listening it exists to protect.
+- Fix: the watchdog now reads `audio.currentTime` and refuses to recover when
+  the position has actually MOVED, whatever the event clock says. Real position
+  movement was already the definition of "alive" in `handleTimeUpdate`; the
+  watchdog simply never consulted it, though it had been storing the position
+  all along.
+- `shouldRecoverFromSilentStall` keeps the whole decision, so the case is a unit
+  test rather than a story: position moved + a 120s stale clock must NOT recover,
+  a genuinely flat position still must. Verified to fail without the guard.
+
+## The station itself: not flaky (measured)
+
+Asked directly after the watchdog fix: was «Родные Нулевые - Русское Радио»
+(`470bb4ed`, 96kbps AAC+) also just a bad stream? Probed from the VPS:
+
+```
+direct, 180s     99 kbps against a declared 96; 27 gaps of 2-3s, one every ~6s
+direct, 600s     97 kbps; 95 gaps, ALL of them 2.0-3.3s, same ~6s rhythm
+control TGRT FM  137 kbps, no gap >= 2s
+via our /stream  same 6-second burst pattern, unchanged
+```
+
+- **Throughput is exactly nominal** — the stream is not starved and does not
+  drop out. Ten minutes produced not one gap longer than 3.3s, i.e. no dropout
+  at all beyond the regular rhythm. The station is healthy.
+- The 2-3s gaps are its server flushing in blocks rather than streaming
+  continuously. The control station has none, so it is that host's behaviour;
+  our proxy passes it through without adding anything.
+- A buffered `<audio>` rides through a 3s gap without `currentTime` going flat,
+  so it cannot trip the 9s silent-stall watchdog. That confirms the four
+  `audio_silent_stall` events were the watchdog bug, not the stream. The two
+  `audio_buffering_reconnect` events are the ones plausibly explained by bursty
+  delivery leaving thin margin on a mobile connection.
+- `tools/probe-stream.mjs` keeps the method; RUNBOOK explains how to read it.
+
+## Heap cap, measured before it shipped (done)
+
+Kill #6 landed at 16:00 on 2026-08-16 — 959MB after 10 hours — so the six-hour
+TTL made the climb slower, not absent. It also showed what the climb costs a
+listener: during that window `/catalog/summary`, `/search` and `/areas` all
+stopped answering for over a minute while `/health` stayed instant, because the
+catalogue endpoints queue behind a refresh.
+
+- Added `runtime:heap_used_mb`, `runtime:heap_total_mb` and
+  `runtime:external_mb` gauges first. `--max-old-space-size` bounds the V8 old
+  space, not RSS, and the gap between them is ~90MB of code, stacks and
+  fragmentation — sizing the flag from RSS is how a graceful pm2 restart becomes
+  a fatal OOM.
+- Measured against a real refresh (62 423 stations, 71s refetch):
+  ```
+  default   rss 557MB  heapUsed 352MB  heapTotal 468MB
+  640MB     rss 479MB  heapUsed 278MB  heapTotal 394MB   refresh completed fine
+  ```
+- Shipped `--max-old-space-size=640`. The cap is never reached, so it changes
+  V8's growth policy rather than squeezing the working set: the process settles
+  ~78MB lower and keeps ~165MB of RSS headroom under the pm2 cap.
+- The first measurement of this was wrong in the now-familiar way: it waited a
+  fixed 25s for the boot warm, the fetch was still running, and the "refresh"
+  five minutes later hit a profiled cache that had only just been built. A 13ms
+  response gave it away — a real refresh takes ~71 seconds.
+
+## The attempt counter had no honest denominator (done)
+
+A day of real telemetry read `play_attempt 248 / play_success 38` — a 15%
+success rate, if the two were comparable. They are not:
+
+- `RadioContext` starts a play, emits `play_attempt`, and when the result comes
+  back `'playback superseded'` it returned **silently** — no success, no
+  failure. The Feed supersedes a play on every swipe, so 248 - 38 - 3 = 207
+  attempts had simply vanished.
+- `play_superseded` now counts them, so the arithmetic reconciles and nobody
+  else reads that ratio as a broken player. RUNBOOK gives the corrected formula.
+- The API allow-list had to learn the name too, and the drift test written
+  yesterday caught it immediately — which is exactly what it was for.
+
+### A flake that nearly cost a good change
+
+The full E2E suite went 240 -> 238 right after this change, twice, with
+different specs failing each run. A control run with the change reverted came
+back 240, which looked conclusive. It was luck: a SECOND control run also
+returned 238, failing on `feed-filters.spec.ts:439` — the same spec that fails
+in most runs regardless. The change is exonerated; the suite is simply flakier
+on a loaded machine than the earlier three green runs suggested.
+
+Worth keeping as method: one control run is not a control. The first
+explanation this produced (throttling the event to reduce beacon volume) was a
+fix for a problem that did not exist, and was reverted once the second control
+landed.
+
+## The E2E flake, measured and mostly gone (done)
+
+The suite dropped 1-2 specs per run, different ones each time, all passing in
+isolation — which had already cost one near-wrong decision earlier in the day.
+
+**Cause found by arithmetic.** `.station-feed-overlay` mounts with
+`animation: station-feed-expand 240ms`, starting at `transform: scale(0.965)`.
+`boundingBox()` reports the TRANSFORMED box, so a 44px control measures
+44 x 0.965 = **42.46px**, under the 43.5px floor the touch-target test asserts.
+The test's only wait was for a card name to be visible — which happens at the
+START of those 240ms. A serial full-suite run passes 240/240; parallel load only
+decides whether the measuring round-trip lands inside the window.
+
+Fixed with `waitForAnimationsToSettle` in `tests/helpers.ts`, which waits for
+finite animations and then measures. The 43.5px threshold is untouched: the
+contract is asserted on the settled geometry, which is what it always meant.
+
+**The first version of that helper was worse than the bug** — it waited for ALL
+animations, and the Feed has an infinite pulsing live dot that never leaves
+`running`, so all 12 probe runs hung. Only finite animations can settle.
+
+**Second cause: the suite ran the API under a file watcher.** The webServer
+command was `npm --prefix ../api run dev` = `tsx watch`. Editing any API source
+mid-run restarts the shared server and fails whichever specs are in a request —
+indistinguishable from flakiness, and it explains several of the earlier
+readings, taken while this session was editing files. Now `serve:e2e`, no
+watcher.
+
+Measured, full suite, same machine:
+
+```
+before          238, 238, 238, 240, 238      8 failures / 5 runs
+after animation 239, 240, 240, 239, 240      2 failures / 5 runs
+after watcher   240, 239, 239                2 failures / 3 runs, both visual
+targeted probe  1 failure / 12 -> 0 / 180    feed-filters 44px floor
+```
+
+**Residual, and deliberately not fixed:** the two remaining failures are
+screenshot baselines (`visual.spec.ts` library + theme studio) diffing 0.05-0.06
+against a `maxDiffPixelRatio: 0.04` tolerance. That is 5-6% of the image, too
+much for antialiasing — the baselines no longer match what the app renders.
+Regenerating them now would bake in whatever the current content happens to be,
+days before the design pass rewrites these screens anyway, and loosening the
+tolerance would weaken the check. They belong to the baseline refresh already on
+this list.
+
+## Лира's glass was dead in the bundle, not in the design (done)
+
+A guard written during the Search rebuild — `assertBackdropFilterOrder.mjs` —
+was wired to nothing: no npm script, no workflow, no test. Its only mention in
+the tracked tree was a CSS comment claiming it "enforces this mechanically".
+Running it for the first time produced fourteen flags.
+
+Measured on the real bundle before touching anything: 76 standard
+`backdrop-filter` declarations against 89 prefixed ones. Twelve values existed
+ONLY as `-webkit-backdrop-filter`, all of them in `ChatSheet.css` — the scrim,
+the card, the header, the bubbles, the prompt cards, the station cards, the
+input and the composer. The bundler treats the pair as one prefix group and
+keeps the last of the two, so writing the standard property first deletes it.
+
+The half that turns this from a style nit into a live defect: Chrome 148 answers
+`CSS.supports('-webkit-backdrop-filter', 'blur(1px)')` with **false**. The
+surviving declaration is one the browser does not parse, and the
+`@supports not (backdrop-filter: ...)` fallback cannot fire either, because the
+browser does support the standard property — what was missing was the
+declaration. Every glass surface of the Лира chat has been shipping transparent
+and unblurred in the engine Telegram uses on Android and on desktop.
+
+Nothing could have caught it: Playwright runs the dev server, unminified, where
+declaration order is irrelevant. Every screenshot showed perfect glass.
+
+- Twelve pairs in `ChatSheet.css` reordered, prefixed first. After: 89 standard
+  against 89 prefixed, nothing missing its twin.
+- Two further flags — `StationPlaceCard.css` and `FullPlayerOverlay.css` — were
+  NOT this bug: they had no prefixed twin at all, and the bundler adds one.
+  Written out by hand anyway, because no build target is pinned anywhere in this
+  repo, so that autoprefixing is a default rather than a decision.
+- `src/glassPrefixOrder.test.ts` runs the guard inside the suite CI actually
+  executes. Verified in both directions: reintroducing one reversed pair turns
+  the suite red on `ChatSheet.css:18`.
+
+## The guards that ran nowhere (done)
+
+Finding the glass defect started the same question everywhere else: what else in
+this repo is written as enforcement and executed by nothing? Four answers, all
+now inside `npm run test:scripts`, which CI runs.
+
+- **`geo:check`** audits the globe's country fallback across the whole dump —
+  the path that places 49,230 of 62,407 stations, and the only thing that
+  exercises it at scale. It read `apps/webapp/public/catalog-full.json`, which
+  stopped existing when the dump moved to `artifacts/`, so it had been exiting
+  ENOENT rather than checking anything. Repointed, it found one station at
+  exactly 0,0 on its first real run. The resolver already refuses null island,
+  so nothing was misdrawn; the artifact was carrying a value every consumer had
+  to know to ignore, and `updateCatalog.mjs` now writes the pair as absent.
+- **`test-prune-caches.sh` and `test-preserve-chunks.sh`** test the two failures
+  that filled this VPS to 96% on 2026-08-14, and the rsync contract that decides
+  whether a deploy serves half a bundle. Neither had an npm script; one was
+  referenced in no file in the repository at all.
+- **The Claude Code hooks** got a battery of their own, in both directions. A
+  guard that blocks too much is a guard someone switches off: the bash one
+  refused to commit a message quoting the commands it blocks, and the path one
+  refused edits to `.env.example`.
+
+Two things this did NOT fix, both worth knowing before trusting the numbers:
+
+- `geo:check` reports one zeroed row until the nightly workflow regenerates the
+  artifact. The row is upstream data, the fix is at the generator, and the gate
+  stays fatal in the meantime — an earlier attempt deleted that gate to get a
+  green command, which is exactly the shortcut this file exists to prevent.
+- Its `stationsOutsideCountry: 0` is not the product's number. The script models
+  the resolver's country-pool branch only: no per-station jitter, and no state
+  anchors, which `GlobeScreen` feeds it in production. An adversarial replay of
+  the real jitter over the same pools put 3.24% outside their country polygon,
+  against this file's own 1% ceiling. The check is honest about the branch it
+  measures and silent about the two it does not.
+
+## The globe drew 583 stations in the wrong country (done)
+
+The follow-up the last section promised, measured against the real resolver
+rather than a copy of it. `geoResolver.ts` was loaded directly, fed the
+catalogue in the shape `/catalog/points` ships, and given the state anchors
+`GlobeScreen` builds; then d3-geo was asked whether each dot was inside the
+polygon of the country the station claims.
+
+**583 synthesized dots — 1.27% — were inside a NEIGHBOURING country.** 57
+Mexican stations in the United States, 31 German in Czechia, 29 Dutch in
+Germany, 22 Swiss in France. A further 1,162 sat outside every polygon, which
+is mostly the 110m world being coarse around coastlines and not worth chasing.
+The cause: a pool point is sampled inside the country, and then a fixed ±0.12°
+jitter was added to it without asking whether the result was still home.
+
+Two things had to survive the fix. The jitter exists so stations sharing a pool
+point do not stack on one pixel: dropping straight back to the pool point cost
+2,527 stations their own position and built a stack of 40 in Dubai, whose
+anchor is two kilometres from the water. The offset now **mirrors before it
+shrinks** — same radius, other side of the point — and only then steps down.
+
+- Synthesized dots in another country: **583 → 0**. Off every polygon:
+  1,162 → 1. Stacking: 0 → 0.
+- The 158 dots still outside their country all come from Radio Browser's own
+  coordinates, which we deliberately do not move. The ±2° bbox check that
+  catches the gross ones is untouched.
+
+### The globe's first mount got 2.3 seconds cheaper
+
+Measuring the fix turned up something bigger. Sample pools were built eagerly:
+2,048 rejection-sampled points for every country the payload touched, whether it
+shipped 7,000 stations or eleven. Measured in Chrome on the real 59k payload,
+that was **6.3 seconds** of the Globe's first mount — and resolving the stations
+afterwards was 60ms. Essentially the whole wait was sampling, and most of it was
+thrown away.
+
+Points are now sampled per SLOT, on demand: a slot's point is a pure function of
+(country, slot), so a country pays for the slots its stations actually land in.
+Chrome, 59,039 points, alternating runs:
+
+| | first mount | second pass |
+| --- | --- | --- |
+| before | 6182 / 6454 ms | 60 / 59 ms |
+| after | 2758 / 2733 ms | 868 / 864 ms |
+
+The second pass is dearer because that is where the containment check now lives
+with the sampling already cached. A session pays 2.8s + 0.9s per re-resolve
+instead of 6.3s + 0.06s, so the Globe is ahead after the first mount and stays
+ahead for the two or three re-resolves a session actually does. Memoising the
+resolved point per station would take the repeat cost to nothing at roughly 6MB
+— measured as not worth it yet, and written down so it is not re-derived.
+
+### And then France turned out to be half the remaining cost
+
+Profiling the sampler over the real catalogue: rejection sampling costs
+(slots used) ÷ (acceptance rate) containment tests, and one country was **49.7%
+of all of it**. France accepts at 3%, because its 110m feature carries French
+Guiana and the bounding box therefore runs from 54°W to 8°E across the Atlantic.
+Greece, Indonesia, Chile, Japan and New Zealand followed, all for the same
+reason: islands, or long thin land, in a box full of sea. The hundred-odd
+countries with fewer than 128 stations were 6.5% of the work between them.
+
+A country is now sampled one polygon part at a time, with the part chosen in
+proportion to its true spherical area (`geoArea`), and the containment test run
+against that part alone. Area-weighted choice followed by a uniform draw inside
+the part is still a uniform draw over the country, so nothing about the picture
+changes — verified against the real catalogue: mainland Greece is 93.0% of the
+country's area and took 92.0% of its dots before, 92.1% after. There is a test
+pinning that, and it passes on both samplers, which is the point of it.
+
+| Chrome, 59,039 points | first mount | second pass |
+| --- | --- | --- |
+| eager pools (the original) | 6182 / 6454 ms | 60 / 59 ms |
+| per-slot sampling | 2271 / 2261 ms | 748 / 762 ms |
+| + area-weighted parts | **1415 / 1369 ms** | 756 / 757 ms |
+
+The second pass is now the containment check on the jitter and nothing else.
+
+### `geo:check` now runs the product's code
+
+It used to carry its own copy of the algorithm: still 196 points per country
+after the resolver moved to 2048, no jitter, no idea state anchors existed. It
+reported `stationsOutsideCountry: 0` while the product was misplacing 583 dots.
+It imports the resolver now, and it gates on the number that matters — a
+synthesized dot in the wrong country is a hard failure.
+
+It also found two rows the artifact should never have carried: one station at
+exactly 0,0 and one with a latitude the Earth does not have. Both are normalised
+away at the generator; until the nightly workflow rewrites the artifact,
+`npm run geo:check` reports them and exits 1, which is the truth.
+
+## The counters could not answer the question they exist for (done)
+
+`Next:` says to watch the playback ratio. Reading it on production gave 248
+`play_attempt`, 38 `play_success`, 1 `play_superseded`, 3 `stream_failure` — 206
+attempts unaccounted for, and a "15% success rate" that is not a rate at all.
+The reconciliation fix from 2026-08-16 works; what it cannot do is retroactively
+count the supersedes that happened before it, and the store now survives deploys,
+so the totals mix the two eras permanently. Every counter in this system has the
+same problem the moment its meaning changes.
+
+`/observability` now carries `counterWindows.last1h` and `.last24h`: per-hour
+increments, only for counters that moved, with the timestamp the window really
+starts at. An idle hour costs about twenty bytes, so a day of history is smaller
+than one retained agent run. The windowing is two pure functions taking the
+clock as an argument, and their test is the reason they are pure.
+
+## Плотность экранов: измерено 02.09.2026, начато
+
+Владелец: «огромные пустые пространства и слишком большой текст... очень много
+пустоты, рамок, ограничений... в телеграме необоснованной пустоты нет».
+
+Измерено на проде, 390x844, каждый экран отдельно и с проверкой, что поверх нет
+оверлея. Метрика — доля строк вьюпорта без единого элемента с текстом, img, svg
+или canvas; фоновые картинки в «чернила» не идут, поэтому фон героя числится
+пустым, хотя он осознанный.
+
+| экран | пусто | крупнейшая дыра |
+| --- | --- | --- |
+| Моё | **64%** | 270px |
+| Поиск | 55% | на экран влезает ОДИН результат |
+| Главная | 52% | 123px под шапкой |
+| Глобус | **6%** | — |
+
+Глобус — контрпример: приложение умеет быть плотным, значит дело в конкретных
+правилах, а не в стиле.
+
+**Формулировка точнее жалобы.** Самые частые кегли: 11px (80 объявлений), 12px
+(76), 10px (51), 9px (19) — 235 объявлений мельче 12px. Приложение не крупное
+сплошь, оно двухполюсное: два-три огромных декоративных заголовка (30px
+«Главная» — крупнее названия станции, из-за override в лениво загружаемом чанке
+Home) и крошечный 10-12px текст для содержимого. Пилюля 44px, буквы в ней 10px.
+Пиксели уходят в оправу, содержимому не достаётся. Лечить надо убирая оправу и
+ОДНОВРЕМЕННО увеличивая контентный текст до 14-15px, иначе выйдет то же самое,
+только мельче.
+
+**Система есть, её обходят.** `boot.css` объявляет шкалу кегля
+(`--text-xs`…`--text-2xl`), интервалов и скруглений. Из 520 объявлений
+`font-size` через шкалу идут **50**. Дизайн развалился не от отсутствия плана, а
+оттого, что план игнорируется в 90% случаев — значит работа не «придумать
+систему», а вернуть в приложение существующую.
+
+Отгружено в этот заход, всё вне придержанного решения:
+
+- `.library-empty-state` больше не платит `--screen-bottom-safe-v2`: это резерв
+  экрана, наложенный на карточку внутри экрана, который его уже оплатил.
+  Карточка 292 → 206px, документ 993 → 903px.
+- Пунктирная рамка `.empty-state` внутри `.glass-card` убрана: две скруглённые
+  рамки шли в 1px друг от друга. Правило привязано к структуре
+  (`.glass-card > .empty-state`), а не к имени, чтобы пустое состояние ВНЕ
+  карточки сохранило свою рамку.
+- Возвращён `--shell-safe-top` в `padding-top` героя (см. `.claude/rules/webapp.md`).
+
+⚠ **Честный предел этой правки:** пустота на «Моё» ушла с 64% до 63%. Дыра
+сдвинулась, а не исчезла, потому что медиатека пуста ПО СУЩЕСТВУ — обрезка
+отступов не заполняет полку с нулём станций. Настоящее лечение — предлагать
+станции прямо в пустом состоянии вместо текста о том, где их искать. Это
+продуктовое решение владельца, не CSS.
+
+Ждёт владельца: снятие второго резерва нав-бара (см. выше, придержано им же) и
+вопрос, убирать ли ряд «Новый плейлист» — 62px за кнопку, дублирующую действие
+на вкладке «Плейлисты».
+
+## Telemetry could not answer "did that help" (done 02.09.2026)
+
+Two defects, found while trying to measure whether the 01.09 black-screen fix
+brought anybody in. Both had been silently true for months, and between them
+they meant the project's own instructions for reading its own numbers could not
+be followed.
+
+**The success-rate command in `RUNBOOK.md` always printed `0/0`.** It read
+`c.play_attempt`, and every client counter is keyed `client_event:play_attempt`
+— the API prefixes them at the point of increment. Verified against production
+over the same 24 hours: the bare names returned `undefined`, the prefixed ones
+returned 67 attempts, 46 successes and 7 supersedes. Nothing errored; the output
+was a plausible number that said the box was idle. This is the repeat failure
+mode of this project — silence that looks like an answer — and it is why the
+number went unread.
+
+**The store holds 25 hours, full stop.** `MAX_COUNTER_BUCKETS = 25` is the right
+budget for 600+ hourly keys, and the wrong one for a before/after: on 02.09 every
+bucket in the store was already after the fix, so the largest change shipped for
+reach in months was unmeasurable, and PLAN.md was in three places telling the
+next person to compare across a deploy or "let it run for weeks".
+
+`counterDaily` is the second half: 90 days, one entry per day with a readable
+`date`, for the fourteen names in `DAILY_COUNTER_KEYS` — reach, playback, stream
+transport. Deliberately an allow-list of exact names and not a prefix: 587 of the
+store's 624 keys are per-route, and keeping those for a quarter is precisely the
+cardinality problem `MAX_COUNTER_KEYS` was written about, on a box whose swap is
+already full. Fourteen keys times ninety days is smaller than one retained agent
+run.
+
+It is NOT derived from the hourly buckets — those expire, so any restart or
+quiet stretch would drop a day and leave a series with invisible holes, which is
+worse than no series because it still looks like an answer. And it cannot be
+backfilled: the series starts the day it deploys, which is the price of not
+having had it.
+
+## The browser suite runs in CI now, and still does not gate (done)
+
+`ci.yml` said Playwright stays out "until the flakes are fixed", which is a
+condition nobody was measuring: the suite only ever ran on one developer's
+machine, so there was no evidence either way. It runs on CI now as a separate
+job with `continue-on-error`, so a red run is a warning annotation and never a
+blocked merge — the failure mode the original comment was protecting against.
+
+Evidence it is worth running at all: five consecutive 240/240 runs on this
+machine tonight, after the animation-settle fix. Evidence it should not gate
+yet: none from CI hardware, which is exactly what the job now collects. The
+promotion criterion is written next to the flag it would delete — twenty
+consecutive green runs with no spec failing twice on the same line.
+
+An adversarial review of the first version found it would have been permanently
+red, and the three things it found were all real:
+
+- **Every visual baseline is `-win32.png`.** Playwright appends
+  `process.platform`, so on ubuntu-latest all 23 screenshot assertions look for
+  `-linux.png` and fail on every run — a job that cannot go green cannot satisfy
+  its own promotion criterion. CI runs `test:e2e:ci`, the suite with
+  `--ignore-snapshots`; the non-pixel assertions in those specs still run, and
+  Linux baselines stay a separate decision because they are the product's
+  appearance.
+- **The e2e API was racing the live Radio Browser mirrors.** The config never
+  set `CATALOG_ARTIFACT_ONLY`, and `/catalog/points` is not among the routes
+  `tests/helpers.ts` stubs, so a Globe spec waited on somebody else's network
+  inside a 30s timeout — and a request landing before the boot warm finished
+  started a second four-mirror race, two catalogues in memory beside Chromium
+  and Vite. Now set, as `api.contract.test.ts` has done for months.
+- **The failure upload had nothing to upload.** No `reporter` was configured, so
+  Playwright wrote no `playwright-report/` and `upload-artifact` warned and
+  passed — the report missing in exactly the case it is wanted.
+
+The same review turned up two API test files sharing a port range
+(`billing.reconcile` and `session.lifecycle` at 35600+400) and a third
+overlapping two others (`auth.telegramCallback` at 37200+400 across
+`catalog.deleted` and `fixtures.production-guard`). Both run inside one
+`test:api`, so each was a flake that reproduces about once in four hundred runs
+and never on purpose. Ranges are now listed in `.claude/rules/e2e-tests.md`.
+
+Measured for the timeout rather than guessed: the suite serially — which is what
+Playwright's 50%-of-cores default gives a 2-core runner — is 240 passed in 5.6
+minutes, against 3.0 at the default worker count.
+
+### What the job found in its first two runs
+
+Run 1: `visual.spec.ts` asserted the Home hero had flipped to `now-playing`
+after waiting for the resume chip, which is a different render. Six passes in a
+row here, `recommendation` on the runner. It waits for the attribute it asserts
+now — no weaker, because a hero that never flips still times out.
+
+Run 2: `page.screenshot: Protocol error (Page.captureScreenshot)` on a
+1440×1688 clip. `--ignore-snapshots` skips the comparison, not the capture, so
+the CI command now skips the pixel specs by title instead. The three behavioural
+specs inside `visual.spec.ts` take no screenshots and still run.
+
+And the flake the original comment was about reproduced locally the moment the
+schedule changed: dropping the visual specs put two others over the edge in one
+parallel run — `.station-feed-overlay` never appearing, and a `mouse.move`
+timing out mid-drag. `--workers=1` is now in the CI command, and the same 224
+specs are 225/225 on two serial runs. Serial is what a 2-core runner would do
+anyway; being explicit means the result does not depend on which machine GitHub
+hands out.
+
+## The local app never reached its own API (done)
+
+Reported from the outside — "нет никого", then "и Россия не отображается" — and
+both were one cause with three layers, none of them in the globe code the night
+was spent on.
+
+`apiBase.ts` returned `/api` only when the page was served over https, so on
+`http://localhost:5173` the base was empty and every catalogue call went to
+`http://localhost:5173/catalog/points`. Vite answered with the SPA fallback:
+200, `text/html`, no error in any console. `GlobeScreen` then had zero points,
+and `usePointsLayer = points.length > 0` — the station layer is gated on the
+payload arriving, not on zoom — so no amount of zooming ever showed a dot. The
+only way in was `?api=/api`, which the Playwright specs pass and nothing else
+documented.
+
+Underneath that, the proxy those requests never reached was broken too: its
+target was `process.env.PORT || VITE_API_PROXY_PORT || 3001`, and in the dev
+server's own process `PORT` is the dev server's port, so it proxied to itself.
+Now `VITE_API_PROXY_PORT` only, and `127.0.0.1` rather than `localhost` —
+measured: `[::1]:3001` is refused because the API binds IPv4 only.
+
+### The placeholder pills are placed by the resolver now
+
+Chasing "Россия не отображается" turned up a real second defect. The API builds
+the area pills from stations that carry coordinates and has no geometry to
+check them with, so Radio Browser's bad rows go through: eight stations claim a
+latitude below 60°S, all eight are junk, five of them Radio Caprice filed under
+Russia. The placeholder drew Russian pills in Antarctica and the South Atlantic.
+
+The fix is client-side, deliberately. A geometry-free rule was measured first —
+per-country median with a 6×MAD window — and it rejects 4.77% of coordinate-
+carrying stations, including Malmö, Lviv, Honolulu, Martinique, Khabarovsk and
+Kemerovo: Russia's median is pinned to Moscow, so anything past the Urals falls
+outside the window. Instead `lib/globeAreas.ts` runs each pill through
+`resolveStationCoords`, the same function that places the dots — it already owns
+the polygons, already rejects coordinates outside a country's bbox, and already
+knows where to put one that fails. A plausible pill comes back byte-identical
+(Kamchatka at 158°E does not move); the 82°S one lands in Russia. A second copy
+of the geometry in the API is exactly the drift that left `geo:check` auditing
+an algorithm the globe had stopped using.
+
+## The deploy that took twenty minutes (open)
+
+Deploying the geo fix took 20m44s against a normal 1m10s, and
+`https://radioatlas.ru/` timed out for most of it — while the API answered on
+loopback in 4ms and `current` still pointed at the old release. The edge was
+starved, not broken. Full evidence in `RUNBOOK.md`; the short version is that a
+human push ships the nightly artifact commit along with its own (a
+`GITHUB_TOKEN` commit does not trigger a deploy by itself), the upload rsync has
+no `--link-dest` so it re-sends the whole tree, and 107MB of changed JSON on a
+2-core box that a neighbour was also using pinned it.
+
+The upload step now points rsync at the previous release with `--link-dest`, so
+anything already on the box comes off local disk instead of the wire. Measured
+on the first run: **3 files of 650 transferred, 38KB sent instead of 89MB**.
+
+Two things the box taught before and after shipping it. `--link-dest` alone
+would have matched nothing, because rsync compares size + mtime and a git
+checkout restamps every file — `--checksum` is what makes the comparison real,
+at 0.1s for the 37MB catalogue. And for the same mtime reason it does not
+hard-link either: it copies locally, so the saving is wire and remote CPU, not
+disk. The comment and the runbook say so now; the first version of both claimed
+a disk saving that `stat -c %h` immediately disproved.
+
+**Still open:** whether that was the cure. The evidence for the outage fits the
+neighbour's concurrent fetch just as well as it fits our payload, and the
+deploys after it were back to a minute regardless. `--stats` is now in the
+command, so the next slow one reports what it actually sent.
+
+## Live listeners: the threshold was never the reason (measured)
+
+`PLAN.md` and the notes have said for weeks that `/listening/live` is empty
+because the privacy floor of three listeners on one station is too high for the
+current audience. That was an inference. The hourly counter windows shipped
+yesterday made it checkable, and the last 24 hours on production say:
+
+```
+app_opened      6          play_attempt 33   play_success 21   play_superseded 1
+```
+
+Six app opens in a day. `app_opened` is deduped at 60s per client, so that is
+six real opens, not many collapsed into one. Three people on the SAME station at
+the SAME time is not a threshold problem — it is arithmetic. Lowering k to two
+would trade away the privacy property for approximately nothing, and lowering it
+is the one change the design says never to make.
+
+So the feature is not broken and nothing about it needs fixing. What was missing
+is the instrument: four aggregate gauges now report `presence:live_listeners`,
+`live_stations`, `peak_listeners_1h` and `peak_station_listeners_1h`. Peaks,
+because a 30-second sample of a small audience reads zero almost every time; and
+counts only, never a station id in a key, because a gauge saying "somebody is on
+this niche station" is exactly what the floor exists to prevent.
+
+When `peak_station_listeners_1h` starts touching 2 and 3, the surface will light
+up on its own. Until then the honest reading is that there is no crowd to show.
+
+### The number that does deserve attention
+
+The same 24 hours: **21 successes out of 32 real attempts, 65.6%**. A listener
+who taps play has better than a one-in-three chance of nothing happening, with
+14 `audio_candidate_failed`, 25 reconnects scheduled, 20 buffering reconnects
+and 3 silent stalls behind it. At six opens a day that is where the product is
+losing people, and it is now measurable per hour rather than as a total since
+the store was created.
+
+## A third of plays failed, and we were doing it to ourselves (done)
+
+The first honest success rate this project has ever had, from the hourly
+windows: **21 successes out of 32 real attempts in 24 hours, 65.6%**, with 11
+`stream_failure`. The reconciliation is exact — 33 = 21 + 1 superseded + 11
+failed — so a third of the time a listener pressed play and got nothing.
+
+Chasing it took four steps and each one killed a theory:
+
+1. The failing stations were named in the retained events. Probed directly:
+   **all alive**, HTTP 200 with audio content types in 88–290ms.
+2. Codecs looked promising — one was FLAC-in-Ogg, which WebKit cannot play — but
+   the catalogue is 95.5% MP3/AAC. 4.5% cannot explain 34%.
+3. The failure kind said `unknown`, which is why nobody had chased this before.
+   The raw `detail` was the answer and it was already being collected:
+   **`The operation was aborted.`**, three times out of five, on
+   `https://radioatlas.ru/api/stream`.
+4. That is a DOMException from `audio.play()`, and the thing aborting it is
+   ours.
+
+The mechanism: a slow station emits `waiting`; the buffering watchdog waits its
+grace and calls the next candidate; that calls `audio.load()`; and the `play()`
+of the current candidate — still pending, because the station is merely slow —
+rejects with AbortError. The catch sees a live session, records a candidate
+failure, and advances too. Two walkers then chew through one candidate list on
+one `<audio>` element, aborting each other, until the list is empty and the
+listener is told the station has no playable stream.
+
+`candidateSwitchGuard.ts` holds the watchdog while a `play()` is in flight — at
+most twice, 2.5s each, because a promise that never settles is exactly the hang
+the watchdog exists for. Five unit tests, and the browser suite is 240/240.
+
+What this predicts, and what to check tomorrow rather than assume: `play_success
+/ (play_attempt - play_superseded)` should rise, and `audio_candidate_failed`
+with detail `The operation was aborted.` should stop appearing.
+
+**Still unverified as of the evening of 2026-08-18**: zero play attempts have
+happened since the deploy, so the 24h window is entirely pre-fix. The prediction
+above is a prediction.
+
+Two things were done while waiting, both of which make the next diagnosis
+cheaper rather than guessing at this one:
+
+- **A wiring test that fails without the guard.** `decideCandidateSwitch` was
+  already unit-tested, but the defect was never in the decision — it was that
+  nobody asked. The new test drives the real hook with a `play()` that never
+  resolves and asserts `load()` is not called again; with the guard removed it
+  fails with the production symptom. Writing it caught a false green worth
+  remembering: `handleWaiting` bails on its first line when the element is
+  paused, and a mocked `play()` leaves jsdom's `paused` true forever, so the
+  first version of both tests passed while asserting nothing at all.
+- **The failure kinds now name the browser's own words.** `AbortError`,
+  `NotSupportedError`, `NotAllowedError` and the decode/network messages all
+  used to fall through to `unknown` — which is the single reason a third of
+  plays could fail for weeks with nobody able to say why, since the counter said
+  `unknown` while the raw `detail` in the same event said
+  `The operation was aborted.` Seven cases, every string taken from production.
+
+## The first shelf now says what is playing on it (done)
+
+Home's three pillars — a live shared moment, not losing what you found, a reason
+to come back — were all real and all buried behind the full-screen player. This
+is the first of them pulled onto the surface a newcomer actually sees.
+
+The «Попробуйте сейчас» shelf previews the track. Six tiles, the exact place
+somebody picks their first station ever, and «Beach House — Space Song» is a
+reason to tap that a station name is not.
+
+Three decisions carry the change, and all three are about restraint:
+
+- **No track, no line.** ~40% of stations never emit a title. A reserved row, a
+  dash or «недоступно» would have turned the most valuable shelf into six
+  apologies; absence is the honest render, and the bottom-anchored overlay means
+  a late title grows over the artwork instead of reflowing the shelf.
+- **Fresh or nothing.** The 14-day localStorage cache stamps resurrected tracks
+  `status: 'ready'`, so a status check would present last Tuesday's song as
+  live. The gate is `isFreshNowPlayingTrack`, and a mutation test proves it is
+  load-bearing rather than decorative.
+- **One shelf, six tiles, one attempt.** `resolveOnce` existed and was tested
+  but had no production caller until now; this is it. A desktop rail renders
+  ~20 stations, so previews stop at six.
+
+That last one exposed a policy that had never had to exist. A refresh can hold
+one of only two metadata slots for ~20 seconds, and previews would have queued
+ahead of the station somebody is actually hearing. `metadataRefreshQueue.ts`
+now serves listeners first AND caps previews strictly below the total, because
+ordering alone does not help if both slots are already busy previewing something
+nobody chose. Extracted rather than patched in place: the failure is silent —
+nothing breaks, the player's track line just takes a minute to appear.
+
+`home_now_playing_preview` reports, once per Home session, how many of the tiles
+that asked were showing a track six seconds in. The case for this whole change
+is that a real track is a reason to tap, and that case is only true if listeners
+see tracks. If it comes back one in six, the answer is different stations on
+that shelf, not a different font.
+
+Three visual baselines moved. The third is `search-screen`, and it was not
+expected: the desktop table's `passive` mode renders whatever the shared cache
+already holds, so the rows Home previewed now show their track there too. That
+is the passive mode working as designed, so it was accepted rather than
+suppressed.
+
+## «Перемешать избранное» played nothing, and blamed the library (done)
+
+The production ring on 2026-08-18, read directly rather than inferred:
+
+    0ms   play_attempt    a76c54e8  q=120
+    0ms   play_superseded ad239b28
+    2ms   play_attempt    c8c5de5f  q=120
+    8ms   play_attempt    54340297  q=120
+    9ms   play_superseded c8c5de5f
+
+**36 attempts, 36 supersedes, zero successes, 191 milliseconds** — and then the
+toast «нечего играть», to a listener with **120 saved stations**.
+
+Two things in that trace prove the mechanism between them. The queue held 120
+items while `playStationQueue` caps a walk at 20, so 36 attempts cannot come from
+one walk. And the attempt at 8ms starts before the attempt at 2ms has returned,
+which a loop that `await`s cannot do. So: two walkers over one list on one
+`<audio>` element — an impatient second tap on a list that had not visibly
+reacted yet.
+
+What turned a harmless second tap into a wipe was the return type. The attempt
+answered `boolean`, so `superseded` — which means "somebody newer owns the audio
+element now" — was indistinguishable from "this station is dead". Each walker
+read the other's takeover as a failure, advanced, and superseded it right back,
+all the way down, and the loser then announced that none of the listener's
+favourites could be played.
+
+This is the same defect as the AbortError one, one floor up: two walkers, one
+list, one element. The fix is the same shape too. `PlayAttemptOutcome` is now
+three-valued, both walkers (`playStationQueue` and `playNext`) go through
+`state/radio/queueWalk.ts`, a new walk retires the old one instead of racing it,
+and only `exhausted` — the one outcome where we actually tried and actually
+failed — may tell a listener their list is unplayable.
+
+Mutation-checked: putting the supersede-as-failure behaviour back turns two
+tests red, including the one that asserts we never claim a list is unplayable
+after handing over.
+
+Worth naming the cost of the old shape: this ran in production against real
+favourites, and the retained counters say it is 80% of every superseded play on
+the box. The second pillar of the product is «не потерять найденное», and the
+one button dedicated to it did the opposite.
+
+## The shelf shipped to nobody (measured)
+
+Three fixes went to production between 2026-08-18 20:32 and 2026-08-19 08:00,
+all three listener-facing. Then the counters were read, and the most useful
+number of the night was an absence.
+
+The newest client event retained on the box is **6.6 hours OLDER than the deploy
+of the first one**, and 11 hours older than the moment it was read. Nobody has
+opened the app since before any of this shipped. `app_opened` stands at 23,
+cumulative, since the store file was created.
+
+So `home_now_playing_preview` reporting nothing is not a broken counter — the
+shelf has never been rendered to a human. Nor can the playback fix from
+2026-08-18 be confirmed: it needs plays, and there have been none. Both
+measurements are correctly built and waiting on an audience.
+
+Which relocates the bottleneck, and it is worth saying plainly. It is no longer
+"what should the product do" — the first screen now says what is playing, a
+saved library plays instead of announcing itself unplayable, and the slowest
+route got faster. It is that nobody arrives. Every remaining engineering idea in
+this file competes against that one, and loses: a feature nobody sees earns
+nothing, however good.
+
+That is an owner decision, not a code decision, so it goes no further here than
+naming it.
+
+## The station you saved was on Home nowhere (done)
+
+The first-run card promises «Сохранишь станцию, и она останется здесь». It was
+not true, and finding out why took three layers — the first of which was the
+only one visible from outside.
+
+**One.** «К чему вернуться» — the shelf that IS the saved stations — was pushed
+ELEVENTH into the rail pool, and a phone renders the first ten
+(`DENSE_RAIL_LIMIT`). Reordering alone would have fixed nothing, because:
+
+**Two.** With favourites present the same module scores 76 against fresh-now's
+70 (`scoreDiscoveryModule`), so it becomes the HERO module — and the hero seeded
+`blockedStationIds` with its station plus three `companionStations` drawn from
+the same list. The list was `.slice(0, 4)`. Hero plus companions consumed all
+four, so the shelf could not render at any position. Worse, on a phone those
+companions are not rendered at all (`homeCards.tsx` drops them when
+dense/compact): three stations deleted from the surface by something that shows
+nothing. The hero alone is blocked now, and the list is ten deep so the shelf
+fills like every other shelf beside it.
+
+**Three.** The shelf was also filtered against `blockedIds`, which
+`blockStations(freshSignals)` fills first. In production the two never meet —
+Home feeds discovery a catalogue with the listener's own stations already
+removed — but when that pool is small the exclusion is skipped and a shelf of
+recommendations quietly ate the favourites it was built from. A saved station
+belongs to the shelf of saved stations first; everything else yields to it.
+
+Two smaller things went with it. The shelf is exempt from the thin-shelf floor,
+because that rule exists to stop a two-tile row of stations NOBODY ASKED FOR
+reading as filler — and one station somebody deliberately saved is the opposite
+of filler; without the exemption the promise stayed false for exactly the
+newcomer it is made to. And the copy said «Станции из твоих интересов и прошлых
+сессий, которые стоит вернуть в ротацию», which is a sentence that avoids saying
+anything; it now says «Ты их сохранил — они остаются здесь».
+
+All three fixes are mutation-checked: restoring the companion block fails four
+unit tests, restoring `slice(0, 4)` fails one, and removing the thin-shelf
+exemption turns the mobile e2e red.
+
+The visual baselines did not move, and that is correct rather than suspicious:
+`home-shell-populated` clips the top of a 1440-wide page and ends at the first
+shelf's tiles, so the new second shelf sits just past the captured region. The
+behaviour is pinned by DOM assertions at 390×844 instead.
+
+## The app could show a blank screen, and it was the fonts (done)
+
+Found while measuring what a display typeface would cost for a design pass. The
+answer turned out to be that the app was already paying more than one, and
+paying it in the worst currency.
+
+`index.html` carried a render-blocking `<link rel="stylesheet">` to a font CDN —
+verified by reading the deployed `index.html` on the production disk, not just
+the source. Measured against the real bundle at 390x844, one variant per
+process:
+
+| the CDN | first paint |
+| --- | --- |
+| link removed | 364 ms |
+| refuses immediately | 356 ms |
+| live, warm DNS | ~550 ms |
+| live, cold DNS+TLS | our own JS did not run until 3 173 ms |
+| **hangs** | **no paint at all in 25 000 ms** |
+
+The hang case reproduced twice: the paint entries come back empty. A refusal is
+survivable; a hang is not, and a hang is precisely what a filtered or throttled
+network produces. This app lives inside Telegram, in Russia, on those networks.
+
+Self-hosting is not a cost here, it is a refund. The CDN was serving 39 336 B on
+the wire for two families, one of which — Space Grotesk — sat in every font
+stack as the fallback after Manrope and **has no Cyrillic subset at all**, so in
+a Russian UI it could never render a single glyph it was asked for. It is gone.
+Manrope now ships as six variable subset files (75 KB on disk) with Google's own
+`unicode-range` split, so a Russian UI with Latin station names downloads latin
++ cyrillic (~39 KB) and never fetches greek or vietnamese unless a station name
+needs them — from an origin whose connection is already open.
+
+`criticalPathNoCdn.test.ts` is the guard that should have existed: the rule was
+written down in `.claude/rules/webapp.md` from the start, and nothing enforced
+it. Mutation-checked both ways — putting a CDN stylesheet back fails it, and
+dropping `font-display: swap` from a single face fails it.
+
+## The memory hunt, and what it actually found (measured)
+
+The owner said the project kept overloading the server. He was right that our
+footprint is the largest single process on a box we share, and wrong that it is
+growing without bound — and so was I, twice, before the data settled.
+
+**What is true.** A quiet API process saturates. Measured over a 25-point series
+on 2026-08-24, four-minute samples: `rss` oscillates 351-485 MB and comes back
+down on its own; `heapUsed` oscillates 156-185 MB and creeps about 2.4 MB an
+hour; `external` steps up early — 27.6, 41.4, 50.4, 64.3 over four hours — and
+then flattens at 64.96 by hour seven. Socket descriptors are a stable pool: 196
+orphaned at 4 h28 of uptime, 195 at 6 h54. The floor is the catalogue, and it is
+honest: one parsed copy of the 62 870-station artifact measures **119 MB**, and a
+fresh heap is 157 MB.
+
+**What was a false alarm, twice.** First, "+19 MB an hour with no plateau" — two
+samples, 2 h and 19 h. Then, "196 descriptors leaking, ~44 an hour" — one sample.
+Both were stated confidently in a report to the owner and both were refuted by
+the next measurement. The rule that came out of it is in CLAUDE.md, next to
+"measurement beats plausibility", because that principle was already written down
+and did not stop either mistake: what was missing was a threshold on how many
+points make a trend.
+
+The 19-hour sample that started the hunt (689 MB rss / 413 heap / 194 external)
+is real but is not a steady climb: that process had lived through a nightly
+scene batch — scenes generate in one burst at 05:00 UTC, 12 on 21.08 and 18 on
+23.08, not spread through the day — and whatever traffic the day brought.
+
+**What the hunt DID find, and both were real.** A render-blocking font CDN that
+gives no paint at all for 25 seconds when it hangs rather than refuses, and a
+request counter minted per station UUID — six keys with no listeners, 46 048 the
+day people browse. Both are fixed and have guards. Neither had anything to do
+with the memory question that started the search.
+
+**What is left.** `cron_restart` at 01:00 UTC caps our footprint at a predictable
+hour instead of letting `max_memory_restart` reap us at a random one; it has
+fired six times historically. The one unmeasured event is the scene batch: it did
+not run on 24.08 while the sampler was watching. If it matters, moving the
+restart to just after 05:00 UTC would leave the process carrying the batch for an
+hour instead of twenty. Not worth doing on a guess.
+
+## A link to RadioAtlas showed nothing at all (done)
+
+Sharing is the only route the first listeners have to a product nobody has heard
+of — and a link dropped into a chat rendered a bare URL. No picture, no
+description, not even a title beyond the single word. Measured on the source
+before touching it: the whole `<head>` carried a charset, a viewport, a theme
+colour, two cache directives and `<title>RadioAtlas</title>`. There was no
+`description`, no Open Graph, no `robots.txt`, no sitemap, and no manifest.
+
+So the growth mechanism the owner had been reasoning about — people reaching for
+what their friends are already in — was failing on a handful of tags, in the one
+file everybody edits for something else.
+
+The preview image is a committed PNG rather than a route, because a crawler must
+not depend on our API being up and the picture is cached for weeks regardless.
+It is drawn by `scripts/buildOgCover.mjs` with the same satori + resvg pair the
+story cards already use, and their Noto fonts, which is why the Cyrillic renders
+at all.
+
+It carries NO numbers, and neither does the description. "46 048 stations" is
+true today and stale the first time the catalogue moves — baked into a preview
+that Telegram and Google hold for a long time, it becomes a number we cannot
+correct. `linkPreview.test.ts` enforces that: a three-digit run in the
+description fails the suite, along with a missing tag or an `og:image` pointing
+at a file that is not in `public/`. Both halves mutation-checked.
+
+What this does NOT do is make the site findable. That needs station pages a
+search engine can read, and this SPA serves an empty `<div id="root">` to a
+crawler. People search for «радио Токио онлайн» in their millions and there are
+46 048 stations here, each a page that could answer one of those searches. That
+is the largest unused channel this product has, and it is the same codebase.
+
+## Scroll cost on a real phone (2026-08-29, shipped)
+
+The owner's own device was the report: «всё пизда какое лагучее... инпут лаг до
+небес... телефон нагретый уже». The cause is `backdrop-filter`, and it had been
+ruled out five days earlier on evidence that was broken twice over.
+
+Measured through the browser's own trace, Galaxy S20 FE against production,
+variants interleaved so heat could not favour one, repeats agreeing within 1%:
+
+|                        | blur on | blur off | delta |
+| ---------------------- | ------- | -------- | ----- |
+| GPU CompositorGpuThread | 9619ms  | 3504ms   | -64%  |
+| VizCompositorThread     | 4661ms  | 2743ms   | -41%  |
+| all six busy threads    | 30421ms | 21406ms  | -30%  |
+| scroll input p99        | 311ms   | 102ms    | -67%  |
+
+Raster was 0.19s of a 23s scroll and the renderer main thread ~12% busy, so it
+was never script, layout, style or painting. **The cost is per INSTANCE:** the
+page blurs 0.7 of a screen in total, but each backdrop-filter is a render pass
+and a tile-based mobile GPU flushes tile memory on every one. Killing only the
+~100 small repeated controls recovered the whole win, which is the good news for
+the design — nav, dock, hero and sheets cost essentially nothing and are
+untouched.
+
+**Why it was ruled out before, and why that matters more than the fix.** The
+first measurement was process CPU% from `top`, one reading per variant: 164 vs
+178 vs 179, three numbers that could not resolve the difference. And the switch
+used to take the measurement never switched: `:root[data-glass='off'] *` weighs
+(0,2,0), exactly what `.screen-home-next .home-action-btn` weighs, and that one
+is `!important` in the lazily-loaded Home chunk, so the tie went to the blur.
+With the switch on, production still had 71 of 141 backdrop-filters live. No
+error, no visible symptom, and a confident wrong answer that cost an evening.
+Both halves now have mutation-verified guards —
+`scripts/assertGlassOverrideWins.mjs` for the arithmetic, `glass-tier.spec.ts`
+for the browser.
+
+`lite` is now a real tier rather than a promise. `main.tsx` had claimed since it
+was written that low-power devices get a flat fill; that was three rules on
+Search while Home carried 141 live blurs on a device that had already stamped
+itself `data-glass='lite'`. It substitutes rather than deletes: removing the
+blur outright was measured to break the play control, because the frost is what
+flattens artwork behind a 44px disc. `lib/scenePlate.ts` samples the piece of
+scene under the control — a blur IS a local average, so the average is the
+faithful replacement, and the scenes are same-origin so nothing is tainted and
+no request is added.
+
+⚠ One method note worth keeping. Plain variance said the flat plate was
+*smoother* than the frosted one; it is not, it is darker, and variance scores a
+smooth gradient badly while scoring a crushed dark image well. The metric that
+matches the eye is high-frequency detail — mean |ΔL| between neighbouring CSS
+pixels — which puts blur-simply-removed at 8x the glass and every substitute at
+or below it. And while prototyping, "the wall shows through" was read off three
+separate screenshots and was wrong all three times: compared against what the
+CSS predicted, the pixels matched to within a few counts. Judge a surface by
+arithmetic against a prediction, not by looking at a photograph.
+
+⚠⚠ And then the arithmetic disagreed too — because `Page.captureScreenshot` on
+this phone does not return the page's colours. Samsung Internet on the S20 FE
+hands back a colour-transformed image: a pure `#ff0000` div, `position: fixed`,
+`z-index: 2147483647`, owing nothing to any tile, captures as **(173, 35, 23)**.
+That one control explained an afternoon of contradictory readings at once,
+including a "the control renders 3x darker than its own CSS says, cause unknown"
+that had no cause — the page was right and the camera was wrong.
+
+What survives it: every A/B here, since both sides went through the same
+transform, and all the performance numbers, which come from the trace and not
+from pixels. What does NOT survive it: absolute colour and contrast claims (the
+glyph contrast figures are indicative, not WCAG), and any comparison between
+images of DIFFERENT brightness — the transform compresses dark tones hardest, so
+the dark plate's detail score is flattered. "At least as smooth as the glass" is
+defensible; "twice as smooth" was an artifact. The blur-removed-vs-glass
+comparison is safe only because those two sit within 2% of the same mean
+luminance.
+
+Before trusting any pixel measured off this device, put a known swatch in the
+same screenshot.
+
+## Five thousand pages nobody could reach (2026-08-30, shipped)
+
+The prerendered station pages were verified end-to-end on production for the
+first time since they shipped, and the prerendering itself is sound: 5 001 URLs
+in the sitemap, `robots.txt` correct, a page is 7 239 bytes against the shell's
+5 152, each carries its own `<title>`, description, canonical and og set, `#root`
+is filled with real text, six sampled pages had six distinct titles, and no
+popularity number appears anywhere. All of that works.
+
+What did not work was reachability. Measured, not assumed:
+
+- the home page a crawler receives contains **0** links to any station page —
+  the SPA shell is empty, and the app has no router, so there is nothing to link
+- a station page contained exactly **1** `<a>`, back to the home page
+
+So all 5 000 were orphans: discoverable through sitemap.xml alone, linking
+nowhere, linked from nowhere. A crawler will fetch that. It has no reason to
+rank it — link structure is a ranking input and there was none — and a person
+who lands there has no way onward except installing the app.
+
+Each page now carries up to six neighbours, same country and genre first, then
+country, then genre, drawn only from the generated set so a link can never 404.
+Verified on the built output rather than on the generator's own report: 5 000
+files, 5.8 links per page across a 40-page sample, **0** links to a missing page,
+**0** self-links. Body text 195 -> ~370 characters, all of it real station names
+— a country station links to «.977 Country», «Outlaw – Country Music Radio»,
+«99.9 Kiss Country». 4 966 of 5 000 get links; the remaining 34 have neither a
+country code nor a mappable genre, and get none rather than something invented.
+
+**Yandex and Bing have now been told, without an account.** There is no longer
+an anonymous way to hand over a sitemap — Google retired its ping endpoint in
+2023 and Bing retired its own — but IndexNow needs only a key file at the site
+root, so `npm run seo:indexnow` does the whole thing. All 5 001 URLs accepted,
+200 OK, 2026-08-30. Accepted means received; it does not mean crawled, indexed
+or ranked.
+
+Two notes for the next run. The first attempt returned 403
+`SiteVerificationNotCompleted` — the engine had not yet fetched the freshly
+deployed key — and succeeded four minutes later, so that error means "wait",
+not "broken". And the key check compares CONTENTS rather than status, because a
+file that does not exist here comes back **206 with the SPA shell**: Caddy's
+`try_files` falls through to index.html, so a status check would have called a
+missing key a success.
+
+⚠ Google is the half that cannot be automated and remains the actual
+bottleneck: it does not participate in IndexNow, and Search Console needs a
+signed-in account plus a verified property. Until the owner does that once, the
+pages are correct, connected, submitted to Yandex — and invisible to Google.
+
+## Glass at 60fps, computed once (2026-08-29, shipped)
+
+The owner's objection was right and my framing was wrong. I had said the big
+signature glass surfaces stay; on a phone they did not — after the first `lite`
+pass there were 9 live backdrop-filters left and all nine were in the DESKTOP
+nav, which a phone never renders. On the surface this product is used on, the
+glass was gone.
+
+«Что мешает сделать как в Apple» is the answer. `UIVisualEffectView` blurs a
+SNAPSHOT of the backdrop and reuses it; CSS `backdrop-filter` re-blurs from
+nothing, in its own render pass, per element, per frame. The backdrop under a
+tile's play control is a static scene image that never moves relative to the
+control — so the blur is computed once in a canvas off the already-decoded
+bitmap and handed over as a background image. Real glass, real pixels, no
+per-frame cost. `lib/scenePlate.ts`.
+
+Measured on the shipped build, interleaved, 143 live blurs against 9:
+
+| | backdrop-filter | frosted snapshot |
+| --- | --- | --- |
+| GPU CompositorGpuThread | 10780ms | 3028ms (**-72%**) |
+| VizCompositorThread | 5386ms | 2902ms (-46%) |
+| all six busy threads | 31717ms | 21825ms (-31%) |
+| scroll input p99 | 204ms | **89ms** |
+| compositor gaps over 25ms | 7-10% | **0.5-0.7%** |
+
+That last row is the answer to "60 кадров вообще реально": the p99 gap goes from
+50ms — three dropped frames in a row — to 17.4ms, which is one vsync at the
+panel's measured 59.2Hz. Late frames fall fourteenfold. Both things at once, as
+asked; the blur just has to be computed once instead of 143 times a frame.
+
+⚠ Two traps recorded, both paid for here. The "fps" you can compute from
+presentation events reads 114-200, ABOVE the panel's refresh, because the event
+counts surface submissions and not frames — use the gap distribution. And do not
+raise the frost's filter to close the saturation gap: `saturate(420%)` moved the
+metric from 0.41 toward the real blur's 0.59 and turned an evening sky green,
+because averaging leaves tiny channel differences and multiplying them invents
+hues that were never in the picture. It shipped for one deploy before the eye
+caught what the number could not.
+
+⚠⚠ And the instrument trap that voided an entire round of measurement: the app
+persists its active section. An earlier probe of mine had clicked «Моё», so
+every later trace was taken on the Library while I believed it was Home — which
+is where a confident "-2%, blur is not the cost" came from. The probes now
+navigate to Home explicitly and refuse to trace until the surface is populated.
+
+## The empty tail under a first run (2026-08-29, shipped)
+
+The other half of the same report — «если пролистать главную ниже, то ничего
+там не отображается» — is not the shelf count. It is the scroll padding.
+
+A stranger's Home, measured against production at 390×844: hero 304px, the
+live-air line 60px, the first-run card 181px, quick picks 94px, one shelf 184px.
+Content ends at **894px in an 844px viewport**, and the document ran to
+**1228px**. A third of the page was empty, and the emptiness is what invites the
+scroll that finds nothing.
+
+`--screen-bottom-safe-v2` budgeted the mini player's height unconditionally,
+while `MiniPlayerDock` renders nothing at all until something plays. So a
+listener who had not yet pressed play scrolled through ~130px reserved for a
+control that was not on screen. The shell now carries `data-dock`, and the
+reserve is conditional; the nav's own clearance is untouched, because the nav is
+always there. Tail 334 → 216px in the fixture, and Home's own padding 250 → 124.
+
+⚠ The remaining 92px is NOT Home's, and it is now located exactly: at ≤430px
+`.app-shell-v2` carries `padding-bottom: calc(var(--dock-offset-v2) + 8px)`
+(styles.css:6116) — and `--dock-offset-v2` is the floating nav's clearance,
+which every screen ALSO reserves through `--screen-bottom-safe-v2`. So a 72px
+nav is being cleared twice, for 216px total.
+
+The sweep has since been done, and it says the shell's copy is redundant.
+`tests/nav-clearance.spec.ts` walks all four sections at 390×844, scrolls each
+to its end and asserts the lowest reachable control clears the nav. With the
+shell's bottom padding reduced to `calc(8px + var(--shell-safe-bottom))` — the
+edge inset only, no second nav clearance — **all four sections still pass**,
+along with `dock-reserve.spec.ts`. So the trim is a two-line change and it is
+proven, not assumed.
+
+⚠ It is deliberately NOT shipped yet, and the reason is sequencing rather than
+doubt. The owner asked to look at the first-run screen again now that the dock
+reserve is gone, before deciding anything about the shelf count; landing a
+second change to the same geometry would mean he is looking at something other
+than what was described to him. One variable at a time. The spec is committed
+either way — it is the evidence the trim needs, and it is worth having on its
+own: until it existed, this contract was asserted on Home only.
+
+**What is still open is the product question, and it is the owner's.**
+`FIRST_RUN_RAIL_LIMIT = 1` is deliberate and measured — a newcomer's screen was
+11 rails, 3315px and ~64 station names nobody had asked for, and one shelf of
+«Народный выбор» is the gentlest entry for someone who has chosen nothing. But
+the owner, who knows this product, read his own first-run screen as broken. That
+is evidence about the design, not about the code, and it should be decided with
+him rather than quietly re-tuned.
+
+## Next:
+
+**Read this part first: the ground moved on 31.08-01.09.2026.** The service now
+runs on a RUSSIAN host, and that changed what "works" means. Everything below
+this block was written before the move and is still true about the product; it
+just no longer describes where the product lives.
+
+**The app was invisible to its own audience, and that was the single largest
+defect found here in months.** `index.html` loaded the Telegram WebApp SDK from
+`telegram.org`, and that host does not answer from Russia — measured from the RU
+box, three attempts, DNS resolves and TCP to :443 never connects, no response in
+20 s. The script was synchronous, so the parser stopped and `document.body` was
+still null after 5 s: a black screen, on mobile networks, without a VPN. Fixed in
+two steps — the SDK is vendored into `public/vendor/` and served from our own
+origin (`8e26b0e`), and it is `async`, because self-hosting does not help if the
+route hangs on one of OUR files either. Confirmed by the owner on Beeline
+without a VPN. ⚠ The block is per-network: from the owner's home connection
+telegram.org loads fine, which is why this survived so long. Verify this class
+of thing from a server or a phone, never from the developer machine.
+
+**Telegram is unreachable from the RU host in every direction**, which also
+breaks the bot (deep links, `/record`, billing webhooks) and the API's own
+billing calls (`createInvoiceLink`, `getStarTransactions`). The route is now:
+our process → `http://127.0.0.1:8399` → an SSH tunnel → a loopback relay on the
+Netherlands box → `https://api.telegram.org`. `TELEGRAM_API_ROOT` selects it;
+`deploy/server/telegram-relay.mjs` and the two installers build it. The same
+tunnel forwards `127.0.0.1:3399` to the foreign API, which is what
+`media/foreignEgress.ts` uses when every direct candidate for a station fails.
+
+⚠⚠ **The Netherlands box may not be switched off.** It no longer serves the
+site, but it holds the relay, and both Telegram and 11 measured stations go
+through it.
+
+**Station reachability, measured, 148 stations, two passes per host:** RU
+122/148 and 123/148, NL 135/148 both times. Eleven are consistently reachable
+only from abroad and all eleven now play through the app on the RU box. Thirteen
+more are dead from both — broken stations, which no egress fixes. And about half
+the catalogue is `http://`, which can only play through our proxy at all, so the
+server's own reachability decides for that half.
+
+**A stalled upstream is not a dead one, and the wait was the bug.** Gamesboro
+(`radio.gamesboro.org`) sat at `readyState=0` for 25-30 s over the direct route
+while the RU proxy sustained it. `ff3db56` gave secure HTTPS MP3/AAC a proxy
+candidate at all; `5437d9c` made that one measured host proxy-first, taking time
+to audio from ~30 s to ~1.5 s. ⚠ The narrow list is deliberate — every entry
+spends our bandwidth — but the generic defect is still there: the NEXT stalling
+station will again wait 25-30 s.
+
+Open, in the order they cost something:
+
+1. ~~Off-box backups are broken.~~ **Fixed 02.09.2026.** The R2 token issued on
+   26.07 stopped being accepted while the dashboard still showed it `Active`,
+   and the stored values were the right shape (32/64 hex), so it was the token
+   rather than a bad paste. A fresh ACCOUNT-scoped token (Cloudflare's own page
+   recommends those over user tokens for production) fixed it.
+
+   The gap was wider than the logs first suggested: listing the bucket shows the
+   previous snapshot was **21.08**, so twelve nights passed with no off-box
+   copy, not four. ⚠ The dashboard's object count lags — it still read 54 while
+   the bucket held 56 — so verify by LISTING, not by the panel.
+
+   ⚠ And the reason a restart was not enough: the deploy COPIES
+   `shared/env/*.env` into the release. Editing the shared file and restarting
+   pm2 leaves the process on the old copy.
+2. ~~Was the bot token rotated?~~ **Yes, confirmed by the owner 02.09.2026.** It
+   had leaked into pm2 logs — grammY puts the full URL, token included, into its
+   error text.
+3. **The 25-30 s stall, generically — and it is now measured.** The grace
+   exists to protect slow-but-live streams, so the question was what a healthy
+   startup actually costs. Measured 01.09.2026 in Chromium over the DIRECT route
+   against 54 promoted https stations, one at a time, 20 s budget each. Of the
+   24 that produced audio, time to the first `currentTime` movement was:
+
+   | p50 | p75 | p90 | p95 | max |
+   | --- | --- | --- | --- | --- |
+   | 1602 ms | 2101 ms | 3100 ms | 3702 ms | **5915 ms** |
+
+   **A 6000 ms cutoff would have diverted none of them.** And of the 30 that
+   produced nothing in 20 s, **29 still had `readyState === 0`** — which is the
+   discriminator: a stalled upstream has nothing at all, while a slow-but-live
+   one has parsed metadata. That is a narrower and safer change than shortening
+   the grace for everybody: switch early ONLY when `readyState === 0` and
+   `buffered.length === 0`, leave the 15 s grace for anything that has begun to
+   arrive.
+
+   ⚠ Caveats that belong with the number: 24 healthy samples is thin, and the
+   run was on a home connection, so it says what healthy startup costs on a GOOD
+   route. A Russian mobile route is slower, and a cutoff tuned here could divert
+   healthy stations there — to the proxy, which still plays, at the cost of our
+   bandwidth. That is a far smaller harm than 25-30 s of silence, but it is a
+   real cost and should be re-measured from the phone before the number is
+   treated as settled.
+
+   ⚠ The 30 that produced nothing say nothing about what the app delivers: this
+   measured the direct route ONLY, and the proxy fallback is exactly what exists
+   for them.
+
+   ⚠ Do not edit `candidateSwitchGuard.ts` or call `audio.load()` over a pending
+   `play()`; that combination once failed a third of all plays.
+4. ~~`radioatlas-scene-seeder` is not installed on the RU box.~~ **It is, and
+   has been since a deploy after 31.08** — the note above was written the day
+   the timer was genuinely absent and went stale within hours.
+
+   What it actually costs, measured 02.09: the run queued **15** images, not the
+   60 the cap allows, because it only fills gaps — 69 of 84 ranked candidates
+   were already covered. 852 scenes on disk. So the daily spend to judge against
+   Workers AI's free allowance is 15, not 60, and the account's own Workers AI
+   analytics is the place to read it. ⚠ The `$0.00` on the R2 overview is R2's
+   billing, not Workers AI's; they are separate counters.
+5. **CP2077 Body Heat 98.7 and Pacific Dreams 88.9 are dead at the source.**
+   Verified 01.09 from two hosts: `82.65.103.36:8000` returns zero bytes and
+   times out from both the developer machine and the RU box. Radio Browser still
+   reports `lastcheckok=1` for both and offers no alternative row — a clean
+   example of formal health that is not a usable stream. Nothing to fix in the
+   app; if they matter, the work is finding a new source, not more proxying.
+
+Next is getting people in front of what already exists — and after the link
+preview above, the ladder is clear and ordered by cost. **Rung one is done:** the
+manifest, the service worker and the three icons shipped, so the app installs on
+a phone home screen and as a real window on Windows and macOS. `installable.test.ts`
+guards it, because every way that breaks is silent — the app still loads, still
+plays, and simply stops offering to install.
+
+**Rung two is done too:** `scripts/buildStationPages.mts` runs after `vite build`
+and prerenders the top 5 000 stations as `dist/station/<uuid>.html`, plus a
+sitemap and the first `robots.txt` this project has ever had. Caddy already serves
+`dist` with `try_files {path} /index.html`, so the files need no new route and
+cost nothing at runtime — which matters on a box whose swap is full. The station
+set is `resolvePromotable`, the same one the app promotes, so dead streams get no
+page and one broadcaster gets one page instead of the nine rows Radio Browser
+lists it under. `getStartParam` reads the same address back out of the path, so a
+stranger arriving from a search result lands on the station they searched for.
+
+**The extension is measured, not stylistic.** This was first written to produce
+`station/<uuid>/index.html` on the assumption that `try_files {path}` matches a
+directory and `file_server` then serves its index. It does not, on this host.
+Probed against production 2026-08-26, before deploying: `/fonts/` — a directory
+that certainly exists in `dist` — returns the 5152-byte SPA shell, byte-identical
+to `/`, and so do `/fonts` and `/globe/`. try_files matches files and falls
+through on directories.
+
+That failure would have been invisible: the SPA reads the path either way, so a
+human lands on the right station and everything looks correct, while every
+crawler gets an empty shell — 5 000 pages of nothing, silently. A one-line
+Caddyfile rule (`try_files {path} {path}/index.html /index.html`) would buy the
+prettier URL, but Caddy is the edge for the neighbours' services on this shared
+box, and an extension costs nothing in ranking. Not worth their uptime.
+
+The remaining rungs:
+
+1. **Android through a Trusted Web Activity** — wraps the PWA, Play accepts it,
+   and the manifest it needs now exists.
+
+   Two of its prerequisites are now done rather than pending. There is a privacy
+   policy at `/privacy.html` (Play demands a URL, and any app holding accounts
+   demands one anyway), and `DELETE /me` erases an account from inside the app,
+   which Play requires for any app with accounts and which the policy had been
+   promising while the button did not exist. What is still owner-only: a Play
+   Console account, a signing key, and `/.well-known/assetlinks.json` carrying
+   that key's fingerprint — without it the wrapper shows a URL bar and is
+   pointless.
+
+   ⚠ And the thing that should gate the decision is not paperwork. A TWA is
+   Chrome rendering this same web app, so background playback behaves
+   identically inside it; the counters that would answer whether it holds up
+   started collecting on 2026-08-26 and need weeks. Shipping a radio app to a
+   store where reviews are permanent, before knowing whether it survives a
+   pocket, is the risk worth avoiding.
+2. **iOS last.** $99 a year, a Mac to build on, and Apple rejects thin wrappers
+   under guideline 4.2. An audio app has a case; it is still a lottery, and it
+   is the only item here that cannot be undone cheaply.
+
+The one genuinely native-only argument is background playback and lock-screen
+control — not the stores, not prestige. Radio is listened to with the phone in a
+pocket.
+
+**And note that a TWA does not answer it.** A Trusted Web Activity is Chrome
+rendering this same web app, so whatever background playback does today, it does
+identically inside the wrapper. The TWA buys distribution — being findable in the
+Play Store — and nothing else. Background playback is an argument for a NATIVE
+app, which is a different and far larger investment.
+
+That argument now has instrumentation. `audio_background_resume_attempt` only
+ever recorded that we WENT to the background; `audio_background_survived` and
+`audio_background_died` record what happened, judged from `audio.currentTime`
+movement (never wall clock — a hidden tab throttles timers while the audio plays
+on). Trips under 10 s are recorded as neither, because a flick to another app and
+back cannot be told from a death.
+
+⚠ It will take a while to say anything. Prod, 24 h to 2026-08-26: **51 play
+attempts, 11 backgroundings**. A ratio off eleven samples is not a ratio. Let it
+run for weeks, and read it from `counterDaily`, not from `counterWindows` and
+not from the totals. ⚠ That sentence was unfollowable when it was written:
+`counterWindows` comes from 25 hourly buckets, so "let it run for weeks" had
+nowhere to accumulate. The daily series exists as of 02.09.2026 for exactly this.
+
+While measuring: playback health over that same window was **84%** (42 successes
+of 50 non-superseded attempts). The all-time totals say 34%, and they are
+misleading — they span every change in what was counted. 50 attempts is a thin
+sample too; treat 84% as a first reading, not a fact.
+
+The second pillar is now true. A saved library plays, a saved station comes back
+on Home as the second shelf, and «Продолжить слушать» is no longer buried: it
+used to begin at ~0.84 of a viewport height at 390x844, with its first tile at
+764px against a floating nav at 772 — eight pixels of station before the nav
+covered it, so a first-time listener saw none without scrolling, having first
+been told in prose that this is live radio. The shelf now sits above the
+explanatory card and the quick chips: first tile at 440, six fully visible.
+Nothing was removed and no shelf count changed; the words about stations simply
+follow the stations.
+
+`resume-context` («Что изменилось») is still at the bottom of the rail pool and
+still unreachable on a phone. It has not been touched because, unlike the saved
+shelf, nobody has argued it earns a place above nine catalogue shelves.
+
+**The chrome is glass again, and the reason it was not is worth keeping.** The
+owner's report was blunt — «прозрачность не равно liquid glass» — and correct:
+what shipped was a blur under a nearly opaque fill, which is a slightly lighter
+panel. Two causes, both measured rather than argued. The player bar had NO
+backdrop-filter at all: `MiniPlayerDock.css` turns it off because the bar paints
+`--theme-bg-image` over itself, which is right when that is a Theme Studio photo
+and pointless when it is the gradient every bundled theme actually uses. And on
+the owner's own phone both the bar and the nav were being stripped by two
+`data-low-power` rules, because Chrome reports its 6 GB as `deviceMemory: 4` —
+while 144 blurs elsewhere on the page, over flat dark ground where a blur cannot
+show, kept running. Glass was removed from the only surfaces where it reads and
+kept where it does not.
+
+Cost of putting it back, on that phone against production, three traces per
+variant in alternating order: compositor 5867/4921/6085 ms as shipped against
+3462/4961/5309 with the glass; input p99 11.8/12.4/11.2 against 14.2/12.6/11.4.
+Overlapping on every metric — one more blur instance against 144. The legibility
+floor is now a gate (`tests/glass-legibility.spec.ts`, contrast read off rendered
+pixels against a deliberately bright backdrop), and the fills were chosen from a
+sweep against it, not by eye.
+
+⚠ Two things found on the way and NOT done, both worth a morning:
+
+- **The chrome's `::before` / `::after` gloss layers are dead CSS.** Nothing
+  gives them `content`, so every gradient and border declared on
+  `.app-navigation-mobile::before`, `.player-dock-bar::before` and
+  `.app-topbar-v2::before` paints nothing. Reviving them would change four
+  surfaces at once and move visual baselines, so it belongs in its own change.
+- **Most of the app's 144 blurs are invisible** — they sit over flat dark ground
+  where a blur has nothing to show, and each one still costs a compositor pass
+  per instance. Removing them is free visually and buys back exactly what the
+  chrome now spends.
+
+Watch two things after this deploy, and one of them is new. ⚠ Read them from
+`counterDaily`: a "before and after" cannot come from `counterWindows`, which
+holds 25 hours and therefore has no "before" a day after any deploy.
+
+- **`home_now_playing_preview`.** `shown / previewed` says whether the shelf
+  came alive at all. Below about a third, the shelf needs stations that name
+  their tracks — that is a catalogue decision, not a UI one.
+- **`play_attempt` by `sourceId`** for the lead rail, before and after. This is
+  the whole point: more taps, or the line is decoration.
+
+Everything below still stands, and every signal the roadmap asked for exists,
+survives a deploy, and has a documented way to be read:
+
+- **Memory.** `grep -c "exceeds --max-memory-restart" /root/.pm2/pm2.log` stands
+  at six; the sixth was 16:00 on 2026-08-16, before the heap cap. If it moves,
+  check `runtime:heap_total_mb` first — sitting at 640 means the working set
+  genuinely needs more, which is a different problem from V8 declining to
+  collect.
+- **Playback.** `play_success / (play_attempt - play_superseded)` is the success
+  rate; the raw ratio is not — and read it from `counterWindows`, because the
+  top-level counters are totals since the store file was created. ⚠ The keys
+  are `client_event:play_attempt` and so on; the bare names return `undefined`
+  and the rate silently computes as `0/0`. Checked on
+  2026-08-17: 248/38/1/3 cumulative, 206 attempts unaccounted for, all of it
+  from before supersedes were counted at all. `audio_silent_stall` climbing alongside
+  `audio_visibility_change` would mean the background-tab fix regressed.
+- **Лира.** `ai_cards_gate:opinion` stuck at zero argues AGAINST widening the
+  opinion vocabulary; `ai_cards_gate_released` climbing means a predicate has
+  grown greedy. `ai_exclusion_unmatched` against `ai_exclusion_clause` decides
+  whether the exclusion vocabulary is short. `ai_action_receipt_failed` means
+  Lira promises what the app cannot do; `ai_web_search_degraded` means she
+  answers without the sources she should cite — check the Tavily cap before
+  concluding anything about answer quality. DeepSeek remains the production
+  default; `AI_PROVIDER` is unset on the box.
+
+Owner decisions, not code: 2GB of swap on the box is fully used and RadioAtlas
+is not the main occupant; a licensed lyrics-content provider is a purchase, and
+production runs Tavily plus the safe Genius-search fallback meanwhile.
+
+Unproven and deliberately not touched, from an adversarial review of 17
+candidate diagnoses (3 survived): `account-sync.spec.ts` paces clicks rather
+than the 1400ms `CLOUD_LIBRARY_SYNC_DELAY_MS` commit window, and
+`mobile.spec.ts`'s three-viewport overflow test shares one 30s budget across
+three cold loads. Both failed ONCE, neither has recurred since the watcher fix,
+and each edit is larger than the evidence. Reproduce first
+(`--repeat-each=20 --workers=6`); if it will not reproduce, there is nothing to
+fix.
+
+The two `visual.spec.ts` baselines that used to diff 0.05-0.06 against a 0.04
+tolerance are no longer stale: `visual.spec.ts` is 18/18 and those two are 6/6
+serially, measured 2026-08-18. Nothing is waiting on a design pass; the note
+outlived the diff and is deleted rather than carried.
+
+Linux baselines now exist, so CI compares pixels for the first time. A manual
+`visual-baselines.yml` drew all 23 on a runner and uploaded them; they were
+looked at before being committed, which is the half that cannot be automated —
+the thing under test is what the product looks like. The two odd things in them
+turned out to be shared with the Windows set: the magenta rectangle is
+Playwright's own mask over a volatile element, and the dock sitting mid-page is
+what a full-page screenshot does with `position: fixed`.
+
+Two `-win32.png` files were referenced by no spec at all — leftovers from a test
+deleted in 9619d04 — and went with the same commit.
+
+Any spec failing twice on the same line is a real defect, not noise.

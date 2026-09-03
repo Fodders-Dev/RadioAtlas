@@ -125,7 +125,17 @@ verified — check that job, and run the suite locally for UI work.
   Never print a secret value, not even to check it is set — print its presence.
 - **The VPS is shared** with other services and its 2GB swap is full. Memory
   work must lower our peak rather than raise a limit.
-- **`PLAN.md` `## Next:`** is the source of truth for what to do next.
+- **`PLAN.md` is the source of truth for what to do next** — and it holds ONLY
+  the current renovation. Closed stages, past measurements and archaeology live
+  in `PLAN_ARCHIVE.md`.
+
+  ⚠ The archive is not a menu. Take a FACT or a REASON from it, never a task,
+  and never treat what it describes as the product's current shape. It was split
+  out because a file that opens with the current plan and continues with two
+  thousand lines of history reads, a few sessions later, as one document: the old
+  first run (`FIRST_RUN_RAIL_LIMIT = 1`, «Народный выбор») sat in the same file
+  as the new one and would eventually be defended as live. Where the archive and
+  `PRODUCT.md`/`PLAN.md` disagree, the archive is wrong.
   `RUNBOOK.md` is commands, env vars and past incidents — read it before
   diagnosing anything on production.
 - Production access: `ssh rodnya` (see `.claude/rules/windows-shell.md` first,

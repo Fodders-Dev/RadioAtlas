@@ -546,7 +546,7 @@ the symptom is a box whose content stops 108px above its own bottom edge, which
 reads as "огромные пустые пространства" and is arithmetic, not taste.
 
 ⚠ The shell-vs-screen half of this is measured, proven by
-`tests/nav-clearance.spec.ts` and **deliberately unshipped** — see PLAN.md's
+`tests/nav-clearance.spec.ts` and **deliberately unshipped** — see `PLAN_ARCHIVE.md`'s
 note: the owner asked to look at the first screen after the dock reserve came
 off before a second change lands on the same geometry. Do not ship it as a
 drive-by.
@@ -568,6 +568,6 @@ safe-area or dock term, carry the term with it.
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the
-navigation/dock sizes in `PLAN.md`'s UI sections. If an assertion about one of
+navigation/dock sizes in `PLAN_ARCHIVE.md`'s UI sections. If an assertion about one of
 these fails intermittently, the measurement is racing an animation — see
 `.claude/rules/e2e-tests.md`. Never relax the number.
