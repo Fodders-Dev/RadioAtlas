@@ -3,6 +3,21 @@
 Telegram Mini App for global internet radio. npm workspaces monorepo, TypeScript
 throughout. Production is live at https://radioatlas.ru and has real listeners.
 
+## Before anything else: read `PRODUCT.md`
+
+It says what this product IS — the core surface, the three pillars, and what we
+deliberately do not do. Every change answers one question before it is written:
+**which pillar does this serve, and what will a listener see differently?** If
+the answer is "it will be tidier" or "it pays down debt", the change goes on a
+list, not into the diff.
+
+That file exists because of a specific failure, on 2026-09-02: an audit measured
+five screens and the work that followed fixed the one that mattered least. The
+code was right, the tests were green, and nothing improved. The owner's words
+for the result were that the app has a crocodile's head on a hippo — every part
+defensible alone, no animal in total. `PRODUCT.md` is what a change is checked
+against so that stops happening.
+
 ## What the work is for
 
 This is a business before it is a hobby. Every change should be able to answer
