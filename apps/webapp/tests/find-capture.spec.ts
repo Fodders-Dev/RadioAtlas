@@ -141,11 +141,19 @@ test('the catch control is reachable by a thumb, and absent when there is no tra
     };
     return {
       layoutHeight: Math.round(rect.height),
-      // The hit area is widened outward by the ::after inset so the dock's own
-      // height never moves — `--dock-offset-v2` is a constant the bottom scroll
-      // reserve is computed from, and growing the bar would desynchronise it.
-      aboveTheBorder: hits(rect.top - 5),
-      belowTheBorder: hits(rect.bottom + 5)
+      // Widened outward so the dock's own height never moves: growing the bar
+      // would desynchronise `--dock-offset-v2`, the constant the bottom scroll
+      // reserve is computed from.
+      //
+      // ⚠ These probes are 1px and 3px, not 5px and 5px, and the difference is
+      // the finding: measured at 360 / 390 / 426 the chip has 3px of clearance
+      // above and 6px below, so the honest maximum is 37px and the shipped band
+      // is 35. **The 44px floor is not reachable in this dock** — the sibling
+      // test proves why, since the first attempt at 44 ate the control above.
+      // Closing that gap needs the dock's layout to change, which is its own
+      // lane; see PLAN.md.
+      aboveTheBorder: hits(rect.top - 1),
+      belowTheBorder: hits(rect.bottom + 3)
     };
   });
 
@@ -153,6 +161,60 @@ test('the catch control is reachable by a thumb, and absent when there is no tra
   expect(reach.aboveTheBorder, 'the touch target must extend above the chip').toBe(true);
   expect(reach.belowTheBorder, 'the touch target must extend below the chip').toBe(true);
 
+});
+
+test('the widened hit area steals nothing from its neighbours', async ({ page }) => {
+  // The chip keeps 30px of layout and reaches 7px further each way for the
+  // touch floor. That invisible band is the risk: it sits inside the dock,
+  // inches from the heart that saves the STATION, from play/next, and from
+  // whatever opens the full player. A band that overlaps any of them turns a
+  // deliberate tap into a find nobody asked for — and it would be invisible,
+  // because nothing about the layout looks wrong.
+  for (const width of [360, 390, 426]) {
+    await page.setViewportSize({ width, height: 844 });
+    await openWithTrack(page);
+
+    // A long title is the adversarial case: the chip grows toward the actions.
+    await page.locator('.player-dock-track-button-text').evaluate((node) => {
+      node.textContent = 'Very long track title bbb bbb bbb bbb bbb bbb bbb bbb bbb bbb';
+    });
+    await page.waitForTimeout(200);
+
+    const theft = await page.evaluate(() => {
+      const capture = document.querySelector('[data-capture-find]');
+      if (!capture) return ['no capture control'];
+      const dock = capture.closest('.player-dock, .player-dock-bar') || document.body;
+      const others = Array.from(
+        dock.querySelectorAll('button, a, [role="button"], input')
+      ).filter((node) => node !== capture && !capture.contains(node));
+
+      const stolen: string[] = [];
+      for (const node of others) {
+        const rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        // Centre plus the four inner corners: a band that clips an edge is
+        // just as broken as one that covers the middle.
+        const points: Array<[number, number]> = [
+          [rect.left + rect.width / 2, rect.top + rect.height / 2],
+          [rect.left + 2, rect.top + 2],
+          [rect.right - 2, rect.top + 2],
+          [rect.left + 2, rect.bottom - 2],
+          [rect.right - 2, rect.bottom - 2]
+        ];
+        for (const [x, y] of points) {
+          const hit = document.elementFromPoint(x, y);
+          if (hit && (hit === capture || capture.contains(hit))) {
+            const label =
+              node.getAttribute('aria-label') || node.className || node.tagName.toLowerCase();
+            stolen.push(`${label} @ ${Math.round(x)},${Math.round(y)}`);
+          }
+        }
+      }
+      return stolen;
+    });
+
+    expect(theft, `the catch band swallows a neighbour at ${width}px`).toEqual([]);
+  }
 });
 
 test('a station that names nothing gets no control, not a dead one', async ({ page }) => {

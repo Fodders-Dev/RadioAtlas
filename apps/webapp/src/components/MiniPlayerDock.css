@@ -198,19 +198,25 @@
   background: rgba(174, 240, 228, 0.09);
 }
 
-/* The 44px touch floor WITHOUT moving anything.
-   Measured on production at 390x844: the dock is 376x77, of which the artwork
-   takes 58, the meta column 164 and the three action buttons 140 — the width is
-   spent, so a fourth 44px control does not fit, and growing the row instead
-   would push the dock past `--dock-offset-v2`, which is a constant that the
-   bottom scroll reserve is computed from. So the chip keeps its 30px of LAYOUT
-   and gains its hit area outward: 30 + 7 + 7 = 44.
-   The inset stops at 7px because the status pill sits 18px above; anything
-   deeper would start swallowing taps meant for that row. */
+/* As much touch target as the dock actually has, and no more.
+   ⚠ 44px is NOT reachable here, and the first attempt at it was a defect: an
+   `inset: -7px` band met the floor on paper and silently swallowed the bottom
+   7px of `.player-dock-station`, the control above — a deliberate tap becoming
+   a find nobody asked for, invisible because the layout looks fine.
+   Measured with a spec, identical at 360 / 390 / 426: the chip is 28px, with
+   3px of clearance above it and 6px below. So the most that can be taken
+   without stealing is 37px, and 2px/5px is that minus a rounding margin:
+   28 + 2 + 5 = 35px.
+   Getting to 44 needs the dock's own layout to change — it would have to grow,
+   and `--dock-offset-v2` (a constant the bottom scroll reserve is computed
+   from) would have to grow with it. That is a lane of its own, recorded in
+   PLAN.md, not a value to nudge here.
+   `tests/find-capture.spec.ts` holds the no-theft half: raise these numbers and
+   it goes red rather than shipping a band that eats its neighbours. */
 .player-dock .player-dock-track-button.active::after {
   content: '';
   position: absolute;
-  inset: -7px -6px;
+  inset: -2px -6px -5px;
 }
 
 /* The bookmark, sized against the 12px track text rather than the 14px station

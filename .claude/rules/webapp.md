@@ -545,6 +545,14 @@ it. A card that re-declares it is clearing a nav its own parent already cleared;
 the symptom is a box whose content stops 108px above its own bottom edge, which
 reads as "огромные пустые пространства" and is arithmetic, not taste.
 
+⚠ **None of this is in the working tree.** The card's copy was removed and then
+held back out of the 0.1a release on the owner's call — not because it was
+wrong (it is arithmetic), but so that the first release of the new product model
+has one cause: if something changes after 0.1a ships, it was 0.1a. The work is
+kept whole on the `library-density-hold` branch and comes back after 0.1a is
+checked on production. Old work is not an argument for old UX, and it is not an
+argument for shipping early either.
+
 ⚠ The shell-vs-screen half of this is measured, proven by
 `tests/nav-clearance.spec.ts` and **deliberately unshipped** — see `PLAN_ARCHIVE.md`'s
 note: the owner asked to look at the first screen after the dock reserve came

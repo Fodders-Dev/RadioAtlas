@@ -2316,8 +2316,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   /**
    * Capture a find: the track that is playing, the station it came from, and
-   * the moment. The name is historical — this is the product's central action,
-   * not a clipboard helper, and the clipboard is a bonus on top of it.
+   * the moment.
+   *
+   * ⚠ **The name is historical and the clipboard is a legacy side effect.** The
+   * meaning of this action is SAVING A FIND — the product's central act, per
+   * PRODUCT.md. Copying the title to the clipboard is a convenience that came
+   * first historically and is kept because the owner uses the app that way; it
+   * is not what the button is for, and it may not be allowed to shape anything.
+   * Whether auto-copy stays, or «Копировать» becomes its own action on a saved
+   * find, is decided in 0.1b — not by whoever next reads this function's name.
+   *
+   * The rename was skipped deliberately: `copyTrack` has 25 references across 8
+   * files and moving them would have widened a lane that was meant to be one
+   * result. This comment is the substitute, and it exists because reading a
+   * name instead of the behaviour has already cost this project twice in a day.
    *
    * ⚠ The order is the whole point. This used to `await
    * navigator.clipboard.writeText(...)` and only THEN call
