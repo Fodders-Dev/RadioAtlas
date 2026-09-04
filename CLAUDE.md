@@ -73,7 +73,7 @@ npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
 npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
 npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
-npm run test:webapp        # Playwright, 240 specs — CI runs it, does NOT gate ~3min
+npm run test:webapp        # Playwright, all 283 specs                    ~7min
 npm run dev:webapp         # + npm run dev:api in a second terminal
 npm run build              # api → bot → webapp                ~10s
 npm run seo:indexnow       # tell Yandex/Bing the station pages exist (manual)
@@ -109,10 +109,21 @@ A task is done when:
 4. Commands, architecture or workflow changed → this file and `.claude/rules/`
    updated in the same commit. Stale instructions are worse than none.
 
-CI runs Playwright in a separate job that **reports without gating**
-(`continue-on-error`), because specs that flake under parallel load make a gate
-people stop believing. So a green CI still does **not** mean the webapp is
-verified — check that job, and run the suite locally for UI work.
+CI runs Playwright in **two** jobs, and only one of them gates:
+
+- **`browser suite (functional, gates)`** — everything except `visual.spec.ts`.
+  Since 2026-09-04 it can fail the build. Run it locally with
+  `PLAYWRIGHT_SKIP_PIXELS=1 npm --workspace apps/webapp run test:e2e:functional`.
+- **`visual baselines (reports, does not gate)`** — the pixel comparisons. A
+  baseline failure usually means a deliberate redesign nobody re-drew, and that
+  verdict belongs to a person looking at the PNGs: run `visual-baselines.yml`
+  by hand, look at the artifacts, then commit them.
+
+⚠ The non-gating half is where this went wrong once and will again: the whole
+browser job was `continue-on-error` and sat RED on **every run for over twenty
+runs** while the workflow reported success. One of the four failures was a real
+shipped accessibility defect. A job nobody reads is worse than no job — if the
+pixel job is red, either re-draw the baselines or say why it is red on purpose.
 
 ## Things you cannot infer from the code
 

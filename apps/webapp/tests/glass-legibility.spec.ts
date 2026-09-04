@@ -80,7 +80,25 @@ const measureStrip = async (page: Page, clip: { x: number; y: number; width: num
   }, dataUrl);
 };
 
-const openPlayingHome = async (page: Page) => {
+/**
+ * ⚠ `power` is not a nicety — it is the reason this file was red in CI for five
+ * days while passing on the developer's machine.
+ *
+ * `?glass=full` pins `data-glass` on <html>. It does NOT pin `data-low-power`,
+ * which `main.tsx` derives separately from `getDeviceProfile()` and which
+ * carries its own rules — two of them strip the chrome's `backdrop-filter` with
+ * `!important`. So the tier was pinned and the OTHER core-count switch was not,
+ * and the suite measured whichever app the hardware happened to produce:
+ * `full` glass on a 12-core Windows box, blur-less on a 4-vCPU runner.
+ *
+ * A legibility gate whose subject depends on the machine cannot fail honestly,
+ * so both states are now measured by name. Reduced motion is the deterministic
+ * way in — `lowPower` is true for `prefers-reduced-motion`, a constrained
+ * network, `hardwareConcurrency <= 4` or `deviceMemory <= 4` — and it is also a
+ * real listener: anyone who turned motion down gets the blur-less chrome.
+ */
+const openPlayingHome = async (page: Page, power: 'normal' | 'low' = 'normal') => {
+  if (power === 'low') await page.emulateMedia({ reducedMotion: 'reduce' });
   await installMediaMocks(page);
   await mockStations(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -127,8 +145,18 @@ const stripOf = async (page: Page, selector: string) => {
   return box!;
 };
 
-test('the navigation labels stay readable through the glass', async ({ page }) => {
-  await openPlayingHome(page);
+for (const power of ['normal', 'low'] as const) {
+test(`the navigation labels stay readable through the glass (${power} power)`, async ({ page }) => {
+  await openPlayingHome(page, power);
+  // Fail loudly if the emulation stopped producing the state under test: a
+  // silently-normal "low power" run would report a healthy number for a case
+  // nobody measured.
+  expect(
+    await page.evaluate(
+      () => (document.querySelector('.app-shell-v2') as HTMLElement)?.dataset.lowPower ?? null
+    ),
+    'the power state under test must actually be the one rendered'
+  ).toBe(power === 'low' ? 'true' : 'false');
   const box = await stripOf(page, '.app-navigation-mobile');
 
   // The label row sits in the lower half of the bar, under the icons.
@@ -142,15 +170,19 @@ test('the navigation labels stay readable through the glass', async ({ page }) =
   // Printed on success too: a gate that only speaks when it fails hides how
   // close it was, and the margin is what tells you whether the next tweak is
   // safe.
-  console.log(`nav labels: ${reading.ratio.toFixed(2)}:1 (floor ${AA_NORMAL_TEXT})`);
+  console.log(
+    `nav labels (${power} power): ${reading.ratio.toFixed(2)}:1 (floor ${AA_NORMAL_TEXT}, text L=${reading.text.toFixed(3)}, ground L=${reading.ground.toFixed(3)})`
+  );
   expect(
     reading.ratio,
-    `nav labels measured ${reading.ratio.toFixed(2)}:1 (text L=${reading.text.toFixed(3)}, ground L=${reading.ground.toFixed(3)})`
+    `nav labels measured ${reading.ratio.toFixed(2)}:1 at ${power} power (text L=${reading.text.toFixed(3)}, ground L=${reading.ground.toFixed(3)})`
   ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
 });
+}
 
-test('the station name on the player bar stays readable through the glass', async ({ page }) => {
-  await openPlayingHome(page);
+for (const power of ['normal', 'low'] as const) {
+test(`the station name on the player bar stays readable through the glass (${power} power)`, async ({ page }) => {
+  await openPlayingHome(page, power);
   const box = await stripOf(page, '.player-dock-bar');
 
   // Skip the artwork square on the left and the transport buttons on the right;
@@ -162,9 +194,12 @@ test('the station name on the player bar stays readable through the glass', asyn
     height: Math.max(12, Math.round(box.height * 0.45))
   });
 
-  console.log(`dock title: ${reading.ratio.toFixed(2)}:1 (floor ${AA_NORMAL_TEXT})`);
+  console.log(
+    `dock title (${power} power): ${reading.ratio.toFixed(2)}:1 (floor ${AA_NORMAL_TEXT}, ground L=${reading.ground.toFixed(3)})`
+  );
   expect(
     reading.ratio,
-    `dock title measured ${reading.ratio.toFixed(2)}:1 (text L=${reading.text.toFixed(3)}, ground L=${reading.ground.toFixed(3)})`
+    `dock title measured ${reading.ratio.toFixed(2)}:1 at ${power} power (text L=${reading.text.toFixed(3)}, ground L=${reading.ground.toFixed(3)})`
   ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
 });
+}

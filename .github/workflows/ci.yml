@@ -84,24 +84,36 @@ jobs:
   # before they were committed — which is the only part of this that cannot be
   # automated, because the thing under test is what the product looks like.
   #
-  # continue-on-error keeps a red run out of the merge path. PROMOTE IT on
-  # evidence: twenty consecutive green runs of THIS job, with no spec failing
-  # twice on the same line. The workflow's own conclusion cannot tell you that —
-  # continue-on-error is defined to keep the run green — so read the job:
-  #   gh run list --workflow=ci.yml --json databaseId -q '.[].databaseId' |
-  #     xargs -I{} gh run view {} --json jobs \
-  #       --jq '.jobs[] | select(.name | startswith("browser")) | .conclusion'
-  # Note that `concurrency.cancel-in-progress` above cancels this job when a
-  # newer push lands, and a cancelled run is neither green nor a failure —
-  # it just breaks the streak.
+  # THIS JOB GATES, as of 2026-09-04, and the pixel split below is what made
+  # that possible.
   #
-  # Until then a failure here is a lead, not a verdict: reproduce it locally
-  # with `--repeat-each=12 --workers=6` before touching the spec.
+  # `continue-on-error` was meant to keep a flaky suite out of the merge path
+  # until it earned trust, and the bar written here was twenty consecutive green
+  # runs. What it actually bought was the opposite: this job was RED on every
+  # run from `2096836` (31.08) onward, more than twenty of them, while the
+  # workflow reported success and nobody read the job. A gate people learn to
+  # ignore was the thing to avoid; a red job nobody reads is worse, because it
+  # looks like evidence and is not.
+  #
+  # What was failing, once somebody looked:
+  #   - glass-legibility: a REAL shipped defect. Low power strips the chrome's
+  #     backdrop-filter, so the nav fill alone measured 3.31:1 against a 4.5
+  #     floor. A GitHub runner is low power for the same reason a mid-range
+  #     phone is (4 cores or less), so this was a listener's screen, not a
+  #     runner artifact. Fixed in styles.css; the spec now measures BOTH power
+  #     states by name instead of whichever one the hardware happens to produce.
+  #   - dock-while-connecting: quarantined with its diagnosis. It passes on its
+  #     own mutant now, so it was certifying something it cannot see.
+  #   - two home-shell baselines: stale since the same glass change, and they
+  #     live in the non-gating job below.
+  #
+  # A failure here is still a lead before it is a verdict: reproduce locally
+  # with `--repeat-each=12 --workers=6` before touching a spec, and never widen
+  # a threshold to make one pass.
   browser:
-    name: browser suite (reports, does not gate)
+    name: browser suite (functional, gates)
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -165,12 +177,73 @@ jobs:
       # what let the screenshots capture at all: the `Protocol error` above was
       # the default worker count.
       - name: Playwright
-        run: npm --workspace apps/webapp run test:e2e:ci
+        env:
+          PLAYWRIGHT_SKIP_PIXELS: '1'
+        run: npm --workspace apps/webapp run test:e2e:functional
 
       - name: Upload the report when it fails
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
+          path: apps/webapp/playwright-report/
+          retention-days: 7
+
+  # The pixel half, kept OUT of the merge path on purpose.
+  #
+  # A baseline failure does not mean the product is broken. It usually means
+  # somebody changed the design and the committed PNGs have not been re-drawn,
+  # and that verdict belongs to a person looking at the pictures. That is what
+  # `visual-baselines.yml` is for, and why it commits nothing.
+  #
+  # This is NOT a licence to leave it red forever: leaving a red job unread is
+  # the exact mistake this split repairs. The two home-shell baselines have been
+  # stale since `2096836` (the glass restoration) and are stale AGAIN after the
+  # low-power nav fill, which changes the nav on precisely the kind of machine
+  # CI runs on. Re-draw with `visual-baselines.yml`, LOOK at the artifacts,
+  # then commit them.
+  pixels:
+    name: visual baselines (reports, does not gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.x'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        timeout-minutes: 18
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::chromium install attempt $attempt did not finish; retrying"
+            sleep 20
+          done
+          echo "::error::chromium could not be installed in three bounded attempts"
+          exit 1
+
+      - name: Playwright (pixels only)
+        run: npm --workspace apps/webapp run test:e2e:pixels
+
+      - name: Upload the report when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-pixels
           path: apps/webapp/playwright-report/
           retention-days: 7

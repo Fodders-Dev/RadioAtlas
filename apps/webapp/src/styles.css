@@ -9968,6 +9968,34 @@ button.player-dock-status-pill:active {
  * of this comment claimed otherwise. MiniPlayerDock.css turns the dock's blur
  * off with a TWO-class selector that outranks anything here; the dock's glass
  * is decided there, against the theme backdrop, not by this list. */
+/* Low power takes the blur away, so the FILL has to do the blur's job.
+ *
+ * ⚠ This is a legibility fix, not a look. `glass-legibility.spec.ts` measures
+ * the nav's labels against a bright band pinned behind the bar, off PIXELS, and
+ * the floor is WCAG AA — a product contract this repo does not tune.
+ *
+ * Measured 2026-09-04 at 390x844, same page, only `data-low-power` differing:
+ *
+ *   | nav blur                  | fill | ground L | ratio |
+ *   | blur(22px) saturate(1.6)  | 0.52 | 0.086    | 5.49  |
+ *   | none  (low power)         | 0.52 | 0.183    | 3.31  |  <- shipped, fails AA
+ *   | none  (low power)         | 0.72 | 0.078    | 5.83  |  <- this rule
+ *
+ * The blur was carrying the contrast: take it away and twice as much of
+ * whatever scrolls behind survives into the surface the labels sit on. 0.72
+ * without a blur lands where 0.52 with one did, which is the whole intent.
+ *
+ * ⚠ This was shipped broken from `2096836` ("the chrome is glass again") on
+ * 31.08 and caught by CI on every run since — into a job that does not gate, so
+ * nobody read it. It is not a runner artifact: `lowPower` is true for
+ * `prefers-reduced-motion`, a constrained network, `hardwareConcurrency <= 4`
+ * or `deviceMemory <= 4`, and Chrome reports 4 for a 6 GB phone. The owner's
+ * own Galaxy S20 FE trips it. A GitHub runner tripping it is the same listener,
+ * not a different one. */
+.app-shell-v2[data-low-power='true'] .app-navigation-mobile {
+  background-color: rgba(13, 26, 43, 0.72) !important;
+}
+
 .app-shell-v2[data-low-power='true'] .glass-card,
 .app-shell-v2[data-low-power='true'] .app-topbar-v2,
 .app-shell-v2[data-low-power='true'] .player-dock-tray-panel,

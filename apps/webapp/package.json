@@ -14,7 +14,9 @@
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "generate-catalog": "node update-catalog.js",
-    "test:e2e:ci": "playwright test --workers=1"
+    "test:e2e:ci": "playwright test --workers=1",
+    "test:e2e:functional": "playwright test --workers=1",
+    "test:e2e:pixels": "playwright test --workers=1 tests/visual.spec.ts"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",

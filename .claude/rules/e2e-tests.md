@@ -136,6 +136,26 @@ a one-line comment in `lib/geoResolver.ts` reloaded three screens and cost a
 load. Start the suite, then keep your hands off `src/` until it finishes; a
 failure that only appears in a run you edited during is not a finding.
 
+## `?glass=` is not the only switch the hardware flips
+
+Pinning the glass tier does NOT pin `data-low-power`. `main.tsx` derives that
+separately from `getDeviceProfile()`, and two rules keyed on it strip the
+chrome's `backdrop-filter` with `!important`. It is true for
+`prefers-reduced-motion`, a constrained network, `hardwareConcurrency <= 4` or
+`deviceMemory <= 4` — so a 4-vCPU GitHub runner renders the low-power app while
+a 12-core desktop renders the full-glass one, from the same URL.
+
+That cost five days of a red CI job read as "an environment difference":
+`glass-legibility` measured 5.49:1 locally and 3.10:1 on the runner, and the
+runner was right — the nav genuinely failed WCAG AA wherever the blur is
+stripped, which includes the owner's own phone.
+
+Any spec whose subject is the chrome's appearance must pin BOTH switches and say
+which one it is testing. `page.emulateMedia({ reducedMotion: 'reduce' })` is the
+deterministic way into the low-power state, and it is also a real listener.
+Assert the state you asked for actually rendered — otherwise a silently-normal
+"low power" run reports a healthy number for a case nobody measured.
+
 ⚠ **Killing a run does not free its ports.** Playwright's two `webServer`
 processes outlive the runner, so the next `playwright test` dies on
 `http://127.0.0.1:4311/health is already used`. That failure exits the RUNNER,

@@ -27,8 +27,26 @@ const CATALOG_DATA_DIR = join(
 );
 const REUSE_EXISTING_SERVER = process.env.PLAYWRIGHT_REUSE_SERVER === '1';
 
+/**
+ * The pixel specs are separable, and CI separates them.
+ *
+ * `visual.spec.ts` is the ONLY file in this suite that calls
+ * `toHaveScreenshot` — verified, not assumed. That makes it the natural seam
+ * between "does the product work" and "does the product still look like the
+ * committed PNGs", and those two deserve different verdicts: a functional
+ * failure is a bug, while a baseline failure is usually a deliberate redesign
+ * nobody has re-drawn yet.
+ *
+ * ⚠ The seam is the FILE, not the test title. `--grep-invert 'visual baseline'`
+ * looks like it would work and does not: most of the functional tests in that
+ * file are also called «... visual baseline», so the filter would silently drop
+ * about a dozen real checks out of the gating job. Measured by listing them.
+ */
+const SKIP_PIXELS = process.env.PLAYWRIGHT_SKIP_PIXELS === '1';
+
 export default defineConfig({
   testDir: './tests',
+  ...(SKIP_PIXELS ? { testIgnore: ['**/visual.spec.ts'] } : {}),
   timeout: 30_000,
   expect: {
     timeout: 5000
