@@ -13,7 +13,8 @@ export const usePersistentState = <T,>(
     clearLegacyKeys = [],
     writeOnMount = false,
     onWriteError,
-    onWriteRecovered
+    onWriteRecovered,
+    rollbackOnWriteError = false
   }: {
     writeDelayMs?: number;
     clearLegacyKeys?: string[];
@@ -28,6 +29,21 @@ export const usePersistentState = <T,>(
     onWriteError?: (error: unknown) => void;
     /** Told when a later write succeeds after one failed. */
     onWriteRecovered?: () => void;
+    /**
+     * Put the state BACK to whatever storage actually holds when a write fails.
+     *
+     * ⚠ Without this the app tells two stories at once. React state took the
+     * change instantly, the write is debounced and fails afterwards, so the
+     * listener sees «Не удалось сохранить находку» AND the find sitting in
+     * «Находки» looking saved — until a reload takes it. Measured in a browser
+     * with a thrown QuotaExceededError: the toast was honest and the list was
+     * not.
+     *
+     * Off by default: the three cache-shaped call sites would rather keep a
+     * value they could not write than lose it, and nothing promises the person
+     * that those persisted.
+     */
+    rollbackOnWriteError?: boolean;
   } = {}
 ) => {
   const [value, setValueState] = useState<T>(() => {
@@ -82,6 +98,19 @@ export const usePersistentState = <T,>(
         // `dirtyRef` stays true, so the next change retries — hence the
         // recovery callback above rather than a one-way error.
         writeFailedRef.current = true;
+        if (rollbackOnWriteError) {
+          // Give up on this value rather than retry it: `dirtyRef` goes false so
+          // the effect below does not loop on the state change we are about to
+          // make, and the state is pulled back to what storage really has. The
+          // UI then says exactly as much as the disk does.
+          dirtyRef.current = false;
+          try {
+            const persisted = window.localStorage.getItem(key);
+            setValueState(persisted ? (JSON.parse(persisted) as T) : initialValue);
+          } catch {
+            setValueState(initialValue);
+          }
+        }
         onWriteError?.(error);
       }
     }, writeDelayMs);

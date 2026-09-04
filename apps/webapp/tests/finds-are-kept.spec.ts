@@ -60,6 +60,9 @@ test('a caught find is still there after a reload', async ({ page }) => {
 });
 
 test('a refused storage says so instead of claiming the find was saved', async ({ page }) => {
+  // A phone viewport, because the assertion below walks the mobile navigation
+  // and `.app-navigation-mobile` does not render at Playwright's 1280 default.
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     // A full quota is the real shape of this: Safari and mobile WebViews throw
     // QuotaExceededError from setItem once the origin's budget is gone, and a
@@ -88,4 +91,12 @@ test('a refused storage says so instead of claiming the find was saved', async (
   // And the storage genuinely holds nothing, so the message is the truth rather
   // than a second guess about what happened.
   expect(await storedFinds(page)).toBe(0);
+
+  // ⚠ The temporary lie, and the reason this assert exists: `setTrackHistory`
+  // puts the find into React state immediately while the write is debounced and
+  // fails afterwards. Without a rollback the toast says «не удалось сохранить»
+  // and the find sits in «Треки» looking saved until the next reload takes it.
+  await page.locator('.app-navigation-mobile button', { hasText: 'Моё' }).click();
+  await page.locator('button', { hasText: 'Треки' }).first().click();
+  await expect(page.locator('.track-list')).toHaveCount(0);
 });

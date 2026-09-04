@@ -214,6 +214,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     'radio:library:v2',
     DEFAULT_LIBRARY_STATE,
     {
+      // The library is the one state that PROMISES. A find the person was told
+      // was saved may not linger in the UI after the write failed.
+      rollbackOnWriteError: true,
       onWriteError: () => setLibraryPersistFailed(true),
       onWriteRecovered: () => setLibraryPersistFailed(false),
       writeDelayMs: LIBRARY_PERSIST_WRITE_DELAY_MS,
