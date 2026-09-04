@@ -8,7 +8,7 @@ import type {
 import { toLite } from '../../lib/stationUtils';
 import { tasteProfilesMatch } from '../../lib/tasteProfile';
 import type { Station, StationLite } from '../../types';
-import { MAX_QUEUE_ITEMS, MAX_TRACK_HISTORY } from './defaults';
+import { MAX_QUEUE_ITEMS } from './defaults';
 import type { QueueSnapshot, TrackHistoryItem } from './types';
 
 export const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
@@ -40,8 +40,11 @@ export const mergeTrackHistory = (...groups: TrackHistoryItem[][]) => {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    })
-    .slice(0, MAX_TRACK_HISTORY);
+    });
+  // ⚠ No `.slice()` here on purpose. This is the merge that runs when somebody
+  // signs in on a second device, and it used to cut the union to 200: 150 finds
+  // on a phone plus 150 on a tablet became 200, and a hundred saved finds went
+  // without a word. Sorting is newest-first, so the OLDEST were the ones lost.
 };
 
 // The most recent recorded track for a station (newest-first history → first

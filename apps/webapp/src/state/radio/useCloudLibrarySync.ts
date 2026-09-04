@@ -6,7 +6,7 @@ import type {
   ListenerAlert,
   UserCollection
 } from '../../domain/contracts';
-import { MAX_RECENT, MAX_TRACK_HISTORY } from './defaults';
+import { MAX_RECENT } from './defaults';
 import {
   alertsMatch,
   cloudLibraryMatches,
@@ -198,7 +198,10 @@ export const useCloudLibrarySync = ({
     }
 
     const nextRecent = recent.slice(0, MAX_RECENT);
-    const nextTrackHistory = trackHistory.slice(0, MAX_TRACK_HISTORY);
+    // Finds go up whole. The cap that used to live here is gone: it silently
+    // decided which of somebody's saved finds the server was allowed to know
+    // about, and the server then merged against that truncated view.
+    const nextTrackHistory = trackHistory;
     const nextLibrary = {
       favorites,
       recent: nextRecent,

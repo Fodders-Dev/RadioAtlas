@@ -375,7 +375,16 @@ export const resolveNowPlayingTrust = ({
 export const upsertTrustedTrackHistory = (
   history: TrackHistoryItem[],
   entry: TrackHistoryItem,
-  limit: number,
+  /**
+   * ⚠ Optional, and omitting it means NO CAP — which is the point.
+   *
+   * A find is something a person pressed «Сохранить находку» for, so the app is
+   * not allowed to throw one away to make room. The old caller passed
+   * MAX_TRACK_HISTORY = 200 and the oldest find silently vanished on the 201st.
+   * Measured 2026-09-03: ten thousand finds merge in 6ms and cost 2.2MB of a
+   * ~5MB storage budget, so the cap was protecting nothing.
+   */
+  limit: number | undefined,
   now = entry.timestamp
 ) => {
   const trustedTrack = normalizeTrustedTrackTitle(entry.track, {
@@ -399,12 +408,13 @@ export const upsertTrustedTrackHistory = (
     ...entry,
     track: trustedTrack
   };
-  return [
+  const next = [
     nextEntry,
     ...history.filter(
       (item) =>
         item.stationId !== normalizedStation ||
         normalizeComparable(item.track) !== normalizedTrack
     )
-  ].slice(0, limit);
+  ];
+  return limit === undefined ? next : next.slice(0, limit);
 };

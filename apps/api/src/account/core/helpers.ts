@@ -506,7 +506,15 @@ export const mergeLibraries = (
   return {
     favorites: uniqueStations([...primary.favorites, ...secondary.favorites]).slice(0, 200),
     recent: uniqueStations([...primary.recent, ...secondary.recent]).slice(0, 80),
-    trackHistory: uniqueTrackHistory([...primary.trackHistory, ...secondary.trackHistory]).slice(0, 200),
+    // ⚠ NO cap on finds, and the missing `.slice(0, 200)` is the point.
+    // This is the account merge — two devices, or a sign-in — and the cut here
+    // was the worst of the four: it threw away the older half of somebody's
+    // saved finds at the exact moment they expected the two halves to come
+    // together. Measured 2026-09-03: the merge costs 5.7ms at ten thousand
+    // finds, so the number was protecting nothing.
+    // Favourites, recents and collections keep their caps for now — same broken
+    // promise, different object, recorded as its own defect in PLAN.md.
+    trackHistory: uniqueTrackHistory([...primary.trackHistory, ...secondary.trackHistory]),
     collections: uniqueCollections([...primary.collections, ...secondary.collections]).slice(0, 24),
     followedStations: uniqueFollowedStations([...primary.followedStations, ...secondary.followedStations]).slice(
       0,

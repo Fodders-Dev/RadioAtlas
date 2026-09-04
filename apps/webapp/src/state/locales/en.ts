@@ -1198,6 +1198,8 @@ export const enDictionary = {
     "shareOpened": "Share opened",
     "shareFailed": "Share failed",
     "cacheCleared": "Cache cleared",
+    "findNotSaved": "Could not save the find",
+    "findSavedNotSynced": "Find saved on this device. Sync failed",
     "findSaved": "Find saved",
     "findSavedNoCopy": "Find saved, copying failed",
     "noTrackInfo": "No track info",

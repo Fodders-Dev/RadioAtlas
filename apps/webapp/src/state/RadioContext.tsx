@@ -106,7 +106,6 @@ import {
   MAX_QUEUE_ITEMS,
   MAX_PLAYBACK_HISTORY,
   MAX_RECENT,
-  MAX_TRACK_HISTORY
 } from './radio/defaults';
 import {
   clampQueueIndex,
@@ -191,7 +190,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     status: sessionStatus,
     profile: sessionProfile,
     library: cloudLibrary,
-    replaceCloudLibrary
+    replaceCloudLibrary,
+    syncState
   } = useSession();
   const [storedAppState, setStoredAppState] = usePersistentState<StoredAppState>(
     'radio:app:v2',
@@ -200,10 +200,22 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearLegacyKeys: ['radio:shell-state:v1', 'radio:behavior-profile:v1']
     }
   );
+  /**
+   * Did the library's last write to storage fail?
+   *
+   * The hook is debounced, so the failure lands AFTER «Находка сохранена» has
+   * already been shown. That is not a reason to stay quiet: a find that never
+   * reached storage disappears on the next reload, and the person deserves the
+   * correction rather than the surprise. Held as state and announced from an
+   * effect below, because `notify` is declared further down this component.
+   */
+  const [libraryPersistFailed, setLibraryPersistFailed] = useState(false);
   const [storedLibraryState, setStoredLibraryState] = usePersistentState<StoredLibraryState>(
     'radio:library:v2',
     DEFAULT_LIBRARY_STATE,
     {
+      onWriteError: () => setLibraryPersistFailed(true),
+      onWriteRecovered: () => setLibraryPersistFailed(false),
       writeDelayMs: LIBRARY_PERSIST_WRITE_DELAY_MS,
       clearLegacyKeys: [
         'radio:track-history',
@@ -497,10 +509,65 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     [debugLoggingEnabled]
   );
 
+  /**
+   * State B: the find is safe on the device, the cloud copy is not.
+   *
+   * The transport already knows — `flushCloudLibrarySync` catches, sets
+   * `syncState: 'error'` and reports `session_sync_error`. What was missing is
+   * that NOBODY TOLD THE PERSON, and that a session-level sync error says
+   * nothing about whether a find was in the payload. This watches for the edge
+   * and only speaks when a find is actually waiting: an error while nothing was
+   * caught is an infrastructure detail, not a broken promise.
+   */
+  const findAwaitingSyncRef = useRef(false);
+  const findSyncFailedRef = useRef(false);
+
+  useEffect(() => {
+    if (!findAwaitingSyncRef.current) return;
+    if (syncState === 'error' && !findSyncFailedRef.current) {
+      findSyncFailedRef.current = true;
+      notifyRef.current?.(t('toast.findSavedNotSynced'));
+      reportProductEvent('find_sync_failed', {}, { dedupeKey: `find_sync_failed:${Date.now()}` });
+      return;
+    }
+    if (syncState === 'synced') {
+      // The sync layer retries on the next change, so a recovery is the normal
+      // ending of a failure rather than a rare one — worth counting separately,
+      // or «мы теряем sync» and «мы теряем sync НАВСЕГДА» read the same.
+      if (findSyncFailedRef.current) {
+        reportProductEvent(
+          'find_sync_recovered',
+          {},
+          { dedupeKey: `find_sync_recovered:${Date.now()}` }
+        );
+      }
+      findSyncFailedRef.current = false;
+      findAwaitingSyncRef.current = false;
+    }
+  }, [syncState, t]);
+
+  // `notify` is declared below; the ref lets the effect above reach it without
+  // moving a hundred lines of component around for one toast.
+  const notifyRef = useRef<((message: string) => void) | null>(null);
+
+  /**
+   * The honest third state: the app could not keep the find at all.
+   *
+   * A: saved and synced. B: saved locally, cloud sync failed — the find is
+   * still there. C: this one — storage refused, so «сохранено» would be a lie
+   * and the person is told the truth instead.
+   */
+  useEffect(() => {
+    if (!libraryPersistFailed) return;
+    notifyRef.current?.(t('toast.findNotSaved'));
+    reportProductEvent('find_persist_failed', {}, { dedupeKey: `find_persist_failed:${Date.now()}` });
+  }, [libraryPersistFailed, t]);
+
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(null), 2000);
   };
+  notifyRef.current = notify;
 
   const resolvePlaybackToastMessage = (message: string | null | undefined) => {
     switch (message) {
@@ -1639,7 +1706,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     syncCloudLibraryImmediately({
       favorites: nextFavorites,
       recent: recent.slice(0, MAX_RECENT),
-      trackHistory: trackHistory.slice(0, MAX_TRACK_HISTORY),
+      trackHistory,
       collections,
       followedStations,
       followedRegions,
@@ -1928,7 +1995,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       track: trustedTrack,
       timestamp
     };
-    setTrackHistory((prev) => upsertTrustedTrackHistory(prev, entry, MAX_TRACK_HISTORY, timestamp));
+    // No limit argument: a find is kept because somebody asked for it to be
+    // kept. See the note on `upsertTrustedTrackHistory`.
+    setTrackHistory((prev) => upsertTrustedTrackHistory(prev, entry, undefined, timestamp));
     return true;
   };
 
@@ -2016,7 +2085,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     syncCloudLibraryImmediately({
       favorites: [],
       recent: recent.slice(0, MAX_RECENT),
-      trackHistory: trackHistory.slice(0, MAX_TRACK_HISTORY),
+      trackHistory,
       collections,
       followedStations,
       followedRegions,
@@ -2347,6 +2416,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
     rememberTrackHistory(station, trustedTrack);
     recordBehaviorForStation(station, 'track-copy');
+    // From here the cloud copy is owed. The watcher above turns a sync failure
+    // into something the person is told, instead of a counter nobody reads.
+    findAwaitingSyncRef.current = true;
 
     let clipboard: 'ok' | 'failed' = 'failed';
     try {

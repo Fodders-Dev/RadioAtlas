@@ -11,11 +11,23 @@ export const usePersistentState = <T,>(
   {
     writeDelayMs = 120,
     clearLegacyKeys = [],
-    writeOnMount = false
+    writeOnMount = false,
+    onWriteError,
+    onWriteRecovered
   }: {
     writeDelayMs?: number;
     clearLegacyKeys?: string[];
     writeOnMount?: boolean;
+    /**
+     * Told when a write to storage throws — a full quota, a private window, a
+     * WebView that refuses. Optional on purpose: omit it and the behaviour is
+     * byte-for-byte what it was, which is what the three cache-shaped call
+     * sites want. The library passes one because a find that fails to persist
+     * must not be reported to its owner as saved.
+     */
+    onWriteError?: (error: unknown) => void;
+    /** Told when a later write succeeds after one failed. */
+    onWriteRecovered?: () => void;
   } = {}
 ) => {
   const [value, setValueState] = useState<T>(() => {
@@ -32,6 +44,7 @@ export const usePersistentState = <T,>(
   const writeTimerRef = useRef<number | null>(null);
   const clearedLegacyRef = useRef(false);
   const dirtyRef = useRef(writeOnMount);
+  const writeFailedRef = useRef(false);
 
   useEffect(() => {
     if (clearedLegacyRef.current) return;
@@ -55,9 +68,21 @@ export const usePersistentState = <T,>(
     writeTimerRef.current = window.setTimeout(() => {
       try {
         window.localStorage.setItem(key, JSON.stringify(value));
+        const recovered = writeFailedRef.current;
+        writeFailedRef.current = false;
         dirtyRef.current = false;
-      } catch {
-        // Ignore write failures.
+        if (recovered) onWriteRecovered?.();
+      } catch (error) {
+        // ⚠ Still swallowed for every caller that does not ask, because three of
+        // the four call sites are caches where a failed write costs nothing and
+        // a toast would be noise. But a caller CAN ask, and the library does:
+        // a find is something a person pressed «Сохранить находку» for, and a
+        // write that fails without a word means the app showed them a saved
+        // find that will not survive the next reload.
+        // `dirtyRef` stays true, so the next change retries — hence the
+        // recovery callback above rather than a one-way error.
+        writeFailedRef.current = true;
+        onWriteError?.(error);
       }
     }, writeDelayMs);
 

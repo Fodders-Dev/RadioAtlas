@@ -1198,6 +1198,8 @@ export const ruDictionary = {
     "shareOpened": "Шаринг открыт",
     "shareFailed": "Не удалось открыть шаринг",
     "cacheCleared": "Кэш очищен",
+    "findNotSaved": "Не удалось сохранить находку",
+    "findSavedNotSynced": "Находка сохранена на устройстве. Синхронизация не удалась",
     "findSaved": "Находка сохранена",
     "findSavedNoCopy": "Находка сохранена, скопировать не вышло",
     "noTrackInfo": "Нет данных о треке",

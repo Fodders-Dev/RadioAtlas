@@ -239,6 +239,11 @@ export const DAILY_COUNTER_KEYS: ReadonlySet<string> = new Set([
   'client_event:session_authenticated',
   'client_event:session_duration',
   'client_event:find_captured',
+  // A find that was promised and then lost is the one failure this product
+  // cannot afford to learn about late, so these keep a quarter of history too.
+  'client_event:find_persist_failed',
+  'client_event:find_sync_failed',
+  'client_event:find_sync_recovered',
   'client_event:play_attempt',
   'client_event:play_success',
   'client_event:play_superseded',

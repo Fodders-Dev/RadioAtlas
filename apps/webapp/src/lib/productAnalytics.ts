@@ -23,6 +23,11 @@ export type ProductAnalyticsEventName =
   // the moment. Distinct from `like`, which saves the STATION as a source —
   // conflating them would make both unreadable.
   | 'find_captured'
+  // The three honest states of a saved find. Without these, «никто не
+  // сохраняет» and «люди сохраняют, а мы теряем» look identical from here.
+  | 'find_persist_failed'
+  | 'find_sync_failed'
+  | 'find_sync_recovered'
   | 'search_query'
   | 'queue_source'
   | 'queue_reorder'

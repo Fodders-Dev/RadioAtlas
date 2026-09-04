@@ -14,7 +14,13 @@ import type {
 } from './types';
 
 export const MAX_RECENT = 20;
-export const MAX_TRACK_HISTORY = 200;
+/* MAX_TRACK_HISTORY is deliberately GONE.
+   It capped finds at 200 and the 201st silently evicted the oldest — including
+   at account merge, where 150 finds on one device plus 150 on another became
+   200. Once the button says «Сохранить находку», a cap that quietly deletes is
+   a broken promise, and the spike on 2026-09-03 showed it was protecting
+   nothing: ten thousand finds merge in 6ms and cost 2.2MB of a ~5MB budget.
+   Leaving the constant behind would tell the next reader a limit still exists. */
 export const MAX_PLAYBACK_HISTORY = 80;
 export const MAX_QUEUE_ITEMS = 120;
 
