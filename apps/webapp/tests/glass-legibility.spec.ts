@@ -98,7 +98,27 @@ const measureStrip = async (page: Page, clip: { x: number; y: number; width: num
  * real listener: anyone who turned motion down gets the blur-less chrome.
  */
 const openPlayingHome = async (page: Page, power: 'normal' | 'low' = 'normal') => {
-  if (power === 'low') await page.emulateMedia({ reducedMotion: 'reduce' });
+  // ⚠ BOTH directions have to be forced, and only one of them is a media query.
+  //
+  // The first version emulated reduced motion for 'low' and left 'normal'
+  // alone, which is not the same as forcing it: `lowPower` is ALSO true for
+  // `hardwareConcurrency <= 4`, and a GitHub runner has four. So on CI the
+  // 'normal power' case still rendered the low-power app, and the guard below
+  // caught it — `Expected "false", Received "true"`. Left unforced it would
+  // have quietly reported a healthy 5.42:1 for a state nobody measured, which
+  // is the exact failure this whole file was being repaired for.
+  //
+  // `getDeviceProfile()` caches on first call, so the override has to be in
+  // place before any module runs — an init script, not an evaluate.
+  if (power === 'low') {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  } else {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'hardwareConcurrency', { configurable: true, value: 12 });
+      Object.defineProperty(navigator, 'deviceMemory', { configurable: true, value: 8 });
+    });
+  }
   await installMediaMocks(page);
   await mockStations(page);
   await page.setViewportSize({ width: 390, height: 844 });

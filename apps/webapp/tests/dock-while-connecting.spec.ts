@@ -32,7 +32,21 @@ const openHomeWithSlowConnect = async (page: Page, power: 'normal' | 'low' = 'no
   // ⚠ `lowPower` is a SECOND switch, separate from `?glass=`, and it is what
   // made this spec red in CI for five days while passing here. See the test
   // below for the measurements.
-  if (power === 'low') await page.emulateMedia({ reducedMotion: 'reduce' });
+  //
+  // BOTH directions are forced. Leaving 'normal' alone is not the same as
+  // forcing it: `lowPower` is also true for `hardwareConcurrency <= 4`, and a
+  // GitHub runner has four, so an unforced 'normal' quietly renders the
+  // low-power app there. `getDeviceProfile()` caches on first call, so the
+  // override belongs in an init script.
+  if (power === 'low') {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  } else {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'hardwareConcurrency', { configurable: true, value: 12 });
+      Object.defineProperty(navigator, 'deviceMemory', { configurable: true, value: 8 });
+    });
+  }
   // Registered after installMediaMocks, so this play() is the one that wins.
   await page.addInitScript((delay) => {
     HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
