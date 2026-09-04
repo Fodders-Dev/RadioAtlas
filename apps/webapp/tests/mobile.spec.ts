@@ -1995,7 +1995,8 @@ test('mobile library keeps five equal-width non-wrapping tabs and opens collecti
   // still hidden (a non-visible legacy tab).
   const tabs = page.locator('.library-tab-chip');
   await expect(tabs).toHaveCount(5);
-  await expect(tabs.filter({ hasText: /Треки|Tracks/ })).toHaveCount(1);
+  // Renamed in 0.1b: the tab is «Находки», the internal key is still `tracks`.
+  await expect(tabs.filter({ hasText: /Находки|Finds/ })).toHaveCount(1);
   await expect(tabs.filter({ hasText: /История|History/ })).toHaveCount(0);
   const tabStrip = await page.locator('.library-tab-strip').evaluate((node) => {
     const computed = window.getComputedStyle(node);

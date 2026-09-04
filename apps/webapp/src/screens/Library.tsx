@@ -25,6 +25,7 @@ import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
 import { usePointerReorder } from '../lib/usePointerReorder';
 import { useLocale } from '../state/LocaleContext';
+import { FindsList } from '../components/FindsList';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import type { LibraryTab, StationLite } from '../types';
@@ -471,6 +472,7 @@ export const Library = () => {
   const activeLibraryTab: VisibleLibraryTab = isVisibleLibraryTab(libraryTab)
     ? libraryTab
     : 'recent';
+  const findsTabActive = activeLibraryTab === 'tracks';
   const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
   const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
   const handleLibraryTabKeyDown = (
@@ -730,40 +732,6 @@ export const Library = () => {
     });
   };
 
-  // Full copied-track journal entries — rendered only in the «Треки» tab now
-  // (the recent-tab inline panel and its bottom sheet were removed).
-  const renderTrackJournalEntries = () =>
-    trackHistory.map((item) => (
-      <div key={item.id} className="track-card">
-        <div className="track-card-copy">
-          <div className="track-title">{item.track}</div>
-          <div className="track-meta">
-            {item.stationName} · {formatTime(item.timestamp)}
-          </div>
-        </div>
-        <div className="track-card-actions">
-          <button
-            className="chip"
-            type="button"
-            onClick={() => navigator.clipboard.writeText(item.track)}
-          >
-            {t('common.copy')}
-          </button>
-          <button
-            className="track-remove-btn"
-            type="button"
-            aria-label={t('library.removeTrackHistoryItem', { track: item.track })}
-            title={t('common.remove')}
-            onClick={() => removeTrackHistoryItem(item.id)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    ));
-
   // Queue rail content (station history + track journal previews) — shared
   // verbatim by the desktop side column and the mobile S1 bottom sheet.
   const renderQueueRailCards = () => (
@@ -804,7 +772,17 @@ export const Library = () => {
                 <button
                   className="chip"
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(item.track)}
+                  onClick={() => {
+                    // ⚠ The same bare `navigator.clipboard.writeText` that the
+                    // «Находки» tab carried: no await, no catch, and silent on
+                    // success as well as failure. This preview is a second copy
+                    // of that defect, so it gets the same repair rather than
+                    // being left as the one place the app still lies.
+                    void navigator.clipboard
+                      .writeText(item.track)
+                      .then(() => setCollectionNotice(t('finds.copied')))
+                      .catch(() => setCollectionNotice(t('finds.copyFailed')));
+                  }}
                 >
                   {t('common.copy')}
                 </button>
@@ -847,6 +825,13 @@ export const Library = () => {
 
   return (
     <section className="screen screen-library-v2">
+      {/* ⚠ «Находки» brings its OWN permanent search, so the shared library
+          search is not rendered on that tab. Two search fields stacked — one
+          «Поиск по медиатеке» and directly beneath it «Поиск: исполнитель,
+          трек, станция» — is not something a listener should have to work out.
+          The two queries are separate state on purpose: searching finds must
+          never leave «Станции» silently filtered when you switch back. */}
+      {!findsTabActive ? (
       <div className="library-search-bar">
         <span className="library-search-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -883,6 +868,7 @@ export const Library = () => {
           </button>
         ) : null}
       </div>
+      ) : null}
 
       {!librarySearchQuery ? (
         <div className="library-header-actions library-quick-actions">
@@ -904,7 +890,7 @@ export const Library = () => {
         </div>
       ) : null}
 
-      {librarySearchQuery ? (
+      {librarySearchQuery && !findsTabActive ? (
         <div
           className="glass-card library-search-results"
           role="region"
@@ -1269,19 +1255,13 @@ export const Library = () => {
         panelId={libraryPanelId('tracks')}
         className="glass-card"
       >
-          {/* Unified toolbar (subtitle + Clear) — the tab strip already labels
-              this «Треки», so no duplicate section title. */}
-          <div className="library-tab-toolbar">
-            <div className="section-subtitle">{t('library.tracksSubtitle')}</div>
-          </div>
-          {trackHistory.length ? (
-            <div className="track-list track-list-scroll">{renderTrackJournalEntries()}</div>
-          ) : (
-            <div className="empty-state library-empty-state">
-              <div className="library-empty-title">{t('favoritesScreen.journalEmpty')}</div>
-              <div className="section-subtitle">{t('library.tracksEmptyHint')}</div>
-            </div>
-          )}
+          {/* «Находки». The tab strip already names it, and FindsList owns its
+              own search, grouping, empty states and overlays — so there is no
+              toolbar here and, deliberately, no scroll container: this list
+              scrolls with the page. The previous version wrapped it in
+              `track-list-scroll` (max-height 420px, overflow auto), which put a
+              scroller inside a scroller on a phone. */}
+          <FindsList finds={trackHistory} onRemove={removeTrackHistoryItem} />
       </LibraryTabPanel>
 
       <LibraryTabPanel

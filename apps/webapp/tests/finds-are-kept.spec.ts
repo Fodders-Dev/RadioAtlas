@@ -97,6 +97,8 @@ test('a refused storage says so instead of claiming the find was saved', async (
   // fails afterwards. Without a rollback the toast says «не удалось сохранить»
   // and the find sits in «Треки» looking saved until the next reload takes it.
   await page.locator('.app-navigation-mobile button', { hasText: 'Моё' }).click();
-  await page.locator('button', { hasText: 'Треки' }).first().click();
-  await expect(page.locator('.track-list')).toHaveCount(0);
+  // «Треки» became «Находки» in 0.1b, and the flat `.track-list` became
+  // `[data-finds-list]` with its own rows.
+  await page.locator('button', { hasText: 'Находки' }).first().click();
+  await expect(page.locator('[data-find-row]')).toHaveCount(0);
 });

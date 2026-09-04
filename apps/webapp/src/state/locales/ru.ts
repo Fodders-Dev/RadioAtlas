@@ -564,6 +564,39 @@ export const ruDictionary = {
     "voiceListening": "Слушаю…",
     "voiceDenied": "Нет доступа к микрофону"
   },
+  "finds": {
+    "searchPlaceholder": "Поиск: исполнитель, трек, станция",
+    "searchEmpty": "Ничего не нашли",
+    "empty": "Здесь будут твои находки",
+    "emptyHint": "Услышал что-то своё — нажми «Сохранить находку» в плеере.",
+    "copied": "Скопировано",
+    "copyFailed": "Не удалось скопировать",
+    "removed": "Находка удалена",
+    "notSearchable": "В названии нечего искать",
+    "chooseService": "Выбрать сервис",
+    "openInNamed": "Открыть в «{service}»",
+    "moreFor": "Ещё действия для «{track}»",
+    "openInService": "Открыть в сервисе",
+    "openInOther": "Открыть в другом сервисе",
+    "pickerTitle": "Где слушать находки?",
+    "pickerHint": "Запомним на этом устройстве. Поменять можно в «⋮».",
+    "pickerOtherTitle": "Открыть в другом сервисе",
+    "deleteTitle": "Удалить находку?",
+    "delete": "Удалить",
+    "groups": {
+      "today": "Сегодня",
+      "yesterday": "Вчера",
+      "week": "Эта неделя"
+    },
+    "services": {
+      "yandex": "Яндекс Музыка",
+      "zvuk": "Звук",
+      "vk": "VK Музыка",
+      "spotify": "Spotify",
+      "soundcloud": "SoundCloud",
+      "youtube": "YouTube"
+    }
+  },
   "library": {
     "kicker": "Личное пространство",
     "title": "Медиатека",
@@ -593,7 +626,7 @@ export const ruDictionary = {
     "stationHistory": "История живых станций для быстрого возврата в эфир.",
     "tabs": {
       "favorites": "Избранное",
-      "tracks": "Треки",
+      "tracks": "Находки",
       "queue": "Очередь",
       "recent": "Недавнее",
       "history": "История",

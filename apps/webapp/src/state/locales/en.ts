@@ -564,6 +564,39 @@ export const enDictionary = {
     "voiceListening": "Listening…",
     "voiceDenied": "Microphone access denied"
   },
+  "finds": {
+    "searchPlaceholder": "Search: artist, track, station",
+    "searchEmpty": "Nothing found",
+    "empty": "Your finds will live here",
+    "emptyHint": "Heard something yours — press «Save the find» in the player.",
+    "copied": "Copied",
+    "copyFailed": "Could not copy",
+    "removed": "Find removed",
+    "notSearchable": "Nothing to search for in that title",
+    "chooseService": "Choose a service",
+    "openInNamed": "Open in {service}",
+    "moreFor": "More actions for «{track}»",
+    "openInService": "Open in a service",
+    "openInOther": "Open in another service",
+    "pickerTitle": "Where do you listen?",
+    "pickerHint": "We will remember it on this device. Change it from «⋮».",
+    "pickerOtherTitle": "Open in another service",
+    "deleteTitle": "Delete this find?",
+    "delete": "Delete",
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "This week"
+    },
+    "services": {
+      "yandex": "Yandex Music",
+      "zvuk": "Zvuk",
+      "vk": "VK Music",
+      "spotify": "Spotify",
+      "soundcloud": "SoundCloud",
+      "youtube": "YouTube"
+    }
+  },
   "library": {
     "kicker": "Personal space",
     "title": "Library",
@@ -593,7 +626,7 @@ export const enDictionary = {
     "stationHistory": "Live station history for returning to the right mood fast.",
     "tabs": {
       "favorites": "Favorites",
-      "tracks": "Tracks",
+      "tracks": "Finds",
       "queue": "Queue",
       "recent": "Recent",
       "history": "History",

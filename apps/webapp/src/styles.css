@@ -11485,3 +11485,291 @@ button.player-dock-status-pill:active {
   background-repeat: no-repeat, no-repeat !important;
   background-color: var(--station-plate, rgba(9, 17, 30, 0.72)) !important;
 }
+
+/* ── «Находки» ─────────────────────────────────────────────────────────────
+ *
+ * Shape agreed against mockups at 390x844 before any of this was written.
+ * Three things here are contracts rather than taste, and each has a test:
+ *
+ *  1. NO nested scroll. The list scrolls with the page. What this replaced was
+ *     `.track-list-scroll { max-height: min(420px, 55vh); overflow: auto }` —
+ *     a scroller inside a scroller on a phone.
+ *  2. The two controls are REAL 44x44 boxes. Not padding borrowed from a
+ *     neighbour, not an ::after hit band: 0.1a shipped 35px of borrowed area
+ *     and the first attempt to reach 44 ate the control above it.
+ *  3. The row never overflows horizontally. Track and source ellipsis; the
+ *     controls are `flex: none` so a long Cyrillic title cannot push them out.
+ */
+.finds-surface {
+  display: grid;
+  gap: 10px;
+}
+
+.finds-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 11px;
+  border-radius: 11px;
+  background: rgba(17, 25, 38, 0.66);
+  border: 1px solid var(--border);
+}
+
+.finds-search svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.finds-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.finds-search input::placeholder {
+  color: var(--muted);
+}
+
+.finds-list {
+  display: grid;
+  /* ⚠ `minmax(0, 1fr)`, NOT the default implicit column. A grid's automatic
+   * column is sized to MAX-CONTENT, and `.find-row-track` is `nowrap`, so one
+   * long title — «Гражданская оборона — Всё идёт по плану» — widened every row
+   * in the list to 422px inside a 390px viewport and pushed the «⋮» 48px off
+   * screen. `text-overflow: ellipsis` never engaged because the box was never
+   * constrained.
+   *
+   * It was invisible to a document-level overflow check: an ancestor clips with
+   * `overflow: hidden`, so `scrollWidth` stayed clean while the control was
+   * simply cut off. Found by looking at the real screen with real titles. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+}
+
+.finds-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 2px 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.finds-group:first-child .finds-group-head {
+  padding-top: 2px;
+}
+
+/* The count is the only advance warning of how much sits under a heading —
+ * at two hundred finds it is the difference between "a few more" and "121". */
+.finds-group-count {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.finds-group {
+  display: grid;
+  /* Same reason as `.finds-list` above — this is the grid the rows actually
+   * sit in when the list is grouped. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 60px;
+  padding: 6px 4px 6px 11px;
+  border-radius: 11px;
+  background: rgba(17, 25, 38, 0.42);
+  border: 1px solid rgba(236, 247, 255, 0.06);
+}
+
+.find-row-body {
+  flex: 1;
+  min-width: 0;
+  padding-right: 2px;
+}
+
+/* The find leads and its source follows — the same hierarchy 0.1a.1 settled on
+ * the dock, where it had been inverted. */
+.find-row-track {
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.find-row-source {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.find-row-service,
+.find-row-more {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* The one way out of the app, and it names where it goes. */
+.find-row-service {
+  background: rgba(148, 240, 234, 0.13);
+  border: 1px solid rgba(148, 240, 234, 0.4);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.find-row-more {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+}
+
+.find-row-more svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+/* ── overlays: picker, row menu, delete confirm ──────────────────────────
+ * Portalled to document.body. A sheet rendered inside the library would be
+ * clipped by the shell's stacking context and covered by the fixed dock — the
+ * trap already recorded for every other sheet in this app. */
+.finds-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 14px;
+}
+
+.finds-overlay-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 6, 12, 0.6);
+  cursor: pointer;
+}
+
+.finds-overlay-card {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 82vh;
+  overflow: auto;
+  border-radius: 16px;
+  background: rgba(13, 22, 35, 0.97);
+  border: 1px solid var(--border);
+}
+
+.finds-overlay-head {
+  padding: 15px 16px 8px;
+}
+
+.finds-overlay-title {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.finds-overlay-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.finds-overlay-list {
+  display: grid;
+}
+
+.finds-overlay-option,
+.finds-overlay-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 0;
+  border-top: 1px solid rgba(236, 247, 255, 0.06);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finds-overlay-item.danger {
+  color: var(--danger);
+}
+
+.finds-overlay-mono {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(147, 183, 255, 0.14);
+  border: 1px solid rgba(147, 183, 255, 0.3);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent-2);
+}
+
+.finds-confirm-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px 16px;
+}
+
+.finds-confirm-btn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  background: rgba(236, 247, 255, 0.07);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.finds-confirm-btn.danger {
+  background: rgba(255, 111, 89, 0.16);
+  border-color: rgba(255, 111, 89, 0.55);
+  color: #ffb3a4;
+}
