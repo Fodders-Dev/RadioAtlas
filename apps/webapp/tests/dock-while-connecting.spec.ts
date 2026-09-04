@@ -154,6 +154,27 @@ const DOCK_MUST_APPEAR_WITHIN_MS = 150;
  * no test, because it certifies the thing it cannot see. Deliberately NOT
  * "fixed" by widening the threshold either — that is how a green suite over a
  * broken product gets built.
+ *
+ * ⚠ THE CONTRACT IS NOT WITHDRAWN, only the proof of it. What still has to be
+ * true, and what a replacement must show:
+ *
+ *     The dock is on screen BEFORE `playing`/`current` arrives, while the
+ *     connection is still being made.
+ *
+ * It came from a real report — «нажимаю следующую станцию и плеер пропадает,
+ * пока станция не заиграет» — and it is still the product's promise.
+ *
+ * ⚠⚠ The replacement must be STATE-BASED, not "appeared within N ms". The
+ * measurements above are the argument: fixed 0–51 ms against a mutant at
+ * 58–66 ms means no duration expresses the product's meaning any more. Do not
+ * go hunting for 55 ms. Any such number describes the machine, and that is
+ * exactly the Windows/Linux divergence this whole round was spent undoing.
+ *
+ * The shape that would work: assert the dock is RENDERED WHILE `player.current`
+ * is empty and `player.pending` is set — a state, not a moment. That needs
+ * whatever supplies `current` outside `handlePlaying` to be identified first
+ * (the playback bridge is the hypothesis, not the finding); until it is, a new
+ * test risks proving the wrong thing again.
  */
 for (const power of ['normal', 'low'] as const) {
 test.fixme(`the bar is on screen from the tap, not from the sound (${power} power)`, async ({ page }) => {
