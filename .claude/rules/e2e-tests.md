@@ -136,6 +136,17 @@ a one-line comment in `lib/geoResolver.ts` reloaded three screens and cost a
 load. Start the suite, then keep your hands off `src/` until it finishes; a
 failure that only appears in a run you edited during is not a finding.
 
+⚠ **Killing a run does not free its ports.** Playwright's two `webServer`
+processes outlive the runner, so the next `playwright test` dies on
+`http://127.0.0.1:4311/health is already used`. That failure exits the RUNNER,
+not the suite — a `; echo exit=$?` after a pipe reports the pipe's status, so it
+can read as a clean pass with zero tests. Check a real count, and clear the
+ports first:
+
+```powershell
+foreach ($p in 4311, 5174) { Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } }
+```
+
 Ports: each spawning suite owns a range, and an overlap takes down a
 neighbouring suite rather than yours — which is why two of them overlapped for
 months without anyone noticing. Taken as of 2026-08-17:

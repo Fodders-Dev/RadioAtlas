@@ -26,7 +26,7 @@ import {
   openTelegramLinkOrFallback,
   subscribeTelegramSdkReady
 } from '../lib/telegram';
-import { cloudLibraryMatches } from './radio/helpers';
+import { cloudLibraryMatches, resolveNextCloudLibrary } from './radio/helpers';
 import type { StationLite } from '../types';
 
 type LibraryCounts = {
@@ -578,7 +578,16 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const mappedProfile = mapProfile(nextProfile);
       const resolvedAuditTrail = nextAuditTrail || [];
       setProfile((previous) => (profilesMatch(previous, mappedProfile) ? previous : mappedProfile));
-      setLibrary((previous) => (cloudLibraryMatches(previous, nextProfile.library) ? previous : nextProfile.library));
+      // ⚠ NOT `cloudLibraryMatches(previous, next) ? previous : next` — that
+      // spelling kept `null` for every account whose server library is empty,
+      // which is every account on its first sign-in, and `useCloudLibrarySync`
+      // bails on `!cloudLibrary`. Measured 2026-09-04: zero `PUT /me/library`
+      // after `POST /auth/google` with a find waiting on the device. The reason
+      // it never looked broken is that liking a station calls
+      // `replaceCloudLibrary` directly, past the hook — and that PUT returns a
+      // non-empty library, after which everything works. For a listener who only
+      // caught finds, nothing ever left the phone. See `resolveNextCloudLibrary`.
+      setLibrary((previous) => resolveNextCloudLibrary(previous, nextProfile.library));
       setAuditTrail((previous) => (auditTrailMatches(previous, resolvedAuditTrail) ? previous : resolvedAuditTrail));
     },
     []

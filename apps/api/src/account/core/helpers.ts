@@ -438,11 +438,27 @@ export const sanitizeLibrary = (value: unknown): SyncedLibrary => {
         ? (payload.recent.map(sanitizeStation).filter(Boolean) as SyncedStation[])
         : []
     ).slice(0, 80),
+    // ⚠ NO cap on finds, and this is the one that mattered most — it was missed
+    // when the other three came off, because the `.slice(0, 200)` sat four lines
+    // below the word `trackHistory` and a single-line grep for the two together
+    // found nothing.
+    //
+    // This function is not one path but five: the ingest of every PUT
+    // /me/library, `deserializeLibrary` on every READ, `serializeLibrary` on
+    // every write, and both arms of `mergeLibraries`. So the server truncated a
+    // library on the way in AND on the way out — and it fed the merge below
+    // pre-cut inputs, which made the removal of the cap THERE inert. The comment
+    // at `mergeLibraries` was true about its own line and false about the
+    // system: 150 finds plus 150 finds still could not exceed 200, because
+    // neither side ever arrived larger than 200.
+    //
+    // Favourites, recents and collections keep their caps for now — same broken
+    // promise, different object, recorded as its own defect in PLAN.md.
     trackHistory: uniqueTrackHistory(
       Array.isArray(payload.trackHistory)
         ? (payload.trackHistory.map(sanitizeTrackHistoryItem).filter(Boolean) as SyncedTrackHistoryItem[])
         : []
-    ).slice(0, 200),
+    ),
     collections: uniqueCollections(
       Array.isArray(payload.collections)
         ? (payload.collections.map(sanitizeCollection).filter(Boolean) as UserCollection[])

@@ -136,6 +136,7 @@ import type {
   WinampState
 } from './radio/types';
 import { createPlaybackPlayerPlaceholder, type PlaybackRuntimeSnapshot } from './radio/playbackBridge';
+import { countFindsPendingSync } from './radio/findsPendingSync';
 import { useCloudLibrarySync } from './radio/useCloudLibrarySync';
 import { IDLE_NOW_PLAYING_STATE } from './radio/nowPlayingDefaults';
 import {
@@ -518,36 +519,59 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
    * The transport already knows — `flushCloudLibrarySync` catches, sets
    * `syncState: 'error'` and reports `session_sync_error`. What was missing is
    * that NOBODY TOLD THE PERSON, and that a session-level sync error says
-   * nothing about whether a find was in the payload. This watches for the edge
-   * and only speaks when a find is actually waiting: an error while nothing was
-   * caught is an infrastructure detail, not a broken promise.
+   * nothing about whether a find was in the payload.
+   *
+   * ⚠ The condition is a PROOF, not a flag. `findsPendingSync` counts the finds
+   * this device holds that the last server-confirmed library does not — see
+   * `radio/findsPendingSync.ts` for the three ways the previous
+   * "a find was caught in this session" ref was wrong. It is also not
+   * `trackHistory.length > 0`: somebody with a year-old find who likes a station
+   * into a failing sync has nothing pending, so nothing is claimed about finds.
+   *
+   * That the payload is the WHOLE library makes the attribution exact rather
+   * than approximate: there is no separate find transport, so any failed PUT
+   * while a find is pending genuinely was that find's chance to reach the cloud.
    */
-  const findAwaitingSyncRef = useRef(false);
+  const findsPendingSync = useMemo(
+    () => countFindsPendingSync(trackHistory, cloudLibrary?.trackHistory as TrackHistoryItem[]),
+    [trackHistory, cloudLibrary?.trackHistory]
+  );
   const findSyncFailedRef = useRef(false);
 
   useEffect(() => {
-    if (!findAwaitingSyncRef.current) return;
-    if (syncState === 'error' && !findSyncFailedRef.current) {
-      findSyncFailedRef.current = true;
-      notifyRef.current?.(t('toast.findSavedNotSynced'));
-      reportProductEvent('find_sync_failed', {}, { dedupeKey: `find_sync_failed:${Date.now()}` });
+    if (sessionStatus !== 'authenticated') {
+      // Signed out there is nothing to sync to, so there is no failure to
+      // report. Clearing the latch here also stops a stale «не синхронизировано»
+      // following somebody into their next session.
+      findSyncFailedRef.current = false;
       return;
     }
-    if (syncState === 'synced') {
+    if (syncState === 'error' && findsPendingSync > 0 && !findSyncFailedRef.current) {
+      findSyncFailedRef.current = true;
+      notifyRef.current?.(t('toast.findSavedNotSynced'));
+      reportProductEvent(
+        'find_sync_failed',
+        { pending: findsPendingSync },
+        { dedupeKey: `find_sync_failed:${Date.now()}` }
+      );
+      return;
+    }
+    // Recovery is «synced AND nothing is left waiting». `synced` alone is not
+    // enough: a flush can succeed carrying an earlier payload while a newer find
+    // is still queued behind it, and calling that a recovery would close a
+    // failure that is still open.
+    if (syncState === 'synced' && findsPendingSync === 0 && findSyncFailedRef.current) {
       // The sync layer retries on the next change, so a recovery is the normal
       // ending of a failure rather than a rare one — worth counting separately,
       // or «мы теряем sync» and «мы теряем sync НАВСЕГДА» read the same.
-      if (findSyncFailedRef.current) {
-        reportProductEvent(
-          'find_sync_recovered',
-          {},
-          { dedupeKey: `find_sync_recovered:${Date.now()}` }
-        );
-      }
       findSyncFailedRef.current = false;
-      findAwaitingSyncRef.current = false;
+      reportProductEvent(
+        'find_sync_recovered',
+        {},
+        { dedupeKey: `find_sync_recovered:${Date.now()}` }
+      );
     }
-  }, [syncState, t]);
+  }, [findsPendingSync, sessionStatus, syncState, t]);
 
   // `notify` is declared below; the ref lets the effect above reach it without
   // moving a hundred lines of component around for one toast.
@@ -2419,9 +2443,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }
     rememberTrackHistory(station, trustedTrack);
     recordBehaviorForStation(station, 'track-copy');
-    // From here the cloud copy is owed. The watcher above turns a sync failure
-    // into something the person is told, instead of a counter nobody reads.
-    findAwaitingSyncRef.current = true;
+    // From here the cloud copy is owed — and nothing is flagged to say so. The
+    // watcher above works it out by comparing this device's finds against the
+    // last copy the server confirmed, which is a fact rather than a note-to-self
+    // and therefore also covers the find that was already waiting when this
+    // session started.
 
     let clipboard: 'ok' | 'failed' = 'failed';
     try {

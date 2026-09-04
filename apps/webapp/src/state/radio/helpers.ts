@@ -176,6 +176,28 @@ export const cloudLibraryMatches = (
   );
 };
 
+/**
+ * Which cloud library a session should hold after the server answers.
+ *
+ * Trivial-looking, and it exists because getting it wrong silently disabled the
+ * entire cloud-sync hook for every account on its first sign-in.
+ *
+ * `cloudLibraryMatches` normalises null to EMPTY, deliberately — it answers "do
+ * these describe the same library", and «nothing» and «an empty library» do. But
+ * a caller keeping `previous` on a match then keeps NULL when the server's copy
+ * is empty, and `useCloudLibrarySync` bails on `!cloudLibrary`. Both of its
+ * effects die: the sign-in merge that pushes what the device already holds, and
+ * the debounced watcher that syncs everything after. Measured 2026-09-04 — zero
+ * `PUT /me/library` after a sign-in with a find waiting on the device.
+ *
+ * So: keep the previous object only when there IS one. The comparison stays for
+ * what it is good at — not re-rendering the tree when nothing changed.
+ */
+export const resolveNextCloudLibrary = <T extends ComparableCloudLibrary>(
+  previous: T | null,
+  next: T
+): T => (previous && cloudLibraryMatches(previous, next) ? previous : next);
+
 export const getQueueSourceLabel = (
   sourceId: string | null | undefined,
   sourceLabel: string | null | undefined,
