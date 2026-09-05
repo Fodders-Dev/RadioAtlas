@@ -32,6 +32,15 @@ vi.mock('./apiAvailability', () => ({
 vi.mock('./observability', () => ({ reportClientEvent: () => {} }));
 vi.mock('./apiBase', () => ({ getApiBase: () => '' }));
 
+const stationB: StationLite = {
+  stationuuid: 'uuid-berlin',
+  name: 'Berlin Pulse',
+  url_resolved: 'https://stream.test/berlin',
+  url: 'https://stream.test/berlin-alt',
+  country: 'Germany',
+  tags: 'techno'
+} as StationLite;
+
 const station: StationLite = {
   stationuuid: 'uuid-paradise',
   name: 'Radio Paradise',
@@ -91,6 +100,11 @@ describe('returning to the app after the stream may have died', () => {
         };
         el.pause = () => {
           paused = true;
+          // ⚠ A real element FIRES this. Without it React's `isPlaying` stays
+          // true, `toggle()` takes its pause branch a second time, and the test
+          // silently measures nothing — the same shape of self-inflicted false
+          // pass as setting `paused` by hand.
+          el.dispatchEvent(new Event('pause'));
         };
       }
       return el;
@@ -231,6 +245,147 @@ describe('returning to the app after the stream may have died', () => {
 
     // ⚠ Berlin Pulse must be impossible: a failed recovery may not walk the
     // queue, the feed, or anything else. The listener asked for Radio Paradise.
+    expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
+  /**
+   * ⚠ THE test of this lane, and the path the UI actually forces.
+   *
+   * On a `died` verdict where the element still reports `paused === false` —
+   * the OS froze the socket without pausing it — `handlePause` never fired, so
+   * `isPlaying` is true and the ONLY control on screen is Pause. The listener
+   * cannot reach Play without pressing Pause first.
+   *
+   * If that press surrendered the recovery token, the next Play fell straight
+   * through to a bare `.play()` on the dead source. The mutation test on the
+   * direct Play path could never see it, because the direct path is not the one
+   * a person can walk.
+   */
+  it('survives the Pause the UI forces before Play is even reachable', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    setVisibility('hidden');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    // Frozen, NOT paused: no `pause` event, so the UI still shows Pause.
+    setVisibility('visible');
+    expect(paused, 'the element still claims to be playing').toBe(false);
+
+    // The only thing the listener can press.
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(paused, 'that press pauses it').toBe(true);
+
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'the following Play must RECONNECT, not resume a corpse').toBeGreaterThan(
+      loadsBefore
+    );
+    expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
+  it('does not carry the recovery debt of one station onto another', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    setVisibility('hidden');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    setVisibility('visible');
+
+    // Switch before any `timeupdate` could resolve the cycle.
+    await act(async () => {
+      await get().playStation(stationB);
+    });
+    paused = false;
+    position = 5;
+    act(() => {
+      audio?.dispatchEvent(new Event('playing'));
+    });
+
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+
+    // ⚠ Station A's debt must not be spent on B's transport. A bare boolean
+    // token would have reconnected here for no reason.
+    expect(loadCalls, "B owes nothing for A's background").toBe(loadsBefore);
+    expect(get().current?.stationuuid).toBe('uuid-berlin');
+  });
+
+  it('lets real progress resolve an ambiguous cycle', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    setVisibility('hidden');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    // Short background -> `unknown`, so eligibility is granted defensively.
+    setVisibility('visible');
+
+    // Then the stream demonstrably produces audio.
+    position = 42;
+    act(() => {
+      audio?.dispatchEvent(new Event('timeupdate'));
+    });
+
+    // From here Pause/Play is ordinary again: no reconnect, no re-fetch.
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'a proven-healthy stream owes no reconnect').toBe(loadsBefore);
+  });
+
+  it('lets a FAILED reconnect be retried on the same station', async () => {
+    const get = mount();
+    await startPlaying(get);
+    setVisibility('hidden');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    paused = true;
+    act(() => {
+      audio?.dispatchEvent(new Event('pause'));
+    });
+    setVisibility('visible');
+
+    // First recovery attempt fails outright.
+    if (audio) audio.play = () => Promise.reject(new Error('no route'));
+    await act(async () => {
+      await get().toggle();
+    });
+
+    // The stream comes back; the listener taps again.
+    if (audio) {
+      audio.play = () => {
+        playCalls += 1;
+        paused = false;
+        return Promise.resolve();
+      };
+    }
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    // ⚠ A failed reconnect must not downgrade the next tap to a bare `.play()`
+    // on the source that just failed — that would make the second attempt
+    // strictly worse than the first.
+    expect(loadCalls, 'the retry must reconnect again').toBeGreaterThan(loadsBefore);
     expect(get().current?.stationuuid).toBe('uuid-paradise');
   });
 });

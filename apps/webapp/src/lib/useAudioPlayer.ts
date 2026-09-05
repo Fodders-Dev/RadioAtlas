@@ -299,7 +299,9 @@ export const useAudioPlayer = ({
    * Surrendered: the listener pauses on purpose; playback actually progresses;
    *              a reconnect has been attempted for it.
    */
-  const backgroundResumeEligibleRef = useRef(false);
+  const backgroundResumeEligibleRef = useRef<{ stationId: string; cycleId: number } | null>(null);
+  /** Monotonic id for each hidden->visible cycle, so a token names WHICH one. */
+  const backgroundCycleRef = useRef(0);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -907,7 +909,7 @@ export const useAudioPlayer = ({
       // the element THINKS it started, which is the distinction that made two
       // production checks lie tonight.
       if (backgroundResumeEligibleRef.current && now > lastProgressRef.current.time) {
-        backgroundResumeEligibleRef.current = false;
+        backgroundResumeEligibleRef.current = null;
       }
       // Any real position MOVEMENT means the stream is alive (abs, not just >, so
       // an HLS live-edge reset still counts). Flat currentTime while unpaused for
@@ -1110,10 +1112,21 @@ export const useAudioPlayer = ({
       //
       // `survived` is the one verdict that surrenders it: the audio measurably
       // advanced, so there is nothing to recover.
-      if (marker.wasPlaying && verdict !== 'survived') {
-        backgroundResumeEligibleRef.current = true;
+      const cycleStation = requestedStationRef.current || currentRef.current;
+      if (marker.wasPlaying && verdict !== 'survived' && cycleStation) {
+        backgroundCycleRef.current += 1;
+        // ⚠ The token NAMES what it permits. A bare boolean would say only
+        // "something recently looked suspicious", and a listener who switches
+        // station before the first `timeupdate` would carry station A's
+        // recovery debt onto station B. Binding the identity makes the "same
+        // station" promise provable from the state itself rather than from the
+        // current shape of the code around it.
+        backgroundResumeEligibleRef.current = {
+          stationId: cycleStation.stationuuid,
+          cycleId: backgroundCycleRef.current
+        };
       } else if (verdict === 'survived') {
-        backgroundResumeEligibleRef.current = false;
+        backgroundResumeEligibleRef.current = null;
       }
 
       if (verdict === 'unknown') return;
@@ -1390,6 +1403,17 @@ export const useAudioPlayer = ({
   }, []);
 
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
+    // ⚠ Deliberately NOT clearing a foreign token here.
+    //
+    // The identity check in `toggle` is the single enforcing mechanism, and it
+    // has to STAY the enforcing one. Clearing here as well was written as
+    // belt-and-braces and turned out to be worse than useless: it masked the
+    // identity check entirely, so removing that check left all eight wiring
+    // tests green. A guard nothing can fail is not a guard.
+    //
+    // With only one mechanism, the cross-station test actually pins it: the
+    // token names the station it may recover, and a token for a station we are
+    // no longer on is refused and dropped at the point of use.
     const audio = audioRef.current;
     if (!audio) {
       return {
@@ -1545,11 +1569,22 @@ export const useAudioPlayer = ({
     if (isPlaying || nativeState === 'playing' || !audio.paused) {
       clearReconnect();
       clearWaitingTimeout();
-      // Surrender: pausing on purpose cancels any recovery this return owed.
-      // Stated positively here rather than inferred later from "the pause was
-      // not ours", which is the same fact carried by a flag that has to stay
-      // correct across every future cycle.
-      backgroundResumeEligibleRef.current = false;
+      // ⚠ Pausing does NOT surrender an unresolved token, and that is the whole
+      // repair of the hole this lane nearly shipped.
+      //
+      // On a `died` verdict where the element still reports `paused === false`
+      // (the OS froze the socket without pausing), `handlePause` never fired,
+      // `isPlaying` is still true, and the ONLY control on screen is Pause. The
+      // listener cannot reach Play without pressing Pause first. If that press
+      // cleared the token, the very next Play fell through to a bare `.play()`
+      // on the dead source — the exact corpse this lane exists to stop, reached
+      // by the exact path the UI forces.
+      //
+      // So a token survives an ordinary pause until the cycle is RESOLVED:
+      // measured progress, a successful reconnect, or a station change. This is
+      // not a claim that every pause on live radio should reconnect — only that
+      // after a suspicious background return the old socket is not trusted
+      // until it has actually produced audio.
       audio.pause();
       return true;
     }
@@ -1564,13 +1599,25 @@ export const useAudioPlayer = ({
       // Same station, always: `playCandidateAtIndex` walks the CURRENT
       // station's own stream candidates. It cannot reach the queue, the feed,
       // or another station.
-      if (backgroundResumeEligibleRef.current) {
-        backgroundResumeEligibleRef.current = false;
-        const resumed = await playCandidateAtIndex(
-          candidateIndexRef.current,
-          playbackSessionRef.current
-        );
-        return resumed.ok;
+      const pendingResume = backgroundResumeEligibleRef.current;
+      if (pendingResume) {
+        if (pendingResume.stationId !== current.stationuuid) {
+          // The debt belongs to a station we are no longer on. Drop it rather
+          // than spend it on somebody else's transport.
+          backgroundResumeEligibleRef.current = null;
+        } else {
+          const resumed = await playCandidateAtIndex(
+            candidateIndexRef.current,
+            playbackSessionRef.current
+          );
+          // ⚠ Surrendered on SUCCESS only. A failed reconnect leaves the token
+          // in place so the listener's next Play tries the same station again,
+          // instead of falling back to a bare `.play()` on the source that just
+          // failed — which would make the second tap strictly worse than the
+          // first.
+          if (resumed.ok) backgroundResumeEligibleRef.current = null;
+          return resumed.ok;
+        }
       }
       if (!audio.src) {
         const result = await playCandidateAtIndex(
