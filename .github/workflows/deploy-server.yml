@@ -28,11 +28,22 @@ jobs:
   # looking at the PNGs — blocking the release on it would train everyone to
   # bypass the gate, which is exactly how the browser job ended up
   # `continue-on-error` and red for twenty runs.
+  #
+  # ⚠ NO `if:` HERE, and that absence is the gate.
+  #
+  # The first version ran this only for `push`, so `workflow_dispatch` skipped
+  # it and the deploy job accepted a skipped gate. «The deploy is protected by
+  # same-SHA checks» was then true for exactly one of the two ways to start a
+  # deploy, and the other one was a button. A gate with a documented bypass is
+  # not a gate; it is the bypass, plus paperwork.
+  #
+  # A manual run of a SHA that CI never saw now waits and then REFUSES on
+  # timeout. That is intended: the way out is to make CI green for that commit,
+  # not to go around it.
   await-ci:
     name: CI must be green for THIS commit
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    if: github.event_name == 'push'
     permissions:
       checks: read
       contents: read
@@ -81,13 +92,11 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    # A bare `needs:` is deliberate: GitHub's default already requires the
+    # dependency to SUCCEED, so there is no `if:` here to get subtly wrong. The
+    # version this replaces allowed `result == 'skipped'`, which is exactly the
+    # hole a manual dispatch walked through.
     needs: [await-ci]
-    # `workflow_dispatch` skips the gate above, so `success()` alone would
-    # block every manual deploy. A SKIPPED gate is allowed through; a FAILED
-    # one never is.
-    if: >-
-      always() &&
-      (needs.await-ci.result == 'success' || needs.await-ci.result == 'skipped')
     env:
       APP_ROOT: /opt/RadioAtlas
     steps:
