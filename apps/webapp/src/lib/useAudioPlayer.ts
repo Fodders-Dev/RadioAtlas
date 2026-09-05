@@ -115,6 +115,35 @@ export const judgeBackgroundPlayback = (input: {
   return input.advancedMs > input.hiddenMs * BACKGROUND_ALIVE_RATIO ? 'survived' : 'died';
 };
 
+/**
+ * May this recovery token be spent right now?
+ *
+ * Extracted and pure for the same reason `judgeBackgroundPlayback` and
+ * `shouldRecoverFromSilentStall` are: the interesting part is a truth table,
+ * and a truth table tested through the UI is tested by whichever branch the UI
+ * happens to reach.
+ *
+ * ⚠ Both dimensions are real, and at the integration level one HIDES the other:
+ * every deliberate start bumps the session, so a station change invalidates by
+ * session too, and removing the station comparison leaves every wiring test
+ * green. That is exactly the shape of the masked guard removed earlier in this
+ * lane. So the two conditions are asserted here, independently, rather than
+ * claimed to be covered by a browser test that cannot distinguish them.
+ *
+ *   stationId  the debt belongs to ONE station and may never be spent on another
+ *   session    the debt belongs to ONE playback attempt, so returning to the
+ *              same station later starts fresh instead of inheriting it
+ */
+export const canSpendRecoveryToken = (
+  token: { stationId: string; session: number } | null,
+  currentStationId: string | null | undefined,
+  currentSession: number
+): boolean => {
+  if (!token || !currentStationId) return false;
+  if (token.stationId !== currentStationId) return false;
+  return token.session === currentSession;
+};
+
 // Pure trigger decision for the silent-stall watchdog (extracted so the tricky
 // false-positive/negative logic is unit-testable without a DOM audio element).
 // Recover ONLY when we believe we're actively playing a station, aren't manually
@@ -299,7 +328,17 @@ export const useAudioPlayer = ({
    * Surrendered: the listener pauses on purpose; playback actually progresses;
    *              a reconnect has been attempted for it.
    */
-  const backgroundResumeEligibleRef = useRef<{ stationId: string; cycleId: number } | null>(null);
+  const backgroundResumeEligibleRef = useRef<{
+    stationId: string;
+    cycleId: number;
+    /**
+     * The playback attempt this debt belongs to. `beginPlaybackSession()`
+     * increments on every deliberate start, so a token minted before a station
+     * change stops matching the moment the listener starts anything else —
+     * including starting the SAME station again.
+     */
+    session: number;
+  } | null>(null);
   /** Monotonic id for each hidden->visible cycle, so a token names WHICH one. */
   const backgroundCycleRef = useRef(0);
   const currentRef = useRef<StationLite | null>(null);
@@ -1123,7 +1162,8 @@ export const useAudioPlayer = ({
         // current shape of the code around it.
         backgroundResumeEligibleRef.current = {
           stationId: cycleStation.stationuuid,
-          cycleId: backgroundCycleRef.current
+          cycleId: backgroundCycleRef.current,
+          session: playbackSessionRef.current
         };
       } else if (verdict === 'survived') {
         backgroundResumeEligibleRef.current = null;
@@ -1601,9 +1641,11 @@ export const useAudioPlayer = ({
       // or another station.
       const pendingResume = backgroundResumeEligibleRef.current;
       if (pendingResume) {
-        if (pendingResume.stationId !== current.stationuuid) {
-          // The debt belongs to a station we are no longer on. Drop it rather
-          // than spend it on somebody else's transport.
+        // Both dimensions live in `canSpendRecoveryToken`, tested as a truth
+        // table because the browser cannot tell them apart (see its comment).
+        if (
+          !canSpendRecoveryToken(pendingResume, current.stationuuid, playbackSessionRef.current)
+        ) {
           backgroundResumeEligibleRef.current = null;
         } else {
           const resumed = await playCandidateAtIndex(

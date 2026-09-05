@@ -351,6 +351,54 @@ describe('returning to the app after the stream may have died', () => {
     expect(loadCalls, 'a proven-healthy stream owes no reconnect').toBe(loadsBefore);
   });
 
+  /**
+   * ⚠ Station identity alone does NOT make a token safe.
+   *
+   * It stops A's debt being spent on B. It does not stop A's OLD debt being
+   * spent on a NEW start of A: leave A backgrounded, switch to B, switch back,
+   * and the stale token matches again by station. Per-cycle state has to die
+   * with its cycle, or `cycleId` is decoration.
+   */
+  it('does not resurrect a stale cycle when the listener returns to the same station', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    // A owes a recovery after an unresolved background.
+    setVisibility('hidden');
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    setVisibility('visible');
+
+    // Away to B, which never produces audio, then deliberately back to A.
+    await act(async () => {
+      await get().playStation(stationB);
+    });
+    await act(async () => {
+      await get().playStation(station);
+    });
+    paused = false;
+    position = 100;
+    act(() => {
+      audio?.dispatchEvent(new Event('playing'));
+    });
+
+    // An ordinary pause/play on this FRESH start of A.
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+
+    expect(
+      loadCalls,
+      'a new deliberate start of A must not inherit the old cycle debt'
+    ).toBe(loadsBefore);
+    expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
   it('lets a FAILED reconnect be retried on the same station', async () => {
     const get = mount();
     await startPlaying(get);

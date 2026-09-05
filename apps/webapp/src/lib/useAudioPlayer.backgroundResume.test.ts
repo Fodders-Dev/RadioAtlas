@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { judgeBackgroundPlayback } from './useAudioPlayer';
+import { canSpendRecoveryToken, judgeBackgroundPlayback } from './useAudioPlayer';
 
 /**
  * 0.1b.1 — «Вернуться к эфиру», the classifier half.
@@ -97,5 +97,41 @@ describe('when a foreground return owes a reconnect', () => {
     // ⚠ The gap that would otherwise stay open: classifier says «не знаю», the
     // listener taps Play, and the old code called `.play()` on a dead socket.
     expect(resumeOwed({ wasPlaying: true, verdict: 'unknown' })).toBe(true);
+  });
+});
+
+/**
+ * The two dimensions of a recovery token, asserted independently.
+ *
+ * ⚠ They cannot be told apart through the hook, and that is measured: every
+ * deliberate start bumps the playback session, so a station change invalidates
+ * by session as well, and deleting the station comparison leaves all nine
+ * wiring tests green. A guard nothing can fail is not a guard — this lane
+ * already removed one such masked check, so the truth table is asserted here
+ * where each condition can actually be isolated.
+ */
+describe('may this recovery token be spent', () => {
+  const TOKEN = { stationId: 'uuid-paradise', session: 7 };
+
+  it('spends a token that matches both the station and the attempt', () => {
+    expect(canSpendRecoveryToken(TOKEN, 'uuid-paradise', 7)).toBe(true);
+  });
+
+  it('refuses a token belonging to another station', () => {
+    // A's debt may never be spent on B, even within the same attempt.
+    expect(canSpendRecoveryToken(TOKEN, 'uuid-berlin', 7)).toBe(false);
+  });
+
+  it('refuses a token from an earlier attempt on the SAME station', () => {
+    // ⚠ The stale-cycle case: background A, switch away, come back to A. The
+    // station matches again, so station identity alone would resurrect a debt
+    // the listener has already moved past.
+    expect(canSpendRecoveryToken(TOKEN, 'uuid-paradise', 9)).toBe(false);
+  });
+
+  it('refuses when there is no token, or no station on air', () => {
+    expect(canSpendRecoveryToken(null, 'uuid-paradise', 7)).toBe(false);
+    expect(canSpendRecoveryToken(TOKEN, null, 7)).toBe(false);
+    expect(canSpendRecoveryToken(TOKEN, undefined, 7)).toBe(false);
   });
 });
