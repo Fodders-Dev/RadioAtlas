@@ -58,7 +58,29 @@ describe('returning to the app after the stream may have died', () => {
   let playCalls = 0;
   let paused = true;
   let position = 0;
+  let clockOffset = 0;
+  /** Every station the player attached a source for, in order. */
+  let candidateStarts: string[] = [];
   const origCreateElement = document.createElement.bind(document);
+  const realNow = Date.now.bind(Date);
+
+  /**
+   * ⚠ Time has to be controllable, and the first version of this file proved
+   * why by getting it wrong: it hid the page for 20 ms and called the result
+   * «survived». `judgeBackgroundPlayback` returns `unknown` for anything under
+   * BACKGROUND_JUDGE_MIN_MS (10 s), so that test never reached the branch in
+   * its own name — it asserted the `unknown` path twice under two titles.
+   *
+   * Moving the clock rather than sleeping lets all three verdicts be reached
+   * deliberately, and named honestly.
+   */
+  const hideFor = async (ms: number) => {
+    setVisibility('hidden');
+    clockOffset += ms;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+  };
 
   const setVisibility = (value: 'hidden' | 'visible') => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value });
@@ -75,6 +97,18 @@ describe('returning to the app after the stream may have died', () => {
     playCalls = 0;
     paused = true;
     position = 0;
+    clockOffset = 0;
+    candidateStarts = [];
+    // ⚠ Installed BEFORE anything mounts. Fake timers only capture timers
+    // created after installation, so enabling them inside a test left the stall
+    // watchdog's `setInterval` real — it never fired in the fake window and the
+    // «no automatic sound» gate passed with the suppression removed. Caught by
+    // mutation, not by reading.
+    //
+    // `shouldAdvanceTime` keeps the ordinary `await new Promise(setTimeout)`
+    // helpers working while still allowing deliberate jumps.
+    vi.useFakeTimers({ shouldAdvanceTime: true, advanceTimeDelta: 1 });
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + clockOffset);
 
     vi.spyOn(document, 'createElement').mockImplementation(((tag: string, opts?: unknown) => {
       const el = origCreateElement(tag as 'audio', opts as undefined);
@@ -117,6 +151,7 @@ describe('returning to the app after the stream may have died', () => {
       root = null;
     }
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    vi.useRealTimers();
     vi.restoreAllMocks();
     container.remove();
   });
@@ -138,6 +173,7 @@ describe('returning to the app after the stream may have died', () => {
     await act(async () => {
       await get().playStation(station);
     });
+    candidateStarts.push(station.stationuuid);
     // The element is on air and the position is moving.
     paused = false;
     position = 10;
@@ -205,22 +241,68 @@ describe('returning to the app after the stream may have died', () => {
     expect(loadCalls, 'an intentional pause owes no reconnect').toBe(loadsBefore);
   });
 
-  it('changes nothing when the stream survived the background', async () => {
+  it('SURVIVED: a background the audio played through changes nothing', async () => {
     const get = mount();
     await startPlaying(get);
 
-    setVisibility('hidden');
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-    // Still playing, and the position advanced across the gap.
-    position = 400;
+    // A real 60s background with the position advancing across it. Under the
+    // 10s floor this branch is unreachable, which is what the previous version
+    // of this test silently asserted instead.
+    await hideFor(60_000);
+    position = 70;
     const loadsBefore = loadCalls;
     setVisibility('visible');
 
     expect(loadCalls, 'a survived stream must not be reattached').toBe(loadsBefore);
     expect(paused, 'and must not be paused').toBe(false);
+
+    // And it owes nothing: an ordinary pause/play stays ordinary.
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsAfterPause = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'survived owes no reconnect').toBe(loadsAfterPause);
     expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
+  it('DIED: a long background with a frozen position owes a reconnect', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    // 60s away, position never moved -> advancedMs 0 against hiddenMs 60000.
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'a died background owes a reconnect').toBeGreaterThan(loadsBefore);
+    expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
+  it('UNKNOWN: too short to judge still owes a reconnect, because unjudged is not healthy', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    // Under the floor on purpose: an OS can drop a socket in five seconds.
+    await hideFor(4_000);
+    setVisibility('visible');
+
+    await act(async () => {
+      await get().toggle();
+    });
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'unknown must not be treated as healthy').toBeGreaterThan(loadsBefore);
   });
 
   it('keeps the same station even when every candidate fails', async () => {
@@ -435,5 +517,122 @@ describe('returning to the app after the stream may have died', () => {
     // strictly worse than the first.
     expect(loadCalls, 'the retry must reconnect again').toBeGreaterThan(loadsBefore);
     expect(get().current?.stationuuid).toBe('uuid-paradise');
+  });
+
+  /**
+   * ⚠ Gap found in audit: the recovery token gates `toggle()`, but the watchdog,
+   * the reconnect timers and the native media events live on their own and can
+   * reach `playCandidateAtIndex` without consulting it. «No automatic sound»
+   * has to hold against ALL of them, not only against the visibility handler.
+   */
+  /**
+   * ⚠ STRICT GATE, replacing a diagnostic that could not fail.
+   *
+   * The earlier version asserted `acrossWatchdog >= shortWait`, which is true
+   * whether or not anything starts playing. It recorded the defect instead of
+   * forbidding it.
+   *
+   * The defect: after a background return where the element is frozen but NOT
+   * paused, the silent-stall watchdog reconnected on its own ~3s later.
+   * `paused === false` proves neither continuous audio nor that the listener
+   * wants sound now — they may have gone to a music service, played something
+   * there, and come back to browse finds. Radio reappearing is a surprise.
+   *
+   * Time is advanced rather than waited on, so the watchdog interval is crossed
+   * deliberately instead of by sleeping.
+   */
+  it('starts no audio of its own before the explicit Play, across real timers', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    const playsAfterReturn = playCalls;
+    const loadsAfterReturn = loadCalls;
+
+    // Well past the 3s watchdog interval and its 9s threshold, with the
+    // position frozen — the state most likely to provoke a recovery.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    expect(playCalls, 'nothing may start audio before the listener asks').toBe(playsAfterReturn);
+    expect(loadCalls, 'and nothing may reattach the source either').toBe(loadsAfterReturn);
+
+    // And the listener's own Play still works afterwards.
+    await act(async () => {
+      await get().toggle();
+    });
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'the explicit Play must still reconnect').toBeGreaterThan(loadsAfterReturn);
+  });
+
+  it('leaves a healthy surviving stream completely alone', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    position = 70;
+    setVisibility('visible');
+
+    const before = { plays: playCalls, loads: loadCalls, paused };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    // No pause, no reattach, no extra play on a stream that is demonstrably fine.
+    expect(playCalls).toBe(before.plays);
+    expect(loadCalls).toBe(before.loads);
+    expect(paused, 'a surviving stream must not be paused').toBe(before.paused);
+  });
+
+  /**
+   * ⚠ STRICT GATE, replacing `station === null || station === A` — an assertion
+   * that explicitly permitted the loss it was supposed to catch.
+   *
+   * A native `error` that exhausts every candidate used to null both `current`
+   * and `pending`, so the listener lost the source AND the retry control
+   * (`toggle()` returned early on a missing station).
+   */
+  it('keeps the source and a working retry after a native error exhausts every candidate', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    const queueBefore = candidateStarts.slice();
+    if (audio) audio.play = () => Promise.reject(new Error('no route to host'));
+    await act(async () => {
+      audio?.dispatchEvent(new Event('error'));
+      await new Promise((r) => setTimeout(r, 300));
+    });
+
+    const shown = get().current ?? get().pending;
+    expect(shown?.stationuuid, 'the source must still be on screen').toBe('uuid-paradise');
+    expect(get().status, 'and the error must be honest').toBe('error');
+    // `current` stays null: it means ON AIR, and nothing is on air.
+    expect(get().current, 'nothing may claim to be broadcasting').toBeNull();
+
+    // The listener's control works and reconnects THAT station.
+    if (audio) {
+      audio.play = () => {
+        playCalls += 1;
+        paused = false;
+        return Promise.resolve();
+      };
+    }
+    const loadsBefore = loadCalls;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(loadCalls, 'the retry must actually reattach').toBeGreaterThan(loadsBefore);
+    expect(
+      (get().current ?? get().pending)?.stationuuid,
+      'and it must be the same station'
+    ).toBe('uuid-paradise');
+    // Nothing walked the queue on the way.
+    expect(candidateStarts.every((id) => id === 'uuid-paradise')).toBe(true);
+    expect(queueBefore.every((id) => id === 'uuid-paradise')).toBe(true);
   });
 });

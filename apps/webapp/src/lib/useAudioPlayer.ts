@@ -341,6 +341,19 @@ export const useAudioPlayer = ({
   } | null>(null);
   /** Monotonic id for each hidden->visible cycle, so a token names WHICH one. */
   const backgroundCycleRef = useRef(0);
+  /**
+   * Has the listener explicitly asked for playback since the debt was raised?
+   *
+   * ⚠ Deliberately SEPARATE from the debt, and the separation is the point. A
+   * single flag would have to mean two different things at once: "the listener
+   * wants this" and "we have proof it worked". After an explicit Play the app
+   * is allowed to walk the station's candidates without proven progress — that
+   * is the listener's own request being carried out — while the debt itself
+   * stays open until `currentTime` actually MOVES.
+   *
+   * Cleared by measured progress and by a deliberate pause.
+   */
+  const playbackRequestedByListenerRef = useRef(false);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -462,6 +475,27 @@ export const useAudioPlayer = ({
     }
     reconnectRef.current = { timer: null, attempts: 0 };
   };
+
+  /**
+   * May something OTHER than the listener start playback right now?
+   *
+   * ⚠ Checked where the attempt HAPPENS, never where a timer is scheduled: a
+   * reconnect timer set while recovery was permitted can fire after the debt
+   * has been raised, and a check at scheduling time would wave it through.
+   *
+   * The case this closes, found by driving the real timers: after a background
+   * return where the element is frozen but NOT paused, the silent-stall
+   * watchdog reconnected on its own ~3s later. `paused === false` proves
+   * neither continuous audio nor that the listener wants RadioAtlas making
+   * sound now — they may have gone to a music service, started a track there,
+   * and come back to browse their finds. Radio reappearing three seconds later
+   * is a surprise, not continuity.
+   *
+   * A stream that is genuinely still playing is NOT interrupted by this: the
+   * debt is cleared the moment position movement is observed.
+   */
+  const automaticPlaybackSuppressed = () =>
+    backgroundResumeEligibleRef.current !== null && !playbackRequestedByListenerRef.current;
 
   const beginPlaybackSession = () => {
     playbackSessionRef.current += 1;
@@ -780,6 +814,14 @@ export const useAudioPlayer = ({
     if (!isSessionCurrent(sessionId)) {
       return false;
     }
+    // Execution-time gate. Every automatic caller — the error handler, the
+    // buffering timeout, `ended`, the stall watchdog — arrives here, so one
+    // check covers them all without touching the listener's own Play, which
+    // goes through `playCandidateAtIndex` directly after authorising itself.
+    if (automaticPlaybackSuppressed()) {
+      pushEvent('audio: automatic candidate walk held for an unresolved background debt');
+      return false;
+    }
     const list = candidatesRef.current;
     if (candidateIndexRef.current >= list.length - 1) {
       return false;
@@ -813,6 +855,13 @@ export const useAudioPlayer = ({
     reconnectRef.current.timer = window.setTimeout(async () => {
       reconnectRef.current.timer = null;
       if (!isSessionCurrent(sessionId)) {
+        return;
+      }
+      // ⚠ Checked HERE, not where the timer was scheduled. A reconnect armed
+      // while recovery was permitted can fire after a background return has
+      // raised a debt, and a scheduling-time check would let it through.
+      if (automaticPlaybackSuppressed()) {
+        pushEvent('audio: reconnect held for an unresolved background debt');
         return;
       }
       try {
@@ -948,7 +997,11 @@ export const useAudioPlayer = ({
       // the element THINKS it started, which is the distinction that made two
       // production checks lie tonight.
       if (backgroundResumeEligibleRef.current && now > lastProgressRef.current.time) {
+        // Measured movement is the only proof this lane accepts. It closes the
+        // debt AND the listener's standing authorisation together, so ordinary
+        // Pause/Play returns to ordinary semantics from here.
         backgroundResumeEligibleRef.current = null;
+        playbackRequestedByListenerRef.current = false;
       }
       // Any real position MOVEMENT means the stream is alive (abs, not just >, so
       // an HLS live-edge reset still counts). Flat currentTime while unpaused for
@@ -1040,9 +1093,20 @@ export const useAudioPlayer = ({
             return;
           }
           if (!switched) {
+            const lostStation = requestedStationRef.current || currentRef.current;
             requestedStationRef.current = null;
             setCurrent(null);
-            setPending(null);
+            // ⚠ The station STAYS on screen as `pending`, and that is the whole
+            // repair. Nulling both left the listener with no source and no
+            // retry: the dock renders `current ?? pending`, and `toggle()`
+            // returned early on a missing station, so a total failure removed
+            // the thing they had asked for along with any way to try again.
+            //
+            // `current` still means ON AIR and is still null here — the
+            // documented invariant is intact. `pending` means "asked for, not
+            // producing audio", which is exactly true, so the dock shows the
+            // source with an honest error rather than claiming a broadcast.
+            setPending(lostStation ?? null);
             setStatus('error');
             setIsPlaying(false);
             const finalFailure = toPlaybackFailure('no playable candidate', {
@@ -1603,7 +1667,19 @@ export const useAudioPlayer = ({
 
   const toggle = async () => {
     const audio = audioRef.current;
-    if (!audio || !current) return false;
+    // `current ?? pending`: after a total failure the station survives as
+    // `pending`, and this control is the listener's way back to it.
+    const target = current ?? pending;
+    if (!audio || !target) return false;
+
+    // Nothing is on air and nothing is attached — this is a retry of a station
+    // that failed outright. Go through the public start path so the attempt is
+    // a clean one with its own session, rather than poking a dead element.
+    if (!current && pending) {
+      playbackRequestedByListenerRef.current = true;
+      const retried = await playStation(pending);
+      return retried.ok;
+    }
 
     const nativeState = audio.getAttribute('data-ra-state');
     if (isPlaying || nativeState === 'playing' || !audio.paused) {
@@ -1625,6 +1701,9 @@ export const useAudioPlayer = ({
       // not a claim that every pause on live radio should reconnect — only that
       // after a suspicious background return the old socket is not trusted
       // until it has actually produced audio.
+      // The authorisation is withdrawn (the listener no longer wants sound), but
+      // the DEBT survives — see the note above about the Pause the UI forces.
+      playbackRequestedByListenerRef.current = false;
       audio.pause();
       return true;
     }
@@ -1644,20 +1723,26 @@ export const useAudioPlayer = ({
         // Both dimensions live in `canSpendRecoveryToken`, tested as a truth
         // table because the browser cannot tell them apart (see its comment).
         if (
-          !canSpendRecoveryToken(pendingResume, current.stationuuid, playbackSessionRef.current)
+          !canSpendRecoveryToken(pendingResume, target.stationuuid, playbackSessionRef.current)
         ) {
           backgroundResumeEligibleRef.current = null;
         } else {
+          // The listener has asked. That AUTHORISES the attempt — including
+          // walking this station's candidates — but it does not prove anything
+          // yet, so the debt stays open.
+          playbackRequestedByListenerRef.current = true;
           const resumed = await playCandidateAtIndex(
             candidateIndexRef.current,
             playbackSessionRef.current
           );
-          // ⚠ Surrendered on SUCCESS only. A failed reconnect leaves the token
-          // in place so the listener's next Play tries the same station again,
-          // instead of falling back to a bare `.play()` on the source that just
-          // failed — which would make the second tap strictly worse than the
-          // first.
-          if (resumed.ok) backgroundResumeEligibleRef.current = null;
+          // ⚠ The debt is NOT closed here, and `resumed.ok` is exactly why it
+          // must not be: `play()` resolving means the element accepted the
+          // request, not that audio exists. Production showed the difference
+          // twice in one night — `paused: false` with `currentTime` frozen at 0
+          // and the dock reading «Буферизация». Only movement closes it, in
+          // `handleTimeUpdate`, so a resolve-without-progress leaves the next
+          // Play still able to reconnect instead of degrading to a bare
+          // `.play()` on a source that never produced anything.
           return resumed.ok;
         }
       }
