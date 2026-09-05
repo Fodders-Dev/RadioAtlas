@@ -265,7 +265,41 @@ export const useAudioPlayer = ({
   // Set when the page is hidden while audio is playing, read when it comes back:
   // the only way to learn whether playback SURVIVED the background, rather than
   // just that we went there. See handleVisibility.
-  const backgroundedRef = useRef<{ position: number; at: number; session: number } | null>(null);
+  const backgroundedRef = useRef<{
+    position: number;
+    at: number;
+    session: number;
+    /**
+     * ⚠ EXPLICIT, even though the marker is only ever written while
+     * `!audio.paused` and its mere existence therefore already means "was
+     * playing". An invariant that lives in the shape of an `if` is exactly what
+     * a later refactor deletes without knowing it was load bearing, and this
+     * one is what keeps an intentional pause out of the resume path.
+     */
+    wasPlaying: boolean;
+  } | null>(null);
+  /**
+   * Does THIS foreground return still owe the listener a reconnect?
+   *
+   * A positive, short-lived token rather than a global "the pause was not ours"
+   * heuristic. The negative form works today and rots across several
+   * pause/play/background cycles, because it has to be un-set correctly from
+   * everywhere; this one is granted at exactly one place and surrendered at
+   * three.
+   *
+   * ⚠ It cannot be derived from `backgroundedRef`, and that is measured:
+   * `reportBackgroundOutcome` clears the marker unconditionally on its FIRST
+   * line, before the verdict is even computed. On an `unknown` verdict — a
+   * background shorter than 10s — the proof that we were playing is destroyed,
+   * which is precisely the window where the OS can still have killed the
+   * stream. Without this token the tap-path would fall back to a bare `.play()`
+   * on a dead socket, the exact hole this lane exists to close.
+   *
+   * Granted:   a foreground return whose verdict is NOT `survived`.
+   * Surrendered: the listener pauses on purpose; playback actually progresses;
+   *              a reconnect has been attempted for it.
+   */
+  const backgroundResumeEligibleRef = useRef(false);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -868,6 +902,13 @@ export const useAudioPlayer = ({
     };
     const handleTimeUpdate = () => {
       const now = audio.currentTime || 0;
+      // Surrender: the stream is demonstrably producing audio, so nothing is
+      // owed. Position movement, not a `playing` event — an event fires when
+      // the element THINKS it started, which is the distinction that made two
+      // production checks lie tonight.
+      if (backgroundResumeEligibleRef.current && now > lastProgressRef.current.time) {
+        backgroundResumeEligibleRef.current = false;
+      }
       // Any real position MOVEMENT means the stream is alive (abs, not just >, so
       // an HLS live-edge reset still counts). Flat currentTime while unpaused for
       // STALL_WATCHDOG_THRESHOLD_MS is a silent stall the watchdog recovers.
@@ -1060,6 +1101,21 @@ export const useAudioPlayer = ({
       const hiddenMs = Date.now() - marker.at;
       const advancedMs = ((audio.currentTime || 0) - marker.position) * 1000;
       const verdict = judgeBackgroundPlayback({ paused: audio.paused, hiddenMs, advancedMs });
+
+      // The token is granted BEFORE the `unknown` early-return, which is the
+      // whole point: `unknown` only means the background was too short to
+      // classify, NOT that the stream is healthy. The OS can kill a socket in
+      // five seconds, and this is the only place that still knows we were
+      // playing when the app went away.
+      //
+      // `survived` is the one verdict that surrenders it: the audio measurably
+      // advanced, so there is nothing to recover.
+      if (marker.wasPlaying && verdict !== 'survived') {
+        backgroundResumeEligibleRef.current = true;
+      } else if (verdict === 'survived') {
+        backgroundResumeEligibleRef.current = false;
+      }
+
       if (verdict === 'unknown') return;
 
       // Two call sites rather than one with a ternary name, and that is load
@@ -1082,6 +1138,24 @@ export const useAudioPlayer = ({
       } else {
         reportPlaybackEvent('audio_background_died', outcome);
       }
+
+      // ⚠ Deliberately NOT forcing a pause here on `died`.
+      //
+      // When the OS paused the element, `handlePause` has already produced the
+      // honest state — status 'paused', a play control pointing at the same
+      // station — which is exactly the UI this lane wants. Nothing to add.
+      //
+      // When the element still reports playing, `died` is a HEURISTIC: position
+      // advanced less than half the hidden time. Tearing down audio on that
+      // reading is what the silent-stall watchdog already did once, on a stream
+      // that was fine, because nobody had told it the clock stops when the
+      // screen does (see `shouldRecoverFromSilentStall`). That watchdog now
+      // judges from position movement and is the right owner of a genuinely
+      // stalled stream. Doing it a second time from here would re-create the
+      // same bug with a new name.
+      //
+      // So the recovery is offered, never imposed: the token above lets the
+      // listener's own next tap reconnect.
     };
 
     const handleVisibility = () => {
@@ -1091,7 +1165,8 @@ export const useAudioPlayer = ({
         backgroundedRef.current = {
           position: audio.currentTime || 0,
           at: Date.now(),
-          session: playbackSessionRef.current
+          session: playbackSessionRef.current,
+          wasPlaying: true
         };
         reportPlaybackEvent('audio_background_resume_attempt', {
           dedupeKey: `audio_background_resume_attempt:${playbackSessionRef.current}`,
@@ -1470,11 +1545,33 @@ export const useAudioPlayer = ({
     if (isPlaying || nativeState === 'playing' || !audio.paused) {
       clearReconnect();
       clearWaitingTimeout();
+      // Surrender: pausing on purpose cancels any recovery this return owed.
+      // Stated positively here rather than inferred later from "the pause was
+      // not ours", which is the same fact carried by a flag that has to stay
+      // correct across every future cycle.
+      backgroundResumeEligibleRef.current = false;
       audio.pause();
       return true;
     }
 
     try {
+      // ⚠ A resume that this foreground return owes must RECONNECT, not
+      // `.play()`. The branch below only reattaches when `audio.src` is empty,
+      // and after a background death the src string is still set while the
+      // socket is gone — so a bare `.play()` resumes a corpse, which is the
+      // defect this lane was opened for.
+      //
+      // Same station, always: `playCandidateAtIndex` walks the CURRENT
+      // station's own stream candidates. It cannot reach the queue, the feed,
+      // or another station.
+      if (backgroundResumeEligibleRef.current) {
+        backgroundResumeEligibleRef.current = false;
+        const resumed = await playCandidateAtIndex(
+          candidateIndexRef.current,
+          playbackSessionRef.current
+        );
+        return resumed.ok;
+      }
       if (!audio.src) {
         const result = await playCandidateAtIndex(
           candidateIndexRef.current,
