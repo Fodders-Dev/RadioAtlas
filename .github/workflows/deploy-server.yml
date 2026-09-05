@@ -10,8 +10,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # The release waits for the tests that describe THIS commit.
+  #
+  # ⚠ Measured on 965925e: CI and Deploy start independently from the same
+  # push, and the deploy finished about SEVEN MINUTES before the functional
+  # browser suite did. Production was already serving the new release while the
+  # only evidence it worked was still being gathered — and if the suite had gone
+  # red, the listeners already had the change.
+  #
+  # `head_sha` is the whole point. A "was CI green?" check that reads the latest
+  # run on the branch answers a question about somebody else's commit, which is
+  # worse than no check: it looks like a gate and is a coin toss.
+  #
+  # The pixel job is deliberately NOT required. A baseline failure means a
+  # deliberate redesign nobody re-drew, and that verdict belongs to a person
+  # looking at the PNGs — blocking the release on it would train everyone to
+  # bypass the gate, which is exactly how the browser job ended up
+  # `continue-on-error` and red for twenty runs.
+  await-ci:
+    name: CI must be green for THIS commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    if: github.event_name == 'push'
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Wait for the gating checks on ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required=("types + fast tests" "browser suite (functional, gates)")
+          deadline=$(( $(date +%s) + 35 * 60 ))
+
+          while :; do
+            runs=$(gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
+              --jq '.check_runs[] | [.name, .status, .conclusion // "pending"] | @tsv')
+
+            missing=(); failed=(); waiting=()
+            for name in "${required[@]}"; do
+              line=$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1 == n {print; exit}')
+              if [ -z "$line" ]; then missing+=("$name"); continue; fi
+              status=$(printf '%s' "$line" | cut -f2)
+              conclusion=$(printf '%s' "$line" | cut -f3)
+              if [ "$status" != "completed" ]; then waiting+=("$name"); continue; fi
+              if [ "$conclusion" != "success" ]; then failed+=("$name ($conclusion)"); fi
+            done
+
+            if [ ${#failed[@]} -gt 0 ]; then
+              echo "::error::CI failed for $SHA: ${failed[*]}. Nothing is deployed."
+              exit 1
+            fi
+            if [ ${#missing[@]} -eq 0 ] && [ ${#waiting[@]} -eq 0 ]; then
+              echo "All gating checks green for $SHA."
+              exit 0
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              # ⚠ A timeout is a REFUSAL, not a pass. "The check never appeared"
+              # and "the check passed" must never reach the same exit code.
+              echo "::error::Timed out waiting for $SHA. missing=[${missing[*]-}] waiting=[${waiting[*]-}]"
+              exit 1
+            fi
+            echo "waiting: missing=[${missing[*]-}] running=[${waiting[*]-}]"
+            sleep 20
+          done
+
   deploy:
     runs-on: ubuntu-latest
+    needs: [await-ci]
+    # `workflow_dispatch` skips the gate above, so `success()` alone would
+    # block every manual deploy. A SKIPPED gate is allowed through; a FAILED
+    # one never is.
+    if: >-
+      always() &&
+      (needs.await-ci.result == 'success' || needs.await-ci.result == 'skipped')
     env:
       APP_ROOT: /opt/RadioAtlas
     steps:

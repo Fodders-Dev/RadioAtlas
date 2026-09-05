@@ -16,7 +16,8 @@
     "generate-catalog": "node update-catalog.js",
     "test:e2e:ci": "playwright test --workers=1",
     "test:e2e:functional": "playwright test --workers=1",
-    "test:e2e:pixels": "playwright test --workers=1 tests/visual.spec.ts"
+    "test:e2e:pixels": "playwright test --workers=1 tests/visual.spec.ts",
+    "test:acceptance": "playwright test --config=playwright.acceptance.config.ts"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.26",

@@ -47,3 +47,5 @@ coverage/
 *.stackdump
 apps/webapp/test-results/
 apps/webapp/playwright/.cache/
+acceptance-artifacts/
+acceptance-artifacts-PASS/

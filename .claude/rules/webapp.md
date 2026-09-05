@@ -580,9 +580,21 @@ one lane, and **not one was found by reading**. Each had a plausible shape and
 an honest-looking assertion. The only thing that separated them from real gates
 was running the suite against a version of the code where the rule was gone.
 
-So: when you add a check that forbids something, **delete the check and watch
-the test go red before you believe it.** Name in the test which mutation it
-answers, so the next person can repeat it in one edit.
+So: when you add a check that forbids something, **break the rule and watch the
+test go red before you believe it.** Name in the test which mutation it answers,
+so the next person can repeat it in one edit.
+
+⚠ **The mutation must express a breach of the listener's contract, not merely
+an edit to the source.** «Radio starts itself after a return», «a paused player
+resumes», «the station is lost» — those are the things a mutation should
+produce. Deleting a useful guard just to get red is not a mutation check; it is
+vandalism with a green light at the end. If the only way to redden a test is to
+remove a protection you want to keep, the test is aimed at the implementation
+rather than at the behaviour — move it to where the rule can be isolated (a pure
+predicate is usually the place) and leave the protection alone.
+
+**Extra guards are fine.** Defence in depth is good engineering, and nothing
+here asks for a single point of enforcement.
 
 The three ways they hid here, in order of how often:
 
@@ -607,10 +619,12 @@ The three ways they hid here, in order of how often:
 
 And two more that are the same disease:
 
-- **A defensive extra that masks the real check.** Clearing a recovery token in
-  `playStation` «for safety» meant deleting the identity check in `toggle` left
-  every test green. Belt-and-braces is how a guard becomes untestable. One
-  mechanism, tested.
+- **Two guards where the test can only see one.** A recovery token was cleared
+  in `playStation` AND checked for identity in `toggle`; either alone gave the
+  listener correct behaviour, so deleting the identity check left every test
+  green. The defect is in the TEST, not in the second guard — keep both, and
+  assert the rule where it can be isolated. Here that was the pure predicate
+  (`canSpendRecoveryToken`), whose truth table no integration path can blur.
 - **A diagnostic wearing an assertion's clothes.** `expect(after >=
   before)` is true whether or not the defect exists. If you cannot state the
   forbidden outcome as an equality, you have not written a gate yet.

@@ -1638,12 +1638,14 @@ export const useAudioPlayer = ({
   }, []);
 
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
-    // ⚠ Deliberately NOT clearing a foreign token here.
+    // ⚠ Deliberately NOT clearing a foreign token here — because it would be
+    // dead code, not because a second guard would be wrong.
     //
-    // Clearing here as well was written as belt-and-braces and turned out to be
-    // worse than useless: it masked the identity check entirely, so removing
-    // that check left all eight wiring tests green. A guard nothing can fail is
-    // not a guard.
+    // A clear did live here, and while it did, deleting the identity check in
+    // `toggle` left all eight wiring tests green: two guards, and the tests
+    // could only see one. The lesson is about the TESTS (the truth table now
+    // lives in `canSpendRecoveryToken`, where neither can hide the other), not
+    // an argument against defence in depth.
     //
     // Nothing needs clearing, because `beginPlaybackSession()` below is what
     // makes an older debt inert — every reader goes through

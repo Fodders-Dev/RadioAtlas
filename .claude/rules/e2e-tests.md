@@ -117,6 +117,51 @@ The spec should refuse to report a number when the first source was already the
 proxy. A run that did not take the direct-first path is not a slow result, it is
 no result.
 
+## The acceptance run is a different animal from the suite
+
+`playwright.acceptance.config.ts` (`apps/webapp/acceptance/`, `npm --workspace
+apps/webapp run test:acceptance`) exists to demonstrate a user scenario to a
+person: real `<audio>`, real decoding, real sockets, real backgrounding, video
+on, minutes of real waiting. It is deliberately NOT in the gating suite —
+`testDir` is `./acceptance`, which the gating config's `./tests` never reaches.
+
+Writing one found four ways to produce convincing evidence of nothing. All four
+were caught by an assertion, not by reading, and all four are cheap to repeat.
+
+- **`mockStations` serves the audio.** It fulfills both
+  `https://stream.example.com/**` and the API's `**/stream?url=**` with a 30 s
+  silent WAV. The first run reported «currentTime advanced to 0.39s» — over
+  **zero** connections to the stream server. A fully buffered file cannot stall,
+  cannot die and cannot be starved, so every scenario about a dead stream would
+  have passed for free. `page.unroute` both, and then **assert a non-zero count
+  on the server** before anything else: that one line is what makes the rest of
+  the run mean something.
+- **Headless Chromium never backgrounds a page.** `page.bringToFront()` on a
+  second tab left the first at `visibilityState === 'visible'`, so
+  `visibilitychange` never fired. Anything about returning to the app must run
+  `headless: false` and must ASSERT the flip — otherwise the run measures a page
+  that never left.
+- **Artifacts inside the Vite root reload the page.** Traces and screenshots
+  written under `apps/webapp` are file changes the dev server watches, and it
+  answers with an HMR `page reload` — mid-measurement, restarting the player,
+  emptying the dock. Same trap as editing `src/` during a run, minus the human.
+  Point `outputDir` and every screenshot outside `apps/webapp`.
+- **The wrapper's exit code is not the suite's.** `npm run x > log 2>&1; echo
+  $?` inside a backgrounded shell reported success while the log said
+  `1 failed`. Put the real code IN the log (`(npm run x; echo "REAL_EXIT=$?")
+  > log`) and grep for it.
+
+Two more that are the ordinary rules biting in a new place: a loose
+`getByRole('button', {name: /Слушать/})` picks up Home tiles as well as the dock
+and starts a DIFFERENT station (scope it to `.player-dock-bar .dock-play-btn`),
+and a station is not guaranteed to be on Home — reach it with `playHomeStation`,
+which falls through to Search the way a listener does.
+
+⚠ The API's SSRF guard refuses a loopback upstream, so the `/api/stream` proxy
+candidate cannot serve a local fixture stream. That is correct and must be left
+alone: the candidate walk falls through to the direct URL, which is the socket
+worth measuring anyway.
+
 ## Isolation
 
 A spawned API must get its own `ACCOUNT_STORE_PATH`, `CATALOG_DATA_DIR` and
