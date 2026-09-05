@@ -52,6 +52,17 @@ type PlayCandidateResult = {
   ok: boolean;
   error?: string;
   superseded?: boolean;
+  /**
+   * The attempt was FORBIDDEN, not failed. An unresolved background debt owns
+   * the element and nobody but the listener may start audio for it.
+   *
+   * ⚠ Distinct from `ok: false` on purpose. A caller that cannot tell "held"
+   * from "nothing left to try" will report a working station as dead, arm a
+   * reconnect, and paint an error over a stream the listener never asked to
+   * stop. That conflation is exactly what the three-valued `superseded` above
+   * was introduced for, one lane earlier, and for the same reason.
+   */
+  held?: boolean;
   activeCandidate?: PlaybackCandidate | null;
   startupMs?: number | null;
 };
@@ -72,6 +83,7 @@ const EQ_RANGE_DB = 12;
 export const VISUALIZER_BARS = 24;
 const VISUALIZER_WAVEFORM_SAMPLES = 24;
 const PLAYBACK_SUPERSEDED = 'playback superseded';
+const PLAYBACK_HELD = 'playback held for an unresolved background debt';
 const STARTUP_BUFFER_GRACE_MS = 15000;
 const REBUFFER_GRACE_MS = 6000;
 const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
@@ -142,6 +154,42 @@ export const canSpendRecoveryToken = (
   if (!token || !currentStationId) return false;
   if (token.stationId !== currentStationId) return false;
   return token.session === currentSession;
+};
+
+export type RecoveryDebt = { stationId: string; cycleId: number; session: number };
+
+/**
+ * Does the listener's standing permission cover THIS debt?
+ *
+ * ⚠ The defect this replaces: permission used to be a bare `boolean`, and a
+ * boolean has no expiry. Set by one explicit Play, it survived into every
+ * later background cycle — so a listener who pressed Play once, got no audio,
+ * left the app and came back was granted an AUTOMATIC recovery on the strength
+ * of a tap that belonged to the previous cycle. A permission that outlives what
+ * it permitted is not a permission, it is a hole with a name.
+ *
+ * So permission names the exact debt it answers, on all three axes:
+ *
+ *   stationId  a tap on A never authorises anything on B
+ *   session    a tap on one attempt never authorises the next deliberate start
+ *   cycleId    a tap answering the FIRST background return never authorises the
+ *              second — a fresh return raises a fresh debt and must be asked
+ *              for again
+ *
+ * `cycleId` is the axis the other two cannot cover: a second hidden→visible
+ * cycle on the same station, with no deliberate start in between, keeps both
+ * `stationId` and `session` identical. It is the whole of item 1.
+ */
+export const recoveryAuthorizationCovers = (
+  authorization: RecoveryDebt | null,
+  debt: RecoveryDebt | null
+): boolean => {
+  if (!authorization || !debt) return false;
+  return (
+    authorization.stationId === debt.stationId &&
+    authorization.session === debt.session &&
+    authorization.cycleId === debt.cycleId
+  );
 };
 
 // Pure trigger decision for the silent-stall watchdog (extracted so the tricky
@@ -325,35 +373,40 @@ export const useAudioPlayer = ({
    * on a dead socket, the exact hole this lane exists to close.
    *
    * Granted:   a foreground return whose verdict is NOT `survived`.
-   * Surrendered: the listener pauses on purpose; playback actually progresses;
-   *              a reconnect has been attempted for it.
+   * Surrendered: playback position actually advances. Nothing else — see
+   *              `handleTimeUpdate`, and the note in `toggle`'s pause branch
+   *              about the Pause the UI forces.
+   *
+   * ⚠ A debt that no longer names what is on air is INERT rather than deleted:
+   * every read goes through `canSpendRecoveryToken`, so a stale one can neither
+   * be spent nor block anything. It is not cleared eagerly at a station change
+   * because doing exactly that, as belt-and-braces, once masked the identity
+   * check so completely that deleting the check left every test green.
    */
-  const backgroundResumeEligibleRef = useRef<{
-    stationId: string;
-    cycleId: number;
-    /**
-     * The playback attempt this debt belongs to. `beginPlaybackSession()`
-     * increments on every deliberate start, so a token minted before a station
-     * change stops matching the moment the listener starts anything else —
-     * including starting the SAME station again.
-     */
-    session: number;
-  } | null>(null);
+  const backgroundResumeEligibleRef = useRef<RecoveryDebt | null>(null);
   /** Monotonic id for each hidden->visible cycle, so a token names WHICH one. */
   const backgroundCycleRef = useRef(0);
   /**
-   * Has the listener explicitly asked for playback since the debt was raised?
+   * WHICH debt the listener has explicitly authorised an attempt for.
    *
-   * ⚠ Deliberately SEPARATE from the debt, and the separation is the point. A
-   * single flag would have to mean two different things at once: "the listener
-   * wants this" and "we have proof it worked". After an explicit Play the app
-   * is allowed to walk the station's candidates without proven progress — that
-   * is the listener's own request being carried out — while the debt itself
-   * stays open until `currentTime` actually MOVES.
+   * ⚠ Deliberately SEPARATE from the debt, and deliberately not a boolean. The
+   * separation is the point: after an explicit Play the app may walk the
+   * station's candidates without proven progress — that is the listener's own
+   * request being carried out — while the debt itself stays open until
+   * `currentTime` actually MOVES.
    *
-   * Cleared by measured progress and by a deliberate pause.
+   * But permission has to expire with the thing it permitted, or the split
+   * leaks the other way. As a boolean it survived a second background cycle and
+   * silently authorised an automatic recovery nobody asked for; it also had to
+   * be un-set correctly from every pause path, and one of them (`pause()`, used
+   * by the sleep timer and the headphone-unplug guard) did not. Naming the debt
+   * makes both failures structural rather than remembered.
+   *
+   * Revoked by measured progress, by ANY deliberate pause, and — without
+   * anybody writing code for it — by a new station, a new attempt or a new
+   * background cycle, because none of those match what it names.
    */
-  const playbackRequestedByListenerRef = useRef(false);
+  const recoveryAuthorizedForRef = useRef<RecoveryDebt | null>(null);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
@@ -494,8 +547,34 @@ export const useAudioPlayer = ({
    * A stream that is genuinely still playing is NOT interrupted by this: the
    * debt is cleared the moment position movement is observed.
    */
-  const automaticPlaybackSuppressed = () =>
-    backgroundResumeEligibleRef.current !== null && !playbackRequestedByListenerRef.current;
+  /**
+   * The debt that applies to what is on air RIGHT NOW, or null.
+   *
+   * ⚠ The identity check belongs HERE, not only at the tap. Without it the
+   * suppression above degenerated to "some token exists somewhere", and a debt
+   * raised on station A froze station B: the listener starts B explicitly, B
+   * needs a candidate failover before its first `timeupdate`, and A's stale
+   * token refuses it. The tap-path check in `toggle` cannot help — the listener
+   * reached B through `playStation`, not through the play/pause control.
+   *
+   * A token that names another station or an older attempt is INERT, which is
+   * the same rule the spending path uses. One predicate, both places.
+   */
+  const unresolvedRecoveryDebt = (): RecoveryDebt | null => {
+    const debt = backgroundResumeEligibleRef.current;
+    if (!debt) return null;
+    const station = requestedStationRef.current || currentRef.current;
+    if (!canSpendRecoveryToken(debt, station?.stationuuid, playbackSessionRef.current)) {
+      return null;
+    }
+    return debt;
+  };
+
+  const automaticPlaybackSuppressed = () => {
+    const debt = unresolvedRecoveryDebt();
+    if (!debt) return false;
+    return !recoveryAuthorizationCovers(recoveryAuthorizedForRef.current, debt);
+  };
 
   const beginPlaybackSession = () => {
     playbackSessionRef.current += 1;
@@ -725,6 +804,19 @@ export const useAudioPlayer = ({
       if (!isSessionCurrent(sessionId)) {
         return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
       }
+      // ⚠ Re-asked on every turn of the loop, not once at the door.
+      //
+      // Permission can be withdrawn DURING an attempt: the sleep timer fires,
+      // the headphones come out, the listener taps Pause, or the app goes away
+      // and comes back with a fresh debt. All of that can land inside the
+      // awaits below — `attachSource` alone can await a dynamic `hls.js`
+      // import. A check at the entrance says only that the attempt was allowed
+      // to BEGIN, and the thing that must be true is that it is allowed to make
+      // sound NOW.
+      if (automaticPlaybackSuppressed()) {
+        pushEvent('audio: candidate start held for an unresolved background debt');
+        return { ok: false, error: PLAYBACK_HELD, held: true };
+      }
       const nextCandidate = list[index];
       const nextUrl = nextCandidate.url;
       candidateIndexRef.current = index;
@@ -751,6 +843,18 @@ export const useAudioPlayer = ({
         if (!isSessionCurrent(sessionId)) {
           audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
+        }
+        // The last gate before sound. `attachSource` and the audio-graph setup
+        // above both await, so this is a different moment from the one at the
+        // top of the iteration — and it is the moment that matters.
+        //
+        // ⚠ Placed BEFORE `play()`, never after: refusing a settled `play()`
+        // would mean calling `pause()`/`load()` on top of it, which is the
+        // AbortError cascade `candidateSwitchGuard.ts` exists to prevent. An
+        // in-flight `play()` is still nobody's to interrupt.
+        if (automaticPlaybackSuppressed()) {
+          pushEvent('audio: play held for an unresolved background debt');
+          return { ok: false, error: PLAYBACK_HELD, held: true };
         }
         playPendingRef.current = true;
         try {
@@ -810,9 +914,26 @@ export const useAudioPlayer = ({
     return { ok: false, error: normalizedFailure.message };
   };
 
-  const tryNextCandidate = async (sessionId = playbackSessionRef.current) => {
+  /**
+   * ⚠ Three-valued, and the third value is the point.
+   *
+   * This returned a bare boolean, and all four automatic callers read `false`
+   * as «этой станции больше нечего играть»: they scheduled a reconnect, and the
+   * error handler additionally tore the station off the air and painted «нет
+   * доступного потока». But `false` also came back when the walk was simply
+   * FORBIDDEN — a held attempt reported as a dead station, on a stream nothing
+   * had proven was broken.
+   *
+   *   started    a candidate is attaching; the caller has nothing to do
+   *   exhausted  the list really is spent; escalate
+   *   suppressed nobody may start audio for this debt; do NOTHING, and above
+   *              all do not tell the listener their station is unplayable
+   */
+  const tryNextCandidate = async (
+    sessionId = playbackSessionRef.current
+  ): Promise<'started' | 'exhausted' | 'suppressed'> => {
     if (!isSessionCurrent(sessionId)) {
-      return false;
+      return 'exhausted';
     }
     // Execution-time gate. Every automatic caller — the error handler, the
     // buffering timeout, `ended`, the stall watchdog — arrives here, so one
@@ -820,14 +941,16 @@ export const useAudioPlayer = ({
     // goes through `playCandidateAtIndex` directly after authorising itself.
     if (automaticPlaybackSuppressed()) {
       pushEvent('audio: automatic candidate walk held for an unresolved background debt');
-      return false;
+      return 'suppressed';
     }
     const list = candidatesRef.current;
     if (candidateIndexRef.current >= list.length - 1) {
-      return false;
+      return 'exhausted';
     }
     const result = await playCandidateAtIndex(candidateIndexRef.current + 1, sessionId);
-    return result.ok;
+    // Permission can be withdrawn mid-walk; that is still not exhaustion.
+    if (result.held) return 'suppressed';
+    return result.ok ? 'started' : 'exhausted';
   };
 
   const scheduleReconnect = (sessionId = playbackSessionRef.current) => {
@@ -1001,7 +1124,7 @@ export const useAudioPlayer = ({
         // debt AND the listener's standing authorisation together, so ordinary
         // Pause/Play returns to ordinary semantics from here.
         backgroundResumeEligibleRef.current = null;
-        playbackRequestedByListenerRef.current = false;
+        recoveryAuthorizedForRef.current = null;
       }
       // Any real position MOVEMENT means the stream is alive (abs, not just >, so
       // an HLS live-edge reset still counts). Flat currentTime while unpaused for
@@ -1054,11 +1177,14 @@ export const useAudioPlayer = ({
           }
           playPendingDeferralsRef.current = 0;
           if ((requestedStationRef.current || currentRef.current) && isSessionCurrent(activeSession)) {
-            tryNextCandidate(activeSession).then((switched) => {
+            tryNextCandidate(activeSession).then((outcome) => {
               if ((!requestedStationRef.current && !currentRef.current) || !isSessionCurrent(activeSession)) {
                 return;
               }
-              if (switched) {
+              // Held, not spent: arming a reconnect here would put the debt
+              // right back on a timer the listener never asked for.
+              if (outcome === 'suppressed') return;
+              if (outcome === 'started') {
                 pushEvent('audio: prolonged buffering, switched candidate');
                 reportPlaybackEvent('audio_buffering_candidate_switch', {
                   dedupeKey: `audio_buffering_candidate_switch:${activeSession}`,
@@ -1088,11 +1214,16 @@ export const useAudioPlayer = ({
         'runtime'
       );
       if (requestedStationRef.current || currentRef.current) {
-        tryNextCandidate(activeSession).then((switched) => {
+        tryNextCandidate(activeSession).then((outcome) => {
           if (!isSessionCurrent(activeSession)) {
             return;
           }
-          if (!switched) {
+          // ⚠ A HELD walk must not reach the block below. Nothing here has been
+          // proven dead: the debt says «не запускай сам», and answering that by
+          // taking the station off the air, painting an error and arming a
+          // reconnect is the loudest possible way to obey a rule about silence.
+          if (outcome === 'suppressed') return;
+          if (outcome === 'exhausted') {
             const lostStation = requestedStationRef.current || currentRef.current;
             requestedStationRef.current = null;
             setCurrent(null);
@@ -1128,11 +1259,11 @@ export const useAudioPlayer = ({
       if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
         setIsPlaying(false);
-        tryNextCandidate(activeSession).then((switched) => {
+        tryNextCandidate(activeSession).then((outcome) => {
           if (!isSessionCurrent(activeSession) || (!requestedStationRef.current && !currentRef.current)) {
             return;
           }
-          if (!switched) {
+          if (outcome === 'exhausted') {
             scheduleReconnect(activeSession);
           }
         });
@@ -1180,9 +1311,9 @@ export const useAudioPlayer = ({
         dedupeMs: 5_000
       });
       setStatus('buffering');
-      tryNextCandidate(activeSession).then((switched) => {
+      tryNextCandidate(activeSession).then((outcome) => {
         if (!isSessionCurrent(activeSession) || (!requestedStationRef.current && !currentRef.current)) return;
-        if (!switched) scheduleReconnect(activeSession);
+        if (outcome === 'exhausted') scheduleReconnect(activeSession);
       });
     }, STALL_WATCHDOG_INTERVAL_MS);
 
@@ -1509,15 +1640,16 @@ export const useAudioPlayer = ({
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
     // ⚠ Deliberately NOT clearing a foreign token here.
     //
-    // The identity check in `toggle` is the single enforcing mechanism, and it
-    // has to STAY the enforcing one. Clearing here as well was written as
-    // belt-and-braces and turned out to be worse than useless: it masked the
-    // identity check entirely, so removing that check left all eight wiring
-    // tests green. A guard nothing can fail is not a guard.
+    // Clearing here as well was written as belt-and-braces and turned out to be
+    // worse than useless: it masked the identity check entirely, so removing
+    // that check left all eight wiring tests green. A guard nothing can fail is
+    // not a guard.
     //
-    // With only one mechanism, the cross-station test actually pins it: the
-    // token names the station it may recover, and a token for a station we are
-    // no longer on is refused and dropped at the point of use.
+    // Nothing needs clearing, because `beginPlaybackSession()` below is what
+    // makes an older debt inert — every reader goes through
+    // `canSpendRecoveryToken`, and a debt naming an earlier session can neither
+    // be spent nor suppress anything. That is also why a new start of station B
+    // is not frozen by an unresolved debt on A.
     const audio = audioRef.current;
     if (!audio) {
       return {
@@ -1676,7 +1808,8 @@ export const useAudioPlayer = ({
     // that failed outright. Go through the public start path so the attempt is
     // a clean one with its own session, rather than poking a dead element.
     if (!current && pending) {
-      playbackRequestedByListenerRef.current = true;
+      // No authorisation to grant: `playStation` mints a new session, so no
+      // debt from the failed attempt can name it and nothing is suppressed.
       const retried = await playStation(pending);
       return retried.ok;
     }
@@ -1703,7 +1836,7 @@ export const useAudioPlayer = ({
       // until it has actually produced audio.
       // The authorisation is withdrawn (the listener no longer wants sound), but
       // the DEBT survives — see the note above about the Pause the UI forces.
-      playbackRequestedByListenerRef.current = false;
+      recoveryAuthorizedForRef.current = null;
       audio.pause();
       return true;
     }
@@ -1730,7 +1863,12 @@ export const useAudioPlayer = ({
           // The listener has asked. That AUTHORISES the attempt — including
           // walking this station's candidates — but it does not prove anything
           // yet, so the debt stays open.
-          playbackRequestedByListenerRef.current = true;
+          //
+          // ⚠ The permission names THIS debt, cycle included. A second
+          // background return raises a new debt with a new `cycleId`, which
+          // this permission does not cover, so the next return has to be asked
+          // for again rather than inheriting this tap.
+          recoveryAuthorizedForRef.current = pendingResume;
           const resumed = await playCandidateAtIndex(
             candidateIndexRef.current,
             playbackSessionRef.current
@@ -1778,6 +1916,19 @@ export const useAudioPlayer = ({
     if (!audio) return;
     clearReconnect();
     clearWaitingTimeout();
+    // ⚠ This path revokes too, and it was the hole. `toggle()`'s pause branch
+    // cleared the old boolean; this one — the sleep timer and the
+    // headphone-unplug guard — did not, so «a deliberate pause withdraws the
+    // permission» was simply untrue for two of the three ways to pause. The
+    // consequence was not theoretical: with the permission still standing, a
+    // native `error` or `ended` after the pause went through
+    // `tryNextCandidate`, which was authorised, and the radio started itself
+    // again — after a sleep timer, or into the phone's speaker after the
+    // headphones came out.
+    //
+    // The DEBT is untouched, exactly as in `toggle`: pausing does not prove the
+    // socket is alive, so the listener's next Play still reconnects.
+    recoveryAuthorizedForRef.current = null;
     audio.pause();
   };
 
@@ -1785,6 +1936,10 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (!audio) return;
     beginPlaybackSession();
+    // Redundant against the session bump above, and kept anyway: a revocation
+    // that depends on a side effect of an unrelated line is one refactor away
+    // from being gone.
+    recoveryAuthorizedForRef.current = null;
     audio.pause();
     if ('srcObject' in audio) {
       try {

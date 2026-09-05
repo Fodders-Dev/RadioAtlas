@@ -59,8 +59,25 @@ describe('returning to the app after the stream may have died', () => {
   let paused = true;
   let position = 0;
   let clockOffset = 0;
-  /** Every station the player attached a source for, in order. */
-  let candidateStarts: string[] = [];
+  /**
+   * Every source URL the player actually attached, in order, OBSERVED at the
+   * moment `load()` runs.
+   *
+   * ⚠ This replaces an array the test filled in by hand inside its own
+   * `startPlaying()` helper. That version could only ever contain the station
+   * the helper had just written into it, so «nothing walked the queue» was a
+   * tautology: it re-read the test's own bookkeeping and would have stayed
+   * green while the player attached Berlin, a podcast, or nothing at all.
+   *
+   * `getAttribute('src')` rather than `el.src`, because jsdom resolves the
+   * property against the document base and the raw attribute is what
+   * `attachSource` actually set.
+   */
+  let sourceAttachments: string[] = [];
+  const attachedStations = () =>
+    sourceAttachments.map((url) =>
+      url.includes('paradise') ? 'uuid-paradise' : url.includes('berlin') ? 'uuid-berlin' : url
+    );
   const origCreateElement = document.createElement.bind(document);
   const realNow = Date.now.bind(Date);
 
@@ -98,7 +115,7 @@ describe('returning to the app after the stream may have died', () => {
     paused = true;
     position = 0;
     clockOffset = 0;
-    candidateStarts = [];
+    sourceAttachments = [];
     // ⚠ Installed BEFORE anything mounts. Fake timers only capture timers
     // created after installation, so enabling them inside a test left the stall
     // watchdog's `setInterval` real — it never fired in the fake window and the
@@ -116,6 +133,9 @@ describe('returning to the app after the stream may have died', () => {
         audio = el as HTMLAudioElement;
         el.load = () => {
           loadCalls += 1;
+          // The observation, taken from the element rather than from the test.
+          const src = el.getAttribute('src');
+          if (src) sourceAttachments.push(src);
         };
         Object.defineProperty(el, 'paused', { get: () => paused, configurable: true });
         // Driven by hand: the whole question is what the code does when the
@@ -169,11 +189,25 @@ describe('returning to the app after the stream may have died', () => {
     return () => api!;
   };
 
+  /**
+   * Swap what `play()` does while KEEPING the call counting. Tests that
+   * reassign `audio.play` wholesale lose `playCalls`, and a counter that
+   * silently stops moving reads as «ничего не запускалось».
+   */
+  const setPlay = (impl: () => Promise<void>) => {
+    if (!audio) return;
+    audio.play = () => {
+      playCalls += 1;
+      return impl().then(() => {
+        paused = false;
+      });
+    };
+  };
+
   const startPlaying = async (get: () => ReturnType<typeof useAudioPlayer>) => {
     await act(async () => {
       await get().playStation(station);
     });
-    candidateStarts.push(station.stationuuid);
     // The element is on air and the position is moving.
     paused = false;
     position = 10;
@@ -595,44 +629,364 @@ describe('returning to the app after the stream may have died', () => {
    * and `pending`, so the listener lost the source AND the retry control
    * (`toggle()` returned early on a missing station).
    */
-  it('keeps the source and a working retry after a native error exhausts every candidate', async () => {
+  /**
+   * ⚠ SPLIT from one test that proved neither half.
+   *
+   * The single «keeps the source and a working retry» test fired a native
+   * `error` while the debt stood UNAUTHORISED. `tryNextCandidate` refused at
+   * the door, so the walk never reached the rejecting `play()` — the test named
+   * candidate exhaustion and measured suppression. And it read exhaustion off
+   * `candidateStarts`, which the test had filled in itself.
+   *
+   * Two different states, so two tests. This one is «запрещено».
+   */
+  it('a FORBIDDEN walk is not an exhausted one: a native error changes nothing', async () => {
     const get = mount();
     await startPlaying(get);
     await hideFor(60_000);
     setVisibility('visible');
 
-    const queueBefore = candidateStarts.slice();
-    if (audio) audio.play = () => Promise.reject(new Error('no route to host'));
+    const attachmentsBefore = sourceAttachments.length;
+    setPlay(() => Promise.reject(new Error('no route to host')));
     await act(async () => {
       audio?.dispatchEvent(new Event('error'));
-      await new Promise((r) => setTimeout(r, 300));
+      await vi.advanceTimersByTimeAsync(300);
     });
 
-    const shown = get().current ?? get().pending;
-    expect(shown?.stationuuid, 'the source must still be on screen').toBe('uuid-paradise');
-    expect(get().status, 'and the error must be honest').toBe('error');
-    // `current` stays null: it means ON AIR, and nothing is on air.
-    expect(get().current, 'nothing may claim to be broadcasting').toBeNull();
+    // Nothing was tried, because nothing was allowed to be tried.
+    expect(sourceAttachments.length, 'a held walk attaches nothing').toBe(attachmentsBefore);
+    // ⚠ And — the point of the split — the listener is NOT told their station
+    // is unplayable. `false` used to mean both "held" and "spent", so the error
+    // handler tore the station off the air and painted «нет доступного потока»
+    // over a stream nothing had proven was broken.
+    expect(get().status, 'a held walk is not an error state').not.toBe('error');
+    expect(
+      (get().current ?? get().pending)?.stationuuid,
+      'and the station stays exactly where it was'
+    ).toBe('uuid-paradise');
+  });
 
-    // The listener's control works and reconnects THAT station.
-    if (audio) {
-      audio.play = () => {
-        playCalls += 1;
-        paused = false;
-        return Promise.resolve();
-      };
-    }
-    const loadsBefore = loadCalls;
+  /**
+   * ⚠ And this one is «разрешено, но кандидаты кончились» — reached through the
+   * listener's own control, with every attachment observed.
+   */
+  it('keeps the source and a working retry after a PERMITTED attempt exhausts every candidate', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    // The listener asks: Pause (the only control on screen), then Play. That
+    // authorises this debt, and the attempt succeeds at the element level.
     await act(async () => {
       await get().toggle();
     });
-    expect(loadCalls, 'the retry must actually reattach').toBeGreaterThan(loadsBefore);
+    await act(async () => {
+      await get().toggle();
+    });
+    const attachmentsAfterTap = sourceAttachments.length;
+    expect(attachmentsAfterTap, 'the tap reconnected').toBeGreaterThan(0);
+
+    // Now the route dies under a permitted attempt. The walk is allowed to run
+    // and genuinely runs out of candidates.
+    setPlay(() => Promise.reject(new Error('no route to host')));
+    await act(async () => {
+      audio?.dispatchEvent(new Event('error'));
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    // ⚠ A DIFFERENT url, not merely one more `load()`. «Кандидаты кончились»
+    // is only true if the walk actually moved through them, and a reattach of
+    // the same source would satisfy a bare count.
+    const walked = sourceAttachments.slice(attachmentsAfterTap);
+    expect(walked, 'a permitted walk really tries the NEXT candidate').toContain(
+      'https://stream.test/paradise-alt'
+    );
+    expect(get().status, 'and only then is the error honest').toBe('error');
+    // `current` stays null: it means ON AIR, and nothing is on air.
+    expect(get().current, 'nothing may claim to be broadcasting').toBeNull();
+    expect(get().pending?.stationuuid, 'the source must still be on screen').toBe('uuid-paradise');
+
+    // The listener's control works and reconnects THAT station.
+    setPlay(() => Promise.resolve());
+    const attachmentsBeforeRetry = sourceAttachments.length;
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(
+      sourceAttachments.length,
+      'the retry must actually reattach'
+    ).toBeGreaterThan(attachmentsBeforeRetry);
     expect(
       (get().current ?? get().pending)?.stationuuid,
       'and it must be the same station'
     ).toBe('uuid-paradise');
-    // Nothing walked the queue on the way.
-    expect(candidateStarts.every((id) => id === 'uuid-paradise')).toBe(true);
-    expect(queueBefore.every((id) => id === 'uuid-paradise')).toBe(true);
+    // ⚠ Observed, not bookkept: every source the element was ever given belongs
+    // to the station the listener asked for. Nothing walked the queue.
+    expect(new Set(attachedStations())).toEqual(new Set(['uuid-paradise']));
+  });
+
+  /**
+   * ⚠ `play()` RESOLVING is not proof of audio, and this is the test that was
+   * promised for it.
+   *
+   * Production showed the shape twice in one night: `paused: false`,
+   * `currentTime` frozen at 0, the dock reading «Буферизация». If the debt were
+   * closed on `resumed.ok`, the next Play would fall through to the branch that
+   * only reattaches when `audio.src` is EMPTY — a bare `.play()` on a source
+   * that has never produced a sample.
+   *
+   * Mutation: clearing `backgroundResumeEligibleRef` right after the `resumed`
+   * await in `toggle` reddens the final assertion.
+   */
+  it('a resolved play() with a frozen position leaves the NEXT Play still able to reconnect', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+    const frozenAt = position;
+
+    // First recovery: the element accepts the request and reports playing...
+    await act(async () => {
+      await get().toggle();
+    });
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(paused, 'the element claims to be playing').toBe(false);
+    // ...and the position never moves. No `timeupdate` is dispatched, so
+    // nothing proved anything. This is the exact production shape: `paused:
+    // false` over a `currentTime` that has not advanced a sample.
+    expect(position, 'no audio was produced').toBe(frozenAt);
+
+    // Ordinary Pause, then Play.
+    await act(async () => {
+      await get().toggle();
+    });
+    const attachmentsBefore = sourceAttachments.length;
+    await act(async () => {
+      await get().toggle();
+    });
+
+    expect(
+      sourceAttachments.length,
+      'an unproven stream must still reconnect, not resume'
+    ).toBeGreaterThan(attachmentsBefore);
+    expect(attachedStations().at(-1)).toBe('uuid-paradise');
+  });
+
+  /**
+   * ⚠ ITEM 1: permission belongs to ONE recovery cycle.
+   *
+   * The boolean this replaces had no expiry. Pressing Play once, getting no
+   * progress, leaving the app and coming back granted an AUTOMATIC recovery on
+   * the strength of a tap that belonged to the previous cycle — a permission
+   * outliving what it permitted.
+   *
+   * Mutation: drop the `cycleId` comparison from `recoveryAuthorizationCovers`
+   * and the second return starts audio on its own.
+   */
+  it('does not carry one cycle’s permission into the next background return', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    // Cycle 1: away, back, and the listener explicitly asks for the reconnect.
+    await hideFor(60_000);
+    setVisibility('visible');
+    await act(async () => {
+      await get().toggle();
+    });
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(paused, 'the explicit Play was carried out').toBe(false);
+    // ⚠ The element REPORTS playing, and the position still never moves — the
+    // production shape this whole lane exists for.
+    //
+    // Dispatching this is load bearing, and its absence made the first version
+    // of this test unfalsifiable: `candidateHasPlayedRef` is only set in
+    // `handlePlaying`, and the stall watchdog requires both `hasPlayed` and a
+    // status that is not 'paused'. Without the event the watchdog was disabled
+    // for reasons that have nothing to do with the permission, so removing the
+    // `cycleId` comparison left this test green. Caught by mutation.
+    act(() => {
+      audio?.dispatchEvent(new Event('playing'));
+    });
+
+    // Still no progress, so the debt is still open — and the app goes away
+    // again. This raises a NEW debt for a cycle nobody has authorised.
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    const playsAfterReturn = playCalls;
+    const attachmentsAfterReturn = sourceAttachments.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    expect(
+      playCalls,
+      'the second return must be asked for again, not inherit the first tap'
+    ).toBe(playsAfterReturn);
+    expect(sourceAttachments.length, 'and nothing may reattach either').toBe(
+      attachmentsAfterReturn
+    );
+
+    // The listener can still ask, and it still works.
+    await act(async () => {
+      await get().toggle();
+    });
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(sourceAttachments.length, 'the new explicit Play reconnects').toBeGreaterThan(
+      attachmentsAfterReturn
+    );
+  });
+
+  /**
+   * ⚠ ITEM 2: a debt on A may not freeze B.
+   *
+   * `automaticPlaybackSuppressed` used to ask only «есть ли токен», so an
+   * unresolved debt on Radio Paradise blocked the candidate failover of a
+   * station the listener had just explicitly started. The check in `toggle`
+   * cannot help: the listener reached B through `playStation`, not through the
+   * play/pause control.
+   *
+   * Mutation: make `unresolvedRecoveryDebt` return the raw ref without
+   * `canSpendRecoveryToken` and B never reaches its second candidate.
+   */
+  it('lets an explicitly started station fail over while another station’s debt is open', async () => {
+    const get = mount();
+    await startPlaying(get);
+
+    // A owes a recovery, and nobody has authorised it.
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    // B is started explicitly, and its first candidate refuses.
+    let refusals = 1;
+    setPlay(() => {
+      if (refusals > 0) {
+        refusals -= 1;
+        return Promise.reject(new Error('no route to host'));
+      }
+      return Promise.resolve();
+    });
+    const attachmentsBefore = sourceAttachments.length;
+    await act(async () => {
+      await get().playStation(stationB);
+    });
+
+    const berlinAttachments = attachedStations()
+      .slice(attachmentsBefore)
+      .filter((id) => id === 'uuid-berlin');
+    expect(
+      berlinAttachments.length,
+      "B must be allowed to walk its own candidates despite A's debt"
+    ).toBeGreaterThan(1);
+    expect(paused, 'and B must end up playing').toBe(false);
+    expect(get().pending?.stationuuid ?? get().current?.stationuuid).toBe('uuid-berlin');
+  });
+
+  /**
+   * ⚠ ITEM 3: the sleep timer and the headphone-unplug guard revoke too.
+   *
+   * `toggle()`'s pause branch cleared the old boolean; `pause()` did not. So
+   * «a deliberate pause withdraws the permission» was untrue for two of the
+   * three ways to pause, and a native `error` after one of them walked to the
+   * next candidate and started the radio again — after a sleep timer, or into
+   * the phone's speaker once the headphones were out.
+   *
+   * Mutation: remove the revocation from `pause()` and this reddens.
+   */
+  it('a sleep-timer pause withdraws the permission an explicit Play granted', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    // The listener authorises a recovery; it is accepted but proves nothing.
+    await act(async () => {
+      await get().toggle();
+    });
+    await act(async () => {
+      await get().toggle();
+    });
+    expect(paused, 'the authorised attempt is running').toBe(false);
+
+    // The sleep timer fires (the same entry point as the headphone guard).
+    act(() => {
+      get().pause();
+    });
+    expect(paused, 'the element is paused').toBe(true);
+
+    const playsAfterPause = playCalls;
+    const attachmentsAfterPause = sourceAttachments.length;
+    setPlay(() => Promise.resolve());
+    await act(async () => {
+      audio?.dispatchEvent(new Event('error'));
+      await vi.advanceTimersByTimeAsync(300);
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    expect(playCalls, 'nothing may restart the radio after a deliberate pause').toBe(
+      playsAfterPause
+    );
+    expect(sourceAttachments.length, 'and nothing may reattach a source').toBe(
+      attachmentsAfterPause
+    );
+    expect(paused, 'it must still be paused').toBe(true);
+  });
+
+  /**
+   * ⚠ ITEM 3, second half: permission checked at the DOOR is not permission at
+   * the moment of sound.
+   *
+   * `playCandidateAtIndex` awaits — `attachSource` can await a dynamic `hls.js`
+   * import, the audio graph awaits its context, and `play()` itself is a
+   * promise. A pause landing inside that window used to find an attempt already
+   * cleared for takeoff.
+   *
+   * Here the revocation happens INSIDE the first candidate's rejection, so the
+   * walk is mid-flight when permission disappears.
+   *
+   * Mutation: remove the check at the top of the loop in `playCandidateAtIndex`
+   * and the walk carries on to the second candidate.
+   */
+  it('stops a walk already in flight when the permission is withdrawn mid-attempt', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+
+    let revokeOnNextPlay = false;
+    setPlay(() =>
+      Promise.resolve().then(() => {
+        if (revokeOnNextPlay) {
+          revokeOnNextPlay = false;
+          // The sleep timer fires while this candidate is still settling.
+          get().pause();
+        }
+        throw new Error('no route to host');
+      })
+    );
+
+    // The only control on screen, then the explicit Play that authorises.
+    await act(async () => {
+      await get().toggle();
+    });
+    const attachmentsBefore = sourceAttachments.length;
+    revokeOnNextPlay = true;
+    await act(async () => {
+      await get().toggle();
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(
+      sourceAttachments.length - attachmentsBefore,
+      'exactly one candidate was attached before the permission went away'
+    ).toBe(1);
+    expect(paused, 'and the element stays paused').toBe(true);
   });
 });

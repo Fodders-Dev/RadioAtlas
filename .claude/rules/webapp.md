@@ -573,6 +573,48 @@ declarations are byte-identical. Inside Telegram on a notched phone the topbar
 lands on the station name. When a longhand overrides a shorthand that carried a
 safe-area or dock term, carry the term with it.
 
+## A guard without a red mutation is not a guard
+
+Five tests in this repo passed over code that was deliberately broken, all in
+one lane, and **not one was found by reading**. Each had a plausible shape and
+an honest-looking assertion. The only thing that separated them from real gates
+was running the suite against a version of the code where the rule was gone.
+
+So: when you add a check that forbids something, **delete the check and watch
+the test go red before you believe it.** Name in the test which mutation it
+answers, so the next person can repeat it in one edit.
+
+The three ways they hid here, in order of how often:
+
+- **Faked time that never reached the code.** `vi.useFakeTimers()` installed
+  AFTER the hook mounted left the stall watchdog's `setInterval` real, so it
+  never fired in the fake window and the whole «nothing starts audio by itself»
+  gate passed with the suppression deleted. Install fake timers before the
+  subject exists, and advance them deliberately rather than sleeping —
+  `advanceTimersByTimeAsync` also turns a 4.6 s test into a 300 ms one.
+- **A precondition the test never established.** A gate on «the second
+  background return must not inherit the first tap» passed with the rule
+  removed, because the test had not dispatched `playing` — and
+  `candidateHasPlayedRef` is set only in `handlePlaying`, while the watchdog
+  needs both it and a status that is not `paused`. The watchdog was off for
+  reasons unrelated to the rule under test. **Assert that the state you are
+  testing against actually happened**, not just that the outcome looks right.
+- **The test reading its own bookkeeping.** An array of «every station the
+  player attached» was pushed to by the test's own helper, so «nothing walked
+  the queue» re-read what the test had just written and would have stayed green
+  while the player attached something else entirely. Observe the SUBJECT —
+  record at `load()` from the element — not your own narration of it.
+
+And two more that are the same disease:
+
+- **A defensive extra that masks the real check.** Clearing a recovery token in
+  `playStation` «for safety» meant deleting the identity check in `toggle` left
+  every test green. Belt-and-braces is how a guard becomes untestable. One
+  mechanism, tested.
+- **A diagnostic wearing an assertion's clothes.** `expect(after >=
+  before)` is true whether or not the defect exists. If you cannot state the
+  forbidden outcome as an equality, you have not written a gate yet.
+
 ## Layout rules that are contracts, not preferences
 
 Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the

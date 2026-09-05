@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { canSpendRecoveryToken, judgeBackgroundPlayback } from './useAudioPlayer';
+import {
+  canSpendRecoveryToken,
+  judgeBackgroundPlayback,
+  recoveryAuthorizationCovers
+} from './useAudioPlayer';
 
 /**
  * 0.1b.1 — «Вернуться к эфиру», the classifier half.
@@ -133,5 +137,50 @@ describe('may this recovery token be spent', () => {
     expect(canSpendRecoveryToken(null, 'uuid-paradise', 7)).toBe(false);
     expect(canSpendRecoveryToken(TOKEN, null, 7)).toBe(false);
     expect(canSpendRecoveryToken(TOKEN, undefined, 7)).toBe(false);
+  });
+});
+
+/**
+ * The listener's PERMISSION, which is a different object from the debt and has
+ * its own truth table.
+ *
+ * ⚠ This replaced a bare `boolean`, and the axis that matters most here is the
+ * one the other two cannot express. A second hidden→visible cycle on the same
+ * station, with no deliberate start in between, keeps `stationId` and `session`
+ * IDENTICAL — so anything comparing only those two would carry a tap that
+ * answered the first return into the second, and grant an automatic recovery
+ * nobody asked for. `cycleId` is what makes the permission expire with the
+ * thing it permitted.
+ *
+ * Asserted here rather than only through the hook for the same reason as the
+ * token above: at the integration level the three axes hide one another.
+ */
+describe('does the listener’s permission cover this debt', () => {
+  const DEBT = { stationId: 'uuid-paradise', cycleId: 3, session: 7 };
+
+  it('covers the exact debt it was granted for', () => {
+    expect(recoveryAuthorizationCovers({ ...DEBT }, DEBT)).toBe(true);
+  });
+
+  it('does NOT cover a later background cycle on the same station and attempt', () => {
+    // ⚠ The hole this closes: explicit Play, no progress, away again, back —
+    // and the previous tap authorised the new cycle's automatic recovery.
+    expect(recoveryAuthorizationCovers({ ...DEBT, cycleId: 3 }, { ...DEBT, cycleId: 4 })).toBe(
+      false
+    );
+  });
+
+  it('does not cover another station', () => {
+    expect(recoveryAuthorizationCovers(DEBT, { ...DEBT, stationId: 'uuid-berlin' })).toBe(false);
+  });
+
+  it('does not cover a later deliberate start', () => {
+    expect(recoveryAuthorizationCovers(DEBT, { ...DEBT, session: 8 })).toBe(false);
+  });
+
+  it('covers nothing when it has been revoked, and nothing needs covering without a debt', () => {
+    expect(recoveryAuthorizationCovers(null, DEBT)).toBe(false);
+    expect(recoveryAuthorizationCovers(DEBT, null)).toBe(false);
+    expect(recoveryAuthorizationCovers(null, null)).toBe(false);
   });
 });
