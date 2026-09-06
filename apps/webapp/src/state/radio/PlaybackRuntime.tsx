@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { NowPlayingSnapshot } from '../../domain/contracts';
+import type { StationLite } from '../../types';
 import { useAudioPlayer } from '../../lib/useAudioPlayer';
 import { useNowPlayingSync } from './useNowPlayingSync';
 
@@ -13,6 +14,8 @@ type PlaybackRuntimeSnapshot = {
 type PlaybackRuntimeProps = {
   logDebug: (message: string) => void;
   onSnapshot: (snapshot: PlaybackRuntimeSnapshot) => void;
+  /** The station a full restart should show, silently. See `useAudioPlayer`. */
+  initialStation?: StationLite | null;
 };
 
 const buildTransportSignature = (player: ReturnType<typeof useAudioPlayer>) =>
@@ -21,9 +24,14 @@ const buildTransportSignature = (player: ReturnType<typeof useAudioPlayer>) =>
     ...player.transport.recentFailures.map((failure) => `${failure.phase}:${failure.message}`)
   ].join('|');
 
-export const PlaybackRuntime = ({ logDebug, onSnapshot }: PlaybackRuntimeProps) => {
+export const PlaybackRuntime = ({
+  logDebug,
+  onSnapshot,
+  initialStation
+}: PlaybackRuntimeProps) => {
   const player = useAudioPlayer({
-    onEvent: logDebug
+    onEvent: logDebug,
+    initialStation
   });
   const { nowPlaying, nowPlayingStatus, nowPlayingState } = useNowPlayingSync({
     logDebug,

@@ -162,6 +162,31 @@ candidate cannot serve a local fixture stream. That is correct and must be left
 alone: the candidate walk falls through to the direct URL, which is the socket
 worth measuring anyway.
 
+## Testing what survives a restart
+
+`page.reload()` is the closest thing this harness has to the OS killing the app:
+it tears down every ref, timer and the audio element, then rebuilds from
+storage. Two things make a restart test lie, and both were hit writing the first
+one.
+
+- ⚠⚠ **`addInitScript` re-runs on the reload.** `seedRadioState` writes
+  `radio:player:v2` unconditionally, so the reload standing in for the OS kill
+  ALSO wiped the queue the app had just persisted. The app restored nothing
+  because there was nothing left, and it looked exactly like a broken feature.
+  A real restart does not reset storage: seed **idempotently** (`if
+  (!localStorage.getItem(k)) …`), and let the app write the state under test
+  itself — otherwise the run is checking its own fixture.
+- **Let the deferred write land.** Storage writes are debounced (~1.2s). Reload
+  before that and you measure a queue that was never saved. Wait, then assert
+  the key actually contains what you expect BEFORE reloading — that one line
+  separates "the restore is broken" from "there was nothing to restore".
+
+And the filter trap again, in a new costume: matching the fixture's PORT number
+catches `/api/metadata?url=<encoded upstream>` as well as `/api/stream?url=`,
+because the port is inside the encoded upstream. A metadata probe for the
+station on screen is not playback. Match the audio path exactly and report the
+rest separately.
+
 ## Checking playback against production after a deploy
 
 `apps/webapp/acceptance/prodPlayback.mts` (`npx tsx acceptance/prodPlayback.mts`

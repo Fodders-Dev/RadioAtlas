@@ -30,7 +30,24 @@ const makeFinds = (count: number, now: number): SeedFind[] =>
     timestamp: now - i * 5 * 3600_000
   }));
 
-const NOW = Date.UTC(2026, 8, 4, 12, 0, 0);
+/**
+ * ⚠ Midday TODAY, not a literal date — and this is a repair, not a preference.
+ *
+ * It was `Date.UTC(2026, 8, 4, 12, 0, 0)`. The app groups finds against the
+ * REAL clock, so a find seeded an hour before that literal stopped being «today»
+ * the moment the date rolled past 4 September: «a row says only what its
+ * heading does not» started printing «Radio Paradise · 4 сент., 14:00» where it
+ * expected a bare time, and failed for everyone, forever, on a change nobody
+ * made. A time bomb with a two-day fuse.
+ *
+ * Anchored to midday of the current day it is both correct and stable: an hour
+ * before is always today, and no run lands near a midnight boundary.
+ */
+const NOW = (() => {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  return d.getTime();
+})();
 
 const openFinds = async (
   page: Page,

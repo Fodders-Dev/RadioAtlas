@@ -421,14 +421,24 @@ const App = () => {
       className="app-shell-v2"
       data-low-power={lowPowerShell ? 'true' : 'false'}
       // Whether the mini player is on screen at all. The dock renders NOTHING
-      // while nothing is playing (MiniPlayerDock's `isDormantDock`, same
-      // `!player.current` test), but every screen's bottom scroll padding
+      // while nothing is playing, but every screen's bottom scroll padding
       // budgeted its height unconditionally — so a listener who had not yet
       // pressed play scrolled through ~130px of reserved space for a control
       // that was not there. On first run, where Home is one screen of content,
       // that dead tail is a third of the page and reads as "there is nothing
       // below", which is exactly how it was reported.
-      data-dock={player.current ? 'bar' : 'none'}
+      //
+      // ⚠ `current ?? pending`, and it MUST mirror `MiniPlayerDock`'s
+      // `isDormantDock` exactly — the two together decide whether the bar is
+      // drawn and whether room is left for it, and they used to disagree.
+      //
+      // This was a defect shipped in 0.1b.1: the dock started rendering on
+      // `pending` (so a total failure keeps the station and its retry on
+      // screen) while this test still read `current` alone. On production
+      // right now, after a station fails outright, the bar sits over the last
+      // shelf tile with no reserve behind it. `dock-reserve.spec.ts` covers
+      // idle and playing and never had a `pending` case, so nothing said so.
+      data-dock={(player.current ?? player.pending) ? 'bar' : 'none'}
       data-player-presentation={playerPresentation}
       data-winamp-expanded={winamp.expanded ? 'true' : 'false'}
       data-active-section={activeSection}

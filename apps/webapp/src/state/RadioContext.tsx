@@ -622,6 +622,30 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [playbackRuntimeMounted, setPlaybackRuntimeMounted] = useState(
     () => storedQueue.currentIndex >= 0 && storedQueue.items.length > 0
   );
+  /**
+   * The station a FULL RESTART should put back on screen — silently.
+   *
+   * Android killed Telegram for memory on an S20 FE; reopening brought the
+   * finds back and left the player empty, so carrying on took a search instead
+   * of a tap. The queue snapshot already survives that restart and the app
+   * already reads it (right above, to decide whether to mount the runtime
+   * eagerly) — nothing was putting the station anywhere the dock could see it.
+   *
+   * ⚠ ONLY from a valid `queue.items[currentIndex]`, with no fallback to
+   * `playbackHistory`, and that restriction is the owner's and it is load
+   * bearing: `clearQueue()` empties the items, sets the index to -1 and calls
+   * `stop()`. A history fallback would resurrect a station the listener had
+   * just deliberately cleared — turning an explicit action into a suggestion.
+   *
+   * Computed once, in a ref, because it describes the state the app STARTED in.
+   * Recomputing it as the queue changes would make it a live mirror of the
+   * queue, which is a different feature and not this one.
+   */
+  const restoredStationRef = useRef<StationLite | null>(
+    storedQueue.currentIndex >= 0 && storedQueue.currentIndex < storedQueue.items.length
+      ? storedQueue.items[storedQueue.currentIndex] ?? null
+      : null
+  );
   const playbackRuntimeRef = useRef(playbackRuntime);
   const playbackRuntimeReadyRef = useRef(false);
   const playbackRuntimeWaitersRef = useRef<Array<() => void>>([]);
@@ -3058,6 +3082,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
               <PlaybackRuntimeLazy
                 logDebug={logDebug}
                 onSnapshot={handlePlaybackRuntimeSnapshot}
+                initialStation={restoredStationRef.current}
               />
             </Suspense>
           ) : null}

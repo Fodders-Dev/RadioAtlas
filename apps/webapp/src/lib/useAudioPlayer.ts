@@ -327,9 +327,29 @@ export const attachHlsIfCurrent = (
 };
 
 export const useAudioPlayer = ({
-  onEvent
+  onEvent,
+  initialStation
 }: {
   onEvent?: (message: string) => void;
+  /**
+   * The station to show — SILENTLY — when the app starts from nothing.
+   *
+   * ⚠ It becomes `pending`, never `current`, and that is the whole design.
+   * `current` means ON AIR; a station restored from storage has produced no
+   * audio and claiming otherwise would be the same lie this lane spent its
+   * whole life removing. `pending` means «asked for, not producing audio»,
+   * which is exactly true here, and the dock already renders `current ??
+   * pending` with a working Play behind it.
+   *
+   * Nothing plays. `toggle()` sees `!current && pending` and starts the station
+   * through the ordinary public path on the listener's press — the same path
+   * the acceptance run already verified as the retry after a total failure.
+   *
+   * Reported on Samsung S20 FE / Android 13: the OS killed Telegram for memory,
+   * and on reopening the finds were all there while the player was empty — so
+   * continuing took a search rather than a tap.
+   */
+  initialStation?: StationLite | null;
 } = {}) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
@@ -466,7 +486,13 @@ export const useAudioPlayer = ({
    * would have quietly changed what "playing" means for metadata, analytics and
    * the never-auto-switch rule.
    */
-  const [pending, setPending] = useState<StationLite | null>(null);
+  // ⚠ A `useState` INITIALISER, not an effect.
+  //
+  // It runs exactly once, at initialisation, so a restored station can never
+  // overwrite a choice the listener makes afterwards — the ordering is
+  // structural rather than remembered. An effect would have to be guarded
+  // against re-running, and that guard is the kind of thing that rots.
+  const [pending, setPending] = useState<StationLite | null>(() => initialStation ?? null);
   const [status, setStatus] = useState<PlayerStatus>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
