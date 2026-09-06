@@ -244,6 +244,16 @@ type SeedRadioStateOptions = {
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
   queue?: SeedStation[];
+  /**
+   * Which queue entry is the CURRENT one, if any.
+   *
+   * Defaults to 0 for a non-empty queue, which is what the real app produces
+   * once something has played. Pass -1 for the other reachable shape: items
+   * queued (the Feed's «в очередь» carries `currentIndex` through untouched)
+   * with nothing ever started. The two look identical in storage apart from
+   * this number, and they mean opposite things to a restart.
+   */
+  queueCurrentIndex?: number;
   stationCache?: SeedStation[];
   collections?: Array<{
     id: string;
@@ -344,6 +354,7 @@ export const seedRadioState = async (
     recent = [],
     playbackHistory = [],
     queue = [],
+    queueCurrentIndex,
     stationCache = [],
     collections = [],
     followedStations = [],
@@ -438,7 +449,7 @@ export const seedRadioState = async (
         version: 2,
         queue: {
           items: queue,
-          currentIndex: queue.length ? 0 : -1,
+          currentIndex: queueCurrentIndex ?? (queue.length ? 0 : -1),
           sourceId: queue.length ? 'seeded-home' : null,
           sourceLabel: queue.length ? 'Seeded Home' : null
         },

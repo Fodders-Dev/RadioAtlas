@@ -176,6 +176,13 @@ one.
   A real restart does not reset storage: seed **idempotently** (`if
   (!localStorage.getItem(k)) …`), and let the app write the state under test
   itself — otherwise the run is checking its own fixture.
+
+  **This bit twice, in two different suites**, the second time on a test about
+  CLEARING: the app cleared the queue, the clear reached storage, the reload
+  re-seeded it, and the test reported that a deliberate clear had been undone by
+  a restart. The product was innocent both times. If a test reloads the page,
+  `seedRadioState` is the wrong tool — have the app produce the state by acting
+  on the UI, and seed nothing but the API base.
 - **Let the deferred write land.** Storage writes are debounced (~1.2s). Reload
   before that and you measure a queue that was never saved. Wait, then assert
   the key actually contains what you expect BEFORE reloading — that one line
@@ -186,6 +193,32 @@ catches `/api/metadata?url=<encoded upstream>` as well as `/api/stream?url=`,
 because the port is inside the encoded upstream. A metadata probe for the
 station on screen is not playback. Match the audio path exactly and report the
 rest separately.
+
+## An `if` around an assertion is a skip, not a check
+
+Three of these shipped in one lane, all found by the owner reading the diff:
+
+```ts
+if (await other.isVisible().catch(() => false)) { …the whole point of the test… }
+if (box !== null && barTop !== null) { expect(box).toBeLessThanOrEqual(barTop) }
+```
+
+Both finish GREEN in exactly the situation that should fail: the element never
+rendered, the geometry was unmeasurable. The test opts out of itself and reports
+success.
+
+**Preconditions are assertions.** If the test needs a second station on screen,
+assert it is there and let the failure say so. If it needs two boxes to compare,
+assert both are non-null first. A `?.` or a `catch(() => false)` inside a check
+is the same defect wearing a smaller hat.
+
+The honest shape:
+
+```ts
+await expect(other, 'a second station must be reachable to switch to').toBeVisible();
+await other.click();
+expect(barTop, 'the bar must be measurable').not.toBeNull();
+```
 
 ## Checking playback against production after a deploy
 

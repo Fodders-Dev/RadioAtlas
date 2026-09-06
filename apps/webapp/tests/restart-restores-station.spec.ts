@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, playHomeStation, seedRadioState, stations } from './helpers';
 
 /**
  * 0.1b.2 — continuing after the OS killed the app.
@@ -120,24 +120,81 @@ test('the shell reserves room for a restored dock, so the last card stays reacha
       lastTileBottom: last ? Math.round(last.getBoundingClientRect().bottom) : null
     };
   });
-  if (atBottom.lastTileBottom !== null && atBottom.barTop !== null) {
-    expect(
-      atBottom.lastTileBottom,
-      'the last card must not sit under the restored player'
-    ).toBeLessThanOrEqual(atBottom.barTop);
-  }
+  // ⚠ The measurement is a PRECONDITION, not an excuse to skip.
+  //
+  // This was wrapped in `if (both !== null)`, so a run that found no tile or no
+  // bar passed having measured nothing — the assertion silently opted out in
+  // exactly the situation where something had gone wrong.
+  expect(atBottom.barTop, 'the bar must be measurable').not.toBeNull();
+  expect(atBottom.lastTileBottom, 'and a card must be there to measure').not.toBeNull();
+  expect(
+    atBottom.lastTileBottom!,
+    'the last card must not sit under the restored player'
+  ).toBeLessThanOrEqual(atBottom.barTop!);
 });
 
-test('a cleared queue stays cleared across a restart', async ({ page }) => {
+test('clearing the queue through the UI survives a restart', async ({ page }) => {
   // ⚠ The owner's correction, and the reason there is no `playbackHistory`
   // fallback: `clearQueue()` empties the items, sets the index to -1 and calls
   // `stop()`. Restoring from history would put back a station the listener had
   // just deliberately removed, turning an explicit action into a suggestion.
-  await openRestarted(page, { queue: [] });
-  await page.waitForTimeout(1500);
+  //
+  // ⚠⚠ Nothing here is seeded, and that is the repair.
+  //
+  // Two earlier versions of this test proved nothing. The first loaded an
+  // ALREADY empty queue — it never ran `clearQueue()`, so a restore that
+  // ignored the clear entirely would have passed. The second pressed the real
+  // control but used `seedRadioState`, whose `addInitScript` RE-RUNS on
+  // `page.reload()` and rewrote the queue it had just cleared: the test failed
+  // and the product was innocent.
+  //
+  // So the app writes every piece of this itself — plays, persists, clears,
+  // persists again — and the only seeded value is the API base, which is
+  // written only when absent.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('radio:api-url')) localStorage.setItem('radio:api-url', '/api');
+  });
+  await page.goto(HOME);
+
+  // The app makes its own queue by actually playing something.
+  await playHomeStation(page, stations[0].name);
+  await expect(page.locator('.player-dock-title')).toContainText(stations[0].name, {
+    timeout: 20_000
+  });
+  // The debounced write has to land, or the rest measures a queue never saved.
+  await page.waitForTimeout(2500);
+  const beforeClear = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('radio:player:v2') || '{}')
+  );
+  expect(
+    beforeClear?.queue?.currentIndex,
+    'the app must have persisted a current station to clear'
+  ).toBeGreaterThanOrEqual(0);
+
+  // Медиатека → вкладка очереди → «Очистить очередь».
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Моё|Медиатека/ }).click();
+  const queueTab = page.getByRole('tab', { name: /Очередь/ });
+  await expect(queueTab, 'the queue tab must be reachable').toBeVisible({ timeout: 15_000 });
+  await queueTab.click();
+  const clear = page.getByRole('button', { name: 'Очистить очередь' });
+  await expect(clear, 'the real clear control must be reachable').toBeVisible({ timeout: 15_000 });
+  await clear.click();
+
+  await page.waitForTimeout(2500);
+  const afterClear = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('radio:player:v2') || '{}')
+  );
+  expect(afterClear?.queue?.currentIndex, 'the clear must have reached storage').toBe(-1);
+
+  await page.reload();
+  await page.locator('.app-shell-v2').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.waitForTimeout(2000);
 
   const dock = await dockState(page);
-  expect(dock.present, 'nothing was queued, so nothing may come back').toBe(false);
+  expect(dock.present, 'a deliberate clear must not be undone by a restart').toBe(false);
   expect(dock.dockAttr, 'and no room may be reserved for it').toBe('none');
 });
 
@@ -145,18 +202,25 @@ test('the restored station never overwrites what the listener picks next', async
   await openRestarted(page, { queue: [stations[0]] });
   await expect(page.locator('.player-dock-title')).toContainText(stations[0].name);
 
-  // The listener starts something else. The restore ran once, at
-  // initialisation, so there is nothing left to come back and undo this.
+  // ⚠ The second station is a REQUIRED precondition, not an optional one.
+  //
+  // This was `if (await other.isVisible())`, so a run where the card never
+  // rendered finished green having switched nothing — the whole point of the
+  // test opted out of itself. If the station cannot be reached, that is a
+  // failure of the test's setup and must be loud.
   const other = page.locator('[data-home-station]').filter({ hasText: stations[1].name }).first();
-  if (await other.isVisible().catch(() => false)) {
-    await other.locator('.home-station-primary-action').click();
-    await expect(page.locator('.player-dock-title')).toContainText(stations[1].name, {
-      timeout: 15_000
-    });
-    await page.waitForTimeout(1500);
-    await expect(
-      page.locator('.player-dock-title'),
-      'the restored station must not reappear over the new one'
-    ).toContainText(stations[1].name);
-  }
+  await expect(other, 'a second station must be reachable to switch to').toBeVisible({
+    timeout: 15_000
+  });
+  await other.locator('.home-station-primary-action').click();
+
+  await expect(page.locator('.player-dock-title')).toContainText(stations[1].name, {
+    timeout: 15_000
+  });
+  // Long enough for anything deferred to try to undo it.
+  await page.waitForTimeout(2500);
+  await expect(
+    page.locator('.player-dock-title'),
+    'the restored station must not reappear over the new one'
+  ).toContainText(stations[1].name);
 });

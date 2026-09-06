@@ -1800,13 +1800,50 @@ test('dormant dock renders nothing at all (no empty player bar on Home)', async 
   await expect(page.locator('.player-dock')).toBeVisible();
 });
 
-test('a leftover queue does not resurrect the empty player bar', async ({ page }) => {
-  // Regression: the first version of the hide gated on "no station AND empty
-  // queue", so anyone carrying a queue from a previous session still got the
-  // «Выбери станцию» bar on Home — which is what the owner reported seeing.
-  // Nothing is ON AIR here, so there must be no dock, queue or not.
+/**
+ * ⚠ These two replace «a leftover queue does not resurrect the empty player
+ * bar», and the split is the point.
+ *
+ * The original defect was an EMPTY bar: carrying a queue from a previous
+ * session put «Выбери станцию» on Home with nothing to control, covering the
+ * station rails. That ban still stands, and both tests below assert it.
+ *
+ * What changed is that «a leftover queue» turned out to be two different
+ * states, and 0.1b.2 needs them told apart. In storage they differ by one
+ * number:
+ *
+ *   currentIndex >= 0   something was PLAYED. Only the play path sets this —
+ *                       `enqueue` carries it through untouched — so this is
+ *                       the shape an OS kill leaves behind, and the listener
+ *                       should get their station back with a Play.
+ *   currentIndex === -1 stations were queued and nothing was ever started.
+ *                       Nothing to continue, so no bar.
+ *
+ * Asserting "no dock, queue or not" would now forbid the continuation the
+ * owner asked for after Android killed Telegram on an S20 FE.
+ */
+test('a saved station comes back after a restart, named and playable', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await seedRadioState(page, { queue: stations.slice(0, 3) });
+  await page.goto('/');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  const dock = page.locator('.player-dock');
+  await expect(dock).toHaveCount(1);
+  await expect(page.locator('.player-dock-title')).toContainText(stations[0].name);
+  // Named and offering to START — never the empty prompt the ban is about.
+  await expect(page.locator('.player-dock-bar .dock-play-btn')).toHaveAttribute(
+    'aria-label',
+    'Слушать'
+  );
+  await expect(page.getByText('Выбери станцию')).toHaveCount(0);
+});
+
+test('a queue nobody ever played leaves Home with no player bar', async ({ page }) => {
+  // The original ban, in the state that still deserves it: items queued from
+  // the Feed, `currentIndex` never moved, nothing to continue.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await seedRadioState(page, { queue: stations.slice(0, 3), queueCurrentIndex: -1 });
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
 
