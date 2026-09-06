@@ -162,6 +162,36 @@ candidate cannot serve a local fixture stream. That is correct and must be left
 alone: the candidate walk falls through to the direct URL, which is the socket
 worth measuring anyway.
 
+## Checking playback against production after a deploy
+
+`apps/webapp/acceptance/prodPlayback.mts` (`npx tsx acceptance/prodPlayback.mts`
+from `apps/webapp`) is the post-deploy check: reach a station through Search at
+390x844, prove `currentTime` moves, prove the player shows the station that was
+pressed, then Pause and prove nothing restarts.
+
+It lied three times before it told the truth, and every one was the
+measurement:
+
+- **`hasText` is a substring match.** Pinning «Radio Paradise Rock Mix FLAC»
+  clicked «Radio Paradise Rock Mix FLAC+meta» — a different station, reported as
+  a healthy recovery. This is trap #1 below, and it has now happened three times
+  in one session. Match exactly, or match by index after enumerating.
+- **A metadata probe is not playback.** Counting every request to the station's
+  own origin reported «2 new stream requests after Pause» for a player that
+  produced 0.02 s of audio in twenty seconds. Count the AUDIO path only, and
+  report the rest separately rather than folding it in.
+- ⚠⚠ **The catalogue API and the Search screen return different sets.** The
+  showcase is deduplicated, so a row the API happily returns may not exist on
+  screen at all. Pinning a station from the API and then hunting for it in the
+  DOM is a race between two different answers. **Take the station from the
+  screen** — the play button's `aria-label` carries the exact name — so the row
+  that is clicked and the name that is asserted come from the same place.
+
+⚠ And the release stamp: a string added to the player will NOT appear in
+`index-*.js`, because the playback runtime is lazily loaded. Grep every chunk
+(`grep -rl "<new string>" dist/assets`) or you will conclude a good deploy
+never landed.
+
 ## Isolation
 
 A spawned API must get its own `ACCOUNT_STORE_PATH`, `CATALOG_DATA_DIR` and
