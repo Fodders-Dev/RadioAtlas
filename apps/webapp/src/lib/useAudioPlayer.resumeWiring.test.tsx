@@ -216,6 +216,34 @@ describe('returning to the app after the stream may have died', () => {
     });
   };
 
+  it.each(['stalled', 'waiting'])('keeps a progressing background stream after %s without timeupdate', async (event) => {
+    const get = mount();
+    await startPlaying(get);
+    setVisibility('hidden');
+    const loadsBefore = loadCalls;
+    const playsBefore = playCalls;
+    act(() => audio!.dispatchEvent(new Event(event)));
+    // iOS can withhold JS media events while its native player keeps advancing.
+    // Deliberately do not emit playing/timeupdate to clear the waiting timer.
+    position += 6;
+    await act(async () => { await vi.advanceTimersByTimeAsync(6100); });
+    expect(loadCalls).toBe(loadsBefore);
+    expect(playCalls).toBe(playsBefore);
+    expect(get().status).toBe('playing');
+    await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+    expect(loadCalls).toBe(loadsBefore);
+  });
+
+  it('still recovers a genuinely frozen stream after stalled', async () => {
+    const get = mount();
+    await startPlaying(get);
+    setVisibility('hidden');
+    const loadsBefore = loadCalls;
+    act(() => audio!.dispatchEvent(new Event('stalled')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(6100); });
+    expect(loadCalls).toBeGreaterThan(loadsBefore);
+  });
+
   it('reconnects rather than resuming a dead socket after a background death', async () => {
     const get = mount();
     await startPlaying(get);

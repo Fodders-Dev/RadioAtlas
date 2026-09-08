@@ -361,6 +361,29 @@ before `goto`: `clock.install()` fakes `requestIdleCallback`, which the app uses
 to preload the playback runtime, so a pre-`goto` install deletes the code path
 under test.
 
+## iPhone background buffering: stale waiting timers (2026-09-08)
+
+24/7 Chiptune Radio (MP3 station `197e37b1-57ee-436c-a5d7-587716508893`)
+was reported to stop after about 30 seconds with the screen locked, in both
+Safari and Telegram. Production events showed repeated buffering reconnects
+on the proxy candidate. Direct and same-origin proxy probes each delivered
+about 2.02 MB in 65 seconds, about 32.1 KB/s, with no chunk gap >= 2 seconds.
+These are developer-machine network observations, not an iPhone lock-screen pass.
+
+The client waiting/stalled timeout reloaded the source after six seconds even
+when native `currentTime` had advanced and no `playing`/`timeupdate` event reached
+JavaScript. It now samples position at the event and again before recovery:
+progress preserves the element and restores the playing UI; frozen position
+still recovers. A stale timer after Pause or a superseded session does nothing.
+Mounted-hook tests first reproduced both erroneous loads, then passed with the
+guard; the frozen-stream control continues to reconnect. Existing background
+return permission and intentional Pause rules remain in effect.
+
+Physical iPhone acceptance is still required: play this station, lock the screen
+for several minutes, verify sound continues, and verify intentional Pause holds.
+This fix removes a demonstrated destructive recovery path; it does not establish
+that every iOS background interruption has the same cause.
+
 ## Is a station's stream actually flaky?
 
 `tools/probe-stream.mjs` reads a live stream and reports throughput plus every

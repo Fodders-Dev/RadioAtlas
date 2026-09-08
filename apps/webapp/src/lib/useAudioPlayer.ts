@@ -1184,8 +1184,22 @@ export const useAudioPlayer = ({
         const timeoutMs = candidateHasPlayedRef.current
           ? REBUFFER_GRACE_MS
           : Math.max(4000, STARTUP_BUFFER_GRACE_MS - elapsedSinceAttach);
+        const positionWhenWaiting = audio.currentTime || 0;
         waitingTimeoutRef.current = window.setTimeout(() => {
           waitingTimeoutRef.current = null;
+          if (!isSessionCurrent(activeSession) || audio.paused) return;
+          // A stalled network read is not necessarily stalled playback: Safari
+          // can keep playing its native buffer while withholding playing and
+          // timeupdate in the background. Never reload that working element
+          // merely because a (possibly throttled) JS timer eventually fired.
+          const position = audio.currentTime || 0;
+          if (candidateHasPlayedRef.current && Math.abs(position - positionWhenWaiting) > 0.05) {
+            lastProgressRef.current = { time: position, at: Date.now() };
+            setStatus('playing');
+            setIsPlaying(true);
+            pushEvent('audio: buffering timer cancelled, playback advanced');
+            return;
+          }
           // Never tear down a play() that is still in flight — that is the
           // AbortError which used to be reported as a dead station.
           const decision = decideCandidateSwitch({
