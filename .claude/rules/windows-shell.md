@@ -13,7 +13,7 @@ are fine, so nothing looks wrong.
 Always call Git's client by full path:
 
 ```bash
-"/c/Program Files/Git/usr/bin/ssh.exe" -o BatchMode=yes rodnya '<command>'
+"/c/Program Files/Git/usr/bin/ssh.exe" -o BatchMode=yes fodders '<command>'
 ```
 
 An interactive PowerShell has a `$PROFILE` wrapper for this, but a
@@ -39,6 +39,17 @@ compiles and quietly stops matching Windows paths.
 
 ## Two shells, two syntaxes
 
+For Codex on this host the current tool shell is PowerShell. Always use the
+shell stated by the current task, not the historical default described below.
+Use `npm.cmd` / `npx.cmd` when PowerShell execution policy blocks the `.ps1`
+shims. With native commands, capture `$LASTEXITCODE`; do not use Bash `$?` syntax.
+For a multi-command script, stop on a nonzero exit instead of allowing the last
+successful command to hide it.
+
+`npm run test:scripts` selects Git Bash for its child processes on Windows.
+Bare `bash` on this machine otherwise resolves to a WSL shim whose `/bin/bash`
+is missing. The runner changes only its child PATH, not the system settings.
+
 Both are available. Bash (Git Bash, POSIX) is the default for scripts here;
 PowerShell 7 is available for Windows-native work. Do not mix their syntax:
 PowerShell has no `2>/dev/null`, no `head`/`tail`, and its here-strings need the
@@ -46,6 +57,7 @@ closing `'@` at column 0.
 
 ## Long-running work
 
-Test suites and production probes take minutes. Run them with
-`run_in_background: true` rather than chaining sleeps, and read the exit code
-from the captured output rather than guessing from partial logs.
+Test suites and production probes take minutes. Use the active client's
+background/session mechanism and read the final exit code. Claude Code exposes
+`run_in_background`; Codex execution tools return session IDs for ongoing
+commands. Do not invent one client's tool arguments in the other.

@@ -63,6 +63,9 @@ explicit allow-list of fields, never raw provider data.
 
 ## Commands
 
+Shared Codex/Claude workflow: read `.claude/rules/collaboration.md`.
+Current checkout map and next slice: `docs/WORKING-SETUP.md`.
+
 These exist; do not invent others. **There is no linter or formatter in this
 project** — no eslint, no prettier. "Run the linter" is not a thing here.
 
@@ -75,13 +78,18 @@ npm run test:scripts       # ops, deploy and hook guards outside the workspaces 
 npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
 npm run test:webapp        # Playwright, all 283 specs                    ~7min
 npm run dev:webapp         # + npm run dev:api in a second terminal
+npm run dev:local          # isolated local API + Vite, 4341 / 5184; Ctrl+C stops both
+npm run dev:prototype      # standalone calm mock, 127.0.0.1:4179, no audio
+npm run build:prototype    # regenerate the portable single-file calm HTML
 npm run build              # api → bot → webapp                ~10s
 npm run seo:indexnow       # tell Yandex/Bing the station pages exist (manual)
 ```
 
-**Neither `npm test` nor CI runs everything.** `npm test` chains typecheck →
-api → bot → scripts → Playwright and skips the 693 webapp unit tests; CI runs
-those and skips Playwright. Run `test:unit` yourself for any webapp change.
+**Neither `npm test` nor any single CI job runs everything.** `npm test` chains
+both typechecks → api → bot → scripts → Playwright and skips webapp unit tests.
+CI runs webapp units in its fast gate, functional Playwright in a separate
+blocking job, and pixel baselines in a reporting job. Run `test:unit` yourself
+for any webapp change. Test counts in old reports are historical, not assertions.
 
 `seo:indexnow` is deliberately NOT part of the deploy. IndexNow is for URLs
 that changed, and resubmitting all 5 000 on every push is what the protocol asks
@@ -155,13 +163,15 @@ pixel job is red, either re-draw the baselines or say why it is red on purpose.
   hazard is a document that contradicts the code, in either direction.
   `RUNBOOK.md` is commands, env vars and past incidents — read it before
   diagnosing anything on production.
-- Production access: `ssh rodnya` (see `.claude/rules/windows-shell.md` first,
+- Production access on this Windows host: `ssh fodders` (see `.claude/rules/windows-shell.md` first,
   the system ssh on this machine is broken).
 
 ## What refuses to run
 
-`.claude/hooks/` blocks a few commands outright, before the permission layer and
-in every mode, because each one has already cost this project something:
+In Claude Code, `.claude/hooks/` blocks a few commands outright before its
+permission layer. These hooks are not automatically installed in Codex; the
+same repository restrictions below still apply as instructions to every agent.
+Each blocked action has already cost this project something:
 recursive force-deletes, anything that discards uncommitted work (`git reset
 --hard`, `git clean -f`, `git checkout --`), force pushes, `pm2 update` (it
 hangs on this box and takes the neighbours' apps down with it), and writes to

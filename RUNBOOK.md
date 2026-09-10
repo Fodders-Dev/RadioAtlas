@@ -386,18 +386,39 @@ that every iOS background interruption has the same cause.
 
 ## `Alt-Svc` on the edge was changed for VPN routes (2026-09-08)
 
-Reported by the owner: the server's `Alt-Svc` header was adjusted so the app
-works over a VPN. Nothing in this repository shows it — it is edge configuration
-— so it is recorded here rather than inferred from a diff.
+Recorded from the Codex operation on 2026-09-08 (clarified 2026-09-10): Caddy's
+`radioatlas.ru, www.radioatlas.ru` block in `/etc/caddy/Caddyfile` received
+`header >Alt-Svc clear`. The shared server's HTTP/3 listener and other host
+blocks were not disabled or edited. Config was validated and gracefully
+reloaded. Backup: `/etc/caddy/Caddyfile.bak-radioatlas-vpn-20260908`.
 
-⚠ Not measured from this machine, and no before/after numbers were taken. If a
-connectivity report arrives that smells like protocol negotiation (works on one
-network, hangs on another, no error), check the live header before anything
-else, and treat the paragraph above as a claim rather than a baseline:
+At that time `/`, `/api/health` and the public JS entry responded 200 with
+`Alt-Svc: clear`. The owner then reported Home loaded over the same iPhone
+mobile + AmneziaWG Finland connection using `?vpn-check=1`. That query is not
+an application feature. This supports a transport/cache-negotiation hypothesis,
+but is not a controlled A/B proof of QUIC as the sole cause: the query and
+header reset changed together. No MTU/VPN/DNS changes were made.
+
+These are dated incident observations, not a claim that today's live config
+was rechecked. On a new failure, check the current header first:
 
 ```bash
 curl -sSI https://radioatlas.ru/ | grep -i '^alt-svc'
 ```
+
+To undo, remove only the dated RadioAtlas comment and header directive, validate
+and gracefully reload Caddy. Do not restore the full backup over newer changes
+to other services. Current Windows SSH alias: `fodders` (Git's ssh executable).
+
+## Isolated local development (2026-09-10)
+
+`npm run dev:local` starts API + Vite on 127.0.0.1:4341 / :5184 with the
+matching proxy. Data is isolated under the current worktree's `.tmp/dev-local`;
+AI, billing reconciliation and test auth fixtures are off. The existing catalog
+snapshot is used rather than a live catalog refresh. `-- --check` validates
+dependencies and free ports without starting servers. Ctrl+C stops both child
+process trees. Change RADIO_DEV_WEB_PORT and RADIO_DEV_API_PORT together for
+another concurrent session. Details and checkout map: `docs/WORKING-SETUP.md`.
 
 ## Is a station's stream actually flaky?
 

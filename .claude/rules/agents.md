@@ -27,7 +27,12 @@ Work where **being wrong is cheap to produce and expensive to notice**:
 - anything where the failure mode is silence rather than an error
 - product judgement, and anything touching money, secrets or deletion
 
-## Model
+## Model (Claude Code only)
+
+The Sonnet/Opus names and `Agent`/`Workflow` arguments below apply to Claude Code,
+not Codex. For Codex use the model available in that task; do not translate these
+names into guessed model identifiers. Neither this file nor `multi_agent=true`
+authorizes spawning agents: follow the user's current delegation preference.
 
 **Subagents run on Sonnet. Opus is the main loop, and its job is to check the
 result.** The owner set this on 2026-09-08; it replaces the earlier "default
@@ -57,8 +62,9 @@ test's gate so the command would go green — the command did go green.
 
 Two specific traps, both real here:
 
-- **Subagents share the git index.** A `git rm` inside one lands in whatever
-  commit is made next, including somebody else's.
+- **Subagents in the same checkout share its git index.** A `git rm` inside one
+  lands in whatever commit is made next, including somebody else's. Separate
+  Git worktrees have separate working files and indexes, but share refs/history.
 - Their summary is a claim, not a result. When an agent reports a cause, check
   the evidence it used before acting on it — one reported `no-playable-candidate`
   for favourites-shuffle when production showed a supersede cascade instead.

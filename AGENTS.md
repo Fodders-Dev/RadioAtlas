@@ -5,7 +5,7 @@ Instructions for AI coding agents working on RadioAtlas.
 **The current, maintained instructions live in [`CLAUDE.md`](./CLAUDE.md).**
 Read that file first — it holds the layout, the real commands, the definition of
 done, and the facts that are not inferable from the code (push to `master` is
-the production deploy; CI runs Playwright without gating on it; there is no linter
+the production deploy; functional Playwright gates CI while visual baselines report separately; there is no linter
 in this project).
 
 Deeper, situational guidance lives in `.claude/rules/`, loaded by Claude Code
@@ -14,6 +14,7 @@ directly:
 
 | File | Covers |
 | --- | --- |
+| `.claude/rules/collaboration.md` | Shared Codex/Claude workflow, branches, checks and handoff |
 | `.claude/rules/windows-shell.md` | This machine: the broken system ssh, backslash mangling |
 | `.claude/rules/api.md` | `apps/api`: what may reach the browser, persistent files, telemetry |
 | `.claude/rules/webapp.md` | `apps/webapp`: cold-start budget, playback rules, analytics |
@@ -25,6 +26,7 @@ And the long-form project documents:
 - `RUNBOOK.md` — commands, env, deploy, incident history
 - `SPEC.md` — product and UX expectations
 - `README.md` — setup and deployment overview
+- `docs/WORKING-SETUP.md` — current checkout map, launch commands and next UI slice
 
 <!--
 History: until 2026-08-16 this file described a Winamp-style player shell, a

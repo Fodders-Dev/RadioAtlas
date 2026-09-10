@@ -1,0 +1,3 @@
+# Project default; a task's explicit selection can override it.
+# Keep the user's selected model and global permissions unchanged.
+model_reasoning_effort = "high"
