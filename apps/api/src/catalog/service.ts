@@ -69,6 +69,7 @@ type CatalogSpotlight = {
 };
 
 type CatalogSearchFilters = {
+  mood?: string;
   q: string;
   country: string;
   language: string;
@@ -754,7 +755,9 @@ export const attachSearchIndex = (stations: CatalogStation[]): CatalogStation[] 
   }));
 
 export const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchFilters) => {
+  const mood = filters.mood ? MOOD_DEFINITIONS.find(item => item.id === filters.mood) : undefined;
   const filtered = stations.filter((station) => {
+    if (filters.mood && (!mood || !mood.tags.some(tag => stationTagSet(station).has(tag)))) return false;
     // q-haystack stays gated behind the && — a no-q browse never touches it.
     if (filters.q && !searchHaystackOf(station).includes(filters.q)) return false;
     if (filters.country && normalizeKey(searchCountryOf(station)) !== normalizeKey(filters.country)) {
@@ -825,7 +828,6 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
           (left, right) =>
             right[1].count - left[1].count || left[1].label.localeCompare(right[1].label)
         )
-        .slice(0, 80)
         .map(([, value]) => value.label),
       tags: Array.from(tagCounts.entries())
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))

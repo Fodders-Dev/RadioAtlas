@@ -119,6 +119,145 @@ test('feed player captures, keeps the shared sleep timer and switches by deliber
   await expect(tools.locator('.feed-tools-heading output')).toHaveText('Выкл');
 });
 
+test('rich Home browses real playlist and genre stations without interrupting playback', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const catalogue = Array.from({ length: 70 }, (_, index) => ({
+    ...stations[index % stations.length],
+    stationuuid: 'atlas-' + index,
+    name: 'Atlas fixture ' + index,
+    tags: index < 35 ? 'jazz,ambient' : 'electronic,house',
+    country: index < 35 ? 'Germany' : 'Country ' + Math.floor(index / 2),
+    url: 'https://stream.example.com/atlas-' + index,
+    url_resolved: 'https://stream.example.com/atlas-' + index
+  }));
+  const night = catalogue.slice(0, 10);
+  const workout = catalogue.slice(35, 45);
+  await mockStations(page, { summaryHandler: route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      generatedAt: 1789000000000, counts: { stations: 32, countries: 12, languages: 3, genres: 4 },
+      catalogPool: [...stations, ...catalogue], freshSignals: stations, searchLaunch: catalogue,
+      sponsored: [], countrySpotlight: null, genreSpotlight: null,
+      moodRails: [{ id: 'mood-late-night', stations: night }, { id: 'mood-workout', stations: workout }]
+    })
+  }) });
+  await page.route('**/catalog/stations/**', route => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() || '');
+    const item = [...catalogue, ...stations].find(s => s.stationuuid === id);
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ item }) });
+  });
+  const requests: string[] = [];
+  await page.route('**/catalog/search**', route => {
+    const params = new URL(route.request().url()).searchParams;
+    requests.push(params.toString());
+    const pool = params.get('mood') === 'mood-workout' ? catalogue.slice(35)
+      : params.get('mood') === 'mood-late-night' ? catalogue.slice(0, 35)
+      : [...catalogue, ...stations].filter(s => (!params.get('country') || s.country === params.get('country')) && (!params.get('tag') || s.tags.includes(params.get('tag')!)));
+    const cursor = Number(params.get('cursor') || 0), limit = Number(params.get('limit') || 30);
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      items: pool.slice(cursor, cursor + limit), total: pool.length,
+      nextCursor: cursor + limit < pool.length ? String(cursor + limit) : null,
+      facets: { countries: [...new Set([...catalogue, ...stations].map(s => s.country))], tags: [], languages: [] }
+    }) });
+  });
+  await installMediaMocks(page);
+  await seedRadioState(page, { stationCache: catalogue, collections: [{
+    id: 'own-mix', name: 'My saved station mix', stationIds: night.slice(0, 4).map(s => s.stationuuid),
+    isPublic: false, pinned: false, createdAt: 1, updatedAt: 1
+  }] });
+  await page.goto('/?calm=1');
+  await page.locator('.calm-primary').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const source = await page.locator('audio').first().getAttribute('src');
+  await page.getByRole('group', { name: 'Выбрать страну' }).getByRole('button', { name: 'Germany', exact: true }).click();
+  await expect(page.locator('.calm-destination')).toHaveCount(6);
+  await page.locator('.calm-world .calm-more').click();
+  await expect(page.locator('.calm-destination')).toHaveCount(30);
+  await page.locator('.calm-world .calm-more').click();
+  await expect(page.locator('.calm-destination')).toHaveCount([...catalogue, ...stations].filter(s => s.country === 'Germany').length);
+  const worldSeeds = requests.filter(q => new URLSearchParams(q).get('country') === 'Germany').map(q => new URLSearchParams(q).get('seed'));
+  expect(new Set(worldSeeds).size).toBe(1);
+  await page.getByRole('button', { name: 'Все страны', exact: false }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Все страны', exact: false })).toBeFocused();
+  await page.locator('.calm-moods').getByRole('button', { name: /Тренировка/ }).click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(10);
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]').first()).toHaveAttribute('data-shelf-station', workout[0].stationuuid);
+  await page.locator('.calm-playlist-stations .calm-more').click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(30);
+  await page.locator('.calm-playlist-stations .calm-more').click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(35);
+  await expect(page.locator('.calm-playlist-stations .calm-more')).toHaveCount(0);
+  await page.locator('.calm-moods').getByRole('button', { name: /Поздно вечером/ }).click();
+  await page.locator('.calm-playlist-stations .calm-more').click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(30);
+  expect(requests.some(q => new URLSearchParams(q).get('mood') === 'mood-late-night')).toBe(true);
+  await page.locator('.calm-moods').getByRole('button', { name: /Тренировка/ }).click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(35);
+  await page.getByRole('group', { name: 'По жанрам' }).getByRole('button', { name: 'JAZZ', exact: true }).click();
+  await expect(page.locator('.calm-genres [data-shelf-station]')).toHaveCount(12);
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(source);
+  await expect(page.locator('.calm-personal-playlist')).toContainText('My saved station mix');
+  await expect(page.locator('.calm-personal-playlist [data-shelf-station]')).toHaveCount(4);
+  await page.locator('.calm-playlists').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: '../../output/playwright/calm/atlas-playlists.png' });
+  await page.locator('.calm-start-playlist').click();
+  await expect(page.locator('.calm-mini-info small')).toContainText(workout[0].name);
+  const playingSource = await page.locator('audio').first().getAttribute('src');
+  await page.locator('.calm-playlist-stations .calm-station-shelf').evaluate(el => { el.scrollLeft = 280; });
+  await expect.poll(() => page.locator('.calm-playlist-stations .calm-station-shelf').evaluate(el => el.scrollLeft)).toBeGreaterThan(100);
+  const shelfScroll = await page.locator('.calm-playlist-stations .calm-station-shelf').evaluate(el => el.scrollLeft);
+  const homeScroll = await page.evaluate(() => scrollY);
+  await page.locator('.calm-mini-info').click();
+  await page.locator('.station-feed-close').click();
+  await expect(page.locator('.calm-playlist-stations [data-shelf-station]')).toHaveCount(35);
+  await expect(page.locator('.calm-destination')).toHaveCount([...catalogue, ...stations].filter(s => s.country === 'Germany').length);
+  await expect.poll(() => page.locator('.calm-playlist-stations .calm-station-shelf').evaluate(el => el.scrollLeft)).toBe(shelfScroll);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(homeScroll);
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(playingSource);
+});
+
+test('catalog retry and a late page preserve the selected country and playing source', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await start(page);
+  const catalogue = Array.from({ length: 45 }, (_, i) => ({ ...stations[0], stationuuid: `paged-${i}`, name: `German station ${i}`, country: 'Germany' }));
+  let failed = false;
+  let release: (() => void) | undefined;
+  let hold = true;
+  await page.route('**/catalog/search**', async route => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get('country') !== 'Germany') return route.fallback();
+    if (!failed) { failed = true; return route.fulfill({ status: 502, body: '{}' }); }
+    const cursor = Number(params.get('cursor') || 0);
+    if (cursor === 30 && hold) { hold = false; await new Promise<void>(resolve => { release = resolve; }); }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: catalogue.slice(cursor, cursor + 30), total: 45, nextCursor: cursor ? null : '30', facets: { countries: ['Germany'], tags: [], languages: [] } }) });
+  });
+  await page.goto('/?calm=1'); await page.locator('.calm-primary').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const source = await page.locator('audio').first().getAttribute('src');
+  const countryButtons = page.getByRole('group', { name: 'Выбрать страну' });
+  await countryButtons.getByRole('button', { name: 'Germany', exact: true }).click();
+  const initialIds = await page.locator('.calm-destination').evaluateAll(items => items.map(el => el.getAttribute('data-discovery-station')));
+  await page.locator('.calm-world .calm-more').click();
+  await expect(page.locator('.calm-world [role="status"]')).toContainText('Не удалось');
+  expect(await page.locator('.calm-destination').evaluateAll(items => items.map(el => el.getAttribute('data-discovery-station')))).toEqual(initialIds);
+  await page.locator('.calm-world .calm-more').click();
+  await expect(page.locator('.calm-destination')).toHaveCount(30);
+  await page.locator('.calm-world .calm-more').click();
+  await expect.poll(() => Boolean(release)).toBe(true);
+  await countryButtons.getByRole('button', { name: 'Japan', exact: true }).click();
+  release!();
+  await expect(page.locator('.calm-world .calm-catalog-shelf')).toHaveAttribute('data-catalog-query', 'Japan');
+  await expect(page.locator('.calm-destination').first()).toContainText('Tokyo FM');
+  await countryButtons.getByRole('button', { name: 'Germany', exact: true }).click();
+  await expect(page.locator('.calm-destination')).toHaveCount(30);
+  await page.locator('.calm-world .calm-more').click();
+  await expect(page.locator('.calm-destination')).toHaveCount(45);
+  await expect(page.locator('.calm-world .calm-more')).toHaveCount(0);
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(source);
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+});
+
 test('off by default', async ({ page }) => {
   await start(page); await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();

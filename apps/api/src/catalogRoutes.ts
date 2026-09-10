@@ -1,6 +1,7 @@
 import type express from 'express';
 import {
   createCatalogService,
+  MOOD_DEFINITIONS,
   normalizeCatalogText,
   normalizeQuery,
   parseCursor,
@@ -41,8 +42,14 @@ export const registerCatalogRoutes = (
 
   app.get('/catalog/search', async (req, res) => {
     try {
+      const mood = typeof req.query.mood === 'string' ? req.query.mood : '';
+      if (req.query.mood !== undefined && !MOOD_DEFINITIONS.some(item => item.id === mood)) {
+        res.status(400).json({ error: 'Unknown catalog mood' });
+        return;
+      }
       res.json(
         await catalog.search({
+          mood,
           q: normalizeQuery(req.query.q),
           country: normalizeCatalogText(req.query.country),
           language: normalizeCatalogText(req.query.language),

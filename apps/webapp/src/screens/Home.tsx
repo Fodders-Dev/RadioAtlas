@@ -1120,7 +1120,8 @@ export const Home = () => {
   if (CALM_PREVIEW && surfaceFeed?.hero.station) {
     return <Suspense fallback={<AppScreenSkeleton section="home" scope="home-hero" />}><CalmHome station={surfaceFeed.hero.station}
       stations={resumeModule?.stations.length ? resumeModule.stations : leadRail?.stations || []}
-      discoveryStations={[...(summary?.aroundTheWorld?.stations || []), ...(summary?.countrySpotlight?.stations || []), ...(summary?.catalogPool || [])]}
+      discoveryStations={[...(summary?.aroundTheWorld?.stations || []), ...(summary?.countrySpotlight?.stations || []), ...(summary?.catalogPool || []), ...(summary?.moodRails || []).flatMap(rail => rail.stations), ...(summary?.trending || []), ...(summary?.topVoted || [])]}
+      moodRails={summary?.moodRails || []}
       onPlay={handlePlayStation} onFeed={station => { setFeedEntryStation(station || surfaceFeed.hero.station); rerollFeedSeed(); setActiveSection('feed'); }} onSearch={openSearch} /></Suspense>;
   }
 

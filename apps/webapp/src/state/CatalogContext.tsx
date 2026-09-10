@@ -33,6 +33,8 @@ type SearchStationsInput = {
   country?: string;
   language?: string;
   tag?: string;
+  mood?: string;
+  allowFallback?: boolean;
   continent?: string;
   limit?: number;
   cursor?: string | null;
@@ -137,6 +139,7 @@ const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
   country: input.country?.trim() || '',
   language: input.language?.trim() || '',
   tag: input.tag?.trim() || '',
+  mood: input.mood?.trim() || '',
   continent: input.continent?.trim() || '',
   limit: input.limit || 50,
   cursor: input.cursor || '',
@@ -144,7 +147,7 @@ const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
 });
 
 const searchCacheKey = (input: SearchStationsInput) =>
-  `search:v1:${JSON.stringify(normalizeSearchCacheInput(input))}`;
+  `search:v2:${JSON.stringify(normalizeSearchCacheInput(input))}`;
 
 const areaStationsCacheKey = (
   areaId: string,
@@ -346,6 +349,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (input.country?.trim()) params.set('country', input.country.trim());
       if (input.language?.trim()) params.set('language', input.language.trim());
       if (input.tag?.trim()) params.set('tag', input.tag.trim());
+      if (input.mood?.trim()) params.set('mood', input.mood.trim());
       if (input.continent?.trim()) params.set('continent', input.continent.trim());
       params.set('limit', String(input.limit || 50));
       if (input.cursor) params.set('cursor', input.cursor);
@@ -361,11 +365,13 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       try {
         response = await requestJson<CatalogSearchResponse>(`/catalog/search?${params.toString()}`);
         await writeCatalogCache(cacheKey, response, SEARCH_CACHE_TTL_MS);
-      } catch {
+      } catch (error) {
         const stale = await readCatalogCache<CatalogSearchResponse>(cacheKey, { allowExpired: true });
         if (stale) {
           response = stale.payload;
         } else {
+          // Home exploration stays paginated; the legacy fallback has no mood filter.
+          if (input.allowFallback === false || input.mood) throw error;
           const fallback = await loadFallbackCatalog();
           response = await fallback.searchRadioBrowserFallback(input);
           await writeCatalogCache(cacheKey, response, SEARCH_CACHE_TTL_MS);

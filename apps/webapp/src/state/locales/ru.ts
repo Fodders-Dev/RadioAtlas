@@ -2,13 +2,25 @@ import type { DictionaryTree } from './types';
 
 export const ruDictionary = {
   calm: {
+      exploreSelection: 'Открыть подборку',
+      catalogTotal: 'В каталоге: {count}', catalogPreview: 'Начни здесь — дальше ещё больше', loading: 'Загружаем…', loadError: 'Не удалось загрузить. Попробуем ещё?', retry: 'Повторить', emptySelection: 'Пока нет доступных станций. Попробуй другое направление.', countryList: 'Другие страны',
+      allCountries: 'Все страны', moreStations: 'Ещё станции', playlistKicker: 'ПОДБОРКИ СТАНЦИЙ', stationCount: 'Станций: {count}', listenSelection: 'Слушать', genreTitle: 'По жанрам', yourPlaylists: 'Твои плейлисты',
+      atlasKicker: 'ЛОВИ НЕЗНАКОМОЕ', atlasTitle: 'Весь мир.\nНа слух.', atlasSub: 'Незнакомые станции. Твои будущие находки.', worldKicker: 'ВЫБЕРИ ТОЧКУ НА КАРТЕ', yourStations: 'Твои частоты',
     "openFeedPlayer": "Открыть плеер-Ленту",
     "openStream": "Открыть поток",
     "hide": "Скрыть станцию из рекомендаций",
     "unhide": "Вернуть станцию в рекомендации",
     "dig": "Есть за что зацепиться",
     "moreDirection": "Копнуть глубже",
-    "directions": {
+      "directions": {
+        rock: { eyebrow: 'ROCK / INDIE' },
+        hiphop: { eyebrow: 'HIP-HOP / R&B' },
+        soul: { eyebrow: 'SOUL / FUNK' },
+        metal: { eyebrow: 'METAL' },
+        reggae: { eyebrow: 'REGGAE / DUB' },
+        latin: { eyebrow: 'LATIN / SAMBA' },
+        blues: { eyebrow: 'BLUES' },
+        synthwave: { eyebrow: 'SYNTHWAVE' },
       "pixels": {
         "eyebrow": "8-BIT / CHIPTUNE",
         "title": "Мелодии из пикселей",

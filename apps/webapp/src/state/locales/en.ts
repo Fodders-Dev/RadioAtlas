@@ -2,13 +2,25 @@ import type { DictionaryTree } from './types';
 
 export const enDictionary = {
   calm: {
+      exploreSelection: 'Explore stations',
+      catalogTotal: '{count} in the catalogue', catalogPreview: 'Start here. There is more to explore.', loading: 'Loading…', loadError: 'Could not load. Try again?', retry: 'Retry', emptySelection: 'No available stations here yet. Try another direction.', countryList: 'More countries',
+      allCountries: 'All countries', moreStations: 'More stations', playlistKicker: 'STATION COLLECTIONS', stationCount: '{count} stations', listenSelection: 'Listen', genreTitle: 'By genre', yourPlaylists: 'Your playlists',
+      atlasKicker: 'TUNE INTO SOMEWHERE NEW', atlasTitle: 'The world.\nBy ear.', atlasSub: 'Unfamiliar stations. Your next discoveries.', worldKicker: 'PICK A PLACE', yourStations: 'Your frequencies',
     "openFeedPlayer": "Open feed player",
     "openStream": "Open stream",
     "hide": "Hide station from recommendations",
     "unhide": "Restore station to recommendations",
     "dig": "Something to catch your ear",
     "moreDirection": "Dig deeper",
-    "directions": {
+      "directions": {
+        rock: { eyebrow: 'ROCK / INDIE' },
+        hiphop: { eyebrow: 'HIP-HOP / R&B' },
+        soul: { eyebrow: 'SOUL / FUNK' },
+        metal: { eyebrow: 'METAL' },
+        reggae: { eyebrow: 'REGGAE / DUB' },
+        latin: { eyebrow: 'LATIN / SAMBA' },
+        blues: { eyebrow: 'BLUES' },
+        synthwave: { eyebrow: 'SYNTHWAVE' },
       "pixels": {
         "eyebrow": "8-BIT / CHIPTUNE",
         "title": "Melodies made of pixels",

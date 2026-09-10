@@ -8,7 +8,15 @@ const directions = [
   { id: 'electronic', query: 'electronic', tags: /^(electronic|electronica|techno|house|dance)$/i },
   { id: 'folk', query: 'folk', tags: /^(folk|world|world music|traditional)$/i },
   { id: 'classical', query: 'classical', tags: /^(classical|baroque|opera)$/i },
-  { id: 'pop', query: 'pop', tags: /^(pop|jpop|kpop|k-pop|j-pop)$/i }
+  { id: 'pop', query: 'pop', tags: /^(pop|jpop|kpop|k-pop|j-pop)$/i },
+  { id: 'rock', query: 'rock', tags: /^(rock|classic rock|alternative|indie|punk|pop rock)$/i },
+  { id: 'hiphop', query: 'hip hop', tags: /^(hip hop|hip-hop|rap|rnb|r&b)$/i },
+  { id: 'soul', query: 'soul', tags: /^(soul|funk|disco)$/i },
+  { id: 'metal', query: 'metal', tags: /^(metal|heavy metal|death metal|black metal)$/i },
+  { id: 'reggae', query: 'reggae', tags: /^(reggae|dub|ska|dancehall)$/i },
+  { id: 'latin', query: 'latin', tags: /^(latin|salsa|samba|bossa nova|reggaeton)$/i },
+  { id: 'blues', query: 'blues', tags: /^(blues|rhythm and blues)$/i },
+  { id: 'synthwave', query: 'synthwave', tags: /^(synthwave|retrowave|synthpop)$/i }
 ];
 
 export function calmDiscoveries(stations: StationLite[]) {
@@ -19,4 +27,12 @@ export function calmDiscoveries(stations: StationLite[]) {
     used.add(station.stationuuid);
     return [{ id: direction.id, query: direction.query, station }];
   }).slice(0, 4);
+}
+
+export function calmGenreGroups(stations: StationLite[]) {
+  return directions.map(direction => ({
+    id: direction.id,
+    query: direction.query,
+    stations: stations.filter(s => s.tags.split(',').some(tag => direction.tags.test(tag.trim())))
+  })).filter(group => group.stations.length > 0);
 }
