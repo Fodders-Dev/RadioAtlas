@@ -84,6 +84,49 @@ test('off by default', async ({ page }) => {
   await expect(page.locator('[data-calm-home]')).toHaveCount(0);
 });
 
+test('country discovery previews real stations without changing playback', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await start(page);
+  await page.goto('/?calm=1');
+  await page.locator('.calm-primary').click();
+  const dock = page.locator('[data-calm-player]');
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  const source = await page.locator('audio').first().getAttribute('src');
+  const countries = page.getByRole('group', { name: 'Выбрать страну' });
+  await countries.getByRole('button', { name: 'Japan', exact: true }).click();
+  await expect(page.locator('[data-discovery-station="uuid-tokyo"]')).toBeVisible();
+  await countries.getByRole('button', { name: 'Germany', exact: true }).click();
+  await expect(page.locator('[data-discovery-station="uuid-tokyo"]')).toHaveCount(0);
+  await expect(page.locator('.calm-destination').first()).toContainText('Germany');
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(source);
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  const next = await page.locator('.calm-destination').first().getAttribute('data-discovery-station');
+  await page.locator('.calm-destination').first().click();
+  const expected = stations.find(s => s.stationuuid === next)!;
+  await expect(dock.locator('.calm-mini-info small')).toContainText(expected.name);
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  const nextSource = await page.locator('audio').first().getAttribute('src');
+  await page.locator('.calm-globe-entry').click();
+  await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'globe');
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(nextSource);
+});
+
+test('saved find shows its actual source and returns there only on explicit play', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page); await installMediaMocks(page);
+  await seedRadioState(page, { stationCache: [stations[0]], trackHistory: [{
+    id: 'kept-find', stationId: stations[0].stationuuid, stationName: stations[0].name,
+    track: 'An artist — A captured song', timestamp: Date.now()
+  }] });
+  await page.goto('/?calm=1');
+  const find = page.locator('.calm-saved-find');
+  await expect(find).toContainText('An artist — A captured song');
+  await expect(find).toContainText('Tokyo FM');
+  await expect(page.locator('[data-calm-player]')).toHaveCount(0);
+  await find.getByRole('button', { name: /Вернуться на станцию/ }).click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await expect(page.locator('.calm-mini-info small')).toContainText('Tokyo FM');
+});
+
 test('stream failure retains a retry; retry and browsing do not start another station', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await start(page);
   // Keep native WAV playback from racing our deliberately rejected play().
@@ -123,6 +166,10 @@ test('real Theme Studio image survives the Home and player composition', async (
   await page.locator('.calm-primary').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await expect(page.locator('.calm-capture')).toBeVisible();
+  // blur(0px) is still a backdrop root: the legacy entrance must not retain it.
+  expect(await page.locator('.app-screen-frame').evaluate(el => getComputedStyle(el).filter)).toBe('none');
+  expect(await page.locator('.calm-hero').evaluate(el => getComputedStyle(el).backdropFilter)).toContain('blur(');
+  expect(await page.locator('.calm-home').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   await page.screenshot({ path: '../../output/playwright/calm/real-custom.png' });
   expect((await layout(page)).width).toBeLessThanOrEqual(390);
 });
