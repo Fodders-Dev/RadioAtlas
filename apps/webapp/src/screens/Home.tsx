@@ -1121,7 +1121,7 @@ export const Home = () => {
     return <Suspense fallback={<AppScreenSkeleton section="home" scope="home-hero" />}><CalmHome station={surfaceFeed.hero.station}
       stations={resumeModule?.stations.length ? resumeModule.stations : leadRail?.stations || []}
       discoveryStations={[...(summary?.aroundTheWorld?.stations || []), ...(summary?.countrySpotlight?.stations || []), ...(summary?.catalogPool || [])]}
-      onPlay={handlePlayStation} onFeed={openFeed} onSearch={openSearch} /></Suspense>;
+      onPlay={handlePlayStation} onFeed={station => { setFeedEntryStation(station || surfaceFeed.hero.station); rerollFeedSeed(); setActiveSection('feed'); }} onSearch={openSearch} /></Suspense>;
   }
 
   return (

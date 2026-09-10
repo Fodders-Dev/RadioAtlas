@@ -9,6 +9,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { FeedWaveform } from '../components/FeedWaveform';
+import { FeedPlayerTools } from '../components/FeedPlayerTools';
+import { CALM_PREVIEW } from '../lib/calmPreview';
+import { resolveNowPlayingTrust } from '../lib/trackTrust';
+import { formatSleepRemaining } from '../lib/sleepTimer';
 import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { isFeedFilterAvailable, resolveFeedFilterSources, type FeedFilter } from '../lib/feedFilters';
@@ -159,6 +163,7 @@ type FeedCardProps = {
   onEnqueue: () => void;
   onShare: () => void;
   onOpenPlayer: () => void;
+  capture?: { enabled: boolean; saved: boolean; label: string; onCapture: () => void };
   labels: {
     live: string;
     play: string;
@@ -228,6 +233,7 @@ const FeedCard = ({
   onEnqueue,
   onShare,
   onOpenPlayer,
+  capture,
   labels
 }: FeedCardProps) => {
   // Every optional line is independently gated on real data, and the common case
@@ -369,12 +375,14 @@ const FeedCard = ({
         <button
           type="button"
           className="station-feed-action"
-          onClick={onEnqueue}
-          aria-label={`${labels.addToQueue}: ${station.name}`}
-          data-feed-action="queue"
+          onClick={capture ? capture.onCapture : onEnqueue}
+          aria-label={capture ? capture.label : `${labels.addToQueue}: ${station.name}`}
+          aria-pressed={capture ? capture.saved : undefined}
+          disabled={capture ? !capture.enabled : undefined}
+          data-feed-action={capture ? 'capture' : 'queue'}
           tabIndex={active ? undefined : -1}
         >
-          <QueueIcon />
+          {capture ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z" fill={capture.saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" /></svg> : <QueueIcon />}
         </button>
         <button
           type="button"
@@ -394,7 +402,7 @@ const FeedCard = ({
           data-feed-action="expand"
           tabIndex={active ? undefined : -1}
         >
-          <ExpandIcon />
+          {CALM_PREVIEW ? <span aria-hidden="true">•••</span> : <ExpandIcon />}
         </button>
       </div>
 
@@ -426,7 +434,9 @@ const FeedCard = ({
 export const StationFeed = () => {
   const { t } = useLocale();
   const { summary } = useCatalog();
-  const { player, playStation, queue, nowPlaying, shareStation } = usePlayback();
+  const { player, playStation, queue, nowPlaying, nowPlayingStatus, shareStation, copyTrack, sleepTimer } = usePlayback();
+  const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
+  const trustedTrack = resolveNowPlayingTrust({ station: player.current ?? player.pending, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track;
   const {
     knownStations,
     favorites,
@@ -741,6 +751,7 @@ export const StationFeed = () => {
     if (typeof document === 'undefined') return null;
     const candidates = document.querySelectorAll<HTMLElement>(
       [
+        ...(CALM_PREVIEW ? ['.calm-mini-info', '[data-home-feed-entry]'] : []),
         '.home-feed-entry',
         '.app-navigation-mobile .mobile-nav-item:first-child',
         '.app-navigation-desktop .nav-rail-item:first-child',
@@ -923,6 +934,7 @@ export const StationFeed = () => {
   );
 
   const handleOpenPlayer = (station: StationLite) => {
+    if (CALM_PREVIEW) { settler.cancel(); setToolsStation(station); return; }
     if (player.current?.stationuuid !== station.stationuuid) {
       playStation(station, {
         playlist: visibleFeedStations,
@@ -1000,7 +1012,7 @@ export const StationFeed = () => {
     unlike: t('feed.unlike'),
     addToQueue: t('feed.addToQueue'),
     share: t('feed.share'),
-    openPlayer: t('feed.openPlayer')
+    openPlayer: t(CALM_PREVIEW ? 'dock.more' : 'feed.openPlayer')
   };
 
   const chips: Array<{ id: FeedFilter; label: string }> = [
@@ -1042,6 +1054,7 @@ export const StationFeed = () => {
     <div
       ref={rootRef}
       className={`station-feed-overlay ${isMobile ? '' : 'station-feed-overlay--desktop'}`.trim()}
+      data-feed-player={CALM_PREVIEW ? 'true' : undefined}
       role="dialog"
       aria-modal="true"
       aria-label={t('feed.title')}
@@ -1066,6 +1079,7 @@ export const StationFeed = () => {
           <strong>{t('feed.title')}</strong>
           <span>{t('feed.tagline')}</span>
         </div>
+        {CALM_PREVIEW && (player.current || visibleFeedStations[visibleIndex]) && <button className="station-feed-timer" aria-label={t('settings.sleepTimerLabel')} onClick={() => { settler.cancel(); setToolsStation(player.current || visibleFeedStations[visibleIndex]); }}>{sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '☾'}</button>}
         <button
           type="button"
           className="station-feed-filter-toggle"
@@ -1150,7 +1164,7 @@ export const StationFeed = () => {
                     active={active}
                     isCurrent={isCurrent}
                     isPlaying={isCurrent && player.isPlaying}
-                    isLive={Boolean(liveTrack) || (isCurrent && player.isPlaying)}
+                    isLive={CALM_PREVIEW ? isCurrent && player.isPlaying : Boolean(liveTrack) || (isCurrent && player.isPlaying)}
                     trackLine={liveTrack || lastTrack}
                     geoLine={active ? resolveGeoLine(station, geoResolve) : null}
                     favorite={isFavorite(station.stationuuid)}
@@ -1160,6 +1174,7 @@ export const StationFeed = () => {
                     onEnqueue={() => queue.enqueue(station)}
                     onShare={() => void shareStation(station)}
                     onOpenPlayer={() => handleOpenPlayer(station)}
+                    capture={CALM_PREVIEW ? { enabled: isCurrent && Boolean(trustedTrack), saved: isCurrent && Boolean(trustedTrack && trackHistory.some(f => f.stationId === station.stationuuid && f.track === trustedTrack)), label: t('calm.save'), onCapture: () => { if (isCurrent && trustedTrack) void copyTrack(); } } : undefined}
                     labels={labels}
                   />
                 ) : null}
@@ -1202,5 +1217,5 @@ export const StationFeed = () => {
     </div>
   );
 
-  return createPortal(overlay, document.body);
+  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} />}</>;
 };

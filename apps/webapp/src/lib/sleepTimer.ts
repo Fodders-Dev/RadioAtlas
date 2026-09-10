@@ -74,6 +74,7 @@ export const useSleepTimer = (onElapse: () => void): SleepTimerControls => {
     const safe = normalizeSleepMinutes(requested);
     if (safe == null) return;
     setMinutes(safe);
+    setRemainingMs(safe * 60_000);
     setEndsAt(Date.now() + safe * 60_000);
   }, []);
 

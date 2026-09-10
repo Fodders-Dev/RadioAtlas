@@ -2,6 +2,49 @@ import type { DictionaryTree } from './types';
 
 export const enDictionary = {
   calm: {
+    "openFeedPlayer": "Open feed player",
+    "openStream": "Open stream",
+    "hide": "Hide station from recommendations",
+    "unhide": "Restore station to recommendations",
+    "dig": "Something to catch your ear",
+    "moreDirection": "Dig deeper",
+    "directions": {
+      "pixels": {
+        "eyebrow": "8-BIT / CHIPTUNE",
+        "title": "Melodies made of pixels",
+        "copy": "Step into chiptune. Start with this broadcast."
+      },
+      "jazz": {
+        "eyebrow": "JAZZ",
+        "title": "Take an unexpected turn",
+        "copy": "One jazz station to start. The rest is on air."
+      },
+      "ambient": {
+        "eyebrow": "AMBIENT / DOWNTEMPO",
+        "title": "Leave the rush behind",
+        "copy": "Explore ambient and downtempo stations."
+      },
+      "electronic": {
+        "eyebrow": "ELECTRONIC",
+        "title": "Catch a different rhythm",
+        "copy": "Electronic music from another source."
+      },
+      "folk": {
+        "eyebrow": "FOLK / WORLD",
+        "title": "Beyond the familiar",
+        "copy": "Folk and world music. Start with one station."
+      },
+      "classical": {
+        "eyebrow": "CLASSICAL",
+        "title": "Change the scale",
+        "copy": "Classical music, broadcasting live."
+      },
+      "pop": {
+        "eyebrow": "POP",
+        "title": "Pop from another shore",
+        "copy": "A familiar genre from another source. Listen in."
+      }
+    },
     kicker: 'RADIO THAT SURPRISES', title: 'Find your frequency', offer: 'YOUR STARTING POINT',
     start: 'Start listening', listening: 'Open player', choose: 'Browse broadcasts', moods: 'Set the mood',
     chooseSub: 'See what catches you', globe: 'On the globe', world: 'Hear the world', country: 'Choose a country',

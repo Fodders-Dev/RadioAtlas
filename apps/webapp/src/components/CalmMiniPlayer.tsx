@@ -8,16 +8,16 @@ import { ThemeActionIcon } from './ThemeActionIcon';
 export function CalmMiniPlayer() {
   const { player, nowPlaying, nowPlayingStatus, copyTrack, playStation } = usePlayback();
   const { trackHistory } = useLibrary();
-  const { winamp } = useShell();
+  const { winamp, activeSection, setFeedEntryStation, rerollFeedSeed, setActiveSection } = useShell();
   const { t } = useLocale();
   const station = player.current ?? player.pending;
   const trust = resolveNowPlayingTrust({ station, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure });
-  if (!station || winamp.expanded) return null;
+  if (!station || winamp.expanded || activeSection === 'feed') return null;
   const track = trust.track;
   const saved = Boolean(track && trackHistory.some(f => f.stationId === station.stationuuid && f.track === track));
   const status = player.status === 'error' ? t('calm.error') : player.status === 'buffering' ? t('dock.buffering') : player.isPlaying ? normalizeStationName(station.name) : t('calm.paused');
   return <section className="calm-mini" data-calm-player data-status={player.status} aria-label={t('calm.player')}>
-    <button className="calm-mini-info" onClick={() => winamp.setExpanded(true)} aria-label={t('dock.openWinamp')}>
+    <button className="calm-mini-info" onClick={() => { setFeedEntryStation(station); rerollFeedSeed(); setActiveSection('feed'); }} aria-label={t('calm.openFeedPlayer')}>
       <StationArtwork station={station} size="dock"/>
       <span><strong>{track || normalizeStationName(station.name)}</strong><small><i data-live={player.isPlaying} aria-hidden="true"/>{status}</small></span>
     </button>

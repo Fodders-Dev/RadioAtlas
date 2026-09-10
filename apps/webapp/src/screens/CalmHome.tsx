@@ -4,6 +4,7 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import { formatCountryLabel, normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { StationArtwork } from '../components/StationArtwork';
+import { calmDiscoveries } from '../lib/calmDiscoveries';
 import road from '../assets/calm/road.svg';
 import aurora from '../assets/calm/aurora.svg';
 import vinyl from '../assets/calm/vinyl.svg';
@@ -13,7 +14,7 @@ type Props = {
   stations: StationLite[];
   discoveryStations: StationLite[];
   onPlay: (station: StationLite, playlist: StationLite[], source: string) => void;
-  onFeed: () => void;
+  onFeed: (station?: StationLite) => void;
   onSearch: (query: string) => void;
 };
 
@@ -31,14 +32,15 @@ function AtlasGrid() {
 export function CalmHome({ station, stations, discoveryStations, onPlay, onFeed, onSearch }: Props) {
   const { t } = useLocale();
   const { player } = usePlayback();
-  const { isFavorite, toggleFavorite, trackHistory, knownStations } = useLibrary();
-  const { setActiveSection, setLibraryTab, winamp } = useShell();
+  const { isFavorite, toggleFavorite, trackHistory, knownStations, isStationHiddenFromRecommendations } = useLibrary();
+  const { setActiveSection, setLibraryTab } = useShell();
   // Freeze this visit. Play/capture never inserts sections or reshuffles offers.
   const [visit] = useState(() => {
-    const pool = [...new Map([station, ...discoveryStations, ...stations].map(s => [s.stationuuid, s])).values()];
+    const pool = [...new Map([station, ...discoveryStations, ...stations].map(s => [s.stationuuid, s])).values()]
+      .filter(s => !isStationHiddenFromRecommendations(s.stationuuid) && s.lastcheckok !== 0);
     const countries = [...new Set(pool.map(s => s.country.trim()).filter(Boolean))].slice(0, 6);
     return {
-      station, pool, countries,
+      station, pool, countries, discoveries: calmDiscoveries(pool),
       rows: stations.filter(s => s.stationuuid !== station.stationuuid).slice(0, 3),
       finds: trackHistory.slice(0, 3)
     };
@@ -57,14 +59,16 @@ export function CalmHome({ station, stations, discoveryStations, onPlay, onFeed,
   return <div className="calm-home" data-calm-home>
     <div className="calm-intro"><span>RadioAtlas</span><h1>{t('calm.title')}</h1></div>
     <article className="calm-hero" data-calm-offer={offer.stationuuid}>
+      <img className="calm-hero-scene" src={aurora} alt="" />
       <div className="calm-tuning" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
       <div className="calm-hero-copy">
         <p className="calm-eyebrow">{t('calm.offer')}</p>
         <div className="calm-offer-identity"><StationArtwork station={offer} size="sm" />
           <div><h2>{normalizeStationName(offer.name)}</h2><p>{stationLocation(offer)}</p></div>
         </div>
+        <p className="calm-offer-sound">{offer.description || offer.tags.split(',').slice(0, 3).join(' · ')}</p>
         <div className="calm-hero-actions">
-          <button className="calm-primary" onClick={() => playing ? winamp.setExpanded(true) : onPlay(offer, [offer, ...visit.rows], 'home-calm')}>
+          <button className="calm-primary" onClick={() => playing ? onFeed(offer) : onPlay(offer, [offer, ...visit.rows], 'home-calm')}>
             <span aria-hidden="true">{playing ? '↗' : '▶'}</span>{t(playing ? 'calm.listening' : 'calm.start')}
           </button>
           <button className="calm-icon calm-favorite" aria-label={t(isFavorite(offer.stationuuid) ? 'stationTable.unfavorite' : 'stationTable.favorite')} aria-pressed={isFavorite(offer.stationuuid)} onClick={() => toggleFavorite(offer)}>
@@ -75,12 +79,22 @@ export function CalmHome({ station, stations, discoveryStations, onPlay, onFeed,
     </article>
 
     <div className="calm-discovery-entries">
-      <button className="calm-choose" data-home-feed-entry="true" onClick={onFeed}>
+      <button className="calm-choose" data-home-feed-entry="true" onClick={() => onFeed()}>
         <span className="calm-fan" aria-hidden="true"><img src={aurora} alt="" /><img src={road} alt="" /></span>
         <span><strong>{t('calm.choose')}</strong><small>{t('calm.chooseSub')}</small></span><span aria-hidden="true">↗</span>
       </button>
       <button className="calm-globe-entry" onClick={() => setActiveSection('globe')}><AtlasGrid /><span>{t('calm.globe')} <b aria-hidden="true">↗</b></span></button>
     </div>
+
+    {visit.discoveries.length > 0 && <section className="calm-section calm-discoveries"><div className="calm-heading"><h2>{t('calm.dig')}</h2></div>
+      <div className="calm-discovery-cards">{visit.discoveries.map((pick, index) => <article className="calm-discovery-card" key={pick.id} data-direction={pick.id}>
+        <img className="calm-discovery-art" src={index % 3 === 0 ? road : index % 3 === 1 ? vinyl : aurora} alt="" />
+        <div className="calm-discovery-copy"><span>{t(`calm.directions.${pick.id}.eyebrow`)}</span><h3>{t(`calm.directions.${pick.id}.title`)}</h3><p>{t(`calm.directions.${pick.id}.copy`)}</p>
+          <button className="calm-discovery-listen" onClick={() => onPlay(pick.station, [pick.station], 'home-calm-direction')}><StationArtwork station={pick.station} size="sm" /><span><strong>{normalizeStationName(pick.station.name)}</strong><small>{stationLocation(pick.station)}</small></span><b aria-hidden="true">▶</b></button>
+          <button className="calm-discovery-search" onClick={() => onSearch(pick.query)}>{t('calm.moreDirection')} ↗</button>
+        </div>
+      </article>)}</div>
+    </section>}
 
     {destinations.length > 0 && <section className="calm-section calm-world" data-calm-world>
       <div className="calm-heading"><h2>{t('calm.world')}</h2></div>

@@ -1,0 +1,17 @@
+.feed-player-tools { position: fixed; inset: 0; z-index: 150; display: grid; align-items: end; color: var(--text); }
+.feed-tools-scrim { position: absolute; inset: 0; border: 0; background: #05081170; }
+.feed-tools-card { position: relative; max-height: min(84svh, 780px); overflow-y: auto; overscroll-behavior: contain; width: min(100%, 520px); margin: 0 auto; padding: 22px 20px calc(24px + env(safe-area-inset-bottom)); border: 1px solid color-mix(in srgb, var(--text) 25%, transparent); border-radius: 30px 30px 0 0; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%), color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(28px) saturate(150%); -webkit-backdrop-filter: blur(28px) saturate(150%); box-shadow: inset 0 1px 1px #ffffff75, 0 -12px 70px #0005; }
+.feed-tools-card header, .feed-tools-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feed-tools-card header { margin-bottom: 22px; }.feed-tools-card small { color: var(--muted); }
+.feed-tools-card h2 { margin: 6px 0 0; font-size: 21px; }.feed-tools-card h3 { font-size: 15px; margin: 0; }
+.feed-tools-card button { cursor: pointer; font: inherit; color: inherit; min-height: 44px; }
+.feed-tools-card button:focus-visible, .feed-tools-card input:focus-visible, .feed-tools-card summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.feed-tools-close { flex: 0 0 44px; width: 44px; border-radius: 50%; border: 1px solid var(--border); background: color-mix(in srgb, var(--text) 9%, transparent); font-size: 24px !important; }
+.feed-tools-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 12px; }
+.feed-tools-presets button { border: 1px solid var(--border); border-radius: 15px; background: color-mix(in srgb, var(--text) 7%, transparent); font-size: 13px; }
+.feed-tools-presets button[aria-pressed='true'] { background: var(--text); color: var(--bg); }
+.feed-tools-heading output { font-size: 13px; }.feed-tools-volume { display: block; margin: 20px 0; }
+.feed-tools-volume span { display: flex; justify-content: space-between; font-size: 14px; }.feed-tools-volume input { width: 100%; min-height: 44px; accent-color: var(--accent); }
+.feed-tools-links { border-top: 1px solid var(--border); }.feed-tools-links button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 50px; text-align: left; border: 0; border-bottom: 1px solid var(--border); background: none; font-size: 14px; }
+.feed-tools-links button span { color: var(--muted); }.feed-tools-row { border: 0; background: none; width: 100%; text-align: left; font-size: 13px !important; }
+.feed-tools-details { font-size: 13px; }.feed-tools-details summary { min-height: 48px; align-content: center; cursor: pointer; }.feed-tools-details p { color: var(--muted); overflow-wrap: anywhere; }

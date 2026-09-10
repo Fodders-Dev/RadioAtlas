@@ -64,7 +64,7 @@ for (const width of [320, 390, 411]) for (const theme of ['aurora-field', 'paste
   });
 }
 
-test('restored station has no live claim; full player keeps additional controls reachable', async ({ page }) => {
+test('restored station opens the feed player without starting playback', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockStations(page); await installMediaMocks(page);
   await seedRadioState(page, { queue: [stations[0]], queueCurrentIndex: 0, stationCache: [stations[0]] });
@@ -74,14 +74,67 @@ test('restored station has no live claim; full player keeps additional controls 
   await expect(dock.locator('[data-live="true"]')).toHaveCount(0);
   await expect(dock.locator('.calm-capture')).toHaveCount(0);
   await dock.locator('.calm-mini-info').click();
-  await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'true');
+  await expect(page.locator('.station-feed-overlay')).toHaveAttribute('data-feed-player', 'true');
+  await expect(page.locator('.station-feed-card').first()).toHaveAttribute('data-feed-station', stations[0].stationuuid);
+  await expect(page.locator('.station-feed-live')).toHaveCount(0);
+  await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'false');
   await expect(dock).toHaveCount(0);
+});
+
+test('feed player captures, keeps the shared sleep timer and switches by deliberate paging', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await start(page);
+  await page.goto('/?calm=1'); await page.locator('.calm-primary').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const source = await page.locator('audio').first().getAttribute('src');
+  await page.locator('.calm-mini-info').click();
+  const feed = page.locator('.station-feed-overlay');
+  await expect(feed).toBeVisible();
+  await waitForAnimationsToSettle(page, '.station-feed-overlay');
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(source);
+  const first = page.locator('.station-feed-card').first();
+  await first.locator('[data-feed-action="capture"]').click();
+  await expect(first.locator('[data-feed-action="capture"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.station-feed-timer').click();
+  const tools = page.locator('.feed-player-tools');
+  await expect(tools).toBeVisible();
+  await tools.getByRole('button', { name: '15 мин', exact: true }).click();
+  await expect(tools.getByRole('button', { name: '15 мин', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(tools.locator('.feed-tools-heading output')).not.toHaveText('0:00');
+  await tools.getByRole('slider').focus(); await page.keyboard.press('ArrowLeft');
+  expect(await page.locator('audio').first().getAttribute('src')).toBe(source);
+  await page.screenshot({ path: '../../output/playwright/calm/feed-tools.png' });
+  await tools.locator('.feed-tools-close').click();
+  await expect(tools).toHaveCount(0);
+  await expect(page.locator('.station-feed-timer')).toContainText('14:');
+  await page.screenshot({ path: '../../output/playwright/calm/feed-player.png' });
+  // The real pager path: a deliberate key scroll settles and starts card 1.
+  await page.locator('.station-feed-close').focus(); await page.keyboard.press('ArrowDown');
+  await expect.poll(() => page.locator('audio').first().getAttribute('src')).not.toBe(source);
+  await page.locator('.station-feed-close').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await page.locator('.calm-mini-info').click();
+  await page.locator('.station-feed-timer').click();
+  await expect(tools.getByRole('button', { name: '15 мин', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await tools.getByRole('button', { name: 'Отменить', exact: true }).click();
+  await expect(tools.locator('.feed-tools-heading output')).toHaveText('Выкл');
 });
 
 test('off by default', async ({ page }) => {
   await start(page); await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
   await expect(page.locator('[data-calm-home]')).toHaveCount(0);
+});
+
+for (const theme of ['neon', 'sunrise-dial', 'pastel']) test(`feed tools use the actual ${theme} theme`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await start(page);
+  await page.addInitScript(id => localStorage.setItem('radio:theme-current:v1', JSON.stringify(id)), theme);
+  await page.goto('/?calm=1'); await page.locator('.calm-primary').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await page.screenshot({ path: `../../output/playwright/calm/home-${theme}.png` });
+  await page.locator('.calm-mini-info').click();
+  await page.locator('.station-feed-timer').click();
+  await expect(page.locator('.feed-player-tools').getByRole('slider', { name: 'Громкость' })).toBeVisible();
+  await page.screenshot({ path: `../../output/playwright/calm/tools-${theme}.png` });
 });
 
 test('country discovery previews real stations without changing playback', async ({ page }) => {
@@ -172,6 +225,10 @@ test('real Theme Studio image survives the Home and player composition', async (
   expect(await page.locator('.calm-home').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   await page.screenshot({ path: '../../output/playwright/calm/real-custom.png' });
   expect((await layout(page)).width).toBeLessThanOrEqual(390);
+  await page.locator('.calm-mini-info').click();
+  await page.locator('.station-feed-timer').click();
+  await expect(page.locator('.feed-player-tools').getByRole('slider', { name: 'Громкость' })).toBeVisible();
+  await page.screenshot({ path: '../../output/playwright/calm/tools-custom.png' });
 });
 
 test('connecting never claims live audio or exposes an old find', async ({ page }) => {
