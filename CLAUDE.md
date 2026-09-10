@@ -5,6 +5,13 @@ throughout. Production is live at https://radioatlas.ru and has real listeners.
 
 ## Before anything else: read `PRODUCT.md`
 
+For any UI/UX work, also read [`docs/DESIGN-DIRECTION.md`](docs/DESIGN-DIRECTION.md)
+before proposing or changing the composition. It records the owner's standing
+design decisions: Apple interaction/layout principles as well as Liquid Glass,
+warm musical character, rich discovery, and Feed as the expanded player.
+These requirements apply even when the latest message only asks for a small
+visual correction. Existing screenshots and the current DOM are not the target.
+
 It says what this product IS — the core surface, the three pillars, and what we
 deliberately do not do. Every change answers one question before it is written:
 **which pillar does this serve, and what will a listener see differently?** If

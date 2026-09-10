@@ -5,6 +5,11 @@ paths:
 
 # Working in apps/webapp
 
+Before UI/UX edits, read `docs/DESIGN-DIRECTION.md`. The owner's Apple reference
+covers interaction, space, hierarchy and placement, not only blur and rounded
+corners. Preserve rich discovery and theme support; do not infer acceptance
+from the current preview or passing functional tests.
+
 ## The cold start is a contract
 
 This runs inside a Telegram WebView on a phone, often on mobile data. Home's
