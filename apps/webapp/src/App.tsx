@@ -37,6 +37,9 @@ const SettingsScreen = lazy(loadSettingsScreen);
 const AppNavigationLazy = lazy(() =>
   import('./components/AppNavigation').then((mod) => ({ default: mod.AppNavigation }))
 );
+import { CALM_PREVIEW } from './lib/calmPreview';
+import './screens/calm.css';
+
 const MiniPlayerDockLazy = lazy(() =>
   import('./components/MiniPlayerDock').then((mod) => ({ default: mod.MiniPlayerDock }))
 );
@@ -419,6 +422,7 @@ const App = () => {
   return (
     <div
       className="app-shell-v2"
+      data-calm={CALM_PREVIEW ? 'true' : undefined}
       data-low-power={lowPowerShell ? 'true' : 'false'}
       // Whether the mini player is on screen at all. The dock renders NOTHING
       // while nothing is playing, but every screen's bottom scroll padding

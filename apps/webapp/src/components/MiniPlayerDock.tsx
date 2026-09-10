@@ -11,6 +11,8 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { StationArtwork } from './StationArtwork';
 import { ThemeActionIcon } from './ThemeActionIcon';
 import './MiniPlayerDock.css';
+import { CALM_PREVIEW } from '../lib/calmPreview';
+import { CalmMiniPlayer } from './CalmMiniPlayer';
 
 type DockTrayMode = 'queue' | 'volume' | 'more' | null;
 
@@ -308,6 +310,8 @@ export const MiniPlayerDock = () => {
   // player bar only while something is on air, so the dormant dock renders
   // nothing at all. Playback starts from the hero/cards, which then mounts it.
   // NB: this sits after every hook, so the hook order stays stable.
+  if (CALM_PREVIEW) return <CalmMiniPlayer />;
+
   if (isDormantDock) {
     return null;
   }

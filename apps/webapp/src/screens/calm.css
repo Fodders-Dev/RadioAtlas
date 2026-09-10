@@ -1,0 +1,72 @@
+/* Preview-only composition; all app surfaces inherit the real theme tokens. */
+.app-shell-v2[data-calm='true'] {
+  --calm-surface: color-mix(in srgb, var(--bg) 88%, transparent);
+  --calm-ink: var(--text);
+  --calm-secondary: color-mix(in srgb, var(--text) 76%, var(--bg));
+  /* Illustration palette stays independent of the app's light/dark surfaces. */
+  --calm-art-bg: var(--theme-artwork-bg, #14121d);
+  --calm-art-ink: var(--theme-artwork-ink, #fff7ef);
+  --calm-radius: 24px;
+  --calm-nav-bottom: calc(8px + var(--shell-safe-bottom, 0px));
+  --calm-player-bottom: calc(78px + var(--shell-safe-bottom, 0px));
+}
+.app-shell-v2[data-calm='true'][data-active-section='home'] .app-topbar-v2 { background: none; border: 0; box-shadow: none; backdrop-filter: none; }
+.app-shell-v2[data-calm='true'][data-active-section='home'] .app-topbar-title-stack { visibility: hidden; }
+.calm-home { min-width: 0; width: 100%; box-sizing: border-box; max-width: 760px; margin: auto; padding: calc(68px + var(--shell-safe-top, 0px)) 16px calc(180px + var(--shell-safe-bottom, 0px)); color: var(--calm-ink); }
+.calm-home button, .calm-mini button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.calm-home button:focus-visible, .calm-mini button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.calm-intro { margin-bottom: 20px; }
+.calm-intro > span, .calm-eyebrow { font-size: 10px; letter-spacing: .13em; font-weight: 700; }
+.calm-intro > span { color: var(--calm-secondary); }
+.calm-intro h1 { margin: 8px 0 0; font-size: 24px; line-height: 1.2; letter-spacing: -.04em; }
+.calm-hero { position: relative; isolation: isolate; overflow: hidden; border-radius: var(--calm-radius); min-height: 232px; background: var(--calm-art-bg); color: var(--calm-art-ink); }
+.calm-hero-art { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.calm-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, var(--calm-art-bg) 0%, color-mix(in srgb, var(--calm-art-bg) 82%, transparent) 62%, color-mix(in srgb, var(--calm-art-bg) 25%, transparent)); }
+.calm-hero-copy { padding: 28px 22px 22px; }
+.calm-hero h2 { font-size: 30px; line-height: 1.15; letter-spacing: -.04em; margin: 30px 0 8px; overflow-wrap: anywhere; }
+.calm-hero-copy > p:not(.calm-eyebrow) { color: color-mix(in srgb, var(--calm-art-ink) 80%, var(--calm-art-bg)); font-size: 13px; margin: 0; }
+.calm-hero-actions { display: flex; gap: 12px; margin-top: 24px; }
+.calm-home .calm-primary { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; border: 0; border-radius: 16px; padding: 12px; background: var(--calm-art-ink); color: var(--calm-art-bg); font-size: 14px; font-weight: 800; white-space: nowrap; }
+.calm-home .calm-favorite { color: var(--calm-art-ink); border-color: color-mix(in srgb, var(--calm-art-ink) 24%, transparent); background: color-mix(in srgb, var(--calm-art-ink) 10%, transparent); }
+:root[data-theme-backdrop='image'] .calm-home { background: color-mix(in srgb, var(--bg) 84%, transparent); }
+.calm-icon { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 46px; padding: 12px; border: 1px solid var(--border); border-radius: 16px; color: var(--text); background: color-mix(in srgb, var(--text) 9%, transparent); }
+.calm-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.calm-icon[aria-pressed='true'] svg { fill: currentColor; }
+.calm-choose { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 12px; min-height: 64px; padding: 8px 16px; background: var(--calm-surface); color: var(--calm-ink); border: 1px solid var(--border); border-radius: 20px; text-align: left; font-weight: 700 !important; }
+.calm-choose > span:last-child { margin-left: auto; }
+.calm-fan { position: relative; flex: 0 0 50px; height: 42px; }
+.calm-fan img { position: absolute; width: 34px; height: 40px; object-fit: cover; border-radius: 8px; transform: rotate(-12deg); }
+.calm-fan img + img { left: 15px; transform: rotate(12deg); }
+.calm-section { margin-top: 28px; }
+.calm-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.calm-heading h2 { font-size: 18px; letter-spacing: -.025em; margin: 0; }
+.calm-heading button { border: 0; background: none; color: var(--calm-secondary); min-width: 44px; min-height: 44px; }
+.calm-moods { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+.calm-section { min-width: 0; }
+.calm-moods button { flex: 0 0 128px; width: 128px; padding: 0; border: 0; background: none; color: var(--calm-ink); text-align: left; }
+.calm-moods img { display: block; width: 128px; height: 128px; object-fit: cover; border-radius: 18px; margin-bottom: 10px; }
+.calm-moods strong { font-size: 14px; display: block; }
+.calm-moods small { display: block; font-size: 11px; margin-top: 4px; color: var(--calm-secondary); }
+.calm-row { width: 100%; min-height: 76px; display: flex; align-items: center; gap: 12px; margin: 8px 0; padding: 12px; border: 1px solid var(--border); border-radius: 18px; color: var(--calm-ink); background: var(--calm-surface); text-align: left; }
+.calm-row > img, .calm-row > .station-artwork { flex: 0 0 48px; width: 48px; height: 48px; border-radius: 12px; }
+.calm-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.calm-row strong, .calm-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calm-row strong { font-size: 14px; }.calm-row small { font-size: 11px; color: var(--calm-secondary); margin-top: 5px; }
+.calm-mini { position: fixed; z-index: 65; bottom: var(--calm-player-bottom); left: 12px; right: 12px; max-width: 736px; margin: auto; display: flex; align-items: center; gap: 8px; padding: 8px; min-height: 64px; border: 1px solid var(--border); border-radius: 22px; background: var(--calm-surface); color: var(--calm-ink); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.calm-mini-info { display: flex; align-items: center; flex: 1; min-width: 0; min-height: 48px; gap: 10px; padding: 0; border: 0; color: inherit; background: none; text-align: left; }
+.calm-mini-info .station-artwork { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; }
+.calm-mini-info > span { min-width: 0; }.calm-mini-info strong, .calm-mini-info small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.calm-mini-info strong { font-size: 13px; }.calm-mini-info small { font-size: 11px; color: var(--calm-secondary); margin-top: 4px; }
+.calm-mini-info i[data-live='true'] { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; background: var(--accent); }
+.calm-mini-play { background: var(--text); color: var(--bg); border-radius: 50%; }
+.calm-mini-play svg { fill: currentColor; stroke: none; }
+.app-shell-v2[data-calm='true'] > .toast { top: auto; bottom: calc(var(--calm-player-bottom) + 76px); color: var(--calm-ink); background: var(--calm-surface); border-color: var(--border); box-shadow: none; }
+:root .app-shell-v2[data-calm='true'] .app-navigation-mobile { bottom: var(--calm-nav-bottom); height: 60px; padding: 4px; border-radius: 22px; background: var(--calm-surface); border: 1px solid var(--border); box-shadow: none; }
+:root .app-shell-v2[data-calm='true'] .app-navigation-mobile .mobile-nav-item { background: none; border: 0; box-shadow: none; color: var(--calm-secondary); border-radius: 16px; min-height: 48px; transform: none; }
+:root .app-shell-v2[data-calm='true'] .app-navigation-mobile .mobile-nav-item.active { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat { min-height: 48px; color: var(--calm-secondary); transform: none; }
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab { width: 24px; height: 24px; margin: 0 auto; transform: none; background: none; border: 0; box-shadow: none; backdrop-filter: none; }
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab .lira-mark { color: var(--calm-secondary); filter: none; }
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab::before,
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab::after { display: none; }
+@media (min-width: 900px) { .calm-home { padding-top: 24px; }.calm-mini { left: 100px; bottom: 20px; }.calm-moods button, .calm-moods img { width: 160px; }.calm-moods button { flex-basis: 160px; }.calm-moods img { height: 160px; } }

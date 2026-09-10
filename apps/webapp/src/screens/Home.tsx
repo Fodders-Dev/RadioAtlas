@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CatalogMoodRail,
   CatalogSpotlight,
@@ -37,6 +37,8 @@ import {
 import { useTasteCandidatePool } from '../lib/useTasteCandidatePool';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import { AirBlock } from '../components/AirBlock';
+import { CALM_PREVIEW } from '../lib/calmPreview';
+const CalmHome = lazy(() => import('./CalmHome').then(module => ({ default: module.CalmHome })));
 import { HomeHeroCard, HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
 import './homeReference.css';
@@ -1114,6 +1116,12 @@ export const Home = () => {
   const secondaryRails = hoistedRails.length
     ? [...hoistedRails, ...secondaryRailsBase.filter((module) => !hoistedIds.has(module.id))]
     : secondaryRailsBase;
+
+  if (CALM_PREVIEW && surfaceFeed?.hero.station) {
+    return <Suspense fallback={<AppScreenSkeleton section="home" scope="home-hero" />}><CalmHome station={surfaceFeed.hero.station}
+      stations={resumeModule?.stations.length ? resumeModule.stations : leadRail?.stations || []}
+      onPlay={handlePlayStation} onFeed={openFeed} onSearch={openSearch} /></Suspense>;
+  }
 
   return (
     <section

@@ -1,6 +1,13 @@
 import type { DictionaryTree } from './types';
 
 export const enDictionary = {
+  calm: {
+    kicker: 'RADIO THAT SURPRISES', title: 'What will we hear today?', offer: 'TRY TODAY',
+    start: 'Start listening', listening: 'Open player', choose: 'Find something else', moods: 'Set the mood',
+    night: 'Night drive', nightSub: 'Synthwave, retrowave', slow: 'Slow down', slowSub: 'Ambient', jazz: 'A little jazz', jazzSub: 'Jazz',
+    moreAir: 'Another good broadcast', finds: 'Your finds', keep: 'Keep the good stuff', keepSub: 'Like a track? Tap the bookmark',
+    player: 'Player', save: 'Save track', saved: 'Track saved', paused: 'Paused', error: 'Could not connect'
+  },
   "errorBoundary": {
     "screenTitle": "Couldn't load this section",
     "screenBody": "Something went wrong. Try again, or head back home.",
