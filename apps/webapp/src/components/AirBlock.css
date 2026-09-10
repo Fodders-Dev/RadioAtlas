@@ -1,0 +1,415 @@
+/*
+ * The redesigned Home block. Every colour here is a THEME token, never a
+ * literal: the point of this slice is that a listener's own theme — including
+ * a light one and one with their own picture — drives the new look. A hard-coded
+ * palette would prove nothing.
+ *
+ * ⚠ Layer order (docs/UI-MIGRATION-MAP.md §10). The theme's picture belongs
+ * BEHIND the interface, on the app surface, so glass has something to blur.
+ * This block never paints --theme-bg-image on itself; it blurs whatever is
+ * behind it and raises its own veil when the backdrop is a photo, so the text
+ * reads the same over a picture as over a gradient.
+ */
+
+:root {
+  --air-play-face: #f6f2ff;
+  --air-play-ink: #150f20;
+}
+
+:root[data-theme-mode='light'] {
+  --air-play-face: #241539;
+  --air-play-ink: #fffaff;
+}
+
+.air-block {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 12px;
+  /* Home's surface is a TWELVE-column grid, and a child that does not say so
+     lands in one column: measured 32px wide, with every control inside it under
+     the 44px floor and the controls row overflowing its own parent. The hero
+     this block replaces spans the full row, so this one must too. */
+  grid-column: 1 / -1;
+  align-self: stretch;
+  justify-self: stretch;
+  box-sizing: border-box;
+  margin: 0 14px;
+  padding: 14px;
+  border-radius: 28px;
+  color: var(--text);
+  background:
+    linear-gradient(var(--air-veil, transparent), var(--air-veil, transparent)),
+    var(--panel);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  backdrop-filter: blur(26px) saturate(150%);
+  box-shadow: 0 18px 40px -18px rgba(2, 6, 16, 0.55);
+}
+
+/* A picture behind the glass needs a denser veil to stay legible. The floor is
+   not a guess — tests/glass-legibility.spec.ts reads the contrast off rendered
+   pixels, and this value has to survive it with a photo backdrop too. */
+/* Apple: over a visually rich background, add a dimming layer — 35% when the
+   content beneath is bright. That is where this number comes from; the floor it
+   has to survive is measured by tests/glass-legibility.spec.ts. */
+:root[data-theme-backdrop='image'] .air-block {
+  --air-veil: rgba(6, 10, 20, 0.35);
+}
+:root[data-theme-mode='light'][data-theme-backdrop='image'] .air-block {
+  --air-veil: rgba(255, 253, 250, 0.5);
+}
+
+/* One hairline, not a gradient rim: a bright rim on top of glass on top of a
+   busy background is the «glass on glass» Apple warns about, and it read as
+   decoration rather than as separation. */
+.air-block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.air-block-top {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 44px;
+  gap: 13px;
+  align-items: center;
+}
+
+.air-block[data-compact='true'] .air-block-top {
+  grid-template-columns: 72px minmax(0, 1fr) 56px;
+}
+
+.air-block-art {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.air-block[data-compact='true'] .air-block-art {
+  width: 72px;
+  height: 72px;
+}
+
+.air-block-art .air-block-artwork,
+.air-block-art .air-block-artwork img {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  display: block;
+  object-fit: cover;
+}
+
+.air-block-like {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  /* 44px is the floor in this repo and is not a style choice. The glyph stays
+     small; the hit area does not. */
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--text);
+  /* No glass here: this sits ON the block, and glass over glass is muddle.
+     A flat scrim is enough to lift it off the artwork. */
+  background: color-mix(in srgb, var(--theme-bg, #0a0612) 72%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent);
+  transition: transform 0.16s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.air-block-like svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+}
+
+/* Saved is a STATUS, so it may carry the accent — on the glyph, not as another
+   coloured control background. */
+.air-block-like.is-on {
+  color: var(--theme-accent);
+}
+
+.air-block-like.is-on svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+.air-block-like:active {
+  transform: scale(0.9);
+}
+
+.air-block-live {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  border: 3px solid var(--theme-bg, #0a0612);
+  animation: air-block-pulse 2.2s ease-out infinite;
+}
+
+@keyframes air-block-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--theme-accent) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+
+.air-block-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.air-block-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.air-block-eyebrow[data-tone='live'] {
+  color: var(--theme-accent);
+}
+
+.air-block-eyebrow[data-tone='warn'] {
+  color: var(--theme-accent-2, var(--theme-accent));
+}
+
+.air-block-spin {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.6px solid currentColor;
+  border-top-color: transparent;
+  animation: air-block-spin 0.85s linear infinite;
+}
+
+@keyframes air-block-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.air-block-title {
+  margin: 0;
+  font-size: 1.42rem;
+  font-weight: 800;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-block[data-compact='true'] .air-block-title {
+  font-size: 1.18rem;
+}
+
+/* Rung 2 of the ladder is not live metadata and must not read as if it were. */
+.air-block-title[data-last-heard='true'] {
+  font-style: italic;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.air-block-sub {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.air-block-col {
+  display: grid;
+  gap: 6px;
+  align-self: start;
+}
+
+.air-block-icon {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-radius: 12px;
+}
+
+.air-block-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.air-block-ctl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.air-block-ctl.has-wide {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.air-block-pill {
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.79rem;
+  font-weight: 600;
+  line-height: 1.14;
+  text-align: left;
+  color: var(--text);
+  background: var(--panel-2);
+  box-shadow: inset 0 1px 0 var(--border);
+  transition: transform 0.16s ease, background 0.24s ease;
+}
+
+.air-block-pill svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.air-block-pill:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.air-block-pill:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.air-block-play {
+  width: 64px;
+  height: 64px;
+  border: 0;
+  border-radius: 50%;
+  justify-self: center;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font: inherit;
+  /* One primary action, and it is NOT another colour. Apple: «Refrain from
+     adding color to the background of multiple controls» — the accent is spent
+     on status (liveness, saved), so the control that matters most is a neutral
+     high-contrast disc instead of a third coloured thing competing for the eye. */
+  color: var(--air-play-ink);
+  background: var(--air-play-face);
+  box-shadow: 0 10px 24px -8px rgba(2, 6, 16, 0.5);
+  transition: transform 0.18s ease;
+}
+
+.air-block-play svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.air-block-play.is-small {
+  width: 56px;
+  height: 56px;
+}
+
+.air-block-play.is-small svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* On the error screen the main action is a WORD, not a lone circular arrow. */
+.air-block-play.is-wide {
+  width: auto;
+  min-width: 116px;
+  height: 58px;
+  border-radius: 19px;
+  padding: 0 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.air-block-play.is-wide svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+}
+
+.air-block-play:active {
+  transform: scale(0.92);
+}
+
+.air-block-ring {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.6px solid currentColor;
+  border-top-color: transparent;
+  animation: air-block-spin 0.85s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .air-block-live,
+  .air-block-spin,
+  .air-block-ring {
+    animation: none;
+  }
+}
+
+/*
+ * The app topbar floats over the surface, and the hero this block replaces
+ * carried its own clearance. Measured at 411x914 before this rule: the topbar's
+ * bottom sat at 66px and the block's top at 12px — «Главная» and the two chips
+ * were drawn ON the artwork.
+ *
+ * ⚠ The term is `--shell-safe-top`, not a bare number. That is the device notch
+ * plus Telegram's own header, and homeReference.css already lost it once by
+ * overriding a padding with a literal in a later breakpoint (see webapp.md).
+ */
+@media (max-width: 900px) {
+  .air-block {
+    margin-top: calc(var(--shell-safe-top, 0px) + 78px);
+  }
+}
+
+/*
+ * One player at a time. While the block is on screen the dock would be a second
+ * one directly below it; when the block scrolls away the dock returns and is
+ * the compact player. The attribute is written only by AirBlock, so nothing
+ * outside `?air2=1` can reach this rule.
+ */
+:root[data-air-visible='1'] .app-shell-v2 .player-dock.player-dock-bar {
+  display: none;
+}

@@ -730,6 +730,19 @@ export const enDictionary = {
     "regionActivityTitle": "New radio in {region}",
     "regionActivityBody": "{station}"
   },
+  "air": {
+    "eyebrowOffer": "Start here",
+    "eyebrowReady": "Ready to play",
+    "eyebrowConnecting": "Connecting",
+    "eyebrowError": "Could not connect",
+    "eyebrowPaused": "Paused",
+    "eyebrowLive": "On air",
+    "saveTrack": "Save track",
+    "saveTrackUnavailable": "Save track — no track is known right now",
+    "nextStation": "Next station",
+    "queueEnd": "End of queue",
+    "expand": "Open the full player"
+  },
   "dock": {
     "peekHint": "Tap to expand",
     "queueCount": "Queued: {count}",

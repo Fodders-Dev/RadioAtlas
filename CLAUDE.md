@@ -143,10 +143,16 @@ pixel job is red, either re-draw the baselines or say why it is red on purpose.
   ⚠ The archive is not a menu. Take a FACT or a REASON from it, never a task,
   and never treat what it describes as the product's current shape. It was split
   out because a file that opens with the current plan and continues with two
-  thousand lines of history reads, a few sessions later, as one document: the old
-  first run (`FIRST_RUN_RAIL_LIMIT = 1`, «Народный выбор») sat in the same file
-  as the new one and would eventually be defended as live. Where the archive and
+  thousand lines of history reads, a few sessions later, as one document: a
+  described first run and a shipped one sat side by side. Where the archive and
   `PRODUCT.md`/`PLAN.md` disagree, the archive is wrong.
+
+  ⚠ Corrected 2026-09-08 by reading master: the first run this file used to call
+  "old" — `FIRST_RUN_RAIL_LIMIT = 1` with `FIRST_RUN_RAIL_ID = 'top-voted'`
+  (`apps/webapp/src/screens/Home.tsx:60`, `:822`) — **is the live one.** A
+  listener with no history still sees exactly one shelf, «Народный выбор». The
+  planned replacement was never shipped. Do not repeat the inverse mistake: the
+  hazard is a document that contradicts the code, in either direction.
   `RUNBOOK.md` is commands, env vars and past incidents — read it before
   diagnosing anything on production.
 - Production access: `ssh rodnya` (see `.claude/rules/windows-shell.md` first,

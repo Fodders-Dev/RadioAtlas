@@ -29,12 +29,25 @@ Work where **being wrong is cheap to produce and expensive to notice**:
 
 ## Model
 
-Default **Opus**. Use **Haiku** for the mechanical sweeps above — listing,
-grepping, collecting. Reach for **Fable** only when something genuinely calls for
-it, not as a default.
+**Subagents run on Sonnet. Opus is the main loop, and its job is to check the
+result.** The owner set this on 2026-09-08; it replaces the earlier "default
+Opus" in this file, which was wrong about where the money goes.
 
-A cheaper model on a well-specified mechanical task is fine. A cheaper model
-deciding "is this number trustworthy" is exactly where this repo has been burned.
+Pass `model: 'sonnet'` explicitly — in `Agent`, and in every `agent()` step of a
+`Workflow`, verification steps included. Without it the subagent inherits the
+parent's model and quietly becomes Opus.
+
+The reason is measured, not frugality for its own sake. Two inventory fan-outs in
+one session cost 1.46M and 2.07M subagent tokens for work that is "open the file
+and write down what is there". And the quality did not come from the model: the
+adversarial second pass rejected 21 of ~267 claims — wrong line numbers, two
+fabricated UI strings — so what caught the errors was **the check**, not a more
+expensive collector.
+
+So: a cheaper model on a well-specified mechanical task is fine, and the check is
+mechanical too — it opens `file:line` and compares. What is NOT delegated at any
+model is the judgement above ("What not to delegate"), and the final read of what
+comes back stays with Opus in the main loop.
 
 ## Reviewing what comes back
 

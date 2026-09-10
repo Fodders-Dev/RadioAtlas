@@ -1,0 +1,1538 @@
+[
+  {
+    "dimension": "Оформление и темы: Theme Studio, применение тем, светлая тема, фон плеера по обложке",
+    "items": [
+      {
+        "capability": "Theme Studio существует и открывается из Настроек — это единственная точка входа",
+        "where": "apps/webapp/src/screens/Settings.tsx:169",
+        "detail": "Секция «Theme Studio» (t('theme.title')), карточка с заголовком «Оформление RadioAtlas» и подписью «Переключай наши темы оболочки для главной, глобуса, дока и плеера.», кнопка «Открыть Theme Studio». Никаких других вызовов setSkinLabOpen(true) в коде нет — grep по skinLab даёт только этот.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Студия открывается как нижний шит, чанк грузится лениво",
+        "where": "apps/webapp/src/App.tsx:575",
+        "detail": "<ThemeStudioSheetLazy open={skinLabOpen} .../> внутри Suspense, монтируется только когда skinLabOpen === true (App.tsx:573). Сам компонент — ThemeStudioSheet, обёрнутый в SettingsSheet с kicker/title «Theme Studio» (ThemeStudio.tsx:112-114).",
+        "status": "shipped"
+      },
+      {
+        "capability": "7 готовых тем в комплекте",
+        "where": "apps/webapp/src/lib/theme/defaults.ts:7",
+        "detail": "DEFAULT_RADIOATLAS_THEMES: Classic (id 'classic', дефолт), Neon, Warm Light (id 'pastel', единственная mode:'light'), Aurora Field, Signal Grid, Sunset (id 'sunrise-dial'), Velvet Hour (id 'velvet-hour', locked). У каждой: accent {hue,sat}, background-градиент, font, часть — icons.style и emojiReactions. Aurora Field и Signal Grid тянут SVG из /theme-backgrounds/.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Тема применяется тапом по карточке в сетке",
+        "where": "apps/webapp/src/components/ThemeStudio.tsx:161",
+        "detail": "onClick={() => { if (locked) return; applyTheme(theme.id); }}. Над сеткой: «Готовые темы» и «Тап по карточке сразу применяет тему.». Сверху шита — превью-карточка с «Текущая тема», именем темы и «RadioAtlas FM · прямой эфир» (ThemeStudio.tsx:123-128).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Создание своей темы («Создать»)",
+        "where": "apps/webapp/src/components/ThemeStudio.tsx:141",
+        "detail": "Кнопка «Создать» переводит ThemeBuilder в mode:'create' (seedTheme = null). Заголовок редактора — «Собрать локальную тему», подпись — «Сохраняется только на этом устройстве.» (ru.ts:893-894).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ремикс любой темы, включая встроенные",
+        "where": "apps/webapp/src/components/ThemeStudio.tsx:88",
+        "detail": "handleRemix ставит mode:'remix'; кнопка «Ремикс» на каждой разблокированной карточке (ThemeStudio.tsx:192-198). Имя предзаполняется как «<Имя> Remix» (ThemeBuilder.tsx:232), в тему пишется parentId родителя (ThemeBuilder.tsx:537), и в списке такая тема подписана «Ремикс — {name}». У заблокированной темы кнопка «Ремикс» скрыта, чтобы её нельзя было склонировать в обход замка.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Правка и удаление своих тем (встроенные не трогаются)",
+        "where": "apps/webapp/src/components/ThemeStudio.tsx:203",
+        "detail": "Кнопки «Править» и «Удалить» рендерятся только при !theme.builtin; handleEdit/handleDelete дополнительно выходят при theme.builtin (ThemeStudio.tsx:95, 101). removeTheme отказывается удалять встроенную (ThemeContext.tsx:352) и, если удалили активную, возвращает 'classic'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Редактор цвета: акцент задаётся тремя ползунками HSL",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:783",
+        "detail": "«Цвет» (hue 0–359, ThemeBuilder.tsx:783), «Насыщенность» (sat 20–100, :798), «Светлота» (lightness 28–92, :813). В CSS уходит как hsl(H S% L%) через themeAccentToCss (runtime.ts:20); при отсутствии lightness исторический дефолт 68%.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Необязательный второй акцент",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:828",
+        "detail": "Чекбокс «Свой вторичный акцент» открывает ещё три ползунка (hue/sat/lightness). Если выключен — accent2 выводится из основного: hue+42, sat×0.74, L 70% (runtime.ts:38-40).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Выбор фона: градиент одной из встроенных тем или свой градиент",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:895",
+        "detail": "Селект «Фон» со списком встроенных тем плюс пункт «Свой градиент» (значение __custom__).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Композитор собственного градиента: 3 стопа + угол",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:582",
+        "detail": "renderGradientComposer: полоса-превью, три стопа (input type=color «Цвет стопа N» + ползунок позиции 0–100 «Позиция стопа N») и «Угол» 0–360. Стопов ровно три и добавить/убрать их нельзя — DEFAULT_GRADIENT_STOPS зашит списком из трёх (ThemeBuilder.tsx:54). Собирается в строку linear-gradient(...) функцией composeGradient (ThemeBuilder.tsx:59). На мобиле открывается отдельным под-шитом по кнопке «Настроить градиент».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Свой принт (картинка вместо градиента)",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:919",
+        "detail": "Поле «Свой принт», подпись «PNG, JPG, GIF или SVG для фона shell и плеера». Принимает png/jpeg/webp/gif/svg до 2 МБ (MAX_BACKGROUND_BYTES, ThemeBuilder.tsx:46). Файл кладётся в IndexedDB, в CSS уходит как url(blob:...) (runtime.ts:78-79), а корню проставляется data-theme-backdrop='image' — по нему MiniPlayerDock выключает backdrop-filter (ThemeContext.tsx:272).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Выбор шрифта из четырёх наборов",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:971",
+        "detail": "Селект «Шрифт»: «Системный», «Мягкий», «Serif», «Mono». Раскрываются в реальные стеки в themeFontToCss (runtime.ts:43): mono → SFMono/Consolas, serif → Georgia, rounded → Manrope/Trebuchet, system → Manrope. Загрузки своего шрифта нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Стиль иконок: скругление кнопок плеера",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:988",
+        "detail": "Селект «Иконки»: «Круглые» / «Мягкие» / «Чёткие» → --theme-icon-radius 999px / 18px / 10px (runtime.ts:57).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Загрузка своих иконок плеера (play/pause/next/prev/like)",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:1035",
+        "detail": "Пять файловых полей «Свои иконки плеера», подпись «SVG/PNG до 512 КБ» (MAX_ICON_BYTES, ThemeBuilder.tsx:47). Живые: ThemeActionIcon (ThemeActionIcon.tsx:12) подменяет встроенный <svg> на <img> с blob-URL, и он смонтирован и в полном плеере (FullPlayerOverlay.tsx:608, 620, 634, 687, 831), и в мини-доке (MiniPlayerDock.tsx:730, 747, 764).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Декор: стикер с перетаскиванием, GIF по триггеру, эмодзи-реакция",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:1046",
+        "detail": "Раздел «Декор»: «Стикер» (PNG/WebP/SVG до 1 МБ) с «Масштаб» 0.5–1.5 и позицией, задаваемой перетаскиванием прямо по превью (ThemePreviewSurface.tsx:90-103); «GIF/WebP» (до 1 МБ) с «Когда показывать» — «В покое» / «При play» / «При лайке»; «Эмодзи реакции» (до 4 символов) и «Место реакции». Шесть слотов: «Слева у дока», «Справа у дока», «У плеера», «Фон плеера», «Главная», «Глобус».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Декор реально рисуется поверх приложения",
+        "where": "apps/webapp/src/components/ThemeDecorations.tsx:7",
+        "detail": "ThemeDecorations смонтирован безусловно в корне приложения (App.tsx:446). resolveThemeDecorations (decorations.ts:38) фильтрует по триггеру: idle = не играет, play = играет, like = станция в избранном. Позиции слотов заданы в ThemeDecorations.css:42-76.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Живое превью темы прямо в редакторе",
+        "where": "apps/webapp/src/components/ThemePreviewSurface.tsx:42",
+        "detail": "Мини-макет приложения: топбар с именем темы, карточка станции с CTA, док с застывшим эквалайзером из 12 полос, эмодзи и стикер. Красится теми же themeRuntimeVars + themeSurfaceVars, что и настоящая оболочка. Перерисовка задебаунсена на 90 мс, чтобы ползунки не тормозили (ThemeBuilder.tsx:425-429). На мобиле превью можно свернуть («Свернуть превью» / «Развернуть превью»).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Предупреждение о низком контрасте (не блокирует сохранение)",
+        "where": "apps/webapp/src/components/ThemePreviewSurface.tsx:132",
+        "detail": "Плашка «Низкий контраст — текст может быть нечитаем» появляется, когда derivePreviewTextColors по разобранному фону не может дать 4.5:1 (previewContrast.ts:113, WCAG_AA_NORMAL). Сохранить тему всё равно можно — комментарий в коде прямо говорит «inform, never block saving».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Сохранение темы и мгновенное применение",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:1189",
+        "detail": "Кнопка «Сохранить и применить» (во время записи — t('common.loading')), затем статус «Тема применена» или «Не удалось сохранить тему». handleSaveDraft (ThemeBuilder.tsx:514) сначала пишет все загруженные файлы через saveAsset, потом saveDraftAndApply (ThemeBuilder.tsx:535), который сохраняет тему и сразу делает её текущей (ThemeContext.tsx:340).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Своя тема может быть светлой — переключатель «Базовый режим»",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:762",
+        "detail": "Группа из двух кнопок «Тёмный» / «Светлый» (t('theme.mode.dark') / t('theme.mode.light')) пишет theme.mode. Это единственный способ включить светлую оболочку помимо готовой темы «Warm Light» (defaults.ts:74).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Светлая тема включается только выбором темы, а не системой и не Telegram",
+        "where": "apps/webapp/src/state/ThemeContext.tsx:251",
+        "detail": "root.dataset.themeMode = currentTheme.mode === 'light' ? 'light' : 'dark'. Дальше срабатывает блок :root[data-theme-mode='light'] в styles.css:90 (color-scheme: light, --theme-bg #f3ece4, --theme-text #241a17 и т.д.). Ни prefers-color-scheme, ни Telegram colorScheme в коде вебапа не используются вообще — grep по обоим даёт ноль совпадений в apps/webapp/src.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Тема применяется через CSS-переменные на корневом <html>",
+        "where": "apps/webapp/src/state/ThemeContext.tsx:235",
+        "detail": "useLayoutEffect ставит: data-theme (id), data-theme-mode ('light'|'dark'), data-theme-backdrop ('image'|'flat') и переменные --theme-accent, --theme-accent-2, --accent-ink, --theme-bg-image, --theme-font-family, --theme-icon-radius (ThemeContext.tsx:252-274), плюс --theme-bg, --theme-bg-2, --theme-surface, --theme-surface-2, --theme-border (:279-294) и --theme-text, --theme-muted (:301-311). Базовые токены --bg/--panel/--border/--text/--muted читают их с дефолтами в styles.css:23-29.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Панели тёмных тем подкрашиваются собственным акцентом",
+        "where": "apps/webapp/src/lib/theme/runtime.ts:99",
+        "detail": "themeSurfaceVars мешает базовые цвета с акцентом через color-mix (bg 5%, bg2 7%, surface 9%, surface2 11%, border 18%), умноженные на chromeTint темы. Для mode:'light' возвращает null, и тогда inline-переменные снимаются, чтобы победил CSS-блок светлой темы.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Цвет текста считается из фактической поверхности темы, а не задаётся автором",
+        "where": "apps/webapp/src/lib/theme/runtime.ts:161",
+        "detail": "themeTextVars → readableTextColors (contrast.ts:79) с целями TEXT_TARGET = 7 и MUTED_TARGET = 4.6 (contrast.ts:72-73). Считается по themeSurfaceColor — цвету панели с учётом акцента, chromeTint и 15% просвета фона (runtime.ts:140). Для telegram-auto и светлых тем не применяется.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Темы и файлы хранятся ТОЛЬКО на устройстве",
+        "where": "apps/webapp/src/lib/theme/storage.ts:3",
+        "detail": "IndexedDB 'radioatlas-theme-db' версии 1, два стора: 'themes' и 'assets' (Blob целиком). Если IndexedDB нет или транзакция падает — молчаливый откат в Map в памяти (storage.ts:10-11, 140-142). Выбранная тема — в localStorage под ключом 'radio:theme-current:v1' (ThemeContext.tsx:60). На сервере тем нет: в apps/api слово theme встречается только в энтайтлменте 'referral-theme'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Автоподхват палитры Telegram, когда пользователь тему не выбирал",
+        "where": "apps/webapp/src/lib/theme/telegramAuto.ts:91",
+        "detail": "Синтетическая тема 'telegram-auto' включается только если сохранён дефолтный 'classic', мы внутри клиента TG и присутствует хотя бы один из 4 ключей bg_color/accent_text_color/link_color/button_color (ThemeContext.tsx:210-214, telegramAuto.ts:51). Маппинг: accent_text_color→link_color → --theme-accent, button_color → --theme-accent-2, bg_color → --theme-bg-image как плоский linear-gradient. Шрифт и радиус наследуются от Classic. В списке студии эта тема НЕ показывается (ThemeContext.tsx:186-188), а картинка выбора продолжает подсвечивать 'classic'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Эксклюзивная тема за приглашение друга",
+        "where": "apps/webapp/src/lib/theme/defaults.ts:217",
+        "detail": "Velvet Hour помечена locked: true. В студии показывается с 🔒 и подписью «Пригласи друга, чтобы открыть» (ThemeStudio.tsx:170-181), клик игнорируется, кнопка «Ремикс» скрыта. Замок снимается энтайтлментом 'referral-theme' на профиле; applyTheme отказывает без него (ThemeContext.tsx:322), и даже уже выбранная тема откатывается на дефолт при рендере (ThemeContext.tsx:226). Награду выдаёт API: REFERRAL_REWARD_ENTITLEMENT в apps/api/src/account/core/referralService.ts:15.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Фон плеера по цвету обложки станции (StationBackdrop)",
+        "where": "apps/webapp/src/components/StationBackdrop.tsx:47",
+        "detail": "Смонтирован в полном плеере (FullPlayerOverlay.tsx:792) и в карточке Ленты (StationFeed.tsx:306). Три слоя: размытая обложка, градиент из извлечённой палитры, звуковое свечение по --ra-energy (пишется в DOM напрямую, без ререндера), плюс тёмный скрим. Палитра сначала детерминированно генерится из идентичности станции, потом апгрейдится извлечённой из картинки.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Извлечение палитры из обложки с пере-калибровкой под большой экран",
+        "where": "apps/webapp/src/lib/artworkColor.ts:89",
+        "detail": "extractArtworkPalette читает картинку через свой /image-прокси (CORS) на канве 32×32; toStagePalette зажимает результат в «ночные» полосы: тон 'stage' (полный плеер) L 0.10–0.24, тон 'poster' (Лента) L 0.16–0.42. Хью станции сохраняется, режется только яркость. Любая ошибка → null и откат на сгенерированную палитру.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Фон по обложке НЕ перекрашивает выбранную тему",
+        "where": "apps/webapp/src/components/StationBackdrop.tsx:127",
+        "detail": "Компонент пишет только локальные --station-bd-primary/secondary/tertiary/angle в style собственного div и ничего не трогает на <html>. Взаимодействие с темой ровно в трёх местах: (1) градиент темы --theme-bg-image остаётся слоем в фоне оверлея под подложкой (FullPlayerOverlay.css:15); (2) звуковое свечение подмешивает акцент темы — color-mix(... var(--accent)) (StationBackdrop.css:79, 83); (3) под светлой темой оверлей плеера локально переопределяет --text/--muted/--bg на тёмные значения, чтобы текст остался читаем на тёмной сцене (FullPlayerOverlay.css:31).",
+        "status": "shipped"
+      },
+      {
+        "capability": "chromeTint — сила подкраски панелей акцентом — есть в теме, но недоступна в редакторе",
+        "where": "apps/webapp/src/lib/theme/types.ts:102",
+        "detail": "Поле chromeTint задано у четырёх встроенных тем (Neon 0.85, Signal Grid 1.4, Sunset 1.6) и учитывается в themeSurfaceVars/themeSurfaceColor. В ThemeBuilder слова chromeTint нет ни разу — ни ползунка, ни переноса из seedTheme при ремиксе. Значит любая пользовательская тема и любой ремикс Sunset/Neon получают ×1 и другую подкраску панелей, чем оригинал.",
+        "status": "partial"
+      },
+      {
+        "capability": "Экспортированный id премиум-темы никто не использует",
+        "where": "apps/webapp/src/lib/theme/defaults.ts:237",
+        "detail": "export const REFERRAL_THEME_ID = 'velvet-hour' с комментарием «Exported so the gating layer doesn't hard-code the string», но ни одного импорта в репозитории нет — гейтинг работает по полю locked. Рядом такой же неиспользуемый export getBundledThemeById (defaults.ts:239): ноль потребителей.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Слоты декора не привязаны к экрану — «Глобус» и «У плеера» рисуются везде",
+        "where": "apps/webapp/src/lib/theme/decorations.ts:38",
+        "detail": "resolveThemeDecorations принимает только {playing, liked}; активный раздел и открытость плеера в неё не приходят. Контейнер .theme-decorations — position: fixed; inset: 0 на всё приложение (ThemeDecorations.css:1), а слоты — просто фиксированные координаты (ThemeDecorations.css:52 fullPlayerCorner, :73 globeOverlay). Так что стикер в слоте «Глобус» будет висеть и на Главной, а «У плеера» — при закрытом плеере.",
+        "status": "partial"
+      },
+      {
+        "capability": "Theme Studio заморожена как продуктовое направление",
+        "where": "PLAN.md:52",
+        "detail": "Дословно: «**Theme Studio** — как продуктовое направление. ⚠ Мой прежний довод «морозить нельзя, это часть архитектуры» был неверен: архитектура тем продолжает работать и поддерживается, замораживается развитие студии. Темы важны для староинтернетного духа и вернутся в 1.0 — просто сейчас они не конкурируют с ядром за разработку.» Определение заморозки там же, PLAN.md:48-49: «Заморозка означает: **новой продуктовой работы нет, поведение не трогаем, телеметрию туда не вкладываем.** Это не удаление и не отказ от идеи.» Повтор в PLAN.md:1082: «**Theme Studio.** Заморожена как продуктовая работа, вернётся в 1.0.»",
+        "status": "shipped"
+      }
+    ],
+    "notes": "ЧЕГО НЕТ СОВСЕМ (искал, не нашёл):\n- Обмена темами, экспорта/импорта, ссылки на тему, публикации, галереи чужих тем — ничего этого нет. В ThemeBuilder/ThemeStudio/lib/theme нет ни одного слова share/export/import/gallery, кроме «Shared by the desktop inline grid» в комментарии про обработчики (ThemeBuilder.tsx:464). Тема физически не покидает устройство: она лежит в IndexedDB вместе с Blob'ами, а сервер про темы не знает.\n- Синхронизации тем между устройствами. У пользователя с двумя телефонами это две разные коллекции тем.\n- Телеметрии по темам. Ни одного события вида theme_applied/theme_saved/skin_* — grep по apps даёт ноль. То есть неизвестно даже, открывает ли кто-нибудь студию. Это согласуется с решением о заморозке («телеметрию туда не вкладываем», PLAN.md:48).\n- Автоматической светлой темы. Telegram colorScheme и prefers-color-scheme не читаются нигде в apps/webapp/src (оба grep пустые). Светлая оболочка включается ТОЛЬКО выбором темы с mode:'light'.\n\nПОДОЗРИТЕЛЬНОЕ, ЧТО Я НЕ ПРОВЕРЯЛ ЗАПУСКОМ (не выдаю за факт):\n- У синтетической темы telegram-auto нет поля mode, поэтому ThemeContext.tsx:251 всегда ставит data-theme-mode='dark', а ThemeContext.tsx:302 отключает вычисление --theme-text/--theme-muted. При этом --theme-bg-image берётся из bg_color клиента. По коду выходит, что у пользователя со СВЕТЛОЙ темой Telegram фон станет светлым, а токены текста останутся тёмнотемными (белый #f5fbff из styles.css:28). Панели полупрозрачно-тёмные, так что текст на них скорее всего выживет, но участки вне панелей — вопрос. Я это только вычитал, на устройстве не смотрел.\n- Известная и задокументированная в коде дырка (ThemeContext.tsx:204-209): предикат «пользователь не выбирал тему» — это currentThemeId === 'classic', поэтому явный выбор Classic в студии неотличим от дефолта, и такому пользователю всё равно подставится telegram-auto. В комментарии это названо T1.3b и отложено.\n\nПОКРЫТИЕ ТЕСТАМИ (для оценки, живой ли код):\napps/webapp/tests/mobile.spec.ts:757, :781, :797, :810 — юнит-уровневые проверки defaults/runtime/decorations; :864 — сохранение кастомной темы и ассетов в хранилище; :915 — применение выбранной темы к CSS-переменным в браузере. Плюс apps/webapp/tests/telegram-integration.spec.ts:184-288 — активация и подавление telegram-auto. Плюс юниты contrast.test.ts, previewContrast.test.ts, ThemePreviewSurface.test.tsx.\n\nЧТО НЕ ОПРЕДЕЛИЛ:\n- Не проверял, попадает ли декор в слоте fullPlayerBackdrop реально под контент (у .theme-decorations z-index: 0, а у экранов свои слои) — статически сказать не берусь, нужен браузер.\n- Не мерил, что происходит при откате IndexedDB в память (storage.ts:140) — темы тогда живут до перезагрузки, но подтверждения поведением у меня нет."
+  },
+  {
+    "dimension": "Медиатека («Моё» / Библиотека): вкладки, избранное, очередь, недавнее, плейлисты, находки, синхронизация",
+    "items": [
+      {
+        "capability": "Раздел «Моё» — пятая вкладка нижней навигации, весь экран Медиатеки",
+        "where": "apps/webapp/src/App.tsx:65",
+        "detail": "SECTION_COMPONENTS.library = LibraryScreen (lazy). В топбаре заголовок — t('nav.library') = «Моё», подзаголовок t('library.topbarSubtitle') = «Избранное, очередь, история.», контекст t('library.kicker') = «Личное пространство» (App.tsx:285-289). Строка «Медиатека» (library.title) НЕ выводится как заголовок — она используется только как aria-label списка вкладок (Library.tsx:940).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пять вкладок: «Избранное», «Очередь», «Недавнее», «Находки», «Плейлисты» — в этом порядке, у каждой иконка и число",
+        "where": "apps/webapp/src/screens/Library.tsx:33",
+        "detail": "TAB_ORDER = ['favorites','queue','recent','tracks','collections']. Подписи из ru.ts:627-634: favorites=«Избранное», queue=«Очередь», recent=«Недавнее», tracks=«Находки», collections=«Плейлисты». Полоса вкладок — role=tablist со стрелочной навигацией Home/End/←→↑↓ (Library.tsx:478-508), у каждой кнопки inline-SVG (сердце / список / часы / нота / стопка, Library.tsx:43) и счётчик (Library.tsx:959).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Счётчики на вкладках",
+        "where": "apps/webapp/src/screens/Library.tsx:509",
+        "detail": "favorites=favorites.length, queue=queue.items.length, tracks=trackHistory.length, collections=collections.length, recent=recentStations.length — то есть у «Недавнего» считается ОБЪЕДИНЕНИЕ (текущая станция + recent + playbackHistory), а не список recent.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладки «История» и «Настройки» существуют в типе, но в Медиатеке недостижимы",
+        "where": "apps/webapp/src/types.ts:51",
+        "detail": "LibraryTab = 'favorites'|'tracks'|'queue'|'recent'|'history'|'collections'|'settings'. TAB_ORDER их не содержит, setLibraryTab('history'|'settings') не зовётся нигде в приложении. Строка ru.ts:632 \"history\": \"История\" не показывается никогда. Если в localStorage лежит такое значение, activeLibraryTab падает на 'recent' (Library.tsx:472-474). Вкладка по умолчанию — 'favorites' (defaults.ts:52).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Поиск ПО МЕДИАТЕКЕ — отдельное поле над вкладками",
+        "where": "apps/webapp/src/screens/Library.tsx:835",
+        "detail": "Placeholder «Поиск по медиатеке», крестик «Очистить поиск». Фильтрует чистое объединение своего: избранное + станции всех плейлистов + недавнее + подписки, дедуп по stationuuid с приоритетом favorite > collection > recent > followed (librarySearch.ts:32-57); ищет подстрокой по «имя + локация + страна + теги» (librarySearch.ts:60). НЕ каталог. Пока запрос непустой, вся полоса вкладок и содержимое вкладок СКРЫВАЮТСЯ и вместо них рендерится карточка результатов (Library.tsx:893-938) с меткой источника у каждой строки («Избранное» / «Коллекция · {name}» / «Недавнее» / «Подписка»).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пустой результат поиска ведёт в каталог",
+        "where": "apps/webapp/src/screens/Library.tsx:919",
+        "detail": "«Ничего не найдено по запросу «{query}»» + кнопка «Искать в каталоге» (переносит запрос в searchDraft и переключает на экран Поиска). Если медиатека вообще пуста — «Медиатека пока пуста — добавь станции в избранное, плейлисты или подписки.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "На вкладке «Находки» поле поиска по медиатеке не показывается",
+        "where": "apps/webapp/src/screens/Library.tsx:834",
+        "detail": "Условие !findsTabActive. Сделано намеренно: у FindsList свой постоянный поиск («Поиск: исполнитель, трек, станция»), два поля подряд запрещены. Два запроса — раздельный state, переключение вкладок не оставляет «Станции» молча отфильтрованными.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Быстрые действия над вкладками: «Всю медиатеку вперемешку» и «Новый плейлист»",
+        "where": "apps/webapp/src/screens/Library.tsx:873",
+        "detail": "Показываются только когда поиск по медиатеке пуст. Шаффл собирает объединение избранное+недавнее+все плейлисты+подписки (Library.tsx:620-637), перемешивает и ОТПРАВЛЯЕТ ВНИЗ заведомо битые (orderStationsByPlayability по playabilityProfile+stationHealthProfile, Library.tsx:652); ничего не выбрасывается. sourceLabel = «Медиатека вперемешку». «Новый плейлист» переключает на вкладку «Плейлисты» и открывает inline-форму.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладка «Избранное»: список лайкнутых станций + «Вперемешку»",
+        "where": "apps/webapp/src/screens/Library.tsx:964",
+        "detail": "Рендерит StationTable(stations=favorites, nowPlayingMode='viewport'). Порядок — новые сверху (toggleFavorite кладёт в начало, RadioContext.tsx:1731). Единственное действие уровня вкладки — чип «Вперемешку» (playFavoritesShuffle, тот же демоушен битых). Кнопки «очистить избранное» здесь НЕТ — она только в Настройках («Очистить избранное», Settings.tsx:225).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пустое «Избранное» предлагает поиск, глобус и вход в аккаунт",
+        "where": "apps/webapp/src/screens/Library.tsx:989",
+        "detail": "«Сохрани первые станции» / «Лайкни станции из поиска или с глобуса, и здесь соберётся твоя личная полка.» + «Открыть поиск», «Открыть глобус»; если sessionStatus !== 'authenticated' — ещё чип входа (account.signInAndSync).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладка «Очередь»: hero текущей станции, действия и перетаскиваемый список",
+        "where": "apps/webapp/src/screens/Library.tsx:1009",
+        "detail": "Заголовок «Очередь» + подзаголовок = queue.sourceLabel (или radio.queueDefault). Hero-карточка: кикер «Сейчас в эфире»/«Продолжить», имя ведущей станции, строка nowPlaying или локация, кнопка «Слушать»/«Играет». Действия: «Вперемешку» (только при >1 элементе), «Сохранить как плейлист», «Очистить очередь».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Перетаскивание строк очереди пальцем + кнопки «Выше»/«Ниже»",
+        "where": "apps/webapp/src/screens/Library.tsx:258",
+        "detail": "usePointerReorder на Pointer Events (работает в мыши и в тач/Telegram WebView, usePointerReorder.ts:1-8), ручка — отдельная кнопка с шестью точками (Library.tsx:1119). Играющая строка ЗАБЛОКИРОВАНА (isLocked: index === queue.currentIndex): у неё вместо ручки номер, нет стрелок, и соседние перемещения через неё запрещены (disabled при targetIndex === currentIndex, Library.tsx:1153/1162). Это политика «радио само станцию не переключает».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Действия над строкой очереди: «Слушать»/«Играет» и «Убрать»",
+        "where": "apps/webapp/src/screens/Library.tsx:1169",
+        "detail": "queue.playAtIndex(index) и queue.removeAtIndex(index). Плашки состояния: «Играет» у активной, «Дальше» у следующей (Library.tsx:1139-1141). Удаление играющей строки при опустевшей очереди останавливает плеер (RadioContext.tsx:2539-2548).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Вперемешку» в очереди двигает только предстоящее и не трогает звук",
+        "where": "apps/webapp/src/state/RadioContext.tsx:2637",
+        "detail": "reshuffleQueueSnapshot пиннит играющий элемент на его индексе; никакого play*-вызова, audio-элемент, лог недавнего и аналитика play_attempt не трогаются. Всегда даёт обратную связь тостом «Очередь перемешана» (role=status).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Сохранить как плейлист» — снимок очереди в новую коллекцию",
+        "where": "apps/webapp/src/screens/Library.tsx:539",
+        "detail": "Inline-форма (не шит) с предзаполненным именем «Очередь · {дата}», обрезанным до 48 символов. buildQueueCollection дедуплицирует по stationuuid, сохраняет порядок, режет до 128 станций (queueToCollection.ts:17-42). Воспроизведение НЕ трогается; станции очереди принудительно кешируются rememberStations, иначе плейлист отрисовался бы висячими id (RadioContext.tsx:2186). Тост «Очередь сохранена как плейлист: {name}».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пустая очередь: «Очередь пока пустая» + «Продолжить»",
+        "where": "apps/webapp/src/screens/Library.tsx:1191",
+        "detail": "«Открыть поиск», «Открыть глобус», и чип «Продолжить» (playLast) — он появляется, только если есть returnToAir / recentStations / играющая станция.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Боковая колонка очереди (история станций + журнал треков) — только десктоп",
+        "where": "apps/webapp/src/screens/Library.tsx:1186",
+        "detail": "renderQueueRailCards (Library.tsx:737) рисует «История прослушивания» (4 станции, тап = играть) и «Журнал треков» (4 находки с кнопкой «Копировать» с обработкой отказа буфера → тосты «Скопировано»/«Не удалось скопировать»). На ≤720px (isMobileLayout) колонка не рендерится вовсе — тот же контекст живёт во вкладках «Недавнее» и «Находки».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладка «Недавнее»: только СТАНЦИИ, объединение трёх источников",
+        "where": "apps/webapp/src/screens/Library.tsx:1211",
+        "detail": "Подзаголовок «Последние сессии остаются на виду, чтобы эфир жил.». Список recentStations = [player.current, ...recent, ...playbackHistory в обратном порядке], дедуп по stationuuid (Library.tsx:412-421). recent хранит максимум 20 (MAX_RECENT, defaults.ts:16), playbackHistory — 80 (MAX_PLAYBACK_HISTORY). Скопированные треки сюда НЕ попадают — они только в «Находках».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Кнопка «Очистить недавнее» очищает не весь видимый список",
+        "where": "apps/webapp/src/screens/Library.tsx:1223",
+        "detail": "Чип показывается по условию recent.length и зовёт clearRecent, а clearRecent = setRecent([]) (RadioContext.tsx:2147) — playbackHistory он не трогает. Список на вкладке строится из объединения, поэтому после нажатия станции, известные только из playbackHistory, остаются на экране, а сам чип исчезает (recent.length === 0). Значение счётчика вкладки тоже останется ненулевым.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладка «Находки» — сохранённые треки, отдельный экран FindsList",
+        "where": "apps/webapp/src/screens/Library.tsx:1264",
+        "detail": "<FindsList finds={trackHistory} onRemove={removeTrackHistoryItem} />. Один скролл страницы (внутреннего скроллера намеренно нет), постоянное поле поиска «Поиск: исполнитель, трек, станция», группы «Сегодня» / «Вчера» / «Эта неделя» / далее по месяцам (FindsList.tsx:124-134). При поиске группы схлопываются в плоский список. Пусто: «Здесь будут твои находки» + «Услышал что-то своё — нажми «Сохранить находку» в плеере.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Что именно хранится у находки: трек, id станции, имя станции, время",
+        "where": "apps/webapp/src/state/radio/types.ts:27",
+        "detail": "TrackHistoryItem = { id: `${timestamp}-${stationuuid}`, stationId, stationName, track, timestamp }. Исполнитель ОТДЕЛЬНЫМ полем не хранится — track это цельная строка ICY, как её отдала станция (после normalizeTrustedTrackTitle). Обложки, длительности, ссылки на сервис не сохраняются. Строка под треком в списке: «{stationName} · {время}» (FindsList.tsx:215) — под «Сегодня»/«Вчера» только часы:минуты, в остальных группах и в поиске полная дата.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Действия у находки: открыть в музыкальном сервисе (44×44), «⋮» → открыть в другом / «Копировать» / «Удалить»",
+        "where": "apps/webapp/src/components/FindsList.tsx:218",
+        "detail": "Первый тап по кнопке сервиса поднимает пикер «Где слушать находки?» с шестью сервисами (Яндекс Музыка, Звук, VK Музыка, Spotify, SoundCloud, YouTube); выбор запоминается на устройстве, и кнопка меняет ♪ на монограмму (ЯМ/ЗВ/VK/SP/SC/YT). «Открыть в другом сервисе» — разовое, дефолт не двигает (FindsList.tsx:165-177). Если название нечего искать — «В названии нечего искать». Удаление — с подтверждением «Удалить находку?» (Отмена/Удалить), тост «Находка удалена». Undo нет — решение осознанное.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Поделиться находкой и передать её Лире",
+        "where": "PLAN.md:559",
+        "detail": "«Из сохранённой находки: открыть поиск во внешнем сервисе, скопировать, поделиться, передать контекст Лире.» В коде FindsList.tsx:331-377 в меню «⋮» ровно ТРИ пункта: открыть в сервисе, «Копировать», «Удалить». Ни «Поделиться», ни обращения к Лире в компоненте нет.",
+        "status": "planned-only"
+      },
+      {
+        "capability": "«Очистить все находки» — функция есть в контексте, кнопки нет нигде",
+        "where": "apps/webapp/src/state/RadioContext.tsx:2148",
+        "detail": "clearTrackHistory = () => setTrackHistory([]) объявлена и отдаётся в LibraryContext (RadioContext.tsx:2944), но ни один компонент её не вызывает: единственный способ удалить находку в UI — по одной через «⋮» → «Удалить». Лимита на число находок больше нет — MAX_TRACK_HISTORY удалён намеренно (defaults.ts:17-23).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Вкладка «Плейлисты»: сетка карточек, сортировка, создание",
+        "where": "apps/webapp/src/screens/Library.tsx:1590",
+        "detail": "Заголовок «Плейлисты» / «Собирай свои наборы станций для настроения, стран и любимых эфиров.». Сортировка тремя чипами: «Закреплённые» (по умолчанию: pinned → updatedAt → имя), «Свежие» (updatedAt), «По имени» (localeCompare). «Новый плейлист» открывает inline-форму с полем «Название плейлиста»; имя режется до 48 символов (RadioContext.tsx:2159), после создания пользователь СРАЗУ попадает внутрь нового пустого плейлиста.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Карточка плейлиста: обложка-мозаика, счётчик, «Слушать», «Вперемешку», «···», превью 3-4 станций",
+        "where": "apps/webapp/src/screens/Library.tsx:1595",
+        "detail": "CollectionArtwork собирается из станций плейлиста. Подпись «Станций: {count}». «Слушать» играет в сохранённом порядке (порядок слушателя не переставляется), «Вперемешку» — перемешивает и топит битые. «···» на мобильном (≤720px) открывает нижний шит, на десктопе открывает детальную карточку. Внизу «Все станции» + подсказка «Открой, чтобы слушать и убирать станции.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Детальная карточка плейлиста: «Слушать», «Вперемешку», «Ещё» (моб.) / те же чипы inline (десктоп)",
+        "where": "apps/webapp/src/screens/Library.tsx:1280",
+        "detail": "Полный набор: «Переименовать», «Закрепить»/«Открепить», «Добавить текущее» (только если что-то играет), «Порядок» (только при >1 станции), «Удалить». На ≤720px они уезжают в шит через «Ещё» — CSS шита свёрстан только под ≤720px, поэтому на десктопе он намеренно НЕ монтируется. Кнопка «Назад» возвращает в сетку и восстанавливает позицию прокрутки (Library.tsx:282-298).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Удаление плейлиста — в два тапа, без модалки",
+        "where": "apps/webapp/src/screens/Library.tsx:689",
+        "detail": "Первый тап по «Удалить» взводит подтверждение, кнопка меняет текст на «Точно удалить?»; второй тап удаляет. Взвод сам снимается через 3,5 с (Library.tsx:276-280). Тост «Плейлист удалён: {name}». Тостовые уведомления живут 2,8 с (Library.tsx:269-273).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Режим «Порядок»: ручное перемещение станций внутри плейлиста",
+        "where": "apps/webapp/src/screens/Library.tsx:1429",
+        "detail": "Список превращается в нумерованные строки с кнопками «Убрать», «Выше», «Ниже» (moveStationInCollection, ±1). Шапка схлопывается до одной кнопки «Готово». Вне этого режима внутри плейлиста рендерится обычный StationTable. Перетаскивания мышью/пальцем здесь НЕТ — только стрелки (в отличие от очереди).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Быстрое наполнение пустого плейлиста из своего: «Добавить из медиатеки»",
+        "where": "apps/webapp/src/screens/Library.tsx:1510",
+        "detail": "Под списком детальной карточки — список кандидатов из избранного + недавнего, которых в плейлисте ещё нет, максимум 40 (Library.tsx:433-446). Тап по строке добавляет станцию. Пустой плейлист дополнительно предлагает «Добавить станции» (уводит на Поиск) и «Добавить текущее». Лимит станций в плейлисте — 128 (RadioContext.tsx:2324).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Добавить станцию в плейлист прямо из любой строки списка станций",
+        "where": "apps/webapp/src/components/StationTable.tsx:373",
+        "detail": "Кнопка «В плейлист» открывает портальный диалог «Добавить в плейлист»: список плейлистов со счётчиками, уже добавленные помечены «Уже добавлена» и disabled; внизу поле и кнопка «Создать и добавить». Если плейлистов нет — «Плейлистов пока нет — создай новый ниже.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Действия над строкой станции в любом списке Медиатеки",
+        "where": "apps/webapp/src/components/StationTable.tsx:503",
+        "detail": "На узком экране тело строки открывает шит «Что сделать со станцией {station}» с пятью пунктами: «Слушать»/«Пауза», «В лайки»/«Убрать лайк», «В плейлист», «Поделиться», «Скрыть из рекомендаций»/«Вернуть в рекомендации». На самой строке остаются только две 44px-кнопки (play и лайк) — число выведено арифметикой ширины, StationTable.tsx:313-317. На широком — те же действия видимыми иконками (StationTable.tsx:327-415).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Подписки на станции и регионы — блоки внизу вкладки «Плейлисты»",
+        "where": "apps/webapp/src/screens/Library.tsx:1686",
+        "detail": "«Подписки на станции» (кнопки «Слушать» и «Отписаться»; «Слушать» disabled, если станция не резолвится из кеша) и «Подписки на регионы» (RegionArtwork + «Слушать», «Открыть глобус», «Отписаться»). ⚠ Оба списка обрезаны до ЧЕТЫРЁХ элементов в createLibraryDiscoveryFeed (discoveryFeed.ts:605-612), и кнопки «показать все» нет — при пяти и более подписках остальные не видны нигде.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Алерты и дайджесты — там же, под подписками",
+        "where": "apps/webapp/src/screens/Library.tsx:1770",
+        "detail": "Заголовок «Алерты», переключатель «Алерты вкл.»/«Алерты выкл.», переключатель бота «Включить бота»/«Бот включён» и, если пользователь включил бота, но не запускал его, ссылка «Открыть @bot → Start». Плашка «Новых {N}». До 4 дайджестов (с кнопкой «Слушать», disabled если ни одна станция не резолвится) и до 8 алертов с «Прочитано»/«Уже прочитано». Пусто: «Алертов пока нет.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Синхронизация с сервером: вся медиатека одним PUT, дебаунс 1,4 с",
+        "where": "apps/webapp/src/state/radio/useCloudLibrarySync.ts:191",
+        "detail": "Уезжают favorites, recent (обрезано до 20), trackHistory (ЦЕЛИКОМ, без лимита — useCloudLibrarySync.ts:201-204), collections, followedStations, followedRegions, alerts, tasteProfile. НЕ синхронизируются: playbackHistory, digests, notificationPreference, stationCache и сама очередь воспроизведения — их нет в типе CloudLibrary (contracts.ts:163). Очередь лежит только локально, в 'radio:player:v2' (RadioContext.tsx:237).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Первый вход: облако и устройство СЛИВАЮТСЯ, ничего не затирается",
+        "where": "apps/webapp/src/state/radio/useCloudLibrarySync.ts:86",
+        "detail": "Однократная гидрация на профиль: объединение по id с лимитами — коллекции 24, подписки на станции 80, на регионы 40, алерты 160, недавнее 20; находки сливаются mergeTrackHistory. Если после слияния сервер отстал, локальный результат тут же отправляется обратно. Удаление плейлиста tombstone'ов не имеет: другое устройство со старой копией может вернуть его своим слиянием (RadioContext.tsx:2211-2218).",
+        "status": "shipped"
+      },
+      {
+        "capability": "При отказе синхронизации человеку говорят — и только если реально висит несохранённая находка",
+        "where": "apps/webapp/src/state/RadioContext.tsx:549",
+        "detail": "Тост «Находка сохранена на устройстве. Синхронизация не удалась» (toast.findSavedNotSynced) + событие find_sync_failed. Условие ДОКАЗЫВАЕТСЯ данными: countFindsPendingSync сравнивает находки устройства с последней подтверждённой сервером копией по тождеству `stationId:track.toLowerCase()` (findsPendingSync.ts:38-56); ноль pending — молчим. Восстановление = synced И pending === 0 → find_sync_recovered.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Если отказало САМО хранилище устройства — «сохранено» откатывается",
+        "where": "apps/webapp/src/state/RadioContext.tsx:213",
+        "detail": "usePersistentState('radio:library:v2') с rollbackOnWriteError: true; при отказе записи выводится тост «Не удалось сохранить находку» (toast.findNotSaved) и событие find_persist_failed (RadioContext.tsx:587-591). Это третье честное состояние помимо «сохранено и синхронизировано» и «сохранено локально, облако не доехало».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Отдельные серверные ручки для плейлистов и подписок висят неиспользованными",
+        "where": "apps/webapp/src/state/SessionContext.tsx:1320",
+        "detail": "updateCollections (PUT /me/collections) и updateFollows (PUT /me/follows) реализованы, отдаются через контекст сессии (SessionContext.tsx:1875-1877) — и не вызываются ни одним компонентом веб-приложения. Роуты на сервере существуют (apps/api/src/accountRoutes.ts:117 и :139). Фактически плейлисты и подписки уезжают только целиком, внутри общего PUT библиотеки.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Форматирование даты в экране Медиатеки",
+        "where": "apps/webapp/src/screens/Library.tsx:378",
+        "detail": "const formatTime = (value: number) => ... toLocaleString с годом/месяцем/днём/часами/минутами. Объявлена и не используется ни разу — единственное вхождение слова formatTime в файле. Даты в Медиатеке сегодня печатает только FindsList своим rowTime (FindsList.tsx:145).",
+        "status": "dead-code"
+      }
+    ],
+    "notes": "Проверял только код, каждый пункт открывал глазами по строке.\n\nРасхождения документов с кодом:\n- PLAN.md:370 числит «первым дефектом 0.1b» кнопку «Копировать» на карточке находки, зовущую navigator.clipboard.writeText без проверки, и ссылается на Library.tsx:748. По этому адресу сегодня (Library.tsx:772-788) стоит .then/.catch с тостами «Скопировано»/«Не удалось скопировать»; в FindsList.tsx:187-198 — try/await/catch. Дефект закрыт, запись в PLAN.md устарела.\n- PLAN.md:559 обещает у сохранённой находки «поделиться» и «передать контекст Лире» — этого в коде нет (см. пункт planned-only).\n\nЧто показалось важным и не спрошено прямо:\n- «Очистить недавнее» очищает только массив recent, а вкладка рисует объединение с playbackHistory — список после нажатия не опустеет. Я вывел это чтением (Library.tsx:412-421 + :1222-1226 + RadioContext.tsx:2147), НЕ проверял вживую в браузере.\n- Подписки на станции/регионы жёстко обрезаны до 4 без «показать все» — это discoveryFeed.ts:605-612, а не решение экрана.\n- «Порядок» в плейлисте — только кнопки «Выше»/«Ниже»; перетаскивание есть только в очереди. Асимметрия, скорее всего непреднамеренная.\n- Мобильные нижние шиты плейлистов монтируются ТОЛЬКО при isMobileLayout — в коде рядом стоит предупреждение, что разгейтить их нельзя, иначе неостилённый шит инертит #root.\n\nЧего не нашёл (не додумывал): экспорта/импорта плейлистов, публичных плейлистов (поле isPublic в UserCollection всегда false и в UI не встречается), сортировки или фильтров внутри «Избранного», массового выбора станций, статистики прослушивания, «offline»-режима медиатеки. Экрана «История» как вкладки нет вовсе.\n\nНе запускал ни сборку, ни тесты, ни браузер — задача была только на чтение."
+  },
+  {
+    "dimension": "Плеер (компактный док + полноэкранный): полный состав действий",
+    "items": [
+      {
+        "capability": "Play/Pause в мини-плеере (док)",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:719",
+        "detail": "Кнопка `dock-play-btn`, вызывает `player.toggle()` + гаптик. aria-label переключается: «Слушать» (common.play, ru.ts:63) / «Пауза» (common.pause, ru.ts:64). Текста нет, только иконка. Отключена при `!current`, но док при `!current` вообще не рисуется (ранний return на MiniPlayerDock.tsx:311).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Дальше» в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:739",
+        "detail": "Кнопка `dock-next-btn` → `playNext()`. aria-label «Дальше» (common.next, ru.ts:66). Никогда не disabled — жмётся и при пустой очереди.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Назад» (предыдущая станция) в мини-плеере — ТОЛЬКО свайпом",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:129",
+        "detail": "Кнопки «Назад» в доке НЕТ. `useDockSwipe(barRef, …)`: свайп влево → playNext(), вправо → playPrevious(). Пороги в apps/webapp/src/lib/dockSwipe.ts:25-38 (12px engage, 72px commit, защита краёв 24px от телеграмовского edge-жеста). Ни подписи, ни подсказки на экране нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Громкость в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:693",
+        "detail": "Кнопка `dock-volume-btn`, aria/title «Громкость» (dock.volume, ru.ts:744). Левый клик открывает лоток-ползунок (MiniPlayerDock.tsx:364-397): проценты вида «73%», input range 0–100, отдельная кнопка mute с aria «Выключить звук» (dock.mute). Средний/правый клик и контекстное меню мьютят сразу (MiniPlayerDock.tsx:272-279, 702).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Сохранение станции («лайк») в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:752",
+        "detail": "Кнопка-сердце `dock-like-btn` → `toggleFavorite(current)`. aria-label «В лайки» / «Убрать лайк» (stationTable.favorite/unfavorite, ru.ts:113-114), aria-pressed. Пишет в список `favorites` + вкус-профиль, событие `like`, немедленная облачная синхронизация (RadioContext.tsx:1725-1766).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Сохранение НАХОДКИ (трека) в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:617",
+        "detail": "ОТДЕЛЬНОЕ действие от лайка станции. Кнопка-строка трека `player-dock-track-button active` с иконкой ЗАКЛАДКИ → `copyTrack()`. aria/title «Сохранить находку» (dock.copyCurrentTrack, ru.ts:753). При отсутствии трека кнопки нет вовсе — рендерится простой `<div>` (MiniPlayerDock.tsx:635). Комментарий на строках 603-616 прямо объясняет, что иконка намеренно НЕ сердце: «станция — источник, который любишь, трек — находка, которую сохранил».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Что физически делает «Сохранить находку»",
+        "where": "apps/webapp/src/state/RadioContext.tsx:2461",
+        "detail": "`copyTrack()`: сперва `rememberTrackHistory(station, trustedTrack)` (объект находки = трек + stationId + время), затем `recordBehaviorForStation(…, 'track-copy')`, затем ПОПЫТКА записи в буфер обмена. Тосты: «Находка сохранена» (toast.findSaved, ru.ts:1236) или «Находка сохранена, скопировать не вышло» (findSavedNoCopy, ru.ts:1237); без трека — «Нет данных о треке». Порядок намеренный: буфер обмена не может отменить находку.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Открыть полноэкранный плеер из дока",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:281",
+        "detail": "`openFullPlayer()` → `winamp.setExpanded(true)`. Две точки входа: тап по обложке (MiniPlayerDock.tsx:337, aria/title «Плеер», dock.openWinamp, ru.ts:742) и тап по названию станции (MiniPlayerDock.tsx:644). Третья — из Ленты, кнопка «Открыть плеер» (apps/webapp/src/screens/StationFeed.tsx:934).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Лоток «Ещё» в мини-плеере — доп. действия без выхода в полный плеер",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:679",
+        "detail": "Кнопка «Ещё» (dock.more, ru.ts:743) открывает лоток с заголовком «Ещё» и строками: «Очередь» + счётчик (playlist.title), «Детали» (winamp.stationDetails), «Поделиться» (common.share), «Открыть в браузере» (common.openBrowser), «Скрыть»/«Вернуть» (details.hideFromRecommendations/showInRecommendations). Ниже блок «Таймер сна» с чипами 15/30/45/60 «мин» либо «Отменить». Рендер: MiniPlayerDock.tsx:398-510.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Лоток очереди в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:512",
+        "detail": "Показывает 3 ближайшие станции очереди начиная с текущей, заголовок = метка источника (по умолчанию «Очередь воспроизведения», radio.queueDefault) и прогресс «3/17» или «В очереди: N». Кнопки: «Открыть очередь» (dock.queueOpen), «Вперемешку» (library.shuffleQueue, ru.ts:679; disabled при ≤1 станции), «Открыть треки» (dock.copiedTracksOpen). Пустое состояние: «Собери очередь из поиска, глобуса или избранного.» + «Искать станции».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Статус-пилюля в доке (буферизация / переподключение / повтор / резервный поток / открыть снаружи)",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:175",
+        "detail": "Одна строка-пилюля: «Буферизация», «Переподключение» (при недавних сбоях транспорта), «Открыть снаружи» (кликабельна → openExternal, для mixed-content/api-unavailable/unsupported-transport), «Повторить» (кликабельна → playStation, при status==='error'), «Резервный поток». Все строки — dock.* в ru.ts:757-763.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Док рисуется по запрошенной станции, а не только по играющей",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:112",
+        "detail": "`const current = player.current ?? player.pending` — иначе бар исчезал на каждое переключение до момента, пока поток не заиграет. При полном отсутствии станции док не рисуется вообще (`isDormantDock` → return null, строка 311), и оболочка снимает нижний резерв (App.tsx:441, `data-dock`).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Компактный режим 'peek' мини-плеера",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:319",
+        "detail": "Отдельной отрисовки больше НЕТ — комментарий на строках 319-325 фиксирует, что 'peek' проваливается в обычный бар. Кнопка «Свернуть» удалена (комментарий MiniPlayerDock.tsx:768-775). Значение 'peek' остаётся дефолтом состояния (state/radio/defaults.ts:51) и живёт у старых сессий, но визуально ничем не отличается.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Полноэкранный плеер: две разные разметки по ширине",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:113",
+        "detail": "`MOBILE_PLAYER_QUERY = '(max-width: 720px)'`, ветка выбирается в JS (`isMobileLayout`, строка 798). ≤720px — мобильная сцена с нижними шитами; >720px — старый десктопный DOM с инлайн-панелями. Состав действий у веток РАЗНЫЙ (см. ниже), а не только раскладка.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Транспорт в полноэкранном плеере (назад / play-pause / дальше)",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:596",
+        "detail": "`renderTransport()` — общий для обеих веток (вызов на 884 и 965). aria-label'ы «Назад» (common.previous), «Слушать»/«Пауза», «Дальше». Все три disabled при `!canResume`. Если станции нет, центральная кнопка вызывает `playLast()` (FullPlayerOverlay.tsx:424).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Громкость в полноэкранном плеере",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:643",
+        "detail": "`renderVolume()` — кнопка mute/unmute + ползунок 0–100 + подпись «73%». aria-label «Громкость». Вызывается в обеих ветках (885, 966). Комментарий на 639-642 фиксирует причину: у полного плеера раньше вообще не было регулятора.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Строка трека в полном плеере → шит с музыкальными сервисами",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:569",
+        "detail": "Тап по строке трека открывает шит: заголовок = сам трек, метка «Открыть в сервисе» (details.openInService, ru.ts:991) и шесть строк — «Яндекс Музыка», «Звук», «VK Музыка», «Spotify», «SoundCloud», «YouTube» (apps/webapp/src/lib/musicServiceLinks.ts:23-39). Ниже строка «Копировать трек» (details.copyTrack, ru.ts:990), которая на самом деле вызывает тот же `copyTrack()` — то есть сохраняет находку, а называется «копировать». Ссылки — чистые поисковые URL, без сети и без выдуманных id.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Шит музыкальных сервисов НЕ открывается на десктопной ветке",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:1136",
+        "detail": "`renderTrackButton()` общий для обеих веток и всегда делает `setTrackSheetOpen(true)`, но сам `FullPlayerSheet` с сервисами отрисован под `isMobileLayout ? … : null`. На ширине >720px тап по треку меняет состояние и НЕ показывает ничего. То же для шита действий (1025), очереди (1116) и таймера сна (1182).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Запись эфира («Записать эфир»)",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:709",
+        "detail": "`renderRecordChip()` — чип «Записать эфир» (winamp.record, ru.ts:1139), диплинк `t.me/<bot>?start=rec_<stationId>` (apps/webapp/src/lib/telegram.ts:300). Гейт `recordAvailable = Boolean(import.meta.env.VITE_TG_BOT)` (строка 410). ⚠ Вызывается ровно ОДИН раз — на строке 983, внутри ДЕСКТОПНОЙ ветки. На телефоне (≤720px) кнопки записи в приложении НЕТ ни на сцене, ни в шите «Действия». Комментарий на 705-708 утверждает обратное («on mobile it owns the third face slot») и устарел. В боте флоу реальный: ffmpeg-запись, пресеты 5/15/30 мин (apps/bot/src/recordStream.ts:82, apps/bot/src/index.ts:383).",
+        "status": "partial"
+      },
+      {
+        "capability": "«Поделиться» станцией",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:833",
+        "detail": "Мобильная сцена: иконка в шапке, aria «Поделиться» (common.share, ru.ts:77). Десктоп: чип с подписью (renderShareChip, строка 692). Реализация — RadioContext.tsx:2005: диплинк на бота, затем нативный телеграм-пикер → web share → буфер обмена, с тостами.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«В Историю» (Telegram Story)",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:1054",
+        "detail": "Строка в мобильном шите «Действия» и чип на десктопе (971). Гейт `canShareToStory()` — Bot API ≥7.8 и настоящий клиент Telegram (apps/webapp/src/lib/telegram.ts:338). Подпись «В Историю» (common.shareStory, ru.ts:78). Отправляет серверную карточку `/api/share/story/<id>.png`.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Скрыть из рекомендаций» / «Вернуть»",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:1092",
+        "detail": "Мобильно — строка в шите «Действия»; десктоп — чип (1004); в доке — строка в лотке «Ещё» (MiniPlayerDock.tsx:458). Подписи короткие: «Скрыть» / «Вернуть» (details.hideFromRecommendations/showInRecommendations, ru.ts:1017-1018). Реализация RadioContext.tsx:2237: правит вкус-профиль, ставит сигнал 'skip-before-10s' весом -12, шлёт событие station_hidden, тост «…скрыта».",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Детали» — карточка станции",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:1080",
+        "detail": "Строка «Детали» (winamp.stationDetails, ru.ts:1138) в мобильном шите, чип на десктопе (994), строка в лотке «Ещё» дока (MiniPlayerDock.tsx:430). Открывает отдельный шит StationDetails (App.tsx:565), у которого свои «Копировать трек», «Поделиться», «В Историю» (components/StationDetails.tsx:181,195,199).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Таймер сна в полноэкранном плеере",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:897",
+        "detail": "Пилюля на сцене показывает «Таймер сна» либо живой отсчёт вида «28:07»; открывает шит с круглым диском (SleepTimerDial, перетаскивание, шаг 5 мин, 5–60), пресетами 15/30/45/60 «мин» и кнопкой «Запустить»/«Отменить» (settings.sleepStart/sleepStop, ru.ts:832-833). Логика — apps/webapp/src/lib/sleepTimer.ts:39 (абсолютное время окончания, переживает фон), по срабатыванию ставит паузу (RadioContext.tsx:2858). ⚠ На десктопной ветке полного плеера таймера сна НЕТ вообще.",
+        "status": "partial"
+      },
+      {
+        "capability": "Очередь в полноэкранном плеере: играть, вверх, вниз, убрать, очистить дальше",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:462",
+        "detail": "`renderQueueItem` — до 13 позиций, у каждой aria «Выше» (queue.moveUp), «Ниже» (queue.moveDown), «Убрать из очереди» (queue.remove), тап по строке = `queue.playAtIndex`. Панель (727): заголовок «Дальше в очереди» (winamp.upNext), «Станций в очереди: N», кнопки «Очистить дальше» (queue.clearUpcoming) и «Открыть очередь» (queue.openLibrary). На телефоне — в шите, на десктопе — инлайн-панель (1017).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Недавно в эфире» — что станция играла, со временем",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:539",
+        "detail": "Секция «Недавно в эфире» (winamp.recentOnAir, ru.ts:1118) на мобильной сцене — до 3 треков с временем наблюдения в часовом поясе слушателя. Отдельно панель «Недавние треки» (winamp.recentTracks) в шите/на десктопе (756), пусто → «Треки этой станции пока не сохранялись.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Информация о станции на сцене плеера: название, место, местное время, жанры, контур страны",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:853",
+        "detail": "Заголовок = имя станции, строка места + «· 21:47» — местное время станции (stationLocalTime, скрывается для стран с несколькими поясами, FullPlayerOverlay.tsx:526). Ниже — теги (872) и карточка `StationPlaceCard` с меткой «Откуда вещает» (winamp.onAirFrom, ru.ts:1117) и настоящей геометрией страны (components/StationPlaceCard.tsx:1-25).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Лестница строки «сейчас играет» и признание молчащей станции",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:323",
+        "detail": "`resolveNowPlayingLine` даёт трек → последний услышанный (метка «Ранее», dock.lastHeard) → жанр → «Прямой эфир» (dock.liveBroadcast, ru.ts:755). После подтверждённого молчания под строкой появляется «Эта станция не передаёт названия треков» (dock.stationSendsNoTitles, ru.ts:756) — только если сессия сама это наблюдала (FullPlayerOverlay.tsx:365-385). Тот же механизм в доке (MiniPlayerDock.tsx:215).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Живые слушатели («Ещё N слушают»)",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:952",
+        "detail": "Строка формируется в apps/webapp/src/lib/listenerPresence.ts:95 и печатает ЧУЖИХ, не всех; порог 2 (PLAYER_MIN_LISTENERS). ⚠ Отрисована ТОЛЬКО в десктопной ветке — на телефоне `listenerLine` вычисляется (строка 276) и никуда не выводится. Текст захардкожен по-русски, не через словарь.",
+        "status": "partial"
+      },
+      {
+        "capability": "Визуализатор в полноэкранном плеере",
+        "where": "apps/webapp/src/components/FullPlayerVisualizer.tsx:1",
+        "detail": "Смонтирован в обеих ветках (FullPlayerOverlay.tsx:861 и 960), питается от `player.subscribeVisualizer`. Плюс фон сцены `StationBackdrop` (792) по цвету обложки и микро-реакция обложки в доке через `--ra-energy` (MiniPlayerDock.tsx:83-101).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Управление с экрана блокировки / системными кнопками (MediaSession)",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1973",
+        "detail": "Обработчики play/pause → `player.toggle()`, stop → `player.stop()`; nexttrack/previoustrack регистрируются ТОЛЬКО когда в очереди больше одной станции, иначе снимаются (строки 1983-1992). Метаданные (название трека, станция, обложка) — строки 1934-1964.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Стоп (полная остановка) — есть в движке, кнопки в UI нет",
+        "where": "apps/webapp/src/lib/useAudioPlayer.ts:2029",
+        "detail": "`stop` экспортируется плеером, но из интерфейса вызывается только через MediaSession 'stop' (RadioContext.tsx:1980) и внутренние пути (RadioContext.tsx:2546, 2715). Ни в доке, ни в полноэкранном плеере кнопки «Стоп» нет — только пауза.",
+        "status": "partial"
+      },
+      {
+        "capability": "Эквалайзер и стереобаланс",
+        "where": "apps/webapp/src/lib/useAudioPlayer.ts:2022",
+        "detail": "Движок отдаёт `setEqBand`, `setEqEnabled`, `setEqPreamp`, `resetEq`, `setBalance` и состояние `eq {enabled, preamp, bands}`; значения даже логируются в PlaybackRuntime.tsx:49-53. НИ ОДИН компонент интерфейса их не вызывает — во всём apps/webapp/src единственные упоминания вне движка это заглушки в state/radio/playbackBridge.ts:42-46. Управления эквалайзером в приложении нет.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Старый «винамповый» полноэкранный плеер (пасхалка)",
+        "where": "apps/webapp/src/App.tsx:591",
+        "detail": "`LitePlayerOverlay` показывается вместо нового полного плеера, если `?winamp=1` в адресе или пять тапов по логотипу подряд за 2,4 с (App.tsx:326-337). Внутри свой набор чипов: «Слушать/Пауза/Продолжить», «Дальше», сердце, «Инфо», «Скрыть»/«Вернуть», «Поделиться», «В Историю», «Открыть приложение», «Трек» (components/LitePlayerOverlay.tsx:116-167). Громкости и очереди-редактора там нет. PLAN.md:51 помечает это как замороженную пасхалку.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Открыть поток в браузере",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1339",
+        "detail": "`openExternal(station)` → открывает `url_resolved`. Подпись «Открыть в браузере» (common.openBrowser, ru.ts:94). Точки входа: лоток «Ещё» дока (MiniPlayerDock.tsx:444), мобильный шит действий (FullPlayerOverlay.tsx:1068), десктопный чип (984), и кликабельная статус-пилюля «Открыть снаружи» при заблокированном транспорте (MiniPlayerDock.tsx:192).",
+        "status": "shipped"
+      }
+    ],
+    "notes": "ГЛАВНОЕ ПРО «ОДНО ИЛИ РАЗНЫЕ»: сохранить трек и сохранить станцию — это ДВА разных действия, с разным хранилищем, разными иконками и разными подписями. Станция: `toggleFavorite` → список `favorites` (RadioContext.tsx:1725), иконка СЕРДЦЕ, подписи «В лайки» / «Убрать лайк». Трек: `copyTrack` → `trackHistory` (RadioContext.tsx:2461), иконка ЗАКЛАДКА, подпись «Сохранить находку», тост «Находка сохранена». Разделение сделано намеренно — комментарий в MiniPlayerDock.tsx:603-616 объясняет, что раньше там стояла стандартная иконка КОПИРОВАНИЯ и это читалось как «положить текст в буфер», а не «сохранить находку». Единственная непоследовательность: в шите полного плеера тот же самый `copyTrack()` подписан «Копировать трек» (FullPlayerOverlay.tsx:1175) — старым именем действия.\n\nЧЕМ РАЗЛИЧАЮТСЯ ДОК И ПОЛНЫЙ ПЛЕЕР (состав, не оформление).\nТолько в доке: свайп по бару = предыдущая/следующая станция; лоток очереди с превью на 3 станции и кнопкой «Вперемешку»; мьют правым/средним кликом; статус-пилюли «Повторить» / «Открыть снаружи» с действием.\nТолько в полном плеере: кнопка «Назад» как кнопка; шит музыкальных сервисов (6 штук) по треку; таймер сна с диском; редактор очереди (вверх/вниз/убрать/очистить дальше); «Недавно в эфире» с временем; местное время станции; контур страны; визуализатор; «В Историю»; «Записать эфир»; строка живых слушателей.\nВ обоих: play/pause, «Дальше», громкость, лайк станции, сохранение находки, «Поделиться», «Открыть в браузере», «Детали», «Скрыть из рекомендаций», таймер сна (в доке — только пресеты-чипы, без диска).\n\n⚠ ТРИ НАХОДКИ, КОТОРЫЕ НЕ ВИДНЫ ИЗ ДОКУМЕНТОВ:\n1. `renderRecordChip` («Записать эфир») вызывается ровно один раз — на FullPlayerOverlay.tsx:983, внутри ветки >720px. На телефоне, то есть на целевом устройстве, кнопки записи в приложении нет. Комментарий в коде (строки 705-708) прямо утверждает противоположное и устарел. Флоу в боте при этом рабочий (ffmpeg, apps/bot/src/recordStream.ts).\n2. Все четыре нижних шита полного плеера (действия, очередь, трек, таймер сна) отрисованы под `isMobileLayout`. Но общая `renderTrackButton()` используется и на десктопе, где тап по треку выставляет `trackSheetOpen` и не показывает ничего. На ширине >720px музыкальные сервисы, «Копировать трек» и таймер сна недостижимы.\n3. Эквалайзер и баланс полностью реализованы в движке и не имеют ни одного вызова из интерфейса.\n\nЕщё мелочи: строка живых слушателей есть только на десктопной ветке и захардкожена по-русски мимо словаря (lib/listenerPresence.ts:98) — в память проекта записано, что при текущей аудитории она и так почти всегда молчит (порог 2). Работающий таймер сна никак не виден в доке, пока не откроешь «Ещё». Секция транспорта в полном плеере имеет aria-label `dock.ready` = «Плеер» — похоже на случайный ключ. PLAN.md:20 ссылается на `MiniPlayerDock.tsx:620`, фактическая кнопка поимки сейчас на 617-633 — расхождение строк, не смысла.\n\nЧЕГО Я НЕ НАШЁЛ: отдельной кнопки «Стоп» в интерфейсе; регулировки скорости/качества потока; ручного выбора кандидата потока; кнопки «добавить в коллекцию» из плеера; таймлайна/перемотки (её и не может быть — живой эфир). Я не запускал приложение и не проверял поведение на реальном устройстве — всё выше прочитано по коду."
+  },
+  {
+    "dimension": "Текущая Главная: блоки, порядок, источники данных, первый запуск, подборки, «продолжить слушать», деградация каталога",
+    "items": [
+      {
+        "capability": "Порядок блоков Главной сверху вниз (мобильный, dense)",
+        "where": "apps/webapp/src/screens/Home.tsx:1109",
+        "detail": "JSX корня <section className=\"screen screen-home-next\"> рендерит строго в этом порядке: (1) герой HomeHeroCard (1120) или скелет (1117/1141); (2) блок .home-feed-hero — ручка «Лента» + кнопка «Обновить» (1160); (3) ТОЛЬКО при denseLayout — полка «Продолжить слушать» (1207); (4) ведущая полка leadRail (1220); (5) карточка первого запуска, только для новичка (1246); (6) секция «Быстрый выбор» (1261); (7) баннер «Каталог сейчас не отвечает» (1292); (8) полка «Слушают сейчас», если непусто (1325); (9) ТОЛЬКО при !denseLayout — «Продолжить слушать» (1347); (10) все остальные полки secondaryRails (1360). denseLayout = useCompactLayout() = media (max-width: 600px), apps/webapp/src/lib/useCompactLayout.ts:3.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Герой: одна большая карточка станции с названием, местом, местным временем, жанрами и одной кнопкой Play",
+        "where": "apps/webapp/src/screens/homeCards.tsx:457",
+        "detail": "Рендерит: логотип станции, имя, строку «<место> · сейчас HH:MM» (ключ home.heroClockNow = «сейчас {time}», ru.ts:182; время только для стран с одной таймзоной), строку жанров «Rock • Pop • Jazz» (макс. 3 тега), строку трека только когда эта станция реально играет, эквалайзер по реальному звуку, кнопку лайка и одну круглую кнопку Play (homeCards.tsx:561). Бейдж LIVE (app.liveBadge) показывается только при onAir (homeCards.tsx:480). Кикер «Рекомендуем»/«Сейчас играет» удалён намеренно. Пустое состояние: «Собираем витрину» / «Сейчас подтянем свежие станции для этой сессии.» + кнопки «Открыть поиск» и «Обновить» (homeCards.tsx:393).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Герой подменяется на играющую станцию, но рекомендация под ним не двигается",
+        "where": "apps/webapp/src/screens/Home.tsx:716",
+        "detail": "heroNowPlaying = Boolean(player.current) — карточка показывает загруженную станцию даже на паузе; heroOnAir = ещё и player.isPlaying — только от него зависят LIVE-точка и трек. Подмена — чисто презентационная (Home.tsx:723-737), в buildSurfaceFeed не возвращается, иначе полки перетасовались бы под пальцем. Замороженный id рекомендации выводится атрибутом data-home-hero-recommended.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вход в «Ленту»: ручка под героем + жест потягивания вниз",
+        "where": "apps/webapp/src/screens/Home.tsx:1160",
+        "detail": "Кнопка .home-feed-entry с текстом «Лента» (home.feedEntryTitle) и подписью «Станции одна за другой» (home.feedEntrySub), aria-label «Открыть Ленту». Тап и жест (useHeroPullToExpand, Home.tsx:1087) идут в одну функцию openFeed (Home.tsx:1075): пиннит текущего героя как карточку 0 ленты, перекатывает feedSeed и переключает раздел на 'feed'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Кнопка «Обновить» — пересобрать витрину",
+        "where": "apps/webapp/src/screens/Home.tsx:990",
+        "detail": "handleRefresh: refreshSummary(seed, { forceNetwork: true }) → заново строит поверхность с новым сидом; если колода вышла та же (isSameSurfaceDeck), принудительно проворачивает её (rotateSurfaceFeed, Home.tsx:402). ⚠ Каталог для пересборки собирается как summary.catalogPool + knownStations (Home.tsx:996) — БЕЗ tasteCandidates, в отличие от обычной сборки (Home.tsx:503), то есть после «Обновить» персональный пул кандидатов в этой сборке не участвует. Подпись кнопки — home.refreshFeed = «Обновить» (ru.ts:234).",
+        "status": "partial"
+      },
+      {
+        "capability": "Первая (ведущая) полка всегда называется «Попробуйте сейчас» и единственная показывает, что сейчас играет",
+        "where": "apps/webapp/src/screens/Home.tsx:1220",
+        "detail": "leadRail = visibleRails[0], его titleKey принудительно переписывается на 'home.tryNowTitle' = «Попробуйте сейчас» (ru.ts:220), а подпись остаётся от исходной полки. Только ей передан showNowPlaying, и только у первых 6 плиток (NOW_PLAYING_PREVIEW_LIMIT, homeCards.tsx:108) идёт запрос «сейчас играет». Вариант отрисовки берётся по id: fresh-now → 'featured-lead', top-voted → 'logo-strip' (Home.tsx:136).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Полный набор полок витрины и их фиксированный порядок",
+        "where": "apps/webapp/src/lib/homeSurface.ts:252",
+        "detail": "createHomeSurfaceFeed кладёт полки строго в этом порядке (id → заголовок ru): fresh-now («Для тебя», ru.ts:180) · revived-stations («К чему вернуться», ru.ts:291) · trending («🔥 В тренде», ru.ts:268) · country-spotlight («Фокус», ru.ts:259) · genre-spotlight («Жанровый радар», ru.ts:264) · top-voted («🌟 Народный выбор», ru.ts:270) · mood-late-night («🌙 Поздно вечером») · mood-workout («💪 Тренировка») · mood-focus («📚 Концентрация») · mood-driving («🚗 За рулём») (ru.ts:274-281) · around-the-world («🌍 Вокруг света», ru.ts:272) · resume-context («Что изменилось», ru.ts:295) · sponsored («Промо-станции», ru.ts:299). Максимум 13 (HOME_SURFACE_MAX_RAILS, homeSurface.ts:100), по 6 станций на полку (RAIL_STATION_LIMIT, homeSurface.ts:94), станции не повторяются между полками.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Порядок полок на экране отличается от порядка в модели: «своя» полка и запасная поднимаются наверх",
+        "where": "apps/webapp/src/screens/Home.tsx:1092",
+        "detail": "leadRail = visibleRails[0]; из остальных вперёд выносятся сначала revived-stations (OWN_LIBRARY_RAIL_IDS, Home.tsx:66), затем home-new-stations, и только потом всё прочее (Home.tsx:1101-1107). Полке home-new-stations при отрисовке подменяется заголовок на home.discoverNewTitle = «Открой новые станции» (Home.tsx:1366, ru.ts:223).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Все полки Главной приходят из одного запроса — /catalog/summary?seed=<число>",
+        "where": "apps/webapp/src/state/CatalogContext.tsx:264",
+        "detail": "fetchNetworkSummary делает GET `/catalog/summary?seed=${seed}` и кладёт ответ в IDB-кеш (ключ SUMMARY_CACHE_KEY). Стратегия stale-while-revalidate: сначала отдаётся кеш, потом в фоне сеть (CatalogContext.tsx:276-289). Из ответа Главная берёт поля: counts, catalogPool, trending, topVoted, aroundTheWorld, moodRails, countrySpotlight, genreSpotlight, sponsored, generatedAt (Home.tsx:503-506, 665-668).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Серверная сборка витрины: что именно кладётся в каждое поле summary",
+        "where": "apps/api/src/catalog/service.ts:568",
+        "detail": "buildCatalogSummary: catalogPool = seededSample(sorted, seed+3, 48) — 48 станций, сид квантуется по часу; trending = topByNumericSignal(clicktrend, 12, cap по стране); topVoted = topByNumericSignal(votes, 12); aroundTheWorld = buildCountrySpotlight(sorted, dayNumber(now)) — страна меняется в полночь UTC и исключает страну countrySpotlight; moodRails = buildMoodRails(promotable, seed); counts считаются по ВСЕМУ сырому каталогу. Из всех витринных полок предварительно вычищены мёртвые потоки и дубли вещателей (resolvePromotable, service.ts:576).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Четыре полки по настроению, разложенные на сервере по тегам",
+        "where": "apps/api/src/catalog/service.ts:420",
+        "detail": "MOOD_DEFINITIONS: mood-late-night (chillout, ambient, lounge, downtempo, smooth jazz), mood-workout (edm, house, electronic, workout, high energy), mood-focus (classical, jazz, instrumental, lo-fi, lofi, piano), mood-driving (rock, classic rock, pop rock, classic hits, hits, top 40). Совпадение по ЦЕЛОМУ тегу, не по подстроке. Полка скрывается, если в корзине меньше 6 станций (MOOD_RAIL_MIN, service.ts:427); в полку отдаётся 10 (MOOD_RAIL_POOL), рендерится 6. Клиент только подставляет локализованные заголовки по id рельса (apps/webapp/src/lib/discoveryFeed.ts:58).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Полки «Фокус» (страна) и «Жанровый радар» считаются НА КЛИЕНТЕ, а не берутся из summary",
+        "where": "apps/webapp/src/lib/discoveryFeed.ts:241",
+        "detail": "countrySpotlight и genreSpotlight на Главной строятся из локального массива catalog (pickUniqueBucket по странам и по первому осмысленному тегу, корзина от 3 станций), а не из summary.countrySpotlight/genreSpotlight. Поля summary с теми же именами используются только в подписи сигнатуры кеша (homeSurface.ts:83-84). Ярлык корзины (страна или жанр) становится кнопкой-бейджем на полке.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Для тебя» / fresh-now — персональная полка, собранная из смеси серверного пула и «своих» кандидатов",
+        "where": "apps/webapp/src/screens/Home.tsx:503",
+        "detail": "catalog = mergeStations(summary.catalogPool, tasteCandidates, knownStations). tasteCandidates добираются отдельными запросами к /catalog/search по языку/стране вкуса пользователя (useTasteCandidatePool.ts:49, limit 50 на запрос). Дальше rankStationsForUser + diversifyStationOrder (Home.tsx:280-367), из головы колоды берётся герой, остальное — полка fresh-now через applyRecommendationModules (Home.tsx:165, sourceId 'home-profile-rail', titleKey 'home.personalTitle').",
+        "status": "shipped"
+      },
+      {
+        "capability": "«К чему вернуться» — единственная полка из библиотеки самого слушателя",
+        "where": "apps/webapp/src/lib/discoveryFeed.ts:268",
+        "detail": "revivedStationsList = отслеживаемые станции (followedStations), а если их нет — favorites; до 10 штук, seeded-порядок. Заголовок «К чему вернуться», подпись «Ты их сохранил — они остаются здесь.» (ru.ts:291-292). Эта полка исключена из правила «не показывать полку короче 3 плиток» (HOME_MIN_RAIL_STATIONS = 3, OWN_LIBRARY_RAIL_IDS, Home.tsx:62-66, 851-857): одна сохранённая станция — уже полка.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Слушают сейчас» — реальные слушатели RadioAtlas, без подмешивания популярности",
+        "where": "apps/webapp/src/lib/useLiveNow.ts:34",
+        "detail": "GET /listening/live?limit=12 каждые 60 с, опрос останавливается при уходе вкладки в фон. Сервер отдаёт только станции, у которых listeners >= MIN_PUBLIC_LISTENERS = 3 (apps/api/src/listeningRoutes.ts:35,103). Пустой ответ = блок НЕ рендерится вообще (Home.tsx:1325), никаких заглушек. Заголовок «Слушают сейчас», подпись «Живой эфир: станции, которые слушают прямо сейчас» (ru.ts:218-219). ⚠ При текущей аудитории список почти всегда пуст, то есть блока на экране нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Продолжить слушать» / недавнее",
+        "where": "apps/webapp/src/lib/homeSurface.ts:363",
+        "detail": "createHomeResumeModule склеивает по порядку: текущая станция player.current → очередь (queuePreview: queue.items со среза currentIndex, 4 штуки, Home.tsx:512) → recent → playbackHistory в обратном порядке; дедуп, срез до 4. Всё предварительно фильтруется по проигрываемости (filterStationsByPlayability, Home.tsx:516-527). Хранилища: recent — до 20 (MAX_RECENT), playbackHistory — до 80 (MAX_PLAYBACK_HISTORY), apps/webapp/src/state/radio/defaults.ts:16,24; обе живут в localStorage-состоянии библиотеки и синхронизируются с облаком при входе в аккаунт (useCloudLibrarySync.ts:99).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Заголовок полки возврата на экране — «Продолжить слушать», а не тот, что записан в модуле",
+        "where": "apps/webapp/src/screens/homeCards.tsx:629",
+        "detail": "HomeResumeStrip печатает t('home.continueListeningTitle') = «Продолжить слушать» жёстко, игнорируя module.titleKey = 'home.resumeShelfTitle' («Продолжить эфир», ru.ts:303). Подпись: при непустой очереди «В этой сессии уже есть {count} быстрых точек возврата.», иначе module.copyKey = «Быстрый путь назад в текущую сессию.». Справа бейдж: app.liveBadge если станция активна, иначе common.resume.",
+        "status": "partial"
+      },
+      {
+        "capability": "Тап по плитке любой полки — мгновенный запуск станции, никакого промежуточного списка",
+        "where": "apps/webapp/src/screens/homeCards.tsx:280",
+        "detail": "Вся плитка — кнопка .home-station-primary-action → onPlay(station, playlist, sourceId). playlist = ВСЕ станции этой полки (homeCards.tsx:847), поэтому запуск с полки заводит очередь из этой полки. В Home.tsx:1054 handlePlayStation: если тапнули по уже играющей станции — это play/pause, иначе playStation с sourceId полки.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Нажатие на «Смотреть все» у полки настроения/жанра открывает Поиск с ПУСТЫМ запросом",
+        "where": "apps/webapp/src/screens/homeCards.tsx:827",
+        "detail": "Кнопка «Смотреть все» (home.seeAll, ru.ts:181) вызывает onExplore('') → Home.openSearch('') → setSearchDraft('') + setActiveSection('search') (Home.tsx:982). Пустой draft в Поиске игнорируется (Search.tsx:425-431), то есть открывается общий каталог, а не выбранное настроение/жанр. Единственная кнопка, которая передаёт контекст, — бейдж с ярлыком полки (homeCards.tsx:798): он есть только у country-spotlight, genre-spotlight, around-the-world и sponsored; у четырёх mood-полок и у trending/top-voted label = null, поэтому у них нет вообще никакого способа «раскрыть подборку».",
+        "status": "partial"
+      },
+      {
+        "capability": "«Быстрый выбор» — 6 чипов настроения/жанра, каждый открывает Поиск с зашитым запросом",
+        "where": "apps/webapp/src/screens/Home.tsx:70",
+        "detail": "HOME_QUICK_CHIPS: «Хиты» → q='hits'; «Вечер» → 'lofi chillout'; «Спорт» → 'workout dance'; «В дорогу» → 'rock classic'; «Фокус» → 'ambient piano'; «Новости» → 'news' (подписи ru.ts:187-192). Тап → openSearch(query) → раздел Поиск с подставленным запросом, то есть СПИСОК, а не проигрывание (Home.tsx:1281). Заголовок секции «Быстрый выбор» (home.quickChipsLabel, ru.ts:186), рядом «Смотреть все» → openSearch('').",
+        "status": "shipped"
+      },
+      {
+        "capability": "Что видит новичок при первом запуске",
+        "where": "apps/webapp/src/screens/Home.tsx:812",
+        "detail": "isFirstRun = !playbackHistory.length && !favorites.length && !recent.length — выводится из библиотеки, отдельного флага «прошёл онбординг» нет и он снимается сам после первого прослушивания. Новичок получает: герой, ручку «Лента» + «Обновить», РОВНО ОДНУ полку, карточку первого запуска, чипы «Быстрый выбор». Полки «Продолжить слушать» у него нет (createHomeResumeModule возвращает null), «Слушают сейчас» появится только если сервер что-то отдаст.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Новичку показывают ровно одну полку, и это «Народный выбор»",
+        "where": "apps/webapp/src/screens/Home.tsx:822",
+        "detail": "limit = FIRST_RUN_RAIL_LIMIT = 1 (Home.tsx:60); orderedSource пересортировывается так, чтобы полка с id FIRST_RUN_RAIL_ID = 'top-voted' (Home.tsx:61) шла первой (Home.tsx:831-835). На экране она подписана «Попробуйте сейчас» (переименование leadRail), а не «🌟 Народный выбор». Вариант отрисовки logo-strip: на десктопе это плитки-логотипы без текста, на телефоне (dense) — обычные карточки с названием и местом (homeCards.tsx:858).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Карточка первого запуска: два предложения и выход в каталог",
+        "where": "apps/webapp/src/screens/Home.tsx:1246",
+        "detail": "<section className=\"home-first-run\" data-home-first-run>: заголовок «Это живой эфир, а не плейлист», текст «Где-то прямо сейчас идёт передача — включи и окажешься там. Сохранишь станцию, и она останется здесь.», кнопка «Смотреть все станции» → openSearch('') (ru.ts:183-185). Исчезает сама, как только сыграла первая станция. ⚠ PLAN.md:36 помечает этот блок к замене («Лира + одна кнопка «Включай»») — это ПЛАН, в коде живёт нынешняя карточка.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Что добавляется вернувшемуся слушателю по сравнению с новичком",
+        "where": "apps/webapp/src/screens/Home.tsx:56",
+        "detail": "Лимит полок поднимается до DENSE_RAIL_LIMIT = 10 (телефон) или DESKTOP_RAIL_LIMIT = 12 (широкий экран) вместо 1. Появляется полка «Продолжить слушать» (в мобильной раскладке — сразу под ручкой «Лента», выше всех полок, Home.tsx:1207). Исчезает карточка первого запуска. Полка «К чему вернуться» поднимается на первое место среди вторичных. Полки короче 3 плиток скрываются (кроме своей), Home.tsx:851.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Витрина замораживается на сессию, чтобы не перетасовываться под пальцем",
+        "where": "apps/webapp/src/screens/Home.tsx:625",
+        "detail": "Снимок (HomeSurfaceFeed, version 6, homeSurface.ts:39) считается свежим, если совпали version + sessionSeed + summarySignature + tasteSignature (Home.tsx:626-634). Сигналы ранжирования (профиль поведения, здоровье, очередь, текущая станция) читаются через ref и НЕ участвуют в зависимостях (Home.tsx:583-610) — иначе полки переупорядочивались бы сразу после нажатия Play. Лайк/скрытие меняет tasteSignature и пересобирает полки, но герой сохраняется (Home.tsx:676-683).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Снимок витрины живёт только в памяти вкладки; 30-минутное «ведро» на практике почти не работает",
+        "where": "apps/webapp/src/state/RadioContext.tsx:274",
+        "detail": "transientHomeState инициализируется из storedShellState.home, но обратно в хранилище НИКОГДА не пишется (setTransientHomeState только на 303, 310, 2420) — то есть при перезагрузке Mini App снимок пустой и витрина строится заново. Из-за этого эффект «пересобрать, если прошло больше 30 минут» (HOME_SESSION_BUCKET_MS = 30 мин, Home.tsx:49; эффект Home.tsx:949) на свежей загрузке выходит из-за `if (!homeState.lastBuiltAt) return`. Внутри одного сеанса он всё ещё гейтит пересборку.",
+        "status": "partial"
+      },
+      {
+        "capability": "Что происходит с Главной, когда каталог в деградации (сервер отдал артефакт вместо живых зеркал)",
+        "where": "apps/api/src/catalog/service.ts:489",
+        "detail": "votes и clicktrend есть только в живых строках Radio Browser; в artifacts/catalog-full.json их нет. rankByNumericSignal отбрасывает всё с score <= 0 (service.ts:329), поэтому trending и topVoted приходят ПУСТЫМИ, и полки «🔥 В тренде» и «🌟 Народный выбор» с Главной исчезают. Полки настроения выживают: у них есть seeded-запасной порядок (service.ts:503-509), но перестают быть отсортированными по популярности. ⚠ Для новичка это означает, что его ЕДИНСТВЕННАЯ полка (top-voted) исчезает и leadRail'ом становится fresh-now.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Что происходит с Главной, когда не отвечает наш API (аварийный каталог прямо из браузера)",
+        "where": "apps/webapp/src/lib/radioBrowserFallback.ts:383",
+        "detail": "loadRadioBrowserFallbackSummary строит summary из прямых запросов браузера к зеркалам Radio Browser (topvote + geo, radioBrowserFallback.ts:329-332) и возвращает ТОЛЬКО counts, catalogPool (24 станции), freshSignals, searchLaunch, countrySpotlight, genreSpotlight. Полей trending, topVoted, aroundTheWorld, moodRails, sponsored в нём НЕТ вовсе — значит с Главной пропадают «В тренде», «Народный выбор», «Вокруг света» и все четыре полки настроения. summaryError при этом сбрасывается в null (CatalogContext.tsx:310), поэтому баннер об ошибке НЕ показывается — экран молча становится беднее.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Запасные полки, когда витрина пришла тощей",
+        "where": "apps/webapp/src/screens/Home.tsx:885",
+        "detail": "Если после фильтров полок меньше лимита, Home добавляет своими руками две: home-new-stations — «Новые станции» / «Каждый раз новые — из глубины каталога.» (из rankStationsForHome по локальному каталогу, Home.tsx:744) и home-world-stations — «По странам» / «Короткий маршрут по странам и регионам.» (просто из catalog). По 6 станций, без повторов с уже показанным (ru.ts:193-196). На экране первая из них переименовывается в «Открой новые станции».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Баннер «Каталог сейчас не отвечает»",
+        "where": "apps/webapp/src/screens/Home.tsx:1292",
+        "detail": "Показывается только когда summaryError непуст И (нет summary ИЛИ каталог пуст) И этот же текст ошибки ещё не отклоняли (Home.tsx:1088-1091). То есть только если упали и сеть, и IDB-кеш, и аварийный путь через Radio Browser. Текст: «Каталог сейчас не отвечает» + (на широком экране) «Поиск и плеер всё ещё доступны. Попробуй обновить витрину.» + кнопка «Обновить» (ru.ts:178-179).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Телеметрия показов Главной",
+        "where": "apps/webapp/src/screens/Home.tsx:906",
+        "detail": "reportProductEvent('home_station_impression', { stationIds (первые 8 с каждой полки), stationCount, railCount, dense }) с дедупом по сигнатуре на 60 с. Отдельно первые 6 станций ведущей полки пишутся в журнал показов recordStationsShown (Home.tsx:936-947), чтобы витрина сама себя проворачивала. Ещё одно событие — home_now_playing_preview { previewed, shown } через 6 с после открытия, честно замеряющее, у скольких плиток вообще появилось название трека (homeCards.tsx:687-707).",
+        "status": "shipped"
+      },
+      {
+        "capability": "МЁРТВОЕ: HomeSearchPreview — готовый компонент быстрой выдачи поиска на Главной, нигде не смонтирован",
+        "where": "apps/webapp/src/screens/homeCards.tsx:882",
+        "detail": "export const HomeSearchPreview полностью реализован (плитки, пустое состояние «По этому запросу пока тихо» / «Попробуй страну, язык или жанр. Полный поиск всё равно доступен.»), но во всём apps/webapp/src нет ни одного импорта — Home.tsx:39 импортирует только HomeHeroCard, HomeRail, HomeResumeStrip. Вместе с ним мёртвы локали home.quickSearchIdleTitle/Copy, home.quickSearchResults, home.openFullSearch, home.quickSearchNoResults* (ru.ts:245-251).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "МЁРТВОЕ: quickSearchChips — вычисляемые чипы по данным витрины",
+        "where": "apps/webapp/src/lib/homeSurface.ts:343",
+        "detail": "createHomeSurfaceFeed считает quickSearchChips (подсказка героя + ярлык страны + ярлык жанра + tagRadar, до 6) и кладёт их в снимок (homeSurface.ts:356), но ни один компонент их не читает — на экране висят жёстко зашитые HOME_QUICK_CHIPS из Home.tsx:70. Поле живёт только в типе HomeSurfaceFeed (homeSurface.ts:44).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "МЁРТВОЕ: модуль возврата 'home-profile-return' собирается и выбрасывается",
+        "where": "apps/webapp/src/screens/Home.tsx:188",
+        "detail": "applyRecommendationModules строит resumeModules с модулем 'home-profile-return' из recommendationFeed.returnToAir, но createHomeSurfaceFeed поле resumeModules не читает вообще (в homeSurface.ts его нет); используется только discoveryFeed.resumeStations как третий запасной вариант для героя (homeSurface.ts:208). На Главной эта работа никуда не попадает — returnToAir виден только в Медиатеке (Library.tsx:518).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "МЁРТВОЕ: локали жанрового блока Главной без блока",
+        "where": "apps/webapp/src/state/locales/ru.ts:217",
+        "detail": "Ключи home.genresTitle («Жанры»), home.allGenres («Все жанры»), home.genreRock/genrePop/genreElectronic/genreJazz/genreHipHop/genreClassical/genreMetal/genreAmbient (ru.ts:224-232), а также home.catalogPulseTitle/Copy/Countries/Languages/Genres (ru.ts:285-289) не используются нигде в коде — грепом по apps/webapp/src найдено только search.genresTitle в Поиске. То есть жанровой сетки и «Пульса каталога» на Главной сегодня нет.",
+        "status": "dead-code"
+      }
+    ],
+    "notes": "Чего я НЕ смог определить и где стоит перепроверить:\n\n1. Живой прод я не открывал — всё выше прочитано по коду, без запуска приложения и без сетевых замеров. Насколько часто полка «Слушают сейчас» реально непуста, из кода не следует (порог 3 слушателя на станцию, listeningRoutes.ts:35).\n\n2. FIRST_RUN_RAIL_LIMIT = 1 и «Народный выбор» как единственная полка новичка — ЖИВОЙ код (Home.tsx:60-61, 822-835), а не архивная археология. Память проекта (MEMORY.md, раздел про PLAN_ARCHIVE) описывает это как «старый первый запуск», но в master это работающая ветка. Если где-то считается, что первый запуск уже переделан, — это расхождение стоит разрешить у владельца.\n\n3. Не проверял, приходит ли когда-нибудь непустой storedShellState.home из старой персистентной схемы (миграция RadioContext.tsx:757-784 умеет прочитать legacy home.snapshot). В нынешней схеме снимок обратно не пишется, поэтому на практике витрина строится заново на каждую загрузку — но доказать это измерением на устройстве я не мог.\n\n4. denseLayout завязан на (max-width: 600px) (useCompactLayout.ts:3). В памяти проекта фигурирует брейкпоинт 720px для mobile-first — это, судя по всему, другой брейкпоинт (CSS), их я не сверял.\n\n5. Не разбирал, что именно возвращает rankStationsForUser/rankStationsForHome по существу (веса, jitter) — тема соседняя; для инвентаризации важно лишь, что герой = голова этой колоды, а полка fresh-now = её хвост.\n\n6. Полка sponsored («Промо-станции») в код-пути есть (homeSurface.ts:334, service.ts:578 promoted.slice(0,6)), но заполняется только станциями с флагом promoted; есть ли такие в реальном каталоге, я не проверял — на экране её может не быть никогда.\n\n7. Строку «Смотреть все» я проверил только для полок Главной. Как ведёт себя Поиск, открытый с пустым draft (что он показывает вместо выдачи), я не разбирал — это уже поверхность Поиска."
+  },
+  {
+    "dimension": "Изображения: настоящие логотипы станций vs. генеративная/декоративная графика",
+    "items": [
+      {
+        "capability": "Настоящий логотип станции показывается по лестнице: обложка от владельца → favicon из каталога → процедурная плитка",
+        "where": "apps/webapp/src/components/StationArtwork.tsx:29",
+        "detail": "artworkCandidates = [{kind:'station-artwork', url: station.stationArtwork}, {kind:'favicon', url: station.favicon}], дубли отбрасываются. Выбранный источник пишется в DOM как data-artwork-source = 'station-artwork' | 'favicon' | 'generated'. Компонент НИКОГДА не запрашивает AI-сцену — это зафиксировано тестом apps/webapp/src/components/StationVisuals.test.tsx:65 «keeps StationArtwork on owner artwork and never asks for an AI scene».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Когда логотипа нет — первая буква названия станции на детерминированном градиенте",
+        "where": "apps/webapp/src/components/StationArtwork.tsx:97",
+        "detail": "Рендерится <span>{initial}</span>. toInitial (StationArtwork.tsx:15) берёт первый символ, проходящий /\\p{L}|\\p{N}/u, и приводит к верхнему регистру; при пустом имени возвращает '?'. Никакого текста-извинения нет — только буква. Фон задаётся CSS по data-has-image='false' и data-artwork-pattern (apps/webapp/src/styles.css:890) — четыре узора: bands / dial / grid / wave.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Битая ссылка на логотип запоминается и больше не пробуется в этой сессии",
+        "where": "apps/webapp/src/components/StationArtwork.tsx:13",
+        "detail": "Модульный Set BROKEN_ARTWORK_URLS; onError (строка 60) добавляет туда URL и форсирует ре-рендер, после чего берётся следующий кандидат, а если их нет — процедурный фолбэк. Set живёт на весь жизненный цикл страницы и не сбрасывается.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Палитра процедурного фолбэка выводится из идентичности станции, а не случайна",
+        "where": "apps/webapp/src/lib/artwork.ts:18",
+        "detail": "createGeneratedArtworkPalette(seed) — FNV-подобный хеш (hashArtworkSeed, строка 9) → hue = hash % 360, три HSL-стопа, угол и один из четырёх узоров. Сид — 'stationuuid:name:country:state:tags' (StationArtwork.tsx:44). Тот же сид используют StationScene и StationBackdrop, поэтому цвет станции совпадает на всех поверхностях.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Картинки по http:// идут через свой прокси, по https:// — напрямую в браузер",
+        "where": "apps/webapp/src/lib/assetUrl.ts:21",
+        "detail": "getProxiedAssetUrl: если протокол не 'http:', URL возвращается как есть; иначе строится `${apiBase}/image?url=<encoded>`. То есть смешанного контента не бывает, но и вся серверная защита (лимит размера, кеш, проверка content-type) применяется ТОЛЬКО к http-логотипам.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Серверный прокси картинок с лимитами и кешем",
+        "where": "apps/api/src/mediaRoutes.ts:12",
+        "detail": "app.get('/image', createImageHandler(options)). Реализация — apps/api/src/media/streamProxy.ts:502. Ограничения: 2 МБ на картинку (IMAGE_PROXY_MAX_BYTES, строка 143), позитивный кеш 6 ч, негативный 15 мин (строки 141–142), 180 запросов в минуту на клиента (createImageGuard, строка 263), проверка content-type (isImageContentType, строка 252), пробы https-апгрейда и слив тела при не-ok ответе.",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Когда логотип не скачался, сервер отдаёт НЕ ошибку, а нарисованную заглушку со статусом 200",
+        "where": "apps/api/src/media/streamProxy.ts:218",
+        "detail": "toArtworkFallback рисует SVG 160×160: бирюзово-синий градиент, два круга, плашка и ДВЕ строки текста — имя хоста источника (первая метка домена, до 6 символов) и англоязычная причина до 16 символов: 'Artwork missing', 'Bad artwork', 'Artwork too large', 'rate limit', 'Busy' (строки 234–235). status: 200, content-type image/svg+xml, заголовок x-radioatlas-fallback: artwork-unavailable. Зафиксировано контрактным тестом apps/api/test/api.contract.test.ts:285. Практическое следствие: для http-логотипов onError в StationArtwork НЕ срабатывает (картинка валидная), data-has-image остаётся 'true' — вместо буквы станции пользователь видит чужую декоративную плашку с куском доменного имени. sanitizeArtworkLabel (строка 212) вырезает всё, кроме [a-z0-9], поэтому кириллический хост превращается в слово 'Radio'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Обложка, загруженная владельцем заявленной станции, перебивает favicon",
+        "where": "apps/api/src/index.ts:564",
+        "detail": "withStationProfiles: stationArtwork = profile.artworkUrl || station.favicon || ''. artworkUrl приходит из профиля станции (apps/api/src/account/core/repository.ts:381, правится через apps/api/src/stationProfileRoutes.ts:30). Это единственный путь, которым в приложение попадает картинка, выбранная человеком, а не взятая из Radio Browser.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Браузер получает только два поля-картинки из каталога, по белому списку",
+        "where": "apps/api/src/catalog/service.ts:112",
+        "detail": "toStationLite отдаёт favicon: station.favicon || '' (строка 112) и stationArtwork: station.stationArtwork || null (строка 127). Больше никаких изображений из провайдера наружу не уходит. В аварийном клиентском обходе (API недоступен) stationArtwork просто дублирует favicon: apps/webapp/src/lib/radioBrowserFallback.ts:145.",
+        "status": "shipped"
+      },
+      {
+        "capability": "AI-сцена — отдельный декоративный слой, который по договору не изображает станцию",
+        "where": "apps/webapp/src/components/StationScene.tsx:35",
+        "detail": "Док-комментарий в файле (строки 27–34): «This component never represents the station's identity: owner-provided logos belong in StationArtwork». Слой всегда aria-hidden='true', alt='', data-scene-source = 'scene' | 'generated'. Битая сцена попадает в BROKEN_SCENE_URLS (строка 20) и деградирует в процедурный градиент, не запрашивая генерацию из браузера. Не-приоритетные карточки откладывают запрос до IntersectionObserver с rootMargin '320px 240px' (строка 90).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Клиент сцен только читает статус, никогда не заказывает генерацию",
+        "where": "apps/webapp/src/lib/sceneArtwork.ts:114",
+        "detail": "resolveSceneArtworkUrl → GET /artwork/scene/<stationId>; URL берётся только при status === 'ready' (строка 92). Кеш в памяти: 6 часов на попадание (READY_TTL_MS, строка 21), 2 минуты на промах (MISS_TTL_MS, строка 22), одновременные запросы схлопываются через inFlight.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Сцены рисует Cloudflare Workers AI, и в промпте прямо запрещены текст, логотипы и лица",
+        "where": "apps/api/src/sceneArtwork.ts:766",
+        "detail": "Модель — '@cf/black-forest-labs/flux-2-klein-4b' (строка 6). Последняя строка промпта: 'No text, letters, captions, logos, brands, flags, watermarks, people or faces.' (строка 777). Предпоследняя: 'Atmospheric decorative artwork, not a claim of an exact real place, building, studio or landmark.' (строка 776). Музыкальная идентичность ведёт композицию, страна — вторичный слой (строки 769–772). Название станции подаётся как «brand and musical mood reference, never as visible copy» (строка 758) и предварительно чистится от инъекций (PROMPT_CONTROL_PATTERN, строка 643).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Одна сцена = одна станция, ключ стабилен и не меняется от смены трека",
+        "where": "apps/api/src/sceneArtwork.ts:753",
+        "detail": "sceneKey = `${countrySlug}-${musicProfile}-${light}-${styleVersion}-${digest12}`, где digest считается по stationuuid + стране + музыкальному профилю + курируемым жанрам + очищенному имени + освещённости + версии стиля (строки 740–749). Комментарий на строке 736 объясняет: наблюдения треков намеренно вне ключа, «чтобы каждая смена песни не превращалась в ещё одну платную картинку».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Публичный роут сцены только читает кеш; генерацию может заказать лишь внутренний вызов с токеном",
+        "where": "apps/api/src/sceneArtworkRoutes.ts:57",
+        "detail": "GET /artwork/scene/:stationId вызывает artwork.resolve(station, { generate: false }) — комментарий на строке 55: «browser traffic never spends AI quota». Генерация — POST /internal/artwork/scenes/generate (строка 83), защищённый timingSafeEqual по заголовку x-internal-token, до 50 станций за раз. Готовые файлы отдаёт GET /artwork/scenes/:file (строка 134) с cache-control public, max-age=31536000, immutable и x-content-type-options: nosniff.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ночной досев сцен для ранжированных полок, 60 картинок в сутки",
+        "where": "deploy/server/seed-scene-nightly.sh:91",
+        "detail": "Юнит запускает node scripts/generateScenePack.mjs и считает ПУСТОЙ stdout провалом (строки 92–95) — прямое следствие случая, когда скрипт молча выходил с кодом 0. Лимит SCENE_ARTWORK_DAILY_CAP=60, CONCURRENCY=1, QUEUE_MAX=100, стиль atlas-music-v3 прописаны в deploy/server/configure-scene-artwork.sh:49. Отбор станций — только ранжированные полки, случайные пулы игнорируются (scripts/generateScenePack.mjs:75).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Главная: карточка станции — «сначала сцена», настоящий логотип на неё НЕ ставится как основная картинка",
+        "where": "apps/webapp/src/screens/homeCards.tsx:262",
+        "detail": "Комментарий на строках 258–261: «Reference cards are scene-first: the generated country+vibe scene fills the card and fails soft to a deterministic procedural gradient — never the raw station logo, which is frequently a generic placeholder». Это и есть действующее правило разделения: сцена = атмосфера карточки, логотип = маленький бейдж поверх.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Поверх сцены — маленький бейдж с настоящим логотипом, и он прячется, если логотипа нет",
+        "where": "apps/webapp/src/screens/homeCards.tsx:279",
+        "detail": "<StationArtwork size='sm' className='home-station-logo' />; комментарий (строки 273–278) называет это просьбой владельца — «симбиоз» сцены и эмблемы. Скрытие делает CSS: apps/webapp/src/screens/homeReference.css:2371 — .home-station-logo[data-has-image='false'] { display: none }. Сам бейдж 34×34 (30×30 при ширине ≤430px, 40×40 у ведущей плитки), тёмная плашка rgba(6,16,30,0.52) с blur(6px), object-fit: contain.",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Герой Главной: бейдж логотипа 54×54 без правила скрытия — при отсутствии логотипа показывает букву на градиенте",
+        "where": "apps/webapp/src/screens/homeReference.css:172",
+        "detail": "Стили заданы для .home-hero-station-logo, и есть только правило для [data-has-image='true'] img (строка 183). Правила [data-has-image='false'] { display: none } — аналога строки 2371 для плиток — для героя НЕТ. Компонент монтируется в apps/webapp/src/screens/homeCards.tsx:496. То есть на главной карточке экрана у станции без логотипа под названием висит квадрат с буквой, хотя на соседних плитках такой квадрат намеренно скрыт.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Кнопка Play на плитке красится цветом, снятым с самой AI-сцены",
+        "where": "apps/webapp/src/lib/scenePlate.ts:319",
+        "detail": "paintTilePlate(tile, image) вызывается из homeCards.tsx:221 (handleSceneReady) через StationScene onImageReady (строка 270). Смысл описан в шапке файла: под «lite»-ярусом стекла backdrop-filter снимается, и честная замена размытию — средний цвет той же области картинки, а не выдуманная заливка. Работает только потому, что сцены отдаёт свой origin и canvas не «отравлен».",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Полноэкранный фон плеера и Ленты: AI-сцена ИМЕЕТ ПРИОРИТЕТ над настоящим логотипом станции",
+        "where": "apps/webapp/src/components/StationBackdrop.tsx:58",
+        "detail": "const artworkUrl = sceneUrl || stationArtworkUrl — если сцена есть, размытый фоновый <img> и извлечение палитры берут её, а логотип станции не используется вовсе. Источник виден в DOM: data-visual-source = 'scene' | 'station' | 'generated' (строка 139). Это единственное место, где декоративная картинка вытесняет реальный логотип из роли «цвет этой станции».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Палитра фона извлекается из пикселей картинки и перекалибруется под размер поверхности",
+        "where": "apps/webapp/src/lib/artworkColor.ts:229",
+        "detail": "buildExtractionUrl принудительно гонит ЛЮБУЮ картинку (в том числе https) через свой /image?url=..., чтобы canvas остался CORS-чистым — в отличие от getProxiedAssetUrl. Читается кадр ≤32×32 (MAX_SAMPLE, строка 27), любой сбой даёт null и откат к процедурной палитре; зависшая загрузка обрывается по таймауту 7 с (строка 238). toStagePalette (строка 89) переклампливает яркость: 'stage' для плеера, 'poster' для карточки Ленты — оттенок станции сохраняется, яркость нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Лента: карточка целиком — фон (сцена или логотип, размытые) плюс текст; отдельного логотипа на карточке нет",
+        "where": "apps/webapp/src/screens/StationFeed.tsx:306",
+        "detail": "<StationBackdrop station={station} active={active} subscribe={subscribe} /> с тоном по умолчанию 'poster', сверху .station-feed-card-veil. Ни одного <StationArtwork> в StationFeed.tsx нет — то есть на главной ленточной поверхности настоящая эмблема станции не показывается совсем.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Полный плеер на телефоне: квадрат обложки убран, сцена стала героем экрана",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:792",
+        "detail": "<StationBackdrop ... tone='stage' />. Комментарий на строках 849–852 объясняет удаление: «The generated scene already fills the whole overlay behind us (StationBackdrop), so a second small square of the same artwork was both redundant and the single biggest consumer of a stage that does not fit a phone. The photo IS the hero now.»",
+        "status": "shipped"
+      },
+      {
+        "capability": "Полный плеер в широкой раскладке всё ещё показывает настоящий логотип отдельной карточкой",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:946",
+        "detail": "<StationArtwork station={current} size='card' className='full-player-artwork' /> внутри .full-player-artwork-wrap — ветка не-мобильной раскладки. То есть на телефоне логотипа в плеере нет, на широком экране есть.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Списки станций везде показывают настоящий логотип с буквенным фолбэком",
+        "where": "apps/webapp/src/components/StationTable.tsx:254",
+        "detail": "Один и тот же StationArtwork используется в: поиске (apps/webapp/src/screens/search/SearchResultRow.tsx:77 и apps/webapp/src/screens/Search.tsx:1081), таблице станций (StationTable.tsx:254, :332, :679), карточке деталей (apps/webapp/src/components/StationDetails.tsx:164), Глобусе (apps/webapp/src/screens/GlobeScreen.tsx:130, :608, :625), очереди плеера (FullPlayerOverlay.tsx:474), мини-плеере (apps/webapp/src/components/MiniPlayerDock.tsx:346) и карточках Лиры (apps/webapp/src/components/ChatSheet.tsx:563).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Карточки станций в чате Лиры перевели на общий компонент после жалобы на «пустые тёмные квадраты»",
+        "where": "apps/webapp/src/components/ChatSheet.tsx:563",
+        "detail": "Комментарий на строках 555–562: раньше эта поверхность сама рисовала background-image: var(--art), и при пустом или 404-favicon не было ни буквы, ни палитры, ни обработки ошибки — просто дыра. Теперь используется StationArtwork.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Обложка коллекции в Медиатеке — мозаика из настоящих логотипов до четырёх станций",
+        "where": "apps/webapp/src/components/CollectionArtwork.tsx:21",
+        "detail": "previewStations = stations.slice(0, 4), каждая рендерится как StationArtwork size='sm' (строка 47). Пустая коллекция даёт инициалы названия до двух букв, по умолчанию 'RA' (toInitials, строка 12; вывод — строка 50). Фон — та же процедурная палитра по сиду 'label:uuid1:uuid2:...'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Обложка региона — чисто декоративная, изображения там не бывает никогда",
+        "where": "apps/webapp/src/components/RegionArtwork.tsx:14",
+        "detail": "Всегда процедурный градиент по сиду `${region.id}:${region.label}:${count}` плюс одна буква названия региона (labelInitial, строка 11, по умолчанию 'R'). Никакого <img>. Используется в Медиатеке: apps/webapp/src/screens/Library.tsx:1739.",
+        "status": "shipped"
+      },
+      {
+        "capability": "На экране блокировки телефона (mediaSession) показывается только настоящий логотип — сцена туда не подставляется",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1944",
+        "detail": "const artworkUrl = getProxiedAssetUrl(station.stationArtwork || station.favicon); при пустом значении artwork = undefined, и MediaMetadata уходит вообще без картинки. Заявленный размер 512x512 и type 'image/png' — фиксированные, реальные размеры не проверяются.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Картинка для Telegram Stories рендерится на сервере: логотип станции или фирменный градиент",
+        "where": "apps/api/src/share/storyCard.ts:130",
+        "detail": "fetchStationArtwork берёт ТОЛЬКО https-favicon (строка 136: «https-only: an http favicon on the public card → brand gradient instead»), с DNS-пином, блокировкой приватных IP и лимитом по размеру. Нет картинки → блок 520×520 с градиентом linear-gradient(135deg,#7ad7f0,#9b6bff) и SVG-треугольником Play (строки 197–211). Внизу карточки — строка 'Listen on RadioAtlas' (строка 253), по-английски. Карта 1080×1920 собирается satori+resvg, кеш 3 дня (apps/api/src/shareRoutes.ts:14). Вызов из клиента: apps/webapp/src/lib/telegram.ts:361.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Для неизвестной станции и при сбое рендера отдаётся один общий заранее нарисованный PNG",
+        "where": "apps/api/src/shareRoutes.ts:35",
+        "detail": "readFile(new URL('story-fallback.png', deps.assetsDir)) — файл лежит в apps/api/assets/story-fallback.png. Комментарий на строках 8–9: на неизвестный id никогда не рендерится персональная карточка, чтобы случайные id не стали дешёвым DoS. Ответ помечается заголовком x-radioatlas-fallback: story-card.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Бот в inline-режиме прикрепляет к результату миниатюру-логотип, если она похожа на настоящий URL",
+        "where": "apps/bot/src/replyPayloads.ts:99",
+        "detail": "validThumbUrl пропускает только /^https?:\\/\\//i, иначе thumb_url просто не добавляется. Комментарий на строке 97: «Favicons are frequently empty or non-URL junk». Никакой заглушки бот не подставляет — карточка просто без картинки.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Theme Studio: пользователь грузит СВОИ картинки для оболочки — принт, стикер, GIF, иконки плеера",
+        "where": "apps/webapp/src/components/ThemeBuilder.tsx:920",
+        "detail": "accept='image/png,image/jpeg,image/webp,image/gif,image/svg+xml' для фонового принта; иконки — 'image/svg+xml,image/png' (строка 1036), стикер — 'image/png,image/webp,image/svg+xml' (строка 1068), анимация — 'image/gif,image/webp' (строка 1111). Строки интерфейса (apps/webapp/src/state/locales/ru.ts:937): «Свой принт», «PNG, JPG, GIF или SVG для фона shell и плеера», «Свои иконки плеера» / «SVG/PNG до 512 КБ», «Стикер» / «PNG/WebP/SVG до 1 МБ», «GIF/WebP» / «Анимация до 1 МБ». Загруженные иконки подставляются вместо встроенных SVG в apps/webapp/src/components/ThemeActionIcon.tsx:19. Вход — Настройки, кнопка «Открыть Theme Studio» (apps/webapp/src/screens/Settings.tsx:169).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Встроенные темы несут декоративные SVG-фоны, лежащие в самом приложении",
+        "where": "apps/webapp/src/lib/theme/defaults.ts:111",
+        "detail": "url('/theme-backgrounds/radioatlas-aurora.svg') и url('/theme-backgrounds/radioatlas-signal-grid.svg') (строка 149) поверх градиентов. Третий файл, apps/webapp/public/theme-backgrounds/radioatlas-sunrise-dial.svg, в defaults.ts не встречается — я не нашёл ни одной ссылки на него в исходниках.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Превью ссылки на приложение — одна статичная картинка на весь сайт, не на станцию",
+        "where": "apps/webapp/index.html:91",
+        "detail": "<meta property='og:image' content='https://radioatlas.ru/og-cover.png' />, 1200×630, og:image:alt = «RadioAtlas — живое радио мира» (строка 94). Комментарий на строке 73 объясняет выбор: это закоммиченный PNG, а не роут. Персональной og:image по станции нет ни в index.html, ни в пререндере — карточка /share/story/<id>.png используется только Telegram Stories, в мета-теги она не попадает.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Текстура Земли для глобуса лежит в репозитории, но нигде не используется",
+        "where": "apps/webapp/public/globe/README.md:1",
+        "detail": "Файл apps/webapp/public/globe/earth-blue-marble-2048.jpg (NASA Blue Marble, public domain) не упоминается ни в одном исходнике, стиле или html — единственное вхождение строки 'blue-marble' во всём репозитории (кроме node_modules/dist/worktrees) это первая строка его же README. Глобус рисуется векторно из apps/webapp/src/assets/countries-110m.json и land-110m.json.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Неиспользуемый импорт прокси картинок в чате Лиры",
+        "where": "apps/webapp/src/components/ChatSheet.tsx:14",
+        "detail": "import { getProxiedAssetUrl } from '../lib/assetUrl'; — единственное вхождение имени в файле, вызовов нет. Остаток от снятого хендмейд-фона background-image: var(--art), про который написан комментарий на строке 557.",
+        "status": "dead-code"
+      }
+    ],
+    "notes": "ГЛАВНОЕ ПРАВИЛО, действующее сегодня, читается однозначно и повторено в трёх местах кода: настоящая эмблема — только StationArtwork (stationArtwork → favicon → процедурная буква), генеративная сцена — только StationScene/StationBackdrop, всегда aria-hidden, всегда alt=''. Точная формулировка живёт в apps/webapp/src/components/StationScene.tsx:27-34 и apps/webapp/src/screens/homeCards.tsx:258-261, и она закреплена юнит-тестом apps/webapp/src/components/StationVisuals.test.tsx:65.\n\nГДЕ ПРАВИЛО ВСЁ-ТАКИ НАРУШАЕТСЯ (три места, все проверены по коду):\n1. apps/webapp/src/components/StationBackdrop.tsx:58 — `sceneUrl || stationArtworkUrl`. Если у станции есть AI-сцена, то и размытый фон, и извлечённая палитра берутся из неё, а настоящий логотип не используется. Формально это фон, а не логотип, но именно отсюда берётся «цвет этой станции» на весь экран плеера и всю карточку Ленты.\n2. apps/api/src/media/streamProxy.ts:218 — заглушка отдаётся со статусом 200 как валидный SVG. Из-за этого клиентский onError не срабатывает, data-has-image остаётся 'true', и вместо буквы станции показывается чужая декоративная плашка с обрывком доменного имени и английским словом причины. Затрагивает только http-логотипы (https идут мимо прокси — apps/webapp/src/lib/assetUrl.ts:21), то есть поведение при отсутствующем логотипе РАЗНОЕ в зависимости от протокола ссылки. Сколько в живом каталоге http-favicon'ов — не измерял (чтение apps/api/data/ заблокировано хуком).\n3. apps/webapp/src/screens/homeReference.css:172 — у героя Главной нет правила скрытия бейджа при data-has-image='false', хотя у плиток оно есть (строка 2371). Станция без логотипа получает на главной карточке квадрат 54×54 с буквой.\n\nОБЛОЖЕК АЛЬБОМОВ/ТРЕКОВ НЕТ ВООБЩЕ. Поиск по itunes / musicbrainz / coverArtArchive / deezer / albumart / coverart по apps/api/src, apps/webapp/src и apps/bot/src не дал ни одного совпадения. Ни одна картинка в приложении не выдаётся за обложку играющей песни. Название трека ведёт только в текстовые сервисы (apps/webapp/src/lib/musicServiceLinks.ts).\n\nЧЕГО Я НЕ ПРОВЕРЯЛ И НЕ МОГУ УТВЕРЖДАТЬ: сколько станций реально имеют сгенерированную сцену на проде. Задача помечена как только-чтение, на прод я не ходил. Код готов, ночной досев настроен (deploy/server/seed-scene-nightly.sh) и лимит 60/сутки прописан в deploy/server/configure-scene-artwork.sh:49, но фактическое покрытие — вопрос к /artwork/scene/<id> на живом сервере, а не к репозиторию. Ровно так же я не измерял, какая доля станций отдаёт рабочий favicon.\n\nДОКУМЕНТЫ: в PLAN.md по теме изображений нет ничего (единственное совпадение — строка 483, и она про пиксельные эталоны тестов, не про логотипы). В PRODUCT.md слов «изображение / картинка / логотип / обложка / фото» нет вообще. То есть ни одного пункта со статусом planned-only по этой теме я не нашёл — всё, что есть, живёт в коде.\n\nМЕЛОЧЬ, НО СТРАННАЯ: apps/webapp/public/theme-backgrounds/radioatlas-sunrise-dial.svg лежит в public, но в apps/webapp/src/lib/theme/defaults.ts используются только два других файла из этой папки; ссылок на sunrise-dial я не нашёл. Не помечал как dead-code отдельным пунктом, потому что не исключаю, что он подставляется по имени где-то в темах, которых я не дочитал.\n\nТакже: строка на карточке для Stories — 'Listen on RadioAtlas' (apps/api/src/share/storyCard.ts:253) — единственная англоязычная надпись на картинке, которую видит русскоязычный слушатель, и она не проходит через словарь локализации."
+  },
+  {
+    "dimension": "Навигация и набор экранов",
+    "items": [
+      {
+        "capability": "Пять «разделов» в модели приложения: Главная, Лента, Поиск, Глобус, Моё",
+        "where": "apps/webapp/src/types.ts:47",
+        "detail": "`export type AppSection = 'home' | 'feed' | 'search' | 'globe' | 'library'`. Ровно один из них смонтирован в любой момент; карта раздел→компонент в App.tsx:60-66 (SECTION_COMPONENTS), выбор — App.tsx:294 `const ActiveScreen = SECTION_COMPONENTS[activeSection]`.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Нижняя панель навигации на телефоне: 4 вкладки + круглая кнопка «Лира» посередине",
+        "where": "apps/webapp/src/components/AppNavigation.tsx:136",
+        "detail": "`<nav className=\"app-navigation-mobile ...\">`. Порядок кнопок: «Главная», «Поиск», [Лира], «Глобус», «Моё» — первые два из NAV_ITEMS.slice(0,2) (:142), FAB (:143-153), остальные (:154). Подписи из словаря: nav.home «Главная», nav.search «Поиск», nav.globe «Глобус», nav.library «Моё» (state/locales/ru.ts:25-29). CSS: панель фиксирована внизу, z-index 91, высота 72px (styles.css:4577-4609); сетка становится 5-колоночной классом `--with-chat` (styles.css:4653).",
+        "status": "shipped"
+      },
+      {
+        "capability": "На широком экране вместо нижней панели — левый рельс с логотипом, теми же разделами, «Лирой» и «Настройками»",
+        "where": "apps/webapp/src/components/AppNavigation.tsx:104",
+        "detail": "`<aside className=\"app-navigation app-navigation-desktop\">`: блок бренда «RadioAtlas / Музыка мира в прямом эфире.» (:105-111), список разделов (:113-126) с вставленной «Лирой» между «Поиском» и «Глобусом» (:117), внизу кнопка «Настройки» (:128). По умолчанию рельс скрыт (styles.css:2655 `display:none`) и включается только с `@media (min-width: 960px)` (styles.css:4514), где нижняя панель прячется (styles.css:4543).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Лента» — раздел без собственной кнопки в навигации",
+        "where": "apps/webapp/src/components/AppNavigation.tsx:11",
+        "detail": "NAV_ITEMS содержит только home, search, globe, library. 'feed' в списке отсутствует, хотя это полноценный AppSection с записью в sectionMeta (App.tsx:270-274, заголовок «Лента»). Единственный вход — с Главной.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вход в «Ленту» с Главной: кнопка «Лента / Станции одна за другой» и то же самое жестом «потянуть вниз»",
+        "where": "apps/webapp/src/screens/Home.tsx:1075",
+        "detail": "`openFeed` (:1075-1082) закрепляет героя как карточку 0, перекатывает сид ленты и делает setActiveSection('feed'). Кнопка `.home-feed-entry` (Home.tsx:1163, onClick на :1165) показывает home.feedEntryTitle «Лента» и home.feedEntrySub «Станции одна за другой», aria-label home.feedEntryOpen «Открыть Ленту». Жест pull-to-expand подключён к той же функции (Home.tsx:1087 `useHeroPullToExpand(openFeed)`).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Лента» открывается полноэкранным слоем поверх всего — топбар и нижняя навигация под ним не видны",
+        "where": "apps/webapp/src/screens/StationFeed.tsx:1205",
+        "detail": "`return createPortal(overlay, document.body)`; сам оверлей — `role=\"dialog\" aria-modal=\"true\"` (:1041-1049), CSS `position:fixed; inset:0; z-index:100` (screens/stationFeed.css:7-10) против z-index 91 у нижней навигации. Выход — крестик `.station-feed-close` (:1056-1059, aria-label feed.close), который делает setActiveSection('home') (:735-738). Шапка ленты: «Лента» + «Свайпай и слушай» (:1065-1068).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Активный раздел запоминается и переживает перезапуск приложения",
+        "where": "apps/webapp/src/state/RadioContext.tsx:709",
+        "detail": "`activeSection` живёт не в useState, а внутри сохраняемого shell-состояния: ключ localStorage `radio:app:v2` (RadioContext.tsx:197-203), запись через usePersistentState (lib/persistentState.ts:51 читает `window.localStorage.getItem(key)`). Сеттер — RadioContext.tsx:1317. То есть кто ушёл в «Моё» и закрыл приложение, в «Моё» и вернётся.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Первый запуск открывает «Главную»",
+        "where": "apps/webapp/src/state/radio/defaults.ts:50",
+        "detail": "`DEFAULT_SHELL_STATE.activeSection = 'home'` (там же `libraryTab: 'favorites'` :52, `playerPresentation: 'peek'` :51, `detailsOpen: false`). Никакого экрана приветствия/онбординга в приложении нет — RuntimeProviders сразу рендерит App (src/RuntimeProviders.tsx:8-20).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Перезапуск может открыть сразу «Ленту» — но уже без карточки, с которой её открывали",
+        "where": "apps/webapp/src/state/radio/types.ts:263",
+        "detail": "Комментарий в контракте shell-состояния прямо это описывает: «`activeSection` IS persisted, so a reload landing straight in the feed must degrade to \"the feed picks its own card 0\"». `feedEntryStation` намеренно не сохраняется (types.ts:266-267). Никакого сброса раздела на 'home' при загрузке в коде нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Экраны грузятся отдельными чанками и предзагружаются при касании вкладки",
+        "where": "apps/webapp/src/lib/screenLoaders.ts:1",
+        "detail": "Все шесть загрузчиков (Home/Search/Feed/Globe/Library/Settings) + AccountSheet и StationDetails. В App.tsx:31-36 они обёрнуты в React.lazy, а onPreload (App.tsx:453-459) дёргает нужный при onTouchStart/onMouseEnter/onFocus по кнопке навигации (AppNavigation.tsx:78-79, :93-94). Пока чанк едет, показывается AppScreenSkeleton (App.tsx:296).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Моё» (Медиатека) — пять вкладок: Избранное, Очередь, Недавнее, Находки, Плейлисты",
+        "where": "apps/webapp/src/screens/Library.tsx:33",
+        "detail": "`const TAB_ORDER = ['favorites', 'queue', 'recent', 'tracks', 'collections']`. Полоса вкладок — role=\"tablist\" (Library.tsx:940-961) со стрелочной навигацией (:478-507). Подписи (state/locales/ru.ts:627-634): «Избранное», «Очередь», «Недавнее», «Находки», «Плейлисты». Активная вкладка сохраняется вместе с разделом (RadioContext.tsx:1333).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Вкладки Медиатеки «settings» и «history» существуют в типе, но их нельзя открыть",
+        "where": "apps/webapp/src/types.ts:51",
+        "detail": "`LibraryTab = 'favorites' | 'tracks' | 'queue' | 'recent' | 'history' | 'collections' | 'settings'` — а TAB_ORDER (Library.tsx:33) знает только пять. Невидимое значение молча превращается в 'recent' (Library.tsx:472-474). Ни один вызов setLibraryTab в приложении не передаёт 'settings' или 'history' (MiniPlayerDock.tsx:512 объявляет 'history' в типе аргумента, но зовёт только 'queue' и 'tracks': :523, :564, :577).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Поиск по медиатеке подменяет вкладки списком результатов",
+        "where": "apps/webapp/src/screens/Library.tsx:893",
+        "detail": "Поле «Поиск по медиатеке» (:834-871) скрыто на вкладке «Находки» (у неё свой поиск, :828-833). Пока в поле есть запрос, вместо полосы вкладок рендерится карточка результатов (:893-937), и только в ветке `:` (:938) появляется tablist.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Настройки» — не раздел, а шит поверх текущего экрана; открывается шестерёнкой в топбаре с любого экрана",
+        "where": "apps/webapp/src/App.tsx:504",
+        "detail": "Кнопка `.mobile-settings-trigger` с aria-label nav.settings «Настройки» (:504-516) ставит settingsOpen=true; шит — App.tsx:568-572 (`<SettingsSheet>` c ленивым `<SettingsScreen/>` внутри). Второй вход — кнопка в десктопном рельсе (AppNavigation.tsx:128). Сам экран: screens/Settings.tsx:144 `<div className=\"screen screen-settings settings-panel\">`. Заголовок шита по умолчанию — «Настройки» / «Параметры» (SettingsSheet.tsx:54-57).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Смена языка — внутри «Настроек», два чипа",
+        "where": "apps/webapp/src/screens/Settings.tsx:176",
+        "detail": "Секция settings.generalTitle «Параметры» → строка locale.language «Язык интерфейса» (:179) и две кнопки: locale.russian «Русский» (:183-189) и locale.english «English» (:190-196). Больше нигде в приложении язык не переключается.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Состав «Настроек»: фоновое воспроизведение, Theme Studio, язык, данные и хранилище, сон и звук, раздел для разработчиков",
+        "where": "apps/webapp/src/screens/Settings.tsx:145",
+        "detail": "Секции по порядку: settings.backgroundTitle «Фоновое воспроизведение» (:146), theme.title «Theme Studio» (:163), settings.generalTitle «Параметры» (:176), settings.dataTitle «Данные и хранилище» (:202), settings.sleepTitle «Сон и звук» (:269), и свёрнутый `<details>` settings.developerTitle «Для разработчиков» (:318-319) с полем API base и диагностикой.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Аккаунт — шит, кнопка-человечек справа в топбаре",
+        "where": "apps/webapp/src/App.tsx:517",
+        "detail": "Кнопка `.app-topbar-primary-cta` (:517-532); подпись зависит от статуса сессии: account.title «Аккаунт и синхронизация», если вошли, иначе account.signInAndSync «Войти и синхронизировать» (App.tsx:306-307). Шит монтируется в App.tsx:578-582; заголовок «Профиль / Аккаунт» (AccountSheet.tsx:532-533). Другие входы: карточка в Медиатеке (Library.tsx:1001) и подсказка в деталях станции (StationDetails.tsx:354).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Выход из аккаунта и удаление аккаунта — только внутри шита аккаунта",
+        "where": "apps/webapp/src/components/AccountSheet.tsx:638",
+        "detail": "Кнопка account.signOut «Выйти» (:638-640). Ниже отдельной карточкой — account.delete.title «Удалить аккаунт» с подтверждением account.delete.confirmAction «Да, удалить» (:655-679) и текстом «Сохранённые станции, коллекции, привязанные входы и история покупок будут стёрты с сервера. Это нельзя отменить.» Ни в «Настройках», ни в навигации выхода нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Лира» — шит поверх любого экрана, а не отдельный раздел",
+        "where": "apps/webapp/src/App.tsx:583",
+        "detail": "chatOpen — локальный state оболочки (App.tsx:89), кнопка навигации получает обработчик только когда включён флаг (App.tsx:452 `onOpenChat={aiAssistantEnabled ? ... : undefined}`). Подпись кнопки — chat.launch «Лира» (AppNavigation.tsx:152). Без флага центральная кнопка исчезает и нижняя панель становится 4-колоночной (AppNavigation.tsx:137, styles.css:4593 vs 4654).",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Лира» скрыта за сборочным флагом VITE_AI_ENABLED",
+        "where": "apps/webapp/src/lib/aiChat.ts:140",
+        "detail": "`isAiAssistantEnabled()`: явное значение сравнивается с '1', пустое значение в dev-сборке считается включённым, в проде — выключенным. RUNBOOK.md:129 подтверждает: «production requires `1`». Из репозитория нельзя проверить, что стоит на проде — переменная задаётся в /opt/RadioAtlas/shared/env, в .github/workflows её нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Полноэкранный плеер — оверлей, а не раздел; открывается тапом по обложке или названию в мини-плеере",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:281",
+        "detail": "`openFullPlayer` → `winamp.setExpanded(true)`; вызывается с обложки (:341, aria-label dock.openWinamp «Плеер») и с названия станции (:652). Оверлей монтируется в App.tsx:588-596. Пока он открыт, вся навигация приглушена и не кликается: styles.css:2584-2591 (`opacity: .18; filter: blur(18px); pointer-events: none`), а сам док не рендерится (MiniPlayerDock.tsx:315-317).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Мини-плеер работает как перекрёсток: уводит в «Очередь» и «Находки» Медиатеки и в «Поиск»",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:512",
+        "detail": "`openLibraryTab` (:512-516) ставит вкладку и переключает раздел на 'library' — вызовы на :523 (иконка в лотке очереди), :564 (dock.queueOpen), :577 (dock.copiedTracksOpen). `openSearch` (:521-524) уводит в «Поиск» из пустой очереди (:557). Из полноэкранного плеера тот же путь в очередь — FullPlayerOverlay.tsx:446-450 (закрывает оверлей и открывает Медиатеку).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Детали станции — шит, доступный только из полноэкранного плеера",
+        "where": "apps/webapp/src/App.tsx:563",
+        "detail": "`detailsOpen` — сохраняемое shell-состояние (RadioContext.tsx:1336), но включить его может только кнопка winamp.stationDetails в FullPlayerOverlay (:998, :1087) или в легаси-плеере (LitePlayerOverlay.tsx:121-124). Ни с Главной, ни из Поиска, ни из Медиатеки прямого входа нет. Если ничего не играет, шит принудительно закрывается (App.tsx:168-172).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Theme Studio — шит, вход только из «Настроек»",
+        "where": "apps/webapp/src/screens/Settings.tsx:169",
+        "detail": "Кнопка theme.openStudio «Открыть Theme Studio» ставит skinLabOpen=true; шит монтируется в App.tsx:573-577. Описание в настройках: theme.settingsLabel «Оформление RadioAtlas».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Легаси Winamp-плеер: открывается пятью тапами по логотипу/заголовку или адресом ?winamp=1",
+        "where": "apps/webapp/src/App.tsx:326",
+        "detail": "`handleBrandGesture` (:326-338) считает тапы в окне 2,4 с; на пятом ставит legacyWinampUnlocked и разворачивает плеер. Триггеры — `.app-brand-pill` (:467-476, data-winamp-easter-egg-trigger=\"brand\") и заголовок топбара вне Поиска (:407-416, trigger=\"title\"). Query-вариант — App.tsx:110-113. Выбор между легаси- и обычным плеером — App.tsx:590-594.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Глубокая ссылка на станцию — четыре формы адреса, включая путь /station/<uuid>.html",
+        "where": "apps/webapp/src/lib/telegram.ts:244",
+        "detail": "`getStartParam()` читает по приоритету: Telegram `initDataUnsafe.start_param`, затем query/hash `tgWebAppStartParam` / `startapp` / `start_param` / `station`, и в самом конце путь вида `/station/<uuid>` или `/station/<uuid>.html` (readStationPath, :239-242). Обработчик — App.tsx:184-256: один раз на монтировании, ставит станцию на воспроизведение с меткой источника radio.deepLink. Ссылки `ref_<id>` и `link_<code>` намеренно пропускаются (App.tsx:211).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пререндеренные страницы станций /station/<uuid>.html — публичная поверхность вне приложения",
+        "where": "scripts/buildStationPages.mts:82",
+        "detail": "`const stationPath = (uuid: string) => `/station/${uuid}.html``. Это статический HTML, собираемый из готового index.html подстановкой title/canonical/шести мета-тегов и содержимого #root (apps/webapp/src/prerenderAnchors.test.ts:8-20). Открытая в приложении, такая ссылка превращается в обычный deep-link на станцию через readStationPath.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Политика конфиденциальности — внешняя страница, ссылка из «Настроек»",
+        "where": "apps/webapp/src/screens/Settings.tsx:259",
+        "detail": "`openLinkOrFallback('https://radioatlas.ru/privacy.html')`, подписи settings.privacyLabel «Политика конфиденциальности», settings.privacyDesc «Какие данные собираются, кому передаются и как их удалить.», кнопка settings.privacyOpen «Открыть». Сам файл — apps/webapp/public/privacy.html, внутри приложения экраном не является.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Возврат из входа через VK открывает шит аккаунта сам, по параметрам адреса",
+        "where": "apps/webapp/src/state/SessionContext.tsx:1728",
+        "detail": "Эффект разбирает `?auth_provider=&auth_result=&ticket=&token=` (:1685, lib/authReturn.ts:19), чистит адрес через history.replaceState и при `auth_result=preview` открывает шит аккаунта с предпросмотром слияния (:1726-1729). Это единственное место, где экран открывается от URL, а не от нажатия.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Топбар: чип статуса ведёт в очередь, ставит на паузу или уводит в «Поиск»",
+        "where": "apps/webapp/src/App.tsx:481",
+        "detail": "Одна кнопка с тремя исходами (:483-495): есть очередь → «Моё»/вкладка «Очередь»; играет → play/pause; иначе → раздел «Поиск». Надпись слева — playlist.title / app.liveBadge «LIVE» / nav.search «Поиск» (App.tsx:308-317).",
+        "status": "shipped"
+      },
+      {
+        "capability": "На «Поиске» заголовок топбара — кнопка, ставящая курсор в поле поиска",
+        "where": "apps/webapp/src/App.tsx:393",
+        "detail": "Заголовок раздела превращается в `.app-topbar-title-action` со стрелкой-подсказкой (:385-389) и вызывает focusSearchInput (:355-379), который ждёт появления `#search-hero-input` до 3 секунд и отменяется, если пользователь ушёл с Поиска. На остальных разделах тот же заголовок — цель winamp-пасхалки.",
+        "status": "shipped"
+      },
+      {
+        "capability": "У «Поиска» есть внутренний режим «добавить URL» вместо станций",
+        "where": "apps/webapp/src/screens/Search.tsx:400",
+        "detail": "`const [mode, setMode] = useState<'stations' | 'links'>('stations')`; на пустом экране поиска внизу тихая ссылка «+ Добавить URL · m3u / mp3 / pls» (:1196-1203), обратно — чип «← …» (:1049-1053). Режим отражается атрибутом data-search-mode (:699) и не сохраняется между запусками.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«Глобус» — иммерсивная карта без внутренних экранов; фокус на страну задаётся из Медиатеки",
+        "where": "apps/webapp/src/screens/GlobeScreen.tsx:484",
+        "detail": "`<section className=\"screen screen-globe-v3\">` рендерит один Globe на весь экран плюс всплывающие подписи; никакого списка «континенты → страны → станции» нет. Единственный внешний вход с параметром — Library.tsx:584-587 `openFollowedRegion`: ставит globeFocusRegionId и переключает раздел; Глобус применяет и сразу обнуляет его (GlobeScreen.tsx:218-232).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Старая модель навигации «континенты → страны → станции» осталась только типом",
+        "where": "apps/webapp/src/types.ts:45",
+        "detail": "`export type BrowseState = 'continents' | 'countries' | 'stations'` не импортируется и не используется ни одним файлом приложения (единственное вхождение во всём apps/webapp/src).",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Карточка аккаунта на Главной — компонент есть, но нигде не смонтирован",
+        "where": "apps/webapp/src/components/AccountCard.tsx:5",
+        "detail": "`export const AccountCard = () => {` — единственное упоминание имени во всём apps/webapp/src и apps/webapp/tests. Внутри живёт панель онбординга account.onboardingTitle «Войти и синхронизировать» (:109-113), которую пользователь увидеть не может. Правило под неё в стилях (styles.css:4573 `.home-side-stack .account-card { display: none }`) тоже осталось.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Состояние плеера «peek» сохраняется, но своего вида у него больше нет",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:319",
+        "detail": "Комментарий прямо это фиксирует: «'peek' no longer has a rendering of its own... the compact view was a dead end». DEFAULT_SHELL_STATE до сих пор стартует с 'peek' (state/radio/defaults.ts:51), и сохранённые сессии с этим значением просто падают в обычный бар. Публичный сеттер setPlayerPresentation (RadioContext.tsx:1322) не вызывается нигде — в MiniPlayerDock он только вынут из контекста (:62) и не используется.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Смена вкладки даёт тактильный отклик — но только на телефоне и только если вкладка действительно меняется",
+        "where": "apps/webapp/src/components/AppNavigation.tsx:68",
+        "detail": "`if (id !== active) triggerSelectionHaptic();` — в мобильной панели (:77). В десктопном рельсе (:92) обработчик зовёт onChange напрямую, без хаптика.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ошибка внутри раздела показывает экран с кнопкой «На главную», не роняя оболочку",
+        "where": "apps/webapp/src/App.tsx:542",
+        "detail": "ErrorBoundary с `key={activeSection}` (:543) — сбрасывается на каждом переключении; fallback ScreenErrorFallback получает onHome → setActiveSection('home') (:548). Тексты: errorBoundary.screenTitle «Не удалось загрузить раздел», errorBoundary.home «На главную» (state/locales/ru.ts:4-8).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Каждое переключение раздела учитывается — и в профиле поведения, и в телеметрии",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1319",
+        "detail": "setActiveSection дополнительно зовёт `recordSectionVisit(prev, section)`. Отдельно App.tsx:124-138 шлёт product-событие app_opened с полем initialSection, а App.tsx:143-152 — session_duration с lastSection.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ни маршрутов, ни адресной строки, ни кнопки «назад» браузера",
+        "where": "apps/webapp/package.json:22",
+        "detail": "В зависимостях webapp нет ни одного роутера (react/react-dom, hls.js, maplibre-gl, d3-geo, topojson-client, @tanstack/react-virtual). Единственное обращение к history — очистка параметров возврата после входа (state/SessionContext.tsx:1691 `history.replaceState`), единственное чтение pathname — разбор /station/<uuid> (lib/telegram.ts:260). Раздел живёт только в localStorage, поэтому системный «назад» не отменяет переход между разделами.",
+        "status": "shipped"
+      }
+    ],
+    "notes": "Чего не смог определить и что стоит проверить отдельно.\n\n1) Значение VITE_AI_ENABLED на проде из репозитория не проверяется — переменная не встречается ни в одном workflow в .github, RUNBOOK.md:129 отправляет за ней в /opt/RadioAtlas/shared/env. Поэтому «есть ли на проде центральная кнопка Лиры и 5-колоночная нижняя панель» я подтвердить не могу; в коде обе ветки живые.\n\n2) Подозрительное, но НЕ измеренное: бот строит ссылку `https://t.me/<bot>?startapp=radio` (apps/bot/src/replyPayloads.ts:24 и :110) как «просто открыть приложение». Обработчик deep-link в App.tsx:211 пропускает только префиксы `ref_` и `link_`, а parseStationParam (lib/telegram.ts:264-272) на строке «radio» ничего не находит и возвращает её как есть. По чтению кода это значит: такой вход шлёт deeplink_enter и затем, скорее всего, deeplink_error{not_found}. Я это не запускал и не смотрел счётчики на проде — это гипотеза из кода, а не факт.\n\n3) Не проверял поведение вживую: что именно показывает «Лента», если приложение перезапустили прямо в ней (код обещает деградацию до собственной карточки 0), и что происходит с сохранённым detailsOpen=true при холодном старте без играющей станции (эффект App.tsx:168-172 должен его закрыть). Оба вывода — из чтения, не из запуска.\n\n4) Экранов, доступных ТОЛЬКО по ссылке, в самом приложении нет: любая глубокая ссылка приводит на текущий/сохранённый раздел и просто начинает играть станцию. Единственные «только по адресу» поверхности — статические страницы вне SPA (/station/<uuid>.html, /privacy.html), диагностические query-параметры (?winamp=1, ?glass=off|lite|full — src/main.tsx:57-64) и автооткрытие шита аккаунта при возврате из VK.\n\n5) Внутри разделов есть ещё слои (шиты Медиатеки — screens/Library.tsx:118; лист действий и очереди в полноэкранном плеере — FullPlayerOverlay.tsx:452-460), но я их не расписывал: это внутренняя структура экранов, а не переключение разделов.\n\n6) Порог между мобильной и десктопной навигацией — 960px в CSS (styles.css:4509/4576), тогда как JS-хуки используют 600px (lib/useCompactLayout.ts:3) и 720px (lib/useMobileLayout.ts:9). Три разных числа живут рядом; useMobileLayout сам предупреждает, что 600px «предшествует» блокировке на 720. Правильно ли это для навигации — вопрос к владельцу, я лишь фиксирую расхождение."
+  },
+  {
+    "dimension": "Состояния плеера, кроме успешного воспроизведения: первый запуск, восстановление после перезапуска, подключение, пауза, ошибка/повтор, станция без названий треков — и «лестница» подстановки названия",
+    "items": [
+      {
+        "capability": "«Лестница» названия: трек → последний услышанный → жанр → «Прямой эфир»",
+        "where": "apps/webapp/src/lib/nowPlayingLine.ts:31",
+        "detail": "resolveNowPlayingLine возвращает описание, а не строку, ровно четырьмя ступенями в этом порядке (строки 41-47): 1) kind:'track' — живое название (уже прошедшее trust-фильтр); 2) kind:'lastHeard' — последний записанный трек этой станции; 3) kind:'genre' — слаг жанра из stationGenreSlug; 4) kind:'live' — иначе. Комментарий вверху файла (строки 16-19) называет их «1. the live track / 2. the last one we heard / 3. the genre / 4. «Прямой эфир»». Пустая строка/пробелы считаются отсутствием трека.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Показ ступени 3 и 4 как текста на экране: жанр по-русски или «Прямой эфир»",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:327",
+        "detail": "displayTrack = current ? (kind==='genre' ? t(`genre.${slug}`) : kind==='live' ? t('dock.liveBroadcast') : realTrack) : t('winamp.noStation'). Точные строки: «Прямой эфир» (ru.ts:755 \"liveBroadcast\"), жанры — ru.ts:1021+ («Поп», «Рок», «Классика», «Джаз»…), «Станция не выбрана» (ru.ts:1129 winamp.noStation). То же самое в доке: MiniPlayerDock.tsx:219-225, где вместо «Станция не выбрана» — t('dock.emptySubtitle') = «Начни эфир».",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ступень 2 («Ранее») выглядит иначе: приглушённый курсив, ярлык «Ранее», нельзя сохранить как находку",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:299",
+        "detail": "lastHeard берётся ТОЛЬКО когда nowPlayingStatus === 'unavailable' (то есть метаданные уже вернулись пустыми, а не «грузятся») и живого трека нет. Рендер: FullPlayerOverlay.tsx:587 добавляет <span class=\"full-player-track-tag\">{t('dock.lastHeard')}</span> = «Ранее»; стиль — styles.css:4225-4230 (color: var(--muted), font-style: italic, opacity .78). aria-label дока — «Последний услышанный трек: {track}» (ru.ts:764 dock.lastHeardAria). В доке ярлыка «Ранее» НЕТ, только приглушённый курсив + title/aria (MiniPlayerDock.tsx:226-230, 634-641), и это неинтерактивный DIV — поймать находку нельзя.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Тихая приписка «Эта станция не передаёт названия треков» — только в полном плеере и только после 75 секунд наблюдения",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:869",
+        "detail": "Точная строка ru.ts:756 dock.stationSendsNoTitles = «Эта станция не передаёт названия треков». Условие: showsSilenceNote = silenceConfirmed && !realTrack (строка 385), а silenceConfirmed ставится по stationLooksSilent (lib/nowPlayingLine.ts:77-104): нужно isPlaying === true (реальный звук, не буферизация), metadataStatus === 'unavailable', ни одного доверенного трека за сессию, и прошло SILENCE_VERDICT_AFTER_MS = 75_000 мс. Сбрасывается при смене станции (строки 349-354). Ничего не персистится. В доке этой приписки нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Самый первый запуск: плеера на экране нет вообще",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:311",
+        "detail": "isDormantDock = !current (строка 139, где current = player.current ?? player.pending, строка 112) → return null. Оболочка синхронно не резервирует место: App.tsx:441 data-dock={(player.current ?? player.pending) ? 'bar' : 'none'}. Строки «Выбери станцию» (ru.ts:740) и «Начни эфир» (ru.ts:741) в доке вычисляются, но при !current компонент возвращает null раньше рендера — «Начни эфир» на экран не попадает никогда; «Выбери станцию» ещё жива в десктопной шапке полного плеера (FullPlayerOverlay.tsx:931).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Первый запуск: вместо витрины — одна полка и объяснение, что это живой эфир",
+        "where": "apps/webapp/src/screens/Home.tsx:812",
+        "detail": "isFirstRun = !playbackHistory.length && !favorites.length && !recent.length (выводится из библиотеки, без отдельного флага). Тогда полок ровно одна (FIRST_RUN_RAIL_LIMIT = 1, FIRST_RUN_RAIL_ID = 'top-voted', Home.tsx:60-61, 815-835) и рендерится блок Home.tsx:1246-1258 со строками ru.ts:183-185: заголовок «Это живой эфир, а не плейлист», текст «Где-то прямо сейчас идёт передача — включи и окажешься там. Сохранишь станцию, и она останется здесь.», кнопка «Смотреть все станции». Если витрина пуста — герой показывает «Собираем витрину» / «Сейчас подтянем свежие станции для этой сессии.» (homeCards.tsx:393-409, ru.ts:236-237).",
+        "status": "shipped"
+      },
+      {
+        "capability": "После полного перезапуска приложения станция возвращается молча, с рабочим Play",
+        "where": "apps/webapp/src/lib/useAudioPlayer.ts:495",
+        "detail": "const [pending, setPending] = useState(() => initialStation ?? null) — useState-инициализатор, поэтому восстановление не может перезаписать выбор слушателя. Станция берётся ТОЛЬКО из storedQueue.items[currentIndex] без отката на историю (RadioContext.tsx:644-648) и передаётся в PlaybackRuntime (RadioContext.tsx:3085). current остаётся null — «current значит В ЭФИРЕ» (док-комментарий useAudioPlayer.ts:334-351). Ничего не подключается; toggle() видит !current && pending и стартует обычным путём (useAudioPlayer.ts:1838-1843). Гейт: tests/restart-restores-station.spec.ts:62 требует aria-label «Слушать», disabled=false, audio src пуст, statusPill === null.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Во время подключения док не исчезает: показывает станцию и пилюлю «Буферизация»/«Переподключение»",
+        "where": "apps/webapp/src/lib/useAudioPlayer.ts:1748",
+        "detail": "playStation делает setCurrent(null); setPending(resolvedStation); setStatus('buffering'); setIsPlaying(false) — «The bar keeps showing THIS station while it connects.» Док рисуется на current ?? pending (MiniPlayerDock.tsx:112) и показывает playbackState (MiniPlayerDock.tsx:175-183): при status==='buffering' это t('dock.reconnecting') = «Переподключение», если player.transport.recentFailures.length > 0, иначе t('dock.buffering') = «Буферизация» (ru.ts:757-758). В полном плеере это же — пилюля в шапке (FullPlayerOverlay.tsx:411-422, 809-813).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ошибка потока: док показывает станцию и одну кнопку-пилюлю повтора",
+        "where": "apps/webapp/src/components/MiniPlayerDock.tsx:196",
+        "detail": "При player.status === 'error' пилюля = t('dock.retry') = «Повторить» (ru.ts:762) с onAction: () => playStation(current). Отдельно: при failure.kind из ['mixed-content','api-unavailable','unsupported-transport'] — «Открыть снаружи» (ru.ts:761) с openExternal (строки 184-195); при активном запасном кандидате — некликабельная «Резервный поток» (ru.ts:760, строки 205-209). Станция при полном провале не пропадает: useAudioPlayer.ts:1252-1277 обнуляет current, но кладёт станцию в pending, ставит status 'error' и заводит reconnect для kind 'no-playable-candidate'.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Ошибка потока: тост поверх экрана, станция сама НЕ переключается",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1639",
+        "detail": "notify(t('toast.streamUnavailable')) = «Поток сейчас недоступен. Попробуй другую станцию.» (ru.ts:1227), показывается 2 с (RadioContext.tsx:593-596). Комментарий 1631-1638 фиксирует политику: авто-перехода на следующую станцию нет. Стартовые ошибки маппятся в тосты отдельно (RadioContext.tsx:599-613): «Поток заблокирован браузером. Нужен защищенный HTTPS-источник.», «Локальный API недоступен…», «Этот формат потока браузер сейчас не поддерживает.», «В каталоге не нашлось рабочей станции», иначе «Не удалось запустить поток»; при отсутствии адреса — «У станции нет адреса потока» (RadioContext.tsx:1418).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Пауза: название трека исчезает, большая строка падает до жанра/«Прямой эфир», находку поймать нельзя",
+        "where": "apps/webapp/src/state/radio/useNowPlayingSync.ts:34",
+        "detail": "if (!station || !player.isPlaying) { setNowPlaying(null); setNowPlayingStatus('idle'); setNowPlayingState(IDLE_NOW_PLAYING_STATE); return; } — на паузе метаданные обнуляются. Следствия: lastHeard не подставляется (он требует статус 'unavailable', а не 'idle' — FullPlayerOverlay.tsx:301), поэтому лестница прыгает сразу на ступень 3/4; realTrack === '' → canCopyTrack === false и кнопка находки/сервисов выключена (FullPlayerOverlay.tsx:310-317, 573); в доке вместо кнопки поимки рендерится простой DIV (MiniPlayerDock.tsx:617-642). Отдельной надписи «На паузе» в интерфейсе нет.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Голосовое (screen-reader) объявление состояния — единственное место, где состояния названы словами",
+        "where": "apps/webapp/src/state/RadioContext.tsx:1110",
+        "detail": "Скрытый role=\"status\" aria-live=\"polite\" (RadioContext.tsx:3071-3079). Сообщения, с задержкой 600 мс: «Играет: {станция}» (ru.ts:791 playlist.playing), «Пауза: {станция}» (ru.ts:64), «Буферизация: {станция}», «Переподключение: {станция}» (status==='buffering' && recentFailures>0), «Проблема с потоком: {станция}» (ru.ts:20 app.playbackIssue), «Плеер: {станция}» для idle (ru.ts:739 dock.ready), «Воспроизведение остановлено» (ru.ts:759 dock.stopped) когда станция ушла, и «Сейчас играет: {трек}» при смене только трека (ru.ts:738 dock.trackLive). Трек берётся только при nowPlayingStatus === 'ready' и через normalizeTrustedTrackTitle.",
+        "status": "shipped"
+      },
+      {
+        "capability": "«В эфире» на карточке Ленты",
+        "where": "apps/webapp/src/screens/StationFeed.tsx:406",
+        "detail": "Точная строка ru.ts:45 feed.live = «В эфире». Условие рендера: isCurrent && isLive, где isLive = Boolean(liveTrack) || (isCurrent && player.isPlaying) (StationFeed.tsx:1153). Комментарий 402-405: «В ЭФИРЕ» — состояние плеера, а не свойство станции. Строка трека на карточке: trackLine = liveTrack || lastTrack (1154), где lastTrack — последний трек из истории; она НЕ помечена как «ранее» и НЕ приглушена, в отличие от дока и полного плеера.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Прочие места, где написано «в эфире» (заголовки секций, не состояние)",
+        "where": "apps/webapp/src/state/locales/ru.ts:1115",
+        "detail": "winamp.nowTuned = «Сейчас в эфире», winamp.onAirNow = «Сейчас в эфире» (ru.ts:1117, рендерится как подпись над строкой трека — FullPlayerOverlay.tsx:866-867), winamp.recentOnAir = «Недавно в эфире» (1119), winamp.onAirFrom = «Откуда вещает» (1118), dock.liveNow = «Сейчас в эфире» (ru.ts:737, подзаголовок лотка очереди MiniPlayerDock.tsx:516 и кикер Медиатеки Library.tsx:1049). Это подписи разделов; они стоят на экране и при тишине.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Значок «Не приходят названия треков» на карточках станций",
+        "where": "apps/webapp/src/lib/stationStatusBadge.ts:39",
+        "detail": "getStationBadgeState возвращает 'no-metadata', если isStationMetadataUnavailable(healthProfile, station) — то есть если последним health-событием станции было 'metadata-unavailable' (stationHealth.ts:263-270). Рендер — StationStatusBadge.tsx:14 с aria/title «Не приходят названия треков» (ru.ts:124). ⚠ МЁРТВО: единственный писатель этого сигнала — RadioContext.tsx:1228-1233, а его вызывают только с 'stream-unavailable' / 'no-playable-candidate' / normalizePlaybackOutcome(...) / 'success' (RadioContext.tsx:1257, 1411, 1464, 1485, 1617). Ни один вызов не передаёт 'metadata-unavailable', поэтому предикат в проде всегда false и треугольный значок не показывается никогда. Ровно это и написано в комментарии lib/nowPlayingLine.ts:55-62.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "Серверный признак «станция не передаёт названия» (supports_metadata) наружу не отдаётся",
+        "where": "apps/api/src/intel/stationIntelDb.ts:206",
+        "detail": "getSupportsMetadata читает station_meta_state.supports_metadata, но его единственный потребитель — apps/api/src/intel/harvestPipeline.ts:379 (внутрипроцессный сборщик). Ни один HTTP-маршрут поле не отдаёт: grep 'supports_metadata' по apps/api/src/routes и index.ts не находит ничего. Поэтому клиент решает вопрос «молчит ли станция» только наблюдением текущей сессии (stationLooksSilent), ничего не запоминая.",
+        "status": "partial"
+      },
+      {
+        "capability": "Старое извинение «Трек ещё не пришёл» в списках станций (лестница туда не доехала)",
+        "where": "apps/webapp/src/components/StationTable.tsx:221",
+        "detail": "trackLabel = displayTrack || t('app.metadataUnavailable') = «Трек ещё не пришёл» (ru.ts:19). Показывается только у активной строки или там, где трек есть (showTrackLine, строка 227) — но это по-прежнему извинение, а не ступень лестницы: ни жанра, ни «Прямой эфир» здесь нет. Тот же «Трек ещё не пришёл» уходит в подсказку (title) кнопки состояния в шапке приложения — App.tsx:297-305.",
+        "status": "partial"
+      },
+      {
+        "capability": "Легаси-плеер (5 тапов по логотипу или ?winamp=1) показывает старые тексты и нефильтрованный трек",
+        "where": "apps/webapp/src/components/LitePlayerOverlay.tsx:216",
+        "detail": "Открывается через App.tsx:326-338 (пять нажатий на бренд за 2,4 с) или ?winamp=1 (App.tsx:110-115). Строка состояния: player.status === 'buffering' ? «Буферизация» : trackTitle || «Название трека недоступно» (ru.ts:1136 winamp.trackUnavailable). trackTitle = nowPlaying?.trim() (LitePlayerOverlay.tsx:50) — БЕЗ resolveNowPlayingTrust, то есть сюда может попасть позывной станции или HTML, которые основной плеер отбрасывает. Лестницы здесь нет.",
+        "status": "partial"
+      },
+      {
+        "capability": "Строка «Название трека пока недоступно» больше нигде не показывается",
+        "where": "apps/webapp/src/state/locales/ru.ts:754",
+        "detail": "Ключ dock.currentTrackUnavailable существует в ru.ts:754 и en.ts:754, но grep по apps/webapp/src не находит ни одного обращения к нему — его вытеснила лестница. Мёртвая строка словаря.",
+        "status": "dead-code"
+      },
+      {
+        "capability": "⚠ Интерфейс может соврать про звук: «Буферизация» + кнопка Паузы + LIVE поверх тишины (признанный владельцем долг)",
+        "where": "PLAN.md:719",
+        "detail": "Раздел «⚠ Долг «Pause → Play»: интерфейс говорит неправду, пока звука нет»: когда поток умер, а система не перевела <audio> в паузу, handlePause не срабатывает, isPlaying остаётся true, док показывает «БУФЕРИЗАЦИЯ» и Паузу, карточка — LIVE, звука нет. Чтобы дойти до Play, нужно сначала нажать Паузу. Механика подтверждается кодом: useAudioPlayer.ts:1846-1868 (ветка «isPlaying || !audio.paused» → просто audio.pause()) и MiniPlayerDock.tsx:728 (aria-label = player.isPlaying ? «Пауза» : «Слушать»). Признано долгом 05.09.2026, в 0.1b.1 не чинилось. Планового исправления в текущем PLAN.md нет — только описание («что чинить, когда дойдут руки», PLAN.md:731-733).",
+        "status": "planned-only"
+      },
+      {
+        "capability": "⚠ Интерфейс может соврать про звук: «Прямой эфир»/жанр на большой строке, когда ничего не играет",
+        "where": "apps/webapp/src/lib/nowPlayingLine.ts:40",
+        "detail": "resolveNowPlayingLine принимает только station/track/lastHeard — состояние воспроизведения в неё не передаётся ни из дока (MiniPlayerDock.tsx:215-218), ни из полного плеера (FullPlayerOverlay.tsx:323-326). Поэтому «Прямой эфир» стоит на экране и на паузе, и во время подключения, и после перезапуска (когда по замыслу ничего не подключено), и при status==='error'. PLAN.md:143 фиксирует это как проверенное на проде поведение молчащей станции («DIV 44px с текстом «Прямой эфир»»), а гейт tests/restart-restores-station.spec.ts:62-79 проверяет заголовок, Play и отсутствие пилюли, но не проверяет эту строку.",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Интерфейс может соврать про звук: значок «Пауза» на Главной, пока станция на паузе",
+        "where": "apps/webapp/src/screens/homeCards.tsx:561",
+        "detail": "Кнопка героя рисует значок паузы и aria-label «Пауза: {станция}» по isActive (строки 565, 568), а isActive = heroNowPlaying = Boolean(player.current) (Home.tsx:716, 1126) — то есть переживает паузу. Честный признак onAir = heroNowPlaying && player.isPlaying (Home.tsx:721) применён только к точке LIVE (homeCards.tsx:480-489) и к атрибуту data-home-hero-air (строка 463), но не к главному контролу. Комментарий в homeCards.tsx:343-346 обещает как раз разделение честных утверждений и простой идентичности.",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Интерфейс может соврать про звук: «LIVE» на полке «Продолжить слушать» и в шапке приложения при паузе",
+        "where": "apps/webapp/src/screens/homeCards.tsx:638",
+        "detail": "{module.activeStationId ? t('app.liveBadge') : t('common.resume')} — «LIVE» (ru.ts:13) против «Продолжить» (ru.ts:65). activeStationId = input.current?.stationuuid (lib/homeSurface.ts:384), то есть player.current, который переживает паузу и ошибку. То же в шапке: App.tsx:308-317 — topbarSignalLabel = «LIVE» при player.current и пустой очереди, значение = nowPlaying || имя станции || «Сейчас в эфире»; поскольку на паузе nowPlaying обнуляется, чип читается как «LIVE / <имя станции>» при полной тишине.",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Интерфейс может соврать про трек: строка трека на Главной и в Ленте не проходит trust-фильтр",
+        "where": "apps/webapp/src/screens/Home.tsx:702",
+        "detail": "activeTrack = currentStationId ? nowPlaying : null — сырое значение контекста; в героя оно попадает как heroTrack и печатается как есть (homeCards.tsx:528-532), в плитки — как now-playing строка (homeCards.tsx:178). В Ленте так же: liveTrack = isCurrent && nowPlaying ? nowPlaying.trim() : '' (StationFeed.tsx:1131). Ни один из этих путей не вызывает resolveNowPlayingTrust / normalizeTrustedTrackTitle (grep по Home.tsx и homeCards.tsx не находит их вовсе), в отличие от дока (MiniPlayerDock.tsx:156), полного плеера (FullPlayerOverlay.tsx:287) и таблицы станций (StationTable.tsx:202). То есть позывной станции, слоган или HTML-обрывок, которые плеер отбрасывает, на Главной и в Ленте показываются как «сейчас играет».",
+        "status": "shipped"
+      },
+      {
+        "capability": "⚠ Полный плеер во время подключения, после перезапуска и после полного отказа показывает «Станция не выбрана»",
+        "where": "apps/webapp/src/components/FullPlayerOverlay.tsx:272",
+        "detail": "const current = player.current; — слова pending в файле нет вообще (grep по FullPlayerOverlay.tsx пуст). Но player.current обнуляется на время подключения (useAudioPlayer.ts:1749) и при исчерпании кандидатов (useAudioPlayer.ts:1255), а после перезапуска он и не устанавливается. Открыть плеер в этом состоянии можно: док разрешает переход по своей локальной переменной current = player.current ?? player.pending (MiniPlayerDock.tsx:281-285, 341-347). Тогда полный плеер рисует «Станция не выбрана» (строки 854 и 950, ru.ts:1129) и «Собери очередь с главной или через поиск.» (ru.ts:1130). Кроме того, в полном плеере вообще нет состояния ошибки: player.status используется только для 'buffering' (строка 412) и 'playing' (строка 347) — ни «Повторить», ни текста ошибки, в отличие от дока.",
+        "status": "shipped"
+      },
+      {
+        "capability": "Плитка/строка станции во время подключения не подсвечивается как активная",
+        "where": "apps/webapp/src/screens/homeCards.tsx:661",
+        "detail": "isActive = currentStationId === station.stationuuid, где currentStationId = player.current?.stationuuid (Home.tsx:701). Так как playStation обнуляет current на весь период подключения, нажатая плитка не получает состояния «активна», пока не пойдёт звук. Единственный немедленный отклик на нажатие — появление дока с пилюлей «Буферизация». То же в таблице станций (StationTable.tsx:926) и на Глобусе (GlobeScreen.tsx:441).",
+        "status": "shipped"
+      },
+      {
+        "capability": "Тест, который должен был охранять «док виден с момента нажатия», отключён",
+        "where": "apps/webapp/tests/dock-while-connecting.spec.ts:180",
+        "detail": "test.fixme(`the bar is on screen from the tap, not from the sound (${power} power)`) — оба варианта (normal/low power) выключены. Комментарий 160-178 объясняет: замер по времени перестал различать исправный код и мутант (0-51 мс против 58-66 мс), а замена должна быть «состоянием, а не моментом» — утверждать, что док отрисован, пока player.current пуст, а player.pending заполнен. Такой проверки пока нет. Третий тест этого файла — про пилюлю «Буферизация» во время подключения — удалён (комментарий 203-210).",
+        "status": "partial"
+      }
+    ],
+    "notes": "Порядок лестницы и её тексты подтверждены и кодом, и юнит-тестом lib/nowPlayingLine.test.ts:11-45 (там же зафиксировано, что «Прямой эфир» — последняя ступень, а не извинение). Лестница живёт РОВНО в двух местах: MiniPlayerDock и FullPlayerOverlay. Список станций (StationTable), Главная (homeCards/Home), Лента (StationFeed) и легаси-плеер (LitePlayerOverlay) её не используют — у первых это старое «Трек ещё не пришёл», у остальных сырой nowPlaying или пустота.\n\nЧего я НЕ нашёл: (1) отдельного видимого состояния «На паузе» — строка «Пауза» есть только как подпись кнопки (ru.ts:64) и в скрытом aria-live-объявлении; комментарий Home.tsx:719 обещает, что герой «читается «На паузе»», но такой строки в словаре нет и она нигде не рендерится; (2) какого-либо экрана/сообщения об ошибке внутри полного плеера; (3) индикации первого запуска, связанной с плеером — до первого звука дока просто нет.\n\nНе смог определить: реально ли пользователь попадает в состояние «полный плеер открыт, а current === null» на телефоне — путь существует (док разрешает открытие по pending, оверлей его не читает), но e2e-покрытия этого случая я не нашёл, а вручную не проверял. Отдельно отмечу, что тест на восстановление после перезапуска (tests/restart-restores-station.spec.ts:62) проверяет заголовок, Play, отсутствие пилюли и отсутствие звука, но НЕ проверяет, что написано на большой строке трека — а там в этот момент «Прямой эфир» или название жанра поверх тишины.\n\nВажное расхождение документов и кода в мою пользу отмечено выше: CLAUDE.md предупреждает, что старый первый запуск (FIRST_RUN_RAIL_LIMIT = 1) — это архив; в текущем коде эта константа ЖИВА (Home.tsx:60) и работает, но полка выбирается по id 'top-voted', а не по «Народному выбору», и рядом стоит новый блок «Это живой эфир, а не плейлист».\n\nНе проверял английский словарь построчно — все выписанные строки взяты из apps/webapp/src/state/locales/ru.ts."
+  }
+]

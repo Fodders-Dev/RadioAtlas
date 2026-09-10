@@ -384,6 +384,21 @@ for several minutes, verify sound continues, and verify intentional Pause holds.
 This fix removes a demonstrated destructive recovery path; it does not establish
 that every iOS background interruption has the same cause.
 
+## `Alt-Svc` on the edge was changed for VPN routes (2026-09-08)
+
+Reported by the owner: the server's `Alt-Svc` header was adjusted so the app
+works over a VPN. Nothing in this repository shows it — it is edge configuration
+— so it is recorded here rather than inferred from a diff.
+
+⚠ Not measured from this machine, and no before/after numbers were taken. If a
+connectivity report arrives that smells like protocol negotiation (works on one
+network, hangs on another, no error), check the live header before anything
+else, and treat the paragraph above as a claim rather than a baseline:
+
+```bash
+curl -sSI https://radioatlas.ru/ | grep -i '^alt-svc'
+```
+
 ## Is a station's stream actually flaky?
 
 `tools/probe-stream.mjs` reads a live stream and reports throughput plus every

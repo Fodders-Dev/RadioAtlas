@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>RadioAtlas — спокойно слушать</title>
+  <link rel="icon" href="art/vinyl.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <aside class="review" aria-label="Управление прототипом">
+    <a class="wordmark" href="./">radioatlas<span> / calm</span></a>
+    <h1>Музыка идёт.<br>Остальное —<br>когда захочется.</h1>
+    <p>Интерактивный макет. Четыре демонстрационные станции, без звука и подключения к аккаунту.</p>
+    <div class="review-themes" role="group" aria-label="Тема макета">
+      <button data-action="theme" data-value="dark" aria-pressed="true">Ночь</button>
+      <button data-action="theme" data-value="light" aria-pressed="false">День</button>
+      <button data-action="theme" data-value="sunset" aria-pressed="false">Закат</button>
+    </div>
+    <ol><li>Включи эфир.</li><li>Сохрани то, что понравилось.</li><li>Подбери другое, когда захочешь.</li></ol>
+    <details class="review-checks"><summary>Проверить состояния</summary>
+      <button data-action="reset">Первый запуск</button>
+      <button data-action="simulate" data-value="restored">Станция восстановлена</button>
+      <button data-action="simulate" data-value="connecting">Подключение</button>
+      <button data-action="simulate" data-value="error">Ошибка потока</button>
+      <button data-action="simulate" data-value="unknown">Нет названия трека</button>
+    </details>
+    <p class="review-foot">Находки и оформление сохраняются только в этом браузере. Лира и полный Глобус остаются за пределами этого среза.</p>
+  </aside>
+
+  <div class="device">
+    <div class="systembar" aria-hidden="true"><span>20:41</span><span class="system-right">▰▰▰ &nbsp;5G <span class="battery"></span></span></div>
+    <div class="telegram" aria-label="Шапка Telegram, демонстрация"><span aria-hidden="true">‹</span><div><strong>RadioAtlas</strong><small>мини-приложение</small></div><span aria-hidden="true">···</span></div>
+    <div class="app" id="app">
+      <main class="scroll" id="main" tabindex="-1"></main>
+      <footer class="dock" id="dock">
+        <div class="toast" id="toast" hidden><span id="toast-text" role="status"></span><button data-action="library">Посмотреть <span aria-hidden="true">↗</span></button></div>
+        <section class="mini" id="mini" aria-label="Плеер" hidden>
+          <button class="mini-info" data-action="expand" aria-label="Открыть плеер"><img id="mini-art" src="art/city.svg" alt=""><span><strong id="mini-title"></strong><small id="mini-source"></small></span></button>
+          <button class="icon-button mini-save" data-action="save" aria-label="Сохранить трек" aria-pressed="false"></button>
+          <button class="icon-button play mini-play" data-action="play" aria-label="Включить эфир"></button>
+        </section>
+        <nav class="navigation" aria-label="Основная навигация">
+          <button data-action="home" aria-current="page"><span data-icon="home"></span><span>Главная</span></button>
+          <button data-action="search"><span data-icon="search"></span><span>Поиск</span></button>
+          <button data-action="lira"><span data-icon="lira"></span><span>Лира</span></button>
+          <button data-action="globe"><span data-icon="globe"></span><span>Глобус</span></button>
+          <button data-action="library" id="library-nav"><span data-icon="library"></span><span>Моё</span><i class="find-dot" hidden></i></button>
+        </nav>
+      </footer>
+    </div>
+  </div>
+  <dialog id="sheet" closedby="any" aria-labelledby="sheet-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <header class="sheet-header"><h2 id="sheet-title"></h2><button class="icon-button" data-action="close" aria-label="Закрыть" autofocus><span data-icon="close"></span></button></header>
+    <div id="sheet-content"></div>
+  </dialog>
+</body>
+</html>

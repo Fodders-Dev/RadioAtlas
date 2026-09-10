@@ -730,6 +730,19 @@ export const ruDictionary = {
     "regionActivityTitle": "Новый эфир: {region}",
     "regionActivityBody": "{station}"
   },
+  "air": {
+    "eyebrowOffer": "С чего начать",
+    "eyebrowReady": "Готово к эфиру",
+    "eyebrowConnecting": "Подключаемся",
+    "eyebrowError": "Не удалось подключиться",
+    "eyebrowPaused": "На паузе",
+    "eyebrowLive": "В эфире",
+    "saveTrack": "Сохранить трек",
+    "saveTrackUnavailable": "Сохранить трек — сейчас трек неизвестен",
+    "nextStation": "Следующая станция",
+    "queueEnd": "Конец очереди",
+    "expand": "Раскрыть плеер"
+  },
   "dock": {
     "peekHint": "Нажми, чтобы раскрыть",
     "queueCount": "В очереди: {count}",

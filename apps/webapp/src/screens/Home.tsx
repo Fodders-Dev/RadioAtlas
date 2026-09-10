@@ -36,6 +36,7 @@ import {
 } from '../lib/tasteProfile';
 import { useTasteCandidatePool } from '../lib/useTasteCandidatePool';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
+import { AirBlock } from '../components/AirBlock';
 import { HomeHeroCard, HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
 import './homeReference.css';
@@ -53,6 +54,14 @@ const HOME_SURFACE_VERSION = 6;
 // T2.22: room for the full discovery set — fresh-now · Trending · country ·
 // genre · Top voted · Late night · Workout · Focus · Driving · Around the world
 // — on both layouts (dense shows all ten; desktop also fits companions/resume).
+// A first look at the redesigned Home block, OFF by default and reachable only
+// with `?air2=1`. Nothing a listener sees changes without that flag: this is a
+// slice built to be looked at on the dev server, next to the real themes and
+// the real player states, before any decision to replace the hero.
+const NEW_AIR_BLOCK =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('air2') === '1';
+
 const DESKTOP_RAIL_LIMIT = 12;
 const DENSE_RAIL_LIMIT = 10;
 // What a listener with no history sees: exactly one shelf, and specifically the
@@ -1116,6 +1125,17 @@ export const Home = () => {
     >
       {showHomeHeroSkeleton ? (
         <AppScreenSkeleton section="home" scope="home-hero" />
+      ) : surfaceFeed && heroModule && NEW_AIR_BLOCK ? (
+        <AirBlock
+          offerStation={heroModule.station || null}
+          onPlayStation={(station) =>
+            handlePlayStation(
+              station,
+              [station, ...(heroModule.companionStations || [])],
+              heroModule.sourceId
+            )
+          }
+        />
       ) : surfaceFeed && heroModule ? (
         <HomeHeroCard
           dense={denseLayout}

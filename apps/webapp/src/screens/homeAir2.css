@@ -1,0 +1,587 @@
+/*
+ * Главная за флагом `?air2=1`: один визуальный язык на весь экран.
+ *
+ * Правила, по которым это сделано, — не вкус, а Apple HIG:
+ *
+ *   «Don't use Liquid Glass in the content layer… including it in the content
+ *    layer can result in unnecessary complexity and a confusing visual
+ *    hierarchy. Instead, use standard materials for elements in the content
+ *    layer.»                                            — HIG, Materials
+ *   «Use Liquid Glass effects sparingly… Limit these effects to the most
+ *    important functional elements in your app.»        — HIG, Materials
+ *   «Refrain from adding color to the background of multiple controls.»
+ *   «If your app features colorful backgrounds or visually rich content, prefer
+ *    a monochromatic appearance for toolbars and tab bars.»
+ *                                                       — HIG, Liquid Glass color
+ *
+ * Отсюда разделение, которого раньше не было:
+ *
+ *   ФУНКЦИОНАЛЬНЫЙ слой — стекло, монохром, ровно три поверхности: верхняя
+ *     панель, нижняя навигация, блок эфира (он и есть плеер).
+ *   СЛОЙ СОДЕРЖИМОГО — обычный материал: обложки, полки, вход в Ленту. Ни
+ *     стекла, ни градиентных кромок, ни тяжёлых теней.
+ *   АКЦЕНТ — один и только на статус: «в эфире» и «сохранено». Главное действие
+ *     — нейтральный контрастный круг, а не четвёртый цветной предмет.
+ *
+ * ⚠ Селекторы и веса здесь проверены браузером, а не чтением. Нижнюю панель
+ * красят восемь правил из трёх стилей, последний победитель —
+ * `.app-shell-v2[data-active-section='home'] .app-navigation-mobile` весом
+ * (0,3,0) из ленивого чанка Главной; поэтому каждое правило начинается с
+ * `:root[data-air2='1']` — это +1 к весу и одновременно область действия флага.
+ * Классы взяты из дампа DOM: первая редакция писала по `.home-station-card`,
+ * которого не существует, и «работала» ровно настолько, чтобы сломать подписи.
+ * Инструмент — tests/air-cascade.spec.ts (AIR_CASCADE=1).
+ */
+
+/* ── Слой содержимого: убрать то, чего нет в согласованном экране ───────── */
+
+:root[data-air2='1'] .screen-home-next .home-first-run,
+:root[data-air2='1'] .screen-home-next .home-quick-chips-section {
+  display: none;
+}
+
+/* ── Плитка станции: квадратная обложка, подпись под ней ────────────────── */
+
+:root[data-air2='1'] .screen-home-next .home-station-tile,
+:root[data-air2='1'] .screen-home-next .home-station-tile-resume,
+:root[data-air2='1'] .screen-home-next .home-resume-list .home-station-tile {
+  /* ⚠ Измерено: у плитки aspect-ratio 16/10, и он ДЕРЖИТ высоту 105px от
+     ширины. Без сброса квадратная обложка вываливалась из плитки, а подпись
+     уезжала за нижний край полки — на экране это выглядело как «подписи
+     исчезли», хотя элементы были на месте. */
+  aspect-ratio: auto;
+  height: auto;
+  min-height: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Сцена перестаёт быть абсолютной подложкой и становится самой обложкой. */
+:root[data-air2='1'] .screen-home-next .home-station-tile .home-station-scene {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+:root[data-air2='1'] .screen-home-next .home-station-tile .station-scene-tint {
+  opacity: 0.28;
+}
+
+/* Затемняющая вуаль под текстом больше не нужна — текст ушёл из-под обложки. */
+:root[data-air2='1'] .screen-home-next .home-station-scrim {
+  display: none;
+}
+
+/*
+ * Обложка станции — это её собственная картинка, а не декоративная сцена.
+ * `.home-station-logo` был маленьким бейджем поверх сцены; здесь он становится
+ * самой обложкой и накрывает сцену целиком. Если картинки нет, StationArtwork
+ * рисует свой процедурный фолбэк — это честный ответ приложения, а не пустота.
+ */
+:root[data-air2='1'] .screen-home-next .home-station-logo {
+  /* ⚠ inset:0 резольвится против ПЛИТКИ, а не сцены, и накрывало подпись —
+     подписи «исчезали» второй раз подряд по той же причине. Обложка занимает
+     только квадрат сверху. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+  z-index: 1;
+}
+
+:root[data-air2='1'] .screen-home-next .home-station-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Сцена остаётся подложкой под обложкой и задаёт квадрат. */
+:root[data-air2='1'] .screen-home-next .home-station-tile .home-station-scene {
+  position: relative;
+}
+
+/*
+ * Цветные кружки Play на каждой плитке — главный источник «скачущего взгляда»:
+ * их цвет снимается с самой картинки (lib/scenePlate.ts), поэтому их было
+ * столько же, сколько плиток, и все разные. Тап по плитке и так запускает
+ * станцию, отдельного действия кружок не нёс.
+ *
+ * ⚠ `.screen-home-next .home-action-btn` объявлен с !important в ленивом чанке
+ * Главной — весом это не побеждается, поэтому здесь тоже !important.
+ */
+:root[data-air2='1'] .screen-home-next .home-station-actions {
+  display: none !important;
+}
+
+:root[data-air2='1'] .screen-home-next .home-station-overlay {
+  position: static;
+  inset: auto;
+  padding: 9px 2px 0;
+  background: none;
+}
+
+:root[data-air2='1'] .screen-home-next .home-station-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--text);
+  text-shadow: none;
+}
+
+:root[data-air2='1'] .screen-home-next .home-station-meta,
+:root[data-air2='1'] .screen-home-next .home-station-now {
+  font-size: 0.79rem;
+  font-weight: 400;
+  color: var(--muted);
+  text-shadow: none;
+}
+
+/* Кнопка-подложка накрывает всю плитку вместе с подписью — это один объект. */
+:root[data-air2='1'] .screen-home-next .home-station-primary-action {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+}
+
+/* ── Полки ─────────────────────────────────────────────────────────────── */
+
+:root[data-air2='1'] .screen-home-next .home-rail-card {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-air2='1'] .screen-home-next .home-rail-title,
+:root[data-air2='1'] .screen-home-next .home-rail-heading {
+  font-size: 1.07rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+/* ── Вход в Ленту: тихая строка слоя содержимого, не тёмная плашка ──────── */
+
+:root[data-air2='1'] .screen-home-next .home-feed-entry {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--text);
+}
+
+:root[data-air2='1'] .screen-home-next .home-feed-entry-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+:root[data-air2='1'] .screen-home-next .home-feed-entry-sub {
+  color: var(--muted);
+}
+
+:root[data-air2='1'] .screen-home-next .home-surface-refresh {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 0;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+/* ── Функциональный слой: монохромное стекло ────────────────────────────── */
+
+:root[data-air2='1'] .app-shell-v2 .app-topbar-v2 {
+  background: color-mix(in srgb, var(--theme-bg, #0a0612) 48%, transparent);
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+/* Заголовок красит не сам стек, а его потомки: в светлой теме «Главная»
+   оставалась белой на кремовом. Проверено CSS.getMatchedStylesForNode. */
+:root[data-air2='1'] .app-shell-v2 .app-topbar-title-stack,
+:root[data-air2='1'] .app-shell-v2 .app-topbar-title-stack *,
+:root[data-air2='1'] .app-shell-v2 .app-topbar-brandline,
+:root[data-air2='1'] .app-shell-v2 .app-topbar-brandline * {
+  color: var(--text);
+}
+
+/* Тёмная плашка вокруг входа в Ленту — это ОБЁРТКА, а не сама кнопка. */
+:root[data-air2='1'] .screen-home-next .home-feed-hero {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Заливка была у иконки, а не у вкладки: на светлом это читалось как чипы. */
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-item:not(.active) .mobile-nav-icon {
+  background: none;
+  box-shadow: none;
+}
+
+:root[data-air2='1'] .app-shell-v2 .nav-utility-btn {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  border: 0;
+  box-shadow: none;
+  color: var(--text);
+}
+
+:root[data-air2='1'] .app-shell-v2 .app-topbar-status-chip {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 0;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+/*
+ * Навигация: одна стеклянная поверхность, монохромная. Бирюзовая «Лира» была
+ * вторым акцентом рядом с зелёным Play и оранжевым статусом. По HIG цветной фон
+ * допустим у ОДНОГО управляющего элемента, и он потрачен не здесь: текущий
+ * раздел обозначает плашка и полная яркость, а не цвет.
+ */
+:root[data-air2='1'] .app-shell-v2 .app-navigation-mobile {
+  background: color-mix(in srgb, var(--theme-bg, #0a0612) 56%, transparent);
+  border: 0;
+  border-radius: 26px;
+  box-shadow: 0 16px 36px -18px rgba(2, 6, 16, 0.6);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-item {
+  color: var(--muted);
+  background: none;
+  box-shadow: none;
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-item.active {
+  color: var(--text);
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-item .mobile-nav-icon {
+  background: none;
+  box-shadow: none;
+  border-radius: 10px;
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-item.active .mobile-nav-icon {
+  background: color-mix(in srgb, var(--text) 13%, transparent);
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-chat-fab {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+  border: 0;
+  box-shadow: none;
+  color: var(--text);
+}
+
+:root[data-air2='1'] .app-shell-v2 .mobile-nav-chat-label {
+  color: var(--muted);
+}
+
+/* ── Светлая тема: её нельзя получить одной сменой переменных ───────────── */
+
+:root[data-air2='1'][data-theme-mode='light'] .app-shell-v2 .app-topbar-v2 {
+  background: color-mix(in srgb, #ffffff 64%, transparent);
+}
+
+:root[data-air2='1'][data-theme-mode='light'] .app-shell-v2 .app-navigation-mobile {
+  background: color-mix(in srgb, #ffffff 68%, transparent);
+  box-shadow: 0 16px 34px -20px rgba(60, 40, 90, 0.5);
+}
+
+/* Тени, рассчитанные на тёмный фон, на светлом читаются как грязь. */
+:root[data-air2='1'][data-theme-mode='light'] .screen-home-next .home-station-scene {
+  box-shadow: 0 10px 24px -14px rgba(60, 40, 90, 0.5);
+}
+
+/* Полки считали высоту от плитки в 16/10 — теперь высоту задаёт содержимое. */
+:root[data-air2='1'] .screen-home-next .home-horizontal-scroll,
+:root[data-air2='1'] .screen-home-next .home-rail-list,
+:root[data-air2='1'] .screen-home-next .home-resume-list {
+  height: auto;
+  align-items: start;
+}
+
+:root[data-air2='1'] .screen-home-next .home-resume-strip,
+:root[data-air2='1'] .screen-home-next .home-rail-card {
+  height: auto;
+}
+
+/*
+ * ⚠ Вес, а не украшение. Правило `:root[data-theme-mode='light']
+ * .screen-home-next .home-feed-hero` весит те же (0,3,0), что и моё, но лежит
+ * в позже загружаемом стиле — и выигрывало ничью. То же и у вкладок навигации.
+ * Повтор атрибута — это +1 к весу; в этом репозитории так уже написан
+ * переключатель `?glass=off`, и его арифметику пересчитывает
+ * scripts/assertGlassOverrideWins.mjs.
+ */
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-hero {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-entry {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: none;
+  color: var(--text);
+}
+
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .mobile-nav-item,
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .mobile-nav-item:not(.active) .mobile-nav-icon {
+  background: none;
+  box-shadow: none;
+  border: 0;
+}
+
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .mobile-nav-item.active .mobile-nav-icon {
+  background: color-mix(in srgb, var(--text) 13%, transparent);
+}
+
+/* Цвет строки задают её потомки, а не сама кнопка: после того как плашка стала
+   светлой, белый текст на ней исчез. */
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-entry-title {
+  color: var(--text);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-entry-sub {
+  color: var(--muted);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-entry-grip {
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ЕДИНАЯ СИСТЕМА РАЗМЕРОВ
+ *
+ * До этого блока каждая поверхность несла свои радиусы, отступы и тени: блок
+ * эфира 28, навигация 26, полки — свои, обложки 20. На экране это читалось как
+ * несколько разных приложений рядом. Ниже — один набор величин, и всё, что
+ * рисуется под флагом, берёт размеры отсюда.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+:root[data-air2='1'] {
+  --a2-gutter: 14px;      /* поля экрана */
+  --a2-gap: 16px;         /* между разделами */
+  --a2-r-cover: 16px;     /* обложка в полке */
+  --a2-r-row: 16px;       /* строка станции */
+  --a2-r-glass: 24px;     /* функциональный слой: эфир, навигация, шапка */
+  --a2-cover: 132px;      /* обложка подборки — выразительная, но не во весь экран */
+  --a2-row-art: 52px;     /* обложка в строке */
+  --a2-elev: 0 14px 30px -16px rgba(2, 6, 16, 0.55);
+  --a2-chip: color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+/* Один радиус на весь функциональный слой. */
+:root[data-air2='1'][data-air2='1'] .air-block,
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .app-navigation-mobile {
+  border-radius: var(--a2-r-glass);
+  box-shadow: var(--a2-elev);
+}
+
+/* Расстояние между разделами задаёт одна величина, а не пять правил. */
+:root[data-air2='1'][data-air2='1'] .screen-home-next {
+  --home-screen-gap: var(--a2-gap);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-rail-card,
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-resume-strip {
+  padding: 0;
+  margin: 0;
+  gap: 10px;
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-rail-head,
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-rail-heading,
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-rail-title {
+  padding-inline: var(--a2-gutter);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-horizontal-scroll {
+  padding-inline: var(--a2-gutter);
+  gap: 12px;
+}
+
+/* ── Подборки: выразительная обложка умеренного размера ─────────────────── */
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile {
+  flex: 0 0 var(--a2-cover);
+  min-width: var(--a2-cover);
+  width: var(--a2-cover);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile .home-station-scene,
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-logo,
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-primary-action {
+  border-radius: var(--a2-r-cover);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-overlay {
+  padding: 8px 1px 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * «ПРОДОЛЖИТЬ СЛУШАТЬ» — СТРОКИ, НЕ ПОЛКА
+ *
+ * Одна сохранённая станция занимала целую полку и обложку во весь квадрат.
+ * Список того, к чему возвращаются, — это перечень, а не витрина: строка с
+ * обложкой, названием и действием.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-resume-list {
+  display: grid;
+  /* ⚠ Не grid-auto-columns: строка тогда сжимается по содержимому и висит
+     слева. Одна колонка на всю ширину — это и есть перечень. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  gap: 8px;
+  overflow: visible;
+  padding-inline: var(--a2-gutter);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile-resume {
+  display: grid;
+  grid-template-columns: var(--a2-row-art) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  justify-self: stretch;
+  flex: initial;
+  padding: 7px;
+  border-radius: var(--a2-r-row);
+  background: var(--a2-chip);
+  box-shadow: none;
+}
+
+/* В строке картинку несёт обложка станции; декоративная сцена не нужна. */
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile-resume .home-station-scene {
+  display: none;
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile-resume .home-station-logo {
+  position: static;
+  width: var(--a2-row-art);
+  height: var(--a2-row-art);
+  aspect-ratio: auto;
+  border-radius: 12px;
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile-resume .home-station-overlay {
+  padding: 0;
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-station-tile-resume .home-station-primary-action {
+  border-radius: var(--a2-r-row);
+}
+
+/* ── Вход в Ленту и обновление — та же строка, тот же радиус ────────────── */
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-feed-entry {
+  border-radius: var(--a2-r-row);
+  background: var(--a2-chip);
+}
+
+:root[data-air2='1'][data-air2='1'] .screen-home-next .home-surface-refresh {
+  background: var(--a2-chip);
+}
+
+/* ── Шапка: тот же радиус и та же плотность, что у остального стекла ────── */
+
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .app-topbar-v2 {
+  border-radius: var(--a2-r-glass);
+  box-shadow: var(--a2-elev);
+}
+
+/* Заголовок шапки в том же масштабе, что и заголовки полок, а не вдвое крупнее. */
+:root[data-air2='1'][data-air2='1'] .app-shell-v2 .app-topbar-title-stack {
+  font-size: 1.16rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * ⚠ Вкладки навигации в светлой теме. Победителем был
+ * `:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item`
+ * весом (0,4,0) — ровно столько же, сколько у моего правила, но позже в
+ * каскаде, поэтому неактивные вкладки оставались светлыми плашками. Здесь вес
+ * (0,7,0) и та же форма селектора (через `.app-navigation-mobile`), чтобы
+ * ничья была исключена, а не выиграна случайно. Проверено
+ * CSS.getMatchedStylesForNode в светлой теме на 390px.
+ */
+:root[data-air2='1'][data-air2='1'][data-air2='1'] .app-shell-v2 .app-navigation-mobile .mobile-nav-item {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+:root[data-air2='1'][data-air2='1'][data-air2='1'] .app-shell-v2 .app-navigation-mobile .mobile-nav-item.active {
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+}
+
+:root[data-air2='1'][data-air2='1'][data-air2='1'] .app-shell-v2 .app-navigation-mobile .mobile-nav-item.active .mobile-nav-icon {
+  background: color-mix(in srgb, var(--text) 13%, transparent);
+}
+
+:root[data-air2='1'][data-air2='1'][data-air2='1'] .app-shell-v2 .app-navigation-mobile .mobile-nav-chat-fab {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+  border: 0;
+  box-shadow: none;
+  color: var(--text);
+}
+
+/*
+ * ⚠ Подложка слоя содержимого не может быть одной величиной для обеих тем.
+ * `color-mix(var(--text) 7%)` на тёмном фоне — видимая плашка, а на кремовом
+ * (светлая тема) — 7 % почти чёрного по почти белому, то есть ничего. Строка
+ * «Продолжить слушать» была полной ширины (измерено 334px из 362), но выглядела
+ * узкой, потому что её подложки просто не было видно. Это дефект контраста, а
+ * не каскада — я едва не начал чинить не то.
+ */
+:root[data-air2='1'][data-theme-mode='light'] {
+  --a2-chip: rgba(255, 255, 255, 0.78);
+}
+
+:root[data-air2='1'][data-air2='1'][data-theme-mode='light'] .screen-home-next .home-station-tile-resume,
+:root[data-air2='1'][data-air2='1'][data-theme-mode='light'] .screen-home-next .home-feed-entry,
+:root[data-air2='1'][data-air2='1'][data-theme-mode='light'] .screen-home-next .home-surface-refresh {
+  background: var(--a2-chip);
+  box-shadow: inset 0 0 0 1px rgba(60, 40, 90, 0.08);
+  /* На белой плашке значок наследовал светлый цвет и исчезал. */
+  color: var(--text);
+}
+
+:root[data-air2='1'][data-air2='1'][data-theme-mode='light'] .screen-home-next .home-surface-refresh svg {
+  stroke: var(--text);
+  fill: none;
+  opacity: 0.7;
+}
