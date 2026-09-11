@@ -338,3 +338,8 @@
   .app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip { flex: 0 0 auto; padding: 7px 10px; }
   .app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-label { max-width: none; overflow: visible; text-overflow: clip; }
 }
+/* The station details sheet (rows in Моё/Поиск) on the same paper. */
+.app-shell-v2[data-calm='true'] .details-card { background: var(--calm-solid); color: var(--calm-ink); border: 1px solid var(--calm-edge); box-shadow: 0 -12px 65px #31221c26; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.app-shell-v2[data-calm='true'] .details-card .glass-card { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.app-shell-v2[data-calm='true'] .details-card .chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
+.app-shell-v2[data-calm='true'] .details-card .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
