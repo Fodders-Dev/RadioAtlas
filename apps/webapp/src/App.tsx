@@ -83,7 +83,9 @@ const App = () => {
     detailsOpen,
     setDetailsOpen,
     skinLabOpen,
-    setSkinLabOpen
+    setSkinLabOpen,
+    chatRequest,
+    clearChatRequest
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   // «Лира» chat lives at the shell level so the central nav button opens it from
@@ -584,9 +586,16 @@ const App = () => {
           <AccountSheetLazy open={accountSheetOpen} onClose={closeAccountSheet} />
         </Suspense>
       ) : null}
-      {aiAssistantEnabled && chatOpen ? (
+      {aiAssistantEnabled && (chatOpen || chatRequest) ? (
         <Suspense fallback={null}>
-          <ChatSheetLazy open={chatOpen} onClose={() => setChatOpen(false)} />
+          <ChatSheetLazy
+            open
+            prompt={chatRequest}
+            onClose={() => {
+              setChatOpen(false);
+              clearChatRequest();
+            }}
+          />
         </Suspense>
       ) : null}
       {winamp.expanded ? (

@@ -48,7 +48,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const { t } = useLocale();
   const { player } = usePlayback();
   const { isFavorite, toggleFavorite, trackHistory, knownStations, favorites, recent, collections, isStationHiddenFromRecommendations } = useLibrary();
-  const { setActiveSection, setLibraryTab, homeState } = useShell();
+  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
   useLayoutEffect(() => {
     window.scrollTo({ top: discovery.scrollY || 0, behavior: 'instant' });
@@ -117,6 +117,8 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
     {country && <section className="calm-section calm-world" data-calm-world>
       <div className="calm-heading"><div><p>{t('calm.worldKicker')}</p><h2>{t('calm.world')}</h2></div><button className="calm-country-select" onClick={() => setCountryPicker(true)}>{t('calm.allCountries')} ↗</button></div>
+      {/* Country → the same place on the Globe. Selecting a country never plays. */}
+      <button className="calm-country-map" data-calm-country-map onClick={() => { setGlobeFocusRegionId(country); setActiveSection('globe'); }}>{formatCountryLabel(country)} · {t('mapExplorer.onMap')} ↗</button>
       <div className="calm-countries" role="group" aria-label={t('calm.country')}>
         {[...visit.countries.slice(0, 8), ...(visit.countries.slice(0, 8).includes(country) ? [] : [country])].map(c => <button key={c} aria-pressed={country === c} onClick={() => setCountry(c)}>{formatCountryLabel(c)}</button>)}
       </div>

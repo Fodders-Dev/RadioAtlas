@@ -640,3 +640,24 @@ Touch targets ≥ 44px, no document horizontal overflow at 360/390/412, and the
 navigation/dock sizes in `PLAN_ARCHIVE.md`'s UI sections. If an assertion about one of
 these fails intermittently, the measurement is racing an animation — see
 `.claude/rules/e2e-tests.md`. Never relax the number.
+
+## The calm Globe (`?calm=1`): two MapLibre traps paid for on 2026-09-11
+
+`screens/GlobeExplorer.tsx` + `components/globe/ExplorerMap.tsx` is the A4
+«Журнал» globe: real-coordinate points only, clusters with their real counts, a
+tap SELECTS, and audio starts only from an explicit Play. `screenLoaders.ts`
+picks it over the reticle `GlobeScreen` only under `CALM_PREVIEW`.
+
+- **`map.resize()` calls `map.stop()`**, and `stop()` discards a drag that has
+  begun but not yet passed the click tolerance. Resizing on every animation
+  frame of the panel transition (a ResizeObserver, or MapLibre's own
+  `trackResize`) made a pan started right after a panel toggle do nothing —
+  silently, no error. The map now runs `trackResize: false`, resizes once the
+  size has settled for 80ms, and never while a pointer is down. The e2e spec
+  found it; a person would have reported «карта иногда не двигается».
+- **A generic `button:active { transform: scale(.97) }` REPLACES the
+  `translateX(-50%)` that centres «Искать здесь»**, so the button jumped 76px
+  sideways on press and the release landed on the canvas. Playwright reported
+  it as «canvas intercepts pointer events» for 90s; on a phone it is a button
+  that flees the finger. Any centred-by-transform control needs its own press
+  rule or an exclusion from the generic one.

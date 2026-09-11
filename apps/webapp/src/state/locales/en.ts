@@ -65,6 +65,25 @@ export const enDictionary = {
     moreAir: 'Another good broadcast', finds: 'Your finds', keep: 'Keep the good stuff', keepSub: 'Like a track? Tap the bookmark',
     player: 'Player', save: 'Save track', saved: 'Track saved', paused: 'Paused', error: 'Could not connect'
   },
+  // Calm Globe (A4 «Journal»): sources on a map, finds stay in the player.
+  mapExplorer: {
+    title: 'Stations on the map', loading: 'Loading stations…', loadError: 'Could not load the map and stations.',
+    world: 'World', countries: 'Countries', legend: 'Dot — a station · number — a group', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    searchHere: 'Search here', listHint: 'Name → map · ▶ → play', nearby: 'Stations nearby', inArea: 'In this area', wholeWorld: 'Whole world',
+    expand: 'Expand the list', collapse: 'Collapse the list', searchArea: 'Search stations in the area', moreMap: 'More map', showList: 'Stations',
+    searchLabel: 'Search the shown stations', searchPlaceholder: 'Station name or region', clearSearch: 'Clear search',
+    listLabel: 'Stations in the selected area', showOnMap: 'Show {name} on the map', play: 'Play {name}', more: 'More stations',
+    empty: 'Nothing found in this area.', pickCountry: 'Choose a country', searchCatalog: 'Search the catalogue',
+    count: { one: '{count} station', few: '{count} stations', many: '{count} stations', other: '{count} stations' },
+    panelLabel: 'Stations on the map', backToList: 'Stations', lira: 'Lira', askLira: 'Ask Lira about this source',
+    favorite: 'Favourite station', unfavorite: 'Remove from favourites', details: 'More about the source', hideDetails: 'Hide details',
+    listening: 'listening', connecting: 'connecting', selected: 'Selected source',
+    heartNote: 'The heart keeps the source itself. The bookmark catches a track when the station reports its title.',
+    nowPlaying: 'Now playing', saveTrack: 'Save track', trackSaved: 'Track saved',
+    noTrack: 'The station is not reporting a track title yet.', startToCatch: 'Start the station — if it reports titles, you can catch one.',
+    stationUnavailable: 'Source details are temporarily unavailable.', groupFailed: 'Could not open the group. Zoom in with +.',
+    noCoords: 'This source has no exact coordinates. Its country is open instead.', onMap: 'On the map'
+  },
   "errorBoundary": {
     "screenTitle": "Couldn't load this section",
     "screenBody": "Something went wrong. Try again, or head back home.",

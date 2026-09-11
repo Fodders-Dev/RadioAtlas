@@ -270,6 +270,18 @@ export type ShellContextValue = {
   clearSearchDraft: () => void;
   globeFocusRegionId: string | null;
   setGlobeFocusRegionId: (regionId: string | null) => void;
+  // «Показать на карте» for one source: the calm Globe selects this station on
+  // arrival when it has real coordinates, otherwise it opens its country.
+  // Transient like the region focus — consumed once, never persisted.
+  globeFocusStationId: string | null;
+  setGlobeFocusStationId: (stationId: string | null) => void;
+  // A screen asking Лира something on the listener's behalf («расскажи об
+  // источнике X»). The shell opens the chat and sends the text as the user's
+  // own turn — the answer is the real assistant's, never a scripted reply.
+  chatRequest: { text: string; id: number } | null;
+  requestChat: (text: string) => void;
+  clearChatRequest: () => void;
+  notify: (message: string) => void;
   skinLabOpen: boolean;
   setSkinLabOpen: (value: boolean) => void;
   openWebAppExternally: () => void;

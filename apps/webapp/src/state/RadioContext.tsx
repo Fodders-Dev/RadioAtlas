@@ -495,6 +495,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     playbackHistoryEntries.length ? playbackHistoryEntries.length - 1 : -1
   );
   const [globeFocusRegionId, setGlobeFocusRegionId] = useState<string | null>(null);
+  const [globeFocusStationId, setGlobeFocusStationId] = useState<string | null>(null);
+  const [chatRequest, setChatRequest] = useState<{ text: string; id: number } | null>(null);
+  const requestChat = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setChatRequest({ text: trimmed, id: Date.now() });
+  }, []);
+  const clearChatRequest = useCallback(() => setChatRequest(null), []);
   const [skinLabOpen, setSkinLabOpen] = useState(false);
   const debugLoggingEnabled =
     import.meta.env.DEV ||
@@ -3031,6 +3039,12 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearSearchDraft,
       globeFocusRegionId,
       setGlobeFocusRegionId,
+      globeFocusStationId,
+      setGlobeFocusStationId,
+      chatRequest,
+      requestChat,
+      clearChatRequest,
+      notify,
       skinLabOpen,
       setSkinLabOpen,
       openWebAppExternally,
@@ -3038,6 +3052,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     }),
     [
       activeSection,
+      chatRequest,
+      clearChatRequest,
+      requestChat,
       clearCache,
       clearSearchDraft,
       debugLogs,
@@ -3045,6 +3062,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       feedEntryStation,
       feedSeed,
       globeFocusRegionId,
+      globeFocusStationId,
       homeState,
       libraryTab,
       rerollFeedSeed,

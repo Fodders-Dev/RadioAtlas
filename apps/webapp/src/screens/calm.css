@@ -126,3 +126,11 @@
 .calm-country-head, .calm-country-dialog input, .calm-country-dialog > p { flex-shrink: 0; }
 .calm-country-options { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .calm-destinations { background: var(--calm-surface); box-shadow: inset 0 1px 0 color-mix(in srgb,white 18%,transparent); }
+
+/* Calm Globe (A4): the map owns the top row (country switch, «Мир»); the shell
+   topbar stays out of the way like on Home. The entrance animation's filter
+   would root a backdrop and blind the panel's glass. */
+.app-shell-v2[data-calm='true'][data-active-section='globe'] .app-topbar-v2 { display: none; }
+.app-shell-v2[data-calm='true'][data-active-section='globe'] .app-screen-frame { animation: none; filter: none; transform: none; }
+.app-shell-v2[data-calm='true'][data-active-section='globe'] .calm-mini { z-index: 66; }
+.calm-country-map { display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0 6px; padding: 0 4px; border: 0; background: none; color: var(--accent); font-size: 12px; font-weight: 700; }

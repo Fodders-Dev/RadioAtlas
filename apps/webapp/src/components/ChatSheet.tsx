@@ -46,7 +46,14 @@ type ChatMessage = {
   actionReceipts?: ChatActionReceipt[];
 };
 
-type ChatSheetProps = { open: boolean; onClose: () => void };
+type ChatSheetProps = {
+  open: boolean;
+  onClose: () => void;
+  // A question another screen asks on the listener's behalf (the calm Globe's
+  // «Лира» on a source). Sent once per `id` as the user's own turn; the reply is
+  // whatever the real assistant answers.
+  prompt?: { text: string; id: number } | null;
+};
 
 import { pickChatPrompts, type ChatPromptSpec } from '../lib/chatPrompts';
 
@@ -204,7 +211,7 @@ const buildChatUserTaste = (
   };
 };
 
-export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
+export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { t } = useLocale();
   const { fetchStationById } = useCatalog();
   const { player, queue, nowPlaying, playStation } = usePlayback();
@@ -367,6 +374,17 @@ export const ChatSheet = ({ open, onClose }: ChatSheetProps) => {
     event.preventDefault();
     void send();
   };
+
+  // One send per request id — StrictMode's double effect and re-renders while
+  // the answer streams in must not repeat the question.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const handledPromptRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!open || !prompt || handledPromptRef.current === prompt.id) return;
+    handledPromptRef.current = prompt.id;
+    void sendRef.current(prompt.text);
+  }, [open, prompt]);
 
   const onInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value);
