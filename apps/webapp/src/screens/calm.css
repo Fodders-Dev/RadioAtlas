@@ -319,3 +319,13 @@
   .calm-country-tile > span { font-size: 24px; }
   .calm-heading h2 { font-size: 18px; }
 }
+
+/* Sheets of the old shell (Settings, Account) on the journal's paper: every
+   control stays, only the material follows the composition. */
+.app-shell-v2[data-calm='true'] .settings-sheet-card { background: var(--calm-solid); color: var(--calm-ink); border: 1px solid var(--calm-edge); border-bottom: 0; border-radius: 31px 31px 0 0; box-shadow: 0 -12px 65px #31221c26; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.app-shell-v2[data-calm='true'] .settings-sheet-backdrop { background: #28211a38; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.app-shell-v2[data-calm='true'] .settings-sheet-card :is(.settings-card, .glass-card, .account-provider-card, .account-merge-preview-card) { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 18px; color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .settings-sheet-card :is(.section-title, .settings-label) { color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .settings-sheet-card :is(.section-subtitle, .settings-desc, .settings-sheet-kicker) { color: var(--calm-secondary); }
+.app-shell-v2[data-calm='true'] .settings-sheet-card .chip { min-height: 44px; padding: 0 16px; border: 1px solid var(--calm-line); border-radius: 28px; font-size: 13px; background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
+.app-shell-v2[data-calm='true'] .settings-sheet-card .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
