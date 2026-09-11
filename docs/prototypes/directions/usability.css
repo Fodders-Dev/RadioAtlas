@@ -92,3 +92,43 @@
 .usability-three .explorer-heading p{font-size:10px}
 #app.usability-three.opaque .explorer-panel{background:var(--solid)!important;backdrop-filter:none!important}
 @media(max-width:350px){.usability-three .story-rail{margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px}.usability-three .explorer-heading p{font-size:9px}}
+
+/* A4: a source preview, not a second expanded player. */
+.usability-three #content.globe-experience{--panel-height:192px}
+.usability-three #content.globe-experience[data-selection="station"]{--panel-height:140px}
+.usability-three #content.globe-experience[data-panel="expanded"]{--panel-height:min(460px,62%)}
+.usability-three #content.globe-experience[data-selection="station"][data-panel="expanded"]{--panel-height:276px}
+.usability-three #content.globe-experience[data-panel="collapsed"]{--panel-height:65px}
+.explorer-panel{padding:10px 13px 8px;border-radius:25px}
+.panel-title-toggle{display:grid;gap:3px;text-align:left;flex:1;min-width:0;padding:3px 0;touch-action:none}
+.panel-title-toggle strong{font-size:16px;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-title-toggle small{font-size:10px;color:var(--muted);white-space:nowrap}
+.usability-three .explorer-heading{min-height:48px;gap:0}
+.explorer-heading>.icon-button{flex:0 0 44px;width:44px}
+.explorer-panel[data-size="normal"] .map-search-field{display:none}
+.explorer-panel[data-size="normal"] .map-list-meta{height:20px}
+.explorer-panel[data-size="collapsed"] .panel-title-toggle small{display:none}
+.explorer-panel[data-size="collapsed"] .panel-map-toggle svg{transform:rotate(180deg)}
+.map-result-name strong{font-size:14px}
+.map-result-row{min-height:52px}.map-result-name{min-height:52px}
+.station-preview{display:flex;align-items:center;gap:10px;min-height:66px;flex:none}
+.station-preview-title{display:flex;gap:10px;align-items:center;text-align:left;flex:1;min-width:0;min-height:60px;touch-action:none}
+.station-preview-title .station-logo{width:40px;height:40px;flex:0 0 40px;border-radius:12px}
+.station-preview-title>span{display:grid;gap:4px;min-width:0}
+.station-preview-title small{font-size:11px;color:var(--muted);line-height:1.2}
+.station-preview-title strong{font-size:16px;line-height:1.25;letter-spacing:-.25px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.station-preview-play{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:50%;background:var(--accent);color:var(--solid);box-shadow:0 5px 12px #91452425}
+.station-preview-play svg{width:21px;height:21px;fill:currentColor}
+.station-preview-actions{display:flex;align-items:center;gap:5px;min-height:46px;flex:none;border-top:1px solid var(--line);margin-top:4px}
+.station-preview-actions .text-button{min-height:44px;font-size:12px;padding:0 8px;gap:6px}
+.station-preview-actions .text-button svg{width:18px;height:18px}
+.station-preview-actions .icon-button{height:44px;width:44px;flex:0 0 44px;color:var(--accent)}
+.station-preview-actions .text-button:nth-child(2){margin-right:auto}
+.detail-disclosure svg{transform:rotate(180deg)}
+.explorer-panel[data-size="expanded"] .detail-disclosure svg{transform:none}
+.source-details{overflow-y:auto;min-height:0;padding-top:8px;font-size:13px;line-height:1.55}
+.source-details p{margin:0 0 8px}.source-details p+p{font-size:12px;color:var(--muted)}.source-details small{font-size:10px;color:var(--muted)}
+.explorer-panel[data-size="expanded"] .station-preview-title strong{-webkit-line-clamp:unset}
+.map-legend{font-size:11px}
+@media(max-width:350px){.panel-title-toggle strong{font-size:14px}.panel-title-toggle small{font-size:9px}.station-preview-title strong{font-size:15px}.station-preview-title .station-logo{display:none}.station-preview-actions .text-button{padding:0 4px}}
+@media(max-height:740px){.usability-three #content.globe-experience[data-panel="expanded"]{--panel-height:54%}.usability-three #content.globe-experience[data-selection="station"][data-panel="expanded"]{--panel-height:250px}}

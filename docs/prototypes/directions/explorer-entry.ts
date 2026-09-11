@@ -28,9 +28,9 @@ const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
         {id:'groups-shadow',type:'circle',source:'stations',filter:['has','point_count'],paint:{'circle-radius':23,'circle-color':'#3f5c4633','circle-blur':.5}},
         {id:'groups',type:'circle',source:'stations',filter:['has','point_count'],paint:{'circle-radius':['step',['get','point_count'],17,50,20,200,23],'circle-color':'#fff1d8','circle-stroke-color':'#fffbee','circle-stroke-width':2,'circle-opacity':.95}},
         {id:'counts',type:'symbol',source:'stations',filter:['has','point_count'],layout:{'text-field':['get','point_count_abbreviated'],'text-font':['Open Sans Semibold'],'text-size':12,'text-allow-overlap':true},paint:{'text-color':'#574631'}},
-        {id:'dots',type:'circle',source:'stations',filter:['!', ['has','point_count']],paint:{'circle-radius':7,'circle-color':'#bf603b','circle-stroke-color':'#fff4dc','circle-stroke-width':2}},
+        {id:'dots',type:'circle',source:'stations',filter:['!', ['has','point_count']],paint:{'circle-radius':11,'circle-color':'#bf603b','circle-stroke-color':'#fff4dc','circle-stroke-width':2}},
         {id:'selection-halo',type:'circle',source:'selected',paint:{'circle-radius':22,'circle-color':'#ffe1a555','circle-stroke-color':'#fff2cbbb','circle-stroke-width':1}},
-        {id:'selection',type:'circle',source:'selected',paint:{'circle-radius':10,'circle-color':'#a5452b','circle-stroke-color':'#fff5d9','circle-stroke-width':3}},
+        {id:'selection',type:'circle',source:'selected',paint:{'circle-radius':12,'circle-color':'#a5452b','circle-stroke-color':'#fff5d9','circle-stroke-width':3}},
         {id:'selection-name',type:'symbol',source:'selected',layout:{'text-field':['get','name'],'text-font':['Open Sans Semibold'],'text-size':12,'text-anchor':'top','text-offset':[0,1.6],'text-max-width':14,'text-allow-overlap':true},paint:{'text-color':'#fff7e4','text-halo-color':'#324439','text-halo-width':2}}
       ]}});
     function syncSelection(){const point=props.points.find((p:Point)=>p.id===props.selectedId);(map.getSource('selected') as GeoJSONSource)?.setData(data(point?[point]:[]) as any);}
@@ -41,6 +41,8 @@ const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
     map.on('moveend',()=>{if(!ready||disposed)return;props.onZoomChange?.(map.getZoom()-1.4);props.onCamera?.({center:{lat:map.getCenter().lat,lon:map.getCenter().lng},zoom:map.getZoom()-1.4});if(userMoved){userMoved=false;props.onAreaChange?.(area());}});
     map.on('click',async e=>{
       if(!ready)return;
+      const selected=map.queryRenderedFeatures(e.point,{layers:['selection-halo']})[0];
+      if(selected){props.onPick?.(selected.properties.id);return;}
       const revision=++selectionRevision;
       const box:[[number,number],[number,number]]=[[e.point.x-22,e.point.y-22],[e.point.x+22,e.point.y+22]];
       const hits=map.queryRenderedFeatures(box,{layers:['groups','dots']});

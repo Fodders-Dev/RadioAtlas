@@ -1,4 +1,4 @@
-// A3 interaction study. Previous A2 and A/B studies remain intact.
+// A4 map refinement. Previous A3 is checkpoint ab7dedd; A2 and A/B remain intact.
 (() => {
   const originalRenderMain=renderMain, originalDock=renderDock, originalSave=save;
   // A3 keeps the A2 artwork and revises information density and map interaction.
@@ -8,7 +8,7 @@
   const named=name=>state.stations.find(s=>s.name.includes(name));
   const refs=names=>names.map(named).filter(Boolean);
   const iconButton=(action,label,ic,attrs='')=>button(action,label,ic,'icon-button glass',attrs);
-  const softCountry=c=>countryName(c);
+  const softCountry=c=>c==='Ukraine'?'Украина':countryName(c);
 
   homeA=function(){
     return `<header class="journal-heading"><h1>Открывайте музыку</h1><div>${iconButton('nav','Поиск','search','data-tab="search"')}${iconButton('theme','Оформление','palette')}</div></header>
@@ -118,7 +118,7 @@
 
   function globeScreen(){return `<div id="real-globe" class="actual-globe"><div class="map-loading"><span></span><p>Находим эфиры на карте…</p></div></div><div class="map-vignette"></div>
     <header class="map-heading"><button class="glass map-country-switch" data-action="countries">${icon('globe')}<span>${esc(rev.world||rev.mapScope==='area'?'Страны':softCountry(rev.mapCountry))}</span>${icon('down')}</button><button class="map-world-button glass" data-action="globe-world">${icon('globe')}<span>Мир</span></button></header>
-    <div class="map-legend">${icon('search')}<span>Число — группа эфиров. Нажмите, чтобы приблизить.</span></div>
+    <div class="map-legend">${icon('search')}<span>Точка — эфир · число — группа</span></div>
     <div class="map-tools">${button('map-zoom-in','Приблизить','','icon-button glass zoom-plus')}${button('map-zoom-out','Отдалить','','icon-button glass zoom-minus')}</div>
     <button id="search-map-area" class="search-map-area glass" data-action="map-search-here" hidden>${icon('search')}<span>Искать здесь</span></button>
     <section class="explorer-panel glass" id="map-panel" data-size="${rev.panelSize||'normal'}" aria-label="Станции на карте"><div id="map-selection" aria-live="polite"></div></section>`;}
@@ -128,20 +128,26 @@
   const visiblePoints=()=>rev.world||rev.mapScope==='area'?rev.points:rev.points.filter(p=>p.country===rev.mapCountry);
   function pointStation(p){if(!known.has(p.id))known.set(p.id,{stationuuid:p.id,name:p.name||'Радиостанция',country:p.country,tags:'',homepage:'',geo_lat:p.lat,geo_long:p.lon});return known.get(p.id);}
   function areaPoints(){const ids=new Set(rev.areaIds||(rev.world?rev.points:rev.points.filter(p=>p.country===rev.mapCountry)).map(p=>p.id));return (rev.points||[]).filter(p=>ids.has(p.id));}
-  function resultPoints(){const q=(rev.mapQuery||'').trim().toLocaleLowerCase('ru');return areaPoints().filter(p=>!q||(p.name+' '+(p.state||'')+' '+softCountry(p.country)).toLocaleLowerCase('ru').includes(q));}
-  function setArea(ids,title,keepQuery=false){rev.areaIds=ids;rev.listTitle=title;rev.mapSelected=null;if(!keepQuery)rev.mapQuery='';rev.resultLimit=20;rev.map?.update({selectedId:undefined});renderMapCard();}
-  function applyPanelSize(size){rev.panelSize=size;const p=document.querySelector('#map-panel');if(p)p.dataset.size=size;main.dataset.panel=size;}
-  function panelHeader(title,subtitle,detail=false){return `<header class="explorer-heading">${detail?iconButton('map-results','К списку эфиров','back'):''}<div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div>${button(rev.panelSize==='expanded'?'map-normal':'map-expand',rev.panelSize==='expanded'?'Свернуть список':'Развернуть список','down','icon-button panel-expand')}${button(rev.panelSize==='collapsed'?'map-normal':'map-collapse',rev.panelSize==='collapsed'?'Эфиры':'Карта',rev.panelSize==='collapsed'?'feed':'globe','panel-map-toggle')}</header>`;}
+  function resultPoints(){const q=(rev.mapQuery||'').trim().toLocaleLowerCase('ru');const items=areaPoints().filter(p=>!q||(p.name+' '+(p.state||'')+' '+softCountry(p.country)).toLocaleLowerCase('ru').includes(q));if(!q&&!rev.areaIds){const editorial=new Map(state.stations.map((s,i)=>[idOf(s),i]));items.sort((a,b)=>(editorial.get(a.id)??999)-(editorial.get(b.id)??999));}return items;}
+  function setArea(ids,title,keepQuery=false){rev.areaIds=ids;rev.listTitle=title;rev.mapSelected=null;rev.panelSize='normal';if(!keepQuery)rev.mapQuery='';rev.resultLimit=20;rev.map?.update({selectedId:undefined});renderMapCard();}
+  function applyPanelSize(size){rev.panelSize=size;const p=document.querySelector('#map-panel');if(p)p.dataset.size=size;main.dataset.panel=size;main.dataset.selection=rev.mapSelected?'station':'list';}
+  function panelHeader(title,subtitle){const expanded=rev.panelSize==='expanded',collapsed=rev.panelSize==='collapsed';return `<header class="explorer-heading"><button class="panel-title-toggle" data-panel-drag data-action="${expanded?'map-normal':'map-expand'}" aria-expanded="${expanded}" aria-label="${expanded?'Свернуть список':'Развернуть список'}"><strong>${esc(title)}</strong><small>${esc(subtitle)}</small></button>${button('map-search','Поиск станций в области','search','icon-button')}${button(collapsed?'map-normal':'map-collapse',collapsed?'Эфиры':'Больше карты',collapsed?'feed':'down','icon-button panel-map-toggle')}</header>`;}
   function panelRows(items){return items.slice(0,rev.resultLimit||20).map(p=>{const s=pointStation(p);return `<div class="map-result-row" data-point-id="${esc(p.id)}"><button class="map-result-name" data-action="map-row" data-id="${esc(p.id)}" aria-label="Показать ${esc(shortName(s))} на карте">${logo(s)}<span><strong>${esc(shortName(s))}</strong><small>${esc(p.state||softCountry(p.country))}</small></span></button>${button('play','Включить '+shortName(s),'play','icon-button result-play',`data-id="${esc(p.id)}"`)}</div>`;}).join('')+(items.length>(rev.resultLimit||20)?button('map-more','Ещё эфиры','down','map-load-more'):'');}
-  function renderResults(){const items=resultPoints();const list=document.querySelector('#map-results');if(list){list.innerHTML=panelRows(items)||'<div class="map-empty"><p>В этой области ничего не найдено.</p>'+button('countries','Выбрать страну','globe','text-button')+'</div>';document.querySelector('#map-result-count').textContent=items.length.toLocaleString('ru')+' эфиров';}}
+  function renderResults(){const items=resultPoints();const list=document.querySelector('#map-results');if(list){list.innerHTML=panelRows(items)||'<div class="map-empty"><p>В этой области ничего не найдено.</p>'+button('countries','Выбрать страну','globe','text-button')+'</div>';document.querySelector('#map-result-count').textContent=items.length.toLocaleString('ru')+' '+({one:'эфир',few:'эфира',many:'эфиров',other:'эфира'}[new Intl.PluralRules('ru').select(items.length)]);}}
   function renderMapCard(){
-    const el=document.querySelector('#map-selection');if(!el)return;applyPanelSize(rev.panelSize||'normal');
+    const listScroll=document.querySelector('#map-results')?.scrollTop||0;const el=document.querySelector('#map-selection');if(!el)return;applyPanelSize(rev.panelSize||'normal');
     if(!rev.points){el.innerHTML=panelHeader('Эфиры на карте','Загружаем станции…');return;}
-    const s=rev.mapSelected;
-    if(s){el.innerHTML=panelHeader('Выбрано на карте',softCountry(s.country),true)+`<div class="map-detail-body"><div class="map-detail-title">${logo(s)}<h3>${esc(shortName(s))}</h3>${button('favorite','Любимая станция','heart','icon-button '+(state.favorites.has(idOf(s))?'selected':''),`data-id="${esc(idOf(s))}" aria-pressed="${state.favorites.has(idOf(s))}"`)}</div><p>${esc(s.tags?.split(',').slice(0,5).join(' · ')||'Жанры пока не указаны источником.')}</p><div class="map-detail-actions">${button('play',state.current&&idOf(state.current)===idOf(s)&&state.playing?'Сейчас играет':'Слушать станцию','play','primary',`data-id="${esc(idOf(s))}"`)}${button('lira-about','О станции','spark','text-button',`data-id="${esc(idOf(s))}"`)}</div><p class="map-selection-note">${state.current&&idOf(state.current)!==idOf(s)?'Текущий эфир: '+esc(shortName(state.current)):'Откройте Ленту внизу для управления эфиром.'}</p></div>`;return;}
+    const s=rev.mapSelected,expanded=rev.panelSize==='expanded';
+    if(s){
+      const current=state.current&&idOf(state.current)===idOf(s),playing=current&&state.playing;const region=rev.points.find(p=>p.id===idOf(s))?.state;
+      el.innerHTML=`<div class="station-preview"><button class="station-preview-title" data-action="${expanded?'map-normal':'map-expand'}" aria-label="${expanded?'Свернуть':'Подробнее об источнике'}" aria-expanded="${expanded}" data-panel-drag>${logo(s)}<span><small>${esc(softCountry(s.country))}${region?' · '+esc(region):''}${playing?' · слушаем':''}</small><strong>${esc(shortName(s))}</strong></span></button>${button(playing?'toggle':'play',playing?'Пауза':'Слушать '+shortName(s),playing?'pause':'play','icon-button station-preview-play',`data-id="${esc(idOf(s))}"`)}</div>
+        <div class="station-preview-actions">${button('map-results','Эфиры','back','text-button')}${button('lira-about','Лира','spark','text-button',`data-id="${esc(idOf(s))}"`)}${button('favorite','Любимая станция','heart','icon-button '+(state.favorites.has(idOf(s))?'selected':''),`data-id="${esc(idOf(s))}" aria-pressed="${state.favorites.has(idOf(s))}"`)}${button(expanded?'map-normal':'map-expand',expanded?'Свернуть подробности':'Подробнее об источнике','down','icon-button detail-disclosure',`aria-expanded="${expanded}"`)}</div>
+        ${expanded?`<div class="source-details"><p>${esc(s.tags?.split(',').slice(0,6).join(' · ')||'Жанры в каталоге не указаны.')}</p><p>Если станция передаёт название трека, его можно поймать закладкой у текущего эфира. Сердце сохраняет сам источник.</p></div>`:''}`;
+      return;
+    }
     const title=rev.listTitle||(rev.world?'Весь мир':softCountry(rev.mapCountry));
-    el.innerHTML=panelHeader(title,'<count>')+`<label class="map-search-field">${icon('search')}<input id="map-query" aria-label="Поиск среди показанных станций" placeholder="Название станции или регион" value="${esc(rev.mapQuery||'')}" autocomplete="off">${button('map-clear','Сбросить поиск','close','icon-button')}</label><div class="map-list-meta"><span id="map-result-count"></span>${rev.areaIds?button('countries','Страны','globe','text-button'):''}</div><div id="map-results" class="map-results" tabindex="0" aria-label="Станции в выбранной области"></div>`;
-    el.querySelector('.explorer-heading p').textContent='Название → карта · ▶ → эфир';renderResults();
+    el.innerHTML=panelHeader(title,'Название → карта · ▶ → эфир')+`<label class="map-search-field">${icon('search')}<input id="map-query" aria-label="Поиск среди показанных станций" placeholder="Название станции или регион" value="${esc(rev.mapQuery||'')}" autocomplete="off">${button('map-clear','Сбросить поиск','close','icon-button')}</label><div class="map-list-meta"><span id="map-result-count"></span>${rev.areaIds?button('countries','Страны','globe','text-button'):''}</div><div id="map-results" class="map-results" tabindex="0" aria-label="Станции в выбранной области"></div>`;
+    renderResults();document.querySelector('#map-results').scrollTop=listScroll;
   }
   async function mountGlobe(){
     const generation=rev.mapGeneration;renderMapCard();
@@ -153,7 +159,7 @@
       const first=!rev.hasFlown;rev.hasFlown=true;
       rev.map=api.mount(host,{points:rev.mapQuery.trim()?resultPoints():visiblePoints(),focusPoint:first?{lat:25,lon:0}:target,zoomLevel:first?-.6:rev.mapZoom,selectedId:rev.mapSelected?.stationuuid,
         onPick:id=>pickPoint(id,false),onZoomChange:zoom=>{rev.mapZoom=zoom;},onCamera:camera=>{rev.mapFocus=camera.center;rev.mapZoom=camera.zoom;},
-        onGroup:ids=>{setArea(ids,'Эфиры в этой группе',true);document.querySelector('#search-map-area').hidden=true;},
+        onGroup:ids=>{setArea(ids,'Эфиры рядом',true);document.querySelector('#search-map-area').hidden=true;},
         onAreaChange:area=>{rev.pendingArea=area;rev.mapFocus=area.center;rev.mapScope='area';rev.map?.update({points:rev.mapQuery.trim()?rev.points.filter(p=>(p.name+' '+(p.state||'')).toLowerCase().includes(rev.mapQuery.trim().toLowerCase())):rev.points});document.querySelector('.map-country-switch span').textContent='Страны';document.querySelector('#search-map-area').hidden=false;},
         onReady:()=>{if(first&&generation===rev.mapGeneration){rev.mapFocus=target;rev.mapZoom=targetZoom;rev.map?.update({focusPoint:target,zoomLevel:targetZoom});}},
         onError:message=>toast(message)});
@@ -168,9 +174,9 @@
   }
   async function pickPoint(id,focus=true){
     const point=rev.points?.find(p=>p.id===id);if(!point||state.tab!=='globe')return;
-    rev.mapSelected=pointStation(point);if(rev.panelSize==='collapsed')rev.panelSize='normal';
+    rev.mapSelected=pointStation(point);rev.panelSize='normal';
     rev.map?.update({selectedId:id,...(focus?{focusPoint:point,zoomLevel:Math.max(rev.mapZoom,4.7)}:{})});renderMapCard();
-    try{const r=await fetch('/api/catalog/stations/'+encodeURIComponent(id));if(!r.ok)throw Error('station');const d=await r.json();if(d.item){known.set(id,d.item);if(rev.mapSelected?.stationuuid===id){rev.mapSelected=d.item;renderMapCard();}}}catch{if(rev.mapSelected?.stationuuid===id){const p=document.querySelector('.map-detail-body>p');if(p)p.textContent='Описание недоступно. Название и координаты — из каталога.';}}
+    try{const r=await fetch('/api/catalog/stations/'+encodeURIComponent(id));if(!r.ok)throw Error('station');const d=await r.json();if(d.item){known.set(id,d.item);if(rev.mapSelected?.stationuuid===id){rev.mapSelected=d.item;renderMapCard();}}}catch{if(rev.mapSelected?.stationuuid===id){toast('Сведения об источнике временно недоступны.');}}
   }
   function chatScreen(){
     return `<header class="lira-chat-heading">${lira()}<div><h1>Лира</h1><p>Ваш музыкальный проводник</p></div>${iconButton('lira-help','Что умеет Лира','more')}</header><div class="lira-demo-label">СЦЕНАРИЙ ДИАЛОГА · МАКЕТ</div><div id="chat-messages" class="chat-messages" role="log" aria-live="polite">${rev.messages.length?rev.messages.map(chatMessage).join(''):chatWelcome()}</div><div class="chat-composer-wrap"><div class="chat-prompts">${[['Удиви меня','surprise'],['Джаз без спешки','jazz'],['Куда дальше?','next']].map(([label,prompt])=>button('lira-prompt',label,'','chip',`data-prompt="${prompt}"`)).join('')}</div><form id="lira-form" class="chat-composer glass"><textarea id="lira-input" name="message" rows="1" maxlength="500" placeholder="Спросите о музыке…" aria-label="Сообщение Лире">${esc(rev.chatDraft)}</textarea><button type="submit" class="send-message" aria-label="Отправить Лире">${icon('arrow')}</button></form></div>`;
@@ -196,10 +202,16 @@
   }
   liraSheet=function(){nav('lira');};
 
+  // Drag the heading; list scrolling and map gestures retain their own surfaces.
+  let panelGesture=null,suppressPanelClickUntil=0;
+  app.addEventListener('pointerdown',e=>{const handle=e.target.closest('[data-panel-drag]');if(!handle||e.button!==0)return;panelGesture={id:e.pointerId,y:e.clientY,size:rev.panelSize,handle};handle.setPointerCapture(e.pointerId);});
+  app.addEventListener('pointerup',e=>{if(!panelGesture||panelGesture.id!==e.pointerId)return;const g=panelGesture;panelGesture=null;const dy=e.clientY-g.y;if(Math.abs(dy)<35)return;suppressPanelClickUntil=performance.now()+350;rev.panelSize=dy<0?'expanded':g.size==='expanded'?'normal':rev.mapSelected?'normal':'collapsed';renderMapCard();});
+  app.addEventListener('pointercancel',()=>{panelGesture=null;});
+  app.addEventListener('click',e=>{if(performance.now()<suppressPanelClickUntil){e.preventDefault();e.stopImmediatePropagation();}},true);
   app.addEventListener('click',e=>{
     const b=e.target.closest('[data-action]');if(!b)return;const action=b.dataset.action,s=known.get(b.dataset.id);
-    const capture=['country','catalog-country','country-by-source','worldmap','feed-next','feed-prev','feed-toggle','map-zoom-in','map-zoom-out','map-retry','map-row','map-results','map-expand','map-normal','map-collapse','map-search-here','map-reset','map-clear','map-more','globe-world','lira-prompt','lira-about','lira-help','lira-search'];
-    if(!capture.includes(action)&&!(action==='toggle'&&state.tab==='feed'))return;e.preventDefault();e.stopImmediatePropagation();
+    const capture=['country','catalog-country','country-by-source','worldmap','feed-next','feed-prev','feed-toggle','map-zoom-in','map-zoom-out','map-retry','map-row','map-results','map-expand','map-normal','map-collapse','map-search','map-search-here','map-reset','map-clear','map-more','globe-world','lira-prompt','lira-about','lira-help','lira-search'];
+    if(action==='toggle'&&state.tab==='globe'){e.preventDefault();e.stopImmediatePropagation();state.playing=!state.playing;renderDock();renderMapCard();return;}if(!capture.includes(action)&&!(action==='toggle'&&state.tab==='feed'))return;e.preventDefault();e.stopImmediatePropagation();
     if(action==='country')jumpGlobe(countries[Number(b.dataset.country)][0]);
     else if(action==='catalog-country')jumpGlobe(b.dataset.value);
     else if(action==='country-by-source')jumpGlobe(s.country,idOf(s));
@@ -209,8 +221,9 @@
     else if(action==='feed-toggle'||action==='toggle'){const changed=s&&idOf(s)!==idOf(state.current);if(s){state.current=s;rev.feedIndex=rev.feedItems.findIndex(x=>idOf(x)===idOf(s));}state.playing=changed?true:!state.playing;updateFeed();}
     else if(action==='map-zoom-in'||action==='map-zoom-out'){rev.mapZoom=Math.max(-.6,Math.min(14,rev.mapZoom+(action==='map-zoom-in'?.8:-.8)));rev.map?.update({zoomLevel:rev.mapZoom,userMove:true});}
     else if(action==='map-row')pickPoint(b.dataset.id,true);
-    else if(action==='map-results'){rev.mapSelected=null;rev.map?.update({selectedId:undefined});renderMapCard();}
-    else if(action==='map-expand'||action==='map-normal'||action==='map-collapse'){rev.panelSize=action==='map-expand'?'expanded':action==='map-collapse'?'collapsed':'normal';renderMapCard();}
+    else if(action==='map-results'){rev.mapSelected=null;rev.panelSize='normal';rev.map?.update({selectedId:undefined});renderMapCard();}
+    else if(action==='map-expand'||action==='map-normal'||action==='map-collapse'){rev.panelSize=action==='map-expand'?'expanded':action==='map-collapse'?'collapsed':'normal';renderMapCard();document.querySelector(rev.mapSelected?'.detail-disclosure':'.panel-title-toggle')?.focus({preventScroll:true});}
+    else if(action==='map-search'){rev.panelSize='expanded';renderMapCard();document.querySelector('#map-query')?.focus();}
     else if(action==='map-search-here'){const area=rev.map?.area()||rev.pendingArea;if(area){const b=area.bounds;const ids=rev.points.filter(p=>p.lat>=b.south&&p.lat<=b.north&&(b.east-b.west>=360||((p.lon-b.west+720)%360)<=b.east-b.west)).map(p=>p.id);setArea(ids,'В этой области',true);rev.map?.update({points:rev.mapQuery.trim()?resultPoints():visiblePoints()});document.querySelector('#search-map-area').hidden=true;}}
     else if(action==='map-reset')jumpGlobe(rev.mapCountry);
     else if(action==='map-clear'){rev.mapQuery='';rev.map?.update({points:visiblePoints()});renderMapCard();document.querySelector('#map-query')?.focus();}
