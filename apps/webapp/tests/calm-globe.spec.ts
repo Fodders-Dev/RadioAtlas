@@ -286,4 +286,61 @@ test('calm globe: a pile of coincident points opens as a fan, a leaf selects, ge
   expect(['uuid-berlin', ...pileIds]).toContain(picked);
   expect(await audioSrc(page)).toBeNull();
   await page.screenshot({ path: process.env.CALM_GLOBE_SHOT || 'test-results/calm-globe-fan.png' });
+
+  // Zooming out closes the fan and folds the pile back into a group under the
+  // selection ring. A tap there must open the pile again, not just re-pick.
+  await page.locator('.explorer-zoom button').nth(1).click();
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '');
+  await page.waitForTimeout(600);
+  await page.mouse.click(cx, cy);
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 10_000 });
+  // The tap asked «what else is here»: the list answers with the whole pile.
+  await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
+});
+
+
+// A sparse country: the catalogue knows stations there but none carries
+// coordinates (Mongolia: nine stations, not one located). The map draws
+// nothing invented; the list says how many exist and opens the real
+// catalogue shelf for them, and they play from there.
+test('calm globe: a country without located stations offers its catalogue list instead of an empty map', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const mongolian = { ...stations[0], stationuuid: 'uuid-ub', name: 'Ulaanbaatar FM', country: 'Mongolia', state: '', geo_lat: null, geo_long: null, url_resolved: 'https://stream.example.com/ub', url: 'https://stream.example.com/ub' };
+  await page.route('**/catalog/points**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          ...stations.map((s) => ({ id: s.stationuuid, lat: s.geo_lat, lon: s.geo_long, country: s.country, state: s.state, name: s.name })),
+          { id: 'uuid-ub', country: 'Mongolia', name: 'Ulaanbaatar FM' },
+          { id: 'uuid-ub-2', country: 'Mongolia', name: 'Gobi Radio' }
+        ],
+        mappedStations: stations.length,
+        totalStations: stations.length + 2
+      })
+    })
+  );
+  await page.route('**/catalog/search**', (route) => {
+    const url = new URL(route.request().url());
+    const items = url.searchParams.get('country') === 'Mongolia' ? [mongolian] : stations;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items, total: items.length, nextCursor: null, facets: { countries: ['All', 'Japan', 'Germany', 'Brazil', 'Mongolia'], tags: [], languages: [] } })
+    });
+  });
+  await openGlobe(page);
+  await page.locator('.explorer-country-switch').click();
+  await page.locator('.calm-country-options button', { hasText: 'Mongolia' }).click();
+  await expect(page.locator('.explorer-title strong')).toHaveText('Mongolia');
+  await expect(page.locator('[data-result-count]')).toHaveText('0 эфиров');
+  const empty = page.locator('.explorer-empty');
+  await expect(empty).toContainText('Без точных координат: 2');
+  await empty.locator('[data-unlocated-list]').click();
+  const sheet = page.locator('[data-calm-browse="Mongolia"]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('.calm-destination, .calm-station-row').first()).toContainText('Ulaanbaatar FM');
+  expect(await audioSrc(page), 'opening the list never starts sound').toBeNull();
 });

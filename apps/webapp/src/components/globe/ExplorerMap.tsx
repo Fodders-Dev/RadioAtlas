@@ -367,17 +367,23 @@ export const ExplorerMap = ({
         callbacksRef.current.onPick(String(leaf.properties.id));
         return;
       }
-      const selected = map.queryRenderedFeatures(event.point, { layers: ['selection-halo'] })[0];
-      if (selected) {
-        callbacksRef.current.onPick(String(selected.properties.id));
-        return;
-      }
-      const revision = ++selectionRevisionRef.current;
       const box: [[number, number], [number, number]] = [
         [event.point.x - 22, event.point.y - 22],
         [event.point.x + 22, event.point.y + 22]
       ];
       const hits = map.queryRenderedFeatures(box, { layers: ['groups', 'dots'] });
+      const selected = map.queryRenderedFeatures(event.point, { layers: ['selection-halo'] })[0];
+      // A tap on the selected source re-picks it — unless a group or a pile
+      // sits under that same ring: then the listener is asking what else is
+      // here, and the ring must not swallow the tap.
+      const pileUnder =
+        hits.some((hit) => hit.properties.cluster) ||
+        new Set(hits.filter((hit) => !hit.properties.cluster).map((hit) => String(hit.properties.id))).size > 1;
+      if (selected && !pileUnder) {
+        callbacksRef.current.onPick(String(selected.properties.id));
+        return;
+      }
+      const revision = ++selectionRevisionRef.current;
       if (!hits.length) {
         closeSpider();
         return;

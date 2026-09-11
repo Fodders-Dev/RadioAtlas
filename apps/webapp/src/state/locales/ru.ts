@@ -86,7 +86,10 @@ export const ruDictionary = {
     nowPlaying: 'Сейчас играет', saveTrack: 'Сохранить трек', trackSaved: 'Трек в находках',
     noTrack: 'Станция пока не передаёт название трека.', startToCatch: 'Включи эфир — если станция передаёт название, его можно поймать.',
     stationUnavailable: 'Сведения об источнике временно недоступны.', groupFailed: 'Не удалось раскрыть группу. Приблизь карту кнопкой +.',
-    noCoords: 'У источника нет точных координат. Открыта его страна.', onMap: 'На карте'
+    noCoords: 'У источника нет точных координат. Открыта его страна.', onMap: 'На карте',
+    unlocated: 'Без точных координат: {count}. На карте их не показать, но они есть в каталоге.',
+    unlocatedMore: 'Ещё {count} без точных координат', openList: 'Открыть список',
+    unlocatedKicker: 'Эфиры без точных координат', unlocatedCopy: 'Эти станции есть в каталоге, но у них нет точки на карте. Играют так же.'
   },
   // Calm Home in the A4 «Журнал» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.

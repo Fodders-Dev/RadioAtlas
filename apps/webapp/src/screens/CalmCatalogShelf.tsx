@@ -18,7 +18,7 @@ type Props = {
 export type ShelfSnapshot = { items: StationLite[]; cursor: string | null | undefined; total: number | null; seed: number; scrollLeft: number };
 
 // Parent keys this by filter. A late response cannot enter another country's shelf.
-export function CalmCatalogShelf({ query, initial, source, onPlay, rows = false, cache }: Props) {
+export function CalmCatalogShelf({ query, initial, source, onPlay, rows = false, cache, autoLoad = false }: Props & { autoLoad?: boolean }) {
   const { searchStations } = useCatalog();
   const { isStationHiddenFromRecommendations } = useLibrary();
   const { t } = useLocale();
@@ -35,6 +35,13 @@ export function CalmCatalogShelf({ query, initial, source, onPlay, rows = false,
   const list = useRef<HTMLDivElement>(null);
   const scrollLeft = useRef(snapshot?.scrollLeft || 0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // A shelf opened with nothing loaded (a country with no located stations)
+  // fetches its first page itself instead of showing an empty state under a
+  // button; a shelf with picks still waits for «Ещё станции».
+  useEffect(() => {
+    if (autoLoad && items.length === 0 && cursor === undefined) void loadMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => { list.current?.scrollTo({ left: snapshot?.scrollLeft || 0 }); }, [snapshot]);
   useEffect(() => {
     return () => { cache.set(cacheKey, { items, cursor, total, seed, scrollLeft: scrollLeft.current }); };

@@ -31,6 +31,6 @@ export function CalmBrowseSheet({ title, kicker, copy, art, word, query, picks, 
       <div className="calm-rows">{starters.map((station) => <CalmStationRow key={station.stationuuid} station={station} onPlay={() => onPlay(station, starters, source)} onOpen={() => onSource(station)} />)}</div>
       <h3 className="calm-continue-title">{t('journal.continueTitle')}</h3>
     </>}
-    <CalmCatalogShelf cache={cache} query={query} initial={picks.slice(3)} source={source} onPlay={onPlay} rows />
+    <CalmCatalogShelf cache={cache} query={query} initial={picks.slice(3)} source={source} onPlay={onPlay} rows autoLoad={picks.length === 0} />
   </dialog>;
 }

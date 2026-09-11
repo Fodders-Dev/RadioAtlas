@@ -25,6 +25,9 @@ import {
 import { ExplorerMap, type ExplorerArea, type ExplorerFlight, type ExplorerMapHandle } from '../components/globe/ExplorerMap';
 import { StationArtwork } from '../components/StationArtwork';
 import { CalmCountryPicker } from './CalmCountryPicker';
+import { CalmBrowseSheet } from './CalmBrowseSheet';
+import { CalmSourceSheet } from './CalmSourceSheet';
+import type { ShelfSnapshot } from './CalmCatalogShelf';
 import './globeExplorer.css';
 
 // The calm Globe (A4 «Журнал»). Stations are SOURCES on a map; the find — track
@@ -111,6 +114,13 @@ export const GlobeExplorer = () => {
   const aiEnabled = isAiAssistantEnabled();
 
   const [points, setPoints] = useState<ExplorerPoint[] | null>(null);
+  // Stations the catalogue knows for a country but cannot place: the map never
+  // invents a position for them, so the LIST carries them instead (a sparse
+  // country like Mongolia has nine stations and not one located).
+  const [unlocated, setUnlocated] = useState<Map<string, number>>(() => new Map());
+  const [countrySheet, setCountrySheet] = useState(false);
+  const [source, setSource] = useState<StationLite | null>(null);
+  const shelves = useRef(new Map<string, ShelfSnapshot>());
   const [pointsError, setPointsError] = useState(false);
   const [pointsAttempt, setPointsAttempt] = useState(0);
   // An explicit request (a country tile on Home, «показать на карте») starts a
@@ -147,7 +157,16 @@ export const GlobeExplorer = () => {
     setPointsError(false);
     void fetchPoints()
       .then((response) => {
-        if (alive) setPoints(finitePoints(response.items));
+        if (!alive) return;
+        const located = finitePoints(response.items);
+        const placed = new Set(located.map((point) => point.id));
+        const rest = new Map<string, number>();
+        for (const item of response.items) {
+          if (placed.has(item.id) || !item.country) continue;
+          rest.set(item.country, (rest.get(item.country) || 0) + 1);
+        }
+        setUnlocated(rest);
+        setPoints(located);
       })
       .catch(() => {
         if (alive) setPointsError(true);
@@ -314,6 +333,8 @@ export const GlobeExplorer = () => {
     if (query.trim()) return results;
     return mapAll || scope !== 'country' ? points || [] : countryPoints;
   }, [query, results, mapAll, scope, points, countryPoints]);
+
+  const unlocatedHere = scope === 'country' && !areaIds && !query.trim() ? unlocated.get(country) || 0 : 0;
 
   const current = player.current ?? player.pending;
   const activeId = current?.stationuuid || null;
@@ -507,6 +528,21 @@ export const GlobeExplorer = () => {
       {countryPicker && (
         <CalmCountryPicker initial={countries} selected={country} onSelect={jumpToCountry} onClose={() => setCountryPicker(false)} />
       )}
+      {countrySheet && (
+        <CalmBrowseSheet
+          title={formatCountryLabel(country)}
+          kicker={t('mapExplorer.unlocatedKicker')}
+          copy={t('mapExplorer.unlocatedCopy')}
+          query={{ country }}
+          picks={[]}
+          cache={shelves.current}
+          source="globe-country"
+          onPlay={(station, playlist, sourceId) => playStation(station, { playlist, sourceId })}
+          onSource={setSource}
+          onClose={() => setCountrySheet(false)}
+        />
+      )}
+      {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(station) => playStation(station, { sourceId: 'globe-country' })} />}
       <div className="explorer-stage">
         {pointsError ? (
           <div className="explorer-map-error" role="status">
@@ -742,6 +778,15 @@ export const GlobeExplorer = () => {
                       <span>{t('mapExplorer.searchCatalog')}</span>
                     </button>
                   ) : null}
+                  {unlocatedHere > 0 ? (
+                    <>
+                      <p>{t('mapExplorer.unlocated', { count: unlocatedHere })}</p>
+                      <button className="explorer-text" type="button" onClick={() => setCountrySheet(true)} data-unlocated-list>
+                        <Icon name="search" />
+                        <span>{t('mapExplorer.openList')}</span>
+                      </button>
+                    </>
+                  ) : null}
                   <button className="explorer-text" type="button" onClick={() => setCountryPicker(true)}>
                     <Icon name="globe" />
                     <span>{t('mapExplorer.pickCountry')}</span>
@@ -782,6 +827,12 @@ export const GlobeExplorer = () => {
                 <button className="explorer-load-more" type="button" onClick={() => setLimit((value) => value + PAGE)}>
                   <Icon name="down" />
                   <span>{t('mapExplorer.more')}</span>
+                </button>
+              ) : null}
+              {listReady && results.length > 0 && results.length <= limit && unlocatedHere > 0 ? (
+                <button className="explorer-load-more" type="button" onClick={() => setCountrySheet(true)} data-unlocated-list>
+                  <Icon name="search" />
+                  <span>{t('mapExplorer.unlocatedMore', { count: unlocatedHere })}</span>
                 </button>
               ) : null}
             </div>

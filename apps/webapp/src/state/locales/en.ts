@@ -86,7 +86,10 @@ export const enDictionary = {
     nowPlaying: 'Now playing', saveTrack: 'Save track', trackSaved: 'Track saved',
     noTrack: 'The station is not reporting a track title yet.', startToCatch: 'Start the station — if it reports titles, you can catch one.',
     stationUnavailable: 'Source details are temporarily unavailable.', groupFailed: 'Could not open the group. Zoom in with +.',
-    noCoords: 'This source has no exact coordinates. Its country is open instead.', onMap: 'On the map'
+    noCoords: 'This source has no exact coordinates. Its country is open instead.', onMap: 'On the map',
+    unlocated: 'Without exact coordinates: {count}. Not on the map, but in the catalogue.',
+    unlocatedMore: '{count} more without exact coordinates', openList: 'Open the list',
+    unlocatedKicker: 'Stations without exact coordinates', unlocatedCopy: 'These stations are in the catalogue but have no point on the map. They play just the same.'
   },
   // Calm Home in the A4 «Journal» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.
