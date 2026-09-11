@@ -100,10 +100,11 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const storyTitle = (story: CalmStory) => t(`journal.stories.${story.copyKey}.title`);
   const storyKicker = (story: CalmStory) => t(`journal.stories.${story.copyKey}.kicker`);
   const storyCopy = (story: CalmStory) => t(`journal.stories.${story.copyKey}.copy`);
+  const storyWord = (story: CalmStory) => t(`journal.stories.${story.copyKey}.poster`);
   const stories = useMemo(() => visit.stories.slice(1), [visit.stories]);
 
   return <div className="calm-home calm-journal" data-calm-home>
-    {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
+    {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} word={storyWord(sheet.story)} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'country' && <CalmBrowseSheet title={formatCountryLabel(sheet.country)} kicker={t('journal.mapTitle')} query={{ country: sheet.country }} picks={visit.pool.filter((s) => s.country.trim() === sheet.country)} cache={discovery.shelves} source="home-country" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'genre' && <CalmBrowseSheet title={t(`calm.directions.${sheet.id}.eyebrow`)} kicker={t('journal.genresTitle')} query={{ tag: sheet.query }} picks={sheet.stations} cache={discovery.shelves} source="home-genre" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(s) => onPlay(s, [s], 'home-source')} />}
@@ -133,7 +134,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
     {visit.lead && <section className="calm-section calm-lead" data-calm-lead={visit.lead.id}>
       <button className="calm-story calm-story-lead" onClick={() => setSheet({ kind: 'story', story: visit.lead as CalmStory })}>
-        <CalmPoster art={visit.lead.art} lead />
+        <CalmPoster art={visit.lead.art} word={storyWord(visit.lead)} lead />
         <span className="calm-story-caption"><small>{storyKicker(visit.lead)}</small><strong>{storyTitle(visit.lead)}</strong><span>{t('journal.openStory')} <Icon d={ARROW} /></span></span>
       </button>
       {visit.starters.length > 0 && <div className="calm-starters"><span className="calm-eyebrow">{t('journal.startHere')}</span>
@@ -144,7 +145,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     {stories.length > 0 && <section className="calm-section" data-calm-stories>
       <div className="calm-heading"><h2>{t('journal.moods')}</h2></div>
       <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
-        <CalmPoster art={story.art} />
+        <CalmPoster art={story.art} word={storyWord(story)} />
         <span className="calm-story-caption"><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span>
       </button>)}</div>
     </section>}

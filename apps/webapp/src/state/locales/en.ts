@@ -102,13 +102,13 @@ export const enDictionary = {
     feedNoTrack: 'The station does not report track titles', feedStartToCatch: 'Start the station and catch a track', feedOnAir: 'ON AIR', feedPaused: 'PAUSED',
     feedIdle: 'NOT ON AIR', feedConnecting: 'CONNECTING', feedFailed: 'DID NOT CONNECT', feedPrev: 'Previous station', feedNext: 'Next station',
     stories: {
-      jazz: { kicker: 'IMPROVISATION / LIVE SOUND', title: 'Jazz, tie off', copy: 'From chamber trios to free groove. Stations with air in them.' },
-      night: { kicker: 'DOWNTEMPO / AMBIENT / LOUNGE', title: 'After the last train', copy: 'Slow rhythms, ambient and music for the long way home.' },
-      groove: { kicker: 'FUNK / SOUL / GROOVE', title: 'The body knows the beat', copy: 'Funk, soul and bass lines that are hard to sit through.' },
-      world: { kicker: 'MUSIC WITHOUT BORDERS', title: 'Beyond the familiar', copy: 'World music radio: another language, another rhythm, a new point on the map.' },
-      road: { kicker: 'DRIVING', title: 'The road is longer than it looks', copy: 'Stations for a long drive: steady rhythm, no rush.' },
-      focus: { kicker: 'FOCUS', title: 'Quiet, work in progress', copy: 'Music that does not interrupt: a backdrop for focused hours.' },
-      workout: { kicker: 'WORKOUT', title: 'Pulse up', copy: 'Energetic stations for moving: electronic, house, drive.' }
+      jazz: { kicker: 'GENRE · JAZZ', title: 'Discover jazz', copy: 'Stations tagged “jazz”: from chamber trios to free groove.', poster: 'jazz' },
+      night: { kicker: 'LATE NIGHT', title: 'Quiet music for the night', copy: 'Chillout, ambient, lounge and smooth jazz — stations that let you fall asleep.', poster: 'late\nnight' },
+      groove: { kicker: 'GENRE · FUNK AND SOUL', title: 'Funk and soul', copy: 'Stations tagged “funk”: soul, disco and bass lines that are hard to sit through.', poster: 'funk' },
+      world: { kicker: 'GENRE · WORLD MUSIC', title: 'World music', copy: 'Stations tagged “world music”: another language, another rhythm, a new point on the map.', poster: 'world' },
+      road: { kicker: 'FOR THE ROAD', title: 'Rock and hits for the road', copy: 'Rock, classic hits and top 40 — a steady rhythm for a long drive.', poster: 'on the\nroad' },
+      focus: { kicker: 'FOR WORK', title: 'A backdrop for work', copy: 'Classical, instrumental, lo-fi and piano — music that does not interrupt.', poster: 'focus' },
+      workout: { kicker: 'WORKOUT', title: 'Energy for a workout', copy: 'Electronic, house and EDM — stations that make you move.', poster: 'tempo' }
     }
   },
   "errorBoundary": {

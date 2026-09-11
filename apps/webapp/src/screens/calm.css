@@ -163,6 +163,10 @@
 .calm-sheet-head h2 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.7px; line-height: 1.2; }
 .calm-sheet-head > div { min-width: 0; }
 .calm-sheet-head .calm-icon { border: 1px solid var(--calm-line); font-size: 26px; line-height: 1; }
+/* Rail cards are 156px wide: a 200px record would sit under the drawn word. Keep
+   the record in the lower-right corner so the word stays on paper, legible. */
+.calm-story-rail .calm-poster .calm-poster-record { width: 130px; height: 130px; right: -50px; bottom: -60px; }
+.calm-story-rail .calm-poster b { text-shadow: 0 1px 0 color-mix(in srgb, white 35%, transparent); }
 .calm-browse-sheet .calm-poster { height: 150px; margin: 4px 0 14px; }
 .calm-browse-copy { margin: 0 0 18px; font-size: 14px; line-height: 1.65; color: var(--calm-secondary); }
 .calm-continue-title { margin: 22px 0 6px; font-size: 18px; letter-spacing: -.4px; }

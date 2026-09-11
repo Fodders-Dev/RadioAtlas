@@ -38,14 +38,23 @@ export const storyStations = (story: CalmStory, pool: StationLite[], rails: Cata
   return pool.filter((station) => station.tags.split(',').some((tag) => match.test(tag.trim())));
 };
 
-// The lead story is jazz when the loaded pool has jazz; otherwise the first
-// story with any loaded stations, so the cover never promises an empty shelf.
-export const buildStories = (pool: StationLite[], rails: CatalogMoodRail[]): CalmStory[] => {
+// UTC day number: the cover changes once a day, not on every reload, so the
+// screen is stable within a visit and gives a reason to open it tomorrow.
+export const todayIndex = (now = Date.now()) => Math.floor(now / 86_400_000);
+
+// The lead story rotates by day among the stories that have loaded stations,
+// so the cover never promises an empty shelf and no single genre becomes the
+// journal's permanent face. The rest keep their editorial order.
+export const buildStories = (pool: StationLite[], rails: CatalogMoodRail[], day = todayIndex()): CalmStory[] => {
   const moodStories: CalmStory[] = rails
     .filter((rail) => rail.stations.length && MOOD_STORIES[rail.id])
     .map((rail) => ({ id: rail.id, art: MOOD_STORIES[rail.id].art, copyKey: MOOD_STORIES[rail.id].copyKey, query: { mood: rail.id } }));
   const all = [TAG_STORIES[0], ...moodStories.filter((s) => s.id === 'mood-late-night'), ...TAG_STORIES.slice(1), ...moodStories.filter((s) => s.id !== 'mood-late-night')];
   const withStations = all.filter((story) => storyStations(story, pool, rails).length > 0);
+  if (withStations.length > 1) {
+    const [lead] = withStations.splice(((day % withStations.length) + withStations.length) % withStations.length, 1);
+    withStations.unshift(lead);
+  }
   // Stories without loaded stations stay reachable: the sheet pages the
   // catalogue itself. They just never lead.
   const rest = all.filter((story) => !withStations.includes(story));

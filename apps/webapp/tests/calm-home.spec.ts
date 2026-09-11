@@ -17,6 +17,13 @@ const layout = (page: Page) => page.evaluate(() => ({
   viewport: window.innerWidth
 }));
 const audioSrc = (page: Page) => page.locator('audio').first().getAttribute('src');
+// The journal cover rotates by day, so the jazz story may be the lead or a
+// rail card; open it wherever it is today.
+const openJazzStory = async (page: Page) => {
+  const lead = page.locator('[data-calm-lead="jazz"] .calm-story-lead');
+  if (await lead.count()) await lead.click();
+  else await page.locator('[data-calm-story="jazz"]').click();
+};
 
 // A catalogue big enough to page: 35 jazz stations in Germany, 35 electronic
 // ones spread over small countries, plus the twelve fixture stations.
@@ -206,10 +213,11 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
 
-  // The lead story is jazz because the loaded pool has jazz; its sheet starts
-  // with loaded sources and continues from the catalogue, page by page.
-  await expect(page.locator('[data-calm-lead]')).toHaveAttribute('data-calm-lead', 'jazz');
-  await page.locator('.calm-story-lead').click();
+  // The cover rotates by day among stories with loaded stations, so the jazz
+  // story is opened wherever it sits today. Its sheet starts with loaded
+  // sources and continues from the catalogue, page by page.
+  await expect(page.locator('[data-calm-lead]')).toBeVisible();
+  await openJazzStory(page);
   const sheet = page.locator('[data-calm-browse="jazz"]');
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('.calm-station-row')).toHaveCount(3);
@@ -266,7 +274,7 @@ test('a failed catalogue page shows a retry inside the story and keeps the air',
   await page.locator('.calm-primary').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
-  await page.locator('.calm-story-lead').click();
+  await openJazzStory(page);
   const sheet = page.locator('[data-calm-browse="jazz"]');
   await sheet.locator('.calm-more').click();
   await expect(sheet.locator('.calm-shelf-footer')).toContainText('Не удалось загрузить');
