@@ -84,6 +84,33 @@ export const ruDictionary = {
     stationUnavailable: 'Сведения об источнике временно недоступны.', groupFailed: 'Не удалось раскрыть группу. Приблизь карту кнопкой +.',
     noCoords: 'У источника нет точных координат. Открыта его страна.', onMap: 'На карте'
   },
+  // Calm Home in the A4 «Журнал» composition: stories over real catalogue
+  // filters, real sources, countries on the globe, honest empty states.
+  journal: {
+    heading: 'Открывайте музыку', search: 'Поиск', appearance: 'Оформление', liraName: 'Лира', liraLine: 'Спросить о музыке',
+    play: 'Включай', listening: 'В эфире · открыть Ленту', paused: 'На паузе · Включай', openStory: 'Открыть подборку', startHere: 'Начните с этих эфиров',
+    moods: 'Под настроение', moodsMore: 'Ещё', mapTitle: 'Музыка на карте', mapAll: 'Глобус', mapHint: 'Коснитесь страны — и окажитесь среди её эфиров.',
+    exploreCountry: 'Исследовать', aroundTitle: 'Вокруг света', aroundCopy: 'Страна дня из каталога. Источники со своим характером.', aroundMore: 'На карте',
+    genresTitle: 'Найти свой звук', genresAll: 'Все жанры', teaserTitle: 'Ваши маленькие открытия', teaserCopy: 'Находки, любимые эфиры и свои подборки',
+    findsTitle: 'Последние находки', backToSource: 'Вернуться к источнику', communityKicker: 'СЛЕДУЮЩАЯ ГЛАВА', communityTitle: 'Радио объединяет вкусы.',
+    communityCopy: 'Здесь будут подборки сообщества. Публичных подборок пока нет.', communityAction: 'Собрать свою',
+    continueTitle: 'Продолжить исследование', catalogNote: 'Название, страна и теги — из каталога. Теги описывают станцию, а не текущий трек.',
+    sourceKicker: 'ИСТОЧНИК', sourcePlay: 'Включить эфир', sourcePause: 'Пауза', sourceOnMap: 'Показать на карте', sourceQueue: 'Добавить в очередь',
+    sourceQueued: 'Уже в очереди', sourceSite: 'Сайт станции', sourceLira: 'Спросить Лиру', sourceFavorite: 'Любимая станция', sourceUnfavorite: 'Убрать из любимых',
+    sourceGenres: 'Жанры в каталоге не указаны.', sourceOpen: 'Об источнике: {name}', playStation: 'Включить {name}', close: 'Закрыть',
+    feedListen: 'Слушать эфир', feedLabel: 'Лента эфиров', feedLira: 'Спросить Лиру', feedPlace: 'На карте', feedNowPlaying: 'СЕЙЧАС ИГРАЕТ', feedLastFind: 'ПОЙМАНО РАНЬШЕ',
+    feedNoTrack: 'Станция не передаёт название трека', feedStartToCatch: 'Включи эфир — и лови трек', feedOnAir: 'В ЭФИРЕ', feedPaused: 'НА ПАУЗЕ',
+    feedIdle: 'НЕ В ЭФИРЕ', feedConnecting: 'ПОДКЛЮЧАЕМ', feedFailed: 'НЕ ПОДКЛЮЧИЛАСЬ', feedPrev: 'Предыдущий эфир', feedNext: 'Следующий эфир',
+    stories: {
+      jazz: { kicker: 'ИМПРОВИЗАЦИЯ / ЖИВОЙ ЗВУК', title: 'Джаз без галстука', copy: 'От камерного трио до свободного грува. Эфиры, в которых есть воздух.' },
+      night: { kicker: 'DOWNTEMPO / AMBIENT / LOUNGE', title: 'После последнего метро', copy: 'Медленные ритмы, эмбиент и музыка для долгой дороги домой.' },
+      groove: { kicker: 'FUNK / SOUL / GROOVE', title: 'Тело знает ритм', copy: 'Фанк, соул и басовые линии, которые сложно слушать неподвижно.' },
+      world: { kicker: 'МУЗЫКА БЕЗ ГРАНИЦ', title: 'За пределами привычного', copy: 'Радио с музыкой мира: иной язык, другой ритм, новая точка на карте.' },
+      road: { kicker: 'ЗА РУЛЁМ', title: 'Дорога длиннее, чем кажется', copy: 'Эфиры для долгой дороги: ровный ритм и никакой суеты.' },
+      focus: { kicker: 'КОНЦЕНТРАЦИЯ', title: 'Тише, идёт работа', copy: 'Музыка, которая не отвлекает: фон для сосредоточенных часов.' },
+      workout: { kicker: 'ТРЕНИРОВКА', title: 'Пульс выше', copy: 'Энергичные эфиры для движения: электроника, хаус, драйв.' }
+    }
+  },
   "errorBoundary": {
     "screenTitle": "Не удалось загрузить раздел",
     "screenBody": "Что-то пошло не так. Попробуй ещё раз или вернись на главную.",

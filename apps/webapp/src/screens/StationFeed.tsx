@@ -11,6 +11,8 @@ import { createPortal } from 'react-dom';
 import { FeedWaveform } from '../components/FeedWaveform';
 import { FeedPlayerTools } from '../components/FeedPlayerTools';
 import { CALM_PREVIEW } from '../lib/calmPreview';
+import { isAiAssistantEnabled } from '../lib/aiChat';
+import { CalmFeedCard } from './CalmFeedCard';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { formatSleepRemaining } from '../lib/sleepTimer';
 import { StationBackdrop } from '../components/StationBackdrop';
@@ -456,7 +458,7 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, feedSeed, feedEntryStation, winamp } = useShell();
+  const { setActiveSection, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId } = useShell();
   const isMobile = useMobileLayout();
 
   // The feed re-rolls on EVERY open: rerollFeedSeed runs from the «Лента» entry's
@@ -471,7 +473,8 @@ export const StationFeed = () => {
   // Filter state is LOCAL to this screen — never Shell/Radio state. It resets per
   // open, and nothing outside the overlay re-renders when it changes.
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('picks');
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  // The calm Feed opens on the station, not on the chips; the toggle still opens them.
+  const [filtersOpen, setFiltersOpen] = useState(!CALM_PREVIEW);
 
   type VolatileSnapshot = {
     known: StationLite[];
@@ -521,10 +524,13 @@ export const StationFeed = () => {
       //     card 0 IS played on open (unchanged from today's idle behaviour). So an
       //     IDLE pin must clear the same liveness + eligibility bar as any other
       //     card, or we would autoplay a dead stream. Hence the asymmetric guard.
+      // The calm Feed pins the listener's own station when nothing else was
+      // handed in (a reload lands here with feedEntryStation already gone).
+      const entryCandidate = feedEntryStation ?? (CALM_PREVIEW ? player.current ?? player.pending : null);
       const pinCandidate =
-        feedEntryStation?.stationuuid && feedEntryStation.url_resolved ? feedEntryStation : null;
+        entryCandidate?.stationuuid && entryCandidate.url_resolved ? entryCandidate : null;
       const pinIsCurrent = Boolean(
-        pinCandidate && pinCandidate.stationuuid === player.current?.stationuuid
+        pinCandidate && pinCandidate.stationuuid === (CALM_PREVIEW ? (player.current ?? player.pending) : player.current)?.stationuuid
       );
       const pinIsLiveEnough = Boolean(
         pinCandidate &&
@@ -681,8 +687,15 @@ export const StationFeed = () => {
   feedRef.current = visibleFeedStations;
   const playStationRef = useRef(playStation);
   playStationRef.current = playStation;
-  const currentIdRef = useRef(player.current?.stationuuid ?? null);
-  currentIdRef.current = player.current?.stationuuid ?? null;
+  // The listener's station, on air OR restored-but-not-yet-playing. After a
+  // reload the persisted station comes back as `pending`, and the calm Feed is a
+  // navigation destination that persists, so a reload can land straight here:
+  // reading `current` alone made that open autoplay card 0 — a DIFFERENT station
+  // than the one the listener had paused (#86). The legacy feed keeps its
+  // `current`-only reading and its tested idle-open behaviour.
+  const listenerStation = CALM_PREVIEW ? (player.current ?? player.pending) : player.current;
+  const currentIdRef = useRef(listenerStation?.stationuuid ?? null);
+  currentIdRef.current = listenerStation?.stationuuid ?? null;
   const sourceLabel = t('feed.sourceLabel');
   const sourceLabelRef = useRef(sourceLabel);
   sourceLabelRef.current = sourceLabel;
@@ -1014,6 +1027,39 @@ export const StationFeed = () => {
     share: t('feed.share'),
     openPlayer: t(CALM_PREVIEW ? 'dock.more' : 'feed.openPlayer')
   };
+  const calmLabels = {
+    play: t('journal.feedListen'), pause: t('common.pause'), like: t('feed.like'), unlike: t('feed.unlike'), save: t('calm.save'), saved: t('calm.saved'),
+    lira: t('journal.feedLira'), tools: t('dock.more'), place: t('journal.feedPlace'), nowPlaying: t('journal.feedNowPlaying'), lastFind: t('journal.feedLastFind'),
+    noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
+    idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed')
+  };
+  const aiEnabled = isAiAssistantEnabled();
+  // The A4 Feed: one status per card, derived from the player and nothing else.
+  const cardStatus = (isCurrent: boolean): 'idle' | 'playing' | 'paused' | 'connecting' | 'error' => {
+    if (!isCurrent) return 'idle';
+    if (player.status === 'error') return 'error';
+    if (player.isPlaying) return 'playing';
+    // A restored station is `pending` too, but nothing is connecting: only the
+    // player's own buffering state means «подключаем».
+    if (player.status === 'buffering') return 'connecting';
+    return 'paused';
+  };
+  // Places and Лира leave the Feed on purpose; the settler must not fire a
+  // play for the card we are leaving from.
+  const openPlace = (station: StationLite) => { settler.cancel(); setGlobeFocusStationId(station.stationuuid); setActiveSection('globe'); };
+  const askLira = (station: StationLite) => {
+    settler.cancel();
+    requestChat(t('chat.promptThisStationQuery', { station: `${normalizeStationName(station.name)} (${stationLocation(station) || station.country})` }));
+  };
+  // Prev/next buttons are deliberate steps, i.e. swipes: the landing still goes
+  // through the scroll → settler path, never a direct play.
+  const stepBy = (delta: number) => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const from = Math.round(scroller.scrollTop / scroller.clientHeight);
+    const next = Math.max(0, Math.min(visibleFeedStations.length - 1, from + delta));
+    scroller.scrollTop = next * scroller.clientHeight;
+  };
 
   const chips: Array<{ id: FeedFilter; label: string }> = [
     { id: 'picks', label: t('feed.filterPicks') },
@@ -1076,8 +1122,8 @@ export const StationFeed = () => {
           </svg>
         </button>
         <div className="station-feed-heading">
-          <strong>{t('feed.title')}</strong>
-          <span>{t('feed.tagline')}</span>
+          <strong>{CALM_PREVIEW ? t('journal.feedLabel') : t('feed.title')}</strong>
+          {CALM_PREVIEW ? null : <span>{t('feed.tagline')}</span>}
         </div>
         {CALM_PREVIEW && (player.current || visibleFeedStations[visibleIndex]) && <button className="station-feed-timer" aria-label={t('settings.sleepTimerLabel')} onClick={() => { settler.cancel(); setToolsStation(player.current || visibleFeedStations[visibleIndex]); }}>{sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '☾'}</button>}
         <button
@@ -1158,7 +1204,28 @@ export const StationFeed = () => {
                   cardRefs.current[index] = node;
                 }}
               >
-                {windowed ? (
+                {windowed && CALM_PREVIEW ? (
+                  <CalmFeedCard
+                    station={station}
+                    active={active}
+                    isCurrent={(player.current ?? player.pending)?.stationuuid === station.stationuuid}
+                    isPlaying={isCurrent && player.isPlaying}
+                    status={cardStatus((player.current ?? player.pending)?.stationuuid === station.stationuuid)}
+                    liveTrack={isCurrent && trustedTrack ? trustedTrack : null}
+                    lastFind={!(isCurrent && trustedTrack) && lastTrack ? lastTrack : null}
+                    favorite={isFavorite(station.stationuuid)}
+                    aiEnabled={aiEnabled}
+                    subscribe={player.subscribeVisualizer}
+                    capture={{ enabled: isCurrent && Boolean(trustedTrack), saved: isCurrent && Boolean(trustedTrack && trackHistory.some(f => f.stationId === station.stationuuid && f.track === trustedTrack)) }}
+                    onTogglePlayback={() => handleTogglePlayback(station)}
+                    onToggleFavorite={() => toggleFavorite(station)}
+                    onCapture={() => { if (isCurrent && trustedTrack) void copyTrack(); }}
+                    onAskLira={() => askLira(station)}
+                    onOpenPlace={() => openPlace(station)}
+                    onOpenTools={() => handleOpenPlayer(station)}
+                    labels={calmLabels}
+                  />
+                ) : windowed ? (
                   <FeedCard
                     station={station}
                     active={active}
@@ -1184,6 +1251,12 @@ export const StationFeed = () => {
         )}
       </div>
 
+      {CALM_PREVIEW && visibleFeedStations.length > 1 ? (
+        <div className="calm-feed-stepper" aria-label={t('feed.title')}>
+          <button type="button" onClick={() => stepBy(-1)} aria-label={t('journal.feedPrev')} disabled={visibleIndex === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></button>
+          <button type="button" onClick={() => stepBy(1)} aria-label={t('journal.feedNext')} disabled={visibleIndex >= visibleFeedStations.length - 1}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
+        </div>
+      ) : null}
       {/* Fixed chrome occupying the band the cards stop short of, so the next card
           "peeks" without the snap unit ever being anything but one viewport —
           .station-feed-card must stay exactly 100svh === scroller.clientHeight,

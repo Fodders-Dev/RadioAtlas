@@ -759,6 +759,8 @@ test('theme defaults expose bundled shell themes', () => {
     'classic',
     'neon',
     'pastel',
+    // The calm preview's «Журнал» paper (2026-09-11): free, built in, light.
+    'journal',
     'aurora-field',
     'signal-grid',
     'sunrise-dial',
@@ -766,13 +768,13 @@ test('theme defaults expose bundled shell themes', () => {
   ]);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.builtin)).toBe(true);
   expect(DEFAULT_RADIOATLAS_THEMES.every((theme) => theme.layers.background?.kind === 'gradient')).toBe(true);
-  // T_share_4: ONLY the referral reward is locked — the six free themes stay
+  // T_share_4: ONLY the referral reward is locked — the seven free themes stay
   // freely selectable (no access regression).
   expect(
     DEFAULT_RADIOATLAS_THEMES.filter((theme) => theme.locked).map((theme) => theme.id)
   ).toEqual(['velvet-hour']);
   expect(
-    ['classic', 'neon', 'pastel', 'aurora-field', 'signal-grid', 'sunrise-dial'].every(
+    ['classic', 'neon', 'pastel', 'journal', 'aurora-field', 'signal-grid', 'sunrise-dial'].every(
       (id) => !DEFAULT_RADIOATLAS_THEMES.find((theme) => theme.id === id)?.locked
     )
   ).toBe(true);

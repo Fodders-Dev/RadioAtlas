@@ -43,8 +43,21 @@ const NAV_ITEMS: NavItem[] = [
   }
 ];
 
+// The calm preview (A4 «Журнал») navigates Главная · Глобус · Лента · Лира ·
+// Моё: the Feed is a first-class destination and Search lives on Home.
+const FEED_ITEM: NavItem = {
+  id: 'feed',
+  icon: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm0 2v16h10V4H7Zm3 4.5 5.5 3.5L10 15.5v-7Z" />
+    </svg>
+  )
+};
+const CALM_NAV_ITEMS: NavItem[] = [NAV_ITEMS[0], NAV_ITEMS[2], FEED_ITEM, NAV_ITEMS[3]];
+
 type AppNavigationProps = {
   active: AppSection;
+  calm?: boolean;
   onChange: (section: AppSection) => void;
   onSettings: () => void;
   onPreload?: (section: AppSection) => void;
@@ -55,12 +68,17 @@ type AppNavigationProps = {
 
 export const AppNavigation = ({
   active,
+  calm = false,
   onChange,
   onSettings,
   onPreload,
   onOpenChat
 }: AppNavigationProps) => {
   const { t } = useLocale();
+  const items = calm ? CALM_NAV_ITEMS : NAV_ITEMS;
+  // Where the Лира entry sits: third of five in the calm order, centred FAB
+  // between the two pairs otherwise.
+  const chatAt = calm ? 3 : 2;
 
   const selectSection = (id: AppSection) => {
     // A selection tick only when the tab actually changes — re-tapping the
@@ -113,15 +131,15 @@ export const AppNavigation = ({
         <nav className="nav-list">
           {onOpenChat ? (
             <>
-              {NAV_ITEMS.slice(0, 2).map(renderDesktopItem)}
+              {items.slice(0, chatAt).map(renderDesktopItem)}
               <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
                 <span className="nav-rail-icon"><LiraMark /></span>
                 <span>{t('chat.launch')}</span>
               </button>
-              {NAV_ITEMS.slice(2).map(renderDesktopItem)}
+              {items.slice(chatAt).map(renderDesktopItem)}
             </>
           ) : (
-            NAV_ITEMS.map(renderDesktopItem)
+            items.map(renderDesktopItem)
           )}
         </nav>
 
@@ -139,7 +157,7 @@ export const AppNavigation = ({
       >
         {onOpenChat ? (
           <>
-            {NAV_ITEMS.slice(0, 2).map(renderMobileItem)}
+            {items.slice(0, chatAt).map(renderMobileItem)}
             <button
               className="mobile-nav-chat"
               type="button"
@@ -151,10 +169,10 @@ export const AppNavigation = ({
               </span>
               <span className="mobile-nav-chat-label">{t('chat.launch')}</span>
             </button>
-            {NAV_ITEMS.slice(2).map(renderMobileItem)}
+            {items.slice(chatAt).map(renderMobileItem)}
           </>
         ) : (
-          NAV_ITEMS.map(renderMobileItem)
+          items.map(renderMobileItem)
         )}
       </nav>
     </>

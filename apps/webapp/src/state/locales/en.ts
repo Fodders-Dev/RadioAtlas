@@ -84,6 +84,33 @@ export const enDictionary = {
     stationUnavailable: 'Source details are temporarily unavailable.', groupFailed: 'Could not open the group. Zoom in with +.',
     noCoords: 'This source has no exact coordinates. Its country is open instead.', onMap: 'On the map'
   },
+  // Calm Home in the A4 «Journal» composition: stories over real catalogue
+  // filters, real sources, countries on the globe, honest empty states.
+  journal: {
+    heading: 'Discover music', search: 'Search', appearance: 'Appearance', liraName: 'Lira', liraLine: 'Ask about music',
+    play: 'Play', listening: 'On air · open the Feed', paused: 'Paused · Play', openStory: 'Open the story', startHere: 'Start with these stations',
+    moods: 'By mood', moodsMore: 'More', mapTitle: 'Music on the map', mapAll: 'Globe', mapHint: 'Tap a country and land among its stations.',
+    exploreCountry: 'Explore', aroundTitle: 'Around the world', aroundCopy: 'The catalogue’s country of the day. Sources with a character of their own.', aroundMore: 'On the map',
+    genresTitle: 'Find your sound', genresAll: 'All genres', teaserTitle: 'Your small discoveries', teaserCopy: 'Finds, favourite stations and your own collections',
+    findsTitle: 'Latest finds', backToSource: 'Back to the source', communityKicker: 'NEXT CHAPTER', communityTitle: 'Radio brings tastes together.',
+    communityCopy: 'Community collections will live here. There are no public collections yet.', communityAction: 'Make your own',
+    continueTitle: 'Keep exploring', catalogNote: 'Name, country and tags come from the catalogue. Tags describe the station, not the current track.',
+    sourceKicker: 'SOURCE', sourcePlay: 'Play', sourcePause: 'Pause', sourceOnMap: 'Show on the map', sourceQueue: 'Add to queue',
+    sourceQueued: 'Already queued', sourceSite: 'Station website', sourceLira: 'Ask Lira', sourceFavorite: 'Favourite station', sourceUnfavorite: 'Remove from favourites',
+    sourceGenres: 'No genres in the catalogue.', sourceOpen: 'About the source: {name}', playStation: 'Play {name}', close: 'Close',
+    feedListen: 'Listen', feedLabel: 'Station feed', feedLira: 'Ask Lira', feedPlace: 'On the map', feedNowPlaying: 'NOW PLAYING', feedLastFind: 'CAUGHT EARLIER',
+    feedNoTrack: 'The station does not report track titles', feedStartToCatch: 'Start the station and catch a track', feedOnAir: 'ON AIR', feedPaused: 'PAUSED',
+    feedIdle: 'NOT ON AIR', feedConnecting: 'CONNECTING', feedFailed: 'DID NOT CONNECT', feedPrev: 'Previous station', feedNext: 'Next station',
+    stories: {
+      jazz: { kicker: 'IMPROVISATION / LIVE SOUND', title: 'Jazz, tie off', copy: 'From chamber trios to free groove. Stations with air in them.' },
+      night: { kicker: 'DOWNTEMPO / AMBIENT / LOUNGE', title: 'After the last train', copy: 'Slow rhythms, ambient and music for the long way home.' },
+      groove: { kicker: 'FUNK / SOUL / GROOVE', title: 'The body knows the beat', copy: 'Funk, soul and bass lines that are hard to sit through.' },
+      world: { kicker: 'MUSIC WITHOUT BORDERS', title: 'Beyond the familiar', copy: 'World music radio: another language, another rhythm, a new point on the map.' },
+      road: { kicker: 'DRIVING', title: 'The road is longer than it looks', copy: 'Stations for a long drive: steady rhythm, no rush.' },
+      focus: { kicker: 'FOCUS', title: 'Quiet, work in progress', copy: 'Music that does not interrupt: a backdrop for focused hours.' },
+      workout: { kicker: 'WORKOUT', title: 'Pulse up', copy: 'Energetic stations for moving: electronic, house, drive.' }
+    }
+  },
   "errorBoundary": {
     "screenTitle": "Couldn't load this section",
     "screenBody": "Something went wrong. Try again, or head back home.",

@@ -320,7 +320,7 @@ export const GlobeExplorer = () => {
   const selectedIsCurrent = Boolean(selectedId && activeId === selectedId);
   const selectedPlaying = selectedIsCurrent && player.isPlaying;
   const selectedFailed = selectedIsCurrent && player.status === 'error';
-  const selectedConnecting = selectedIsCurrent && !selectedFailed && !player.current && Boolean(player.pending);
+  const selectedConnecting = selectedIsCurrent && !selectedFailed && player.status === 'buffering';
   const trust = resolveNowPlayingTrust({
     station: player.current,
     track: nowPlaying,

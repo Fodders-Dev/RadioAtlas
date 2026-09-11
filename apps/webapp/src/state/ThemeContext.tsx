@@ -16,6 +16,9 @@ import {
   type TelegramThemeParams
 } from '../lib/telegram';
 import { DEFAULT_RADIOATLAS_THEMES, DEFAULT_THEME_ID } from '../lib/theme/defaults';
+import { CALM_PREVIEW } from '../lib/calmPreview';
+
+const CALM_DEFAULT_THEME_ID = 'journal';
 import { themeRuntimeVars, themeSurfaceVars, themeTextVars } from '../lib/theme/runtime';
 import { readableTextColors } from '../lib/theme/contrast';
 import { parseCssColors } from '../lib/theme/previewContrast';
@@ -209,6 +212,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // not in scope here.
   const effectiveThemeId = useMemo(() => {
     if (currentThemeId !== DEFAULT_THEME_ID) return currentThemeId;
+    // The calm preview (A4 «Журнал») opens on its own warm paper instead of the
+    // dark default; an explicit Theme Studio choice is stored and wins above.
+    if (CALM_PREVIEW) return CALM_DEFAULT_THEME_ID;
     if (telegramParamsHaveMappedKeys(telegramThemeParams)) return TELEGRAM_AUTO_THEME_ID;
     return DEFAULT_THEME_ID;
   }, [currentThemeId, telegramThemeParams]);

@@ -197,9 +197,9 @@ test('calm home: a country continues on the globe at the same place', async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
   await page.goto('/?calm=1');
-  const link = page.locator('[data-calm-country-map]');
+  const link = page.locator('[data-calm-country-map]').first();
   await expect(link).toBeVisible();
-  const country = (await link.textContent())!.split('·')[0].trim();
+  const country = (await link.getAttribute('data-calm-country-map'))!;
   await link.click();
   await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
   await expect(page.locator('.explorer-title strong')).toHaveText(country);

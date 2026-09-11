@@ -85,7 +85,9 @@ const App = () => {
     skinLabOpen,
     setSkinLabOpen,
     chatRequest,
-    clearChatRequest
+    clearChatRequest,
+    setFeedEntryStation,
+    rerollFeedSeed
   } = useShell();
   const [settingsOpen, setSettingsOpen] = useState(false);
   // «Лира» chat lives at the shell level so the central nav button opens it from
@@ -326,6 +328,13 @@ const App = () => {
     setActiveSection('library');
   };
   const handleSectionChange = (section: AppSection) => {
+    // The calm nav has «Лента» as a destination: it opens on the station on air
+    // (or the one connecting), the same way the mini player expands into it, and
+    // never starts another stream by itself.
+    if (CALM_PREVIEW && section === 'feed') {
+      setFeedEntryStation(player.current ?? player.pending ?? null);
+      rerollFeedSeed();
+    }
     setActiveSection(section);
   };
   const handleBrandGesture = () => {
@@ -453,6 +462,7 @@ const App = () => {
       <Suspense fallback={null}>
         <AppNavigationLazy
           active={activeSection}
+          calm={CALM_PREVIEW}
           onChange={handleSectionChange}
           onSettings={() => setSettingsOpen(true)}
           onOpenChat={aiAssistantEnabled ? () => setChatOpen(true) : undefined}

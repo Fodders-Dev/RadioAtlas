@@ -661,3 +661,32 @@ picks it over the reticle `GlobeScreen` only under `CALM_PREVIEW`.
   it as «canvas intercepts pointer events» for 90s; on a phone it is a button
   that flees the finger. Any centred-by-transform control needs its own press
   rule or an exclusion from the generic one.
+
+## The calm preview is the whole A4 «Журнал», not only the Globe (2026-09-11)
+
+Under `?calm=1` the app renders the accepted A4 composition end to end, on the
+same state and backends as the default shell:
+
+- `lib/theme/defaults.ts` adds the light «journal» theme; `ThemeContext` uses
+  it as the calm default only while the stored theme is still `classic`.
+- `AppNavigation` `calm` order: Главная · Глобус · Лента · Лира · Моё. «Лента»
+  is a destination; `App.handleSectionChange` pins the station on air (or the
+  restored `pending` one) as card 0 — never a fresh deck.
+- Home: `screens/CalmHome.tsx` + `calmStories.ts` (stories = a poster over a
+  real `/catalog/search` filter; the sheet pages it), `CalmBrowseSheet`,
+  `CalmSourceSheet` (play / heart / «на карте» / queue / Лира / site),
+  `CalmStationRow`, `CalmPoster` (CSS art only). Locale keys under `journal.*`
+  at the TOP level of the dictionaries — `calm.*` is the earlier slice.
+- Feed: `screens/CalmFeedCard.tsx` replaces `FeedCard` under the flag and keeps
+  every `data-feed-action` name (`play`, `favorite`, `capture`, `lira`,
+  `place`, `expand`) so the pager's focus handoff and the #86 specs still hold.
+  `cardStatus` derives «В ЭФИРЕ / НА ПАУЗЕ / ПОДКЛЮЧАЕМ / НЕ ПОДКЛЮЧИЛАСЬ»
+  from the player alone; «connecting» means `player.status === 'buffering'`,
+  not «pending without current» — a restored station is pending and paused.
+- Лира: `ChatSheet` gets `data-calm` and a per-card «Показать на глобусе»;
+  `requestChat(text)` in the shell opens it (empty text = open only).
+- Every «на карте» goes through `globeFocusStationId` / `globeFocusRegionId`.
+
+⚠ The zero-weight reset `:where(.calm-home, .calm-mini, .calm-sheet) button` is
+deliberate: a plain `.calm-home button { padding: 0 }` at (0,1,1) silently beat
+`.calm-chip` / `.calm-teaser` paddings and shipped 31px-wide genre chips.

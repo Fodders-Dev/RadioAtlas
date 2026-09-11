@@ -497,10 +497,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const [globeFocusRegionId, setGlobeFocusRegionId] = useState<string | null>(null);
   const [globeFocusStationId, setGlobeFocusStationId] = useState<string | null>(null);
   const [chatRequest, setChatRequest] = useState<{ text: string; id: number } | null>(null);
-  const requestChat = useCallback((text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setChatRequest({ text: trimmed, id: Date.now() });
+  // An empty text opens the conversation without saying anything for the
+  // listener; a non-empty one is sent as their own turn.
+  const requestChat = useCallback((text = '') => {
+    setChatRequest({ text: text.trim(), id: Date.now() });
   }, []);
   const clearChatRequest = useCallback(() => setChatRequest(null), []);
   const [skinLabOpen, setSkinLabOpen] = useState(false);

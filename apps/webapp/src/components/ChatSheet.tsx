@@ -26,7 +26,8 @@ import {
 import { executeAgentActions } from '../lib/agentActions';
 import { useLocale } from '../state/LocaleContext';
 import { useCatalog } from '../state/CatalogContext';
-import { useLibrary, usePlayback } from '../state/RadioContext';
+import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
+import { CALM_PREVIEW } from '../lib/calmPreview';
 import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import { LiraMark } from './LiraMark';
@@ -216,6 +217,14 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { fetchStationById } = useCatalog();
   const { player, queue, nowPlaying, playStation } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
+  const { setGlobeFocusStationId, setActiveSection } = useShell();
+  // «Показать на глобусе» from a recommended source: the calm Globe lands on
+  // its dot when the catalogue has coordinates, on its country otherwise.
+  const showOnGlobe = (stationuuid: string) => {
+    onClose();
+    setGlobeFocusStationId(stationuuid);
+    setActiveSection('globe');
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -383,7 +392,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   useEffect(() => {
     if (!open || !prompt || handledPromptRef.current === prompt.id) return;
     handledPromptRef.current = prompt.id;
-    void sendRef.current(prompt.text);
+    if (prompt.text) void sendRef.current(prompt.text);
   }, [open, prompt]);
 
   const onInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -417,6 +426,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       aria-modal="true"
       aria-labelledby={titleId}
       data-chat-sheet
+      data-calm={CALM_PREVIEW ? 'true' : undefined}
     >
       <button
         className="chat-sheet-scrim"
@@ -560,8 +570,8 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                 {message.stations && message.stations.length ? (
                   <div className="chat-station-list">
                     {message.stations.map((station) => (
+                      <div key={station.stationuuid} className="chat-station-item">
                       <button
-                        key={station.stationuuid}
                         className="chat-station-card"
                         type="button"
                         onClick={() => {
@@ -595,6 +605,14 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                           <svg viewBox="0 0 24 24"><path d="m9 5 8 7-8 7V5Z" /></svg>
                         </span>
                       </button>
+                      {CALM_PREVIEW ? (
+                        <button type="button" className="chat-map-link" onClick={() => showOnGlobe(station.stationuuid)} data-chat-map-link={station.stationuuid}>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-6 5-6 13 0 18 6-5 6-13 0-18" /></svg>
+                          <span>{t('journal.sourceOnMap')}</span>
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+                        </button>
+                      ) : null}
+                      </div>
                     ))}
                     {messageIndex === messages.length - 1 ? (
                       <button

@@ -92,6 +92,37 @@ export const DEFAULT_RADIOATLAS_THEMES: RadioAtlasTheme[] = [
   },
   {
     version: 1,
+    id: 'journal',
+    name: 'Журнал',
+    author: 'RadioAtlas',
+    createdAt: BUILT_AT,
+    updatedAt: BUILT_AT,
+    builtin: true,
+    // journal: the warm paper of the accepted A4 «Журнал» direction — cream
+    // ground with a peach and sage glow, rust accent, rounded type. The calm
+    // preview opens on it; any other choice in Theme Studio still wins.
+    mode: 'light',
+    layers: {
+      accent: {
+        hue: 12,
+        sat: 54,
+        lightness: 45
+      },
+      background: {
+        kind: 'gradient',
+        gradient:
+          'radial-gradient(ellipse at 90% 30%, rgba(246, 213, 183, 0.5) 0%, transparent 60%), radial-gradient(ellipse at 3% 65%, rgba(212, 219, 207, 0.5) 0%, transparent 55%), linear-gradient(180deg, #fcf7ed 0%, #f8efe1 100%)'
+      },
+      font: {
+        family: 'rounded'
+      },
+      icons: {
+        style: 'soft'
+      }
+    }
+  },
+  {
+    version: 1,
     id: 'aurora-field',
     name: 'Aurora Field',
     author: 'RadioAtlas',
