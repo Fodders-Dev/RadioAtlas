@@ -34,7 +34,9 @@
 - Проверки раунда: `typecheck`/`typecheck:test` exit 0; webapp unit 855
   passed (105 файлов, + `screenLoaders.test.ts`); `calm-home.spec.ts` (+ тест
   «journal shell») и `calm-globe.spec.ts` — 18 passed; полный функциональный
-  Playwright — 306 passed; push `104840a` в `master` → CI + deploy.
+  Playwright — 306 passed; push `104840a` в `master`. CI-гейт упал на новом
+  спеке «journal shell» (локатор ждал `<audio>`, которого до Play нет —
+  локально элемент был), поправлено чтением через DOM и отправлено следом.
 - Ловушка встроенного браузера: при эмуляции 320 `innerWidth` = 352, и
   fixed-элементы (нав) измеряются шире экрана — это не переполнение
   приложения (`.app-shell-v2` = 320, `clientWidth` = 320).
