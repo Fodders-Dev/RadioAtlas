@@ -1,0 +1,98 @@
+[
+  {
+    "stationuuid": "932eb148-e6f6-11e9-a96c-52543be04c81",
+    "name": "FIP",
+    "country": "France",
+    "countrycode": "FR",
+    "tags": "aac,music,public radio,radio france",
+    "homepage": "https://www.fip.fr/"
+  },
+  {
+    "stationuuid": "ce61ecb3-cf9f-4991-b860-32047def71ed",
+    "name": "TSF Jazz",
+    "country": "France",
+    "countrycode": "FR",
+    "tags": "",
+    "homepage": "https://www.tsfjazz.com/"
+  },
+  {
+    "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+    "name": "SomaFM Groove Salad (128k MP3)",
+    "country": "The United States Of America",
+    "countrycode": "US",
+    "tags": "ambient,chillout,downtempo,groove,lounge,sleep",
+    "homepage": "https://somafm.com/groovesalad/"
+  },
+  {
+    "stationuuid": "9617a958-0601-11e8-ae97-52543be04c81",
+    "name": "Radio Paradise Main Mix (EU) 320k AAC",
+    "country": "The United States Of America",
+    "countrycode": "US",
+    "tags": "california,eclectic,free,internet,non-commercial,paradise,radio",
+    "homepage": "https://radioparadise.com/"
+  },
+  {
+    "stationuuid": "960a0f41-0601-11e8-ae97-52543be04c81",
+    "name": "Radio Meuh",
+    "country": "France",
+    "countrycode": "FR",
+    "tags": "electronic,funk,music",
+    "homepage": "http://www.radiomeuh.com/"
+  },
+  {
+    "stationuuid": "1651c32f-55d8-4429-995d-872ea0dcf520",
+    "name": "Worldwide FM",
+    "country": "The United Kingdom Of Great Britain And Northern Ireland",
+    "countrycode": "GB",
+    "tags": "electronica,jazz,progressive,underground music,world music",
+    "homepage": "https://www.worldwidefm.net/"
+  },
+  {
+    "stationuuid": "961e6cac-0601-11e8-ae97-52543be04c81",
+    "name": "NTS Radio 1",
+    "country": "The United Kingdom Of Great Britain And Northern Ireland",
+    "countrycode": "GB",
+    "tags": "community radio,dj sets,eclectic,freeform",
+    "homepage": "http://www.nts.live/"
+  },
+  {
+    "stationuuid": "961ac56b-0601-11e8-ae97-52543be04c81",
+    "name": "Radio Swiss Jazz",
+    "country": "Switzerland",
+    "countrycode": "CH",
+    "tags": "jazz,public radio,srg ssr",
+    "homepage": "http://www.radioswissjazz.ch/"
+  },
+  {
+    "stationuuid": "5b9ceedf-eb85-11e9-a96c-52543be04c81",
+    "name": "FIP Jazz",
+    "country": "France",
+    "countrycode": "FR",
+    "tags": "aac,jazz,public radio,radio france",
+    "homepage": "https://www.fip.fr/jazz/webradio"
+  },
+  {
+    "stationuuid": "960eb2e9-0601-11e8-ae97-52543be04c81",
+    "name": "SomaFM Drone Zone (128k MP3)",
+    "country": "The United States Of America",
+    "countrycode": "US",
+    "tags": "ambient,atmospheric,chillout,drone",
+    "homepage": "https://somafm.com/dronezone/"
+  },
+  {
+    "stationuuid": "6f73bc13-3c4b-11e8-b74d-52543be04c81",
+    "name": "SomaFM Deep Space One (32k AAC)",
+    "country": "The United States Of America",
+    "countrycode": "US",
+    "tags": "ambient,electronic,space",
+    "homepage": "https://somafm.com/deepspaceone/"
+  },
+  {
+    "stationuuid": "c454908c-eb81-11e9-a96c-52543be04c81",
+    "name": "FIP Groove",
+    "country": "France",
+    "countrycode": "FR",
+    "tags": "aac,groove,public radio,radio france",
+    "homepage": "https://www.fip.fr/groove/webradio"
+  }
+]
