@@ -333,6 +333,7 @@ export const ExplorerMap = ({
     };
     spiderApiRef.current = { render: renderSpider, close: closeSpider };
     map.on('move', renderSpider);
+    map.on('resize', renderSpider);
     map.on('zoomend', () => {
       const spider = spiderRef.current;
       if (spider && Math.abs(map.getZoom() - spider.zoom) > 0.75) closeSpider();

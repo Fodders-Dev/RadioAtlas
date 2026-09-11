@@ -560,7 +560,12 @@ export const GlobeExplorer = () => {
             handleRef={mapHandle}
             onReady={() => setMapReady(true)}
             onPick={(id) => select(id, false)}
-            onGroup={(ids) => setArea(ids, 'nearby')}
+            onGroup={(ids) => {
+              setArea(ids, 'nearby');
+              // A group opens on the MAP (a split, a fan) as well as in the
+              // list: an expanded list would leave the fan under the heading.
+              setPanelSize((size) => (size === 'expanded' ? 'normal' : size));
+            }}
             onUserMove={onUserMove}
             onError={() => notify(t('mapExplorer.groupFailed'))}
           />
