@@ -1198,3 +1198,7 @@
 .chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: .45; }
 :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-lira-orb, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass { border-color: color-mix(in srgb, white 20%, transparent); }
 :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass { background: color-mix(in srgb, var(--bg) 40%, transparent); box-shadow: inset 0 1px 0 #ffffff30; }
+
+/* Calm: Лира's drawn face in the window head. */
+.chat-sheet[data-calm='true'] .chat-lira-face { display: block; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
+.chat-sheet[data-calm='true'] .chat-lira-face svg { display: block; width: 100%; height: 100%; }

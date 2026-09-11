@@ -1254,6 +1254,14 @@ export const useAudioPlayer = ({
         'runtime'
       );
       if (requestedStationRef.current || currentRef.current) {
+        // ⚠ Captured BEFORE the walk. playStation's own failure path clears
+        // requestedStationRef while this walk is still in flight, so by the
+        // time «exhausted» arrives both refs can be null — measured on
+        // production 11.09.2026: proxy candidate → 502 → the station the
+        // listener had just tapped vanished from the mini player a second
+        // after «Буферизация», with nothing on screen to retry. The station
+        // asked for is the one that must stay.
+        const askedStation = requestedStationRef.current || currentRef.current;
         tryNextCandidate(activeSession).then((outcome) => {
           if (!isSessionCurrent(activeSession)) {
             return;
@@ -1264,7 +1272,7 @@ export const useAudioPlayer = ({
           // reconnect is the loudest possible way to obey a rule about silence.
           if (outcome === 'suppressed') return;
           if (outcome === 'exhausted') {
-            const lostStation = requestedStationRef.current || currentRef.current;
+            const lostStation = requestedStationRef.current || currentRef.current || askedStation;
             requestedStationRef.current = null;
             setCurrent(null);
             // ⚠ The station STAYS on screen as `pending`, and that is the whole

@@ -615,7 +615,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       case 'media network error':
         return t('toast.streamUnavailable');
       case 'no playable candidate':
-        return t('toast.noPlayable');
+        // One station's candidates are exhausted — say that about the stream,
+        // not about the catalogue (toast.noPlayable is for an empty queue).
+        return t('toast.streamUnavailable');
       default:
         return message || t('toast.playbackFailed');
     }

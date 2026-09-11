@@ -7,11 +7,11 @@ import { useLocale } from '../state/LocaleContext';
 import { isAiAssistantEnabled } from '../lib/aiChat';
 import { formatCountryLabel, normalizeStationName } from '../lib/stationUtils';
 import { calmGenreGroups } from '../lib/calmDiscoveries';
-import { LiraMark } from '../components/LiraMark';
 import type { ShelfSnapshot } from './CalmCatalogShelf';
 import { CalmBrowseSheet } from './CalmBrowseSheet';
 import { CalmCountryPicker } from './CalmCountryPicker';
 import { CalmPoster } from './CalmPoster';
+import { CalmLiraFace } from '../components/CalmLiraFace';
 import { CalmSourceSheet } from './CalmSourceSheet';
 import { CalmStationRow } from './CalmStationRow';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
@@ -121,7 +121,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     <div className="calm-welcome" data-calm-offer={offer.stationuuid}>
       {ai ? (
         <button className="calm-lira-line" onClick={() => requestChat()} data-calm-lira>
-          <span className="calm-lira-face" aria-hidden="true"><LiraMark /></span>
+          <span className="calm-lira-face" aria-hidden="true"><CalmLiraFace /></span>
           <span><strong>{t('journal.liraName')}</strong><span>{t('journal.liraLine')}</span></span>
         </button>
       ) : (
@@ -135,7 +135,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     {visit.lead && <section className="calm-section calm-lead" data-calm-lead={visit.lead.id}>
       <button className="calm-story calm-story-lead" onClick={() => setSheet({ kind: 'story', story: visit.lead as CalmStory })}>
         <CalmPoster art={visit.lead.art} word={storyWord(visit.lead)} lead />
-        <span className="calm-story-caption"><small>{storyKicker(visit.lead)}</small><strong>{storyTitle(visit.lead)}</strong><span>{t('journal.openStory')} <Icon d={ARROW} /></span></span>
+        <span className="calm-story-caption"><span><small>{storyKicker(visit.lead)}</small><strong>{storyTitle(visit.lead)}</strong></span><span>{t('journal.openStory')} <Icon d={ARROW} /></span></span>
       </button>
       {visit.starters.length > 0 && <div className="calm-starters"><span className="calm-eyebrow">{t('journal.startHere')}</span>
         <div className="calm-rows">{visit.starters.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.starters, 'home-starter')} onOpen={() => setSource(s)} />)}</div>
@@ -146,7 +146,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       <div className="calm-heading"><h2>{t('journal.moods')}</h2></div>
       <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
         <CalmPoster art={story.art} word={storyWord(story)} />
-        <span className="calm-story-caption"><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span>
+        <span className="calm-story-caption"><span><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span></span>
       </button>)}</div>
     </section>}
 

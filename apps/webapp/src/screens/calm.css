@@ -45,8 +45,9 @@
 .calm-lira-line > span:last-child { display: grid; gap: 1px; min-width: 0; font-size: 11px; line-height: 1.4; }
 .calm-lira-line strong { font-size: 13px; }
 .calm-lira-line > span > span { color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-lira-face { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; color: var(--accent); background: radial-gradient(circle at 30% 25%, #fff5, transparent 60%), color-mix(in srgb, var(--accent) 22%, var(--calm-solid)); border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 25%, transparent); }
-.calm-lira-face svg { width: 22px; height: 22px; }
+/* Лира's drawn face (CalmLiraFace): the guide is a person, not only a glyph. */
+.calm-lira-face { display: block; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
+.calm-lira-face svg { display: block; width: 100%; height: 100%; }
 .calm-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; min-height: 44px; padding: 0 16px; border-radius: 30px; background: var(--accent); color: var(--accent-ink, #fffdf8); font-size: 13px; font-weight: 700; box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 30%, transparent), inset 0 1px 0 #fff3; }
 .calm-primary > span { font-size: 12px; }
 .calm-primary-wide { width: 100%; min-height: 48px; margin: 6px 0 10px; }
@@ -64,16 +65,19 @@
 
 /* Stories: a poster and a caption. The catalogue behind them is real. */
 .calm-story { display: block; width: 100%; text-align: left; }
+/* As in the mock: the kicker sits ABOVE the title, the «open» link to the right. */
 .calm-story-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 2px 0; }
-.calm-story-caption > small:first-child { display: block; font-size: 9px; letter-spacing: 1.1px; font-weight: 650; color: var(--calm-secondary); }
-.calm-story-caption > strong { display: block; font-size: 18px; letter-spacing: -.5px; line-height: 1.25; }
-.calm-story-caption > span:last-child { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); font-weight: 650; }
+.calm-story-caption > span:first-child { display: grid; gap: 4px; min-width: 0; }
+.calm-story-caption small { display: block; font-size: 9px; letter-spacing: 1.1px; font-weight: 650; color: var(--calm-secondary); }
+.calm-story-caption strong { display: block; font-size: 18px; letter-spacing: -.5px; line-height: 1.25; }
+.calm-story-caption > span + span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); font-weight: 650; flex-shrink: 0; }
 .calm-story-caption svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .calm-story-lead .calm-story-caption { display: grid; gap: 0; position: absolute; inset: 19px; align-content: start; justify-items: start; pointer-events: none; color: #3e3025; padding: 0; }
 .calm-story-lead { position: relative; height: 158px; border-radius: 22px; overflow: hidden; box-shadow: 0 13px 18px -13px #63392388, inset 0 1px 0 #fffc; }
-.calm-story-lead .calm-story-caption > small:first-child { font-size: 8px; letter-spacing: 1.1px; }
-.calm-story-lead .calm-story-caption > strong { font: italic 29px/1.05 var(--calm-serif); max-width: 195px; margin: 9px 0; letter-spacing: -.7px; }
-.calm-story-lead .calm-story-caption > span:last-child { margin-top: auto; }
+.calm-story-lead .calm-story-caption > span:first-child { display: contents; }
+.calm-story-lead .calm-story-caption small { font-size: 8px; letter-spacing: 1.1px; }
+.calm-story-lead .calm-story-caption strong { font: italic 29px/1.05 var(--calm-serif); max-width: 195px; margin: 9px 0; letter-spacing: -.7px; }
+.calm-story-lead .calm-story-caption > span + span { margin-top: auto; }
 .calm-story-rail { display: flex; gap: 12px; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; scrollbar-width: none; align-items: flex-start; }
 .calm-story-rail::-webkit-scrollbar { display: none; }
 .calm-story-rail .calm-story { flex: 0 0 156px; width: 156px; scroll-snap-align: start; }

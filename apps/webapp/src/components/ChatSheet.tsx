@@ -31,6 +31,7 @@ import { CALM_PREVIEW } from '../lib/calmPreview';
 import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import { LiraMark } from './LiraMark';
+import { CalmLiraFace } from './CalmLiraFace';
 import './ChatSheet.css';
 
 type ChatMessage = {
@@ -445,10 +446,14 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
         <header className="chat-sheet-head">
           <div className="chat-identity">
-            <span className="chat-lira-orb chat-lira-orb--header" aria-hidden="true">
-              <LiraMark />
-              <i />
-            </span>
+            {CALM_PREVIEW ? (
+              <span className="chat-lira-face" aria-hidden="true"><CalmLiraFace /></span>
+            ) : (
+              <span className="chat-lira-orb chat-lira-orb--header" aria-hidden="true">
+                <LiraMark />
+                <i />
+              </span>
+            )}
             <div className="chat-identity-copy">
               <span className="chat-kicker">{t('chat.kicker')}</span>
               <h1 id={titleId}>{t('chat.title')}</h1>
