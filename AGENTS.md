@@ -3,6 +3,8 @@
 Instructions for AI coding agents working on RadioAtlas.
 
 **The current, maintained instructions live in [`CLAUDE.md`](./CLAUDE.md).**
+For UI/UX work, also read [`docs/DESIGN-DIRECTION.md`](./docs/DESIGN-DIRECTION.md)
+and the current handoff in [`docs/WORKING-SETUP.md`](./docs/WORKING-SETUP.md).
 Read that file first — it holds the layout, the real commands, the definition of
 done, and the facts that are not inferable from the code (push to `master` is
 the production deploy; functional Playwright gates CI while visual baselines report separately; there is no linter
