@@ -53,7 +53,22 @@ const FEED_ITEM: NavItem = {
     </svg>
   )
 };
-const CALM_NAV_ITEMS: NavItem[] = [NAV_ITEMS[0], NAV_ITEMS[2], FEED_ITEM, NAV_ITEMS[3]];
+// The calm preview uses the A4 mock's OUTLINE set (stroke, round caps): home,
+// globe, feed, library — and a spark for Лира. Same paths as
+// docs/prototypes/directions/app.js; the active item is coloured and gets the
+// mock's small dot below (CSS), so state is never carried by fill alone.
+const outline = (d: string) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" data-nav-outline>
+    <path d={d} />
+  </svg>
+);
+const CALM_NAV_ITEMS: NavItem[] = [
+  { id: 'home', icon: outline('M3 10l9-7 9 7M5 9v12h5v-7h4v7h5V9') },
+  { id: 'globe', icon: outline('M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-6 5-6 13 0 18 6-5 6-13 0-18') },
+  { id: 'feed', icon: outline('M5 4h14v16H5zM8 1h8M8 23h8M10 8l6 4-6 4z') },
+  { id: 'library', icon: outline('M4 4v16M9 4v16M14 4l6 16') }
+];
+const CALM_LIRA_ICON = outline('M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z');
 
 type AppNavigationProps = {
   active: AppSection;
@@ -165,7 +180,7 @@ export const AppNavigation = ({
               aria-label={t('chat.launch')}
             >
               <span className="mobile-nav-chat-fab" aria-hidden="true">
-                <LiraMark />
+                {calm ? CALM_LIRA_ICON : <LiraMark />}
               </span>
               <span className="mobile-nav-chat-label">{t('chat.launch')}</span>
             </button>

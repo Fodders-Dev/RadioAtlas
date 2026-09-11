@@ -96,7 +96,7 @@ export const enDictionary = {
   journal: {
     heading: 'Discover music', search: 'Search', appearance: 'Appearance', liraName: 'Lira', liraLine: 'Ask about music',
     play: 'Play', listening: 'On air · open the Feed', paused: 'Paused · Play', openStory: 'Open the story', startHere: 'Start with these stations',
-    moods: 'By mood', moodsMore: 'More', mapTitle: 'Music on the map', mapAll: 'Globe', mapHint: 'Tap a country and land among its stations.',
+    moods: 'By mood', moodsMore: 'More', allStories: 'Music stories', searchKicker: 'The whole catalogue', mapTitle: 'Music on the map', mapAll: 'Globe', mapHint: 'Tap a country and land among its stations.',
     exploreCountry: 'Explore', aroundTitle: 'Around the world', aroundCopy: 'The catalogue’s country of the day. Sources with a character of their own.', aroundMore: 'On the map',
     genresTitle: 'Find your sound', genresAll: 'All genres', teaserTitle: 'Your small discoveries', teaserCopy: 'Finds, favourite stations and your own collections',
     findsTitle: 'Latest finds', backToSource: 'Back to the source', communityKicker: 'NEXT CHAPTER', communityTitle: 'Radio brings tastes together.',
@@ -715,6 +715,8 @@ export const enDictionary = {
     }
   },
   "library": {
+    "calmKicker": "Collected by ear",
+    "calmCounts": "Finds {finds} · Sources {favorites} · Collections {collections}",
     "kicker": "Personal space",
     "title": "Library",
     "subtitle": "Favorites, queue, recents, and history now live in one place.",

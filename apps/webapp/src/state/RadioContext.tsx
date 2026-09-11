@@ -504,6 +504,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   const clearChatRequest = useCallback(() => setChatRequest(null), []);
   const [skinLabOpen, setSkinLabOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const debugLoggingEnabled =
     import.meta.env.DEV ||
     (typeof window !== 'undefined' &&
@@ -3049,6 +3050,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       notify,
       skinLabOpen,
       setSkinLabOpen,
+      settingsOpen,
+      setSettingsOpen,
       openWebAppExternally,
       clearCache
     }),
@@ -3073,6 +3076,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       refreshHomeSurface,
       searchDraft,
       skinLabOpen,
+      settingsOpen,
       setActiveSection,
       setDetailsOpen,
       setHomeSnapshot,

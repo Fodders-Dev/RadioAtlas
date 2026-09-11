@@ -84,12 +84,13 @@ const App = () => {
     setDetailsOpen,
     skinLabOpen,
     setSkinLabOpen,
+    settingsOpen,
+    setSettingsOpen,
     chatRequest,
     clearChatRequest,
     setFeedEntryStation,
     rerollFeedSeed
   } = useShell();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // «Лира» chat lives at the shell level so the central nav button opens it from
   // any screen. Gated on VITE_AI_ENABLED (same flag as the rest of the feature).
   const aiAssistantEnabled = isAiAssistantEnabled();

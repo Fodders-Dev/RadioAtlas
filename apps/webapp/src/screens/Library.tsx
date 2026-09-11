@@ -28,6 +28,7 @@ import { useLocale } from '../state/LocaleContext';
 import { FindsList } from '../components/FindsList';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
+import { CALM_PREVIEW } from '../lib/calmPreview';
 import type { LibraryTab, StationLite } from '../types';
 
 const TAB_ORDER = ['favorites', 'queue', 'recent', 'tracks', 'collections'] as const;
@@ -199,7 +200,7 @@ export const Library = () => {
     updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
-  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft } =
+  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
     useShell();
   const {
     status: sessionStatus,
@@ -825,6 +826,23 @@ export const Library = () => {
 
   return (
     <section className="screen screen-library-v2">
+      {CALM_PREVIEW ? (
+        <header className="calm-library-head" data-calm-library>
+          <div className="calm-library-title">
+            <span className="calm-eyebrow">{t('library.calmKicker')}</span>
+            <h1>{t('nav.library')}</h1>
+            <p className="calm-library-counts">{t('library.calmCounts', { finds: tabCounts.tracks, favorites: tabCounts.favorites, collections: tabCounts.collections })}</p>
+          </div>
+          <div className="calm-library-actions">
+            <button className="calm-icon calm-glass" type="button" aria-label={t('nav.settings')} onClick={() => setSettingsOpen(true)} data-calm-settings>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></svg>
+            </button>
+            <button className="calm-icon calm-glass" type="button" aria-label={t('account.title')} onClick={openAccountSheet} data-calm-account>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /></svg>
+            </button>
+          </div>
+        </header>
+      ) : null}
       {/* ⚠ «Находки» brings its OWN permanent search, so the shared library
           search is not rendered on that tab. Two search fields stacked — one
           «Поиск по медиатеке» and directly beneath it «Поиск: исполнитель,

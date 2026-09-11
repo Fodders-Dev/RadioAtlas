@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { CALM_PREVIEW } from '../lib/calmPreview';
 import { createPortal } from 'react-dom';
 import { StationTable } from '../components/StationTable';
 import { StationArtwork } from '../components/StationArtwork';
@@ -393,7 +394,7 @@ export const Discover = () => {
     radioSessionEvents
   } = useLibrary();
   const { playStation, playStationQueue, player } = usePlayback();
-  const { searchDraft, clearSearchDraft } = useShell();
+  const { searchDraft, clearSearchDraft, setActiveSection } = useShell();
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1024
   );
@@ -699,6 +700,19 @@ export const Discover = () => {
       data-search-mode={mode}
       data-query-active={queryActive ? 'true' : 'false'}
     >
+      {CALM_PREVIEW ? (
+        <header className="calm-library-head calm-search-head" data-calm-search>
+          <div className="calm-library-title">
+            <span className="calm-eyebrow">{t('journal.searchKicker')}</span>
+            <h1>{t('nav.search')}</h1>
+          </div>
+          <div className="calm-library-actions">
+            <button className="calm-icon calm-glass" type="button" aria-label={t('nav.home')} onClick={() => setActiveSection('home')} data-calm-search-home>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            </button>
+          </div>
+        </header>
+      ) : null}
       {showStations ? (
         <div className="glass-card search-hero-card">
           <div className="search-hero-input-row">

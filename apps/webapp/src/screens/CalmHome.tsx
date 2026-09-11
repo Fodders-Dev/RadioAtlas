@@ -13,6 +13,7 @@ import { CalmCountryPicker } from './CalmCountryPicker';
 import { CalmPoster } from './CalmPoster';
 import { CalmLiraFace } from '../components/CalmLiraFace';
 import { CalmSourceSheet } from './CalmSourceSheet';
+import { CalmStoriesSheet } from './CalmStoriesSheet';
 import { CalmStationRow } from './CalmStationRow';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
 
@@ -90,6 +91,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const [sheet, setSheet] = useState<Sheet>(null);
   const [source, setSource] = useState<StationLite | null>(null);
   const [countryPicker, setCountryPicker] = useState(false);
+  const [allStories, setAllStories] = useState(false);
   useEffect(() => () => { discovery.scrollY = window.scrollY; }, [discovery]);
 
   const offer = visit.station;
@@ -109,6 +111,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     {sheet?.kind === 'genre' && <CalmBrowseSheet title={t(`calm.directions.${sheet.id}.eyebrow`)} kicker={t('journal.genresTitle')} query={{ tag: sheet.query }} picks={sheet.stations} cache={discovery.shelves} source="home-genre" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(s) => onPlay(s, [s], 'home-source')} />}
     {countryPicker && <CalmCountryPicker initial={visit.countries} selected="" onSelect={openGlobe} onClose={() => setCountryPicker(false)} />}
+    {allStories && <CalmStoriesSheet stories={visit.stories} onSelect={(story) => setSheet({ kind: 'story', story })} onClose={() => setAllStories(false)} />}
 
     <header className="calm-journal-heading">
       <h1>{t('journal.heading')}</h1>
@@ -143,7 +146,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     </section>}
 
     {stories.length > 0 && <section className="calm-section" data-calm-stories>
-      <div className="calm-heading"><h2>{t('journal.moods')}</h2></div>
+      <div className="calm-heading"><h2>{t('journal.moods')}</h2><button className="calm-text" data-calm-stories-all onClick={() => setAllStories(true)}>{t('journal.moodsMore')} <Icon d={ARROW} /></button></div>
       <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
         <CalmPoster art={story.art} word={storyWord(story)} />
         <span className="calm-story-caption"><span><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span></span>

@@ -302,3 +302,60 @@ test('an explicit Classic stays Classic in the calm preview; only «never chose�
   await expect(page.locator('[data-calm-home]')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'classic');
 });
+
+
+// Journal parity, round 3: the outline navigation with its active mark, «Ещё»
+// under «Под настроение» opening every story, and «Моё» / «Поиск» wearing the
+// journal head instead of the classic topbar — every library feature intact.
+test('journal shell: outline nav, «Ещё» opens all stories, «Моё» and «Поиск» wear the journal head', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await richCatalogue(page);
+  await seedRadioState(page, { stationCache: catalogue });
+  await page.goto('/?calm=1');
+  await expect(page.locator('[data-calm-home]')).toBeVisible();
+
+  // Five outline icons (four sections + Лира's spark); the active item carries
+  // the mock's dot below its label, so state is not colour alone.
+  await expect(page.locator('.app-navigation-mobile svg[data-nav-outline]')).toHaveCount(5);
+  const activeDot = await page.locator('.app-navigation-mobile .mobile-nav-item.active').evaluate((el) => getComputedStyle(el, '::after').width);
+  expect(activeDot).toBe('3px');
+
+  // «Ещё» → every story on one sheet; picking one opens its real catalogue sheet.
+  const storyCount = (await page.locator('[data-calm-story]').count()) + 1;
+  await page.locator('[data-calm-stories-all]').click();
+  const stories = page.locator('[data-calm-stories-sheet]');
+  await expect(stories).toBeVisible();
+  await expect(stories.locator('.calm-story')).toHaveCount(storyCount);
+  await stories.locator('[data-calm-story-all="jazz"]').click();
+  await expect(page.locator('[data-calm-browse="jazz"]')).toBeVisible();
+  await expect(page.locator('[data-calm-browse="jazz"] .calm-station-row')).toHaveCount(3);
+  expect(await audioSrc(page), 'browsing never starts sound').toBeNull();
+  await page.locator('[data-calm-browse="jazz"]').getByRole('button', { name: 'Закрыть', exact: true }).click();
+
+  // «Моё»: journal head with settings and account, no classic topbar, all five
+  // tabs with whole labels, the tab panels still there.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
+  const libraryHead = page.locator('[data-calm-library]');
+  await expect(libraryHead).toBeVisible();
+  await expect(libraryHead.locator('h1')).toHaveText('Моё');
+  await expect(page.locator('.app-topbar-v2')).toBeHidden();
+  const labels = await page.locator('.library-tab-chip .library-tab-label').evaluateAll((els) =>
+    els.map((el) => [el.textContent, el.scrollWidth <= el.clientWidth + 1] as const)
+  );
+  expect(labels.map(([text]) => text)).toEqual(['Избранное', 'Очередь', 'Недавнее', 'Находки', 'Плейлисты']);
+  expect(labels.every(([, whole]) => whole), 'tab labels must not truncate').toBe(true);
+  await libraryHead.locator('[data-calm-settings]').click();
+  await expect(page.locator('.settings-sheet')).toBeVisible();
+  await page.locator('.settings-sheet-head .chip').click();
+  await expect(page.locator('.settings-sheet')).toBeHidden();
+  await page.locator('.library-tab-chip', { hasText: 'Находки' }).click();
+  await expect(page.locator('[role="tabpanel"]').filter({ visible: true }).first()).toBeVisible();
+
+  // «Поиск» from Home: the same head, a way back home, no classic topbar.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
+  await page.locator('.calm-home .calm-icon[aria-label="Поиск"]').click();
+  await expect(page.locator('[data-calm-search] h1')).toHaveText('Поиск');
+  await expect(page.locator('.app-topbar-v2')).toBeHidden();
+  await page.locator('[data-calm-search-home]').click();
+  await expect(page.locator('[data-calm-home]')).toBeVisible();
+});

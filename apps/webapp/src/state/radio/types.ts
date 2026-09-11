@@ -284,6 +284,10 @@ export type ShellContextValue = {
   notify: (message: string) => void;
   skinLabOpen: boolean;
   setSkinLabOpen: (value: boolean) => void;
+  // The Settings sheet: opened by the classic topbar's gear and, in the calm
+  // preview, by the journal head of «Моё» — the sheet itself is the App's.
+  settingsOpen: boolean;
+  setSettingsOpen: (value: boolean) => void;
   openWebAppExternally: () => void;
   clearCache: () => void;
 };

@@ -96,7 +96,7 @@ export const ruDictionary = {
   journal: {
     heading: 'Открывайте музыку', search: 'Поиск', appearance: 'Оформление', liraName: 'Лира', liraLine: 'Спросить о музыке',
     play: 'Включай', listening: 'В эфире · открыть Ленту', paused: 'На паузе · Включай', openStory: 'Открыть подборку', startHere: 'Начните с этих эфиров',
-    moods: 'Под настроение', moodsMore: 'Ещё', mapTitle: 'Музыка на карте', mapAll: 'Глобус', mapHint: 'Коснитесь страны — и окажитесь среди её эфиров.',
+    moods: 'Под настроение', moodsMore: 'Ещё', allStories: 'Музыкальные истории', searchKicker: 'Весь каталог', mapTitle: 'Музыка на карте', mapAll: 'Глобус', mapHint: 'Коснитесь страны — и окажитесь среди её эфиров.',
     exploreCountry: 'Исследовать', aroundTitle: 'Вокруг света', aroundCopy: 'Страна дня из каталога. Источники со своим характером.', aroundMore: 'На карте',
     genresTitle: 'Найти свой звук', genresAll: 'Все жанры', teaserTitle: 'Ваши маленькие открытия', teaserCopy: 'Находки, любимые эфиры и свои подборки',
     findsTitle: 'Последние находки', backToSource: 'Вернуться к источнику', communityKicker: 'СЛЕДУЮЩАЯ ГЛАВА', communityTitle: 'Радио объединяет вкусы.',
@@ -715,6 +715,8 @@ export const ruDictionary = {
     }
   },
   "library": {
+    "calmKicker": "Собрано на слух",
+    "calmCounts": "Находки {finds} · Источники {favorites} · Подборки {collections}",
     "kicker": "Личное пространство",
     "title": "Медиатека",
     "subtitle": "Избранное, очередь, недавнее и история теперь собраны в одном месте.",
