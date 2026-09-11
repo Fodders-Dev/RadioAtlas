@@ -68,7 +68,11 @@ export const enDictionary = {
   // Calm Globe (A4 «Journal»): sources on a map, finds stay in the player.
   mapExplorer: {
     title: 'Stations on the map', loading: 'Loading stations…', loadError: 'Could not load the map and stations.',
-    world: 'World', countries: 'Countries', legend: 'Dot — a station · number — a group', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    world: 'World', countries: 'Countries', legendLabel: 'Dot colour — genre from the station tags', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    families: {
+      pop: 'Pop and hits', rock: 'Rock and metal', electronic: 'Electronic', jazz: 'Jazz, soul, blues', classical: 'Classical',
+      chill: 'Calm', hiphop: 'Hip-hop and reggae', world: 'Folk and world', talk: 'Talk and news', unknown: 'No genre tag'
+    },
     searchHere: 'Search here', listHint: 'Name → map · ▶ → play', nearby: 'Stations nearby', inArea: 'In this area', wholeWorld: 'Whole world',
     expand: 'Expand the list', collapse: 'Collapse the list', searchArea: 'Search stations in the area', moreMap: 'More map', showList: 'Stations',
     searchLabel: 'Search the shown stations', searchPlaceholder: 'Station name or region', clearSearch: 'Clear search',

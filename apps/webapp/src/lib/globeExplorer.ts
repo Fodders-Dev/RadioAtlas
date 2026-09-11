@@ -1,4 +1,4 @@
-import type { CatalogStationPoint } from '../domain/contracts';
+import { GENRE_FAMILIES, type CatalogStationPoint, type GenreFamily } from '../domain/contracts';
 import { resolveCountryCoords } from './geoResolver';
 
 // Pure helpers behind the calm Globe (A4 «Журнал»): the map draws ONLY points
@@ -111,4 +111,58 @@ export const pluralForm = (count: number, locale: string): 'one' | 'few' | 'many
   } catch {
     return 'other';
   }
+};
+
+// ---- Genre colours and the fan for coincident points -----------------------
+
+// One colour per coarse family (the API decides the family from the station's
+// first recognised tag). Chosen to stay apart on the muted satellite ground and
+// from the selection/on-air reds; colour is never the only cue — the legend
+// and every list row carry the family's name too.
+export const GENRE_COLORS: Record<GenreFamily, string> = {
+  pop: '#f2a93b',
+  rock: '#c4553d',
+  electronic: '#3fa7c8',
+  jazz: '#b2732a',
+  classical: '#e9dcc1',
+  chill: '#7fb69a',
+  hiphop: '#8f6cc4',
+  world: '#d9895a',
+  talk: '#9aa3ad'
+};
+
+// A point without a recognised tag: neutral paper, not a guessed genre.
+export const NEUTRAL_POINT_COLOR = '#f3e4c8';
+
+export const pointColor = (genre: GenreFamily | undefined): string => (genre ? GENRE_COLORS[genre] : NEUTRAL_POINT_COLOR);
+
+// MapLibre `match` expression on the feature's `genre` property.
+export const genreColorExpression = (): unknown[] => [
+  'match',
+  ['get', 'genre'],
+  ...GENRE_FAMILIES.flatMap((family) => [family, GENRE_COLORS[family]]),
+  NEUTRAL_POINT_COLOR
+];
+
+// Where the leaves of a fan sit around their shared point, in screen pixels.
+// Up to eight go on a ring; more continue on a spiral, so 24 leaves still fit
+// a phone screen without hiding each other. Positions are for legibility only:
+// every leaf keeps a line back to the real coordinate.
+export const SPIDER_LIMIT = 24;
+
+export const spiderOffsets = (count: number): Array<{ x: number; y: number }> => {
+  const n = Math.max(0, Math.min(count, SPIDER_LIMIT));
+  if (n <= 8) {
+    const radius = n <= 4 ? 34 : 40;
+    return Array.from({ length: n }, (_, index) => {
+      const angle = (index / n) * Math.PI * 2 - Math.PI / 2;
+      return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+    });
+  }
+  const step = (Math.PI * 2) / 7.5;
+  return Array.from({ length: n }, (_, index) => {
+    const angle = index * step - Math.PI / 2;
+    const radius = 30 + index * 3.6;
+    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+  });
 };

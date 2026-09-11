@@ -7,6 +7,7 @@ import { isAiAssistantEnabled } from '../lib/aiChat';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { formatCountryLabel, normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { stationGenreSlug } from '../lib/stationGenre';
+import { GENRE_FAMILIES } from '../domain/contracts';
 import {
   countryCounts,
   countryTarget,
@@ -15,6 +16,7 @@ import {
   nextPanelSize,
   orderPoints,
   pluralForm,
+  pointColor,
   pointsInBounds,
   type ExplorerPoint,
   type LatLon,
@@ -539,10 +541,18 @@ export const GlobeExplorer = () => {
             <span>{t('mapExplorer.world')}</span>
           </button>
         </header>
-        <p className="explorer-legend">
-          <Icon name="search" />
-          <span>{t('mapExplorer.legend')}</span>
-        </p>
+        <div className="explorer-legend" role="list" aria-label={t('mapExplorer.legendLabel')} data-explorer-legend>
+          {GENRE_FAMILIES.map((family) => (
+            <span className="explorer-legend-item" role="listitem" key={family}>
+              <i style={{ background: pointColor(family) }} aria-hidden="true" />
+              {t(`mapExplorer.families.${family}`)}
+            </span>
+          ))}
+          <span className="explorer-legend-item" role="listitem">
+            <i style={{ background: pointColor(undefined) }} aria-hidden="true" />
+            {t('mapExplorer.families.unknown')}
+          </span>
+        </div>
         <div className="explorer-zoom">
           <button className="explorer-icon" type="button" aria-label={t('mapExplorer.zoomIn')} onClick={() => mapHandle.current?.zoomBy(0.8)}>
             +
@@ -748,7 +758,10 @@ export const GlobeExplorer = () => {
                       <StationArtwork station={station} size="sm" className="explorer-row-art" />
                       <span>
                         <strong>{name}</strong>
-                        <small>{[point.state, formatCountryLabel(point.country)].filter(Boolean).join(' · ')}</small>
+                        <small>
+                          <i className="explorer-genre-dot" style={{ background: pointColor(point.genre) }} aria-hidden="true" />
+                          {[point.genre ? t(`mapExplorer.families.${point.genre}`) : '', point.state, formatCountryLabel(point.country)].filter(Boolean).join(' · ')}
+                        </small>
                       </span>
                     </button>
                     <button

@@ -68,7 +68,11 @@ export const ruDictionary = {
   // Calm Globe (A4 «Журнал»): sources on a map, finds stay in the player.
   mapExplorer: {
     title: 'Эфиры на карте', loading: 'Загружаем станции…', loadError: 'Не удалось загрузить карту и станции.',
-    world: 'Мир', countries: 'Страны', legend: 'Точка — эфир · число — группа', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
+    world: 'Мир', countries: 'Страны', legendLabel: 'Цвет точки — жанр по тегам станции', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
+    families: {
+      pop: 'Поп и хиты', rock: 'Рок и метал', electronic: 'Электроника', jazz: 'Джаз, соул, блюз', classical: 'Классика',
+      chill: 'Спокойное', hiphop: 'Хип-хоп и регги', world: 'Народная и мир', talk: 'Слово и новости', unknown: 'Жанр не указан'
+    },
     searchHere: 'Искать здесь', listHint: 'Название → карта · ▶ → эфир', nearby: 'Эфиры рядом', inArea: 'В этой области', wholeWorld: 'Весь мир',
     expand: 'Развернуть список', collapse: 'Свернуть список', searchArea: 'Поиск станций в области', moreMap: 'Больше карты', showList: 'Эфиры',
     searchLabel: 'Поиск среди показанных станций', searchPlaceholder: 'Название станции или регион', clearSearch: 'Сбросить поиск',

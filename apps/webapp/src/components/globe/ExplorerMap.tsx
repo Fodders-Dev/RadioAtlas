@@ -3,12 +3,19 @@ import maplibregl, { type GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { feature as topoFeature } from 'topojson-client';
 import worldData from '../../assets/countries-110m.json';
-import type { ExplorerPoint, LatLon, MapBounds } from '../../lib/globeExplorer';
+import { SPIDER_LIMIT, genreColorExpression, spiderOffsets, type ExplorerPoint, type LatLon, type MapBounds } from '../../lib/globeExplorer';
 
 // The calm Globe's map (A4 «Журнал»): the same MapLibre globe, Natural Earth
 // borders and Esri imagery as the reticle Globe, but the interaction is
 // different on purpose — big single dots, clusters with their real counts, and
 // a tap SELECTS. Playback is always a separate, explicit Play elsewhere.
+//
+// Dots are coloured by the coarse genre family the API derived from the
+// station's tags (neutral when none). Points that share one coordinate — the
+// catalogue has 373 such piles, the largest 198 stations at one point — open
+// as a FAN: leaves spread on screen for legibility, each with a line back to
+// the real point and a small anchor dot there, so the spread is never mistaken
+// for real different addresses.
 
 export type ExplorerArea = { ids: string[]; bounds: MapBounds; center: LatLon; zoom: number };
 
@@ -46,9 +53,15 @@ const toCollection = (points: ExplorerPoint[]): GeoJSON.FeatureCollection<GeoJSO
   features: points.map((point) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [point.lon, point.lat] },
-    properties: { id: point.id, name: point.name || '', country: point.country || '' }
+    properties: { id: point.id, name: point.name || '', country: point.country || '', genre: point.genre || '' }
   }))
 });
+
+const CLUSTER_MAX_ZOOM = 13;
+// A pile: what a cluster still holds past the zoom where clustering stops.
+const PILE_ZOOM = CLUSTER_MAX_ZOOM + 1;
+
+const DOT_STROKE = '#4a3726';
 
 let bordersCache: GeoJSON.FeatureCollection | null = null;
 const borders = () => {
@@ -77,9 +90,12 @@ const buildStyle = (points: ExplorerPoint[]): maplibregl.StyleSpecification => (
       attribution: '<a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri</a> World Imagery'
     },
     countries: { type: 'geojson', data: borders() },
-    stations: { type: 'geojson', data: toCollection(points), cluster: true, clusterRadius: 38, clusterMaxZoom: 13 },
+    stations: { type: 'geojson', data: toCollection(points), cluster: true, clusterRadius: 38, clusterMaxZoom: CLUSTER_MAX_ZOOM },
     selected: { type: 'geojson', data: EMPTY },
-    active: { type: 'geojson', data: EMPTY }
+    active: { type: 'geojson', data: EMPTY },
+    'spider-lines': { type: 'geojson', data: EMPTY },
+    'spider-anchor': { type: 'geojson', data: EMPTY },
+    spider: { type: 'geojson', data: EMPTY }
   },
   layers: [
     // Transparent sky: the app's own themed background shows around the planet.
@@ -124,7 +140,46 @@ const buildStyle = (points: ExplorerPoint[]): maplibregl.StyleSpecification => (
       type: 'circle',
       source: 'stations',
       filter: ['!', ['has', 'point_count']],
-      paint: { 'circle-radius': 11, 'circle-color': '#bf603b', 'circle-stroke-color': '#fff4dc', 'circle-stroke-width': 2 }
+      paint: {
+        'circle-radius': 11,
+        'circle-color': genreColorExpression() as maplibregl.ExpressionSpecification,
+        'circle-stroke-color': DOT_STROKE,
+        'circle-stroke-width': 1.5
+      }
+    },
+    { id: 'spider-lines', type: 'line', source: 'spider-lines', paint: { 'line-color': '#fff4dc', 'line-opacity': 0.8, 'line-width': 1.2 } },
+    {
+      id: 'spider-anchor',
+      type: 'circle',
+      source: 'spider-anchor',
+      paint: { 'circle-radius': 5, 'circle-color': DOT_STROKE, 'circle-stroke-color': '#fff4dc', 'circle-stroke-width': 1.5 }
+    },
+    {
+      id: 'spider-dots',
+      type: 'circle',
+      source: 'spider',
+      paint: {
+        'circle-radius': ['case', ['get', 'active'], 12, 10],
+        'circle-color': genreColorExpression() as maplibregl.ExpressionSpecification,
+        'circle-stroke-color': ['case', ['get', 'active'], '#a5452b', DOT_STROKE],
+        'circle-stroke-width': ['case', ['get', 'active'], 3, 1.5]
+      }
+    },
+    {
+      id: 'spider-name',
+      type: 'symbol',
+      source: 'spider',
+      filter: ['==', ['get', 'active'], true],
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-font': ['Open Sans Semibold'],
+        'text-size': 12,
+        'text-anchor': 'top',
+        'text-offset': [0, 1.4],
+        'text-max-width': 14,
+        'text-allow-overlap': true
+      },
+      paint: { 'text-color': '#fff7e4', 'text-halo-color': '#324439', 'text-halo-width': 2 }
     },
     {
       id: 'active-dot',
@@ -172,9 +227,14 @@ export const ExplorerMap = ({
   const userMovedRef = useRef(false);
   const selectionRevisionRef = useRef(0);
   const flightKeyRef = useRef<number | null>(null);
+  const selectedIdRef = useRef(selectedId);
+  // The open fan, if any: its shared point, the zoom it opened at and its leaves.
+  const spiderRef = useRef<{ anchor: [number, number]; zoom: number; leaves: ExplorerPoint[] } | null>(null);
+  const spiderApiRef = useRef<{ render: () => void; close: () => void } | null>(null);
   useEffect(() => {
     callbacksRef.current = { onReady, onPick, onGroup, onUserMove, onError };
     pointsRef.current = points;
+    selectedIdRef.current = selectedId;
   });
 
   useEffect(() => {
@@ -219,6 +279,65 @@ export const ExplorerMap = ({
       };
     }
 
+    // ---- the fan ---------------------------------------------------------
+    const renderSpider = () => {
+      if (!readyRef.current || disposed) return;
+      const spider = spiderRef.current;
+      const linesSource = map.getSource('spider-lines') as GeoJSONSource | undefined;
+      const anchorSource = map.getSource('spider-anchor') as GeoJSONSource | undefined;
+      const leafSource = map.getSource('spider') as GeoJSONSource | undefined;
+      if (!linesSource || !anchorSource || !leafSource) return;
+      if (!spider) {
+        linesSource.setData(EMPTY);
+        anchorSource.setData(EMPTY);
+        leafSource.setData(EMPTY);
+        return;
+      }
+      const center = map.project(spider.anchor);
+      const offsets = spiderOffsets(spider.leaves.length);
+      const leaves: GeoJSON.Feature<GeoJSON.Point>[] = [];
+      const lines: GeoJSON.Feature<GeoJSON.LineString>[] = [];
+      spider.leaves.forEach((leaf, index) => {
+        const offset = offsets[index];
+        if (!offset) return;
+        const at = map.unproject([center.x + offset.x, center.y + offset.y]);
+        leaves.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [at.lng, at.lat] },
+          properties: { id: leaf.id, name: leaf.name || '', genre: leaf.genre || '', active: leaf.id === selectedIdRef.current }
+        });
+        lines.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [[leaf.lon, leaf.lat], [at.lng, at.lat]] },
+          properties: {}
+        });
+      });
+      linesSource.setData({ type: 'FeatureCollection', features: lines });
+      anchorSource.setData({
+        type: 'FeatureCollection',
+        features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: spider.anchor }, properties: {} }]
+      });
+      leafSource.setData({ type: 'FeatureCollection', features: leaves });
+    };
+    const closeSpider = () => {
+      if (!spiderRef.current) return;
+      spiderRef.current = null;
+      host.dataset.spider = '';
+      renderSpider();
+    };
+    const openSpider = (anchor: [number, number], leaves: ExplorerPoint[]) => {
+      if (leaves.length < 2) return;
+      spiderRef.current = { anchor, zoom: map.getZoom(), leaves: leaves.slice(0, SPIDER_LIMIT) };
+      host.dataset.spider = String(leaves.length);
+      renderSpider();
+    };
+    spiderApiRef.current = { render: renderSpider, close: closeSpider };
+    map.on('move', renderSpider);
+    map.on('zoomend', () => {
+      const spider = spiderRef.current;
+      if (spider && Math.abs(map.getZoom() - spider.zoom) > 0.75) closeSpider();
+    });
+
     map.on('load', () => {
       if (disposed) return;
       readyRef.current = true;
@@ -239,6 +358,15 @@ export const ExplorerMap = ({
     });
     map.on('click', (event) => {
       if (!readyRef.current) return;
+      const leafBox: [[number, number], [number, number]] = [
+        [event.point.x - 14, event.point.y - 14],
+        [event.point.x + 14, event.point.y + 14]
+      ];
+      const leaf = map.queryRenderedFeatures(leafBox, { layers: ['spider-dots'] })[0];
+      if (leaf) {
+        callbacksRef.current.onPick(String(leaf.properties.id));
+        return;
+      }
       const selected = map.queryRenderedFeatures(event.point, { layers: ['selection-halo'] })[0];
       if (selected) {
         callbacksRef.current.onPick(String(selected.properties.id));
@@ -250,7 +378,11 @@ export const ExplorerMap = ({
         [event.point.x + 22, event.point.y + 22]
       ];
       const hits = map.queryRenderedFeatures(box, { layers: ['groups', 'dots'] });
-      if (!hits.length) return;
+      if (!hits.length) {
+        closeSpider();
+        return;
+      }
+      const byId = new Map(pointsRef.current.map((point) => [point.id, point]));
       const distance = (hit: maplibregl.MapGeoJSONFeature) => {
         const projected = map.project((hit.geometry as GeoJSON.Point).coordinates as [number, number]);
         return Math.hypot(projected.x - event.point.x, projected.y - event.point.y);
@@ -266,9 +398,25 @@ export const ExplorerMap = ({
               source.getClusterExpansionZoom(hit.properties.cluster_id)
             ]);
             if (disposed || revision !== selectionRevisionRef.current) return;
-            callbacksRef.current.onGroup(leaves.map((leaf) => String(leaf.properties?.id)));
+            const ids = leaves.map((leaf) => String(leaf.properties?.id));
+            callbacksRef.current.onGroup(ids);
+            closeSpider();
+            const center = (hit.geometry as GeoJSON.Point).coordinates as [number, number];
+            // Past the clustering zoom the group is a pile of (near-)coincident
+            // points: zooming alone would leave them on top of each other, so
+            // the pile opens as a fan once the camera has settled.
+            const pile = zoom >= PILE_ZOOM;
+            if (pile) {
+              // The list change above may already have re-synced the points
+              // (which closes any open fan); the fan for THIS tap opens once
+              // the camera settles, unless the map is gone.
+              map.once('moveend', () => {
+                if (disposed) return;
+                openSpider(center, ids.map((id) => byId.get(id)).filter((p): p is ExplorerPoint => Boolean(p)));
+              });
+            }
             map.easeTo({
-              center: (hit.geometry as GeoJSON.Point).coordinates as [number, number],
+              center,
               zoom: Math.min(zoom, 15),
               duration: reduceMotion() ? 0 : 600
             });
@@ -279,8 +427,17 @@ export const ExplorerMap = ({
         return;
       }
       const unique = [...new Set(hits.filter((p) => !p.properties.cluster).map((p) => String(p.properties.id)))];
-      if (unique.length > 1) callbacksRef.current.onGroup(unique);
-      else callbacksRef.current.onPick(String(hit.properties.id));
+      if (unique.length > 1) {
+        // Several dots under one finger: list them AND fan them out here, each
+        // leaf tied to its own real point.
+        callbacksRef.current.onGroup(unique);
+        openSpider(
+          (hit.geometry as GeoJSON.Point).coordinates as [number, number],
+          unique.map((id) => byId.get(id)).filter((p): p is ExplorerPoint => Boolean(p))
+        );
+      } else {
+        callbacksRef.current.onPick(String(hit.properties.id));
+      }
     });
     const pointer = () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -288,7 +445,7 @@ export const ExplorerMap = ({
     const reset = () => {
       map.getCanvas().style.cursor = '';
     };
-    for (const layer of ['groups', 'dots', 'selection-halo']) {
+    for (const layer of ['groups', 'dots', 'selection-halo', 'spider-dots']) {
       map.on('mouseenter', layer, pointer);
       map.on('mouseleave', layer, reset);
     }
@@ -372,6 +529,8 @@ export const ExplorerMap = ({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
       if (handleRef) handleRef.current = null;
+      spiderApiRef.current = null;
+      spiderRef.current = null;
       mapRef.current = null;
       readyRef.current = false;
       map.remove();
@@ -394,13 +553,18 @@ export const ExplorerMap = ({
 
   useEffect(() => {
     selectionRevisionRef.current += 1;
+    spiderApiRef.current?.close();
     syncWhenReady((map) => (map.getSource('stations') as GeoJSONSource).setData(toCollection(points)));
   }, [points]);
 
   useEffect(() => {
     syncWhenReady((map) => {
       const point = selectedId ? points.find((p) => p.id === selectedId) : null;
-      (map.getSource('selected') as GeoJSONSource).setData(point ? toCollection([point]) : EMPTY);
+      // A selected leaf of an open fan is marked on the fan itself; the
+      // selection ring at the shared point would only sit under the anchor.
+      const inSpider = Boolean(selectedId && spiderRef.current?.leaves.some((leaf) => leaf.id === selectedId));
+      (map.getSource('selected') as GeoJSONSource).setData(point && !inSpider ? toCollection([point]) : EMPTY);
+      spiderApiRef.current?.render();
     });
   }, [points, selectedId]);
 
@@ -414,6 +578,7 @@ export const ExplorerMap = ({
   useEffect(() => {
     if (!flight || flightKeyRef.current === flight.key) return;
     flightKeyRef.current = flight.key;
+    spiderApiRef.current?.close();
     syncWhenReady((map) => {
       userMovedRef.current = false;
       map.easeTo({ center: [flight.center.lon, flight.center.lat], zoom: flight.zoom, duration: reduceMotion() ? 0 : 650 });

@@ -17,12 +17,12 @@ const layout = (page: Page) => page.evaluate(() => ({
   viewport: window.innerWidth
 }));
 const audioSrc = (page: Page) => page.locator('audio').first().getAttribute('src');
-// The journal cover rotates by day, so the jazz story may be the lead or a
-// rail card; open it wherever it is today.
-const openJazzStory = async (page: Page) => {
-  const lead = page.locator('[data-calm-lead="jazz"] .calm-story-lead');
+// The journal cover rotates by day, so a story may be the lead or a rail card;
+// open it wherever it sits today.
+const openStory = async (page: Page, id: string) => {
+  const lead = page.locator(`[data-calm-lead="${id}"] .calm-story-lead`);
   if (await lead.count()) await lead.click();
-  else await page.locator('[data-calm-story="jazz"]').click();
+  else await page.locator(`[data-calm-story="${id}"]`).click();
 };
 
 // A catalogue big enough to page: 35 jazz stations in Germany, 35 electronic
@@ -217,7 +217,7 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   // story is opened wherever it sits today. Its sheet starts with loaded
   // sources and continues from the catalogue, page by page.
   await expect(page.locator('[data-calm-lead]')).toBeVisible();
-  await openJazzStory(page);
+  await openStory(page, 'jazz');
   const sheet = page.locator('[data-calm-browse="jazz"]');
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('.calm-station-row')).toHaveCount(3);
@@ -251,7 +251,7 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   // mood story from the server rail opens with that rail's stations.
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
   await expect(page.locator('[data-calm-home]')).toBeVisible();
-  await page.locator('[data-calm-story="mood-workout"]').click();
+  await openStory(page, 'mood-workout');
   const workoutSheet = page.locator('[data-calm-browse="mood-workout"]');
   await expect(workoutSheet.locator('.calm-station-row').first()).toHaveAttribute('data-station-row', workout[0].stationuuid);
   await workoutSheet.getByRole('button', { name: 'Закрыть', exact: true }).click();
@@ -274,7 +274,7 @@ test('a failed catalogue page shows a retry inside the story and keeps the air',
   await page.locator('.calm-primary').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
-  await openJazzStory(page);
+  await openStory(page, 'jazz');
   const sheet = page.locator('[data-calm-browse="jazz"]');
   await sheet.locator('.calm-more').click();
   await expect(sheet.locator('.calm-shelf-footer')).toContainText('Не удалось загрузить');

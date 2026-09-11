@@ -482,6 +482,12 @@ export type CatalogAreaStationsResponse = {
   nextCursor: string | null;
 };
 
+// Coarse genre family of a point, decided by the API from the station's first
+// recognised tag (apps/api/src/catalog/genreFamily.ts). Absent = no tag we
+// recognise; the calm Globe draws such a dot neutral, never guessed.
+export const GENRE_FAMILIES = ['pop', 'rock', 'electronic', 'jazz', 'classical', 'chill', 'hiphop', 'world', 'talk'] as const;
+export type GenreFamily = (typeof GENRE_FAMILIES)[number];
+
 export type CatalogStationPoint = {
   id: string;
   // Set whenever Radio Browser has explicit geo_lat/geo_long (~11k of
@@ -497,6 +503,7 @@ export type CatalogStationPoint = {
   // Display name. Lets the reticle preview which station it would
   // tune without round-tripping fetchStationById on every hover.
   name?: string;
+  genre?: GenreFamily;
 };
 
 export type CatalogPointsResponse = {

@@ -54,8 +54,14 @@
 .explorer-country-switch svg, .explorer-world svg { flex: 0 0 18px; width: 18px; height: 18px; fill: currentColor; }
 .explorer-world { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 13px; border-radius: 22px; font-size: 12px; font-weight: 700; }
 .explorer-world[aria-pressed='true'] { color: var(--accent); }
-.explorer-legend { position: absolute; top: calc(65px + var(--shell-safe-top, 0px)); left: 17px; right: 17px; z-index: 2; display: flex; gap: 6px; align-items: center; margin: 0; font-size: 11px; line-height: 1.35; color: var(--calm-ink, var(--text)); text-shadow: 0 1px 6px var(--bg); pointer-events: none; }
-.explorer-legend svg { width: 15px; height: 15px; flex-shrink: 0; fill: currentColor; }
+/* Genre legend: one strip of chips under the heading, scrolls sideways at 320.
+   The colour is repeated as a word here and in every list row, so it is never
+   the only cue. */
+.explorer-legend { position: absolute; top: calc(64px + var(--shell-safe-top, 0px)); left: 0; right: 0; z-index: 2; display: flex; gap: 6px; align-items: center; margin: 0; padding: 0 17px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; font-size: 11px; line-height: 1.2; color: var(--calm-ink, var(--text)); pointer-events: auto; }
+.explorer-legend::-webkit-scrollbar { display: none; }
+.explorer-legend-item { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; height: 22px; padding: 0 8px 0 6px; border-radius: 11px; background: color-mix(in srgb, var(--bg) 72%, transparent); border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); white-space: nowrap; }
+.explorer-legend-item i, .explorer-genre-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1px solid #4a3726; box-sizing: border-box; flex-shrink: 0; }
+.explorer-genre-dot { width: 8px; height: 8px; margin-right: 4px; vertical-align: 0; }
 .explorer-zoom { position: absolute; right: 12px; top: calc(106px + var(--shell-safe-top, 0px)); z-index: 3; display: grid; gap: 8px; }
 .explorer-zoom .explorer-icon { width: 46px; height: 46px; border-radius: 50%; font-size: 25px; line-height: 1; }
 .explorer-search-here { position: absolute; top: calc(100px + var(--shell-safe-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 4; display: flex; gap: 7px; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 22px; font-size: 12px; font-weight: 700; white-space: nowrap; }
@@ -141,6 +147,7 @@
   .explorer-title strong { font-size: 14px; }
   .explorer-title small { font-size: 9px; }
   .explorer-legend { font-size: 10px; }
+  .explorer-legend-item { height: 20px; }
   .source-preview-title strong { font-size: 15px; }
   .source-preview-art { display: none; }
   .source-preview-actions .explorer-text { padding: 0 4px; }

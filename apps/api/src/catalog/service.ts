@@ -1,4 +1,5 @@
 import { DEAD_STREAM_IDS } from './deadStreams.js';
+import { stationGenreFamily, type GenreFamily } from './genreFamily.js';
 import { dedupeByBroadcaster } from './stationIdentity.js';
 import { createSummaryCache } from './summaryCache.js';
 
@@ -996,6 +997,10 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
 // them with `country` only — the webapp's geoResolver drops them
 // inside the country's borders deterministically (seeded by the
 // station UUID) so the globe stops looking sparse where it shouldn't.
+//
+// `genre` is the coarse family of the station's first recognised tag (see
+// genreFamily.ts) so the calm Globe can colour a dot without fetching the
+// station; absent when no tag is recognised, and the dot stays neutral.
 const buildPointsResponse = (stations: CatalogStation[]) => {
   const items: Array<{
     id: string;
@@ -1004,6 +1009,7 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
     country: string;
     state?: string;
     name?: string;
+    genre?: GenreFamily;
   }> = [];
   let mappedStations = 0;
   stations.forEach((station) => {
@@ -1026,6 +1032,7 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
       country: string;
       state?: string;
       name?: string;
+      genre?: GenreFamily;
     } = { id: station.stationuuid, country };
     if (hasCoords) {
       mappedStations += 1;
@@ -1034,13 +1041,15 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
     }
     if (state) entry.state = state;
     if (name) entry.name = name;
+    const genre = stationGenreFamily(station.tags);
+    if (genre) entry.genre = genre;
     items.push(entry);
   });
   return {
     items,
     mappedStations,
     totalStations: stations.length,
-    schemaVersion: 3
+    schemaVersion: 4
   };
 };
 

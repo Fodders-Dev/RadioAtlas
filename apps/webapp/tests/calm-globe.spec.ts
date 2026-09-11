@@ -221,3 +221,69 @@ test('calm globe @320 light: no overflow, 44px floors, compact card', async ({ p
   await assertTargets(page);
   await page.screenshot({ path: '../../output/playwright/calm/globe-320-pastel.png' });
 });
+
+// Points that share ONE coordinate (the real catalogue has 373 such piles, up
+// to 198 stations at one point) open as a fan on the map: leaves spread for
+// legibility, each tied back to the shared point, so the spread is never read
+// as real different addresses. Dots carry the API's coarse genre family as a
+// colour, and the family's name in the legend and in every row.
+test('calm globe: a pile of coincident points opens as a fan, a leaf selects, genres are named', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const berlin = stations.find((s) => s.stationuuid === 'uuid-berlin')!;
+  const pileIds = ['pile-1', 'pile-2', 'pile-3'];
+  await page.route('**/catalog/points**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          ...stations.map((s) => ({ id: s.stationuuid, lat: s.geo_lat, lon: s.geo_long, country: s.country, state: s.state, name: s.name, genre: s.tags.includes('jazz') ? 'jazz' : undefined })),
+          ...pileIds.map((id, index) => ({ id, lat: berlin.geo_lat, lon: berlin.geo_long, country: 'Germany', name: `Pile ${index + 1}`, genre: ['rock', 'talk', undefined][index] }))
+        ],
+        mappedStations: stations.length + 3,
+        totalStations: stations.length + 3
+      })
+    })
+  );
+  await openGlobe(page);
+
+  // The legend names every family and the neutral «no tag» case in words.
+  await expect(page.locator('[data-explorer-legend] .explorer-legend-item')).toHaveCount(10);
+  await expect(page.locator('[data-explorer-legend]')).toContainText('Рок и метал');
+  await expect(page.locator('[data-explorer-legend]')).toContainText('Жанр не указан');
+
+  // Germany now has four located stations on one point plus Hamburg.
+  await page.locator('.explorer-country-switch').click();
+  await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
+  await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
+  await expect(page.locator('[data-result-count]')).toHaveText('7 эфиров');
+  const rockRow = page.locator('.explorer-row[data-point-id="pile-1"]');
+  await expect(rockRow.locator('small')).toContainText('Рок и метал');
+  await expect(page.locator('.explorer-row[data-point-id="pile-3"] small')).not.toContainText('Рок');
+
+  // The flight lands on the median of the country's points — the pile itself.
+  // Tapping the group there zooms past the clustering limit and, because the
+  // points still coincide, opens the fan instead of leaving dots on top of
+  // each other.
+  const canvas = page.locator('.explorer-map canvas');
+  const box = (await canvas.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.waitForTimeout(900);
+  await page.mouse.click(cx, cy);
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 10_000 });
+  await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
+  expect(await audioSrc(page), 'exploring never starts sound').toBeNull();
+
+  // A leaf sits 34px above the shared point; tapping it selects that source.
+  await page.waitForTimeout(400);
+  await page.mouse.click(cx, cy - 34);
+  const card = page.locator('[data-selected-station]');
+  await expect(card).toBeVisible();
+  const picked = (await card.getAttribute('data-selected-station'))!;
+  expect(['uuid-berlin', ...pileIds]).toContain(picked);
+  expect(await audioSrc(page)).toBeNull();
+  await page.screenshot({ path: process.env.CALM_GLOBE_SHOT || 'test-results/calm-globe-fan.png' });
+});

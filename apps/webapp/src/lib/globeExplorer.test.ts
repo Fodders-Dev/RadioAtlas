@@ -99,3 +99,32 @@ describe('globeExplorer helpers', () => {
     expect(pluralForm(2, 'en')).toBe('other');
   });
 });
+
+describe('genre colours and the fan', () => {
+  it('gives every family its own colour and leaves an unknown tag neutral', async () => {
+    const { GENRE_COLORS, NEUTRAL_POINT_COLOR, genreColorExpression, pointColor } = await import('./globeExplorer');
+    const { GENRE_FAMILIES } = await import('../domain/contracts');
+    expect(new Set(Object.values(GENRE_COLORS)).size).toBe(GENRE_FAMILIES.length);
+    expect(pointColor(undefined)).toBe(NEUTRAL_POINT_COLOR);
+    expect(pointColor('jazz')).toBe(GENRE_COLORS.jazz);
+    const expression = genreColorExpression();
+    expect(expression[0]).toBe('match');
+    expect(expression.at(-1)).toBe(NEUTRAL_POINT_COLOR);
+    expect(expression.length).toBe(3 + GENRE_FAMILIES.length * 2);
+  });
+
+  it('spreads leaves on a ring, then a spiral, never on top of each other', async () => {
+    const { SPIDER_LIMIT, spiderOffsets } = await import('./globeExplorer');
+    expect(spiderOffsets(0)).toEqual([]);
+    for (const count of [1, 3, 8, 12, 24, 60]) {
+      const offsets = spiderOffsets(count);
+      expect(offsets.length).toBe(Math.min(count, SPIDER_LIMIT));
+      for (let a = 0; a < offsets.length; a += 1) {
+        expect(Math.hypot(offsets[a].x, offsets[a].y)).toBeGreaterThanOrEqual(28);
+        for (let b = a + 1; b < offsets.length; b += 1) {
+          expect(Math.hypot(offsets[a].x - offsets[b].x, offsets[a].y - offsets[b].y)).toBeGreaterThanOrEqual(22);
+        }
+      }
+    }
+  });
+});
