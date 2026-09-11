@@ -154,11 +154,19 @@ test('calm globe: country list, selection, explicit play, heart and find', async
   await expect(explorer).toHaveAttribute('data-panel', 'normal');
 
   // Moving the map never changes the list; «Искать здесь» does.
+  // A real drag: a pause after mousedown and many steps, so a 2-core CI runner
+  // cannot deliver down/up before MapLibre has seen movement past its click
+  // tolerance — otherwise the gesture lands as a CLICK on the dot under the
+  // cursor, the card opens and the list title is gone (seen on CI once).
   const canvas = page.locator('.explorer-map canvas');
   const map = (await canvas.boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
   await page.mouse.down();
-  await page.mouse.move(map.x + map.width / 2 + 120, map.y + map.height / 2 + 60, { steps: 12 });
+  await page.waitForTimeout(120);
+  await page.mouse.move(map.x + map.width / 2 + 40, map.y + map.height / 2 + 20, { steps: 8 });
+  await page.waitForTimeout(60);
+  await page.mouse.move(map.x + map.width / 2 + 120, map.y + map.height / 2 + 60, { steps: 16 });
+  await page.waitForTimeout(60);
   await page.mouse.up();
   await expect(page.locator('[data-search-here]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('.explorer-title strong')).toHaveText('Japan');
