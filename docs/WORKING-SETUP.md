@@ -31,6 +31,10 @@
   Аккаунта, Theme Studio (бумага + тёмная карточка текущей темы — по замыслу).
   Намеренно оставлено: строка Лиры на Главной без выдуманного утверждения; фон
   станции в Ленте вместо слова «écoute.».
+- Проверки раунда: `typecheck`/`typecheck:test` exit 0; webapp unit 855
+  passed (105 файлов, + `screenLoaders.test.ts`); `calm-home.spec.ts` (+ тест
+  «journal shell») и `calm-globe.spec.ts` — 18 passed; полный функциональный
+  Playwright — 306 passed; push `104840a` в `master` → CI + deploy.
 - Ловушка встроенного браузера: при эмуляции 320 `innerWidth` = 352, и
   fixed-элементы (нав) измеряются шире экрана — это не переполнение
   приложения (`.app-shell-v2` = 320, `clientWidth` = 320).
