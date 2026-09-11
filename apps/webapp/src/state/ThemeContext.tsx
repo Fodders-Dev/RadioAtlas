@@ -61,6 +61,12 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const CURRENT_THEME_KEY = 'radio:theme-current:v1';
+// True once the listener has picked a theme in Theme Studio (any theme, Classic
+// included). Without it a stored 'classic' cannot be told apart from «never
+// chose», which is why an explicit Classic used to become telegram-auto — and
+// «Журнал» in the calm preview. Old sessions without the flag keep the old
+// automatic behaviour; nothing is guessed for them.
+const THEME_CHOSEN_KEY = 'radio:theme-chosen:v1';
 
 const isBundledThemeId = (themeId: string) =>
   DEFAULT_RADIOATLAS_THEMES.some((theme) => theme.id === themeId);
@@ -93,6 +99,7 @@ export const collectThemeAssetIds = (theme: RadioAtlasTheme | null | undefined) 
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [currentThemeId, setCurrentThemeId] = useLocalStorage(CURRENT_THEME_KEY, DEFAULT_THEME_ID);
+  const [themeChosen, setThemeChosen] = useLocalStorage(THEME_CHOSEN_KEY, false);
   const [customThemes, setCustomThemes] = useState<RadioAtlasTheme[]>([]);
   const [assetUrls, setAssetUrls] = useState<Map<string, string>>(() => new Map());
   const [ready, setReady] = useState(false);
@@ -204,20 +211,16 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   //   - at least one of our 4 mapped source keys is present in
   //     themeParams (synthesis floor; see telegramAuto.ts)
   //
-  // Known wrinkle: the predicate conflates two cases — genuine
-  // first-time users with the stored default vs. users who
-  // explicitly tapped Classic in Theme Studio (both store 'classic').
-  // Both fall through to Telegram themeParams. Distinguishing
-  // "explicit classic" is a Theme Studio change (T1.3b in backlog),
-  // not in scope here.
+  // An explicit Classic (THEME_CHOSEN_KEY, 2026-09-11) is Classic: neither the
+  // Telegram palette nor the calm preview's «Журнал» may override a choice.
   const effectiveThemeId = useMemo(() => {
-    if (currentThemeId !== DEFAULT_THEME_ID) return currentThemeId;
+    if (currentThemeId !== DEFAULT_THEME_ID || themeChosen) return currentThemeId;
     // The calm preview (A4 «Журнал») opens on its own warm paper instead of the
-    // dark default; an explicit Theme Studio choice is stored and wins above.
+    // dark default — only while nothing has been chosen.
     if (CALM_PREVIEW) return CALM_DEFAULT_THEME_ID;
     if (telegramParamsHaveMappedKeys(telegramThemeParams)) return TELEGRAM_AUTO_THEME_ID;
     return DEFAULT_THEME_ID;
-  }, [currentThemeId, telegramThemeParams]);
+  }, [currentThemeId, themeChosen, telegramThemeParams]);
 
   const currentTheme = useMemo(() => {
     if (effectiveThemeId === TELEGRAM_AUTO_THEME_ID) return TELEGRAM_AUTO_THEME;
@@ -329,9 +332,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       setCurrentThemeId(themeId);
+      setThemeChosen(true);
       return true;
     },
-    [availableThemes, hasReferralTheme, setCurrentThemeId]
+    [availableThemes, hasReferralTheme, setCurrentThemeId, setThemeChosen]
   );
 
   const saveDraft = useCallback(async (theme: ThemeDraftInput) => {
@@ -348,9 +352,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       const saved = await saveDraft(theme);
       await ensureThemeAssets(collectThemeAssetIds(saved));
       setCurrentThemeId(saved.id);
+      setThemeChosen(true);
       return saved;
     },
-    [ensureThemeAssets, saveDraft, setCurrentThemeId]
+    [ensureThemeAssets, saveDraft, setCurrentThemeId, setThemeChosen]
   );
 
   const removeTheme = useCallback(

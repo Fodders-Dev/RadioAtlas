@@ -277,3 +277,20 @@ test('a failed catalogue page shows a retry inside the story and keeps the air',
   await expect(sheet.locator('.calm-destination')).toHaveCount(35);
   expect(await audioSrc(page)).toBe(source);
 });
+
+test('an explicit Classic stays Classic in the calm preview; only «never chose» opens on «Журнал»', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.goto('/?calm=1');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'journal');
+  // Theme Studio: pick Classic through the real UI, not by writing storage.
+  await page.locator('.calm-journal-heading').getByRole('button', { name: 'Оформление', exact: true }).click();
+  const studio = page.locator('[data-theme-studio]');
+  await expect(studio).toBeVisible();
+  await studio.locator('[data-theme-card="classic"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'classic');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('radio:theme-chosen:v1'))).toBe('true');
+  await page.reload();
+  await expect(page.locator('[data-calm-home]')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'classic');
+});

@@ -356,3 +356,30 @@ test('inside-telegram: queue row move/remove buttons do NOT fire HapticFeedback 
   const after = await readTelegramSpyState(page);
   expect(after.impactOccurred.length).toBe(baselineHaptics);
 });
+
+test('T1.3 (f) an explicit Classic pick stays Classic inside Telegram', async ({ page }) => {
+  // Theme Studio writes radio:theme-chosen:v1 with every pick; a stored
+  // 'classic' WITH the flag is a choice, not the untouched default, so the
+  // Telegram palette must not override it (the old predicate could not tell
+  // the two apart and showed telegram-auto to someone who had tapped Classic).
+  await page.addInitScript(() => {
+    window.localStorage.setItem('radio:theme-current:v1', JSON.stringify('classic'));
+    window.localStorage.setItem('radio:theme-chosen:v1', 'true');
+  });
+  await installTelegramShim(page, {
+    themeParams: {
+      bg_color: '#123456',
+      accent_text_color: '#abcdef'
+    }
+  });
+  await installMediaMocks(page);
+  await mockStations(page);
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible({
+    timeout: 15_000
+  });
+  const tokens = await readThemeTokens(page);
+  expect(tokens.datasetTheme).toBe('classic');
+  expect(tokens.background).not.toContain('#123456');
+  expect(tokens.accent).not.toBe('#abcdef');
+});
