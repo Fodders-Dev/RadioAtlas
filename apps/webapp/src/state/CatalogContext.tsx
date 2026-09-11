@@ -80,7 +80,10 @@ const AREAS_CACHE_PREFIX = 'areas:v5';
 // where a transient empty 200 response got cached and stuck because
 // fetchPoints would happily return a 0-item cache. Both are fixed
 // going forward — the version bump pours fresh data on top.
-const POINTS_CACHE_KEY = 'points:v3';
+// v4 (11.09.2026): schemaVersion 4 adds `genre`; without the bump every
+// listener kept the day-old payload and the calm Globe drew neutral dots
+// for 24 h after the deploy (seen on production).
+const POINTS_CACHE_KEY = 'points:v4';
 const POINTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MIN_GLOBE_MAPPED_STATIONS = 1400;
 // A non-empty payload must have at least this many items to be

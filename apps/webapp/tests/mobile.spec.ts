@@ -1437,7 +1437,7 @@ test('mobile globe ignores poisoned empty points cache and refetches', async ({
             expiresAt: Date.now() + 86_400_000,
             payload: { items: [], mappedStations: 0, totalStations: 0 }
           },
-          'points:v3'
+          'points:v4'
         );
         tx.oncomplete = () => {
           db.close();
