@@ -329,7 +329,9 @@ test('journal shell: outline nav, «Ещё» opens all stories, «Моё» and �
   await stories.locator('[data-calm-story-all="jazz"]').click();
   await expect(page.locator('[data-calm-browse="jazz"]')).toBeVisible();
   await expect(page.locator('[data-calm-browse="jazz"] .calm-station-row')).toHaveCount(3);
-  expect(await audioSrc(page), 'browsing never starts sound').toBeNull();
+  // No playback has happened in this test, so there may be no <audio> at all:
+  // read through the DOM instead of a locator that would wait for one.
+  expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null), 'browsing never starts sound').toBeNull();
   await page.locator('[data-calm-browse="jazz"]').getByRole('button', { name: 'Закрыть', exact: true }).click();
 
   // «Моё»: journal head with settings and account, no classic topbar, all five
