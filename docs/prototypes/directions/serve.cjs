@@ -12,7 +12,7 @@ http.createServer(async (req,res) => {
     catch {res.writeHead(502,{'Content-Type':'application/json'}).end(JSON.stringify({error:'Local catalog unavailable'}));} return;
   }
   let pathname;try{pathname=decodeURIComponent(url.pathname);}catch{res.writeHead(400).end();return;}
-  const assets={'/font.woff2':'../../../apps/webapp/public/fonts/manrope-cyrillic.woff2','/earth.jpg':'../../../apps/webapp/public/globe/earth-blue-marble-2048.jpg','/sound-glass.webp':'../../../apps/webapp/public/images/calm/sound-glass.webp','/globe-widget.js':'../../../.tmp/directions/globe-widget.js','/globe-widget.css':'../../../.tmp/directions/globe-widget.css'};
+  const assets={'/explorer-widget.js':'../../../.tmp/directions/explorer-widget.js','/explorer-widget.css':'../../../.tmp/directions/explorer-widget.css','/font.woff2':'../../../apps/webapp/public/fonts/manrope-cyrillic.woff2','/earth.jpg':'../../../apps/webapp/public/globe/earth-blue-marble-2048.jpg','/sound-glass.webp':'../../../apps/webapp/public/images/calm/sound-glass.webp','/globe-widget.js':'../../../.tmp/directions/globe-widget.js','/globe-widget.css':'../../../.tmp/directions/globe-widget.css'};
   const file=assets[pathname]?path.resolve(__dirname,assets[pathname]):path.resolve(__dirname,'.'+(pathname==='/'?'/index.html':pathname));
   const relative=path.relative(__dirname,file);
   if((!assets[pathname]&&(relative.startsWith('..')||path.isAbsolute(relative)))||!types[path.extname(file)]){res.writeHead(404).end();return;}
