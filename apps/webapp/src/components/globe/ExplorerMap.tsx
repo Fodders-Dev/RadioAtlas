@@ -334,6 +334,19 @@ export const ExplorerMap = ({
     spiderApiRef.current = { render: renderSpider, close: closeSpider };
     map.on('move', renderSpider);
     map.on('resize', renderSpider);
+    // Camera state for whoever needs to wait for a flight to land (the specs
+    // do: a tap during an ease interrupts it and leaves the group off-centre).
+    host.dataset.camera = 'idle';
+    host.dataset.moves = '0';
+    let moves = 0;
+    map.on('movestart', () => {
+      host.dataset.camera = 'moving';
+    });
+    map.on('moveend', () => {
+      moves += 1;
+      host.dataset.moves = String(moves);
+      host.dataset.camera = 'idle';
+    });
     map.on('zoomend', () => {
       const spider = spiderRef.current;
       if (spider && Math.abs(map.getZoom() - spider.zoom) > 0.75) closeSpider();

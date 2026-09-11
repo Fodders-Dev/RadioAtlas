@@ -68,8 +68,10 @@ exit 0 (+ `catalog.genreFamily.test.ts`); webapp unit — 854 passed (104
 файла); `calm-home.spec.ts` 11 passed, `calm-globe.spec.ts` (+ «pile» с
 веером) и `globe-drag.spec.ts` — 17 passed вместе с calm-home; полный
 функциональный Playwright перед первой публикацией — 303 passed, 7 skipped
-(лог `e2e-full3.log`); полный прогон перед второй публикацией — см. ниже
-(строка дописывается по факту).
+(лог `e2e-full3.log`); перед второй публикацией — 304 passed; перед третьей —
+305 passed; четвёртый прогон поймал флак спека «pile» (тап во время перелёта
+камеры прерывает ease и оставляет группу мимо центра) — спек теперь ждёт
+посадки по счётчику `data-moves`/`data-camera` на хосте карты, 4/4 подряд.
 
 Проверка Глобуса на реальных данных (скрипт Playwright против dev:local,
 `scratchpad/real-pile.cjs` сессии, снимки 390×844): Монголия — «0 эфиров»,

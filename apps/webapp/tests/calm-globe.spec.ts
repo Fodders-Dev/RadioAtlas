@@ -254,7 +254,17 @@ test('calm globe: a pile of coincident points opens as a fan, a leaf selects, ge
   await expect(page.locator('[data-explorer-legend]')).toContainText('Рок и метал');
   await expect(page.locator('[data-explorer-legend]')).toContainText('Жанр не указан');
 
-  // Germany now has four located stations on one point plus Hamburg.
+  // Germany now has four located stations on one point plus Hamburg. Every
+  // camera move is counted on the map host, so the spec waits for the flight
+  // it caused to LAND instead of guessing a delay — a tap during an ease
+  // interrupts it and leaves the group off-centre (seen under a full run).
+  const moves = async () => Number((await page.locator('.explorer-map').getAttribute('data-moves')) || 0);
+  const landedAfter = async (before: number) => {
+    await expect.poll(moves, { timeout: 15_000 }).toBeGreaterThan(before);
+    await expect(page.locator('.explorer-map')).toHaveAttribute('data-camera', 'idle', { timeout: 15_000 });
+    await page.waitForTimeout(400);
+  };
+  const beforeFlight = await moves();
   await page.locator('.explorer-country-switch').click();
   await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
   await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
@@ -271,9 +281,9 @@ test('calm globe: a pile of coincident points opens as a fan, a leaf selects, ge
   const box = (await canvas.boundingBox())!;
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  await page.waitForTimeout(900);
+  await landedAfter(beforeFlight);
   await page.mouse.click(cx, cy);
-  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 10_000 });
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 15_000 });
   await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
   expect(await audioSrc(page), 'exploring never starts sound').toBeNull();
 
@@ -289,11 +299,12 @@ test('calm globe: a pile of coincident points opens as a fan, a leaf selects, ge
 
   // Zooming out closes the fan and folds the pile back into a group under the
   // selection ring. A tap there must open the pile again, not just re-pick.
+  const beforeZoomOut = await moves();
   await page.locator('.explorer-zoom button').nth(1).click();
   await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '');
-  await page.waitForTimeout(600);
+  await landedAfter(beforeZoomOut);
   await page.mouse.click(cx, cy);
-  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 10_000 });
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 15_000 });
   // The tap asked «what else is here»: the list answers with the whole pile.
   await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
 });
