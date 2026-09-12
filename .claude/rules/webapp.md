@@ -690,3 +690,19 @@ same state and backends as the default shell:
 ⚠ The zero-weight reset `:where(.calm-home, .calm-mini, .calm-sheet) button` is
 deliberate: a plain `.calm-home button { padding: 0 }` at (0,1,1) silently beat
 `.calm-chip` / `.calm-teaser` paddings and shipped 31px-wide genre chips.
+
+## Lira viewport and duplicate startup errors (2026-09-13)
+
+- A growing chat draft and a newly visible mini player invalidate fixed toast
+  offsets. Measure the prompt row; observe the form's **border box** because
+  mini-player clearance changes padding, not its content box. The chat, nav
+  and mini player must use the same live viewport height. `calm-lira.spec.ts`
+  tests a real media-element failure with mocked 502 upstreams and an explicit
+  visualViewport keyboard simulation; neither is physical-device evidence.
+- During startup the same failed media source produces an `error` event AND
+  a rejected `play()` promise. While `playPendingRef` is true the pending
+  candidate walk owns fallback: do not start another walk in `handleError`.
+  Two walks can clear station identity after another candidate starts playing,
+  leaving audible radio without its mini-player controls. Regression coverage:
+  `useAudioPlayer.playPending.test.tsx`, error + rejection, exactly one
+  alternate attempt, retained current station and working pause.

@@ -1245,6 +1245,11 @@ export const useAudioPlayer = ({
       pushEvent('audio: waiting');
     };
     const handleError = () => {
+      // A startup failure reports both `error` and a rejected play() promise.
+      // The pending play already owns the fallback loop. A second walk here
+      // races it, can clear the station, and leave successful audio with no
+      // player controls (reproduced with Nova 96.9's alternate stream).
+      if (playPendingRef.current) return;
       const activeSession = playbackSessionRef.current;
       const activeUrl =
         activeUrlRef.current || candidatesRef.current[candidateIndexRef.current]?.url || 'unknown';

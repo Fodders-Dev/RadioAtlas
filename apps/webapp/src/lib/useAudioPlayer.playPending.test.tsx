@@ -162,4 +162,46 @@ describe('the buffering watchdog and an in-flight play()', () => {
 
     expect(loadCalls).toBeGreaterThan(loadsAfterAttach);
   });
+
+  it('uses one fallback walk when an error event also rejects the pending play promise', async () => {
+    const api = mount();
+    let failFirst!: (error: Error) => void;
+    let finishFallback!: () => void;
+    let calls = 0;
+    const pause = audio!.pause;
+    audio!.pause = () => {
+      pause();
+      audio!.dispatchEvent(new Event('pause'));
+    };
+    audio!.play = () => {
+      calls++;
+      return calls === 1
+        ? new Promise<void>((_, reject) => { failFirst = reject; })
+        : new Promise<void>(resolve => { finishFallback = resolve; });
+    };
+    let result!: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>;
+    act(() => { result = api().playStation(station); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(calls).toBe(1);
+
+    await act(async () => {
+      // A browser reports both for the same failed source. Starting a second
+      // candidate loop here races the rejection handler already inside play().
+      audio!.dispatchEvent(new Event('error'));
+      failFirst(new Error('first stream unavailable'));
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(calls, 'only one attempt should attach the alternate stream').toBe(2);
+    await act(async () => {
+      audio!.dispatchEvent(new Event('playing'));
+      finishFallback();
+      await result;
+    });
+    expect(api().current?.stationuuid).toBe(station.stationuuid);
+    expect(api().pending).toBeNull();
+    expect(api().isPlaying).toBe(true);
+    await act(async () => { await api().toggle(); });
+    expect(api().isPlaying).toBe(false);
+    expect(api().current?.stationuuid).toBe(station.stationuuid);
+  });
 });

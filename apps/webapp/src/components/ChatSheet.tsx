@@ -15,7 +15,7 @@ import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { StationArtwork } from './StationArtwork';
 import type { StationLite } from '../types';
 import { localizedCountry } from '../lib/countryName';
-import { liraOpeningLine, liraOpeningPieces } from '../lib/liraOpening';
+import { liraOpeningLine, liraOpeningPieces, liraOpeningStations } from '../lib/liraOpening';
 import {
   postChatMessage,
   type ChatHistoryTurn,
@@ -261,24 +261,19 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   // player stay reachable, so nothing traps focus or inerts the shell.
   useDialog(rootRef, { isOpen: open && !CALM_PREVIEW, onClose });
 
-  // The opening of the calm section: real sources, honestly labelled — the
-  // station on air (if any) and two catalogue picks of the day. No claim is
-  // made in Лира's voice; the sentence above the cards says where they come
-  // from, and a tap plays or toggles exactly as everywhere else.
+  // Keep the selected source and offer music from the catalogue. The opening
+  // names only genres supported by tags; a selection is not proof of playback.
   const onAirStation = player.current ?? player.pending ?? null;
   const openingCards = useMemo(() => {
     if (!CALM_PREVIEW) return [];
-    const cards: Array<{ station: StationLite; note: string }> = [];
-    if (onAirStation) cards.push({ station: onAirStation, note: t('journal.liraOnAir') });
     const pool = [...(summary?.catalogPool || []), ...(summary?.topVoted || [])];
-    for (const station of pool) {
-      if (cards.length >= 3) break;
-      if (cards.some((card) => card.station.stationuuid === station.stationuuid)) continue;
-      if (station.lastcheckok === 0 || !station.url_resolved) continue;
-      cards.push({ station, note: t('journal.liraPicks') });
-    }
-    return cards;
-  }, [onAirStation, summary, t]);
+    return liraOpeningStations(onAirStation, pool).map(station => ({
+      station,
+      note: station.stationuuid === onAirStation?.stationuuid
+        ? t(player.isPlaying ? 'journal.liraOnAir' : 'mapExplorer.selected')
+        : t('journal.liraPicks')
+    }));
+  }, [onAirStation, player.isPlaying, summary, t]);
   // One send control, placed inside the capsule under calm (the mock's
   // composer) and beside it in the classic window.
   const sendButton = (
@@ -289,14 +284,16 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       aria-label={t('chat.send')}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M3 11 21 3l-8 18-2.5-7.5L3 11Zm7.8 1.1 2 5.85 4.48-10.08-10.1 4.49 3.62-.26Z" />
+        {CALM_PREVIEW
+          ? <path d="M12 19V5m-6 6 6-6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          : <path d="M3 11 21 3l-8 18-2.5-7.5L3 11Zm7.8 1.1 2 5.85 4.48-10.08-10.1 4.49 3.62-.26Z" />}
       </svg>
     </button>
   );
   const openingLine = useMemo(
     () =>
       liraOpeningLine(
-        liraOpeningPieces(openingCards.map((card) => card.station), (family) => t(`mapExplorer.families.${family}`)),
+        liraOpeningPieces(openingCards.map((card) => card.station), (genre) => t(`genre.${genre}`)),
         {
           first: (name) => t('journal.liraOpenFirst', { name }),
           second: (name) => t('journal.liraOpenSecond', { name }),
@@ -309,14 +306,31 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     [openingCards, t]
   );
 
-  // While Лира's section is open the shell's toast has to clear her composer:
-  // the flag is read by calm.css next to the mini-player one.
+  // The field grows with the draft. Measure the controls rather than guessing
+  // a bottom offset from the empty composer; include viewport/keyboard changes.
   useEffect(() => {
-    if (!CALM_PREVIEW) return undefined;
-    if (open) document.documentElement.dataset.calmChat = 'true';
-    else delete document.documentElement.dataset.calmChat;
+    if (!CALM_PREVIEW || !open) return undefined;
+    const html = document.documentElement;
+    html.dataset.calmChat = 'true';
+    const card = rootRef.current?.querySelector<HTMLElement>('.chat-sheet-card');
+    const controls = rootRef.current?.querySelector<HTMLElement>('.chat-prompts-row');
+    const form = rootRef.current?.querySelector<HTMLElement>('.chat-sheet-input');
+    const measure = () => {
+      const edge = controls ?? form;
+      if (edge) html.style.setProperty('--lira-toast-bottom', `${Math.max(8, window.innerHeight - edge.getBoundingClientRect().top + 8)}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    // The mini player adds padding to the form, not content height.
+    for (const element of [card, controls, form]) if (element) observer.observe(element, { box: 'border-box' });
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    measure();
     return () => {
-      delete document.documentElement.dataset.calmChat;
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+      delete html.dataset.calmChat;
+      html.style.removeProperty('--lira-toast-bottom');
     };
   }, [open]);
 

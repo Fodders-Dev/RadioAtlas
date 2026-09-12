@@ -270,12 +270,14 @@
 .calm-mini-play { color: var(--accent); }
 .calm-mini-play svg { fill: currentColor; stroke: none; }
 .app-shell-v2[data-calm='true'] > .toast { top: auto; bottom: calc(var(--calm-player-bottom) + 76px); color: var(--calm-ink); background: var(--calm-solid); border-color: var(--calm-line); box-shadow: 0 6px 18px #0003; }
-/* Over Лира's section the toast sits above the prompt chips and the composer
-   (84px nav clearance + 54px capsule + 10px + 54px chip row), so a stream
-   error never covers the field or the send button; the mini player adds its
-   66px underneath. */
-:root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: calc(210px + var(--shell-safe-bottom, 0px)); }
-:root[data-calm-chat='true'][data-calm-mini='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: calc(276px + var(--shell-safe-bottom, 0px)); }
+/* ChatSheet measures the top of its controls, including a multiline draft. */
+:root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: var(--lira-toast-bottom, calc(276px + var(--shell-safe-bottom, 0px))); }
+/* Match the chat's live viewport when the keyboard covers the layout viewport. */
+:root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] {
+  --calm-keyboard-inset: max(0px, calc(100dvh - var(--tg-viewport-height, 100dvh)));
+  --calm-nav-bottom: calc(8px + var(--shell-safe-bottom, 0px) + var(--calm-keyboard-inset));
+  --calm-player-bottom: calc(78px + var(--shell-safe-bottom, 0px) + var(--calm-keyboard-inset));
+}
 
 /* Navigation: Главная · Глобус · Лента · Лира · Моё on one glass bar. */
 /* Five equal cells in a row (the classic bar is a grid built around a centred
