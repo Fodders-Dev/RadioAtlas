@@ -1153,7 +1153,7 @@
 .chat-sheet[data-calm='true'] { --calm-paper: color-mix(in srgb, var(--bg) 94%, var(--text) 6%); --calm-line: color-mix(in srgb, var(--text) 14%, transparent); --calm-muted: color-mix(in srgb, var(--text) 68%, var(--bg)); color: var(--text); }
 /* Calm: a SECTION under the nav and above the mini player (z 60 < mini 65 < nav
    120), never a modal — pause and the other sections stay one tap away. */
-.chat-sheet[data-calm='true'] { position: fixed; inset: 0; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
+.chat-sheet[data-calm='true'] { position: fixed; inset: 0; bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
 /* The mini player (z 65) floats over the section's bottom; the composer keeps
    clear of it, and nothing of the screen behind shows through. */
 :root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: 78px; }
