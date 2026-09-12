@@ -39,14 +39,9 @@
   animation: station-feed-expand 240ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
 }
 
-.station-feed-overlay[data-feed-player='true'] { --feed-topbar-h: calc(124px + var(--shell-safe-top, env(safe-area-inset-top))); }
-.station-feed-overlay[data-feed-player='true'] .station-feed-topbar { grid-template-columns: 44px minmax(0, 1fr) 44px 44px; grid-template-areas: 'close heading timer filter' 'chips chips chips chips'; column-gap: 8px; padding-top: calc(10px + var(--shell-safe-top, env(safe-area-inset-top))); }
 .station-feed-timer { grid-area: timer; }
 .station-feed-timer { pointer-events: auto; width: 44px; height: 44px; border: 1px solid #ffffff55; border-radius: 50%; background: linear-gradient(145deg, #ffffff30, #ffffff05), #10102055; color: var(--feed-ink); box-shadow: inset 0 1px 1px #ffffff88, 0 5px 20px #0005; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); cursor: pointer; font: inherit; font-size: 13px; }
 .station-feed-timer:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-action { background: linear-gradient(145deg, #ffffff38, #ffffff05), color-mix(in srgb, var(--theme-accent, #94f0ea) 12%, #11182765); box-shadow: inset 0 1px 1px #ffffffa0, inset 0 -1px 1px #ffffff25, 0 8px 24px #0005; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-action:disabled { opacity: .4; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-action--play { background: radial-gradient(circle at 32% 20%, #ffffffc0, #ffffff18 46%), color-mix(in srgb, var(--theme-accent, #94f0ea) 65%, #15203a); border-color: #ffffffaa; }
 
 @media (max-height: 700px) {
   .station-feed-overlay {
@@ -877,69 +872,3 @@
   width: 100%;
   transform: translateX(-50%);
 }
-
-/* ------------------------------------------------------------------ */
-/* Calm Feed (A4 «Журнал»): warm immersive stage, rail on the right,
-   the story block bottom-left, «Слушать эфир» with the real waveform. */
-/* ------------------------------------------------------------------ */
-.station-feed-overlay[data-feed-player='true'] { --feed-ink: #fff4e6; --feed-ink-muted: rgba(255, 236, 214, 0.72); --calm-feed-glass: linear-gradient(130deg, #ffe7c73a, #ffffff10), #6a403550; --calm-feed-edge: #ffe0bf7a; background: #2b1c19; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-card-veil { background: radial-gradient(120% 46% at 96% 60%, rgba(30, 14, 12, 0.34), transparent 62%), linear-gradient(180deg, rgba(34, 21, 21, 0.28) 0%, transparent 21%, rgba(65, 34, 25, 0.12) 30%, rgba(55, 32, 31, 0.5) 44%, rgba(33, 27, 33, 0.86) 75%, rgba(38, 30, 37, 0.7) 100%); }
-.station-feed-overlay[data-feed-player='true'] .station-feed-topbar { background: linear-gradient(180deg, rgba(34, 21, 21, 0.5), transparent); }
-.station-feed-overlay[data-feed-player='true'] .station-feed-heading strong { font-size: 13px; font-weight: 650; letter-spacing: .1px; padding: 6px 0; border-bottom: 2px solid #ffe2b2; align-self: flex-start; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-close, .station-feed-overlay[data-feed-player='true'] .station-feed-filter-toggle, .station-feed-overlay[data-feed-player='true'] .station-feed-timer { background: var(--calm-feed-glass); border: 1px solid var(--calm-feed-edge); box-shadow: inset 0 1px 1px #fff9, 0 3px 12px #3b282622; color: #fff5df; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
-.calm-feed-rail { right: 16px; top: 31%; bottom: auto; left: auto; max-height: none; padding: 0; gap: 14px; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .station-feed-action { width: 46px; height: 46px; background: var(--calm-feed-glass); border: 1px solid var(--calm-feed-edge); box-shadow: inset 0 1px 1px #fff9, 0 3px 12px #3b282622; color: #fff3dc; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .station-feed-action svg { width: 23px; height: 23px; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .station-feed-action.is-on { background: var(--calm-feed-glass); color: #ffaf91; }
-/* minmax(0,1fr): an implicit `auto` column grows to the name's max-content and pushed a long station name off the right edge at 320px. */
-.calm-feed-story { position: absolute; left: 23px; right: 84px; bottom: calc(var(--feed-peek-h) + 18px); z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; text-shadow: 0 1px 14px rgba(40, 20, 20, 0.6); }
-.calm-feed-story > * { min-width: 0; }
-.station-feed-card-content[data-focus='false'] .calm-feed-story { pointer-events: none; }
-.calm-feed-place { position: relative; justify-self: start; display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 12px; border-radius: 22px; background: #6a403555; border: 1px solid #ffffff44; box-shadow: inset 0 1px 0 #fff8, 0 2px 7px #21151922; color: #fff1dc; font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.calm-feed-place svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.calm-feed-place span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calm-feed-identity { max-width: 100%; }
-.calm-feed-status { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; font-size: 8px; letter-spacing: 1.9px; color: #edd1b6; }
-.calm-feed-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #f6d9ad; }
-.calm-feed-status[data-status='playing']::before { background: #ffb17c; box-shadow: 0 0 8px #ffb17c; animation: station-feed-pulse 1.8s ease-in-out infinite; }
-.calm-feed-status[data-status='error'] { color: #ffbcaa; }
-.calm-feed-identity .station-feed-card-name { width: 100%; font-size: clamp(30px, 9.5vw, 40px); line-height: 1.04; letter-spacing: -1.6px; font-weight: 650; -webkit-line-clamp: 3; }
-.calm-feed-identity p { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: #ead0b9; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calm-feed-track { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 13px; border-top: 1px solid #ffe6c93d; }
-.calm-feed-track > div { display: grid; gap: 4px; min-width: 0; }
-.calm-feed-track > div > span { font-size: 7px; letter-spacing: 1.6px; color: #cbb8a8; }
-.calm-feed-track strong { font-size: 19px; letter-spacing: -.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.calm-feed-track small { font-size: 11px; color: #dfc6b6; line-height: 1.4; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-capture { width: 44px; height: 44px; flex: 0 0 44px; background: #855b4233; border: 1px solid #ffe2bf7a; color: #fff1de; box-shadow: none; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-capture[aria-pressed='true'] { color: #ffd9a6; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-capture svg { width: 20px; height: 20px; }
-.calm-feed-transport { display: flex; gap: 12px; align-items: center; }
-.calm-feed-listen { display: flex; align-items: center; gap: 10px; flex: 1; min-height: 50px; padding: 0 16px; border-radius: 27px; background: linear-gradient(125deg, #ffe3b857, #ffe3b810), #87533d59; color: #fff3dc; border: 1px solid #ffe2bd88; box-shadow: inset 0 1px 1px #fff9, 0 5px 10px #24171d44; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.calm-feed-listen > svg { width: 19px; height: 19px; fill: currentColor; flex: 0 0 19px; }
-.calm-feed-listen .station-feed-wave { margin-left: auto; width: 34px; height: 22px; }
-.calm-feed-listen:focus-visible, .calm-feed-place:focus-visible, .calm-feed-stepper button:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
-/* Calm: the Feed is a section under the nav (z 60 < nav 120). Cards stop above
-   the nav instead of a «Дальше» band; the nav itself is the way onward. */
-.station-feed-overlay[data-feed-player='true'] { z-index: 60; --feed-peek-h: calc(84px + env(safe-area-inset-bottom)); }
-.station-feed-overlay[data-feed-player='true'] .station-feed-next { display: none; }
-/* The card already stops above the nav; the story sits near its bottom edge. */
-.station-feed-overlay[data-feed-player='true'] .calm-feed-story { bottom: 18px; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail { top: 17%; gap: 10px; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .calm-feed-step:disabled { opacity: .35; }
-.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .calm-feed-timer.is-on { color: #ffd9a6; }
-.calm-feed-timer-left { font-size: 11px; font-weight: 700; letter-spacing: -.2px; }
-.calm-feed-hint { margin: 2px 0 0; font-size: 10px; letter-spacing: .4px; color: #e6cdb9; opacity: .8; }
-.calm-feed-stepper { position: absolute; top: calc(70px + var(--shell-safe-top, env(safe-area-inset-top))); right: 15px; z-index: 4; display: grid; gap: 4px; }
-.calm-feed-stepper button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #ffebcc30; background: #6a453625; color: #ffe7ca; cursor: pointer; display: grid; place-items: center; }
-.calm-feed-stepper button:disabled { opacity: .35; cursor: default; }
-.calm-feed-stepper svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-next { background: linear-gradient(135deg, #ffce8842, #fff1 50%, #fff3), #412e2755; border: 1px solid #ffe9c687; color: #fcead2; box-shadow: inset 0 1px 1px #ffedcda0, inset 0 -1px 2px #211f2644, 0 5px 18px #241a2533; }
-.station-feed-overlay[data-feed-player='true'] .station-feed-next-label { color: #e9cdb9b5; }
-@media (max-width: 350px) {
-  .calm-feed-story { left: 19px; right: 76px; gap: 12px; }
-  .calm-feed-identity .station-feed-card-name { font-size: 33px; }
-  .calm-feed-track strong { font-size: 17px; }
-  .calm-feed-rail { right: 13px; gap: 7px; top: 15%; }
-  .calm-feed-listen { font-size: 12px; padding: 0 12px; }
-}
-@media (prefers-reduced-motion: reduce) { .calm-feed-status[data-status='playing']::before { animation: none; } }

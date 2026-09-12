@@ -253,6 +253,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   );
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Under the calm preview Лира is a SECTION, not a modal: the nav and the mini
   // player stay reachable, so nothing traps focus or inerts the shell.
@@ -445,7 +446,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
   if (!open || typeof document === 'undefined') return null;
 
-  return createPortal(
+  return (<>
+    <LiraHelpPortal open={helpOpen} titleId={titleId} onClose={() => setHelpOpen(false)} />
+    {createPortal(
     <div
       ref={rootRef}
       className="chat-sheet"
@@ -492,6 +495,11 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
             </div>
           </div>
           <div className="chat-head-actions">
+            {CALM_PREVIEW ? (
+              <button className="chat-help-btn" type="button" onClick={() => setHelpOpen(true)} aria-label={t('journal.liraHelp')} data-lira-help>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h.01M12 12h.01M20 12h.01" /></svg>
+              </button>
+            ) : null}
             {messages.length ? (
               <button className="chat-history-btn" type="button" onClick={startFresh}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -525,7 +533,10 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         >
           {messages.length === 0 && CALM_PREVIEW ? (
             <section className="chat-welcome chat-welcome--calm" aria-labelledby={`${titleId}-welcome`} data-chat-opening>
-              <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
+              <div className="lira-opening">
+                <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
+                <span className="lira-sound-orbit" aria-hidden="true"><i /><i /><i /><span className="lira-face"><CalmLiraFace /></span></span>
+              </div>
               <p>{t('journal.liraOpening')}</p>
               {openingCards.length ? (
                 <div className="chat-station-list">
@@ -599,10 +610,13 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
           {messages.map((message, messageIndex) => (
             <div key={message.id} className={`chat-row chat-row--${message.role}`}>
-              {message.role === 'assistant' ? (
+              {message.role === 'assistant' && !CALM_PREVIEW ? (
                 <span className="chat-lira-orb chat-lira-orb--message" aria-hidden="true">
                   <LiraMark />
                 </span>
+              ) : null}
+              {message.role === 'assistant' && CALM_PREVIEW ? (
+                <span className="message-byline" aria-hidden="true"><span className="lira-face"><CalmLiraFace /></span><span>{t('chat.title')}</span></span>
               ) : null}
               <div className="chat-message-stack">
                 <div className={`chat-bubble chat-bubble--${message.role}`}>{message.text}</div>
@@ -807,6 +821,29 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         </form>
       </div>
     </div>,
+    document.body
+  )}
+  </>);
+};
+
+// The help sheet is its own portal: inside the section (z 60) it would sit
+// under the mini player and the nav.
+const LiraHelpPortal = ({ open, titleId, onClose }: { open: boolean; titleId: string; onClose: () => void }) => {
+  const { t } = useLocale();
+  if (!open || typeof document === 'undefined') return null;
+  return createPortal(
+        <div className="lira-help" role="dialog" aria-modal="true" aria-labelledby={`${titleId}-help`} data-lira-help-sheet>
+          <button className="lira-help-scrim" type="button" aria-label={t('common.close')} onClick={onClose} />
+          <div className="lira-help-card">
+            <div className="lira-profile">
+              <span className="lira-face"><CalmLiraFace /></span>
+              <h3 id={`${titleId}-help`}>{t('journal.liraHelpTitle')}</h3>
+              <p>{t('journal.liraHelpCopy')}</p>
+            </div>
+            <p className="lira-help-footnote">{t('journal.liraHelpNote')}</p>
+            <button className="lira-help-close" type="button" onClick={onClose}>{t('common.close')}</button>
+          </div>
+        </div>,
     document.body
   );
 };

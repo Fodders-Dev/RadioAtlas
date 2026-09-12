@@ -360,3 +360,9 @@
 .app-shell-v2[data-calm='true'] .details-card .glass-card { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .app-shell-v2[data-calm='true'] .details-card .chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
 .app-shell-v2[data-calm='true'] .details-card .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+
+/* Ink on every theme: the journal's text always reads from the theme's --text
+   (a dark Classic showed dark names on a dark ground on the owner's phone). */
+.app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(h1, h2, h3, strong, .calm-heading h2, .calm-station-row strong, .calm-destination strong) { color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(small, p, .calm-section-copy, .calm-station-row small) { color: var(--calm-secondary); }
+.app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption strong, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption small { color: #3e3025; }

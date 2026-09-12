@@ -1036,7 +1036,13 @@ export const StationFeed = () => {
     lira: t('journal.feedLira'), tools: t('dock.more'), place: t('journal.feedPlace'), nowPlaying: t('journal.feedNowPlaying'), lastFind: t('journal.feedLastFind'),
     noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
     idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed'),
-    prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint')
+    prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint'),
+    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'),
+    sceneWords: {
+      pop: t('journal.sceneWords.pop'), rock: t('journal.sceneWords.rock'), electronic: t('journal.sceneWords.electronic'), jazz: t('journal.sceneWords.jazz'),
+      classical: t('journal.sceneWords.classical'), chill: t('journal.sceneWords.chill'), hiphop: t('journal.sceneWords.hiphop'), world: t('journal.sceneWords.world'),
+      talk: t('journal.sceneWords.talk'), unknown: t('journal.sceneWords.unknown')
+    }
   };
   const aiEnabled = isAiAssistantEnabled();
   // The A4 Feed: one status per card, derived from the player and nothing else.
@@ -1227,6 +1233,7 @@ export const StationFeed = () => {
                     onAskLira={() => askLira(station)}
                     onOpenPlace={() => openPlace(station)}
                     onOpenTools={() => handleOpenPlayer(station)}
+                    index={index}
                     onStep={(delta) => stepBy(delta)}
                     canStep={{ prev: index > 0, next: index < visibleFeedStations.length - 1 }}
                     timer={{ label: sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '', active: sleepTimer.active, onOpen: () => { settler.cancel(); setTimerOpen(true); } }}
@@ -1291,5 +1298,5 @@ export const StationFeed = () => {
     </div>
   );
 
-  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
+  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips, active: feedFilter, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); handleSelectFilter(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
 };

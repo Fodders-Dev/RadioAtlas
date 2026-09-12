@@ -154,7 +154,7 @@ test('restored station opens the feed without starting playback, from the mini p
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'paused');
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'false');
   await expect(dock).toHaveCount(0);
-  await page.locator('.station-feed-close').click();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
   // The nav's «Лента» is the same entry: the restored station, still silent.
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Лента', exact: true }).click();
   await expect(page.locator('.station-feed-card').first()).toHaveAttribute('data-feed-station', stations[0].stationuuid);
@@ -186,7 +186,7 @@ test('feed player captures, keeps the shared sleep timer and switches by deliber
   await expect(timer).toBeVisible();
   await timer.locator('[data-calm-timer-preset="15"]').click();
   await expect(timer).toHaveCount(0);
-  await expect(activeCard().locator('[data-feed-action="timer"]')).toContainText('14:');
+  await expect(activeCard().locator('[data-feed-action="timer"]')).toHaveAttribute('data-minutes', /^14:/);
   // Volume and the rest of the tray stay behind «ещё».
   await activeCard().locator('[data-feed-action="expand"]').click();
   const tools = page.locator('.feed-player-tools');
@@ -202,14 +202,15 @@ test('feed player captures, keeps the shared sleep timer and switches by deliber
   await expect.poll(() => audioSrc(page)).not.toBe(source);
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'playing');
   expect(await page.locator('.station-feed-next').count(), 'no second «Дальше» control under the calm Feed').toBe(0);
-  await page.locator('.station-feed-close').click();
+  expect(await page.locator('.station-feed-close').isVisible().catch(() => false), 'no close cross under the calm Feed').toBe(false);
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await page.locator('.calm-mini-info').click();
   await activeCard().locator('[data-feed-action="timer"]').click();
   await expect(timer.locator('[data-calm-timer-preset="15"]')).toHaveAttribute('aria-pressed', 'true');
   await timer.locator('[data-calm-timer-stop]').click();
   await expect(timer).toHaveCount(0);
-  await expect(activeCard().locator('[data-feed-action="timer"] .calm-feed-timer-left')).toHaveCount(0);
+  await expect(activeCard().locator('[data-feed-action="timer"]')).toHaveAttribute('data-minutes', '');
 });
 
 test('journal Home: a story pages the real catalogue, a source opens on the Globe, and nothing switches the air', async ({ page }) => {

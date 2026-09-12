@@ -200,3 +200,29 @@ export const stationGenreSlug = (station: Station | StationLite | null | undefin
   }
   return null;
 };
+
+// The coarse families the calm Globe and Feed draw with (mirrors
+// apps/api/src/catalog/genreFamily.ts), derived from the fine slug above so
+// the client never re-reads raw tags.
+export type GenreFamily = 'pop' | 'rock' | 'electronic' | 'jazz' | 'classical' | 'chill' | 'hiphop' | 'world' | 'talk';
+
+const SLUG_FAMILY: Record<GenreSlug, GenreFamily> = {
+  pop: 'pop', rock: 'rock', classicRock: 'rock', hardRock: 'rock', metal: 'rock', punk: 'rock', alternative: 'rock', indie: 'rock',
+  classical: 'classical', opera: 'classical', instrumental: 'classical', piano: 'classical', soundtrack: 'classical',
+  jazz: 'jazz', smoothJazz: 'jazz', blues: 'jazz', soul: 'jazz', funk: 'jazz', disco: 'jazz', rnb: 'jazz',
+  electronic: 'electronic', house: 'electronic', deepHouse: 'electronic', techHouse: 'electronic', techno: 'electronic', trance: 'electronic', drumAndBass: 'electronic', dubstep: 'electronic', edm: 'electronic',
+  ambient: 'chill', chillout: 'chill', downtempo: 'chill', lounge: 'chill', lofi: 'chill', newAge: 'chill', meditation: 'chill',
+  hipHop: 'hiphop', rap: 'hiphop', reggae: 'hiphop', ska: 'hiphop', dancehall: 'hiphop',
+  dance: 'pop', eurodance: 'pop', hits: 'pop', top40: 'pop', charts: 'pop', oldies: 'pop', retro: 'pop',
+  sixties: 'pop', seventies: 'pop', eighties: 'pop', nineties: 'pop', twoThousands: 'pop',
+  country: 'world', folk: 'world', bluegrass: 'world', world: 'world', latin: 'world', salsa: 'world', cumbia: 'world', bachata: 'world', reggaeton: 'world',
+  chanson: 'world', shanson: 'world', schlager: 'pop', kpop: 'pop', jpop: 'pop', anime: 'pop', bollywood: 'pop', arabic: 'world', african: 'world', balkan: 'world',
+  gospel: 'talk', christian: 'talk', religious: 'talk', quran: 'talk',
+  news: 'talk', talk: 'talk', sports: 'talk', culture: 'talk', comedy: 'talk', education: 'talk', audiobook: 'talk', children: 'talk',
+  easyListening: 'pop', adultContemporary: 'pop', christmas: 'pop'
+};
+
+export const genreFamilyOfSlug = (slug: GenreSlug | null): GenreFamily | null => (slug ? SLUG_FAMILY[slug] : null);
+
+export const stationGenreFamily = (station: Station | StationLite | null | undefined): GenreFamily | null =>
+  genreFamilyOfSlug(stationGenreSlug(station));

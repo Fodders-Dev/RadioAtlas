@@ -8,7 +8,7 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
 import './FeedPlayerTools.css';
 
-export function FeedPlayerTools({ station, onClose }: { station: StationLite; onClose: () => void }) {
+export function FeedPlayerTools({ station, onClose, filters }: { station: StationLite; onClose: () => void; filters?: { chips: Array<{ id: string; label: string }>; active: string; label: string; onSelect: (id: never) => void } }) {
   const root = useRef<HTMLDivElement>(null);
   const { t } = useLocale();
   const { player, queue, sleepTimer, startSleepTimer, cancelSleepTimer, openExternal, shareStation } = usePlayback();
@@ -27,6 +27,12 @@ export function FeedPlayerTools({ station, onClose }: { station: StationLite; on
         <div className="feed-tools-presets">{SLEEP_TIMER_PRESETS_MIN.map(minutes => <button key={minutes} aria-pressed={sleepTimer.active && sleepTimer.minutes === minutes} onClick={() => startSleepTimer(minutes)}>{minutes} {t('settings.sleepMin')}</button>)}</div>
         {sleepTimer.active && <button className="feed-tools-row" onClick={cancelSleepTimer}>{t('settings.sleepStop')}</button>}
       </section>
+      {filters ? (
+        <section className="feed-tools-filters" aria-label={filters.label}>
+          <div className="feed-tools-heading"><h3>{filters.label}</h3></div>
+          <div className="feed-tools-presets">{filters.chips.map((chip) => <button key={chip.id} aria-pressed={filters.active === chip.id} onClick={() => filters.onSelect(chip.id as never)} data-feed-filter={chip.id}>{chip.label}</button>)}</div>
+        </section>
+      ) : null}
       <label className="feed-tools-volume"><span>{t('dock.volume')} <output>{Math.round(player.volume * 100)}%</output></span><input aria-label={t('dock.volume')} type="range" min="0" max="1" step="0.01" value={player.volume} onChange={event => player.setVolume(Number(event.target.value))} /></label>
       <div className="feed-tools-links">
         <button onClick={() => queue.enqueue(station)}>{t('feed.addToQueue')} <span>＋</span></button>
