@@ -96,7 +96,9 @@ export const enDictionary = {
   journal: {
     heading: 'Discover music', search: 'Search', appearance: 'Appearance', liraName: 'Lira', liraLine: 'Ask about music',
     play: 'Play', listening: 'On air · open the Feed', paused: 'Paused · Play', openStory: 'Open the story', startHere: 'Start with these stations',
-    moods: 'By mood', moodsMore: 'More', allStories: 'Music stories', searchKicker: 'The whole catalogue', mapTitle: 'Music on the map', mapAll: 'Globe', mapHint: 'Tap a country and land among its stations.',
+    moods: 'By mood', moodsMore: 'More', allStories: 'Music stories', searchKicker: 'The whole catalogue',
+    feedHint: 'Swipe up — next station', timerCopy: 'The air will stop by itself; the station stays in the mini player.', timerRunning: '{left} left — then the air stops by itself.', timerCustom: 'Your own minutes', timerStart: 'Start',
+    liraGuide: 'Your music guide', liraAsk: 'What shall we listen to?', liraOpening: 'Start with what is already on air, or with today’s catalogue picks — then ask anything: a genre, a country, a song, a mood.', liraOnAir: 'On air now', liraPicks: 'From today’s catalogue', mapTitle: 'Music on the map', mapAll: 'Globe', mapHint: 'Tap a country and land among its stations.',
     exploreCountry: 'Explore', aroundTitle: 'Around the world', aroundCopy: 'The catalogue’s country of the day. Sources with a character of their own.', aroundMore: 'On the map',
     genresTitle: 'Find your sound', genresAll: 'All genres', teaserTitle: 'Your small discoveries', teaserCopy: 'Finds, favourite stations and your own collections',
     findsTitle: 'Latest finds', backToSource: 'Back to the source', communityKicker: 'NEXT CHAPTER', communityTitle: 'Radio brings tastes together.',

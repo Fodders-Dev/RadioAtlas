@@ -15,6 +15,7 @@ import { isAiAssistantEnabled } from '../lib/aiChat';
 import { CalmFeedCard } from './CalmFeedCard';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { formatSleepRemaining } from '../lib/sleepTimer';
+import { CalmTimerSheet } from '../components/CalmTimerSheet';
 import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { isFeedFilterAvailable, resolveFeedFilterSources, type FeedFilter } from '../lib/feedFilters';
@@ -438,6 +439,7 @@ export const StationFeed = () => {
   const { summary } = useCatalog();
   const { player, playStation, queue, nowPlaying, nowPlayingStatus, shareStation, copyTrack, sleepTimer } = usePlayback();
   const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
+  const [timerOpen, setTimerOpen] = useState(false);
   const trustedTrack = resolveNowPlayingTrust({ station: player.current ?? player.pending, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track;
   const {
     knownStations,
@@ -790,8 +792,10 @@ export const StationFeed = () => {
   // Globe / Library). The scroll-snap pager is unaffected — useDialog only
   // governs Tab / Escape / inert.
   const rootRef = useRef<HTMLDivElement>(null);
+  // Under the calm preview the Feed is a SECTION with the nav on screen, not a
+  // modal: nothing inerts the shell (an inert nav paints but cannot be tapped).
   useDialog(rootRef, {
-    isOpen: true,
+    isOpen: !CALM_PREVIEW,
     onClose: handleClose,
     restoreFocusTo: resolveFeedReturnFocus
   });
@@ -1031,7 +1035,8 @@ export const StationFeed = () => {
     play: t('journal.feedListen'), pause: t('common.pause'), like: t('feed.like'), unlike: t('feed.unlike'), save: t('calm.save'), saved: t('calm.saved'),
     lira: t('journal.feedLira'), tools: t('dock.more'), place: t('journal.feedPlace'), nowPlaying: t('journal.feedNowPlaying'), lastFind: t('journal.feedLastFind'),
     noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
-    idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed')
+    idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed'),
+    prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint')
   };
   const aiEnabled = isAiAssistantEnabled();
   // The A4 Feed: one status per card, derived from the player and nothing else.
@@ -1125,7 +1130,6 @@ export const StationFeed = () => {
           <strong>{CALM_PREVIEW ? t('journal.feedLabel') : t('feed.title')}</strong>
           {CALM_PREVIEW ? null : <span>{t('feed.tagline')}</span>}
         </div>
-        {CALM_PREVIEW && (player.current || visibleFeedStations[visibleIndex]) && <button className="station-feed-timer" aria-label={t('settings.sleepTimerLabel')} onClick={() => { settler.cancel(); setToolsStation(player.current || visibleFeedStations[visibleIndex]); }}>{sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '☾'}</button>}
         <button
           type="button"
           className="station-feed-filter-toggle"
@@ -1223,6 +1227,9 @@ export const StationFeed = () => {
                     onAskLira={() => askLira(station)}
                     onOpenPlace={() => openPlace(station)}
                     onOpenTools={() => handleOpenPlayer(station)}
+                    onStep={(delta) => stepBy(delta)}
+                    canStep={{ prev: index > 0, next: index < visibleFeedStations.length - 1 }}
+                    timer={{ label: sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '', active: sleepTimer.active, onOpen: () => { settler.cancel(); setTimerOpen(true); } }}
                     labels={calmLabels}
                   />
                 ) : windowed ? (
@@ -1251,12 +1258,6 @@ export const StationFeed = () => {
         )}
       </div>
 
-      {CALM_PREVIEW && visibleFeedStations.length > 1 ? (
-        <div className="calm-feed-stepper" aria-label={t('feed.title')}>
-          <button type="button" onClick={() => stepBy(-1)} aria-label={t('journal.feedPrev')} disabled={visibleIndex === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></button>
-          <button type="button" onClick={() => stepBy(1)} aria-label={t('journal.feedNext')} disabled={visibleIndex >= visibleFeedStations.length - 1}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
-        </div>
-      ) : null}
       {/* Fixed chrome occupying the band the cards stop short of, so the next card
           "peeks" without the snap unit ever being anything but one viewport —
           .station-feed-card must stay exactly 100svh === scroller.clientHeight,
@@ -1274,7 +1275,7 @@ export const StationFeed = () => {
             {t('feed.emptyFilterReset')}
           </button>
         </div>
-      ) : nextStation ? (
+      ) : nextStation && !CALM_PREVIEW ? (
         <button
           type="button"
           className="station-feed-next"
@@ -1290,5 +1291,5 @@ export const StationFeed = () => {
     </div>
   );
 
-  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} />}</>;
+  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
 };

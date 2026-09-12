@@ -1151,7 +1151,23 @@
    source cards with «Показать на глобусе». Same component, same AI. */
 /* ------------------------------------------------------------------ */
 .chat-sheet[data-calm='true'] { --calm-paper: color-mix(in srgb, var(--bg) 94%, var(--text) 6%); --calm-line: color-mix(in srgb, var(--text) 14%, transparent); --calm-muted: color-mix(in srgb, var(--text) 68%, var(--bg)); color: var(--text); }
+/* Calm: a SECTION under the nav and above the mini player (z 60 < mini 65 < nav
+   120), never a modal — pause and the other sections stay one tap away. */
+.chat-sheet[data-calm='true'] { position: fixed; inset: 0; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
+/* The mini player (z 65) floats over the section's bottom; the composer keeps
+   clear of it, and nothing of the screen behind shows through. */
+:root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: 78px; }
+.chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
+.chat-sheet[data-calm='true'] .chat-sheet-thread { flex: 1; min-height: 0; overflow-y: auto; }
 .chat-sheet[data-calm='true'] .chat-sheet-scrim { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.chat-sheet[data-calm='true'] .chat-welcome--calm h2 { margin: 2px 0 8px; font: italic 500 27px/1.1 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--text); }
+.chat-sheet[data-calm='true'] .chat-welcome--calm > p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--calm-muted); }
+.chat-sheet[data-calm='true'] .chat-station-note { display: block; font-size: 10px; letter-spacing: .3px; color: var(--calm-muted); margin-bottom: 2px; }
+.chat-sheet[data-calm='true'] .chat-prompts-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 6px 18px 4px; flex-shrink: 0; }
+.chat-sheet[data-calm='true'] .chat-prompts-row::-webkit-scrollbar { display: none; }
+.chat-sheet[data-calm='true'] .chat-prompt-chip { flex: 0 0 auto; min-height: 40px; padding: 0 14px; border: 1px solid var(--calm-line); border-radius: 22px; background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.chat-sheet[data-calm='true'] .chat-prompt-chip:disabled { opacity: .5; }
+.chat-sheet[data-calm='true'] .chat-sheet-input { flex-shrink: 0; }
 .chat-sheet[data-calm='true'] .chat-sheet-card { border: 0; background: radial-gradient(ellipse at 90% 30%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%), radial-gradient(ellipse at 3% 65%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 10%, transparent), transparent 55%), var(--calm-paper); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25); }
 .chat-sheet[data-calm='true'] .chat-sheet-card::before, .chat-sheet[data-calm='true'] .chat-sheet-card::after, .chat-sheet[data-calm='true'] .chat-liquid-field { display: none; }
 .chat-sheet[data-calm='true'] .chat-sheet-head { min-height: 74px; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; border-bottom: 0; background: linear-gradient(var(--calm-paper) 85%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }

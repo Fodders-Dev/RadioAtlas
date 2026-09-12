@@ -918,6 +918,17 @@
 .calm-feed-listen > svg { width: 19px; height: 19px; fill: currentColor; flex: 0 0 19px; }
 .calm-feed-listen .station-feed-wave { margin-left: auto; width: 34px; height: 22px; }
 .calm-feed-listen:focus-visible, .calm-feed-place:focus-visible, .calm-feed-stepper button:focus-visible { outline: 3px solid #ffffff; outline-offset: 3px; }
+/* Calm: the Feed is a section under the nav (z 60 < nav 120). Cards stop above
+   the nav instead of a «Дальше» band; the nav itself is the way onward. */
+.station-feed-overlay[data-feed-player='true'] { z-index: 60; --feed-peek-h: calc(84px + env(safe-area-inset-bottom)); }
+.station-feed-overlay[data-feed-player='true'] .station-feed-next { display: none; }
+/* The card already stops above the nav; the story sits near its bottom edge. */
+.station-feed-overlay[data-feed-player='true'] .calm-feed-story { bottom: 18px; }
+.station-feed-overlay[data-feed-player='true'] .calm-feed-rail { top: 17%; gap: 10px; }
+.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .calm-feed-step:disabled { opacity: .35; }
+.station-feed-overlay[data-feed-player='true'] .calm-feed-rail .calm-feed-timer.is-on { color: #ffd9a6; }
+.calm-feed-timer-left { font-size: 11px; font-weight: 700; letter-spacing: -.2px; }
+.calm-feed-hint { margin: 2px 0 0; font-size: 10px; letter-spacing: .4px; color: #e6cdb9; opacity: .8; }
 .calm-feed-stepper { position: absolute; top: calc(70px + var(--shell-safe-top, env(safe-area-inset-top))); right: 15px; z-index: 4; display: grid; gap: 4px; }
 .calm-feed-stepper button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #ffebcc30; background: #6a453625; color: #ffe7ca; cursor: pointer; display: grid; place-items: center; }
 .calm-feed-stepper button:disabled { opacity: .35; cursor: default; }
@@ -928,7 +939,7 @@
   .calm-feed-story { left: 19px; right: 76px; gap: 12px; }
   .calm-feed-identity .station-feed-card-name { font-size: 33px; }
   .calm-feed-track strong { font-size: 17px; }
-  .calm-feed-rail { right: 13px; gap: 10px; top: 28%; }
+  .calm-feed-rail { right: 13px; gap: 7px; top: 15%; }
   .calm-feed-listen { font-size: 12px; padding: 0 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .calm-feed-status[data-status='playing']::before { animation: none; } }

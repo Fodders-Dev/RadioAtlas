@@ -79,6 +79,8 @@ type AppNavigationProps = {
   // When provided (VITE_AI_ENABLED), a hero «Лира» button is added — centred FAB
   // on mobile, a prominent rail item on desktop — opening the shared ChatSheet.
   onOpenChat?: () => void;
+  // The calm shell marks «Лира» active while her section is open.
+  chatActive?: boolean;
 };
 
 export const AppNavigation = ({
@@ -87,7 +89,8 @@ export const AppNavigation = ({
   onChange,
   onSettings,
   onPreload,
-  onOpenChat
+  onOpenChat,
+  chatActive = false
 }: AppNavigationProps) => {
   const { t } = useLocale();
   const items = calm ? CALM_NAV_ITEMS : NAV_ITEMS;
@@ -174,10 +177,11 @@ export const AppNavigation = ({
           <>
             {items.slice(0, chatAt).map(renderMobileItem)}
             <button
-              className="mobile-nav-chat"
+              className={`mobile-nav-chat ${chatActive ? 'active' : ''}`.trim()}
               type="button"
               onClick={onOpenChat}
               aria-label={t('chat.launch')}
+              aria-current={chatActive ? 'page' : undefined}
             >
               <span className="mobile-nav-chat-fab" aria-hidden="true">
                 {calm ? CALM_LIRA_ICON : <LiraMark />}

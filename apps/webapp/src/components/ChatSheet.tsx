@@ -215,7 +215,7 @@ const buildChatUserTaste = (
 
 export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { t } = useLocale();
-  const { fetchStationById } = useCatalog();
+  const { fetchStationById, summary } = useCatalog();
   const { player, queue, nowPlaying, playStation } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
   const { setGlobeFocusStationId, setActiveSection } = useShell();
@@ -254,7 +254,28 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
 
-  useDialog(rootRef, { isOpen: open, onClose });
+  // Under the calm preview Лира is a SECTION, not a modal: the nav and the mini
+  // player stay reachable, so nothing traps focus or inerts the shell.
+  useDialog(rootRef, { isOpen: open && !CALM_PREVIEW, onClose });
+
+  // The opening of the calm section: real sources, honestly labelled — the
+  // station on air (if any) and two catalogue picks of the day. No claim is
+  // made in Лира's voice; the sentence above the cards says where they come
+  // from, and a tap plays or toggles exactly as everywhere else.
+  const onAirStation = player.current ?? player.pending ?? null;
+  const openingCards = useMemo(() => {
+    if (!CALM_PREVIEW) return [];
+    const cards: Array<{ station: StationLite; note: string }> = [];
+    if (onAirStation) cards.push({ station: onAirStation, note: t('journal.liraOnAir') });
+    const pool = [...(summary?.catalogPool || []), ...(summary?.topVoted || [])];
+    for (const station of pool) {
+      if (cards.length >= 3) break;
+      if (cards.some((card) => card.station.stationuuid === station.stationuuid)) continue;
+      if (station.lastcheckok === 0 || !station.url_resolved) continue;
+      cards.push({ station, note: t('journal.liraPicks') });
+    }
+    return cards;
+  }, [onAirStation, summary, t]);
 
   // Scroll so the newest turn STARTS at the top of the view, not so the thread
   // ends at the bottom. Pinning scrollTop to scrollHeight meant a long answer
@@ -267,6 +288,11 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
+    // The opening (no turns yet) reads from its first line — never scrolled.
+    if (messages.length === 0) {
+      list.scrollTop = 0;
+      return;
+    }
     const rows = list.querySelectorAll<HTMLElement>('.chat-row');
     const latest = rows[rows.length - 1];
     const target = latest
@@ -423,20 +449,22 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     <div
       ref={rootRef}
       className="chat-sheet"
-      role="dialog"
-      aria-modal="true"
+      role={CALM_PREVIEW ? 'region' : 'dialog'}
+      aria-modal={CALM_PREVIEW ? undefined : 'true'}
       aria-labelledby={titleId}
       data-chat-sheet
       data-calm={CALM_PREVIEW ? 'true' : undefined}
     >
-      <button
-        className="chat-sheet-scrim"
-        type="button"
-        onClick={onClose}
-        aria-label={t('common.close')}
-        tabIndex={-1}
-        data-dialog-backdrop
-      />
+      {CALM_PREVIEW ? null : (
+        <button
+          className="chat-sheet-scrim"
+          type="button"
+          onClick={onClose}
+          aria-label={t('common.close')}
+          tabIndex={-1}
+          data-dialog-backdrop
+        />
+      )}
       <div className="chat-sheet-card">
         <div className="chat-liquid-field" aria-hidden="true">
           <span />
@@ -459,7 +487,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               <h1 id={titleId}>{t('chat.title')}</h1>
               <span className="chat-online">
                 <i aria-hidden="true" />
-                {messages.length ? t('chat.threadSaved') : t('chat.status')}
+                {CALM_PREVIEW ? t('journal.liraGuide') : messages.length ? t('chat.threadSaved') : t('chat.status')}
               </span>
             </div>
           </div>
@@ -472,17 +500,19 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                 <span>{t('chat.newChat')}</span>
               </button>
             ) : null}
-            <button
-              className="chat-close-btn"
-              type="button"
-              onClick={onClose}
-              aria-label={t('common.close')}
-              data-dialog-initial-focus
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z" />
-              </svg>
-            </button>
+            {CALM_PREVIEW ? null : (
+              <button
+                className="chat-close-btn"
+                type="button"
+                onClick={onClose}
+                aria-label={t('common.close')}
+                data-dialog-initial-focus
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4Z" />
+                </svg>
+              </button>
+            )}
           </div>
         </header>
 
@@ -493,7 +523,49 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           aria-live="polite"
           aria-relevant="additions"
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && CALM_PREVIEW ? (
+            <section className="chat-welcome chat-welcome--calm" aria-labelledby={`${titleId}-welcome`} data-chat-opening>
+              <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
+              <p>{t('journal.liraOpening')}</p>
+              {openingCards.length ? (
+                <div className="chat-station-list">
+                  {openingCards.map((card) => (
+                    <div key={card.station.stationuuid} className="chat-station-item" data-chat-opening-card={card.station.stationuuid}>
+                      <button
+                        className="chat-station-card"
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic('light');
+                          if (player.current?.stationuuid === card.station.stationuuid) void player.toggle();
+                          else void playVerified(card.station.stationuuid);
+                        }}
+                        aria-label={player.current?.stationuuid === card.station.stationuuid && player.isPlaying ? `${t('common.pause')}: ${card.station.name}` : t('chat.playStation', { name: card.station.name })}
+                      >
+                        <StationArtwork station={card.station} size="sm" className="chat-station-art" />
+                        <span className="chat-station-copy">
+                          <small className="chat-station-note">{card.note}</small>
+                          <strong>{card.station.name}</strong>
+                          <small>{[card.station.country, card.station.tags.split(',').slice(0, 2).map((tag) => tag.trim()).filter(Boolean).join(' · ')].filter(Boolean).join(' · ')}</small>
+                        </span>
+                        <span className="chat-station-play" aria-hidden="true">
+                          {player.current?.stationuuid === card.station.stationuuid && player.isPlaying ? (
+                            <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /></svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24"><path d="m9 5 8 7-8 7V5Z" /></svg>
+                          )}
+                        </span>
+                      </button>
+                      <button type="button" className="chat-map-link" onClick={() => showOnGlobe(card.station.stationuuid)} data-chat-map-link={card.station.stationuuid}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-6 5-6 13 0 18 6-5 6-13 0-18" /></svg>
+                        <span>{t('journal.sourceOnMap')}</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : messages.length === 0 ? (
             <section className="chat-welcome" aria-labelledby={`${titleId}-welcome`}>
               <div className="chat-welcome-copy">
                 <span className="chat-welcome-spark" aria-hidden="true">✦</span>
@@ -688,6 +760,24 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           ) : null}
         </div>
 
+        {CALM_PREVIEW ? (
+          <div className="chat-prompts-row" aria-label={t('chat.quickPrompts')} data-chat-prompts>
+            {quickPrompts.map((prompt: ChatPromptSpec) => (
+              <button
+                key={prompt.id}
+                className="chat-prompt-chip"
+                type="button"
+                disabled={sending}
+                onClick={() => {
+                  triggerSelectionHaptic();
+                  void send(t(prompt.queryKey, prompt.params));
+                }}
+              >
+                {t(prompt.labelKey)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <form className="chat-sheet-input" onSubmit={onSubmit}>
           <div className="chat-composer-glass">
             <label className="visually-hidden" htmlFor={inputId}>{t('chat.placeholder')}</label>

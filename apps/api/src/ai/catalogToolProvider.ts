@@ -4,6 +4,7 @@
 // (the bot calls the brain over HTTP; the brain calls the catalog in-process).
 
 import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
+import { placeMatchesQuery } from '../catalog/service.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -12,6 +13,7 @@ type CatalogStationLite = {
   stationuuid: string;
   name: string;
   country?: string | null;
+  state?: string | null;
   tags?: string | null;
   favicon?: string | null;
   url_resolved?: string | null;
@@ -99,6 +101,8 @@ const queryWantsTalk = (query: string, tag?: string): boolean =>
   TALK_BRANDS.test(`${query} ${tag || ''}`) ||
   HUMOR_TALK_FORMAT.test(`${query} ${tag || ''}`);
 
+const normalizePlace = (value?: string | null) => String(value || '').trim().toLowerCase();
+
 const toRef = (station: CatalogStationLite): VerifiedStationRef => ({
   stationuuid: station.stationuuid,
   name: station.name,
@@ -134,11 +138,24 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       // returns actual genre stations instead of the most-voted substring match.
       relevance: true
     });
-    return (response.items || [])
+    const items = (response.items || [])
       .filter((station) => station.url_resolved)
-      .filter((station) => wantsTalk || !isTalkFormat(station))
-      .slice(0, limit)
-      .map(toRef);
+      .filter((station) => wantsTalk || !isTalkFormat(station));
+    // Geography: when the query names a place and stations located there
+    // exist, a station that only carries the word in its NAME and sits in
+    // another country is dropped — «Radio Art — Tokyo» (Greece) is not a
+    // station from Tokyo. Same-country name matches stay (a «Tokyo FM» filed
+    // without a state is still Japanese).
+    const placeTerm = String(args.query || '').trim();
+    const placeHits = placeTerm ? items.filter((station) => placeMatchesQuery(station, placeTerm)) : [];
+    const grounded = placeHits.length
+      ? items.filter((station) => {
+          if (placeMatchesQuery(station, placeTerm)) return true;
+          const country = normalizePlace(station.country);
+          return placeHits.some((hit) => normalizePlace(hit.country) === country);
+        })
+      : items;
+    return grounded.slice(0, limit).map(toRef);
   },
   getStation: async (id) => {
     if (!id) return null;

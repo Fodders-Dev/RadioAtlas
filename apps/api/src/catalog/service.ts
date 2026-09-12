@@ -720,10 +720,26 @@ const computeSearchRelevance = (station: CatalogStation, q: string, tag: string)
     if (name === nameTerm) score += 4;
     else if (name.split(/[^0-9a-zа-я]+/i).filter(Boolean).includes(nameTerm)) score += 3;
     else if (name.includes(nameTerm)) score += 1.5;
+    // A place in the query outranks the same word in a name: «Tokyo» is a
+    // station from Tokyo (state/country) before it is «Radio Art — Tokyo» from
+    // Greece. Measured on production 11.09.2026 via Лира's Tokyo answer.
+    if (placeMatchesQuery(station, nameTerm)) score += 5;
   }
   return score;
 };
 const RELEVANCE_WEIGHT = 3;
+
+// Does the query name the station's own place (state/region/city or country)?
+// Whole-word match on the location fields only — the name is not a location.
+export const placeMatchesQuery = (
+  station: { state?: string | null; country?: string | null },
+  term: string
+): boolean => {
+  const needle = foldCyrillic(String(term || '').toLowerCase().trim());
+  if (!needle) return false;
+  const place = foldCyrillic(`${station.state || ''} ${station.country || ''}`.toLowerCase());
+  return place.split(/[^0-9a-zа-я]+/i).filter(Boolean).includes(needle);
+};
 
 const seededSearchBrowseOrder = (
   stations: CatalogStation[],

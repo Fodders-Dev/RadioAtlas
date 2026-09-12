@@ -196,7 +196,10 @@ test('calm globe: Лира is asked about the selected source in its own words',
   await expect.poll(() => posted.length).toBe(1);
   expect(posted[0]).toContain(name);
   expect(await audioSrc(page), 'asking never starts audio').toBeNull();
-  await page.locator('.chat-close-btn').click();
+  // Лира is a section: the nav stays reachable, and choosing «Глобус» there
+  // leaves her the way it leaves any screen — the selected source is intact.
+  await expect(page.locator('.app-navigation-mobile .mobile-nav-chat')).toHaveClass(/active/);
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
   await expect(page.locator('[data-chat-sheet]')).toHaveCount(0);
   await expect(page.locator('[data-selected-station]')).toBeVisible();
 });

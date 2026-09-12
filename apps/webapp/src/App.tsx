@@ -328,7 +328,25 @@ const App = () => {
     setLibraryTab(tab);
     setActiveSection('library');
   };
+  const calmMiniVisible = CALM_PREVIEW && Boolean(player.current ?? player.pending) && activeSection !== 'feed' && !winamp.expanded;
+  // Лира is a section: opening her from the Feed leaves the Feed the way the
+  // nav does, so the mini player (the air's controls) is back on screen.
+  useEffect(() => {
+    if (CALM_PREVIEW && (chatOpen || chatRequest) && activeSection === 'feed') setActiveSection('home');
+  }, [chatOpen, chatRequest, activeSection, setActiveSection]);
+  useEffect(() => {
+    if (!CALM_PREVIEW) return;
+    if (calmMiniVisible) document.documentElement.dataset.calmMini = 'true';
+    else delete document.documentElement.dataset.calmMini;
+  }, [calmMiniVisible]);
+
   const handleSectionChange = (section: AppSection) => {
+    // Лира is a section of the calm shell: choosing another destination in the
+    // nav leaves it the way it leaves any other screen.
+    if (CALM_PREVIEW && (chatOpen || chatRequest)) {
+      setChatOpen(false);
+      clearChatRequest();
+    }
     // The calm nav has «Лента» as a destination: it opens on the station on air
     // (or the one connecting), the same way the mini player expands into it, and
     // never starts another stream by itself.
@@ -467,6 +485,7 @@ const App = () => {
           onChange={handleSectionChange}
           onSettings={() => setSettingsOpen(true)}
           onOpenChat={aiAssistantEnabled ? () => setChatOpen(true) : undefined}
+          chatActive={aiAssistantEnabled && (chatOpen || Boolean(chatRequest))}
           onPreload={(section) => {
             if (section === 'home') void loadHomeScreen();
             if (section === 'feed') void loadFeedScreen();

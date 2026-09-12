@@ -177,30 +177,39 @@ test('feed player captures, keeps the shared sleep timer and switches by deliber
   await expect(first.locator('.calm-feed-track')).toHaveAttribute('data-feed-track', 'live');
   await first.locator('[data-feed-action="capture"]').click();
   await expect(first.locator('[data-feed-action="capture"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('.station-feed-timer').click();
+  // The timer lives on the rail and opens its OWN compact sheet; the nav stays
+  // on screen under the calm Feed (a section, not a modal).
+  await expect(page.locator('.app-navigation-mobile')).toBeVisible();
+  const activeCard = () => page.locator('.station-feed-card-content[data-focus="true"]');
+  await activeCard().locator('[data-feed-action="timer"]').click();
+  const timer = page.locator('[data-calm-timer]');
+  await expect(timer).toBeVisible();
+  await timer.locator('[data-calm-timer-preset="15"]').click();
+  await expect(timer).toHaveCount(0);
+  await expect(activeCard().locator('[data-feed-action="timer"]')).toContainText('14:');
+  // Volume and the rest of the tray stay behind «ещё».
+  await activeCard().locator('[data-feed-action="expand"]').click();
   const tools = page.locator('.feed-player-tools');
   await expect(tools).toBeVisible();
-  await tools.getByRole('button', { name: '15 мин', exact: true }).click();
-  await expect(tools.getByRole('button', { name: '15 мин', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(tools.locator('.feed-tools-heading output')).not.toHaveText('0:00');
   await tools.getByRole('slider').focus(); await page.keyboard.press('ArrowLeft');
   expect(await audioSrc(page)).toBe(source);
   await page.screenshot({ path: '../../output/playwright/calm/feed-tools.png' });
   await tools.locator('.feed-tools-close').click();
   await expect(tools).toHaveCount(0);
-  await expect(page.locator('.station-feed-timer')).toContainText('14:');
   await page.screenshot({ path: '../../output/playwright/calm/feed-player.png' });
-  // The real pager path: a deliberate step settles and starts card 1.
-  await page.locator('.calm-feed-stepper button').last().click();
+  // The real pager path: a deliberate step from the rail settles and starts card 1.
+  await activeCard().locator('[data-feed-action="next"]').click();
   await expect.poll(() => audioSrc(page)).not.toBe(source);
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'playing');
+  expect(await page.locator('.station-feed-next').count(), 'no second «Дальше» control under the calm Feed').toBe(0);
   await page.locator('.station-feed-close').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await page.locator('.calm-mini-info').click();
-  await page.locator('.station-feed-timer').click();
-  await expect(tools.getByRole('button', { name: '15 мин', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await tools.getByRole('button', { name: 'Отменить', exact: true }).click();
-  await expect(tools.locator('.feed-tools-heading output')).toHaveText('Выкл');
+  await activeCard().locator('[data-feed-action="timer"]').click();
+  await expect(timer.locator('[data-calm-timer-preset="15"]')).toHaveAttribute('aria-pressed', 'true');
+  await timer.locator('[data-calm-timer-stop]').click();
+  await expect(timer).toHaveCount(0);
+  await expect(activeCard().locator('[data-feed-action="timer"] .calm-feed-timer-left')).toHaveCount(0);
 });
 
 test('journal Home: a story pages the real catalogue, a source opens on the Globe, and nothing switches the air', async ({ page }) => {

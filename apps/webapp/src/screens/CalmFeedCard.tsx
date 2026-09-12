@@ -32,16 +32,22 @@ export type CalmFeedCardProps = {
   onAskLira: () => void;
   onOpenPlace: () => void;
   onOpenTools: () => void;
+  // The rail's own stepper and timer (the mock's order: timer, up, down,
+  // heart, Лира, more). Steps are deliberate taps — the same request as a swipe.
+  onStep: (delta: -1 | 1) => void;
+  canStep: { prev: boolean; next: boolean };
+  timer: { label: string; active: boolean; onOpen: () => void };
   labels: {
     play: string; pause: string; like: string; unlike: string; save: string; saved: string;
     lira: string; tools: string; place: string; nowPlaying: string; lastFind: string; noTrack: string; startToCatch: string;
     onAir: string; pausedStatus: string; idleStatus: string; connecting: string; failed: string;
+    prev: string; next: string; timer: string; hint: string;
   };
 };
 
 export const CalmFeedCard = ({
   station, active, isCurrent, isPlaying, status, liveTrack, lastFind, favorite, aiEnabled, subscribe, capture,
-  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, labels
+  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, onStep, canStep, timer, labels
 }: CalmFeedCardProps) => {
   const railRef = useRef<HTMLDivElement>(null);
   const storyRef = useRef<HTMLDivElement>(null);
@@ -79,6 +85,15 @@ export const CalmFeedCard = ({
       <div className="station-feed-card-veil" aria-hidden="true" />
 
       <div ref={railRef} className="station-feed-card-actions calm-feed-rail" aria-hidden={active ? undefined : 'true'}>
+        <button type="button" className={`station-feed-action calm-feed-timer ${timer.active ? 'is-on' : ''}`.trim()} onClick={timer.onOpen} aria-label={labels.timer} data-feed-action="timer" tabIndex={tab}>
+          {timer.active ? <span className="calm-feed-timer-left">{timer.label}</span> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6M12 7v6l3 2M20 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </button>
+        <button type="button" className="station-feed-action calm-feed-step" onClick={() => onStep(-1)} disabled={!canStep.prev} aria-label={labels.prev} data-feed-action="prev" tabIndex={tab}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+        <button type="button" className="station-feed-action calm-feed-step" onClick={() => onStep(1)} disabled={!canStep.next} aria-label={labels.next} data-feed-action="next" tabIndex={tab}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
         <button type="button" className={`station-feed-action ${favorite ? 'is-on' : ''}`.trim()} onClick={onToggleFavorite} aria-pressed={favorite} aria-label={`${favorite ? labels.unlike : labels.like}: ${name}`} data-feed-action="favorite" tabIndex={tab}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.4 4.9 13.3a4.2 4.2 0 0 1 6-6l1.1 1.1 1.1-1.1a4.2 4.2 0 0 1 6 6L12 20.4Z" fill={favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
         </button>
@@ -132,6 +147,7 @@ export const CalmFeedCard = ({
             <FeedWaveform active={isPlaying} subscribe={subscribe} />
           </button>
         </div>
+        {canStep.next ? <p className="calm-feed-hint" aria-hidden="true">{labels.hint}</p> : null}
       </div>
     </div>
   );
