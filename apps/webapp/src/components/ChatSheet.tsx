@@ -535,7 +535,6 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
             <section className="chat-welcome chat-welcome--calm" aria-labelledby={`${titleId}-welcome`} data-chat-opening>
               <div className="lira-opening">
                 <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
-                <span className="lira-sound-orbit" aria-hidden="true"><i /><i /><i /><span className="lira-face"><CalmLiraFace /></span></span>
               </div>
               <p>{t('journal.liraOpening')}</p>
               {openingCards.length ? (

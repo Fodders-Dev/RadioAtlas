@@ -105,15 +105,19 @@ export const AppNavigation = ({
     onChange(id);
   };
 
+  // Under calm «Лира» is a section of her own: while she is open the item
+  // the shell keeps as `active` underneath is not the current page.
+  const isCurrent = (id: AppSection) => active === id && !chatActive;
+
   const renderMobileItem = (item: NavItem) => (
     <button
       key={item.id}
-      className={`mobile-nav-item ${active === item.id ? 'active' : ''}`}
+      className={`mobile-nav-item ${isCurrent(item.id) ? 'active' : ''}`}
       type="button"
       onClick={() => selectSection(item.id)}
       onTouchStart={() => onPreload?.(item.id)}
       onFocus={() => onPreload?.(item.id)}
-      aria-current={active === item.id ? 'page' : undefined}
+      aria-current={isCurrent(item.id) ? 'page' : undefined}
     >
       <span className="mobile-nav-icon">{item.icon}</span>
       <span>{t(`nav.${item.id}`)}</span>

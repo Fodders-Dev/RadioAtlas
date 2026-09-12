@@ -1153,10 +1153,10 @@
 .chat-sheet[data-calm='true'] { --calm-paper: color-mix(in srgb, var(--bg) 94%, var(--text) 6%); --calm-line: color-mix(in srgb, var(--text) 14%, transparent); --calm-muted: color-mix(in srgb, var(--text) 68%, var(--bg)); color: var(--text); }
 /* Calm: a SECTION under the nav and above the mini player (z 60 < mini 65 < nav
    120), never a modal — pause and the other sections stay one tap away. */
-.chat-sheet[data-calm='true'] { position: fixed; inset: 0; bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
+.chat-sheet[data-calm='true'] { position: fixed; inset: 0; z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
 /* The mini player (z 65) floats over the section's bottom; the composer keeps
    clear of it, and nothing of the screen behind shows through. */
-:root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: 78px; }
+:root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 .chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border-radius: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 0 20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 56%), radial-gradient(ellipse at 100% 80%, color-mix(in srgb, var(--theme-accent-2, #b0c8b3) 38%, transparent), transparent 54%), linear-gradient(125deg, color-mix(in srgb, var(--calm-paper) 92%, white 8%), var(--calm-paper)); box-shadow: none; }
 /* Heading as in the mock: 40px face, 23px name, 10px guide line, «···» help. */
 .chat-sheet[data-calm='true'] .chat-sheet-head { position: sticky; top: 0; z-index: 4; min-height: 0; padding: calc(10px + env(safe-area-inset-top)) 21px 12px; margin-bottom: 7px; background: linear-gradient(var(--calm-paper) 85%, transparent); }
@@ -1268,7 +1268,7 @@
 .chat-map-link svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .chat-map-link svg:last-child { margin-left: auto; }
 .chat-sheet[data-calm='true'] .chat-reject-btn, .chat-sheet[data-calm='true'] .chat-service-chip, .chat-sheet[data-calm='true'] .chat-source-chip { border-color: var(--calm-line); background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--text); box-shadow: none; }
-.chat-sheet[data-calm='true'] .chat-sheet-input { border-top: 0; background: linear-gradient(transparent, var(--calm-paper) 40%); padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); }
+.chat-sheet[data-calm='true'] .chat-sheet-input { border-top: 0; background: linear-gradient(transparent, var(--calm-paper) 40%); padding: 10px 14px calc(84px + env(safe-area-inset-bottom)); }
 .chat-sheet[data-calm='true'] .chat-composer-glass { border: 1px solid var(--calm-line); border-radius: 27px; background: linear-gradient(135deg, color-mix(in srgb, white 60%, transparent), color-mix(in srgb, white 25%, transparent)), color-mix(in srgb, var(--bg) 55%, transparent); box-shadow: inset 0 1px 1px #fffc, 0 6px 18px rgba(80, 50, 30, 0.12); }
 .chat-sheet[data-calm='true'] .chat-input-field { color: var(--text); font-size: 14px; }
 .chat-sheet[data-calm='true'] .chat-input-field::placeholder { color: var(--calm-muted); }
@@ -1281,3 +1281,72 @@
 /* Calm: Лира's drawn face in the window head. */
 .chat-sheet[data-calm='true'] .chat-lira-face { display: block; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
 .chat-sheet[data-calm='true'] .chat-lira-face svg { display: block; width: 100%; height: 100%; }
+
+/* ===== Лира: materials by the A4 mock (revision.css / usability.css).
+   LAST in the file on purpose — the earlier calm block above wins ties, and
+   its greyer paper is what the owner saw. Light values are the mock's own;
+   the dark set is the mock's dark theme; both read the current theme's
+   --bg / --text / --accent so Rose, Ocean and a custom print keep their hue. */
+.chat-sheet[data-calm='true'] {
+  --lira-ink: var(--text);
+  --lira-muted: color-mix(in srgb, var(--text) 62%, var(--bg));
+  --lira-line: color-mix(in srgb, var(--text) 15%, transparent);
+  --lira-surface: color-mix(in srgb, white 74%, transparent);
+  --lira-solid: color-mix(in srgb, var(--bg) 40%, white 60%);
+  --lira-glass: color-mix(in srgb, white 56%, transparent);
+  --lira-base: linear-gradient(125deg, color-mix(in srgb, var(--bg) 60%, white 40%), var(--bg));
+  --lira-reflex-a: color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, white) 64%, transparent);
+  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #b0c8b3) 54%, transparent);
+  --lira-chip-line: #d2b99885;
+  --lira-user: #debb9380;
+  color: var(--lira-ink);
+}
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] {
+  --lira-muted: color-mix(in srgb, var(--text) 66%, var(--bg));
+  --lira-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --lira-surface: color-mix(in srgb, var(--bg) 70%, white 10%);
+  --lira-solid: color-mix(in srgb, var(--bg) 88%, white 12%);
+  --lira-glass: color-mix(in srgb, var(--bg) 65%, transparent);
+  --lira-base: var(--bg);
+  --lira-reflex-a: color-mix(in srgb, var(--accent) 24%, transparent);
+  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #66735b) 26%, transparent);
+  --lira-chip-line: color-mix(in srgb, var(--text) 22%, transparent);
+  --lira-user: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* The warm light behind everything, and the head fading into it. */
+.chat-sheet[data-calm='true'] .chat-sheet-card { background: radial-gradient(ellipse at 0 20%, var(--lira-reflex-a), transparent 56%), radial-gradient(ellipse at 100% 80%, var(--lira-reflex-b), transparent 54%), var(--lira-base); }
+.chat-sheet[data-calm='true'] .chat-sheet-head { background: linear-gradient(color-mix(in srgb, var(--bg) 62%, white 38%) 85%, transparent); }
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-sheet-head { background: linear-gradient(var(--bg) 85%, transparent); }
+.chat-sheet[data-calm='true'] .chat-identity h1 { color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-online { color: var(--lira-muted); font-size: 11px; }
+.chat-sheet[data-calm='true'] .chat-help-btn, .chat-sheet[data-calm='true'] .chat-history-btn { color: var(--lira-ink); background: radial-gradient(ellipse at 15% 0%, #ffd5a277, transparent 50%), radial-gradient(ellipse at 100% 100%, #8fbdb766, transparent 55%), linear-gradient(135deg, #ffffff70, transparent 44%, #ffffff38), var(--lira-glass); border: 1px solid #fff9; box-shadow: inset 0 1.5px 1px #ffff, inset 1px 0 1px #fff9, inset 0 -1.5px 2px #75503745, 0 7px 18px #7650342b; }
+/* Text hierarchy: the question, Лира's lines in ink, the notes in muted — and
+   nothing smaller than the mock at phone size. */
+.chat-sheet[data-calm='true'] .lira-opening h2 { color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 14px; line-height: 1.78; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .message-byline { color: var(--lira-muted); }
+.chat-sheet[data-calm='true'] .chat-bubble--user { background: var(--lira-user); color: var(--lira-ink); }
+/* Cards: the mock's light surface, its line, its lift. */
+.chat-sheet[data-calm='true'] .chat-station-item { background: var(--lira-surface); border: 1px solid var(--lira-line); box-shadow: 0 7px 15px -11px #95624465; }
+.chat-sheet[data-calm='true'] .chat-station-card { padding: 12px 12px; }
+.chat-sheet[data-calm='true'] .chat-station-art { border: 0; }
+.chat-sheet[data-calm='true'] .chat-station-note { font-size: 10px; color: var(--lira-muted); }
+.chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 15px; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-station-copy small { font-size: 11px; color: var(--lira-muted); }
+.chat-sheet[data-calm='true'] .chat-map-link { border-top-color: var(--lira-line); font-size: 12px; }
+/* Prompts: solid warm chips with a soft lift. */
+.chat-sheet[data-calm='true'] .chat-prompt-chip { background: var(--lira-solid); border: 1px solid var(--lira-chip-line); box-shadow: 0 2px 6px #80532a16; color: var(--lira-ink); font-size: 11px; }
+/* The composer: the mock's glass — peach and sage reflexes, white gloss, blur. */
+.chat-sheet[data-calm='true'] .chat-sheet-input { background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 62%, white 38%) 40%); }
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-sheet-input { background: linear-gradient(transparent, var(--bg) 40%); }
+.chat-sheet[data-calm='true'] .chat-composer-glass { background: radial-gradient(ellipse at 15% 0%, #ffd5a277, transparent 50%), radial-gradient(ellipse at 100% 100%, #8fbdb766, transparent 55%), linear-gradient(135deg, #ffffff70, transparent 44%, #ffffff38), var(--lira-glass); border: 1px solid #fff9; box-shadow: inset 0 1.5px 1px #ffff, inset 1px 0 1px #fff9, inset 0 -1.5px 2px #75503745, 0 7px 18px #7650342b; -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8); }
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-help-btn, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-history-btn { background: linear-gradient(130deg, #ffe7b730, transparent 44%, #b5c9a920), var(--lira-glass); border-color: #f7d7a477; box-shadow: inset 0 1px 1px #ffedce66, inset 0 -1px 1px #080c0930, 0 8px 25px #10141240; }
+.chat-sheet[data-calm='true'] .chat-input-field { font-size: 14px; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-input-field::placeholder { color: var(--lira-muted); }
+.chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: 1; }
+.chat-sheet[data-calm='true'] .lira-sound-orbit { display: none; }
+@media (max-width: 350px) {
+  .chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 13px; }
+  .chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 13px; }
+  .chat-sheet[data-calm='true'] .chat-prompt-chip { font-size: 10px; }
+}
