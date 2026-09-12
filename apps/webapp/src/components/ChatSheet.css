@@ -1146,71 +1146,134 @@
 
 
 /* ------------------------------------------------------------------ */
-/* Calm Лира (A4 «Журнал»): a paper conversation on the theme's own
-   tokens — a host with a face, italic opener, prompt chips, playable
-   source cards with «Показать на глобусе». Same component, same AI. */
+/* Calm Лира (A4 «Журнал»): ONE block, in cascade order, on the mock's
+   materials (docs/prototypes/directions/revision.css + usability.css).
+   Every value reads the theme's --bg / --text / --accent, so Rose, Ocean and
+   a custom print keep their hue; the dark set is the mock's dark theme.
+   Three earlier calm layers used to sit one after another here and the last
+   of them — the greyest — won every tie. Do not add a fourth: edit this one. */
 /* ------------------------------------------------------------------ */
-.chat-sheet[data-calm='true'] { --calm-paper: color-mix(in srgb, var(--bg) 94%, var(--text) 6%); --calm-line: color-mix(in srgb, var(--text) 14%, transparent); --calm-muted: color-mix(in srgb, var(--text) 68%, var(--bg)); color: var(--text); }
-/* Calm: a SECTION under the nav and above the mini player (z 60 < mini 65 < nav
-   120), never a modal — pause and the other sections stay one tap away. */
+.chat-sheet[data-calm='true'] {
+  --lira-ink: var(--text);
+  --lira-muted: color-mix(in srgb, var(--text) 62%, var(--bg));
+  --lira-line: color-mix(in srgb, var(--text) 15%, transparent);
+  --lira-surface: color-mix(in srgb, white 74%, transparent);
+  --lira-solid: color-mix(in srgb, var(--bg) 40%, white 60%);
+  --lira-glass: color-mix(in srgb, white 56%, transparent);
+  --lira-base: linear-gradient(125deg, color-mix(in srgb, var(--bg) 60%, white 40%), var(--bg));
+  --lira-fade: color-mix(in srgb, var(--bg) 62%, white 38%);
+  --lira-reflex-a: color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, white) 64%, transparent);
+  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #b0c8b3) 54%, transparent);
+  --lira-gloss: radial-gradient(ellipse at 15% 0%, #ffd5a277, transparent 50%), radial-gradient(ellipse at 100% 100%, #8fbdb766, transparent 55%), linear-gradient(135deg, #ffffff70, transparent 44%, #ffffff38);
+  --lira-gloss-edge: #fff9;
+  --lira-gloss-shadow: inset 0 1.5px 1px #ffff, inset 1px 0 1px #fff9, inset 0 -1.5px 2px #75503745, 0 7px 18px #7650342b;
+  --lira-chip-line: #d2b99885;
+  --lira-user: #debb9380;
+  /* Rules outside this block (the map link, the help sheet) read these. */
+  --calm-line: var(--lira-line);
+  --calm-muted: var(--lira-muted);
+  color: var(--lira-ink);
+}
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] {
+  --lira-muted: color-mix(in srgb, var(--text) 66%, var(--bg));
+  --lira-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --lira-surface: color-mix(in srgb, var(--bg) 70%, white 10%);
+  --lira-solid: color-mix(in srgb, var(--bg) 88%, white 12%);
+  --lira-glass: color-mix(in srgb, var(--bg) 65%, transparent);
+  --lira-base: var(--bg);
+  --lira-fade: var(--bg);
+  --lira-reflex-a: color-mix(in srgb, var(--accent) 24%, transparent);
+  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #66735b) 26%, transparent);
+  --lira-gloss: linear-gradient(130deg, #ffe7b730, transparent 44%, #b5c9a920);
+  --lira-gloss-edge: #f7d7a477;
+  --lira-gloss-shadow: inset 0 1px 1px #ffedce66, inset 0 -1px 1px #080c0930, 0 8px 25px #10141240;
+  --lira-chip-line: color-mix(in srgb, var(--text) 22%, transparent);
+  --lira-user: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* A SECTION under the nav (z 120) and the mini player (z 65), never a modal:
+   the whole viewport, so the warm light runs under the nav like the mock. */
 .chat-sheet[data-calm='true'] { position: fixed; inset: 0; z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
-/* The mini player (z 65) floats over the section's bottom; the composer keeps
-   clear of it, and nothing of the screen behind shows through. */
-:root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
-.chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border-radius: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 0 20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 56%), radial-gradient(ellipse at 100% 80%, color-mix(in srgb, var(--theme-accent-2, #b0c8b3) 38%, transparent), transparent 54%), linear-gradient(125deg, color-mix(in srgb, var(--calm-paper) 92%, white 8%), var(--calm-paper)); box-shadow: none; }
-/* Heading as in the mock: 40px face, 23px name, 10px guide line, «···» help. */
-.chat-sheet[data-calm='true'] .chat-sheet-head { position: sticky; top: 0; z-index: 4; min-height: 0; padding: calc(10px + env(safe-area-inset-top)) 21px 12px; margin-bottom: 7px; background: linear-gradient(var(--calm-paper) 85%, transparent); }
+.chat-sheet[data-calm='true'] .chat-sheet-scrim { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 0 20%, var(--lira-reflex-a), transparent 56%), radial-gradient(ellipse at 100% 80%, var(--lira-reflex-b), transparent 54%), var(--lira-base); box-shadow: none; }
+.chat-sheet[data-calm='true'] .chat-sheet-card::before, .chat-sheet[data-calm='true'] .chat-sheet-card::after, .chat-sheet[data-calm='true'] .chat-liquid-field { display: none; }
+
+/* Head: 40px face, 23px name, the guide line, «···» help on the mock's glass. */
+.chat-sheet[data-calm='true'] .chat-sheet-head { position: sticky; top: 0; z-index: 4; min-height: 0; padding: calc(10px + env(safe-area-inset-top)) 21px 12px; margin-bottom: 7px; border-bottom: 0; background: linear-gradient(var(--lira-fade) 85%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .chat-sheet[data-calm='true'] .chat-identity { gap: 12px; }
-.chat-sheet[data-calm='true'] .chat-lira-face { width: 40px; height: 40px; flex-basis: 40px; }
-.chat-sheet[data-calm='true'] .chat-identity h1 { font-size: 23px; letter-spacing: -.8px; }
-.chat-sheet[data-calm='true'] .chat-online { font-size: 10px; margin-top: 5px; }
+.chat-sheet[data-calm='true'] .chat-lira-face { display: block; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
+.chat-sheet[data-calm='true'] .chat-lira-face svg { display: block; width: 100%; height: 100%; }
+.chat-sheet[data-calm='true'] .chat-identity h1 { font-size: 23px; letter-spacing: -.8px; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-kicker { display: none; }
+.chat-sheet[data-calm='true'] .chat-online { margin-top: 5px; font-size: 11px; color: var(--lira-muted); }
 .chat-sheet[data-calm='true'] .chat-online i { display: none; }
-.chat-sheet[data-calm='true'] .chat-help-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--calm-muted); background: linear-gradient(135deg, #fff9, transparent 40%, #fff2 70%, #fff7), color-mix(in srgb, var(--bg) 56%, transparent); border: 1px solid #fff9; box-shadow: inset 0 1px 1px #fffe, inset 0 -1px 2px #b37d5730, 0 7px 20px #68482b18; }
+.chat-sheet[data-calm='true'] .chat-help-btn, .chat-sheet[data-calm='true'] .chat-history-btn { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--lira-gloss-edge); color: var(--lira-ink); background: var(--lira-gloss), var(--lira-glass); box-shadow: var(--lira-gloss-shadow); }
 .chat-sheet[data-calm='true'] .chat-help-btn svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
-.chat-sheet[data-calm='true'] .chat-sheet-thread { padding: 0 21px 24px; }
-/* The opening: an italic question with the sound orbit at its right. */
+
+/* Thread and the opening: the question alone, then Лира's offer in ink. */
+.chat-sheet[data-calm='true'] .chat-sheet-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 21px 24px; }
+.chat-sheet[data-calm='true'] .chat-sheet-thread.is-empty { align-items: start; justify-content: start; padding-top: 4px; }
+.chat-sheet[data-calm='true'] .chat-welcome { margin: 0; max-width: none; }
 .chat-sheet[data-calm='true'] .lira-opening { position: relative; text-align: left; padding: 6px 0 14px; }
-.chat-sheet[data-calm='true'] .lira-opening h2 { position: relative; z-index: 2; margin: 0 0 7px; font: italic 500 25px/1.08 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--text); }
-.chat-sheet[data-calm='true'] .lira-sound-orbit { position: absolute; right: -26px; top: -6px; width: 170px; height: 97px; display: grid; place-items: center; transform: scale(.55); transform-origin: right center; pointer-events: none; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit > .lira-face { width: 68px; height: 68px; z-index: 2; border-radius: 50%; overflow: hidden; border: 2px solid #fff1d4; box-shadow: 0 5px 12px #a960413b; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit > .lira-face svg { display: block; width: 100%; height: 100%; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit i { position: absolute; width: 150px; height: 53px; left: 10px; top: 23px; border: 1px solid #c5895e4f; border-radius: 50%; transform: rotate(-20deg); box-shadow: 0 0 0 7px #fff3; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit i:nth-of-type(2) { transform: rotate(20deg); border-color: #fffff1b0; width: 115px; left: 27px; height: 79px; top: 10px; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit i:nth-of-type(3) { width: 85px; height: 97px; left: 42px; top: 0; border-color: #bda88f5e; transform: rotate(30deg); }
-.chat-sheet[data-calm='true'] .chat-welcome--calm > p { margin: 0 0 3px; font-size: 13px; line-height: 1.78; color: var(--text); }
+.chat-sheet[data-calm='true'] .lira-opening h2 { margin: 0 0 7px; font: italic 500 26px/1.08 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-welcome--calm > p { margin: 0 0 3px; font-size: 14px; line-height: 1.78; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-history-note { color: var(--lira-muted); }
+
 /* Turns: Лира's answer is a byline and a paragraph, yours a soft pill. */
-.chat-sheet[data-calm='true'] .message-byline { display: flex; align-items: center; gap: 7px; margin-bottom: 11px; color: var(--calm-muted); font-size: 10px; font-weight: 650; }
+.chat-sheet[data-calm='true'] .message-byline { display: flex; align-items: center; gap: 7px; margin-bottom: 11px; color: var(--lira-muted); font-size: 10px; font-weight: 650; }
 .chat-sheet[data-calm='true'] .message-byline .lira-face { width: 24px; height: 24px; border-radius: 50%; overflow: hidden; border: 1px solid #fff9; display: block; }
 .chat-sheet[data-calm='true'] .message-byline .lira-face svg { display: block; width: 100%; height: 100%; }
 .chat-sheet[data-calm='true'] .chat-row--assistant { display: block; margin: 0 0 25px; }
 .chat-sheet[data-calm='true'] .chat-row--assistant .chat-message-stack { max-width: none; }
-.chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 13px; line-height: 1.78; }
+.chat-sheet[data-calm='true'] .chat-bubble { font-size: 14px; line-height: 1.7; }
+.chat-sheet[data-calm='true'] .chat-bubble--assistant { border: 0; padding: 0 0 0 2px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; font-size: 14px; line-height: 1.78; color: var(--lira-ink); }
 .chat-sheet[data-calm='true'] .chat-row--user { margin: 10px 0 23px; }
-.chat-sheet[data-calm='true'] .chat-bubble--user { max-width: 87%; padding: 12px 15px; background: #debb9380; border: 0; border-radius: 20px 20px 5px 20px; font-size: 14px; line-height: 1.55; color: var(--text); box-shadow: none; }
-/* Cards: surface, 18px radius, logo 42, note 8px, name 13–15px, country 10px, accent play. */
-.chat-sheet[data-calm='true'] .chat-station-item { margin-top: 10px; background: color-mix(in srgb, var(--bg) 74%, white 26%); border: 1px solid var(--calm-line); border-radius: 18px; overflow: hidden; box-shadow: 0 7px 15px -11px #95624465; }
-.chat-sheet[data-calm='true'] .chat-station-card { padding: 10px 11px; gap: 10px; background: none; border: 0; box-shadow: none; border-radius: 0; }
-.chat-sheet[data-calm='true'] .chat-station-art { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; }
+.chat-sheet[data-calm='true'] .chat-bubble--user { max-width: 87%; padding: 12px 15px; border: 0; border-radius: 20px 20px 5px 20px; background: var(--lira-user); color: var(--lira-ink); font-size: 14px; line-height: 1.55; box-shadow: none; }
+.chat-sheet[data-calm='true'] .chat-bubble--typing i { background: var(--accent); }
+.chat-sheet[data-calm='true'] .chat-reject-btn, .chat-sheet[data-calm='true'] .chat-service-chip, .chat-sheet[data-calm='true'] .chat-source-chip { border-color: var(--lira-line); background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--lira-ink); box-shadow: none; }
+
+/* Cards: the mock's light surface, 18px radius, logo 42, note 10, name 15, country 11, accent play, «Показать на карте». */
+.chat-sheet[data-calm='true'] .chat-station-item { display: grid; margin-top: 10px; border: 1px solid var(--lira-line); border-radius: 18px; overflow: hidden; background: var(--lira-surface); box-shadow: 0 7px 15px -11px #95624465; }
+.chat-sheet[data-calm='true'] .chat-station-card { min-height: 66px; padding: 12px; gap: 10px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--lira-ink); -webkit-backdrop-filter: none; backdrop-filter: none; animation: none; }
+.chat-sheet[data-calm='true'] .chat-station-art { width: 42px; height: 42px; flex: 0 0 42px; border: 0; border-radius: 12px; box-shadow: none; }
 .chat-sheet[data-calm='true'] .chat-station-copy { gap: 5px; }
-.chat-sheet[data-calm='true'] .chat-station-note { font-size: 8px; letter-spacing: .2px; margin: 0; }
-.chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 13px; line-height: 1.25; }
-.chat-sheet[data-calm='true'] .chat-station-copy small { font-size: 10px; color: var(--calm-muted); }
+.chat-sheet[data-calm='true'] .chat-station-note { display: block; margin: 0 0 2px; font-size: 10px; letter-spacing: .3px; color: var(--lira-muted); }
+.chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 15px; line-height: 1.25; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-station-copy small { font-size: 11px; color: var(--lira-muted); }
 .chat-sheet[data-calm='true'] .chat-station-play { width: 44px; height: 44px; color: var(--accent); background: none; border: 0; box-shadow: none; }
 .chat-sheet[data-calm='true'] .chat-station-play svg { width: 19px; height: 19px; fill: currentColor; }
-.chat-sheet[data-calm='true'] .chat-map-link { width: 100%; margin: 0; border: 0; border-top: 1px solid var(--calm-line); border-radius: 0; background: none; display: flex; align-items: center; gap: 8px; padding: 0 13px; font-size: 11px; color: var(--accent); min-height: 44px; }
-.chat-sheet[data-calm='true'] .chat-map-link svg { width: 15px; height: 15px; }
-.chat-sheet[data-calm='true'] .chat-map-link svg:last-child { margin-left: auto; }
-/* Prompts and the composer as in the mock: solid chips, glass field, accent send. */
-.chat-sheet[data-calm='true'] .chat-prompts-row { gap: 6px; padding: 4px 14px 10px; }
-.chat-sheet[data-calm='true'] .chat-prompt-chip { min-height: 44px; padding: 0 11px; font-size: 9px; font-weight: 650; background: color-mix(in srgb, var(--bg) 60%, white 40%); border: 1px solid #d2b99885; box-shadow: 0 2px 6px #80532a16; }
-.chat-sheet[data-calm='true'] .chat-sheet-input { padding: 0 14px 14px; gap: 8px; align-items: center; }
-.chat-sheet[data-calm='true'] .chat-composer-glass { min-height: 54px; padding: 6px 6px 6px 16px; border-radius: 27px; background: linear-gradient(135deg, #fffc, #fff6), color-mix(in srgb, var(--bg) 56%, transparent); border: 1px solid #fff9; box-shadow: inset 0 1px 1px #fffe, inset 0 -1px 2px #b37d5730, 0 7px 20px #68482b18; }
-.chat-sheet[data-calm='true'] .chat-input-field { font-size: 13px; line-height: 1.5; padding: 9px 0; }
+.chat-map-link { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0; padding: 0 13px; border: 0; border-top: 1px solid var(--calm-line); border-radius: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; text-align: left; }
+.chat-map-link svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chat-map-link svg:last-child { margin-left: auto; }
+
+/* Prompts: the mock's row — solid warm chips lying straight on the light, no
+   plate of their own. Then the composer: ONE glass capsule holding the field
+   and the accent send button, its gloss the mock's. The form itself is a
+   fade into the light, not the classic window's frosted, shadowed bar. */
+.chat-sheet[data-calm='true'] .chat-prompts-row { display: flex; flex-shrink: 0; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px 14px 10px; background: none; }
+.chat-sheet[data-calm='true'] .chat-prompts-row::-webkit-scrollbar { display: none; }
+.chat-sheet[data-calm='true'] .chat-prompt-chip { flex: 0 0 auto; min-height: 44px; padding: 0 13px; border: 1px solid var(--lira-chip-line); border-radius: 28px; background: var(--lira-solid); color: var(--lira-ink); font: inherit; font-size: 11px; font-weight: 650; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 6px #80532a16; }
+.chat-sheet[data-calm='true'] .chat-prompt-chip:disabled { opacity: .5; }
+.chat-sheet[data-calm='true'] .chat-sheet-input { flex-shrink: 0; display: block; padding: 0 14px calc(84px + env(safe-area-inset-bottom)); border-top: 0; background: linear-gradient(transparent, var(--lira-fade) 40%); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+.chat-sheet[data-calm='true'] .chat-composer-glass { display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 6px 6px 6px 16px; border: 1px solid var(--lira-gloss-edge); border-radius: 27px; background: linear-gradient(135deg, #fffc, #fff6), var(--lira-gloss), var(--lira-glass); box-shadow: var(--lira-gloss-shadow); -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8); }
+:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass { background: var(--lira-gloss), var(--lira-glass); }
+.chat-sheet[data-calm='true'] .chat-composer-glass:focus-within { border-color: var(--lira-gloss-edge); box-shadow: var(--lira-gloss-shadow); }
+.chat-sheet[data-calm='true'] .chat-input-field { flex: 1; min-width: 0; padding: 9px 0; font-size: 14px; line-height: 1.5; color: var(--lira-ink); }
+.chat-sheet[data-calm='true'] .chat-input-field::placeholder { color: var(--lira-muted); }
 .chat-sheet[data-calm='true'] .chat-input-spark { display: none; }
-.chat-sheet[data-calm='true'] .chat-send-btn { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; background: var(--accent); color: #fff3e3; border: 0; box-shadow: inset 0 1px 1px #ffdcb399, 0 3px 8px #ab4e3322; display: grid; place-items: center; }
-.chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: .45; }
+.chat-sheet[data-calm='true'] .chat-send-btn { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: #fff3e3; box-shadow: inset 0 1px 1px #ffdcb399, 0 3px 8px #ab4e3322; }
+.chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: 1; }
 .chat-sheet[data-calm='true'] .chat-send-btn svg { width: 21px; height: 21px; }
-/* «Что умеет Лира» — the mock's profile sheet, honest text. */
+@media (max-width: 350px) {
+  .chat-sheet[data-calm='true'] .lira-opening h2 { font-size: 25px; }
+  .chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 13px; }
+  .chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 13px; }
+  .chat-sheet[data-calm='true'] .chat-prompt-chip { padding: 0 11px; font-size: 10px; }
+}
+
+/* «Что умеет Лира» — the mock's profile sheet, honest text; its own portal
+   (z 130) so it sits over the mini player and the nav. */
 .lira-help { position: fixed; inset: 0; z-index: 130; display: flex; align-items: flex-end; }
 .lira-help-scrim { position: absolute; inset: 0; border: 0; background: #28211a38; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .lira-help-card { position: relative; width: 100%; max-height: calc(100% - 91px); overflow-y: auto; padding: 18px 21px calc(24px + env(safe-area-inset-bottom)); border-radius: 31px 31px 0 0; background: var(--calm-solid, var(--bg)); color: var(--text); border: 1px solid #fff9; border-bottom: 0; box-shadow: 0 -12px 65px #31221c26; }
@@ -1221,132 +1284,3 @@
 .lira-profile p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--calm-muted, #816f65); }
 .lira-help-footnote { margin: 8px 0 14px; font-size: 11px; line-height: 1.7; color: var(--calm-muted, #816f65); }
 .lira-help-close { width: 100%; min-height: 48px; border-radius: 20px; border: 1px solid var(--calm-line, #0002); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
-.chat-sheet[data-calm='true'] .chat-sheet-thread { flex: 1; min-height: 0; overflow-y: auto; }
-.chat-sheet[data-calm='true'] .chat-sheet-scrim { background: color-mix(in srgb, var(--bg) 55%, transparent); }
-.chat-sheet[data-calm='true'] .chat-welcome--calm h2 { margin: 2px 0 8px; font: italic 500 27px/1.1 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--text); }
-.chat-sheet[data-calm='true'] .chat-welcome--calm > p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--calm-muted); }
-.chat-sheet[data-calm='true'] .chat-station-note { display: block; font-size: 10px; letter-spacing: .3px; color: var(--calm-muted); margin-bottom: 2px; }
-.chat-sheet[data-calm='true'] .chat-prompts-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 6px 18px 4px; flex-shrink: 0; }
-.chat-sheet[data-calm='true'] .chat-prompts-row::-webkit-scrollbar { display: none; }
-.chat-sheet[data-calm='true'] .chat-prompt-chip { flex: 0 0 auto; min-height: 40px; padding: 0 14px; border: 1px solid var(--calm-line); border-radius: 22px; background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.chat-sheet[data-calm='true'] .chat-prompt-chip:disabled { opacity: .5; }
-.chat-sheet[data-calm='true'] .chat-sheet-input { flex-shrink: 0; }
-.chat-sheet[data-calm='true'] .chat-sheet-card { border: 0; background: radial-gradient(ellipse at 90% 30%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%), radial-gradient(ellipse at 3% 65%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 10%, transparent), transparent 55%), var(--calm-paper); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25); }
-.chat-sheet[data-calm='true'] .chat-sheet-card::before, .chat-sheet[data-calm='true'] .chat-sheet-card::after, .chat-sheet[data-calm='true'] .chat-liquid-field { display: none; }
-.chat-sheet[data-calm='true'] .chat-sheet-head { min-height: 74px; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; border-bottom: 0; background: linear-gradient(var(--calm-paper) 85%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.chat-sheet[data-calm='true'] .chat-lira-orb { width: 46px; height: 46px; border-radius: 50%; color: var(--accent); background: radial-gradient(circle at 30% 25%, #fff5, transparent 60%), color-mix(in srgb, var(--accent) 22%, var(--calm-paper)); border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 25%, transparent); }
-.chat-sheet[data-calm='true'] .chat-lira-orb i { display: none; }
-.chat-sheet[data-calm='true'] .chat-lira-orb--message { width: 24px; height: 24px; border-width: 1px; }
-.chat-sheet[data-calm='true'] .chat-identity h1 { font-size: 26px; letter-spacing: -.8px; color: var(--text); }
-.chat-sheet[data-calm='true'] .chat-kicker { display: none; }
-.chat-sheet[data-calm='true'] .chat-online { color: var(--calm-muted); font-size: 11px; }
-.chat-sheet[data-calm='true'] .chat-online i { background: var(--accent); }
-.chat-sheet[data-calm='true'] .chat-history-btn, .chat-sheet[data-calm='true'] .chat-close-btn { width: 44px; height: 44px; border: 1px solid var(--calm-line); border-radius: 50%; background: color-mix(in srgb, var(--bg) 40%, transparent); color: var(--text); box-shadow: none; }
-.chat-sheet[data-calm='true'] .chat-sheet-thread { padding: 6px 21px 24px; }
-.chat-sheet[data-calm='true'] .chat-sheet-thread.is-empty { align-items: start; justify-content: start; padding-top: 4px; }
-.chat-sheet[data-calm='true'] .chat-welcome { margin: 0; max-width: none; }
-.chat-sheet[data-calm='true'] .chat-welcome-copy { display: block; margin-bottom: 14px; }
-.chat-sheet[data-calm='true'] .chat-welcome-spark { display: none; }
-.chat-sheet[data-calm='true'] .chat-welcome h2 { margin: 6px 0 10px; font: italic 500 29px/1.08 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--text); }
-.chat-sheet[data-calm='true'] .chat-welcome p { font-size: 13px; line-height: 1.7; color: var(--calm-muted); }
-.chat-sheet[data-calm='true'] .chat-prompt-grid { display: flex; flex-wrap: wrap; gap: 7px; }
-.chat-sheet[data-calm='true'] .chat-prompt-card { flex: 0 0 auto; min-height: 44px; padding: 0 14px; border: 1px solid var(--calm-line); border-radius: 24px; background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--text); font-size: 12px; font-weight: 650; box-shadow: 0 2px 6px rgba(80, 50, 30, 0.08); backdrop-filter: none; -webkit-backdrop-filter: none; }
-.chat-sheet[data-calm='true'] .chat-prompt-card::after, .chat-sheet[data-calm='true'] .chat-prompt-icon { display: none; }
-.chat-sheet[data-calm='true'] .chat-prompt-card > span:last-child { font-size: 12px; }
-.chat-sheet[data-calm='true'] .chat-history-note { color: var(--calm-muted); }
-.chat-sheet[data-calm='true'] .chat-bubble { font-size: 14px; line-height: 1.7; }
-.chat-sheet[data-calm='true'] .chat-bubble--assistant { border: 0; padding: 0 0 0 2px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--text); }
-.chat-sheet[data-calm='true'] .chat-bubble--user { border: 0; background: color-mix(in srgb, var(--accent) 22%, var(--calm-paper)); color: var(--text); box-shadow: none; border-radius: 20px 20px 5px 20px; }
-.chat-sheet[data-calm='true'] .chat-bubble--typing i { background: var(--accent); }
-.chat-sheet[data-calm='true'] .chat-station-item { display: grid; border: 1px solid var(--calm-line); border-radius: 18px; overflow: hidden; background: color-mix(in srgb, var(--bg) 78%, transparent); box-shadow: 0 7px 15px -11px rgba(90, 60, 40, 0.4); }
-.chat-sheet[data-calm='true'] .chat-station-card { min-height: 66px; padding: 12px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); -webkit-backdrop-filter: none; backdrop-filter: none; animation: none; }
-.chat-sheet[data-calm='true'] .chat-station-art { width: 42px; height: 42px; border-radius: 13px; border: 1px solid var(--calm-line); box-shadow: none; }
-.chat-sheet[data-calm='true'] .chat-station-copy strong { color: var(--text); font-size: 15px; }
-.chat-sheet[data-calm='true'] .chat-station-copy small { color: var(--calm-muted); }
-.chat-sheet[data-calm='true'] .chat-station-play { color: var(--accent); background: none; border: 0; box-shadow: none; }
-.chat-map-link { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 13px; border: 0; border-top: 1px solid var(--calm-line); background: none; color: var(--accent); font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; text-align: left; }
-.chat-map-link svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.chat-map-link svg:last-child { margin-left: auto; }
-.chat-sheet[data-calm='true'] .chat-reject-btn, .chat-sheet[data-calm='true'] .chat-service-chip, .chat-sheet[data-calm='true'] .chat-source-chip { border-color: var(--calm-line); background: color-mix(in srgb, var(--bg) 70%, transparent); color: var(--text); box-shadow: none; }
-.chat-sheet[data-calm='true'] .chat-sheet-input { border-top: 0; background: linear-gradient(transparent, var(--calm-paper) 40%); padding: 10px 14px calc(84px + env(safe-area-inset-bottom)); }
-.chat-sheet[data-calm='true'] .chat-composer-glass { border: 1px solid var(--calm-line); border-radius: 27px; background: linear-gradient(135deg, color-mix(in srgb, white 60%, transparent), color-mix(in srgb, white 25%, transparent)), color-mix(in srgb, var(--bg) 55%, transparent); box-shadow: inset 0 1px 1px #fffc, 0 6px 18px rgba(80, 50, 30, 0.12); }
-.chat-sheet[data-calm='true'] .chat-input-field { color: var(--text); font-size: 14px; }
-.chat-sheet[data-calm='true'] .chat-input-field::placeholder { color: var(--calm-muted); }
-.chat-sheet[data-calm='true'] .chat-input-spark { color: var(--accent); }
-.chat-sheet[data-calm='true'] .chat-send-btn { border: 0; background: var(--accent); color: var(--accent-ink, #fff); box-shadow: inset 0 1px 1px #ffdcb399, 0 3px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
-.chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: .45; }
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-lira-orb, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass { border-color: color-mix(in srgb, white 20%, transparent); }
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass { background: color-mix(in srgb, var(--bg) 40%, transparent); box-shadow: inset 0 1px 0 #ffffff30; }
-
-/* Calm: Лира's drawn face in the window head. */
-.chat-sheet[data-calm='true'] .chat-lira-face { display: block; width: 46px; height: 46px; flex: 0 0 46px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
-.chat-sheet[data-calm='true'] .chat-lira-face svg { display: block; width: 100%; height: 100%; }
-
-/* ===== Лира: materials by the A4 mock (revision.css / usability.css).
-   LAST in the file on purpose — the earlier calm block above wins ties, and
-   its greyer paper is what the owner saw. Light values are the mock's own;
-   the dark set is the mock's dark theme; both read the current theme's
-   --bg / --text / --accent so Rose, Ocean and a custom print keep their hue. */
-.chat-sheet[data-calm='true'] {
-  --lira-ink: var(--text);
-  --lira-muted: color-mix(in srgb, var(--text) 62%, var(--bg));
-  --lira-line: color-mix(in srgb, var(--text) 15%, transparent);
-  --lira-surface: color-mix(in srgb, white 74%, transparent);
-  --lira-solid: color-mix(in srgb, var(--bg) 40%, white 60%);
-  --lira-glass: color-mix(in srgb, white 56%, transparent);
-  --lira-base: linear-gradient(125deg, color-mix(in srgb, var(--bg) 60%, white 40%), var(--bg));
-  --lira-reflex-a: color-mix(in srgb, color-mix(in srgb, var(--accent) 40%, white) 64%, transparent);
-  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #b0c8b3) 54%, transparent);
-  --lira-chip-line: #d2b99885;
-  --lira-user: #debb9380;
-  color: var(--lira-ink);
-}
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] {
-  --lira-muted: color-mix(in srgb, var(--text) 66%, var(--bg));
-  --lira-line: color-mix(in srgb, var(--text) 18%, transparent);
-  --lira-surface: color-mix(in srgb, var(--bg) 70%, white 10%);
-  --lira-solid: color-mix(in srgb, var(--bg) 88%, white 12%);
-  --lira-glass: color-mix(in srgb, var(--bg) 65%, transparent);
-  --lira-base: var(--bg);
-  --lira-reflex-a: color-mix(in srgb, var(--accent) 24%, transparent);
-  --lira-reflex-b: color-mix(in srgb, var(--theme-accent-2, #66735b) 26%, transparent);
-  --lira-chip-line: color-mix(in srgb, var(--text) 22%, transparent);
-  --lira-user: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-/* The warm light behind everything, and the head fading into it. */
-.chat-sheet[data-calm='true'] .chat-sheet-card { background: radial-gradient(ellipse at 0 20%, var(--lira-reflex-a), transparent 56%), radial-gradient(ellipse at 100% 80%, var(--lira-reflex-b), transparent 54%), var(--lira-base); }
-.chat-sheet[data-calm='true'] .chat-sheet-head { background: linear-gradient(color-mix(in srgb, var(--bg) 62%, white 38%) 85%, transparent); }
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-sheet-head { background: linear-gradient(var(--bg) 85%, transparent); }
-.chat-sheet[data-calm='true'] .chat-identity h1 { color: var(--lira-ink); }
-.chat-sheet[data-calm='true'] .chat-online { color: var(--lira-muted); font-size: 11px; }
-.chat-sheet[data-calm='true'] .chat-help-btn, .chat-sheet[data-calm='true'] .chat-history-btn { color: var(--lira-ink); background: radial-gradient(ellipse at 15% 0%, #ffd5a277, transparent 50%), radial-gradient(ellipse at 100% 100%, #8fbdb766, transparent 55%), linear-gradient(135deg, #ffffff70, transparent 44%, #ffffff38), var(--lira-glass); border: 1px solid #fff9; box-shadow: inset 0 1.5px 1px #ffff, inset 1px 0 1px #fff9, inset 0 -1.5px 2px #75503745, 0 7px 18px #7650342b; }
-/* Text hierarchy: the question, Лира's lines in ink, the notes in muted — and
-   nothing smaller than the mock at phone size. */
-.chat-sheet[data-calm='true'] .lira-opening h2 { color: var(--lira-ink); }
-.chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 14px; line-height: 1.78; color: var(--lira-ink); }
-.chat-sheet[data-calm='true'] .message-byline { color: var(--lira-muted); }
-.chat-sheet[data-calm='true'] .chat-bubble--user { background: var(--lira-user); color: var(--lira-ink); }
-/* Cards: the mock's light surface, its line, its lift. */
-.chat-sheet[data-calm='true'] .chat-station-item { background: var(--lira-surface); border: 1px solid var(--lira-line); box-shadow: 0 7px 15px -11px #95624465; }
-.chat-sheet[data-calm='true'] .chat-station-card { padding: 12px 12px; }
-.chat-sheet[data-calm='true'] .chat-station-art { border: 0; }
-.chat-sheet[data-calm='true'] .chat-station-note { font-size: 10px; color: var(--lira-muted); }
-.chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 15px; color: var(--lira-ink); }
-.chat-sheet[data-calm='true'] .chat-station-copy small { font-size: 11px; color: var(--lira-muted); }
-.chat-sheet[data-calm='true'] .chat-map-link { border-top-color: var(--lira-line); font-size: 12px; }
-/* Prompts: solid warm chips with a soft lift. */
-.chat-sheet[data-calm='true'] .chat-prompt-chip { background: var(--lira-solid); border: 1px solid var(--lira-chip-line); box-shadow: 0 2px 6px #80532a16; color: var(--lira-ink); font-size: 11px; }
-/* The composer: the mock's glass — peach and sage reflexes, white gloss, blur. */
-.chat-sheet[data-calm='true'] .chat-sheet-input { background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 62%, white 38%) 40%); }
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-sheet-input { background: linear-gradient(transparent, var(--bg) 40%); }
-.chat-sheet[data-calm='true'] .chat-composer-glass { background: radial-gradient(ellipse at 15% 0%, #ffd5a277, transparent 50%), radial-gradient(ellipse at 100% 100%, #8fbdb766, transparent 55%), linear-gradient(135deg, #ffffff70, transparent 44%, #ffffff38), var(--lira-glass); border: 1px solid #fff9; box-shadow: inset 0 1.5px 1px #ffff, inset 1px 0 1px #fff9, inset 0 -1.5px 2px #75503745, 0 7px 18px #7650342b; -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8); }
-:root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-composer-glass, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-help-btn, :root[data-theme-mode='dark'] .chat-sheet[data-calm='true'] .chat-history-btn { background: linear-gradient(130deg, #ffe7b730, transparent 44%, #b5c9a920), var(--lira-glass); border-color: #f7d7a477; box-shadow: inset 0 1px 1px #ffedce66, inset 0 -1px 1px #080c0930, 0 8px 25px #10141240; }
-.chat-sheet[data-calm='true'] .chat-input-field { font-size: 14px; color: var(--lira-ink); }
-.chat-sheet[data-calm='true'] .chat-input-field::placeholder { color: var(--lira-muted); }
-.chat-sheet[data-calm='true'] .chat-send-btn:disabled { opacity: 1; }
-.chat-sheet[data-calm='true'] .lira-sound-orbit { display: none; }
-@media (max-width: 350px) {
-  .chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 13px; }
-  .chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 13px; }
-  .chat-sheet[data-calm='true'] .chat-prompt-chip { font-size: 10px; }
-}

@@ -14,6 +14,8 @@ import { useDialog } from '../lib/useDialog';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { StationArtwork } from './StationArtwork';
 import type { StationLite } from '../types';
+import { localizedCountry } from '../lib/countryName';
+import { liraOpeningLine, liraOpeningPieces } from '../lib/liraOpening';
 import {
   postChatMessage,
   type ChatHistoryTurn,
@@ -214,7 +216,7 @@ const buildChatUserTaste = (
 };
 
 export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { fetchStationById, summary } = useCatalog();
   const { player, queue, nowPlaying, playStation } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
@@ -277,6 +279,46 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     }
     return cards;
   }, [onAirStation, summary, t]);
+  // One send control, placed inside the capsule under calm (the mock's
+  // composer) and beside it in the classic window.
+  const sendButton = (
+    <button
+      className="chat-send-btn"
+      type="submit"
+      disabled={!input.trim() || sending}
+      aria-label={t('chat.send')}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 11 21 3l-8 18-2.5-7.5L3 11Zm7.8 1.1 2 5.85 4.48-10.08-10.1 4.49 3.62-.26Z" />
+      </svg>
+    </button>
+  );
+  const openingLine = useMemo(
+    () =>
+      liraOpeningLine(
+        liraOpeningPieces(openingCards.map((card) => card.station), (family) => t(`mapExplorer.families.${family}`)),
+        {
+          first: (name) => t('journal.liraOpenFirst', { name }),
+          second: (name) => t('journal.liraOpenSecond', { name }),
+          genre: (genre) => t('journal.liraOpenGenre', { genre }),
+          askTwo: t('journal.liraOpenAsk'),
+          askOne: t('journal.liraOpenAskOne'),
+          empty: t('journal.liraOpening')
+        }
+      ),
+    [openingCards, t]
+  );
+
+  // While Лира's section is open the shell's toast has to clear her composer:
+  // the flag is read by calm.css next to the mini-player one.
+  useEffect(() => {
+    if (!CALM_PREVIEW) return undefined;
+    if (open) document.documentElement.dataset.calmChat = 'true';
+    else delete document.documentElement.dataset.calmChat;
+    return () => {
+      delete document.documentElement.dataset.calmChat;
+    };
+  }, [open]);
 
   // Scroll so the newest turn STARTS at the top of the view, not so the thread
   // ends at the bottom. Pinning scrollTop to scrollHeight meant a long answer
@@ -536,7 +578,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               <div className="lira-opening">
                 <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
               </div>
-              <p>{t('journal.liraOpening')}</p>
+              <p>{openingLine}</p>
               {openingCards.length ? (
                 <div className="chat-station-list">
                   {openingCards.map((card) => (
@@ -555,7 +597,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                         <span className="chat-station-copy">
                           <small className="chat-station-note">{card.note}</small>
                           <strong>{card.station.name}</strong>
-                          <small>{[card.station.country, card.station.tags.split(',').slice(0, 2).map((tag) => tag.trim()).filter(Boolean).join(' · ')].filter(Boolean).join(' · ')}</small>
+                          <small>{[localizedCountry(card.station, locale), card.station.tags.split(',').slice(0, 2).map((tag) => tag.trim()).filter(Boolean).join(' · ')].filter(Boolean).join(' · ')}</small>
                         </span>
                         <span className="chat-station-play" aria-hidden="true">
                           {player.current?.stationuuid === card.station.stationuuid && player.isPlaying ? (
@@ -686,7 +728,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                         <span className="chat-station-copy">
                           <strong>{station.name}</strong>
                           <small>
-                            {[station.country, station.tags.slice(0, 2).join(' · ')]
+                            {[localizedCountry(station, locale), station.tags.slice(0, 2).join(' · ')]
                               .filter(Boolean)
                               .join(' · ')}
                           </small>
@@ -806,17 +848,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               maxLength={2000}
             />
             <span className="chat-input-spark" aria-hidden="true">✦</span>
+            {CALM_PREVIEW ? sendButton : null}
           </div>
-          <button
-            className="chat-send-btn"
-            type="submit"
-            disabled={!input.trim() || sending}
-            aria-label={t('chat.send')}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 11 21 3l-8 18-2.5-7.5L3 11Zm7.8 1.1 2 5.85 4.48-10.08-10.1 4.49 3.62-.26Z" />
-            </svg>
-          </button>
+          {CALM_PREVIEW ? null : sendButton}
         </form>
       </div>
     </div>,
