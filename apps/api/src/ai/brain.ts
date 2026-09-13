@@ -24,6 +24,7 @@ import {
 import { callModel, type ModelMessage } from './modelClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
+import { hasPlayIntent } from './playbackIntent.js';
 import {
   MAX_TOOL_STEPS,
   TOOL_SCHEMAS,
@@ -60,7 +61,6 @@ const PLANNER_MAX_TOKENS = 400;
 // (a) let obvious chat skip the planner call for latency, and (b) decide whether
 // a found station should auto-play.
 const ACTION_INTENT = /(включ|постав|вруб|запусти|дай(?![а-яё])|дашь(?![а-яё])|даш(?![а-яё])|посовету|порекоменд|предлаг|предлож|подкин|накидай|найд|ищ[уи]|хочу\s+послуша|подбер|что\s+послуша|станци|радио|трек|песн|альбом|саундтрек|soundtrack|плейлист|исполнител|артист|группа)/i;
-const PLAY_INTENT = /(включ|постав|вруб|запусти|давай\s+послуша)/i;
 
 // A strong "act now" intent: an explicit play verb OR a recommend/find verb.
 // When this fires AND a concrete topic survives the noise-strip, the brain
@@ -1065,7 +1065,7 @@ const deriveActions = (
   }
   return [
     {
-      kind: PLAY_INTENT.test(userMessage) ? 'play' : 'open-station',
+      kind: hasPlayIntent(userMessage) ? 'play' : 'open-station',
       stationuuid: lead.stationuuid
     }
   ];
@@ -2110,7 +2110,7 @@ export const chatWithAssistant = async (
   // on «посоветуй nu metal» / «соул»). Broad vibe asks stay diverse.
   const preciseAsk = Boolean(preciseSearchPlan || forcedQuery || artistQuery || anchorQuery);
   const groundedObservations = personalizedObservations(observations, input.userTaste, recommendationSeed, {
-    rotateLead: musicIntent && !PLAY_INTENT.test(userMessage) && !preciseSearchPlan,
+    rotateLead: musicIntent && !hasPlayIntent(userMessage) && !preciseSearchPlan,
     precise: preciseAsk
   });
   const sources = collectVerifiedSources(groundedObservations);

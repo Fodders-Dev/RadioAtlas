@@ -3,6 +3,7 @@ import type {
   ChatInput,
   ChatResult
 } from './types.js';
+import { isPlaybackProhibited } from './playbackIntent.js';
 
 export type ToolPermission = 'read' | 'write' | 'approval_required' | 'denied';
 
@@ -63,7 +64,12 @@ export const applyAssistantActionPolicy = (
   const accepted: AssistantAction[] = [];
   const signatures = new Set<string>();
 
-  for (const action of actions.slice(0, 3)) {
+  for (const proposed of actions.slice(0, 3)) {
+    const blockedPlayback = proposed.kind === 'play' && isPlaybackProhibited(input.userMessage);
+    const action: AssistantAction = blockedPlayback
+      ? { kind: 'open-station', stationuuid: proposed.stationuuid }
+      : proposed;
+    if (blockedPlayback) warnings.push('play:explicitly_prohibited');
     if (
       input.surface === 'telegram' &&
       (action.kind === 'enqueue' || action.kind === 'set-favorite' || action.kind === 'pause')

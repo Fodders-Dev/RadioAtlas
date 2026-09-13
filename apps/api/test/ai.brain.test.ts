@@ -435,6 +435,18 @@ test('explicit play intent marks the lead station for autoplay', async () => {
   assert.equal(result.actions[0]?.stationuuid, 'uuid-jazz');
 });
 
+test('a recommendation with «пока не включай» keeps cards without autoplay', async () => {
+  const { fetchImpl } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}'],
+    compose: 'Вот эфир на вечер.'
+  });
+  const result = await chatWithAssistant(
+    ask('Предложи джаз на вечер. Пока не включай.'), makeDeps(fetchImpl)
+  );
+  assert.ok(result.stations.length > 0);
+  assert.equal(result.actions[0]?.kind, 'open-station');
+});
+
 test('duplicate tool+args is not run twice — the loop breaks on repeat', async () => {
   let searchCount = 0;
   const countingTools: ToolProvider = {
