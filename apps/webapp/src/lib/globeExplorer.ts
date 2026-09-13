@@ -2,7 +2,7 @@ import { GENRE_FAMILIES, type CatalogStationPoint, type GenreFamily } from '../d
 import { resolveCountryCoords } from './geoResolver';
 
 // Pure helpers behind the calm Globe (A4 «Журнал»): the map draws ONLY points
-// that carry real coordinates, so nothing here invents a position. Station
+// with catalogue coordinates or an explicitly labelled city location. Station
 // stubs built from a point are for lists and cards; playback always resolves
 // the full station through the catalogue first.
 
@@ -15,10 +15,13 @@ export type MapBounds = { west: number; east: number; south: number; north: numb
 export type PanelSize = 'normal' | 'expanded' | 'collapsed';
 
 export const finitePoints = (items: CatalogStationPoint[]): ExplorerPoint[] =>
-  items.filter(
-    (point): point is ExplorerPoint =>
-      Number.isFinite(point.lat) && Number.isFinite(point.lon) && Math.abs(point.lat as number) <= 90
-  );
+  items.flatMap((point) => {
+    const valid = (lat?: number, lon?: number) => Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat as number) <= 90 && Math.abs(lon as number) <= 180;
+    if (valid(point.lat, point.lon)) return [{ ...point, cityLocation: undefined } as ExplorerPoint];
+    const city = point.cityLocation;
+    if (city && valid(city.lat, city.lon)) return [{ ...point, lat: city.lat, lon: city.lon }];
+    return [];
+  });
 
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);

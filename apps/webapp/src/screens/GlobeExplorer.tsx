@@ -502,9 +502,12 @@ export const GlobeExplorer = () => {
             : t('mapExplorer.title');
   const switchLabel = moved || scope !== 'country' ? t('mapExplorer.countries') : country ? formatCountryLabel(country) : t('mapExplorer.countries');
   const genreSlug = selectedStation ? stationGenreSlug(selectedStation) : null;
+  const pointLocation = (point: ExplorerPoint) => point.cityLocation
+    ? `${point.cityLocation.name} · ${t('mapExplorer.byCity')}`
+    : point.state || '';
   const placePoint = listTitle === 'place' && areaIds?.[0] ? pointsById.get(areaIds[0]) : null;
   const listHint = placePoint
-    ? [placePoint.state, formatCountryLabel(placePoint.country)].filter(Boolean).join(' · ')
+    ? [pointLocation(placePoint), formatCountryLabel(placePoint.country)].filter(Boolean).join(' · ')
     : t('mapExplorer.listHint');
 
   const panelHeader = (
@@ -650,7 +653,7 @@ export const GlobeExplorer = () => {
                 <StationArtwork station={selectedStation} size="sm" className="source-preview-art" />
                 <span>
                   <small>
-                    {[formatCountryLabel(selectedPoint.country), selectedPoint.state].filter(Boolean).join(' · ')}
+                    {[pointLocation(selectedPoint), formatCountryLabel(selectedPoint.country)].filter(Boolean).join(' · ')}
                     {selectedPlaying
                       ? ` · ${t('mapExplorer.listening')}`
                       : selectedConnecting
@@ -825,7 +828,7 @@ export const GlobeExplorer = () => {
                         <strong>{name}</strong>
                         <small>
                           <i className="explorer-genre-dot" style={{ background: pointColor(point.genre) }} aria-hidden="true" />
-                          {[point.genre ? t(`mapExplorer.families.${point.genre}`) : '', point.state, formatCountryLabel(point.country)].filter(Boolean).join(' · ')}
+                          {[pointLocation(point), point.genre ? t(`mapExplorer.families.${point.genre}`) : '', formatCountryLabel(point.country)].filter(Boolean).join(' · ')}
                         </small>
                       </span>
                     </button>

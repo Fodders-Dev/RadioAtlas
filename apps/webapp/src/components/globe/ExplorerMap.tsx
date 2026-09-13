@@ -81,7 +81,7 @@ const buildStyle = (points: ExplorerPoint[]): maplibregl.StyleSpecification => (
       tiles: [SATELLITE_TILE_URL],
       tileSize: 256,
       maxzoom: 19,
-      attribution: '<a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri</a> World Imagery'
+      attribution: '<a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri</a> World Imagery · <a href="https://www.geonames.org" target="_blank" rel="noreferrer">GeoNames</a>'
     },
     countries: { type: 'geojson', data: borders() },
     stations: { type: 'geojson', data: toPlaces(points) },

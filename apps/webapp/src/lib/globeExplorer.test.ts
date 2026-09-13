@@ -20,6 +20,18 @@ const point = (id: string, country: string, lat: number, lon: number, extra: Par
 });
 
 describe('globeExplorer helpers', () => {
+  it('opts into city positions with provenance, preserving exact positions and rejecting invalid city coordinates', () => {
+    const cityLocation = { name: 'Moscow', lat: 55.75204, lon: 37.61781, geonameId: 524901 };
+    const result = finitePoints([
+      { id: 'city', country: 'Russia', cityLocation },
+      { id: 'exact', country: 'Russia', lat: 55.8, lon: 37.6, cityLocation },
+      { id: 'bad', country: 'Russia', cityLocation: { ...cityLocation, lat: 100 } },
+      { id: 'unknown', country: 'Russia' }
+    ]);
+    expect(result.map(p => p.id)).toEqual(['city', 'exact']);
+    expect(result[0]).toMatchObject({ lat: cityLocation.lat, lon: cityLocation.lon, cityLocation });
+    expect(result[1]).toMatchObject({ lat: 55.8, lon: 37.6, cityLocation: undefined });
+  });
   it('keeps only points with real coordinates — nothing is invented', () => {
     const kept = finitePoints([
       point('a', 'Japan', 35.6, 139.7),

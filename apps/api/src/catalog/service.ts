@@ -1,3 +1,4 @@
+import { resolveCityLocation, type CityLocation } from './cityLocation.js';
 import { DEAD_STREAM_IDS } from './deadStreams.js';
 import { stationGenreFamily, type GenreFamily } from './genreFamily.js';
 import { dedupeByBroadcaster } from './stationIdentity.js';
@@ -1009,16 +1010,14 @@ const getProfiledCatalog = async (mode: 'fast' | 'full', dependencies: CatalogDe
 // Sends only what's needed to draw a dot and identify it; the full
 // station record is fetched on selection through /catalog/stations/:id.
 //
-// Roughly 11k of 55k Radio Browser stations have explicit geo_lat /
-// geo_long. The rest still belong to a known country, so we include
-// them with `country` only — the webapp's geoResolver drops them
-// inside the country's borders deterministically (seeded by the
-// station UUID) so the globe stops looking sparse where it shouldn't.
+// Explicit station coordinates remain separate from optional city-level
+// locations. Only the calm Explorer opts into the latter; legacy consumers
+// keep the existing lat/lon semantics and mappedStations count.
 //
 // `genre` is the coarse family of the station's first recognised tag (see
 // genreFamily.ts) so the calm Globe can colour a dot without fetching the
 // station; absent when no tag is recognised, and the dot stays neutral.
-const buildPointsResponse = (stations: CatalogStation[]) => {
+export const buildPointsResponse = (stations: CatalogStation[]) => {
   const items: Array<{
     id: string;
     lat?: number;
@@ -1027,6 +1026,7 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
     state?: string;
     name?: string;
     genre?: GenreFamily;
+    cityLocation?: CityLocation;
   }> = [];
   let mappedStations = 0;
   stations.forEach((station) => {
@@ -1050,11 +1050,16 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
       state?: string;
       name?: string;
       genre?: GenreFamily;
+      cityLocation?: CityLocation;
     } = { id: station.stationuuid, country };
     if (hasCoords) {
       mappedStations += 1;
       entry.lat = lat as number;
       entry.lon = lon as number;
+    }
+    if (!hasCoords) {
+      const city = resolveCityLocation(station);
+      if (city) entry.cityLocation = city;
     }
     if (state) entry.state = state;
     if (name) entry.name = name;
@@ -1066,7 +1071,7 @@ const buildPointsResponse = (stations: CatalogStation[]) => {
     items,
     mappedStations,
     totalStations: stations.length,
-    schemaVersion: 4
+    schemaVersion: 5
   };
 };
 

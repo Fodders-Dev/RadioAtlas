@@ -68,6 +68,7 @@ export const ruDictionary = {
   // Calm Globe (A4 «Журнал»): sources on a map, finds stay in the player.
   mapExplorer: {
     thisPlace: 'Эфиры в этом месте', allGenres: 'Все жанры',
+    byCity: 'по городу',
     title: 'Эфиры на карте', loading: 'Загружаем станции…', loadError: 'Не удалось загрузить карту и станции.',
     world: 'Мир', countries: 'Страны', legendLabel: 'Жанры на карте', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
     families: {

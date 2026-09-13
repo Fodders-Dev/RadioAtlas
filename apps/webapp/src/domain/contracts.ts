@@ -490,11 +490,11 @@ export type GenreFamily = (typeof GENRE_FAMILIES)[number];
 
 export type CatalogStationPoint = {
   id: string;
-  // Set whenever Radio Browser has explicit geo_lat/geo_long (~11k of
-  // 55k stations). Entries without these still ship through so the
-  // client can drop them inside the country's borders via geoResolver.
+  // Explicit catalogue coordinates. City-level placement is separate so
+  // consumers cannot mistake a city centre for a station address.
   lat?: number;
   lon?: number;
+  cityLocation?: { name: string; lat: number; lon: number; geonameId: number };
   country: string;
   // Free-text region from Radio Browser — usually a state, oblast or
   // city, sometimes blank. Surfaced in the context pill near the

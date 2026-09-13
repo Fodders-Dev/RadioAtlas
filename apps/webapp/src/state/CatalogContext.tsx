@@ -84,7 +84,9 @@ const AREAS_CACHE_PREFIX = 'areas:v5';
 // v4 (11.09.2026): schemaVersion 4 adds `genre`; without the bump every
 // listener kept the day-old payload and the calm Globe drew neutral dots
 // for 24 h after the deploy (seen on production).
-const POINTS_CACHE_KEY = 'points:v4';
+// v5: optional cityLocation adds confirmed city-level positions. Invalidate
+// both persistent and HTTP caches so existing listeners receive them now.
+const POINTS_CACHE_KEY = 'points:v5';
 const POINTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MIN_GLOBE_MAPPED_STATIONS = 1400;
 // A non-empty payload must have at least this many items to be
@@ -444,7 +446,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
     }
     let response: CatalogPointsResponse;
     try {
-      response = await requestJson<CatalogPointsResponse>('/catalog/points');
+      response = await requestJson<CatalogPointsResponse>('/catalog/points?schema=5');
       // Same defence on the fresh response — never persist an empty
       // payload, otherwise we'll just rewrite the same poison cache.
       if ((response.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {

@@ -68,6 +68,7 @@ export const enDictionary = {
   // Calm Globe (A4 «Journal»): sources on a map, finds stay in the player.
   mapExplorer: {
     thisPlace: 'Stations at this place', allGenres: 'All genres',
+    byCity: 'city-level location',
     title: 'Stations on the map', loading: 'Loading stations…', loadError: 'Could not load the map and stations.',
     world: 'World', countries: 'Countries', legendLabel: 'Genres on the map', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     families: {

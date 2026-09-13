@@ -36,6 +36,30 @@ const openGlobe = async (page: Page) => {
 };
 
 const audioSrc = (page: Page) => page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null);
+
+test('calm globe: city-level sources are visible and labelled without claiming a studio address', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const cityLocation = { name: 'Moscow', lat: 55.75204, lon: 37.61781, geonameId: 524901 };
+  await page.route('**/catalog/points**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    items: [
+      { id: 'city-a', country: 'Russia', state: 'Moscow', name: 'City Radio A', cityLocation },
+      { id: 'city-b', country: 'Russia', state: 'Москва', name: 'City Radio B', cityLocation },
+      { id: 'unknown', country: 'Russia', name: 'Unknown Place' }
+    ], mappedStations: 0, totalStations: 3
+  }) }));
+  await page.route('**/catalog/stations/**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    item: { ...stations[0], stationuuid: 'city-a', name: 'City Radio A', country: 'Russia', state: 'Moscow', geo_lat: null, geo_long: null }
+  }) }));
+  await openGlobe(page);
+  await expect(page.locator('[data-result-count]')).toHaveText('2 эфира');
+  await expect(page.locator('.explorer-row').first()).toContainText('по городу');
+  await page.locator('.explorer-row-name').first().click();
+  await expect(page.locator('.source-preview-title')).toContainText('Moscow · по городу');
+  expect(await audioSrc(page)).toBeNull();
+  await page.locator('[data-selected-play]').click();
+  await expect.poll(() => audioSrc(page)).toBe(stations[0].url_resolved);
+});
 const panelHeight = (page: Page) => page.locator('.explorer-panel').evaluate((el) => Math.round(el.getBoundingClientRect().height));
 const assertTargets = async (page: Page) => {
   const small = await page.evaluate(() =>
