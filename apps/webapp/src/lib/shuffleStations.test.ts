@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reshuffleQueueSnapshot, shuffleStations } from './shuffleStations';
+import { reshuffleQueueSnapshot, shuffleStations, upcomingCount } from './shuffleStations';
 import type { StationLite } from '../types';
 import type { QueueSnapshot } from '../state/radio/types';
 
@@ -67,9 +67,30 @@ describe('reshuffleQueueSnapshot (never-auto-switch invariants)', () => {
   });
 
   it('preserves the full member set (no station added or dropped)', () => {
-    const snap = snapshot({ currentIndex: 3 });
+    const snap = snapshot({ currentIndex: 1 });
     const next = reshuffleQueueSnapshot(snap, reverse);
     expect(ids(next.items).sort()).toEqual(ids(snap.items).sort());
+  });
+
+  it('reorders ONLY the upcoming part: played stations never land after the playing one', () => {
+    // Q-3 of docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md. Mutation this
+    // answers: pinning the playing item and shuffling everything else gives
+    // ['e', 'd', 'c', 'a', 'b'] here — A and B, already played, would come up
+    // again as «next».
+    const snap = snapshot({ currentIndex: 2 });
+    const next = reshuffleQueueSnapshot(snap, reverse);
+    expect(ids(next.items)).toEqual(['a', 'b', 'c', 'e', 'd']);
+    expect(next.currentIndex).toBe(2);
+  });
+
+  it('leaves the queue alone when fewer than two stations are ahead', () => {
+    const last = snapshot({ currentIndex: 4 });
+    expect(reshuffleQueueSnapshot(last, reverse)).toBe(last);
+    const oneAhead = snapshot({ currentIndex: 3 });
+    expect(reshuffleQueueSnapshot(oneAhead, reverse)).toBe(oneAhead);
+    expect(upcomingCount(last)).toBe(0);
+    expect(upcomingCount(oneAhead)).toBe(1);
+    expect(upcomingCount(snapshot({ currentIndex: -1 }))).toBe(5);
   });
 
   it('is a no-op for a 0/1-item queue', () => {

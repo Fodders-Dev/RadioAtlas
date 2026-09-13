@@ -58,8 +58,10 @@ const playCurrent = async (page: Page) => {
   await expect(page.locator('.player-dock-bar')).toBeVisible();
 };
 
+// «Перемешать следующие»: since 13.09 the chip reorders only the stations
+// AHEAD of the playing one (docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md, Q-3).
 const shuffleChip = (page: Page) =>
-  page.getByRole('button', { name: /Перемешать очередь|Shuffle the queue/ });
+  page.getByRole('button', { name: /Перемешать следующие|Shuffle the upcoming/ });
 
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);

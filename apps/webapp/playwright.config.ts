@@ -101,7 +101,10 @@ export default defineConfig({
       env: {
         ...process.env,
         VITE_API_PROXY_PORT: String(API_PORT),
-        VITE_GOOGLE_CLIENT_ID: 'test-google-client'
+        VITE_GOOGLE_CLIENT_ID: 'test-google-client',
+        // A bot name so the recording entry exists under test; the specs stub
+        // window.open and check the deep link, they never reach Telegram.
+        VITE_TG_BOT: 'radioatlas_e2e_bot'
       }
     }
   ]

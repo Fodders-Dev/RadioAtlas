@@ -31,17 +31,30 @@ const orderEquals = (left: StationLite[], right: StationLite[]) =>
   left.every((item, index) => item.stationuuid === right[index]?.stationuuid);
 
 /**
- * Queue-safe reshuffle. Pins the currently-playing item (`items[currentIndex]`),
- * shuffles ONLY the remaining items, then re-inserts the pinned item at the
- * SAME index — so `currentIndex` keeps pointing at the exact same station and
- * nothing about playback changes (never-auto-switch, PR #86). `sourceId` and
- * `sourceLabel` are carried through untouched.
+ * How many stations are still AHEAD of the playing one. With nothing playing
+ * the whole queue is ahead. «Перемешать следующие» needs at least two of them
+ * to mean anything, and the UI hides the action below that.
+ */
+export const upcomingCount = ({ items, currentIndex }: Pick<QueueSnapshot, 'items' | 'currentIndex'>): number =>
+  currentIndex >= 0 && currentIndex < items.length ? items.length - currentIndex - 1 : items.length;
+
+/**
+ * «Перемешать следующие»: reorders ONLY the items after `currentIndex`.
  *
- * Pure: returns a new snapshot, performs NO playback side effects.
+ * Everything up to and including the playing station keeps its place — the
+ * played part is the session's history and the listener can step back through
+ * it; the playing station stays under `currentIndex` so nothing about playback
+ * changes (never-auto-switch, PR #86). The earlier version pinned the playing
+ * item and shuffled everything else, which let already-played stations land
+ * in the upcoming part: `[A, B, C*, D, E]` could become `[E, D, C*, A, B]`.
  *
- * If the shuffle happens to reproduce the original order it re-rolls ONCE; with
- * a very small queue (e.g. a single shuffleable item) the order can be
- * unavoidably identical — the caller still surfaces feedback to the user.
+ * Pure: returns a new snapshot, performs NO playback side effects. `sourceId`
+ * and `sourceLabel` are carried through untouched.
+ *
+ * With fewer than two upcoming items there is nothing to reorder and the
+ * snapshot comes back as is. If the shuffle reproduces the original order it
+ * re-rolls ONCE; two items can still come back identical — the caller surfaces
+ * feedback either way.
  *
  * `shuffle` is injected so tests can drive a deterministic permutation.
  */
@@ -62,17 +75,13 @@ export const reshuffleQueueSnapshot = (
     return { ...snapshot, items: reordered };
   }
 
-  const pinned = items[pinnedIndex];
-  const rest = items.filter((_, index) => index !== pinnedIndex);
-  const build = (shuffledRest: StationLite[]) => {
-    const next = [...shuffledRest];
-    next.splice(pinnedIndex, 0, pinned);
-    return next;
-  };
+  const played = items.slice(0, pinnedIndex + 1);
+  const upcoming = items.slice(pinnedIndex + 1);
+  if (upcoming.length < 2) return snapshot;
 
-  let reordered = build(shuffle(rest));
-  if (orderEquals(reordered, items)) reordered = build(shuffle(rest));
+  let reorderedTail = shuffle(upcoming);
+  if (orderEquals(reorderedTail, upcoming)) reorderedTail = shuffle(upcoming);
 
-  // currentIndex is unchanged on purpose: the pinned item sits at the same slot.
-  return { ...snapshot, items: reordered, currentIndex: pinnedIndex };
+  // currentIndex is unchanged on purpose: the played part is byte-identical.
+  return { ...snapshot, items: [...played, ...reorderedTail], currentIndex: pinnedIndex };
 };

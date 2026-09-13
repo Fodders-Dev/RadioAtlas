@@ -238,6 +238,20 @@ test('feed player captures, keeps the shared sleep timer and switches by deliber
   await expect(tools).toBeVisible();
   await tools.getByRole('slider').focus(); await page.keyboard.press('ArrowLeft');
   expect(await audioSrc(page)).toBe(source);
+  // REC-1 (docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md): «Записать эфир» hands
+  // THIS tray's station to the bot's /record flow (`start=rec_`, never
+  // `startapp`), and leaving for the bot plays and switches nothing. Outside
+  // Telegram the deep link goes through window.open, stubbed here.
+  await page.evaluate(() => {
+    (window as unknown as { __opened: string[] }).__opened = [];
+    window.open = ((url: string | URL) => { (window as unknown as { __opened: string[] }).__opened.push(String(url)); return null; }) as typeof window.open;
+  });
+  const trayStation = await page.evaluate(() => document.querySelector('.station-feed-card-content[data-focus="true"]')?.closest('[data-feed-station]')?.getAttribute('data-feed-station'));
+  expect(trayStation).toBeTruthy();
+  await tools.locator('[data-feed-record]').click();
+  expect(await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([`https://t.me/radioatlas_e2e_bot?start=rec_${trayStation}`]);
+  expect(await audioSrc(page)).toBe(source);
+  await expect(activeCard()).toHaveCount(1);
   await page.screenshot({ path: '../../output/playwright/calm/feed-tools.png' });
   await tools.locator('.feed-tools-close').click();
   await expect(tools).toHaveCount(0);

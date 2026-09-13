@@ -18,7 +18,7 @@ import {
   type LibrarySearchSource
 } from '../lib/librarySearch';
 import { stationsForRegions } from '../lib/regionRecommendations';
-import { shuffleStations } from '../lib/shuffleStations';
+import { shuffleStations, upcomingCount } from '../lib/shuffleStations';
 import { orderStationsByPlayability } from '../lib/stationPlayability';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { useDialog } from '../lib/useDialog';
@@ -1092,7 +1092,7 @@ export const Library = () => {
                 </div>
 
                 <div className="chip-row library-queue-actions">
-                  {queue.items.length > 1 ? (
+                  {upcomingCount(queue) >= 2 ? (
                     <button
                       className="chip"
                       type="button"

@@ -95,7 +95,7 @@ import { useLocale } from './LocaleContext';
 import { useSession } from './SessionContext';
 import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { usePersistentState } from '../lib/persistentState';
-import { reshuffleQueueSnapshot } from '../lib/shuffleStations';
+import { reshuffleQueueSnapshot, upcomingCount } from '../lib/shuffleStations';
 import { buildQueueCollection } from '../lib/queueToCollection';
 import {
   DEFAULT_APP_STATE,
@@ -2657,14 +2657,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       },
       shuffleQueue: () => {
         const currentQueue = queueRef.current;
-        // Nothing to shuffle for a 0/1-item queue (the chip is disabled there
-        // too — this is the belt-and-braces guard).
-        if (currentQueue.items.length <= 1) return;
-        // Reorder ONLY the upcoming items: reshuffleQueueSnapshot pins the
-        // playing item at its current index, so playback is untouched
-        // (never-auto-switch, PR #86). Persist via updateQueue ONLY — NO play*
-        // call here, so the audio element, recent log and play_attempt analytics
-        // are never touched. sourceId/sourceLabel are carried through.
+        // «Перемешать следующие» needs two stations ahead of the playing one
+        // (the chip is hidden below that — this is the belt-and-braces guard).
+        if (upcomingCount(currentQueue) < 2) return;
+        // Reorder ONLY the upcoming items: reshuffleQueueSnapshot keeps the
+        // played part and the playing station exactly where they are, so
+        // playback and the Previous history are untouched (never-auto-switch,
+        // PR #86). Persist via updateQueue ONLY — NO play* call here, so the
+        // audio element, recent log and play_attempt analytics are never
+        // touched. sourceId/sourceLabel are carried through.
         updateQueue(reshuffleQueueSnapshot(currentQueue));
         reportProductEvent(
           'queue_shuffle',

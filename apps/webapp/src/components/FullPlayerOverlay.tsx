@@ -24,6 +24,7 @@ import {
   canShareToStory,
   openLinkOrFallback,
   openStationRecording,
+  recordingAvailable,
   shareStationToStory,
   triggerHaptic
 } from '../lib/telegram';
@@ -407,7 +408,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
 
   // PR-6: live pill on the mobile identity block — same status derivation as the
   // dock (buffering with recent transport failures reads as a reconnect).
-  const recordAvailable = Boolean(import.meta.env.VITE_TG_BOT);
+  const recordAvailable = recordingAvailable();
   const livePillState =
     current && player.status === 'buffering'
       ? {

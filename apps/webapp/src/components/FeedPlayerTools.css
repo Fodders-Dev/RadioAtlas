@@ -13,5 +13,6 @@
 .feed-tools-heading output { font-size: 13px; }.feed-tools-volume { display: block; margin: 20px 0; }
 .feed-tools-volume span { display: flex; justify-content: space-between; font-size: 14px; }.feed-tools-volume input { width: 100%; min-height: 44px; accent-color: var(--accent); }
 .feed-tools-links { border-top: 1px solid var(--border); }.feed-tools-links button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 50px; text-align: left; border: 0; border-bottom: 1px solid var(--border); background: none; font-size: 14px; }
-.feed-tools-links button span { color: var(--muted); }.feed-tools-row { border: 0; background: none; width: 100%; text-align: left; font-size: 13px !important; }
+.feed-tools-links button span { color: var(--muted); }
+.feed-tools-hint { margin: 0; padding: 8px 0 10px; border-bottom: 1px solid var(--border); font-size: 12px; line-height: 1.5; color: var(--muted); }.feed-tools-row { border: 0; background: none; width: 100%; text-align: left; font-size: 13px !important; }
 .feed-tools-details { font-size: 13px; }.feed-tools-details summary { min-height: 48px; align-content: center; cursor: pointer; }.feed-tools-details p { color: var(--muted); overflow-wrap: anywhere; }

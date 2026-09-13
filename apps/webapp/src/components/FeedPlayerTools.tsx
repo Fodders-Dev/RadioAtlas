@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDialog } from '../lib/useDialog';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
+import { openStationRecording, recordingAvailable } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
@@ -38,6 +39,16 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
         <button onClick={() => queue.enqueue(station)}>{t('feed.addToQueue')} <span>＋</span></button>
         <button onClick={() => openLibrary('queue')}>{t('winamp.queue')} <span>{queue.items.length} ↗</span></button>
         <button onClick={() => openLibrary('tracks')}>{t('calm.finds')} <span>↗</span></button>
+        {/* Recording (the bot's /record flow, 5/15/30 min, the file lands in the
+            bot chat) lost its entry when the tray replaced the old player. Same
+            deep link, same gate; the station is the one this tray was opened
+            for, and leaving for the bot never plays or switches anything. */}
+        {recordingAvailable() ? (
+          <>
+            <button onClick={() => openStationRecording(station.stationuuid)} data-feed-record>{t('winamp.record')} <span>↗</span></button>
+            <p className="feed-tools-hint">{t('feed.recordHint')}</p>
+          </>
+        ) : null}
         <button onClick={() => shareStation(station)}>{t('feed.share')} <span>↗</span></button>
         <button onClick={() => openExternal(station)}>{t('calm.openStream')} <span>↗</span></button>
       </div>

@@ -295,6 +295,11 @@ export const makeRecordDeepLink = (botUsername: string, stationId: string) => {
   return `https://t.me/${safeBot}?start=rec_${stationId}`;
 };
 
+// Recording exists only where a bot is configured at build time — the same
+// gate the old player used, now shared with the Feed's «Ещё» tray.
+export const recordingAvailable = (): boolean =>
+  Boolean((import.meta.env.VITE_TG_BOT as string | undefined)?.trim());
+
 // Open the bot's recording flow for a station. Returns false (no-op) if the bot
 // username isn't configured, so the caller can hide the button.
 export const openStationRecording = (stationId: string): boolean => {
