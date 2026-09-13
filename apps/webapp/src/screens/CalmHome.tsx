@@ -5,7 +5,7 @@ import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
 import { isAiAssistantEnabled } from '../lib/aiChat';
-import { formatCountryLabel, normalizeStationName, stationTags } from '../lib/stationUtils';
+import { formatCountryLabel, normalizeStationName } from '../lib/stationUtils';
 import { calmGenreGroups } from '../lib/calmDiscoveries';
 import { stationGenreFamily, type GenreFamily } from '../lib/stationGenre';
 import type { ShelfSnapshot } from './CalmCatalogShelf';
@@ -48,7 +48,7 @@ type Sheet =
   | null;
 
 type LiveFilter = 'all' | 'favorites' | 'recent' | GenreFamily;
-const LIVE_PAGE = 12;
+const LIVE_PAGE = 10;
 
 type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; shown: number } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
@@ -149,7 +149,8 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const storyWord = (story: CalmStory) => t(`journal.stories.${story.copyKey}.poster`);
   const stories = useMemo(() => visit.stories.slice(1), [visit.stories]);
   const offerName = normalizeStationName(offer.name);
-  const offerLine = [formatCountryLabel(offer.country), stationTags(offer, '')].filter(Boolean).join(' · ');
+  const offerFamily = stationGenreFamily(offer);
+  const offerLine = [localizedCountry(offer, locale), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ');
 
   return <div className="calm-home calm-journal" data-calm-home>
     {sheet?.kind === 'trail' && <CalmBrowseSheet title={sheet.title} kicker={t('journal.crossroads.kicker')} query={sheet.query} picks={sheet.picks} cache={discovery.shelves} source="home-trail" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
@@ -168,29 +169,43 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       </div>
     </header>
 
+    {/* One line for the air: idle, the one button and what it starts; on air
+        or paused, a status line — the mini player below is the control. */}
+    <div className={`calm-air-line ${listener ? 'is-loaded' : ''}`.trim()} data-calm-offer={offer.stationuuid} data-calm-air={onAir ? 'on' : listener ? 'paused' : 'idle'}>
+      {listener ? (
+        <button className="calm-air-now" onClick={() => onFeed(listener)} aria-label={t('journal.listening')}>
+          <StationArtwork station={offer} size="sm" className="calm-air-art" />
+          <span><small>{onAir ? t('journal.nowOnAir') : t('journal.nowPaused')}</small><strong>{offerName}</strong>{liveTrack ? <em>{liveTrack}</em> : <em>{offerLine}</em>}</span>
+          <Icon d={ARROW} />
+        </button>
+      ) : (
+        <>
+          <button className="calm-primary" aria-label={`${t('journal.play')}: ${offerName}`} onClick={() => onPlay(offer, [offer, ...visit.starters], 'home-calm')}>
+            <span aria-hidden="true">▶</span>{t('journal.play')}
+          </button>
+          <button className="calm-air-offer" onClick={() => setSource(offer)} aria-label={t('journal.sourceOpen', { name: offerName })}>
+            <StationArtwork station={offer} size="sm" className="calm-air-art" />
+            <span><small>{t('journal.nowOffer')}</small><strong>{offerName}</strong><em>{offerLine}</em></span>
+          </button>
+        </>
+      )}
+    </div>
+
     <div className="calm-home-columns">
       <div className="calm-home-lead">
-        <section className="calm-now calm-glass" data-calm-offer={offer.stationuuid} aria-label={onAir ? t('journal.nowOnAir') : t('journal.nowOffer')}>
-          <button className="calm-now-source" data-live={onAir || undefined} onClick={() => setSource(offer)} aria-label={t('journal.sourceOpen', { name: offerName })}>
-            <StationArtwork station={offer} size="md" className="calm-now-art" />
-            <span>
-              <small>{onAir ? t('journal.nowOnAir') : listener ? t('journal.nowPaused') : t('journal.nowOffer')}</small>
-              <strong>{offerName}</strong>
-              <span>{offerLine}</span>
-              <em>{liveTrack || ' '}</em>
-            </span>
+        {/* The two ways to change the sound, drawn as doors: the Feed's own
+            art and the Globe's poster. */}
+        <section className="calm-section calm-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
+          <button className="calm-door calm-door-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}>
+            <span className="calm-door-art" aria-hidden="true"><i /></span>
+            <span className="calm-door-caption"><b>{t('journal.entryFeed')}</b><small>{t('journal.entryFeedCopy')}</small></span>
+            <Icon d={ARROW} />
           </button>
-          <div className="calm-now-actions">
-            <button className="calm-primary" aria-label={onAir ? t('journal.listening') : `${t('journal.play')}: ${offerName}`} onClick={() => (onAir ? onFeed(offer) : onPlay(offer, listener ? [offer] : [offer, ...visit.starters], 'home-calm'))}>
-              <span aria-hidden="true">{onAir ? '↗' : '▶'}</span>{onAir ? t('calm.listening') : t('journal.play')}
-            </button>
-            <button className="calm-entry" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}>
-              <Icon d={FEED_ICON} /><span><strong>{t('journal.entryFeed')}</strong><small>{t('journal.entryFeedCopy')}</small></span>
-            </button>
-            <button className="calm-entry" data-calm-entry="globe" onClick={() => setActiveSection('globe')}>
-              <Icon d={GLOBE_ICON} /><span><strong>{t('journal.entryGlobe')}</strong><small>{t('journal.entryGlobeCopy')}</small></span>
-            </button>
-          </div>
+          <button className="calm-door calm-door-globe" data-calm-entry="globe" onClick={() => setActiveSection('globe')}>
+            <span className="calm-door-art" aria-hidden="true"><CalmPoster art="world" word={t('journal.entryGlobeWord')} /></span>
+            <span className="calm-door-caption"><b>{t('journal.entryGlobe')}</b><small>{t('journal.entryGlobeCopy')}</small></span>
+            <Icon d={ARROW} />
+          </button>
         </section>
 
         {ai && <div className="calm-welcome">
@@ -199,7 +214,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
             <span><strong>{t('journal.liraName')}</strong><span>{t('journal.liraLine')}</span></span>
           </button>
         </div>}
-
       </div>
 
       <div className="calm-home-body">
@@ -208,16 +222,18 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           <div className="calm-live-chips" role="group" aria-label={t('journal.liveTitle')}>
             {liveChips.map((chip) => <button key={chip.id} className="calm-chip" aria-pressed={liveFilter === chip.id} data-calm-live-filter={chip.id} onClick={() => selectLive(chip.id)}>{chip.label} · {chip.count}</button>)}
           </div>
-          <div className="calm-live-grid">
-            {liveVisible.map((s) => {
+          <div className="calm-live-list">
+            {liveVisible.map((s, index) => {
               const current = listener?.stationuuid === s.stationuuid;
               const name = normalizeStationName(s.name);
-              return <article key={s.stationuuid} className="calm-live-tile" data-calm-live-station={s.stationuuid} data-current={current || undefined}>
+              const family = stationGenreFamily(s);
+              const meta = [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
+              return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined}>
                 <button className="calm-live-open" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
+                  <span className="calm-live-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                   <StationArtwork station={s} size="sm" className="calm-row-art" />
-                  <span><strong>{name}</strong><small>{formatCountryLabel(s.country)}</small></span>
+                  <span><strong>{name}</strong><small>{meta}</small></span>
                 </button>
-                <span className="calm-live-tags">{stationTags(s, '')}</span>
                 <button className="calm-icon calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, liveVisible, 'home-live'); }} aria-label={current && player.isPlaying ? t('common.pause') : t('journal.playStation', { name })}>
                   {current && player.isPlaying ? <Icon d="M8 5h3v14H8zM13 5h3v14h-3z" /> : <Icon d="M7 4l12 8-12 8V4z" />}
                 </button>

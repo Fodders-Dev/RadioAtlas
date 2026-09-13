@@ -407,13 +407,15 @@
   .app-shell-v2[data-calm='true'] .calm-home { max-width: 1120px; padding-top: 24px; padding-left: 28px; padding-right: 28px; }
   .app-shell-v2[data-calm='true'] .calm-home-columns { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: start; }
   .app-shell-v2[data-calm='true'] .calm-home-lead { position: sticky; top: 20px; }
+  .app-shell-v2[data-calm='true'] .calm-doors { grid-template-columns: 1fr; }
+  .app-shell-v2[data-calm='true'] .calm-door { min-height: 190px; }
+  .app-shell-v2[data-calm='true'] .calm-air-line { max-width: 640px; }
   .app-shell-v2[data-calm='true'] .calm-home-lead .calm-section:first-child { margin-top: 0; }
   .app-shell-v2[data-calm='true'] .calm-home-body > .calm-section:first-child { margin-top: 0; }
   /* Inside the body column the rails no longer bleed to the screen edges. */
   .app-shell-v2[data-calm='true'] .calm-home-body { min-width: 0; overflow-x: clip; }
   .app-shell-v2[data-calm='true'] .calm-home-body :is(.calm-story-rail, .calm-live-chips) { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; scroll-padding-inline: 0; }
   .app-shell-v2[data-calm='true'] .calm-home-body .calm-lead { grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); }
-  .app-shell-v2[data-calm='true'] .calm-live-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .app-shell-v2[data-calm='true'] .calm-country-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   /* Лента and Лира are body portals: on a wide window they take the content
      column and leave the dock reachable. */
@@ -486,46 +488,56 @@
 .app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(small, p, .calm-section-copy, .calm-station-row small) { color: var(--calm-secondary); }
 .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption strong, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption small { color: #3e3025; }
 
-/* ===== Home rebuilt around one start and a big open choice
-   (docs/DISCOVERY-DIRECTION-2026-09-13.md). The «now» card is the station
-   the button will start (or the one on air, with its live track), and the
-   two entries under it are the ways to change the sound: swipe the Feed,
-   pick a dot on the Globe. Then the choice itself: a grid of real stations
-   with quick narrowings, and more on demand. */
-.calm-now { position: relative; margin: 0 0 10px; padding: 14px 14px 12px; border-radius: 26px; display: grid; gap: 12px; }
-.calm-now-source { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 56px; text-align: left; }
-.calm-now-source > span { display: grid; gap: 2px; min-width: 0; }
-.calm-now-source small { font-size: 9px; letter-spacing: 1.4px; font-weight: 700; text-transform: uppercase; color: var(--calm-secondary); }
-.calm-now-source[data-live='true'] small { color: var(--accent); }
-.calm-now-source strong { font-size: 19px; line-height: 1.15; letter-spacing: -.5px; overflow-wrap: anywhere; }
-.calm-now-source > span > span { font-size: 12px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-now-source em { display: block; min-height: 18px; font-style: normal; font-size: 12px; line-height: 18px; color: var(--calm-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-now-art { width: 60px; height: 60px; flex: 0 0 60px; border-radius: 18px; }
-.calm-now-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.calm-now-actions .calm-primary { grid-column: 1 / -1; min-height: 50px; font-size: 14px; }
-.calm-entry { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 12px 0 10px; border-radius: 18px; border: 1px solid var(--calm-edge); background: linear-gradient(145deg, color-mix(in srgb, white 46%, transparent), color-mix(in srgb, white 10%, transparent)), var(--calm-surface); box-shadow: inset 0 1px 1px var(--calm-glint); text-align: left; min-width: 0; }
-.calm-entry svg { width: 24px; height: 24px; flex: 0 0 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--accent); }
-.calm-entry > span { display: grid; gap: 1px; min-width: 0; }
-.calm-entry strong { font-size: 13px; }
-.calm-entry small { font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-home .calm-welcome { margin: 0 0 6px; min-height: 40px; }
-.calm-live-chips { display: flex; gap: 6px; margin: 0 -20px 12px; padding: 2px 20px 4px; overflow-x: auto; scrollbar-width: none; }
+/* ===== Home around one line of air, two doors and a dense choice
+   (docs/DISCOVERY-DIRECTION-2026-09-13.md, owner's notes 14.09). The air is
+   one line — idle: the button and what it starts; on air: a status the mini
+   player controls. The two doors are drawn: the Feed's own art and the
+   Globe's poster. The choice is a dense numbered list — small art, one
+   line of name, a short place and a genre family — never raw tags. */
+.calm-air-line { display: flex; align-items: center; gap: 10px; min-height: 56px; margin: 0 0 14px; }
+.calm-air-line .calm-primary { min-height: 48px; padding: 0 18px; font-size: 14px; }
+.calm-air-offer, .calm-air-now { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; min-height: 56px; text-align: left; }
+.calm-air-offer > span, .calm-air-now > span { display: grid; gap: 1px; min-width: 0; }
+.calm-air-line small { font-size: 9px; letter-spacing: 1.3px; font-weight: 700; text-transform: uppercase; color: var(--calm-secondary); }
+.calm-air-line[data-calm-air='on'] small { color: var(--accent); }
+.calm-air-line strong { font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-air-line em { font-style: normal; font-size: 11px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-air-art { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 13px; }
+.calm-air-now > svg { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; color: var(--accent); }
+.calm-home .calm-welcome { margin: 10px 0 0; min-height: 40px; }
+
+.calm-doors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0; }
+.calm-door { position: relative; display: grid; grid-template-rows: 1fr auto; min-height: 176px; border-radius: 22px; overflow: hidden; text-align: left; color: #fff4e6; isolation: isolate; box-shadow: 0 13px 18px -13px #63392388, inset 0 1px 0 #fff5; }
+.calm-door-art { position: absolute; inset: 0; z-index: 0; }
+.calm-door-feed .calm-door-art { background: linear-gradient(165deg, #d5864988, #c9743633 40%, #4e251dcc), url(/images/calm/sound-glass.webp) 60% center / cover; }
+.calm-door-feed .calm-door-art i { position: absolute; left: 12px; top: 10px; font: italic 44px/.9 var(--calm-serif); letter-spacing: -2px; color: #fff0d3b0; }
+.calm-door-feed .calm-door-art i::before { content: 'слушай.'; }
+:root[lang='en'] .calm-door-feed .calm-door-art i::before { content: 'listen.'; }
+.calm-door-globe .calm-door-art .calm-poster { height: 100%; border-radius: 0; }
+.calm-door-caption { position: relative; z-index: 1; grid-row: 2; align-self: end; display: grid; gap: 2px; padding: 26px 40px 12px 12px; background: linear-gradient(transparent, #2a181566 40%, #2a1815cc); }
+.calm-door-caption b { font-size: 16px; letter-spacing: -.3px; }
+.calm-door-caption small { font-size: 10px; color: #ffe6cdcc; }
+.calm-door > svg { position: absolute; right: 12px; bottom: 14px; z-index: 2; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.calm-door-globe { color: #3e3025; }
+.calm-door-globe .calm-door-caption { background: linear-gradient(transparent, #fff3e066 40%, #fff3e0e6); }
+.calm-door-globe .calm-door-caption small { color: #6b5545; }
+
+.calm-live-chips { display: flex; gap: 6px; margin: 0 -20px 6px; padding: 2px 20px 4px; overflow-x: auto; scrollbar-width: none; }
 .calm-live-chips::-webkit-scrollbar { display: none; }
 .calm-live-chips .calm-chip { flex: 0 0 auto; min-height: 44px; padding: 0 13px; font-size: 11px; white-space: nowrap; }
 .calm-live-chips .calm-chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink, #fff3e3); border-color: transparent; }
-.calm-live-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.calm-live-tile { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 6px; min-height: 104px; padding: 10px 10px 10px 12px; border-radius: 20px; border: 1px solid var(--calm-line); background: color-mix(in srgb, var(--bg) 58%, white 14%); box-shadow: 0 7px 15px -12px #63392366; min-width: 0; }
-:root[data-theme-mode='dark'] .calm-live-tile { background: color-mix(in srgb, var(--bg) 78%, white 6%); }
-.calm-live-tile[data-current='true'] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 7px 15px -12px #63392366; }
-.calm-live-open { grid-column: 1 / -1; display: grid; grid-template-columns: 44px 1fr; gap: 9px; align-items: center; min-width: 0; text-align: left; }
-.calm-live-open .calm-row-art { width: 44px; height: 44px; border-radius: 14px; }
+.calm-live-list { display: grid; }
+.calm-live-row { display: flex; align-items: center; gap: 6px; min-height: 58px; border-bottom: 1px solid var(--calm-line); }
+.calm-live-row[data-current='true'] { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
+.calm-live-open { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; min-height: 56px; text-align: left; }
+.calm-live-index { flex: 0 0 22px; font: italic 13px/1 var(--calm-serif); color: var(--calm-secondary); }
+.calm-live-open .calm-row-art { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; }
 .calm-live-open > span { display: grid; gap: 2px; min-width: 0; }
-.calm-live-open strong { font-size: 13px; line-height: 1.2; letter-spacing: -.2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.calm-live-open small { font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-live-tile .calm-row-play { grid-column: 2; grid-row: 2; justify-self: end; width: 44px; height: 44px; flex-basis: 44px; margin: -2px -2px -2px 0; }
-.calm-live-tile .calm-live-tags { grid-column: 1; grid-row: 2; align-self: center; font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-live-open strong { font-size: 14px; line-height: 1.2; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-live-open small { font-size: 11px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-live-row .calm-row-play { flex: 0 0 44px; }
 .calm-live-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 .calm-live-foot small { font-size: 11px; color: var(--calm-secondary); }
 .calm-more-live { min-height: 44px; padding: 0 16px; border-radius: 24px; border: 1px solid var(--calm-edge); background: var(--calm-glass); color: var(--calm-ink); font-size: 12px; font-weight: 650; box-shadow: inset 0 1px 1px var(--calm-glint); }
-@media (max-width: 350px) { .calm-live-grid { grid-template-columns: 1fr; } .calm-now-actions { grid-template-columns: 1fr; } .calm-live-chips { margin: 0 -16px 12px; padding: 2px 16px 4px; } }
-@media (min-width: 600px) { .calm-live-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 350px) { .calm-doors { grid-template-columns: 1fr; } .calm-door { min-height: 140px; } .calm-live-chips { margin: 0 -16px 6px; padding: 2px 16px 4px; } }
+@media (min-width: 600px) { .calm-live-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } .calm-door { min-height: 200px; } }

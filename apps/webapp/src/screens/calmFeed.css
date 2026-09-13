@@ -154,3 +154,14 @@
 /* The end of a personal queue: the hint's place, a real button. */
 .calm-queue-end { pointer-events: auto; cursor: pointer; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid #ffebcc40; background: #6a453640; color: #ffe9cf; font: inherit; font-size: 11px; letter-spacing: .2px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .calm-queue-end b { color: #ffd2a8; font-weight: 700; }
+
+/* From 900px the Feed is a framed stage in the column, not a wall of art:
+   the scroller is a rounded card of bounded size, the cards fill it (the
+   pager divides by the scroller's height, so the card height follows it). */
+@media (min-width: 900px) {
+  .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop { background: #2c1b16; }
+  .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-scroller { inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(100% - 48px, 1040px); height: min(100vh - 48px, 680px); border-radius: 30px; overflow-y: auto; box-shadow: 0 30px 80px -30px #000c, inset 0 1px 0 #fff3; }
+  .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-card { height: 100%; }
+  .station-feed-overlay[data-feed-player='true'] .calm-slide-story { bottom: 72px; }
+  .station-feed-overlay[data-feed-player='true'] .calm-swipe-hint { bottom: 40px; }
+}
