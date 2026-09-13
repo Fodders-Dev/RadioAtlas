@@ -12,6 +12,14 @@ warm musical character, rich discovery, and Feed as the expanded player.
 These requirements apply even when the latest message only asks for a small
 visual correction. Existing screenshots and the current DOM are not the target.
 
+Before presenting UI as a design proposal or a finished result, apply the
+mandatory multi-perspective review in **DESIGN-DIRECTION.md §0**. Inspect the
+rendered screen yourself, record concrete failures and fix them before the
+presentation. Passing tests, a second model's agreement or a screenshot capture
+are not design approval. Diagnostic baseline images must be explicitly labelled
+as broken/current state, with the defects identified; never present them as a
+successful design iteration.
+
 It says what this product IS — the core surface, the three pillars, and what we
 deliberately do not do. Every change answers one question before it is written:
 **which pillar does this serve, and what will a listener see differently?** If
