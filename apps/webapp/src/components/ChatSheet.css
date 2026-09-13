@@ -1277,7 +1277,7 @@
    the light still fills the column. The bottom clearance is the mini
    player's alone, there is no bar there. */
 @media (min-width: 900px) {
-  .chat-sheet[data-calm='true'] { left: 260px; --lira-gutter: max(28px, calc(50% - 370px)); }
+  .chat-sheet[data-calm='true'] { left: calc(var(--calm-dock-w, 92px) + 20px); --lira-gutter: max(28px, calc(50% - 370px)); }
   .chat-sheet[data-calm='true'] .chat-sheet-head { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
   .chat-sheet[data-calm='true'] .chat-sheet-thread { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
   .chat-sheet[data-calm='true'] .chat-prompts-row { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }

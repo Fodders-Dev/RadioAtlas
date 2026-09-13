@@ -475,6 +475,17 @@ export const StationFeed = () => {
   // Filter state is LOCAL to this screen — never Shell/Radio state. It resets per
   // open, and nothing outside the overlay re-renders when it changes.
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('picks');
+  // Under calm the listener's own queue IS the Feed's deck whenever there is
+  // one (Q-1 of docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md): the order of
+  // what they chose, at their real position, continued by swipes, the mini
+  // player and the headphones alike. The recommendation deck is the other
+  // context, chosen deliberately with a filter chip — never by opening.
+  // «Включай» snapshots the offer and two starters under `home-calm`; that is
+  // a start, not a chosen set, so it opens on the discovery deck (measured
+  // 13.09: a 2-card queue dead-ended the first swipe on a failing stream).
+  const personalQueue = CALM_PREVIEW && queue.items.length >= 3 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
+  const [context, setContext] = useState<'queue' | 'discovery'>(() => (personalQueue ? 'queue' : 'discovery'));
+  const queueMode = context === 'queue' && Boolean(personalQueue);
   // The calm Feed opens on the station, not on the chips; the toggle still opens them.
   const [filtersOpen, setFiltersOpen] = useState(!CALM_PREVIEW);
 
@@ -657,9 +668,10 @@ export const StationFeed = () => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const kickstartedRef = useRef(false);
+  const queueItems = personalQueue?.items ?? null;
   const visibleFeedStations = useMemo(
-    () => feedStations.slice(0, Math.min(visibleLimit, feedStations.length)),
-    [feedStations, visibleLimit]
+    () => (queueMode && queueItems ? queueItems : feedStations.slice(0, Math.min(visibleLimit, feedStations.length))),
+    [feedStations, visibleLimit, queueMode, queueItems]
   );
 
   // geoResolver statically pulls d3-geo + topojson-client + a ~107KB countries
@@ -689,6 +701,10 @@ export const StationFeed = () => {
   feedRef.current = visibleFeedStations;
   const playStationRef = useRef(playStation);
   playStationRef.current = playStation;
+  // What a play from a card hands the player: in queue mode the queue's own
+  // list and identity (so it stays that queue, at the new index); in the
+  // discovery deck the deck under the Feed's name.
+  const playContextRef = useRef<() => { playlist: StationLite[]; sourceId?: string; sourceLabel?: string }>(() => ({ playlist: feedRef.current, sourceId: FEED_SOURCE_ID, sourceLabel: sourceLabelRef.current }));
   // The listener's station, on air OR restored-but-not-yet-playing. After a
   // reload the persisted station comes back as `pending`, and the calm Feed is a
   // navigation destination that persists, so a reload can land straight here:
@@ -722,11 +738,7 @@ export const StationFeed = () => {
           // Landing back on the current card must never restart it (#86), and
           // this backstops the seedPlayed guard for the open-on-current case.
           if (currentIdRef.current === station.stationuuid) return;
-          playStationRef.current(station, {
-            playlist: feedRef.current,
-            sourceId: FEED_SOURCE_ID,
-            sourceLabel: sourceLabelRef.current
-          });
+          playStationRef.current(station, playContextRef.current());
         }
       }),
     []
@@ -949,15 +961,27 @@ export const StationFeed = () => {
     },
     [feedFilter, settler]
   );
+  const selectContext = useCallback(
+    (next: 'queue' | 'discovery') => {
+      if (next === context) return;
+      settler.cancel();
+      kickstartedRef.current = false;
+      if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+      setVisibleIndex(0);
+      setContext(next);
+    },
+    [context, settler]
+  );
 
+  const playContext = () =>
+    queueMode && personalQueue
+      ? { playlist: personalQueue.items, sourceId: personalQueue.sourceId ?? undefined, sourceLabel: personalQueue.sourceLabel ?? undefined }
+      : { playlist: visibleFeedStations, sourceId: FEED_SOURCE_ID, sourceLabel };
+  playContextRef.current = playContext;
   const handleOpenPlayer = (station: StationLite) => {
     if (CALM_PREVIEW) { settler.cancel(); setToolsStation(station); return; }
     if (player.current?.stationuuid !== station.stationuuid) {
-      playStation(station, {
-        playlist: visibleFeedStations,
-        sourceId: FEED_SOURCE_ID,
-        sourceLabel
-      });
+      playStation(station, playContext());
     }
     setActiveSection('home');
     winamp.setExpanded(true);
@@ -969,11 +993,7 @@ export const StationFeed = () => {
       void player.toggle();
       return;
     }
-    playStation(station, {
-      playlist: visibleFeedStations,
-      sourceId: FEED_SOURCE_ID,
-      sourceLabel
-    });
+    playStation(station, playContext());
   };
 
   // Advancing via the peek strip is a DELIBERATE advance, i.e. semantically a
@@ -1037,7 +1057,7 @@ export const StationFeed = () => {
     noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
     idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed'),
     prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint'),
-    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'),
+    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'), queueEnd: t('journal.queueEnd'), queueContinue: t('journal.queueContinue'),
     sceneWords: {
       pop: t('journal.sceneWords.pop'), rock: t('journal.sceneWords.rock'), electronic: t('journal.sceneWords.electronic'), jazz: t('journal.sceneWords.jazz'),
       classical: t('journal.sceneWords.classical'), chill: t('journal.sceneWords.chill'), hiphop: t('journal.sceneWords.hiphop'), world: t('journal.sceneWords.world'),
@@ -1086,6 +1106,18 @@ export const StationFeed = () => {
   ];
   const activeChip = chips.find((chip) => chip.id === feedFilter);
   const activeChipLabel = activeChip?.label ?? '';
+  const queueTab = queueMode && personalQueue
+    ? t('journal.queueTab', { label: personalQueue.sourceLabel || t('journal.queueContext'), index: String(visibleIndex + 1), total: String(personalQueue.items.length) })
+    : personalQueue ? t('journal.discoverTab') : t('journal.feedLabel');
+  const contextChips = personalQueue
+    ? [{ id: 'queue', label: `${t('journal.queueContext')} · ${personalQueue.items.length}` }, ...chips]
+    : chips;
+  const activeContextChip = queueMode ? 'queue' : feedFilter;
+  const onContextChip = (id: string) => {
+    if (id === 'queue') { selectContext('queue'); return; }
+    selectContext('discovery');
+    handleSelectFilter(id as FeedFilter);
+  };
   // A chip tap is otherwise completely silent for a screen-reader user; focus
   // stays on the chip, so the result has to be announced — with a NOUN, because
   // a bare integer («Новое для тебя · 15») does not say 15 of what.
@@ -1239,7 +1271,8 @@ export const StationFeed = () => {
                     onStep={(delta) => stepBy(delta)}
                     canStep={{ prev: index > 0, next: index < visibleFeedStations.length - 1 }}
                     timer={{ label: sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '', active: sleepTimer.active, onOpen: () => { settler.cancel(); setTimerOpen(true); } }}
-                    labels={calmLabels}
+                    labels={{ ...calmLabels, tab: queueTab }}
+                    onContinue={queueMode ? () => onContextChip('picks') : undefined}
                   />
                 ) : windowed ? (
                   <FeedCard
@@ -1300,5 +1333,5 @@ export const StationFeed = () => {
     </div>
   );
 
-  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips, active: feedFilter, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); handleSelectFilter(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
+  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips: contextChips, active: activeContextChip, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); onContextChip(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
 };

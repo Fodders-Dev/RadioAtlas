@@ -67,7 +67,11 @@ const richCatalogue = async (page: Page, options: { failFirstSearch?: boolean } 
   await page.route('**/catalog/search**', (route: Route) => {
     const params = new URL(route.request().url()).searchParams;
     requests.push(params);
-    if (!failed) { failed = true; return route.fulfill({ status: 502, body: '{}' }); }
+    // The failure is aimed at the story's own page (limit 30). The crossroads
+    // block below the lead fetches six stations of its own tag when it scrolls
+    // into view (it does, since the rebuilt Home puts the lead under the live
+    // grid) and must not swallow the mocked outage.
+    if (!failed && params.get('limit') === '30') { failed = true; return route.fulfill({ status: 502, body: '{}' }); }
     const pool = params.get('mood') === 'mood-workout' ? catalogue.slice(35)
       : params.get('mood') === 'mood-late-night' ? catalogue.slice(0, 35)
       : everything.filter(s => (!params.get('country') || s.country === params.get('country')) && (!params.get('tag') || s.tags.includes(params.get('tag')!)));
@@ -296,7 +300,9 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   await sheet.locator('.calm-more').click();
   await expect(sheet.locator('.calm-destination')).toHaveCount(35);
   await expect(sheet.locator('.calm-more')).toHaveCount(0);
-  const jazzSeeds = requests.filter(q => q.get('tag') === 'jazz').map(q => q.get('seed'));
+  // Only the sheet's pages (limit 30): the crossroads block asks for six of
+  // the same tag on its own when it scrolls into view.
+  const jazzSeeds = requests.filter(q => q.get('tag') === 'jazz' && q.get('limit') === '30').map(q => q.get('seed'));
   expect(jazzSeeds.length).toBe(2);
   expect(new Set(jazzSeeds).size).toBe(1);
   expect(await audioSrc(page)).toBe(source);

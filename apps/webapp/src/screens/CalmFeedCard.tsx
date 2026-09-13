@@ -43,12 +43,15 @@ export type CalmFeedCardProps = {
   onOpenTools: () => void;
   onStep: (delta: -1 | 1) => void;
   canStep: { prev: boolean; next: boolean };
+  // At the end of the listener's own queue: the deliberate step into the
+  // discovery deck (never automatic — the queue ending changes no sound).
+  onContinue?: () => void;
   timer: { label: string; active: boolean; onOpen: () => void };
   labels: {
     play: string; pause: string; like: string; unlike: string; save: string; saved: string;
     lira: string; tools: string; volume: string; place: string; nowPlaying: string; lastFind: string; noTrack: string; startToCatch: string;
     onAir: string; pausedStatus: string; idleStatus: string; connecting: string; failed: string;
-    prev: string; next: string; timer: string; hint: string; tab: string; liveMusic: string;
+    prev: string; next: string; timer: string; hint: string; tab: string; liveMusic: string; queueEnd: string; queueContinue: string;
     sceneWords: Record<GenreFamily | 'unknown', string>;
   };
 };
@@ -68,7 +71,7 @@ const Chevron = ({ up = false }: { up?: boolean }) => (
 
 export const CalmFeedCard = ({
   station, active, isCurrent, isPlaying, status, liveTrack, lastFind, favorite, aiEnabled, subscribe, capture, index,
-  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, onStep, canStep, timer, labels
+  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, onStep, canStep, timer, labels, onContinue
 }: CalmFeedCardProps) => {
   const railRef = useRef<HTMLDivElement>(null);
   const storyRef = useRef<HTMLDivElement>(null);
@@ -186,7 +189,9 @@ export const CalmFeedCard = ({
           </button>
         </div>
       </div>
-      <p className="calm-swipe-hint" aria-hidden="true"><Chevron up />{labels.hint}</p>
+      {onContinue && !canStep.next
+        ? <button type="button" className="calm-swipe-hint calm-queue-end" onClick={onContinue} data-feed-action="continue" tabIndex={tab}>{labels.queueEnd} · <b>{labels.queueContinue}</b></button>
+        : <p className="calm-swipe-hint" aria-hidden="true"><Chevron up />{labels.hint}</p>}
     </div>
   );
 };

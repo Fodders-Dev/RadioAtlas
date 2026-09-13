@@ -1068,10 +1068,13 @@ export const Home = () => {
       return;
     }
 
+    // The Feed shows this label as the queue's name («Эфиры сейчас · 3 из 12»),
+    // so a set is named after the set; a single station keeps its own name.
+    const setLabels: Record<string, string> = { 'home-live': t('journal.liveTitle'), 'home-starter': t('journal.startHere'), 'home-around': t('journal.aroundTitle') };
     playStation(station, {
       playlist,
       sourceId,
-      sourceLabel: station.name
+      sourceLabel: playlist.length > 1 ? setLabels[sourceId] ?? station.name : station.name
     });
   };
   const showHomeHeroSkeleton = summaryLoading && !surfaceFeed && !homeState.snapshot;

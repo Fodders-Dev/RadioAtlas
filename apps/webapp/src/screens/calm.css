@@ -1,6 +1,7 @@
 /* The calm preview (`?calm=1`) — the A4 «Журнал» composition on the app's real
    theme tokens. Warmth comes from the «Журнал» theme; every other theme keeps
    its own colours, and the materials below only mix what the theme provides. */
+:root { --calm-dock-w: 92px; }
 .app-shell-v2[data-calm='true'] {
   /* Paint the selected theme on the shell itself. Its legacy blue background
      otherwise covers the themed ::before after calm removes isolation. */
@@ -91,7 +92,8 @@
 .calm-story-rail .calm-story-caption { padding-top: 9px; }
 .calm-story-rail .calm-story-caption > strong { font-size: 13px; }
 .calm-story-rail .calm-story-caption > small:first-child { font-size: 9px; }
-.calm-starters { margin-top: 8px; }
+.calm-starters { margin-top: 8px; min-width: 0; }
+.calm-station-row { min-width: 0; }
 
 /* Posters: drawn covers, no photographs, no numbers. */
 .calm-poster { position: relative; height: 106px; border-radius: 18px; overflow: hidden; background: #e9bc78; color: #473322; isolation: isolate; }
@@ -377,35 +379,48 @@
   .app-shell-v2[data-calm='true'] .calm-mini { max-width: 560px; }
 }
 @media (min-width: 900px) {
-  :root .app-shell-v2[data-calm='true'] { --sidebar-width-v2: 232px; }
+  /* The compact dock (DISCOVERY-DIRECTION «Навигация»): a short vertical
+     glass column with every section and its label, not a tall sidebar. The
+     phone bar is hidden; the dock is the single navigation. */
+  :root .app-shell-v2[data-calm='true'] { --sidebar-width-v2: var(--calm-dock-w); }
   :root .app-shell-v2[data-calm='true'] .app-navigation-mobile, :root .app-shell-v2[data-calm='true'] .app-navigation-mobile--with-chat { display: none; }
-  /* The sidebar on the calm materials: one quiet glass panel, brand and
-     items as text rows — no card, blur or shadow per item. */
-  :root .app-shell-v2[data-calm='true'] .app-navigation-desktop { top: 20px; min-height: calc(100vh - 40px); padding: 18px 12px 14px; gap: 6px; border-radius: 28px; border: 1px solid var(--calm-edge); border-top-color: var(--calm-glint); color: var(--calm-ink); background: radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 46%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 18%, transparent), transparent 52%), linear-gradient(160deg, var(--calm-sheen-a), var(--calm-sheen-b)), var(--calm-surface); box-shadow: inset 0 1px 1px var(--calm-glint), inset 1px 0 0 #ffffff30, 0 8px 22px -10px #0006; }
+  :root .app-shell-v2[data-calm='true'] .app-navigation-desktop { position: sticky; top: 20px; align-self: flex-start; width: var(--calm-dock-w); min-width: var(--calm-dock-w); flex-basis: var(--calm-dock-w); min-height: 0; padding: 10px 8px; gap: 2px; border-radius: 26px; border: 1px solid var(--calm-edge); border-top-color: var(--calm-glint); color: var(--calm-ink); background: radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 46%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 18%, transparent), transparent 52%), linear-gradient(160deg, var(--calm-sheen-a), var(--calm-sheen-b)), var(--calm-surface); box-shadow: inset 0 1px 1px var(--calm-glint), inset 1px 0 0 #ffffff30, 0 8px 22px -10px #0006; }
   :root .app-shell-v2[data-calm='true'] .app-navigation-desktop::before, :root .app-shell-v2[data-calm='true'] .app-navigation-desktop::after { content: none; }
-  :root .app-shell-v2[data-calm='true'] .nav-brand { padding: 4px 10px 14px; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand { grid-template-columns: 1fr; justify-items: center; padding: 4px 0 8px; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand > div:last-child { display: none; }
   :root .app-shell-v2[data-calm='true'] .nav-brand-mark { width: 38px; height: 38px; border-radius: 13px; background: var(--accent); color: var(--accent-ink, #fff3e3); font: italic 700 15px/1 var(--calm-serif); letter-spacing: 0; box-shadow: inset 0 1px 1px #ffdcb399; }
-  :root .app-shell-v2[data-calm='true'] .nav-brand-title { font-size: 15px; letter-spacing: -.3px; color: var(--calm-ink); }
-  :root .app-shell-v2[data-calm='true'] .nav-brand-copy { font-size: 10px; color: var(--calm-secondary); }
   :root .app-shell-v2[data-calm='true'] .nav-list { gap: 2px; }
-  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) { grid-template-columns: 22px 1fr; gap: 12px; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 16px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--calm-ink); font-size: 13px; font-weight: 650; transition: background .15s ease; }
+  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) { display: grid; grid-template-columns: 1fr; justify-items: center; gap: 4px; width: 100%; min-height: 58px; padding: 8px 4px 7px; border: 0; border-radius: 18px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--calm-ink); font-size: 10px; font-weight: 650; letter-spacing: 0; text-align: center; transition: background .15s ease; }
+  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) span:last-child { white-space: nowrap; overflow: visible; }
   :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn):hover { background: color-mix(in srgb, white 28%, transparent); }
   :root .app-shell-v2[data-calm='true'] .nav-rail-item.active { color: var(--accent); background: linear-gradient(145deg, color-mix(in srgb, white 55%, transparent), color-mix(in srgb, white 12%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, white 50%, transparent), 0 2px 6px #85624810; }
   :root[data-theme-mode='dark'] .app-shell-v2[data-calm='true'] .nav-rail-item.active { background: color-mix(in srgb, white 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, white 18%, transparent); }
   :root[data-theme-mode='dark'] .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn):hover { background: color-mix(in srgb, white 8%, transparent); }
-  :root .app-shell-v2[data-calm='true'] .nav-rail-chat .nav-rail-icon, :root .app-shell-v2[data-calm='true'] .nav-rail-icon { color: inherit; }
+  :root .app-shell-v2[data-calm='true'] .nav-rail-icon { width: 22px; height: 22px; color: inherit; }
   :root .app-shell-v2[data-calm='true'] .nav-rail-chat .nav-rail-icon { color: var(--accent); }
   :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) svg { fill: none; stroke: currentColor; stroke-width: 1.7; }
-  :root .app-shell-v2[data-calm='true'] .nav-utility-btn { margin-top: auto; color: var(--calm-secondary); }
-  :root .app-shell-v2[data-calm='true'] .nav-utility-btn svg { fill: currentColor; stroke: none; }
-  /* The mini player sits in the content column, clear of the sidebar. */
-  :root .app-shell-v2[data-calm='true'] .calm-mini { left: calc(var(--sidebar-width-v2) + 24px); right: 24px; bottom: 20px; max-width: 780px; }
-  .app-shell-v2[data-calm='true'] .calm-home { max-width: 860px; padding-top: 24px; }
-  .app-shell-v2[data-calm='true'] .calm-country-tiles { grid-template-columns: repeat(3, minmax(0, 220px)); }
+  :root .app-shell-v2[data-calm='true'] .nav-utility-btn { margin-top: 6px; color: var(--calm-secondary); }
+  :root .app-shell-v2[data-calm='true'] .nav-utility-btn svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+  /* The mini player sits in the content column, clear of the dock. */
+  :root .app-shell-v2[data-calm='true'] .calm-mini { left: calc(var(--calm-dock-w) + 24px); right: 24px; bottom: 20px; max-width: 820px; }
+  /* Home on a wide window: the «now» column stays put, the choice scrolls. */
+  .app-shell-v2[data-calm='true'] .calm-home { max-width: 1120px; padding-top: 24px; padding-left: 28px; padding-right: 28px; }
+  .app-shell-v2[data-calm='true'] .calm-home-columns { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: start; }
+  .app-shell-v2[data-calm='true'] .calm-home-lead { position: sticky; top: 20px; }
+  .app-shell-v2[data-calm='true'] .calm-home-lead .calm-section:first-child { margin-top: 0; }
+  .app-shell-v2[data-calm='true'] .calm-home-body > .calm-section:first-child { margin-top: 0; }
+  /* Inside the body column the rails no longer bleed to the screen edges. */
+  .app-shell-v2[data-calm='true'] .calm-home-body { min-width: 0; overflow-x: clip; }
+  .app-shell-v2[data-calm='true'] .calm-home-body :is(.calm-story-rail, .calm-live-chips) { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; scroll-padding-inline: 0; }
+  .app-shell-v2[data-calm='true'] .calm-home-body .calm-lead { grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); }
+  .app-shell-v2[data-calm='true'] .calm-live-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app-shell-v2[data-calm='true'] .calm-country-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   /* Лента and Лира are body portals: on a wide window they take the content
-     column and leave the sidebar reachable. */
-  .station-feed-overlay[data-feed-player='true'] { left: 260px; }
-  :root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { left: calc(50% + 130px); bottom: 150px; }
+     column and leave the dock reachable. */
+  .station-feed-overlay[data-feed-player='true'] { left: calc(var(--calm-dock-w) + 20px); }
+  .app-shell-v2[data-calm='true'] .screen-globe-explorer { left: calc(var(--calm-dock-w) + 20px); }
+  :root .app-shell-v2[data-calm='true'] .app-navigation-desktop { z-index: 5; }
+  :root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { left: calc(50% + var(--calm-dock-w) / 2); bottom: 150px; }
   :root[data-calm-chat='true'][data-calm-mini='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: 226px; }
 }
 /* From a tablet up, the lead poster and the starters share a row instead of
@@ -470,3 +485,47 @@
 .app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(h1, h2, h3, strong, .calm-heading h2, .calm-station-row strong, .calm-destination strong) { color: var(--calm-ink); }
 .app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(small, p, .calm-section-copy, .calm-station-row small) { color: var(--calm-secondary); }
 .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption strong, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption small { color: #3e3025; }
+
+/* ===== Home rebuilt around one start and a big open choice
+   (docs/DISCOVERY-DIRECTION-2026-09-13.md). The «now» card is the station
+   the button will start (or the one on air, with its live track), and the
+   two entries under it are the ways to change the sound: swipe the Feed,
+   pick a dot on the Globe. Then the choice itself: a grid of real stations
+   with quick narrowings, and more on demand. */
+.calm-now { position: relative; margin: 0 0 10px; padding: 14px 14px 12px; border-radius: 26px; display: grid; gap: 12px; }
+.calm-now-source { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 56px; text-align: left; }
+.calm-now-source > span { display: grid; gap: 2px; min-width: 0; }
+.calm-now-source small { font-size: 9px; letter-spacing: 1.4px; font-weight: 700; text-transform: uppercase; color: var(--calm-secondary); }
+.calm-now-source[data-live='true'] small { color: var(--accent); }
+.calm-now-source strong { font-size: 19px; line-height: 1.15; letter-spacing: -.5px; overflow-wrap: anywhere; }
+.calm-now-source > span > span { font-size: 12px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-now-source em { display: block; min-height: 18px; font-style: normal; font-size: 12px; line-height: 18px; color: var(--calm-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-now-art { width: 60px; height: 60px; flex: 0 0 60px; border-radius: 18px; }
+.calm-now-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.calm-now-actions .calm-primary { grid-column: 1 / -1; min-height: 50px; font-size: 14px; }
+.calm-entry { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 12px 0 10px; border-radius: 18px; border: 1px solid var(--calm-edge); background: linear-gradient(145deg, color-mix(in srgb, white 46%, transparent), color-mix(in srgb, white 10%, transparent)), var(--calm-surface); box-shadow: inset 0 1px 1px var(--calm-glint); text-align: left; min-width: 0; }
+.calm-entry svg { width: 24px; height: 24px; flex: 0 0 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--accent); }
+.calm-entry > span { display: grid; gap: 1px; min-width: 0; }
+.calm-entry strong { font-size: 13px; }
+.calm-entry small { font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-home .calm-welcome { margin: 0 0 6px; min-height: 40px; }
+.calm-live-chips { display: flex; gap: 6px; margin: 0 -20px 12px; padding: 2px 20px 4px; overflow-x: auto; scrollbar-width: none; }
+.calm-live-chips::-webkit-scrollbar { display: none; }
+.calm-live-chips .calm-chip { flex: 0 0 auto; min-height: 44px; padding: 0 13px; font-size: 11px; white-space: nowrap; }
+.calm-live-chips .calm-chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink, #fff3e3); border-color: transparent; }
+.calm-live-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.calm-live-tile { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 6px; min-height: 104px; padding: 10px 10px 10px 12px; border-radius: 20px; border: 1px solid var(--calm-line); background: color-mix(in srgb, var(--bg) 58%, white 14%); box-shadow: 0 7px 15px -12px #63392366; min-width: 0; }
+:root[data-theme-mode='dark'] .calm-live-tile { background: color-mix(in srgb, var(--bg) 78%, white 6%); }
+.calm-live-tile[data-current='true'] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 7px 15px -12px #63392366; }
+.calm-live-open { grid-column: 1 / -1; display: grid; grid-template-columns: 44px 1fr; gap: 9px; align-items: center; min-width: 0; text-align: left; }
+.calm-live-open .calm-row-art { width: 44px; height: 44px; border-radius: 14px; }
+.calm-live-open > span { display: grid; gap: 2px; min-width: 0; }
+.calm-live-open strong { font-size: 13px; line-height: 1.2; letter-spacing: -.2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.calm-live-open small { font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-live-tile .calm-row-play { grid-column: 2; grid-row: 2; justify-self: end; width: 44px; height: 44px; flex-basis: 44px; margin: -2px -2px -2px 0; }
+.calm-live-tile .calm-live-tags { grid-column: 1; grid-row: 2; align-self: center; font-size: 10px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calm-live-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.calm-live-foot small { font-size: 11px; color: var(--calm-secondary); }
+.calm-more-live { min-height: 44px; padding: 0 16px; border-radius: 24px; border: 1px solid var(--calm-edge); background: var(--calm-glass); color: var(--calm-ink); font-size: 12px; font-weight: 650; box-shadow: inset 0 1px 1px var(--calm-glint); }
+@media (max-width: 350px) { .calm-live-grid { grid-template-columns: 1fr; } .calm-now-actions { grid-template-columns: 1fr; } .calm-live-chips { margin: 0 -16px 12px; padding: 2px 16px 4px; } }
+@media (min-width: 600px) { .calm-live-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

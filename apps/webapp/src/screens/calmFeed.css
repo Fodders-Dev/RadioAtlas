@@ -150,3 +150,7 @@
   .station-feed-overlay[data-feed-player='true'] .calm-slide-story { bottom: 84px; }
   .station-feed-overlay[data-feed-player='true'] .calm-swipe-hint { bottom: 52px; left: 40px; right: auto; width: min(640px, calc(100% - 150px)); }
 }
+
+/* The end of a personal queue: the hint's place, a real button. */
+.calm-queue-end { pointer-events: auto; cursor: pointer; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid #ffebcc40; background: #6a453640; color: #ffe9cf; font: inherit; font-size: 11px; letter-spacing: .2px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.calm-queue-end b { color: #ffd2a8; font-weight: 700; }
