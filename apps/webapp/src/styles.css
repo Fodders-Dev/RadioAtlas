@@ -11215,42 +11215,42 @@ button.player-dock-status-pill:active {
 }
 
 /* ============================================================
-   LIGHT THEME — bottom nav ink, and the Home chrome that overrides it.
+   LIGHT THEME — legacy bottom nav only; calm owns its navigation palette.
    The nav PANEL already goes light (:146) but its LABELS and GLYPHS stayed
    near-white, so on a light phone the tab strip read as pale-on-pale. The Home
    screen additionally re-skins the nav from homeReference.css, which is dark-only
    and wins on order — hence the Home-scoped copies here.
    Placed at the end of the file so nothing later can undo them.
    ============================================================ */
-:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item,
-:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile .mobile-nav-item {
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true']) .app-navigation-mobile .mobile-nav-item,
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true'])[data-active-section='home'] .app-navigation-mobile .mobile-nav-item {
   color: var(--theme-muted, rgba(58, 44, 38, 0.62));
 }
 
-:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item svg,
-:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile .mobile-nav-item svg {
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true']) .app-navigation-mobile .mobile-nav-item svg,
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true'])[data-active-section='home'] .app-navigation-mobile .mobile-nav-item svg {
   fill: currentColor;
 }
 
 /* The selected tab earns full ink, not just a tinted pill. */
-:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item.active,
-:root[data-theme-mode='light'] .app-navigation-mobile .mobile-nav-item[aria-current='page'],
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true']) .app-navigation-mobile .mobile-nav-item.active,
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true']) .app-navigation-mobile .mobile-nav-item[aria-current='page'],
 :root[data-theme-mode='light']
-  .app-shell-v2[data-active-section='home']
+  .app-shell-v2:not([data-calm='true'])[data-active-section='home']
   .app-navigation-mobile
   .mobile-nav-item[aria-current='page'] {
   color: var(--theme-text, #241a17);
 }
 
 /* «Лира» keeps its accent orb, but the label under it lives on the light panel. */
-:root[data-theme-mode='light'] .mobile-nav-chat-label,
-:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .mobile-nav-chat-label {
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true']) .mobile-nav-chat-label,
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true'])[data-active-section='home'] .mobile-nav-chat-label {
   color: var(--theme-text, #241a17);
 }
 
 /* The Home-scoped nav panel/FAB come from homeReference.css and are dark-only;
    restate them here for light so the panel itself is not a dark slab. */
-:root[data-theme-mode='light'] .app-shell-v2[data-active-section='home'] .app-navigation-mobile {
+:root[data-theme-mode='light'] .app-shell-v2:not([data-calm='true'])[data-active-section='home'] .app-navigation-mobile {
   border-color: rgba(60, 45, 38, 0.16);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.26)),

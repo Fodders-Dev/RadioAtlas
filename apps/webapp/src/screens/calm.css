@@ -309,7 +309,10 @@
 :root .app-shell-v2[data-calm='true'] .mobile-nav-icon svg, :root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab svg { width: 21px; height: 21px; }
 :root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab { width: 24px; height: 24px; margin: 0; transform: none; background: none; border: 0; box-shadow: none; color: inherit; }
 :root .app-shell-v2[data-calm='true'] .mobile-nav-chat-fab [data-lira-mark] { color: inherit; filter: none; }
-:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-label { font-size: 9px; font-weight: 650; }
+:root .app-shell-v2[data-calm='true'] .mobile-nav-chat-label { font-size: 9px; font-weight: 650; color: inherit; }
+/* One outline set on every destination; old chrome shadows make these thin
+   glyphs look filled and blur the small labels. */
+:root .app-shell-v2[data-calm='true'] .app-navigation-mobile :is(span, svg) { text-shadow: none; filter: none; }
 :root .app-shell-v2[data-calm='true'][data-active-section='home'] .mobile-settings-trigger, :root .app-shell-v2[data-calm='true'][data-active-section='home'] .app-topbar-primary-cta { background: var(--calm-glass); color: var(--text); border-color: var(--calm-edge); }
 
 /* Themes: a picture behind the interface, low power, reduced transparency. */

@@ -16,8 +16,30 @@ for (const width of [320, 390]) {
       await page.locator(`[data-theme-card="${theme}"]`).click();
       await page.keyboard.press('Escape');
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      let homeNavigation: unknown;
       for (const section of ['Главная', 'Моё']) {
         await nav.getByRole('button', { name: section, exact: true }).click();
+        await expect.poll(() => nav.evaluate(el =>
+          el.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length
+        )).toBe(0);
+        // Legacy Home selectors used to replace the calm panel and fill its
+        // active icon. Destinations must share one palette and outline set.
+        const navigationStyle = () => nav.evaluate(el => {
+          const active = el.querySelector('.mobile-nav-item.active')!;
+          const inactive = el.querySelector('.mobile-nav-item:not(.active)')!;
+          return {
+            panel: getComputedStyle(el).backgroundImage,
+            active: getComputedStyle(active).color,
+            inactive: getComputedStyle(inactive).color,
+          };
+        });
+        await expect.poll(() => nav.evaluate(el =>
+          [...el.querySelectorAll('svg')].every(icon =>
+            getComputedStyle(icon).fill === 'none' && getComputedStyle(icon).filter === 'none') &&
+          [...el.querySelectorAll('span')].every(label => getComputedStyle(label).textShadow === 'none')
+        )).toBe(true);
+        if (section === 'Главная') homeNavigation = await navigationStyle();
+        else await expect.poll(navigationStyle).toEqual(homeNavigation);
         // The shell is the actual painted backdrop. Checking only root tokens
         // missed light ink over the hardcoded blue legacy shell in production.
         await expect.poll(() => shell.evaluate(el => {
