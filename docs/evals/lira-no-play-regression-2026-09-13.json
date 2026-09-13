@@ -1,0 +1,218 @@
+{
+  "release": "1fbaa69",
+  "note": "Synthetic public API requests; no returned actions executed.",
+  "turns": [
+    {
+      "expected": "open-station",
+      "message": "Я устал выбирать. Предложи один неожиданный музыкальный эфир на вечер, без поп-хитов. Скажи, за что зацепиться ухом. Пока не включай.",
+      "checkedAt": "2026-09-13T16:36:46.142Z",
+      "durationMs": 4785,
+      "httpStatus": 200,
+      "response": {
+        "reply": "Держи вариант под вечер: глубокий эмбиент с IDM-отголосками — не песни, а скорее медленное пространство, где звук дышит и переливается. Зацепиться ухом стоит за текстуры: тёплый гул, шорохи, редкие ритмические сбои, которые будто собирают эфир в единое полотно. Это музыка не для подпевания, а чтобы выдохнуть и слегка потеряться.",
+        "stations": [
+          {
+            "stationuuid": "96201a86-0601-11e8-ae97-52543be04c81",
+            "name": "Verdure Station",
+            "country": "The Russian Federation",
+            "tags": [
+              "deep ambient",
+              "idm"
+            ],
+            "favicon": "http://verdure.net/static/images/leaf_64.png",
+            "url_resolved": "http://air.verdure.net:8881/stream"
+          }
+        ],
+        "serviceLinks": [],
+        "sources": [],
+        "actions": [
+          {
+            "kind": "open-station",
+            "stationuuid": "96201a86-0601-11e8-ae97-52543be04c81",
+            "actionId": "3652ae4e-45b5-4a50-b583-2bf1e548e9c2:1",
+            "permission": "read"
+          }
+        ],
+        "run": {
+          "runId": "3652ae4e-45b5-4a50-b583-2bf1e548e9c2",
+          "status": "completed",
+          "route": "music_worker"
+        }
+      },
+      "passed": true
+    },
+    {
+      "expected": "open-station",
+      "message": "Поставь джаз, но пока не включай.",
+      "checkedAt": "2026-09-13T16:36:50.472Z",
+      "durationMs": 4327,
+      "httpStatus": 200,
+      "response": {
+        "reply": "Сейчас подберу что-то тёплое, с мягким саксофоном и вечерним вайбом — будет ждать тебя карточками.",
+        "stations": [
+          {
+            "stationuuid": "d28420a4-eccf-47a2-ace1-088c7e7cb7e0",
+            "name": "101 SMOOTH JAZZ",
+            "country": "The United States Of America",
+            "tags": [
+              "easy listening",
+              "jazz",
+              "smooth jazz"
+            ],
+            "favicon": "http://101smoothjazz.com/favicon.ico",
+            "url_resolved": "http://jking.cdnstream1.com/b22139_128mp3"
+          },
+          {
+            "stationuuid": "96237848-0601-11e8-ae97-52543be04c81",
+            "name": "Jazz Lounge",
+            "country": "Malaysia",
+            "tags": [
+              "320kbps",
+              "classic jazz",
+              "jazz",
+              "smooth jazz"
+            ],
+            "favicon": "",
+            "url_resolved": "http://eu8.fastcast4u.com:5068/;"
+          },
+          {
+            "stationuuid": "96136fe5-0601-11e8-ae97-52543be04c81",
+            "name": "Jazz Radio",
+            "country": "France",
+            "tags": [
+              "jazz",
+              "soul"
+            ],
+            "favicon": "http://www.jazzradio.fr/apple-touch-icon-120x120.png",
+            "url_resolved": "http://jazzradio.ice.infomaniak.ch/jazzradio-high.mp3"
+          },
+          {
+            "stationuuid": "96102c22-0601-11e8-ae97-52543be04c81",
+            "name": "Jazz Radio Blues",
+            "country": "France",
+            "tags": [
+              "blues",
+              "jazz"
+            ],
+            "favicon": "https://www.jazzradio.fr/apple-touch-icon-120x120.png",
+            "url_resolved": "http://jazzblues.ice.infomaniak.ch/jazzblues-high.mp3"
+          },
+          {
+            "stationuuid": "961ac56b-0601-11e8-ae97-52543be04c81",
+            "name": "Radio Swiss Jazz",
+            "country": "Switzerland",
+            "tags": [
+              "jazz",
+              "public radio",
+              "srg ssr"
+            ],
+            "favicon": "",
+            "url_resolved": "http://stream.srg-ssr.ch/m/rsj/mp3_128"
+          }
+        ],
+        "serviceLinks": [],
+        "sources": [],
+        "actions": [
+          {
+            "kind": "open-station",
+            "stationuuid": "d28420a4-eccf-47a2-ace1-088c7e7cb7e0",
+            "actionId": "f0522fa9-0ad2-4b86-b895-0106bc8b4d96:1",
+            "permission": "read"
+          }
+        ],
+        "run": {
+          "runId": "f0522fa9-0ad2-4b86-b895-0106bc8b4d96",
+          "status": "completed",
+          "route": "music_worker"
+        }
+      },
+      "passed": true
+    },
+    {
+      "expected": "play",
+      "message": "Включи джаз.",
+      "checkedAt": "2026-09-13T16:36:54.936Z",
+      "durationMs": 4463,
+      "httpStatus": 200,
+      "response": {
+        "reply": "Лови джаз — от мягкого и лампового до чуть более фактурного, с блюзовым прищуром и ретро-шармом. Тут есть где и поработать под фон, и вслушаться по-настоящему.",
+        "stations": [
+          {
+            "stationuuid": "782a63d4-09f0-494e-bdba-991d578b8a12",
+            "name": "Рыжий сентябрь",
+            "country": "The Russian Federation",
+            "tags": [
+              "авторская песня",
+              "блюз",
+              "джаз",
+              "фолк"
+            ],
+            "favicon": "https://all-radio.online/images/radioweb/rizhiysentyabr-250.jpg",
+            "url_resolved": "https://listen7.myradio24.com/45071"
+          },
+          {
+            "stationuuid": "edc9a2af-05b5-4954-8bf3-e4c2342fb3a6",
+            "name": "FUNK",
+            "country": "The Russian Federation",
+            "tags": [
+              "блюз",
+              "джаз",
+              "соул",
+              "фанк"
+            ],
+            "favicon": "https://top-radio.ru/assets/image/radio/180/funk.jpg",
+            "url_resolved": "https://funk.amgradio.ru/Funk"
+          },
+          {
+            "stationuuid": "d522f81a-6250-4476-84bc-1082c6f2e4f4",
+            "name": "МУЗКОМ",
+            "country": "The Russian Federation",
+            "tags": [
+              "джаз",
+              "классическая музыка",
+              "ретро"
+            ],
+            "favicon": "https://top-radio.ru/assets/image/radio/180/Radio-muzkom.png",
+            "url_resolved": "https://geshou.s02.radio-tochka.com:5005/stream"
+          },
+          {
+            "stationuuid": "a034f273-96e6-4301-9c29-901a93aa4583",
+            "name": "Минор",
+            "country": "The Russian Federation",
+            "tags": [
+              "джаз"
+            ],
+            "favicon": "https://topradio.me/assets/image/radio/100/minor.png",
+            "url_resolved": "https://radiominor.ru:8443/radiominor_ru_jazz.mp3"
+          },
+          {
+            "stationuuid": "82dd483f-5845-410d-8b0a-991eb442289c",
+            "name": "Relax Smooth Jazz",
+            "country": "The Russian Federation",
+            "tags": [
+              "джаз"
+            ],
+            "favicon": "https://top-radio.ru/assets/image/radio/180/relax-fm-smooth-jazz.jpg",
+            "url_resolved": "https://pub0202.101.ru:8443/stream/trust/mp3/128/31"
+          }
+        ],
+        "serviceLinks": [],
+        "sources": [],
+        "actions": [
+          {
+            "kind": "play",
+            "stationuuid": "782a63d4-09f0-494e-bdba-991d578b8a12",
+            "actionId": "9033f83b-f508-409b-9950-a3bc7ea9913a:1",
+            "permission": "write"
+          }
+        ],
+        "run": {
+          "runId": "9033f83b-f508-409b-9950-a3bc7ea9913a",
+          "status": "completed",
+          "route": "music_worker"
+        }
+      },
+      "passed": true
+    }
+  ]
+}
