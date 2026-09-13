@@ -25,6 +25,7 @@ export const useDockSwipe = (
     const node = ref.current;
     if (!node || !enabled) return undefined;
     const tracker = createDockSwipeTracker();
+    let suppressClick = false;
 
     // Only the SMALL round controls (play / like / «Ещё» / volume) and real
     // inputs block the swipe — a drag that starts on them is theirs.
@@ -37,9 +38,12 @@ export const useDockSwipe = (
     // past a 12px dead zone, so a tap never becomes a swipe.
     const startsOnControl = (target: EventTarget | null) =>
       target instanceof Element &&
-      Boolean(target.closest('.dock-icon-btn, input, a, [role="slider"]'));
+      Boolean(target.closest('.dock-icon-btn, [data-dock-swipe-ignore], input, a, [role="slider"]'));
 
     const paint = () => {
+      // Even a short or cancelled drag must not become a click on the title.
+      // Mouse drags still generate click after pointerup; touch may do so too.
+      if (tracker.phase === 'engaged' || tracker.phase === 'aborted') suppressClick = true;
       if (tracker.phase === 'engaged') {
         node.dataset.swipeDx = String(Math.round(tracker.dx));
         node.style.setProperty('--swipe-dx', `${Math.round(tracker.dx)}px`);
@@ -58,6 +62,7 @@ export const useDockSwipe = (
     let touchId: number | null = null;
 
     const onTouchStart = (event: TouchEvent) => {
+      suppressClick = false;
       if (touchId !== null || event.touches.length !== 1) {
         if (touchId !== null) {
           tracker.cancel();
@@ -108,6 +113,7 @@ export const useDockSwipe = (
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.pointerType === 'touch' || event.button !== 0) return;
+      suppressClick = false;
       if (startsOnControl(event.target)) return;
       tracker.start(event.clientX, event.clientY, event.timeStamp, window.innerWidth);
       if (tracker.phase === 'tracking') pointerId = event.pointerId;
@@ -136,11 +142,23 @@ export const useDockSwipe = (
       paint();
     };
 
+    const onClick = (event: MouseEvent) => {
+      if (!suppressClick || event.detail === 0) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const onDragStart = (event: DragEvent) => {
+      if (!startsOnControl(event.target)) event.preventDefault();
+    };
+
     node.addEventListener('touchstart', onTouchStart, { passive: true });
     node.addEventListener('touchmove', onTouchMove, { passive: false });
     node.addEventListener('touchend', onTouchEnd);
     node.addEventListener('touchcancel', onTouchCancel);
     node.addEventListener('pointerdown', onPointerDown);
+    node.addEventListener('click', onClick, true);
+    node.addEventListener('dragstart', onDragStart);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
@@ -151,6 +169,8 @@ export const useDockSwipe = (
       node.removeEventListener('touchend', onTouchEnd);
       node.removeEventListener('touchcancel', onTouchCancel);
       node.removeEventListener('pointerdown', onPointerDown);
+      node.removeEventListener('click', onClick, true);
+      node.removeEventListener('dragstart', onDragStart);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);

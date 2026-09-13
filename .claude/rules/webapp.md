@@ -693,6 +693,13 @@ deliberate: a plain `.calm-home button { padding: 0 }` at (0,1,1) silently beat
 
 ## Lira viewport and duplicate startup errors (2026-09-13)
 
+- CalmMiniPlayer uses the shared `useDockSwipe`. Small controls opt out with
+  `data-dock-swipe-ignore`; do not exclude all buttons, because the title button
+  is the swipe surface. A mouse drag can still emit click after pointerup:
+  suppress that click, including short/cancelled drags, or it opens Feed on
+  release. Keep the hook above conditional returns and gate it with visibility
+  so it reattaches when the mini player returns from Feed.
+
 - Check the **painted shell**, not only `html` theme tokens or body colours.
   Calm removed shell isolation to let navigation reach the chat portal, leaving
   its themed `::before` at z-index -1 behind the hardcoded blue shell. Home and

@@ -299,6 +299,10 @@
 /* Mini player: the station on air, its real track, the bookmark, Play. */
 .calm-mini { position: fixed; z-index: 65; bottom: var(--calm-player-bottom); left: 12px; right: 12px; max-width: 736px; margin: auto; display: flex; align-items: center; gap: 6px; padding: 6px 8px; min-height: 62px; border-radius: 24px; background: radial-gradient(ellipse at 9% 0%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 42%), radial-gradient(ellipse at 94% 110%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 22%, transparent), transparent 50%), linear-gradient(135deg, var(--calm-sheen-a), transparent 44%, var(--calm-sheen-b)), var(--calm-surface); color: var(--calm-ink); border: 1px solid var(--calm-edge); border-top-color: var(--calm-glint); box-shadow: inset 0 1px 1px var(--calm-glint), inset 1px 0 0 #ffffff30, inset 0 -1px 1px #ffffff30, 0 8px 22px -10px #0006; -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6); }
 .calm-mini-info { display: flex; align-items: center; flex: 1; min-width: 0; min-height: 48px; gap: 9px; text-align: left; }
+.calm-mini { user-select: none; transition: translate 180ms cubic-bezier(.22,.61,.36,1); }
+.calm-mini[data-swipe-dx] { translate: clamp(-10px, calc(var(--swipe-dx, 0px) * .12), 10px) 0; transition: none; }
+.calm-mini[data-swipe-dx] .calm-mini-info:active { transform: none; }
+@media (prefers-reduced-motion: reduce) { .calm-mini, .calm-mini[data-swipe-dx] { translate: none; transition: none; } }
 .calm-mini-info .station-artwork { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 13px; }
 .calm-mini-info > span { min-width: 0; }
 .calm-mini-info strong, .calm-mini-info small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -310,7 +314,7 @@
 .calm-capture[aria-pressed='true'] { color: var(--accent); }
 .calm-capture[aria-pressed='true'] svg { fill: currentColor; }
 .calm-mini-play { color: var(--accent); }
-.calm-mini-play svg { fill: currentColor; stroke: none; }
+.calm-mini-play svg, .calm-mini-next svg { fill: currentColor; stroke: none; }
 .app-shell-v2[data-calm='true'] > .toast { top: auto; bottom: calc(var(--calm-player-bottom) + 76px); color: var(--calm-ink); background: var(--calm-solid); border-color: var(--calm-line); box-shadow: 0 6px 18px #0003; }
 /* ChatSheet measures the top of its controls, including a multiline draft. */
 :root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: var(--lira-toast-bottom, calc(276px + var(--shell-safe-bottom, 0px))); }
