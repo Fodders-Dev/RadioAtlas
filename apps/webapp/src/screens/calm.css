@@ -367,7 +367,54 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { :root .app-shell-v2[data-calm='true'], :root[data-theme-backdrop='image'] .app-shell-v2[data-calm='true'] { --calm-surface: var(--bg); } }
 @media (prefers-reduced-transparency: reduce) { :root .app-shell-v2[data-calm='true'], :root[data-theme-backdrop='image'] .app-shell-v2[data-calm='true'] { --calm-surface: var(--bg); } .calm-sheet, .calm-country-dialog { -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-reduced-motion: reduce) { .calm-home button:active, .calm-mini button:active, .calm-sheet button:active { transform: none; } }
-@media (min-width: 900px) { .calm-home { padding-top: 24px; } .calm-mini { left: 100px; bottom: 20px; } .calm-story-lead { height: 220px; } .calm-country-tiles { grid-template-columns: repeat(3, minmax(0, 220px)); } }
+/* ===== Wider windows. One main navigation at a time (DESIGN-DIRECTION §0):
+   up to 899px the phone bar, from 900px the sidebar — the phone bar is hidden
+   there, so the mini player has the bottom edge to itself. */
+@media (min-width: 600px) and (max-width: 899px) {
+  /* A tablet is not a wide phone: the bar and the mini keep a hand's width
+     and sit centred instead of stretching across the whole window. */
+  :root .app-shell-v2[data-calm='true'] .app-navigation-mobile, :root .app-shell-v2[data-calm='true'] .app-navigation-mobile--with-chat { left: 50%; right: auto; width: min(560px, calc(100% - 26px)); transform: translateX(-50%); }
+  .app-shell-v2[data-calm='true'] .calm-mini { max-width: 560px; }
+}
+@media (min-width: 900px) {
+  :root .app-shell-v2[data-calm='true'] { --sidebar-width-v2: 232px; }
+  :root .app-shell-v2[data-calm='true'] .app-navigation-mobile, :root .app-shell-v2[data-calm='true'] .app-navigation-mobile--with-chat { display: none; }
+  /* The sidebar on the calm materials: one quiet glass panel, brand and
+     items as text rows — no card, blur or shadow per item. */
+  :root .app-shell-v2[data-calm='true'] .app-navigation-desktop { top: 20px; min-height: calc(100vh - 40px); padding: 18px 12px 14px; gap: 6px; border-radius: 28px; border: 1px solid var(--calm-edge); border-top-color: var(--calm-glint); color: var(--calm-ink); background: radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 46%), radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--theme-accent-2, var(--accent)) 18%, transparent), transparent 52%), linear-gradient(160deg, var(--calm-sheen-a), var(--calm-sheen-b)), var(--calm-surface); box-shadow: inset 0 1px 1px var(--calm-glint), inset 1px 0 0 #ffffff30, 0 8px 22px -10px #0006; }
+  :root .app-shell-v2[data-calm='true'] .app-navigation-desktop::before, :root .app-shell-v2[data-calm='true'] .app-navigation-desktop::after { content: none; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand { padding: 4px 10px 14px; border: 0; border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand-mark { width: 38px; height: 38px; border-radius: 13px; background: var(--accent); color: var(--accent-ink, #fff3e3); font: italic 700 15px/1 var(--calm-serif); letter-spacing: 0; box-shadow: inset 0 1px 1px #ffdcb399; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand-title { font-size: 15px; letter-spacing: -.3px; color: var(--calm-ink); }
+  :root .app-shell-v2[data-calm='true'] .nav-brand-copy { font-size: 10px; color: var(--calm-secondary); }
+  :root .app-shell-v2[data-calm='true'] .nav-list { gap: 2px; }
+  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) { grid-template-columns: 22px 1fr; gap: 12px; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 16px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--calm-ink); font-size: 13px; font-weight: 650; transition: background .15s ease; }
+  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn):hover { background: color-mix(in srgb, white 28%, transparent); }
+  :root .app-shell-v2[data-calm='true'] .nav-rail-item.active { color: var(--accent); background: linear-gradient(145deg, color-mix(in srgb, white 55%, transparent), color-mix(in srgb, white 12%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, white 50%, transparent), 0 2px 6px #85624810; }
+  :root[data-theme-mode='dark'] .app-shell-v2[data-calm='true'] .nav-rail-item.active { background: color-mix(in srgb, white 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, white 18%, transparent); }
+  :root[data-theme-mode='dark'] .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn):hover { background: color-mix(in srgb, white 8%, transparent); }
+  :root .app-shell-v2[data-calm='true'] .nav-rail-chat .nav-rail-icon, :root .app-shell-v2[data-calm='true'] .nav-rail-icon { color: inherit; }
+  :root .app-shell-v2[data-calm='true'] .nav-rail-chat .nav-rail-icon { color: var(--accent); }
+  :root .app-shell-v2[data-calm='true'] :is(.nav-rail-item, .nav-utility-btn) svg { fill: none; stroke: currentColor; stroke-width: 1.7; }
+  :root .app-shell-v2[data-calm='true'] .nav-utility-btn { margin-top: auto; color: var(--calm-secondary); }
+  :root .app-shell-v2[data-calm='true'] .nav-utility-btn svg { fill: currentColor; stroke: none; }
+  /* The mini player sits in the content column, clear of the sidebar. */
+  :root .app-shell-v2[data-calm='true'] .calm-mini { left: calc(var(--sidebar-width-v2) + 24px); right: 24px; bottom: 20px; max-width: 780px; }
+  .app-shell-v2[data-calm='true'] .calm-home { max-width: 860px; padding-top: 24px; }
+  .app-shell-v2[data-calm='true'] .calm-country-tiles { grid-template-columns: repeat(3, minmax(0, 220px)); }
+  /* Лента and Лира are body portals: on a wide window they take the content
+     column and leave the sidebar reachable. */
+  .station-feed-overlay[data-feed-player='true'] { left: 260px; }
+  :root[data-calm-chat='true'] .app-shell-v2[data-calm='true'] > .toast { left: calc(50% + 130px); bottom: 150px; }
+  :root[data-calm-chat='true'][data-calm-mini='true'] .app-shell-v2[data-calm='true'] > .toast { bottom: 226px; }
+}
+/* From a tablet up, the lead poster and the starters share a row instead of
+   one stretched card over an empty list. */
+@media (min-width: 600px) {
+  .app-shell-v2[data-calm='true'] .calm-lead { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .app-shell-v2[data-calm='true'] .calm-story-lead { height: 232px; }
+  .app-shell-v2[data-calm='true'] .calm-starters { margin-top: 0; }
+}
 @media (max-width: 350px) {
   .calm-home { padding-left: 16px; padding-right: 16px; }
   .calm-journal-heading h1 { font-size: 21px; max-width: 165px; }

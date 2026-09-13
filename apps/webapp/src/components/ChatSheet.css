@@ -1195,7 +1195,7 @@
    the whole viewport, so the warm light runs under the nav like the mock. */
 .chat-sheet[data-calm='true'] { position: fixed; inset: 0 0 auto; height: min(100dvh, var(--tg-viewport-height, 100dvh)); z-index: 60; padding: 0; align-items: stretch; justify-content: stretch; }
 .chat-sheet[data-calm='true'] .chat-sheet-scrim { background: color-mix(in srgb, var(--bg) 55%, transparent); }
-.chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 0 20%, var(--lira-reflex-a), transparent 56%), radial-gradient(ellipse at 100% 80%, var(--lira-reflex-b), transparent 54%), var(--lira-base); box-shadow: none; }
+.chat-sheet[data-calm='true'] .chat-sheet-card { position: absolute; inset: 0; transform: none; width: auto; max-width: none; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 0 20%, var(--lira-reflex-a), transparent 56%), radial-gradient(ellipse at 100% 80%, var(--lira-reflex-b), transparent 54%), var(--lira-base); box-shadow: none; }
 .chat-sheet[data-calm='true'] .chat-sheet-card::before, .chat-sheet[data-calm='true'] .chat-sheet-card::after, .chat-sheet[data-calm='true'] .chat-liquid-field { display: none; }
 
 /* Head: 40px face, 23px name, the guide line, «···» help on the mock's glass. */
@@ -1270,6 +1270,19 @@
   .chat-sheet[data-calm='true'] .chat-welcome--calm > p, .chat-sheet[data-calm='true'] .chat-bubble--assistant { font-size: 13px; }
   .chat-sheet[data-calm='true'] .chat-station-copy strong { font-size: 13px; }
   .chat-sheet[data-calm='true'] .chat-prompt-chip { padding: 0 11px; font-size: 10px; }
+}
+
+/* A wide window: the section lives in the content column beside the
+   sidebar (never over it), and the conversation keeps a reading width —
+   the light still fills the column. The bottom clearance is the mini
+   player's alone, there is no bar there. */
+@media (min-width: 900px) {
+  .chat-sheet[data-calm='true'] { left: 260px; --lira-gutter: max(28px, calc(50% - 370px)); }
+  .chat-sheet[data-calm='true'] .chat-sheet-head { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
+  .chat-sheet[data-calm='true'] .chat-sheet-thread { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
+  .chat-sheet[data-calm='true'] .chat-prompts-row { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
+  .chat-sheet[data-calm='true'] .chat-sheet-input { padding: 0 var(--lira-gutter) 24px; }
+  :root[data-calm-mini='true'] .chat-sheet[data-calm='true'] .chat-sheet-input { padding-bottom: 100px; }
 }
 
 /* «Что умеет Лира» — the mock's profile sheet, honest text; its own portal

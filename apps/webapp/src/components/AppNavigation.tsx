@@ -127,12 +127,12 @@ export const AppNavigation = ({
   const renderDesktopItem = (item: NavItem) => (
     <button
       key={item.id}
-      className={`nav-rail-item ${active === item.id ? 'active' : ''}`}
+      className={`nav-rail-item ${isCurrent(item.id) ? 'active' : ''}`}
       type="button"
       onClick={() => onChange(item.id)}
       onMouseEnter={() => onPreload?.(item.id)}
       onFocus={() => onPreload?.(item.id)}
-      aria-current={active === item.id ? 'page' : undefined}
+      aria-current={isCurrent(item.id) ? 'page' : undefined}
     >
       <span className="nav-rail-icon">{item.icon}</span>
       <span>{t(`nav.${item.id}`)}</span>
@@ -154,8 +154,8 @@ export const AppNavigation = ({
           {onOpenChat ? (
             <>
               {items.slice(0, chatAt).map(renderDesktopItem)}
-              <button className="nav-rail-item nav-rail-chat" type="button" onClick={onOpenChat}>
-                <span className="nav-rail-icon"><LiraMark /></span>
+              <button className={`nav-rail-item nav-rail-chat ${chatActive ? 'active' : ''}`.trim()} type="button" onClick={onOpenChat} aria-current={chatActive ? 'page' : undefined}>
+                <span className="nav-rail-icon">{calm ? CALM_LIRA_ICON : <LiraMark />}</span>
                 <span>{t('chat.launch')}</span>
               </button>
               {items.slice(chatAt).map(renderDesktopItem)}
