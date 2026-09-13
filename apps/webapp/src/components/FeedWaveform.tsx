@@ -24,6 +24,7 @@ import { VISUALIZER_BARS, type VisualizerFrame } from '../lib/useAudioPlayer';
 const BARS = VISUALIZER_BARS;
 
 type FeedWaveformProps = {
+  compact?: boolean;
   // True only when THIS card's station is the one currently playing. When false
   // the strip renders a flat resting state — never a fake animated amplitude,
   // which would be inventing audio data for a station nobody is listening to.
@@ -36,8 +37,9 @@ const prefersReducedMotion = () => {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 };
 
-export const FeedWaveform = ({ active, subscribe }: FeedWaveformProps) => {
+export const FeedWaveform = ({ active, subscribe, compact = false }: FeedWaveformProps) => {
   const barsRef = useRef<Array<HTMLSpanElement | null>>([]);
+  const count = compact ? BARS / 2 : BARS;
 
   useEffect(() => {
     if (!active) return undefined;
@@ -50,14 +52,19 @@ export const FeedWaveform = ({ active, subscribe }: FeedWaveformProps) => {
       const { spectrum } = frame;
       for (let index = 0; index < bars.length; index += 1) {
         const bar = bars[index];
-        if (bar) bar.style.setProperty('--ra-level', (spectrum[index] ?? 0).toFixed(3));
+        // Compact transport groups neighbouring frequency bins, keeping all
+        // bands represented without squeezing 24 bars into a tiny button.
+        const level = compact
+          ? ((spectrum[index * 2] ?? 0) + (spectrum[index * 2 + 1] ?? 0)) / 2
+          : spectrum[index] ?? 0;
+        if (bar) bar.style.setProperty('--ra-level', Math.max(0, Math.min(1, level)).toFixed(3));
       }
     });
     return () => {
       unsubscribe();
       for (const bar of barsRef.current) bar?.style.removeProperty('--ra-level');
     };
-  }, [active, subscribe]);
+  }, [active, subscribe, compact]);
 
   return (
     <div
@@ -65,7 +72,7 @@ export const FeedWaveform = ({ active, subscribe }: FeedWaveformProps) => {
       data-active={active ? 'true' : 'false'}
       aria-hidden="true"
     >
-      {Array.from({ length: BARS }, (_, index) => (
+      {Array.from({ length: count }, (_, index) => (
         <span
           className="station-feed-wave-bar"
           key={index}

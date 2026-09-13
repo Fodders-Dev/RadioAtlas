@@ -179,7 +179,7 @@ export const CalmFeedCard = ({
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">{isPlaying ? <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /> : <path d="M8 5v14l11-7L8 5Z" />}</svg>
             <span>{isPlaying ? labels.pause : labels.play}</span>
-            <FeedWaveform active={isPlaying} subscribe={subscribe} />
+            <FeedWaveform compact active={isPlaying} subscribe={subscribe} />
           </button>
           <button type="button" className="calm-slide-icon calm-volume" onClick={onOpenTools} aria-label={labels.volume} data-feed-action="volume" tabIndex={tab}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM17 8a6 6 0 0 1 0 8M20 5a10 10 0 0 1 0 14" /></svg>

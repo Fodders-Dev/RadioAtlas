@@ -2,6 +2,9 @@
    theme tokens. Warmth comes from the «Журнал» theme; every other theme keeps
    its own colours, and the materials below only mix what the theme provides. */
 .app-shell-v2[data-calm='true'] {
+  /* Paint the selected theme on the shell itself. Its legacy blue background
+     otherwise covers the themed ::before after calm removes isolation. */
+  background: var(--theme-bg-image) center top / cover fixed;
   --calm-surface: color-mix(in srgb, var(--bg) 35%, transparent);
   --calm-solid: color-mix(in srgb, var(--bg) 96%, var(--text) 4%);
   --calm-edge: color-mix(in srgb, var(--text) 22%, transparent);
@@ -18,6 +21,8 @@
   --calm-sheen-a: color-mix(in srgb, white 62%, transparent);
   --calm-sheen-b: color-mix(in srgb, white 26%, transparent);
 }
+.app-shell-v2[data-calm='true']::before,
+.app-shell-v2[data-calm='true']::after { content: none; }
 /* `.glass-card` and `:root` are the weight: the mobile block declares this bar
    `display:flex` at (0,4,0), and a tie goes to the later rule. */
 :root .app-shell-v2[data-calm='true'][data-active-section='home'] .app-topbar-v2.glass-card,
@@ -49,7 +54,7 @@
 .calm-lira-line > span > span { color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Лира's drawn face (CalmLiraFace): the guide is a person, not only a glyph. */
 .calm-lira-face { display: block; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, white 70%, transparent); box-shadow: 0 3px 8px color-mix(in srgb, var(--accent) 25%, transparent); }
-.calm-lira-face svg { display: block; width: 100%; height: 100%; }
+.calm-lira-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .calm-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; min-height: 44px; padding: 0 16px; border-radius: 30px; background: var(--accent); color: var(--accent-ink, #fffdf8); font-size: 13px; font-weight: 700; box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 30%, transparent), inset 0 1px 0 #fff3; }
 .calm-primary > span { font-size: 12px; }
 .calm-primary-wide { width: 100%; min-height: 48px; margin: 6px 0 10px; }
@@ -77,9 +82,9 @@
 .calm-story-lead .calm-story-caption { display: grid; gap: 0; position: absolute; inset: 19px; align-content: start; justify-items: start; pointer-events: none; color: #3e3025; padding: 0; }
 .calm-story-lead { position: relative; height: 158px; border-radius: 22px; overflow: hidden; box-shadow: 0 13px 18px -13px #63392388, inset 0 1px 0 #fffc; }
 .calm-story-lead .calm-story-caption > span:first-child { display: contents; }
-.calm-story-lead .calm-story-caption small { font-size: 8px; letter-spacing: 1.1px; }
+.calm-story-lead .calm-story-caption small { font-size: 8px; letter-spacing: 1.1px; color: inherit; opacity: .8; }
 .calm-story-lead .calm-story-caption strong { font: italic 29px/1.05 var(--calm-serif); max-width: 195px; margin: 9px 0; letter-spacing: -.7px; }
-.calm-story-lead .calm-story-caption > span + span { margin-top: auto; }
+.calm-story-lead .calm-story-caption > span + span { margin-top: auto; color: inherit; }
 .calm-story-rail { display: flex; gap: 12px; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; scrollbar-width: none; align-items: flex-start; }
 .calm-story-rail::-webkit-scrollbar { display: none; }
 .calm-story-rail .calm-story { flex: 0 0 156px; width: 156px; scroll-snap-align: start; }
@@ -196,17 +201,17 @@
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-search-bar { border: 1px solid var(--calm-line); background: var(--calm-surface); border-radius: 18px; box-shadow: none; min-height: 51px; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-search-input { font-size: 13px; color: var(--calm-ink); }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .chip:not(.library-tab-chip) { min-height: 44px; padding: 0 16px; border: 1px solid var(--calm-line); border-radius: 28px; font-size: 13px; background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
-.app-shell-v2[data-calm='true'] .screen-library-v2 .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 /* The phone tab row keeps its segmented layout (glyph above a whole label);
    only the material changes. */
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
-.app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .section-title { font-size: 20px; letter-spacing: -.6px; }
 /* «Поиск» in the journal: same head, the catalogue's own cards on paper. */
 .app-shell-v2[data-calm='true'] .screen-search { padding-top: 0; }
 .app-shell-v2[data-calm='true'] .screen-search .glass-card { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 20px; }
 .app-shell-v2[data-calm='true'] .screen-search .chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
-.app-shell-v2[data-calm='true'] .screen-search .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.app-shell-v2[data-calm='true'] .screen-search .chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .calm-browse-copy { margin: 0 0 18px; font-size: 14px; line-height: 1.65; color: var(--calm-secondary); }
 .calm-continue-title { margin: 22px 0 6px; font-size: 18px; letter-spacing: -.4px; }
 .calm-source-profile { display: grid; justify-items: center; gap: 10px; padding: 10px 8px 18px; text-align: center; }
@@ -345,7 +350,7 @@
 .app-shell-v2[data-calm='true'] .settings-sheet-card :is(.section-title, .settings-label) { color: var(--calm-ink); }
 .app-shell-v2[data-calm='true'] .settings-sheet-card :is(.section-subtitle, .settings-desc, .settings-sheet-kicker) { color: var(--calm-secondary); }
 .app-shell-v2[data-calm='true'] .settings-sheet-card .chip { min-height: 44px; padding: 0 16px; border: 1px solid var(--calm-line); border-radius: 28px; font-size: 13px; background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
-.app-shell-v2[data-calm='true'] .settings-sheet-card .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.app-shell-v2[data-calm='true'] .settings-sheet-card .chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 /* Below 360px the segmented tab row cannot hold «Избранное» and «Плейлисты»
    whole; the row scrolls sideways at natural widths instead of truncating. */
 @media (max-width: 360px) {
@@ -357,7 +362,7 @@
 .calm-timer-status { margin: 4px 0 14px; font-size: 13px; line-height: 1.6; color: var(--calm-secondary); }
 .calm-timer-status[data-calm-timer-status='on'] { color: var(--calm-ink); font-weight: 650; }
 .calm-timer-presets { margin-bottom: 16px; }
-.calm-timer-presets .calm-chip[aria-pressed='true'] { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.calm-timer-presets .calm-chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .calm-timer-custom { display: flex; align-items: end; gap: 10px; margin-bottom: 8px; }
 .calm-timer-custom label { flex: 1; display: grid; gap: 6px; font-size: 12px; color: var(--calm-secondary); }
 .calm-timer-custom input { min-height: 44px; padding: 0 12px; border: 1px solid var(--calm-line); border-radius: 13px; background: var(--calm-surface); color: var(--calm-ink); font: inherit; font-size: 15px; }
@@ -367,7 +372,7 @@
 .app-shell-v2[data-calm='true'] .details-card { background: var(--calm-solid); color: var(--calm-ink); border: 1px solid var(--calm-edge); box-shadow: 0 -12px 65px #31221c26; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .app-shell-v2[data-calm='true'] .details-card .glass-card { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .app-shell-v2[data-calm='true'] .details-card .chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
-.app-shell-v2[data-calm='true'] .details-card .chip.active { background: var(--accent); color: #fffdf8; border-color: transparent; }
+.app-shell-v2[data-calm='true'] .details-card .chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 
 /* Ink on every theme: the journal's text always reads from the theme's --text
    (a dark Classic showed dark names on a dark ground on the owner's phone). */

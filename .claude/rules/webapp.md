@@ -693,6 +693,18 @@ deliberate: a plain `.calm-home button { padding: 0 }` at (0,1,1) silently beat
 
 ## Lira viewport and duplicate startup errors (2026-09-13)
 
+- Check the **painted shell**, not only `html` theme tokens or body colours.
+  Calm removed shell isolation to let navigation reach the chat portal, leaving
+  its themed `::before` at z-index -1 behind the hardcoded blue shell. Home and
+  Library consequently showed light-theme ink on blue. Calm now paints
+  `--theme-bg-image` directly on the shell and disables its old pseudo layers.
+  Theme-filled buttons use `--accent-ink`; fixed-colour posters keep their own
+  caption ink. `calm-materials.spec.ts` exercises Classic/Neon/Journal.
+- A compact spectrum cannot inherit the full-width strip's min-width per bar:
+  24 × 2px plus 23 × 2px gaps overflowed a 34px wrapper. Calm groups adjacent
+  bins into 12 bars with zero minimum width, centred in a bounded 64px area.
+  Check every bar against the Play button at 320px, including playing state.
+
 - A growing chat draft and a newly visible mini player invalidate fixed toast
   offsets. Measure the prompt row; observe the form's **border box** because
   mini-player clearance changes padding, not its content box. The chat, nav
