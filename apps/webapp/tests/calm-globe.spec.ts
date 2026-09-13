@@ -159,6 +159,8 @@ test('calm globe: country list, selection, explicit play, heart and find', async
   // tolerance — otherwise the gesture lands as a CLICK on the dot under the
   // cursor, the card opens and the list title is gone (seen on CI once).
   const canvas = page.locator('.explorer-map canvas');
+  await expect.poll(() => panelHeight(page)).toBe(192);
+  await expect.poll(() => canvas.evaluate(el => el.clientHeight === el.closest<HTMLElement>('.explorer-map')!.clientHeight)).toBe(true);
   const map = (await canvas.boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
   await page.mouse.down();
@@ -233,94 +235,46 @@ test('calm globe @320 light: no overflow, 44px floors, compact card', async ({ p
   await page.screenshot({ path: '../../output/playwright/calm/globe-320-pastel.png' });
 });
 
-// Points that share ONE coordinate (the real catalogue has 373 such piles, up
-// to 198 stations at one point) open as a fan on the map: leaves spread for
-// legibility, each tied back to the shared point, so the spread is never read
-// as real different addresses. Dots carry the API's coarse genre family as a
-// colour, and the family's name in the legend and in every row.
-test('calm globe: a pile of coincident points opens as a fan, a leaf selects, genres are named', async ({ page }) => {
+// Every station is visible at detail scale, including an entire 98-source
+// coordinate pile. One cluster tap reaches detail; browsing never plays.
+test('calm globe: one tap reveals all 98 coincident stations and individual dots select without playback', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
-  const berlin = stations.find((s) => s.stationuuid === 'uuid-berlin')!;
-  const pileIds = ['pile-1', 'pile-2', 'pile-3'];
-  await page.route('**/catalog/points**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        items: [
-          ...stations.map((s) => ({ id: s.stationuuid, lat: s.geo_lat, lon: s.geo_long, country: s.country, state: s.state, name: s.name, genre: s.tags.includes('jazz') ? 'jazz' : undefined })),
-          ...pileIds.map((id, index) => ({ id, lat: berlin.geo_lat, lon: berlin.geo_long, country: 'Germany', name: `Pile ${index + 1}`, genre: ['rock', 'talk', undefined][index] }))
-        ],
-        mappedStations: stations.length + 3,
-        totalStations: stations.length + 3
-      })
-    })
-  );
+  const berlin = stations.find(s => s.stationuuid === 'uuid-berlin')!;
+  const pileIds = Array.from({ length: 98 }, (_, i) => `pile-${i}`);
+  await page.route('**/catalog/points**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    items: [
+      ...stations.map(s => ({ id: s.stationuuid, lat: s.geo_lat, lon: s.geo_long, country: s.country, name: s.name })),
+      ...pileIds.map((id, i) => ({ id, lat: berlin.geo_lat, lon: berlin.geo_long, country: 'Germany', name: `Pile ${i}`, genre: ['rock', 'jazz', 'chill'][i % 3] }))
+    ], mappedStations: stations.length + 98, totalStations: stations.length + 98
+  }) }));
   await openGlobe(page);
-
-  // The legend names every family and the neutral «no tag» case in words.
-  await expect(page.locator('[data-explorer-legend] .explorer-legend-item')).toHaveCount(10);
-  await expect(page.locator('[data-explorer-legend]')).toContainText('Рок и метал');
-  await expect(page.locator('[data-explorer-legend]')).toContainText('Жанр не указан');
-
-  // Germany now has four located stations on one point plus Hamburg. Every
-  // camera move is counted on the map host, so the spec waits for the flight
-  // it caused to LAND instead of guessing a delay — a tap during an ease
-  // interrupts it and leaves the group off-centre (seen under a full run).
-  const moves = async () => Number((await page.locator('.explorer-map').getAttribute('data-moves')) || 0);
-  const landedAfter = async (before: number) => {
-    await expect.poll(moves, { timeout: 15_000 }).toBeGreaterThan(before);
-    await expect(page.locator('.explorer-map')).toHaveAttribute('data-camera', 'idle', { timeout: 15_000 });
-    await page.waitForTimeout(400);
-  };
-  const beforeFlight = await moves();
   await page.locator('.explorer-country-switch').click();
   await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
+  const map = page.locator('.explorer-map');
   await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
-  await expect(page.locator('[data-result-count]')).toHaveText('7 эфиров');
-  const rockRow = page.locator('.explorer-row[data-point-id="pile-1"]');
-  await expect(rockRow.locator('small')).toContainText('Рок и метал');
-  await expect(page.locator('.explorer-row[data-point-id="pile-3"] small')).not.toContainText('Рок');
-
-  // The flight lands on the median of the country's points — the pile itself.
-  // Tapping the group there zooms past the clustering limit and, because the
-  // points still coincide, opens the fan instead of leaving dots on top of
-  // each other.
-  const canvas = page.locator('.explorer-map canvas');
-  const box = (await canvas.boundingBox())!;
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  await landedAfter(beforeFlight);
+  await expect(map).toHaveAttribute('data-camera', 'idle');
+  await page.waitForTimeout(800);
+  const box = (await page.locator('.explorer-map canvas').boundingBox())!;
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.click(cx, cy);
-  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 15_000 });
-  await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
-  expect(await audioSrc(page), 'exploring never starts sound').toBeNull();
-
-  // A leaf sits 34px above the shared point; tapping it selects that source.
-  await page.waitForTimeout(400);
-  await page.mouse.click(cx, cy - 34);
+  await expect(map).toHaveAttribute('data-detail', 'true');
+  await expect.poll(async () => Number(await map.getAttribute('data-visible-points'))).toBeGreaterThanOrEqual(98);
+  await expect(page.locator('.explorer-dot-note')).toBeVisible();
+  expect(await audioSrc(page)).toBeNull();
+  await page.mouse.click(cx, cy);
   const card = page.locator('[data-selected-station]');
   await expect(card).toBeVisible();
-  const picked = (await card.getAttribute('data-selected-station'))!;
-  expect(['uuid-berlin', ...pileIds]).toContain(picked);
+  const first = await card.getAttribute('data-selected-station');
+  await page.waitForTimeout(500);
+  await page.mouse.click(cx + 30, cy - 30);
+  await expect.poll(() => card.getAttribute('data-selected-station')).not.toBe(first);
   expect(await audioSrc(page)).toBeNull();
-  await page.screenshot({ path: process.env.CALM_GLOBE_SHOT || 'test-results/calm-globe-fan.png' });
-
-  // Zooming out closes the fan and folds the pile back into a group under the
-  // selection ring. A tap there must open the pile again, not just re-pick.
-  const beforeZoomOut = await moves();
-  await page.locator('.explorer-zoom button').nth(1).click();
-  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '');
-  await landedAfter(beforeZoomOut);
-  await page.mouse.click(cx, cy);
-  await expect(page.locator('.explorer-map')).toHaveAttribute('data-spider', '4', { timeout: 15_000 });
-  // The tap asked «what else is here»: the list answers with the whole pile.
-  await expect(page.locator('[data-result-count]')).toHaveText('4 эфира');
+  // A blank tap never folds the dots away again.
+  await page.mouse.click(box.x + 25, box.y + box.height - 50);
+  await expect.poll(async () => Number(await map.getAttribute('data-visible-points'))).toBeGreaterThanOrEqual(98);
 });
-
-
 // A sparse country: the catalogue knows stations there but none carries
 // coordinates (Mongolia: nine stations, not one located). The map draws
 // nothing invented; the list says how many exist and opens the real

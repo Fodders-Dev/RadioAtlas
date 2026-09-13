@@ -33,6 +33,8 @@
 
 .explorer-stage { position: absolute; inset: 0 0 calc(var(--explorer-deck) + var(--explorer-panel) - 16px); transition: bottom var(--explorer-panel-transition); }
 .explorer-map { position: absolute; inset: 0; }
+.explorer-dot-note { display: none; position: absolute; left: 14px; bottom: 44px; max-width: calc(100% - 60px); margin: 0; padding: 5px 9px; border-radius: 10px; font-size: 10px; line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--bg) 92%, transparent); pointer-events: none; }
+.explorer-stage:has(.explorer-map[data-detail='true']) .explorer-dot-note { display: block; }
 .explorer-map .maplibregl-canvas { filter: sepia(.14) saturate(.85); }
 :root[data-theme-mode='dark'] .explorer-map .maplibregl-canvas { filter: sepia(.1) saturate(.8) brightness(.88); }
 .explorer-map .maplibregl-ctrl-bottom-right { bottom: 14px; right: 6px; }

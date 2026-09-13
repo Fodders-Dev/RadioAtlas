@@ -162,9 +162,46 @@
 .calm-saved-find > div { min-width: 0; }
 .calm-saved-find strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
 .calm-saved-find small { display: block; font-size: 11px; color: var(--calm-secondary); margin-top: 4px; }
-.calm-community { padding-top: 24px; }
+.calm-community { padding-top: 16px; border-top: 1px solid var(--calm-line); }
 .calm-community h3 { margin: 7px 0 8px; font-size: 22px; letter-spacing: -.6px; }
 .calm-community p { margin: 0; font-size: 12px; line-height: 1.8; color: var(--calm-secondary); }
+
+/* The second half of Home is an atlas to work with, not a tail of plain lists. */
+.calm-country-issue { padding: 22px 18px 12px; border-radius: 26px; background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, #db9870 34%, transparent), transparent 70%), color-mix(in srgb, var(--calm-surface) 90%, transparent); border: 1px solid var(--calm-edge); box-shadow: 0 12px 28px -24px #60391d; }
+.calm-country-issue h2 { font: italic 30px/1.15 Georgia, serif; }
+.calm-crossroads { overflow: hidden; border-radius: 28px; border: 1px solid var(--calm-edge); background: var(--calm-surface); box-shadow: 0 16px 32px -24px #503d28; }
+.calm-crossroads-cover { --calm-ink: #fff4da; --calm-secondary: #f2ead8; position: relative; overflow: hidden; padding: 26px 22px 22px; color: #fff4da; background: radial-gradient(ellipse at 110% -10%, #a5bcb1 0, transparent 55%), linear-gradient(135deg, #254d50, #40615a 65%, #897e51); }
+.calm-crossroads-cover::before { content: ''; position: absolute; width: 250px; height: 250px; border: 1px solid #fff2ca33; border-radius: 50%; right: -95px; top: -40px; box-shadow: 0 0 0 24px #fff2ca0a, 0 0 0 48px #fff2ca0a, 0 0 0 72px #fff2ca0a; pointer-events: none; }
+.calm-crossroads-cover .calm-eyebrow { color: #efe3bd; }
+.calm-crossroads-cover h2 { position: relative; max-width: 250px; margin: 14px 0 10px; font: italic 34px/1.05 Georgia, serif; letter-spacing: -.7px; }
+.calm-crossroads-cover p { position: relative; max-width: 270px; margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: #f2ead8; }
+.calm-crossroads-cover label { position: relative; display: grid; gap: 6px; font-size: 11px; }
+.calm-crossroads-cover select { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #ffedcf70; border-radius: 16px; font: inherit; font-size: 15px; color: #2b3731; background: #fff3dc; }
+.calm-crossroads-body { padding: 14px 16px 10px; }
+.calm-crossroads-sounds { display: flex; gap: 7px; overflow: auto; padding-bottom: 10px; scrollbar-width: none; }
+.calm-crossroads-sounds button { flex-shrink: 0; min-height: 44px; padding: 0 13px; border-radius: 22px; border: 1px solid var(--calm-line); font-size: 12px; }
+.calm-crossroads-sounds button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.calm-crossroads-result { min-height: 153px; }
+.calm-crossroads-result > small { display: block; padding: 5px 0; font-size: 10px; color: var(--calm-secondary); }
+.calm-crossroads-result > p { font-size: 13px; line-height: 1.6; }
+.calm-detour-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.calm-detour { --calm-ink: #fff5df; --calm-secondary: #fff5df; position: relative; overflow: hidden; text-align: left; display: flex; flex-direction: column; min-height: 218px; padding: 16px; border-radius: 22px; color: #fff5df; background: #456560; }
+.calm-detour-1 { background: #ad5333; }.calm-detour-2 { --calm-ink: #50361d; --calm-secondary: #50361d; background: #e5bd73; color: #50361d; }.calm-detour-3 { background: #706383; }
+.calm-detour-art { position: absolute; inset: -30px -55px auto auto; width: 155px; height: 155px; border-radius: 50%; border: 1px solid #fff6dd66; box-shadow: 0 0 0 13px #fff6dd18, 0 0 0 26px #fff6dd18, 0 0 0 39px #fff6dd18; transform: rotate(-35deg) scaleX(.65); }
+.calm-detour-1 .calm-detour-art { border-radius: 18%; transform: rotate(30deg); }
+.calm-detour-2 .calm-detour-art { transform: rotate(45deg) scaleX(.4); }
+.calm-detour-3 .calm-detour-art { border-radius: 35% 65% 65% 35%; transform: rotate(-30deg) scaleY(.8); }
+.calm-detour > small { position: relative; font-size: 8px; letter-spacing: 1.4px; }
+.calm-detour > strong { position: relative; margin-top: 58px; font: italic 27px/1.05 Georgia, serif; overflow-wrap: anywhere; }
+.calm-detour > span:not(.calm-detour-art) { position: relative; margin-top: 8px; font-size: 11px; line-height: 1.5; padding-right: 12px; }
+.calm-detour > i { position: absolute; right: 12px; bottom: 13px; font-style: normal; font-size: 18px; }
+.calm-genre-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.calm-genre-door { position: relative; display: flex; flex-direction: column; gap: 8px; text-align: left; min-height: 90px; padding: 16px 24px 14px 14px; border-radius: 16px; background: color-mix(in srgb, #cca175 17%, var(--calm-surface)); border: 1px solid var(--calm-edge); }
+.calm-genre-door:nth-child(3n+2) { background: color-mix(in srgb, #709c90 22%, var(--calm-surface)); }
+.calm-genre-door:nth-child(3n) { background: color-mix(in srgb, #aa7b98 20%, var(--calm-surface)); }
+.calm-genre-door strong { font-size: 14px; }.calm-genre-door small { font-size: 10px; line-height: 1.4; color: var(--calm-secondary); overflow-wrap: anywhere; }.calm-genre-door > span { position: absolute; right: 10px; top: 14px; }
+.calm-find { padding: 22px 16px; border: 1px solid var(--calm-edge); border-radius: 20px; background: radial-gradient(ellipse at right, color-mix(in srgb, var(--accent) 18%, transparent), transparent), var(--calm-surface); }
+@media (max-width: 350px) { .calm-detour { padding: 13px; }.calm-detour > strong { font-size: 23px; }.calm-crossroads-cover { padding: 23px 18px 18px; } }
 
 /* Sheets: the country picker, a story, a source. */
 .calm-sheet, .calm-country-dialog { position: fixed; inset: auto 0 0; box-sizing: border-box; width: min(100%, 540px); max-height: 84vh; max-height: 84dvh; margin: auto auto 0; padding: 0 20px calc(28px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--calm-edge); border-bottom: 0; border-radius: 28px 28px 0 0; color: var(--text); background: var(--calm-solid); box-shadow: inset 0 1px 0 #ffffff80, 0 -12px 50px #0003; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }

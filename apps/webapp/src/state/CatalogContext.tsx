@@ -29,6 +29,7 @@ import {
 import { resolveCachedStation, shouldCacheStationLookup } from '../lib/stationCachePolicy';
 
 type SearchStationsInput = {
+  tagExact?: boolean;
   q?: string;
   country?: string;
   language?: string;
@@ -138,6 +139,7 @@ const collectSummaryStations = (summary: CatalogSummary) => [
 ];
 
 const normalizeSearchCacheInput = (input: SearchStationsInput) => ({
+  ...(input.tagExact ? { tagExact: true } : {}),
   q: input.q?.trim() || '',
   country: input.country?.trim() || '',
   language: input.language?.trim() || '',
@@ -352,6 +354,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
       if (input.country?.trim()) params.set('country', input.country.trim());
       if (input.language?.trim()) params.set('language', input.language.trim());
       if (input.tag?.trim()) params.set('tag', input.tag.trim());
+      if (input.tagExact) params.set('tagExact', '1');
       if (input.mood?.trim()) params.set('mood', input.mood.trim());
       if (input.continent?.trim()) params.set('continent', input.continent.trim());
       params.set('limit', String(input.limit || 50));
@@ -374,7 +377,7 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
           response = stale.payload;
         } else {
           // Home exploration stays paginated; the legacy fallback has no mood filter.
-          if (input.allowFallback === false || input.mood) throw error;
+          if (input.allowFallback === false || input.mood || input.tagExact) throw error;
           const fallback = await loadFallbackCatalog();
           response = await fallback.searchRadioBrowserFallback(input);
           await writeCatalogCache(cacheKey, response, SEARCH_CACHE_TTL_MS);

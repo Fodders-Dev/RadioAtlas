@@ -54,6 +54,7 @@ export const registerCatalogRoutes = (
           country: normalizeCatalogText(req.query.country),
           language: normalizeCatalogText(req.query.language),
           tag: normalizeQuery(req.query.tag),
+          tagExact: req.query.tagExact === '1',
           continent: typeof req.query.continent === 'string' ? req.query.continent : '',
           limit: parseLimit(req.query.limit, 50),
           cursor: parseCursor(req.query.cursor),

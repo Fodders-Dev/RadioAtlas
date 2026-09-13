@@ -449,6 +449,8 @@ export const GlobeExplorer = () => {
   const gesture = useRef<{ id: number; y: number; size: PanelSize } | null>(null);
   const suppressClickUntil = useRef(0);
   const onPanelPointerDown = (event: PointerEvent<HTMLElement>) => {
+    // A new press is a new intention, even immediately after a swipe.
+    suppressClickUntil.current = 0;
     const handle = (event.target as HTMLElement).closest('[data-panel-drag]');
     if (!handle || event.button !== 0) return;
     gesture.current = { id: event.pointerId, y: event.clientY, size: panelSize };
@@ -464,7 +466,8 @@ export const GlobeExplorer = () => {
     setPanelSize(next);
   };
   const onPanelClickCapture = (event: MouseEvent<HTMLElement>) => {
-    if (performance.now() < suppressClickUntil.current) {
+    if (event.detail > 0 && performance.now() < suppressClickUntil.current) {
+      suppressClickUntil.current = 0;
       event.preventDefault();
       event.stopPropagation();
     }
@@ -571,6 +574,7 @@ export const GlobeExplorer = () => {
           />
         )}
         <div className="explorer-vignette" aria-hidden="true" />
+        <p className="explorer-dot-note">{t('mapExplorer.spreadNote')}</p>
         <header className="explorer-map-heading">
           <button className="explorer-country-switch" type="button" onClick={() => setCountryPicker(true)} disabled={!points}>
             <Icon name="globe" />

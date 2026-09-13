@@ -82,6 +82,51 @@ const richCatalogue = async (page: Page, options: { failFirstSearch?: boolean } 
   return requests;
 };
 
+test('crossroads combine country and sound, continue the same query, and preserve the air', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const requests = await richCatalogue(page);
+  await seedRadioState(page);
+  await page.goto('/?calm=1');
+  await page.locator('.calm-primary').click();
+  const playing = await audioSrc(page);
+  const crossroads = page.locator('[data-calm-crossroads]');
+  await crossroads.scrollIntoViewIfNeeded();
+  await expect(crossroads.locator('.calm-station-row').first()).toBeVisible();
+  const destinations = await crossroads.locator('select option').allTextContents();
+  await crossroads.getByLabel('Куда отправимся').selectOption('Germany');
+  await expect.poll(() => requests.some(p => p.get('country') === 'Germany' && p.get('tag') === 'jazz')).toBe(true);
+  await expect(crossroads.locator('.calm-crossroads-result')).toHaveAttribute('aria-busy', 'false');
+  // Transport/library context changes must not clear and reload the offers.
+  await page.evaluate(() => {
+    const state = { reloaded: false, observer: new MutationObserver(records => {
+      if (records.some(record => record.oldValue === 'true') || document.querySelector('.calm-crossroads-result')?.getAttribute('aria-busy') === 'true') state.reloaded = true;
+    }) };
+    state.observer.observe(document.querySelector('.calm-crossroads-result')!, { attributes: true, attributeFilter: ['aria-busy'], attributeOldValue: true });
+    (window as typeof window & { crossroadsWatch?: typeof state }).crossroadsWatch = state;
+  });
+  await page.locator('[data-calm-player]').getByRole('button', { name: 'Пауза', exact: true }).click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'paused');
+  expect(await page.evaluate(() => {
+    const state = (window as typeof window & { crossroadsWatch?: { reloaded: boolean; observer: MutationObserver } }).crossroadsWatch!;
+    state.observer.disconnect();
+    return state.reloaded;
+  })).toBe(false);
+  await crossroads.getByRole('button', { name: /Исследовать дальше/ }).click();
+  const sheet = page.locator('[data-calm-browse="Germany"]');
+  await expect(sheet).toContainText('Джаз · Германия');
+  await sheet.getByRole('button', { name: /Ещё станции/ }).click();
+  await expect.poll(() => requests.some(p => p.get('country') === 'Germany' && p.get('tag') === 'jazz' && p.get('limit') === '30')).toBe(true);
+  expect(await audioSrc(page)).toBe(playing);
+  await sheet.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(crossroads.getByLabel('Куда отправимся')).toHaveValue('Germany');
+  expect(await crossroads.locator('select option').allTextContents()).toEqual(destinations);
+  await page.locator('.calm-detour-0').click();
+  await expect.poll(() => requests.some(p => p.get('tag') === 'dub' && p.get('tagExact') === '1')).toBe(true);
+  expect(await audioSrc(page)).toBe(playing);
+});
+
 for (const width of [320, 390, 411]) for (const theme of ['journal', 'aurora-field']) {
   test(`calm ${width} ${theme}: play and capture keep Home in place`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -265,7 +310,7 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   const workoutSheet = page.locator('[data-calm-browse="mood-workout"]');
   await expect(workoutSheet.locator('.calm-station-row').first()).toHaveAttribute('data-station-row', workout[0].stationuuid);
   await workoutSheet.getByRole('button', { name: 'Закрыть', exact: true }).click();
-  await page.locator('.calm-chips').getByRole('button', { name: 'ELECTRONIC', exact: true }).click();
+  await page.locator('.calm-genre-grid').getByRole('button', { name: /^Электроника/ }).click();
   await expect(page.locator('[data-calm-browse="electronic"] .calm-destination').first()).toBeVisible();
   await page.locator('[data-calm-browse="electronic"]').getByRole('button', { name: 'Закрыть', exact: true }).click();
   // The country of the day continues on the Globe at the same place.

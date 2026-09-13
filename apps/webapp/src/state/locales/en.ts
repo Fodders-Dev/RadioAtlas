@@ -67,6 +67,7 @@ export const enDictionary = {
   },
   // Calm Globe (A4 «Journal»): sources on a map, finds stay in the player.
   mapExplorer: {
+    spreadNote: 'Nearby dots are spread for selection. The line leads to the catalogue location.',
     title: 'Stations on the map', loading: 'Loading stations…', loadError: 'Could not load the map and stations.',
     world: 'World', countries: 'Countries', legendLabel: 'Dot colour — genre from the station tags', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     families: {
@@ -94,6 +95,9 @@ export const enDictionary = {
   // Calm Home in the A4 «Journal» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.
   journal: {
+    genreNames: { pixels: 'Chiptune', jazz: 'Jazz', ambient: 'Ambient', electronic: 'Electronic', folk: 'Folk & traditions', classical: 'Classical', pop: 'Pop', rock: 'Rock & indie', hiphop: 'Hip-hop', soul: 'Soul & funk', metal: 'Metal', reggae: 'Reggae & dub', latin: 'Latin', blues: 'Blues', synthwave: 'Synthwave' },
+    crossroads: { kicker: 'SOUND WITHOUT BORDERS', title: 'How does it sound there?', copy: 'Pick a sound. Change the country. Hear a different side.', destination: 'Where to next', world: 'Worldwide', sound: 'Musical direction', empty: 'No stations found for this combination yet. Try another country or sound.', continue: 'Explore further', sounds: { jazz: 'Jazz', ambient: 'Ambient', electronic: 'Electronic', folk: 'Folk', rock: 'Rock', soul: 'Soul' } },
+    detours: { kicker: 'TAKE A DIFFERENT TURN', title: 'What else is out there?', names: { '0': 'Dub', '1': 'Afrobeat', '2': 'Bossa nova', '3': 'Experimental' }, copy: { '0': 'Bass, echo and room to breathe', '1': 'A rhythm to follow', '2': 'The softer side of Brazilian rhythm', '3': 'Sounds beyond familiar genres' } },
     heading: 'Discover music', search: 'Search', appearance: 'Appearance', liraName: 'Lira', liraLine: 'Ask about music',
     play: 'Play', listening: 'On air · open the Feed', paused: 'Paused · Play', openStory: 'Open the story', startHere: 'Start with these stations',
     moods: 'By mood', moodsMore: 'More', allStories: 'Music stories', searchKicker: 'The whole catalogue',

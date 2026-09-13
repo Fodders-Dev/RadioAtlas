@@ -10,6 +10,19 @@ const station = (id: number, tags = 'ambient'): CatalogStation => ({
 });
 const filters = { q: '', country: '', language: '', tag: '', continent: '', limit: 30, cursor: 0, seed: 1234 };
 
+test('exact genre discovery excludes city substrings and keeps totals and pagination honest', () => {
+  const data = [station(1, 'dubois'), station(2, 'dubrovnik'), station(3, 'dubstep'),
+    station(4, ' DUB , reggae'), station(5, 'dub')];
+  const first = buildSearchResponse(data, { ...filters, tag: 'dub', tagExact: true, limit: 1 });
+  const second = buildSearchResponse(data, { ...filters, tag: 'dub', tagExact: true, limit: 1, cursor: 1 });
+  assert.equal(first.total, 2);
+  assert.equal(first.nextCursor, '1');
+  assert.equal(second.nextCursor, null);
+  assert.deepEqual(new Set([...first.items, ...second.items].map(s => s.stationuuid)), new Set(['mood-4', 'mood-5']));
+  assert.equal(buildSearchResponse(data, { ...filters, tag: 'dub' }).total, 5);
+  assert.equal(buildSearchResponse(data, { ...filters, tag: 'dub', tagExact: true, country: 'Country 4' }).total, 1);
+});
+
 test('a mood explores its full exact-tag union beyond the ten-station preview', () => {
   const stations = [...Array.from({ length: 65 }, (_, i) => station(i, i % 2 ? ' AMBIENT , jazz' : 'lounge')),
     station(66, 'ambient talk show'), station(67, 'rock')];

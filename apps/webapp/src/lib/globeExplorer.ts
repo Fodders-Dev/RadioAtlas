@@ -113,7 +113,7 @@ export const pluralForm = (count: number, locale: string): 'one' | 'few' | 'many
   }
 };
 
-// ---- Genre colours and the fan for coincident points -----------------------
+// ---- Genre colours and display layout for coincident points ----------------
 
 // One colour per coarse family (the API decides the family from the station's
 // first recognised tag). Chosen to stay apart on the muted satellite ground and
@@ -144,25 +144,31 @@ export const genreColorExpression = (): unknown[] => [
   NEUTRAL_POINT_COLOR
 ];
 
-// Where the leaves of a fan sit around their shared point, in screen pixels.
-// Up to eight go on a ring; more continue on a spiral, so 24 leaves still fit
-// a phone screen without hiding each other. Positions are for legibility only:
-// every leaf keeps a line back to the real coordinate.
-export const SPIDER_LIMIT = 24;
-
-export const spiderOffsets = (count: number): Array<{ x: number; y: number }> => {
-  const n = Math.max(0, Math.min(count, SPIDER_LIMIT));
-  if (n <= 8) {
-    const radius = n <= 4 ? 34 : 40;
-    return Array.from({ length: n }, (_, index) => {
-      const angle = (index / n) * Math.PI * 2 - Math.PI / 2;
-      return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
-    });
-  }
-  const step = (Math.PI * 2) / 7.5;
-  return Array.from({ length: n }, (_, index) => {
-    const angle = index * step - Math.PI / 2;
-    const radius = 30 + index * 3.6;
-    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+// Display-only collision layout. Original coordinates stay on the station;
+// at neighbourhood scale every visible station gets a dot, including all
+// stations sharing a catalogue coordinate. A selected displaced dot gets a
+// single tether back to that coordinate, never a web of 98 crossing lines.
+export function spreadMapPoints<T extends { id: string; x: number; y: number }>(points: T[], width: number, height: number) {
+  const gap = Math.max(4, Math.min(22, Math.sqrt(width * height / Math.max(points.length * 5, 1))));
+  const used = new Set<string>();
+  const cols = Math.max(1, Math.floor((width - 24) / gap));
+  const rows = Math.max(1, Math.floor((height - 24) / gap));
+  return [...points].sort((a, b) => a.id.localeCompare(b.id)).map(point => {
+    const col = Math.max(0, Math.min(cols - 1, Math.round((point.x - 12) / gap)));
+    const row = Math.max(0, Math.min(rows - 1, Math.round((point.y - 12) / gap)));
+    let chosen = { x: col, y: row };
+    let found = false;
+    for (let r = 0; r < Math.max(cols, rows) && !found; r++) {
+      for (let dy = -r; dy <= r && !found; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = col + dx, y = row + dy;
+          if (x < 0 || x >= cols || y < 0 || y >= rows || used.has(`${x}:${y}`)) continue;
+          chosen = { x, y }; found = true; break;
+        }
+      }
+    }
+    used.add(`${chosen.x}:${chosen.y}`);
+    return { ...point, x: chosen.x * gap + 12, y: chosen.y * gap + 12, radius: Math.min(6, gap * .35) };
   });
-};
+}

@@ -70,6 +70,7 @@ type CatalogSpotlight = {
 };
 
 type CatalogSearchFilters = {
+  tagExact?: boolean;
   mood?: string;
   q: string;
   country: string;
@@ -781,7 +782,7 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
       return false;
     }
     if (filters.language && searchLanguageOf(station) !== filters.language) return false;
-    if (filters.tag && !searchTagTextOf(station).includes(filters.tag)) return false;
+    if (filters.tag && !(filters.tagExact ? searchTagsOf(station).includes(filters.tag) : searchTagTextOf(station).includes(filters.tag))) return false;
     if (filters.continent && searchContinentOf(station) !== filters.continent) return false;
     return true;
   });

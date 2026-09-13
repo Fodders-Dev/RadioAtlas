@@ -8,7 +8,7 @@ import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 
 type Props = {
   cache: Map<string, ShelfSnapshot>;
-  query: { country?: string; tag?: string; mood?: string };
+  query: { country?: string; tag?: string; mood?: string; tagExact?: boolean };
   initial: StationLite[];
   source: string;
   onPlay: (station: StationLite, playlist: StationLite[], source: string) => void;

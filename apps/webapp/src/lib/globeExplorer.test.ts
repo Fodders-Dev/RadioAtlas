@@ -113,18 +113,16 @@ describe('genre colours and the fan', () => {
     expect(expression.length).toBe(3 + GENRE_FAMILIES.length * 2);
   });
 
-  it('spreads leaves on a ring, then a spiral, never on top of each other', async () => {
-    const { SPIDER_LIMIT, spiderOffsets } = await import('./globeExplorer');
-    expect(spiderOffsets(0)).toEqual([]);
-    for (const count of [1, 3, 8, 12, 24, 60]) {
-      const offsets = spiderOffsets(count);
-      expect(offsets.length).toBe(Math.min(count, SPIDER_LIMIT));
-      for (let a = 0; a < offsets.length; a += 1) {
-        expect(Math.hypot(offsets[a].x, offsets[a].y)).toBeGreaterThanOrEqual(28);
-        for (let b = a + 1; b < offsets.length; b += 1) {
-          expect(Math.hypot(offsets[a].x - offsets[b].x, offsets[a].y - offsets[b].y)).toBeGreaterThanOrEqual(22);
-        }
-      }
+  it('shows every one of 98 coincident stations, with distinct reachable display points', async () => {
+    const { spreadMapPoints } = await import('./globeExplorer');
+    for (const width of [320, 390]) {
+      const points = Array.from({ length: 98 }, (_, i) => ({ id: `station-${i}`, x: width / 2, y: 250 }));
+      const spread = spreadMapPoints(points, width, 500);
+      expect(spread).toHaveLength(98);
+      expect(new Set(spread.map(p => `${p.x}:${p.y}`)).size).toBe(98);
+      expect(spread.every(p => p.x >= 0 && p.x < width && p.y >= 0 && p.y < 500)).toBe(true);
+      expect(spreadMapPoints([...points].reverse(), width, 500)).toEqual(spread);
+      expect(points.every(p => p.x === width / 2 && p.y === 250)).toBe(true);
     }
   });
 });

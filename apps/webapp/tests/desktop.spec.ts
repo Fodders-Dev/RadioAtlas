@@ -116,7 +116,7 @@ test('metadata state recovers from unavailable to live track without losing play
       constructor(_url: string) {
         sources.push(this);
       }
-      close() {}
+      close() { this.onmessage = null; }
       addEventListener() {}
       removeEventListener() {}
     }
@@ -183,6 +183,11 @@ test('metadata state recovers from unavailable to live track without losing play
     })
   );
 
+  // This scenario starts without metadata, then receives it through SSE.
+  // The global fixture's HTTP "Mock Song" must not race that recovery.
+  await page.route('**/metadata?url=**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: null }) }));
+  await page.route('**/fetch?url=**', route => route.fulfill({ status: 200, contentType: 'text/plain', body: '' }));
+  await page.route('**/status-json.xsl', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
   await page.goto('/');
   await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
   await playHomeStation(page, 'Tokyo FM');
@@ -191,10 +196,10 @@ test('metadata state recovers from unavailable to live track without losing play
       page.evaluate(() => {
         const sources = (
           window as typeof window & {
-            __RA_TEST_EVENT_SOURCES__?: Array<unknown>;
+            __RA_TEST_EVENT_SOURCES__?: Array<{ onmessage: unknown }>;
           }
         ).__RA_TEST_EVENT_SOURCES__;
-        return sources?.length || 0;
+        return sources?.filter(source => typeof source.onmessage === 'function').length || 0;
       })
     )
     .toBeGreaterThan(0);
@@ -206,7 +211,7 @@ test('metadata state recovers from unavailable to live track without losing play
         }>;
       }
     ).__RA_TEST_EVENT_SOURCES__;
-    sources?.[0]?.onmessage?.(
+    sources?.filter(source => source.onmessage).at(-1)?.onmessage?.(
       new MessageEvent('message', {
         data: JSON.stringify([
           {

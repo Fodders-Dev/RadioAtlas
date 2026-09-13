@@ -11,7 +11,7 @@ import { CalmStationRow } from './CalmStationRow';
 // станции»). Browsing never plays; ▶ on a row does.
 export function CalmBrowseSheet({ title, kicker, copy, art, word, query, picks, cache, source, onPlay, onSource, onClose }: {
   title: string; kicker?: string; copy?: string; art?: PosterArt; word?: string;
-  query: { country?: string; tag?: string; mood?: string };
+  query: { country?: string; tag?: string; mood?: string; tagExact?: boolean };
   picks: StationLite[]; cache: Map<string, ShelfSnapshot>; source: string;
   onPlay: (station: StationLite, playlist: StationLite[], source: string) => void;
   onSource: (station: StationLite) => void;

@@ -11,6 +11,8 @@ import type { ShelfSnapshot } from './CalmCatalogShelf';
 import { CalmBrowseSheet } from './CalmBrowseSheet';
 import { CalmCountryPicker } from './CalmCountryPicker';
 import { CalmPoster } from './CalmPoster';
+import { CalmCrossroads, type Crossroad } from './CalmCrossroads';
+import { localizedCountry, countryCodeOf } from '../lib/countryName';
 import { CalmLiraFace } from '../components/CalmLiraFace';
 import { CalmSourceSheet } from './CalmSourceSheet';
 import { CalmStoriesSheet } from './CalmStoriesSheet';
@@ -33,18 +35,19 @@ type Props = {
 };
 
 type Sheet =
+  | { kind: 'trail'; query: Crossroad; title: string; picks: StationLite[] }
   | { kind: 'story'; story: CalmStory }
   | { kind: 'country'; country: string }
   | { kind: 'genre'; id: string; query: string; stations: StationLite[] }
   | null;
 
-type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot> };
+type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
 // loaded, so opening the Feed or the Globe and coming back lands where the
 // listener left. Public catalogue state only; a reload drops it.
 let discoveryVisit: DiscoveryVisit | undefined;
 const resumeDiscovery = (seed: number): DiscoveryVisit => {
-  if (!discoveryVisit || discoveryVisit.seed !== seed) discoveryVisit = { seed, shelves: new Map() };
+  if (!discoveryVisit || discoveryVisit.seed !== seed) discoveryVisit = { seed, shelves: new Map(), crossroad: { country: '', tag: 'jazz' } };
   return discoveryVisit;
 };
 
@@ -54,7 +57,7 @@ const Icon = ({ d }: { d: string }) => (
 const ARROW = 'M5 12h14M14 7l5 5-5 5';
 
 export function CalmHome({ station, stations, discoveryStations, moodRails, onPlay, onFeed, onSearch }: Props) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { summary } = useCatalog();
   const { player } = usePlayback();
   const { trackHistory, knownStations, isStationHiddenFromRecommendations } = useLibrary();
@@ -106,6 +109,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const stories = useMemo(() => visit.stories.slice(1), [visit.stories]);
 
   return <div className="calm-home calm-journal" data-calm-home>
+    {sheet?.kind === 'trail' && <CalmBrowseSheet title={sheet.title} kicker={t('journal.crossroads.kicker')} query={sheet.query} picks={sheet.picks} cache={discovery.shelves} source="home-trail" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} word={storyWord(sheet.story)} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'country' && <CalmBrowseSheet title={formatCountryLabel(sheet.country)} kicker={t('journal.mapTitle')} query={{ country: sheet.country }} picks={visit.pool.filter((s) => s.country.trim() === sheet.country)} cache={discovery.shelves} source="home-country" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'genre' && <CalmBrowseSheet title={t(`calm.directions.${sheet.id}.eyebrow`)} kicker={t('journal.genresTitle')} query={{ tag: sheet.query }} picks={sheet.stations} cache={discovery.shelves} source="home-genre" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
@@ -157,20 +161,29 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       <div className="calm-heading"><h2>{t('journal.mapTitle')}</h2><button className="calm-text" onClick={() => setActiveSection('globe')}>{t('journal.mapAll')} <Icon d={ARROW} /></button></div>
       <p className="calm-section-copy">{t('journal.mapHint')}</p>
       <div className="calm-country-tiles">{visit.countries.map((country, index) => <button key={country} className={`calm-country-tile calm-country-tile-${index}`} data-calm-country-map={country} onClick={() => openGlobe(country)}>
-        <span aria-hidden="true">{formatCountryLabel(country).slice(0, 2).toUpperCase()}</span><strong>{formatCountryLabel(country)}</strong><small>{t('journal.exploreCountry')} <Icon d={ARROW} /></small>
+        <span aria-hidden="true">{countryCodeOf({ country }) || '↗'}</span><strong>{localizedCountry({ country }, locale)}</strong><small>{t('journal.exploreCountry')} <Icon d={ARROW} /></small>
       </button>)}</div>
       <button className="calm-text calm-all-countries" onClick={() => setCountryPicker(true)}>{t('calm.allCountries')} <Icon d={ARROW} /></button>
     </section>}
 
-    {visit.around && <section className="calm-section" data-calm-around>
-      <div className="calm-heading"><div><h2>{t('journal.aroundTitle')}</h2><p className="calm-section-copy">{formatCountryLabel(visit.around.label)} · {t('journal.aroundCopy')}</p></div></div>
+    {visit.around && <section className="calm-section calm-country-issue" data-calm-around>
+      <div className="calm-heading"><div><h2>{t('journal.aroundTitle')}</h2><p className="calm-section-copy">{localizedCountry({ country: visit.around.label }, locale)} · {t('journal.aroundCopy')}</p></div></div>
       <div className="calm-rows">{visit.around.stations.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.around!.stations, 'home-around')} onOpen={() => setSource(s)} />)}</div>
       <div className="calm-row-actions"><button className="calm-text" onClick={() => setSheet({ kind: 'country', country: visit.around!.label })}>{t('calm.moreStations')} <Icon d={ARROW} /></button><button className="calm-text" onClick={() => openGlobe(visit.around!.label)}>{t('journal.aroundMore')} <Icon d={ARROW} /></button></div>
     </section>}
 
+    <CalmCrossroads memory={discovery.crossroad} countries={visit.countries} onOpen={(query, title, picks) => setSheet({ kind: 'trail', query, title, picks })} onPlay={onPlay} onSource={setSource} onMap={openGlobe} />
+
+    <section className="calm-section calm-detours" data-calm-detours>
+      <div className="calm-heading"><div><span className="calm-eyebrow">{t('journal.detours.kicker')}</span><h2>{t('journal.detours.title')}</h2></div></div>
+      <div className="calm-detour-grid">{['dub', 'afrobeat', 'bossa nova', 'experimental'].map((tag, index) => <button key={tag} className={`calm-detour calm-detour-${index}`} onClick={() => setSheet({ kind: 'trail', query: { tag, tagExact: true }, title: t(`journal.detours.names.${index}`), picks: visit.pool.filter(s => s.tags.split(',').some(value => value.trim().toLowerCase() === tag)) })}>
+        <span className="calm-detour-art" aria-hidden="true" /><small>{String(index + 1).padStart(2, '0')} / RADIOATLAS</small><strong>{t(`journal.detours.names.${index}`)}</strong><span>{t(`journal.detours.copy.${index}`)}</span><i aria-hidden="true">↗</i>
+      </button>)}</div>
+    </section>
+
     {visit.genres.length > 0 && <section className="calm-section" data-calm-genres>
       <div className="calm-heading"><h2>{t('journal.genresTitle')}</h2><button className="calm-text" onClick={() => onSearch('')}>{t('journal.genresAll')} <Icon d={ARROW} /></button></div>
-      <div className="calm-chips">{visit.genres.map((group) => <button key={group.id} className="calm-chip" onClick={() => setSheet({ kind: 'genre', id: group.id, query: group.query, stations: group.stations })}>{t(`calm.directions.${group.id}.eyebrow`)}</button>)}</div>
+      <div className="calm-genre-grid">{visit.genres.map((group) => <button key={group.id} className="calm-genre-door" onClick={() => setSheet({ kind: 'genre', id: group.id, query: group.query, stations: group.stations })}><strong>{t(`journal.genreNames.${group.id}`)}</strong><small>{normalizeStationName(group.stations[0].name)}</small><span aria-hidden="true">↗</span></button>)}</div>
     </section>}
 
     <section className="calm-section" data-calm-personal>

@@ -67,6 +67,7 @@ export const ruDictionary = {
   },
   // Calm Globe (A4 «Журнал»): sources on a map, finds stay in the player.
   mapExplorer: {
+    spreadNote: 'Близкие точки разнесены для выбора. Линия ведёт к координате из каталога.',
     title: 'Эфиры на карте', loading: 'Загружаем станции…', loadError: 'Не удалось загрузить карту и станции.',
     world: 'Мир', countries: 'Страны', legendLabel: 'Цвет точки — жанр по тегам станции', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
     families: {
@@ -94,6 +95,9 @@ export const ruDictionary = {
   // Calm Home in the A4 «Журнал» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.
   journal: {
+    genreNames: { pixels: 'Чиптюн', jazz: 'Джаз', ambient: 'Эмбиент', electronic: 'Электроника', folk: 'Фолк и традиции', classical: 'Классика', pop: 'Поп', rock: 'Рок и инди', hiphop: 'Хип-хоп', soul: 'Соул и фанк', metal: 'Метал', reggae: 'Регги и даб', latin: 'Латинская музыка', blues: 'Блюз', synthwave: 'Синтвейв' },
+    crossroads: { kicker: 'ЗВУК БЕЗ ГРАНИЦ', title: 'А как это звучит там?', copy: 'Выберите звук. Смените страну. Послушайте, что изменилось.', destination: 'Куда отправимся', world: 'Весь мир', sound: 'Музыкальное направление', empty: 'Такое сочетание пока не найдено. Попробуйте другую страну или звук.', continue: 'Исследовать дальше', sounds: { jazz: 'Джаз', ambient: 'Эмбиент', electronic: 'Электроника', folk: 'Фолк', rock: 'Рок', soul: 'Соул' } },
+    detours: { kicker: 'СВЕРНИТЕ С ПРИВЫЧНОГО', title: 'Что ещё бывает?', names: { '0': 'Даб', '1': 'Афробит', '2': 'Босанова', '3': 'Звук без правил' }, copy: { '0': 'Бас, эхо и много пространства', '1': 'Ритм, который ведёт за собой', '2': 'Мягкая сторона бразильского ритма', '3': 'Звук, которому тесно в жанрах' } },
     heading: 'Открывайте музыку', search: 'Поиск', appearance: 'Оформление', liraName: 'Лира', liraLine: 'Спросить о музыке',
     play: 'Включай', listening: 'В эфире · открыть Ленту', paused: 'На паузе · Включай', openStory: 'Открыть подборку', startHere: 'Начните с этих эфиров',
     moods: 'Под настроение', moodsMore: 'Ещё', allStories: 'Музыкальные истории', searchKicker: 'Весь каталог',
