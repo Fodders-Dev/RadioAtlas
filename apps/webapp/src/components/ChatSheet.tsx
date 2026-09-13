@@ -56,7 +56,8 @@ type ChatSheetProps = {
   // A question another screen asks on the listener's behalf (the calm Globe's
   // «Лира» on a source). Sent once per `id` as the user's own turn; the reply is
   // whatever the real assistant answers.
-  prompt?: { text: string; id: number } | null;
+  // An optional source supplies suggestions without submitting a message.
+  prompt?: { text: string; id: number; station?: StationLite } | null;
 };
 
 import { pickChatPrompts, type ChatPromptSpec } from '../lib/chatPrompts';
@@ -240,6 +241,8 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   // chips that reshuffle under a finger are worse than chips that repeat.
   const promptSeedRef = useRef(0);
   const welcomeVisible = open && messages.length === 0;
+  const contextStation = prompt?.station ?? player.current ?? player.pending;
+  const contextTrack = contextStation?.stationuuid === player.current?.stationuuid ? nowPlaying : undefined;
   useEffect(() => {
     if (welcomeVisible) promptSeedRef.current += 1;
   }, [welcomeVisible]);
@@ -248,10 +251,10 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       pickChatPrompts({
         seed: promptSeedRef.current,
         hour: new Date().getHours(),
-        station: player.current?.name?.trim() || undefined,
-        track: nowPlaying?.trim() || undefined
+        station: contextStation?.name?.trim() || undefined,
+        track: contextTrack?.trim() || undefined
       }),
-    [welcomeVisible, player.current?.stationuuid, nowPlaying]
+    [welcomeVisible, contextStation?.stationuuid, contextStation?.name, contextTrack]
   );
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -263,17 +266,17 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
   // Keep the selected source and offer music from the catalogue. The opening
   // names only genres supported by tags; a selection is not proof of playback.
-  const onAirStation = player.current ?? player.pending ?? null;
+  const onAirStation = contextStation ?? null;
   const openingCards = useMemo(() => {
     if (!CALM_PREVIEW) return [];
     const pool = [...(summary?.catalogPool || []), ...(summary?.topVoted || [])];
     return liraOpeningStations(onAirStation, pool).map(station => ({
       station,
       note: station.stationuuid === onAirStation?.stationuuid
-        ? t(player.isPlaying ? 'journal.liraOnAir' : 'mapExplorer.selected')
+        ? t(player.isPlaying && station.stationuuid === player.current?.stationuuid ? 'journal.liraOnAir' : 'mapExplorer.selected')
         : t('journal.liraPicks')
     }));
-  }, [onAirStation, player.isPlaying, summary, t]);
+  }, [onAirStation, player.current?.stationuuid, player.isPlaying, summary, t]);
   // One send control, placed inside the capsule under calm (the mock's
   // composer) and beside it in the classic window.
   const sendButton = (
@@ -396,12 +399,12 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       .map((message) => ({ role: message.role, text: message.text }));
     const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
     const actionReceipts = messages.flatMap((message) => message.actionReceipts || []).slice(-6);
-    const trustedTrack = nowPlaying?.trim();
-    const trustedStationName = player.current?.name?.trim();
+    const trustedTrack = contextTrack?.trim();
+    const trustedStationName = contextStation?.name?.trim();
     // The NAME alone cannot answer "tell me about this station" — the catalogue
     // is keyed by uuid, and names repeat. Sending the id lets Lira look the
     // station up for real instead of describing a string.
-    const trustedStationUuid = player.current?.stationuuid?.trim();
+    const trustedStationUuid = contextStation?.stationuuid?.trim();
     setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
     if (override === undefined) {
       setInput('');

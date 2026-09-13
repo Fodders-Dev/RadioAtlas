@@ -278,8 +278,8 @@ export type ShellContextValue = {
   // A screen asking Лира something on the listener's behalf («расскажи об
   // источнике X»). The shell opens the chat and sends the text as the user's
   // own turn — the answer is the real assistant's, never a scripted reply.
-  chatRequest: { text: string; id: number } | null;
-  requestChat: (text?: string) => void;
+  chatRequest: { text: string; id: number; station?: StationLite } | null;
+  requestChat: (text?: string, station?: StationLite) => void;
   clearChatRequest: () => void;
   notify: (message: string) => void;
   skinLabOpen: boolean;

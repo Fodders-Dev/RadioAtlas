@@ -1,5 +1,42 @@
 import { expect, test } from '@playwright/test';
-import { mockStations, seedRadioState } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+
+test('Feed opens Lira with source suggestions and sends only the chosen question', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page);
+  await installMediaMocks(page);
+  await seedRadioState(page, { queue: [stations[0]], queueCurrentIndex: 0, stationCache: [stations[0]] });
+  const posted: Array<{ message: string; nowPlaying?: { stationUuid?: string } }> = [];
+  await page.route('**/ai/chat**', async route => {
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ reply: 'Ответ на выбранный вопрос', stations: [] }) });
+  });
+  await page.goto('/?calm=1');
+  const chat = page.locator('[data-chat-sheet]');
+  const enterFromFeed = async () => {
+    await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Лента', exact: true }).click();
+    await page.locator('.station-feed-card-content[data-focus="true"] [data-feed-action="lira"]').click();
+    await expect(chat).toBeVisible();
+    await expect(chat.getByRole('textbox')).toHaveValue('');
+    await expect(chat.locator('[data-chat-prompts]').getByRole('button', { name: 'Что за станция?', exact: true })).toBeVisible();
+  };
+  await enterFromFeed();
+  await expect(chat.locator('[data-chat-opening-card]').first()).toHaveAttribute('data-chat-opening-card', stations[0].stationuuid);
+  await expect(chat.locator('.chat-row--user')).toHaveCount(0);
+  expect(posted).toHaveLength(0);
+  await enterFromFeed();
+  await expect(chat.locator('.chat-row--user')).toHaveCount(0);
+  expect(posted).toHaveLength(0);
+  await chat.locator('[data-chat-prompts]').getByRole('button', { name: 'Что за станция?', exact: true }).click();
+  await expect(chat.locator('.chat-row--assistant')).toContainText('Ответ на выбранный вопрос');
+  expect(posted).toHaveLength(1);
+  expect(posted[0].message).toContain(stations[0].name);
+  expect(posted[0].nowPlaying?.stationUuid).toBe(stations[0].stationuuid);
+  await enterFromFeed();
+  await expect(chat.locator('.chat-row--user')).toHaveCount(1);
+  expect(posted).toHaveLength(1);
+  expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null)).toBeNull();
+});
 
 test('Lira keeps a growing draft and real media-error toast above a shrinking visual viewport', async ({ page }) => {
   test.setTimeout(60_000);

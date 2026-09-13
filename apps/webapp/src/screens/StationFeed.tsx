@@ -1060,7 +1060,9 @@ export const StationFeed = () => {
   const openPlace = (station: StationLite) => { settler.cancel(); setGlobeFocusStationId(station.stationuuid); setActiveSection('globe'); };
   const askLira = (station: StationLite) => {
     settler.cancel();
-    requestChat(t('chat.promptThisStationQuery', { station: `${normalizeStationName(station.name)} (${stationLocation(station) || station.country})` }));
+    // Opening Lira is not consent to send a question. Keep the source as
+    // suggestion context; the listener chooses a chip or writes their own.
+    requestChat('', station);
   };
   // Prev/next buttons are deliberate steps, i.e. swipes: the landing still goes
   // through the scroll → settler path, never a direct play.
