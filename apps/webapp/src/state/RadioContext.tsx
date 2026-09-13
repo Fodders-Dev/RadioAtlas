@@ -1862,7 +1862,14 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      const from = currentQueue.currentIndex + 1;
+      // A second Next while a source is buffering skips THAT source, instead
+      // of endlessly retrying it from the last successfully played index.
+      const transport = playbackRuntimeRef.current.player;
+      const pendingId = (transport.pending ?? transport.current)?.stationuuid;
+      const pendingIndex = pendingId
+        ? currentQueue.items.findIndex((station) => station.stationuuid === pendingId)
+        : -1;
+      const from = Math.max(currentQueue.currentIndex, pendingIndex) + 1;
       const remaining = currentQueue.items.slice(from);
       const walk = (queueWalkRef.current += 1);
       // Same policy as playStationQueue, and the same reason: a supersede here
@@ -1882,7 +1889,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
           })
       });
 
-      return result === 'played';
+      return result !== 'exhausted';
     };
 
     // Owner decision — NEVER jump to a random station. At the end of the queue
@@ -1931,13 +1938,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const mediaSessionActionsRef = useRef({
     playNext,
     playPrevious,
-    toggle: player.toggle,
+    resume: player.resume,
+    pause: player.pause,
     stop: player.stop
   });
   mediaSessionActionsRef.current = {
     playNext,
     playPrevious,
-    toggle: player.toggle,
+    resume: player.resume,
+    pause: player.pause,
     stop: player.stop
   };
 
@@ -1945,7 +1954,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   // change; sets no action handlers, so it never causes handler churn.
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-    const station = player.current;
+    const station = player.current ?? player.pending;
     if (!station) {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.playbackState = 'none';
@@ -1963,8 +1972,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         ]
       : undefined;
 
-    const title = nowPlaying || station.name;
-    const artist = nowPlaying ? station.name : station.country || 'Live Radio';
+    const track = player.current ? nowPlaying : null;
+    const title = track || station.name;
+    const artist = track ? station.name : station.country || 'Live Radio';
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
@@ -1973,7 +1983,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       artwork
     });
     navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
-  }, [player.current, player.isPlaying, nowPlaying]);
+  }, [player.current, player.pending, player.isPlaying, nowPlaying]);
 
   // Transport action handlers. FIX 2a: expose next/prev ONLY for a multi-item
   // queue — a lone live station has nowhere to skip, and leaving the handlers
@@ -1983,10 +1993,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     navigator.mediaSession.setActionHandler('play', () =>
-      mediaSessionActionsRef.current.toggle()
+      mediaSessionActionsRef.current.resume()
     );
     navigator.mediaSession.setActionHandler('pause', () =>
-      mediaSessionActionsRef.current.toggle()
+      mediaSessionActionsRef.current.pause()
     );
     navigator.mediaSession.setActionHandler('stop', () =>
       mediaSessionActionsRef.current.stop()

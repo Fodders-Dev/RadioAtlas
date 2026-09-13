@@ -85,6 +85,7 @@ const VISUALIZER_WAVEFORM_SAMPLES = 24;
 const PLAYBACK_SUPERSEDED = 'playback superseded';
 const PLAYBACK_HELD = 'playback held for an unresolved background debt';
 const STARTUP_BUFFER_GRACE_MS = 15000;
+const PLAY_REQUEST_TIMEOUT_MS = 25000;
 const REBUFFER_GRACE_MS = 6000;
 const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
 // Silent-stall watchdog. Some live MP3/ICY streams (small self-hosted
@@ -466,6 +467,11 @@ export const useAudioPlayer = ({
   // same candidate list in opposite directions until it is empty. See
   // candidateSwitchGuard.ts for the measurement behind this.
   const playPendingRef = useRef(false);
+  const playAttemptRef = useRef(0);
+  const stationStartRef = useRef(0);
+  const stationStartingRef = useRef(false);
+  const cancelPendingPlayRef = useRef<((reason: Error) => void) | null>(null);
+  const explicitlyPausedRef = useRef(false);
   const playPendingDeferralsRef = useRef(0);
   const statusRef = useRef<PlayerStatus>('idle');
   const isPlayingRef = useRef(false);
@@ -597,6 +603,7 @@ export const useAudioPlayer = ({
   };
 
   const automaticPlaybackSuppressed = () => {
+    if (explicitlyPausedRef.current) return true;
     const debt = unresolvedRecoveryDebt();
     if (!debt) return false;
     return !recoveryAuthorizationCovers(recoveryAuthorizedForRef.current, debt);
@@ -604,6 +611,9 @@ export const useAudioPlayer = ({
 
   const beginPlaybackSession = () => {
     playbackSessionRef.current += 1;
+    cancelPendingPlayRef.current?.(new Error(PLAYBACK_SUPERSEDED));
+    playAttemptRef.current += 1;
+    playPendingRef.current = false;
     return playbackSessionRef.current;
   };
 
@@ -857,7 +867,6 @@ export const useAudioPlayer = ({
           continue;
         }
         if (!isSessionCurrent(sessionId)) {
-          audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
         }
         if (!shouldUseLeanPlaybackMode() || shouldForceAudioGraph()) {
@@ -867,7 +876,6 @@ export const useAudioPlayer = ({
           await resumeAudioContext();
         }
         if (!isSessionCurrent(sessionId)) {
-          audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
         }
         // The last gate before sound. `attachSource` and the audio-graph setup
@@ -882,15 +890,42 @@ export const useAudioPlayer = ({
           pushEvent('audio: play held for an unresolved background debt');
           return { ok: false, error: PLAYBACK_HELD, held: true };
         }
+        const attempt = ++playAttemptRef.current;
         playPendingRef.current = true;
         try {
-          await audio.play();
+          // Native play can remain pending on a dead source without an error
+          // event. Its owner must settle before walking to the next candidate.
+          await new Promise<void>((resolve, reject) => {
+            const position = audio.currentTime;
+            const finish = (error?: Error) => {
+              window.clearTimeout(timer);
+              audio.removeEventListener('error', onError);
+              if (cancelPendingPlayRef.current === cancel) cancelPendingPlayRef.current = null;
+              if (error) reject(error); else resolve();
+            };
+            const cancel = (error: Error) => finish(error);
+            const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'));
+            const timer = window.setTimeout(() => {
+              // Background JS can lag behind the native player. Progress is
+              // proof of playback even if its promise callback was delayed.
+              if (!audio.paused && Math.abs(audio.currentTime - position) > 0.05) finish();
+              else {
+                finish(new Error('Playback startup timed out'));
+                audio.pause();
+              }
+            }, PLAY_REQUEST_TIMEOUT_MS);
+            cancelPendingPlayRef.current = cancel;
+            audio.addEventListener('error', onError);
+            try { audio.play().then(() => finish(), (error: Error) => finish(error)); }
+            catch (error) { finish(error instanceof Error ? error : new Error('Playback failed')); }
+          });
         } finally {
-          playPendingRef.current = false;
-          playPendingDeferralsRef.current = 0;
+          if (attempt === playAttemptRef.current) {
+            playPendingRef.current = false;
+            playPendingDeferralsRef.current = 0;
+          }
         }
         if (!isSessionCurrent(sessionId)) {
-          audio.pause();
           return { ok: false, error: PLAYBACK_SUPERSEDED, superseded: true };
         }
         activeUrlRef.current = nextUrl;
@@ -1075,7 +1110,9 @@ export const useAudioPlayer = ({
     }
     audio.setAttribute('playsinline', 'true');
     audio.setAttribute('webkit-playsinline', 'true');
-    audio.setAttribute('autoplay', 'false');
+    // Boolean HTML attributes are enabled by their presence, even "false".
+    // Only our explicit play() may start a newly attached station.
+    audio.autoplay = false;
     if (audio instanceof HTMLAudioElement) {
       audio.className = 'audio-hidden';
       document.body.appendChild(audio);
@@ -1133,6 +1170,17 @@ export const useAudioPlayer = ({
       }
     };
     const handlePause = () => {
+      // A headphone pause/resume need never produce visibilitychange. Bind a
+      // fresh reconnect debt here while hidden, before the live socket expires.
+      const station = requestedStationRef.current || currentRef.current;
+      if (station && !stationStartingRef.current && document.visibilityState === 'hidden' && candidateHasPlayedRef.current) {
+        backgroundResumeEligibleRef.current = {
+          stationId: station.stationuuid,
+          session: playbackSessionRef.current,
+          cycleId: ++backgroundCycleRef.current
+        };
+        recoveryAuthorizedForRef.current = null;
+      }
       setIsPlaying(false);
       if (requestedStationRef.current || currentRef.current) {
         setStatus((prev) => (prev === 'error' ? prev : 'paused'));
@@ -1216,6 +1264,10 @@ export const useAudioPlayer = ({
             return;
           }
           playPendingDeferralsRef.current = 0;
+          if (playPendingRef.current) {
+            cancelPendingPlayRef.current?.(new Error('Playback startup timed out'));
+            return;
+          }
           if ((requestedStationRef.current || currentRef.current) && isSessionCurrent(activeSession)) {
             tryNextCandidate(activeSession).then((outcome) => {
               if ((!requestedStationRef.current && !currentRef.current) || !isSessionCurrent(activeSession)) {
@@ -1495,6 +1547,7 @@ export const useAudioPlayer = ({
     document.addEventListener('keydown', resumeAudioContext);
 
     return () => {
+      beginPlaybackSession();
       window.clearInterval(stallWatchdog);
       audio.pause();
       if ('srcObject' in audio) {
@@ -1690,7 +1743,7 @@ export const useAudioPlayer = ({
     };
   }, []);
 
-  const playStation = async (station: StationLite): Promise<PlayStationResult> => {
+  const startStation = async (station: StationLite): Promise<PlayStationResult> => {
     // ⚠ Deliberately NOT clearing a foreign token here — because it would be
     // dead code, not because a second guard would be wrong.
     //
@@ -1713,6 +1766,7 @@ export const useAudioPlayer = ({
       };
     }
     const playbackSession = beginPlaybackSession();
+    explicitlyPausedRef.current = false;
 
     clearReconnect();
     cleanupHls();
@@ -1829,7 +1883,11 @@ export const useAudioPlayer = ({
     }
 
     const result = await playCandidateAtIndex(0, playbackSession);
-    if (result.superseded || result.error === PLAYBACK_SUPERSEDED) {
+    if (result.held && isSessionCurrent(playbackSession) && explicitlyPausedRef.current) {
+      setStatus('paused');
+      setIsPlaying(false);
+    }
+    if (result.superseded || result.held || result.error === PLAYBACK_SUPERSEDED) {
       return { ok: false, error: PLAYBACK_SUPERSEDED };
     }
     if (!result.ok) {
@@ -1852,48 +1910,47 @@ export const useAudioPlayer = ({
     };
   };
 
-  const toggle = async () => {
+  const playStation = async (station: StationLite): Promise<PlayStationResult> => {
+    const start = ++stationStartRef.current;
+    stationStartingRef.current = true;
+    try {
+      return await startStation(station);
+    } finally {
+      if (stationStartRef.current === start) stationStartingRef.current = false;
+    }
+  };
+
+  const resume = async () => {
     const audio = audioRef.current;
     // `current ?? pending`: after a total failure the station survives as
     // `pending`, and this control is the listener's way back to it.
-    const target = current ?? pending;
+    const target = requestedStationRef.current ?? currentRef.current ?? pending;
     if (!audio || !target) return false;
+    // OS play is an idempotent command, including duplicate headphone events
+    // while the live stream is connecting. Never turn it into a pause.
+    if (stationStartingRef.current || playPendingRef.current) return true;
+    if (currentRef.current && statusRef.current !== 'error' && !audio.paused &&
+        !audio.ended && !audio.error && !explicitlyPausedRef.current) return true;
+    explicitlyPausedRef.current = false;
+
+    // The pause can also precede hiding the page. An explicit background Play
+    // must reopen a paused live source even if no hidden pause event arrived.
+    if (audio.paused && currentRef.current && document.visibilityState === 'hidden' && !unresolvedRecoveryDebt()) {
+      backgroundResumeEligibleRef.current = {
+        stationId: target.stationuuid,
+        session: playbackSessionRef.current,
+        cycleId: ++backgroundCycleRef.current
+      };
+    }
 
     // Nothing is on air and nothing is attached — this is a retry of a station
     // that failed outright. Go through the public start path so the attempt is
     // a clean one with its own session, rather than poking a dead element.
-    if (!current && pending) {
+    if (!currentRef.current && pending) {
       // No authorisation to grant: `playStation` mints a new session, so no
       // debt from the failed attempt can name it and nothing is suppressed.
       const retried = await playStation(pending);
       return retried.ok;
-    }
-
-    const nativeState = audio.getAttribute('data-ra-state');
-    if (isPlaying || nativeState === 'playing' || !audio.paused) {
-      clearReconnect();
-      clearWaitingTimeout();
-      // ⚠ Pausing does NOT surrender an unresolved token, and that is the whole
-      // repair of the hole this lane nearly shipped.
-      //
-      // On a `died` verdict where the element still reports `paused === false`
-      // (the OS froze the socket without pausing), `handlePause` never fired,
-      // `isPlaying` is still true, and the ONLY control on screen is Pause. The
-      // listener cannot reach Play without pressing Pause first. If that press
-      // cleared the token, the very next Play fell through to a bare `.play()`
-      // on the dead source — the exact corpse this lane exists to stop, reached
-      // by the exact path the UI forces.
-      //
-      // So a token survives an ordinary pause until the cycle is RESOLVED:
-      // measured progress, a successful reconnect, or a station change. This is
-      // not a claim that every pause on live radio should reconnect — only that
-      // after a suspicious background return the old socket is not trusted
-      // until it has actually produced audio.
-      // The authorisation is withdrawn (the listener no longer wants sound), but
-      // the DEBT survives — see the note above about the Pause the UI forces.
-      recoveryAuthorizedForRef.current = null;
-      audio.pause();
-      return true;
     }
 
     try {
@@ -1939,7 +1996,7 @@ export const useAudioPlayer = ({
           return resumed.ok;
         }
       }
-      if (!audio.src) {
+      if (!audio.src || audio.error || audio.ended) {
         const result = await playCandidateAtIndex(
           candidateIndexRef.current,
           playbackSessionRef.current
@@ -1969,6 +2026,10 @@ export const useAudioPlayer = ({
   const pause = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    explicitlyPausedRef.current = true;
+    // A user command may cancel startup; automatic recovery may not. Rejecting
+    // that play must stop its queue walk, never be counted as a dead station.
+    if (playPendingRef.current) beginPlaybackSession();
     clearReconnect();
     clearWaitingTimeout();
     // ⚠ This path revokes too, and it was the hole. `toggle()`'s pause branch
@@ -1985,6 +2046,18 @@ export const useAudioPlayer = ({
     // socket is alive, so the listener's next Play still reconnects.
     recoveryAuthorizedForRef.current = null;
     audio.pause();
+  };
+
+  const toggle = async () => {
+    const audio = audioRef.current;
+    if (!audio) return false;
+    if (!currentRef.current && pending && !playPendingRef.current) return resume();
+    if (playPendingRef.current || (!explicitlyPausedRef.current &&
+        (isPlayingRef.current || audio.getAttribute('data-ra-state') === 'playing' || !audio.paused))) {
+      pause();
+      return true;
+    }
+    return resume();
   };
 
   const stop = () => {
@@ -2053,6 +2126,7 @@ export const useAudioPlayer = ({
     setEqPreamp: (value: number) => setEqPreamp(clampPercent(value)),
     resetEq,
     playStation,
+    resume,
     toggle,
     pause,
     stop

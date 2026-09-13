@@ -68,6 +68,17 @@ that slot stays blank rather than falling back.
 
 ## Playback is the product
 
+- Media Session `play` and `pause` are commands, never aliases for toggle.
+  Headphone resume must work while still hidden; `visibilitychange` is not a
+  prerequisite. Keep system metadata for `current ?? pending` during startup
+  and failure. A repeated Next must account for the in-flight station, not
+  only the last successful queue index.
+- `autoplay="false"` ENABLES HTML autoplay. Use `audio.autoplay = false`.
+  Mocked media events must model `paused` too: a waiting event on a natively
+  paused mock is not a rebuffering scenario. See headphone-transport.spec.ts.
+- A pending play has one owner. Errors/deadlines settle that owner's promise;
+  a watchdog must not launch a competing candidate walk. Superseded callbacks
+  must neither pause the shared element nor clear another attempt's guard.
 - **The station never switches by itself.** Camera motion on the Globe, opening
   the Feed, a chip tap, a stream error — none of them may change what is
   playing. Only a direct user action does. This is the repo's oldest hard rule.

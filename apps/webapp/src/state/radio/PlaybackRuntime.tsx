@@ -43,6 +43,7 @@ export const PlaybackRuntime = ({
   const roundedCurrentTime = Math.max(0, Math.floor(player.currentTime));
   const baseSignature = [
     player.current?.stationuuid || '',
+    player.pending?.stationuuid || '',
     player.status,
     player.isPlaying ? '1' : '0',
     player.volume.toFixed(3),

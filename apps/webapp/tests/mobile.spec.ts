@@ -1998,11 +1998,22 @@ test('dock volume click opens slider tray, right-click mutes directly', async ({
 });
 
 test('dock buffering status does not duplicate loading in the track line', async ({ page }) => {
+  // installMediaMocks emits playing but does not start native audio. Model its
+  // paused flag too: buffering a playing stream must not depend on the old,
+  // accidentally enabled autoplay="false" attribute starting native playback.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'paused', {
+      configurable: true,
+      get() { return this.getAttribute('data-ra-state') !== 'playing'; }
+    });
+  });
   await page.setViewportSize({ width: 360, height: 780 });
   await page.goto('/');
   await playHomeStation(page, 'Tokyo FM');
   await expect(page.locator('.player-dock-bar')).toBeVisible();
   await page.waitForFunction(() => Boolean(document.querySelector('audio')));
+
+  expect(await page.locator('audio').first().evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(false);
 
   await page.evaluate(() => {
     const audio = document.querySelector('audio');

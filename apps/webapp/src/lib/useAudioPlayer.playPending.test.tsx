@@ -163,6 +163,21 @@ describe('the buffering watchdog and an in-flight play()', () => {
     expect(loadCalls).toBeGreaterThan(loadsAfterAttach);
   });
 
+  it('settles a silent hung source and exhausts its candidates without media events', async () => {
+    const api = mount();
+    let result: Awaited<ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>> | undefined;
+    act(() => { void api().playStation(station).then((value) => { result = value; }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    const loadsBefore = loadCalls;
+    // No waiting/error event at all: the candidate owner still has a deadline.
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(loadCalls).toBe(loadsBefore + 1);
+    expect(result?.ok).toBe(false);
+    expect(api().status).toBe('error');
+    expect(api().pending?.stationuuid).toBe(station.stationuuid);
+    expect(audio!.paused).toBe(true);
+  });
+
   it('uses one fallback walk when an error event also rejects the pending play promise', async () => {
     const api = mount();
     let failFirst!: (error: Error) => void;

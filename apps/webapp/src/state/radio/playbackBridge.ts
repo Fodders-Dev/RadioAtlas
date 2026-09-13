@@ -49,6 +49,7 @@ export const createPlaybackPlayerPlaceholder = (): ReturnType<typeof useAudioPla
     error: 'Audio engine unavailable'
   }),
   toggle: async () => false,
+  resume: async () => false,
   pause: () => {},
   stop: () => {}
 });

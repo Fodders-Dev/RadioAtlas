@@ -234,6 +234,66 @@ describe('returning to the app after the stream may have died', () => {
     expect(loadCalls).toBe(loadsBefore);
   });
 
+  it('headphone play reconnects after a hidden pause without returning to the app', async () => {
+    const get = mount();
+    await startPlaying(get);
+    setVisibility('hidden');
+    act(() => get().pause());
+    const loadsBefore = loadCalls;
+    const playsBefore = playCalls;
+    clockOffset += 60_000;
+    act(() => get().pause()); // repeated OS pause must never resume
+    expect(playCalls).toBe(playsBefore);
+    await act(async () => { await get().resume(); });
+    expect(document.visibilityState).toBe('hidden');
+    expect(loadCalls).toBe(loadsBefore + 1);
+    expect(playCalls).toBe(playsBefore + 1);
+    expect(paused).toBe(false);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+    await act(async () => { await get().resume(); });
+    expect(paused).toBe(false);
+    expect(loadCalls).toBe(loadsBefore + 1);
+    expect(playCalls).toBe(playsBefore + 1);
+  });
+
+  it('a superseded play settling late cannot pause the newer station', async () => {
+    const get = mount();
+    let settleOld!: () => void;
+    setPlay(() => new Promise<void>((resolve) => { settleOld = resolve; }));
+    let oldPlay!: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>;
+    await act(async () => { oldPlay = get().playStation(station); });
+    expect(playCalls).toBe(1);
+    setPlay(() => Promise.resolve());
+    await act(async () => { await get().playStation(stationB); });
+    act(() => audio!.dispatchEvent(new Event('playing')));
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+    await act(async () => { settleOld(); await oldPlay; });
+    expect(paused).toBe(false);
+    expect(get().status).toBe('playing');
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+  });
+
+  it('pause cancels startup rather than failing over after a rejected play', async () => {
+    const get = mount();
+    let rejectPlay!: (error: Error) => void;
+    setPlay(() => new Promise<void>((_, reject) => { rejectPlay = reject; }));
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>;
+    await act(async () => { attempt = get().playStation(station); });
+    const loadsBefore = loadCalls;
+    act(() => get().pause());
+    await act(async () => {
+      rejectPlay(new DOMException('Paused', 'AbortError'));
+      expect((await attempt).error).toBe('playback superseded');
+    });
+    expect(loadCalls).toBe(loadsBefore);
+    expect(paused).toBe(true);
+    expect(get().status).toBe('paused');
+    expect(get().pending?.stationuuid).toBe(station.stationuuid);
+    setPlay(() => Promise.resolve());
+    await act(async () => { await get().resume(); });
+    expect(paused).toBe(false);
+  });
+
   it('still recovers a genuinely frozen stream after stalled', async () => {
     const get = mount();
     await startPlaying(get);
