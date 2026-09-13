@@ -7,10 +7,11 @@ import {
   nextPanelSize,
   orderPoints,
   pluralForm,
-  pointsInBounds
+  pointsInBounds,
+  type ExplorerPoint
 } from './globeExplorer';
 
-const point = (id: string, country: string, lat: number, lon: number, extra: Partial<{ name: string; state: string }> = {}) => ({
+const point = (id: string, country: string, lat: number, lon: number, extra: Partial<ExplorerPoint> = {}): ExplorerPoint => ({
   id,
   country,
   lat,
@@ -100,7 +101,7 @@ describe('globeExplorer helpers', () => {
   });
 });
 
-describe('genre colours and the fan', () => {
+describe('genre colours and geographic places', () => {
   it('gives every family its own colour and leaves an unknown tag neutral', async () => {
     const { GENRE_COLORS, NEUTRAL_POINT_COLOR, genreColorExpression, pointColor } = await import('./globeExplorer');
     const { GENRE_FAMILIES } = await import('../domain/contracts');
@@ -113,16 +114,16 @@ describe('genre colours and the fan', () => {
     expect(expression.length).toBe(3 + GENRE_FAMILIES.length * 2);
   });
 
-  it('shows every one of 98 coincident stations, with distinct reachable display points', async () => {
-    const { spreadMapPoints } = await import('./globeExplorer');
-    for (const width of [320, 390]) {
-      const points = Array.from({ length: 98 }, (_, i) => ({ id: `station-${i}`, x: width / 2, y: 250 }));
-      const spread = spreadMapPoints(points, width, 500);
-      expect(spread).toHaveLength(98);
-      expect(new Set(spread.map(p => `${p.x}:${p.y}`)).size).toBe(98);
-      expect(spread.every(p => p.x >= 0 && p.x < width && p.y >= 0 && p.y < 500)).toBe(true);
-      expect(spreadMapPoints([...points].reverse(), width, 500)).toEqual(spread);
-      expect(points.every(p => p.x === width / 2 && p.y === 250)).toBe(true);
-    }
+  it('keeps all 98 co-located streams in one real place without moving nearby coordinates', async () => {
+    const { groupMapPlaces } = await import('./globeExplorer');
+    const streams = Array.from({ length: 98 }, (_, i) => point(`station-${i}`, 'Germany', 52.5, 13.4, { genre: i % 2 ? 'rock' : 'jazz' }));
+    const neighbour = point('nearby', 'Germany', 52.50001, 13.4, { genre: 'jazz' });
+    const places = groupMapPlaces([...streams, neighbour]);
+    expect(places).toHaveLength(2);
+    expect(places[0]).toMatchObject({ lat: 52.5, lon: 13.4, count: 98, genre: undefined });
+    expect(places[0].ids).toEqual(streams.map(p => p.id));
+    expect(places[1]).toMatchObject({ lat: 52.50001, lon: 13.4, count: 1, genre: 'jazz' });
+    expect(streams[0].genre).toBe('jazz');
+    expect(groupMapPlaces(streams.filter(p => p.genre === 'rock'))[0]).toMatchObject({ count: 49, genre: 'rock' });
   });
 });

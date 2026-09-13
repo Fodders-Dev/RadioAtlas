@@ -67,9 +67,9 @@ export const ruDictionary = {
   },
   // Calm Globe (A4 «Журнал»): sources on a map, finds stay in the player.
   mapExplorer: {
-    spreadNote: 'Близкие точки разнесены для выбора. Линия ведёт к координате из каталога.',
+    thisPlace: 'Эфиры в этом месте', allGenres: 'Все жанры',
     title: 'Эфиры на карте', loading: 'Загружаем станции…', loadError: 'Не удалось загрузить карту и станции.',
-    world: 'Мир', countries: 'Страны', legendLabel: 'Цвет точки — жанр по тегам станции', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
+    world: 'Мир', countries: 'Страны', legendLabel: 'Жанры на карте', zoomIn: 'Приблизить', zoomOut: 'Отдалить',
     families: {
       pop: 'Поп и хиты', rock: 'Рок и метал', electronic: 'Электроника', jazz: 'Джаз, соул, блюз', classical: 'Классика',
       chill: 'Спокойное', hiphop: 'Хип-хоп и регги', world: 'Народная и мир', talk: 'Слово и новости', unknown: 'Жанр не указан'

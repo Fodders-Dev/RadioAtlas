@@ -7,7 +7,7 @@ import { isAiAssistantEnabled } from '../lib/aiChat';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { formatCountryLabel, normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { stationGenreSlug } from '../lib/stationGenre';
-import { GENRE_FAMILIES } from '../domain/contracts';
+import { GENRE_FAMILIES, type GenreFamily } from '../domain/contracts';
 import {
   countryCounts,
   countryTarget,
@@ -42,7 +42,9 @@ const STATION_ZOOM = 6.1;
 const PAGE = 20;
 
 type Scope = 'country' | 'world' | 'area';
-type ListTitle = 'nearby' | 'inArea' | null;
+type ListTitle = 'place' | 'inArea' | null;
+type GenreFilter = GenreFamily | 'unknown' | null;
+const matchesGenre = (point: ExplorerPoint, genre: GenreFilter) => !genre || (genre === 'unknown' ? !point.genre : point.genre === genre);
 
 type Visit = {
   country: string;
@@ -52,7 +54,8 @@ type Visit = {
   query: string;
   selectedId: string | null;
   panelSize: PanelSize;
-  mapAll: boolean;
+  genre: GenreFilter;
+  moved: boolean;
   camera: { center: LatLon; zoom: number } | null;
 };
 
@@ -134,10 +137,9 @@ export const GlobeExplorer = () => {
   const [limit, setLimit] = useState(PAGE);
   const [selectedId, setSelectedId] = useState<string | null>(restored.current?.selectedId || null);
   const [panelSize, setPanelSize] = useState<PanelSize>(restored.current?.panelSize || 'normal');
-  // After the listener moved the map the marker layer shows every country, so
-  // neighbours are reachable; the list waits for an explicit «Искать здесь».
-  const [mapAll, setMapAll] = useState(restored.current?.mapAll || false);
-  const [moved, setMoved] = useState(Boolean(restored.current?.mapAll && restored.current.scope === 'country'));
+  // Geography stays visible across country boundaries; filters are explicit.
+  const [genre, setGenre] = useState<GenreFilter>(restored.current?.genre || null);
+  const [moved, setMoved] = useState(restored.current?.moved || false);
   const [flight, setFlight] = useState<ExplorerFlight | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [countryPicker, setCountryPicker] = useState(false);
@@ -181,6 +183,7 @@ export const GlobeExplorer = () => {
   const pointsById = useMemo(() => new Map((points || []).map((point) => [point.id, point])), [points]);
 
   const fly = useCallback((center: LatLon, zoom: number) => {
+    cameraRef.current = { center: { lat: center.lat, lon: center.lon }, zoom };
     flightKey.current += 1;
     setFlight({ center, zoom, key: flightKey.current });
   }, []);
@@ -224,7 +227,6 @@ export const GlobeExplorer = () => {
       setLimit(PAGE);
       setSelectedId(null);
       setPanelSize('normal');
-      setMapAll(false);
       setMoved(false);
       fly(countryTarget(points, name), COUNTRY_ZOOM);
     },
@@ -257,7 +259,6 @@ export const GlobeExplorer = () => {
         setAreaIds(null);
         setListTitle(null);
         setQuery('');
-        setMapAll(false);
         select(requestedStation, true);
         return;
       }
@@ -301,9 +302,9 @@ export const GlobeExplorer = () => {
 
   useEffect(
     () => () => {
-      lastVisit = { country, scope, areaIds, listTitle, query, selectedId, panelSize, mapAll, camera: cameraRef.current };
+      lastVisit = { country, scope, areaIds, listTitle, query, selectedId, panelSize, genre, moved, camera: cameraRef.current };
     },
-    [country, scope, areaIds, listTitle, query, selectedId, panelSize, mapAll]
+    [country, scope, areaIds, listTitle, query, selectedId, panelSize, genre, moved]
   );
 
   const personalIds = useMemo(() => [...favorites, ...recent].map((station) => station.stationuuid), [favorites, recent]);
@@ -328,13 +329,15 @@ export const GlobeExplorer = () => {
     if (scope === 'world') return points;
     return orderPoints(countryPoints, personalIds, editorialIds);
   }, [points, areaIds, scope, countryPoints, personalIds, editorialIds]);
-  const results = useMemo(() => filterPoints(basePoints, query, formatCountryLabel), [basePoints, query]);
-  const mapPoints = useMemo(() => {
-    if (query.trim()) return results;
-    return mapAll || scope !== 'country' ? points || [] : countryPoints;
-  }, [query, results, mapAll, scope, points, countryPoints]);
+  const results = useMemo(() => filterPoints(basePoints, query, formatCountryLabel).filter(point => matchesGenre(point, genre)), [basePoints, query, genre]);
+  // A country focuses the camera and list; neighbours remain on the map.
+  const genrePoints = useMemo(() => (points || []).filter(point => matchesGenre(point, genre)), [points, genre]);
+  const mapPoints = query.trim() ? results : genrePoints;
+  const chooseGenre = (next: typeof genre) => {
+    setGenre(next); setSelectedId(null); setLimit(PAGE);
+  };
 
-  const unlocatedHere = scope === 'country' && !areaIds && !query.trim() ? unlocated.get(country) || 0 : 0;
+  const unlocatedHere = scope === 'country' && !areaIds && !genre && !query.trim() ? unlocated.get(country) || 0 : 0;
 
   const current = player.current ?? player.pending;
   const activeId = current?.stationuuid || null;
@@ -395,6 +398,16 @@ export const GlobeExplorer = () => {
     setMoved(false);
   };
 
+  const openPlace = (id: string) => {
+    const anchor = pointsById.get(id);
+    if (!anchor) return;
+    // The marker layer may be filtered. Keep the whole place so clearing the
+    // genre restores its other streams without another map tap.
+    const ids = (points || []).filter(point => point.lat === anchor.lat && point.lon === anchor.lon).map(point => point.id);
+    setQuery('');
+    setArea(ids, 'place');
+  };
+
   const showWorld = () => {
     setScope('world');
     setAreaIds(null);
@@ -402,7 +415,6 @@ export const GlobeExplorer = () => {
     setSelectedId(null);
     setQuery('');
     setLimit(PAGE);
-    setMapAll(true);
     setMoved(false);
     fly(WORLD, WORLD_ZOOM);
   };
@@ -417,7 +429,6 @@ export const GlobeExplorer = () => {
   const onUserMove = (area: ExplorerArea) => {
     cameraRef.current = { center: area.center, zoom: area.zoom };
     setMoved(true);
-    setMapAll(true);
   };
 
   const backToList = () => {
@@ -480,8 +491,8 @@ export const GlobeExplorer = () => {
   const expanded = panelSize === 'expanded';
   const collapsed = panelSize === 'collapsed';
   const title =
-    listTitle === 'nearby'
-      ? t('mapExplorer.nearby')
+    listTitle === 'place'
+      ? t('mapExplorer.thisPlace')
       : listTitle === 'inArea'
         ? t('mapExplorer.inArea')
         : scope === 'world'
@@ -491,6 +502,10 @@ export const GlobeExplorer = () => {
             : t('mapExplorer.title');
   const switchLabel = moved || scope !== 'country' ? t('mapExplorer.countries') : country ? formatCountryLabel(country) : t('mapExplorer.countries');
   const genreSlug = selectedStation ? stationGenreSlug(selectedStation) : null;
+  const placePoint = listTitle === 'place' && areaIds?.[0] ? pointsById.get(areaIds[0]) : null;
+  const listHint = placePoint
+    ? [placePoint.state, formatCountryLabel(placePoint.country)].filter(Boolean).join(' · ')
+    : t('mapExplorer.listHint');
 
   const panelHeader = (
     <header className="explorer-heading">
@@ -503,7 +518,7 @@ export const GlobeExplorer = () => {
         onClick={() => setPanelSize(expanded ? 'normal' : 'expanded')}
       >
         <strong>{title}</strong>
-        <small>{listReady ? t('mapExplorer.listHint') : pointsError ? t('mapExplorer.loadError') : t('mapExplorer.loading')}</small>
+        <small>{listReady ? listHint : pointsError ? t('mapExplorer.loadError') : t('mapExplorer.loading')}</small>
       </button>
       <button className="explorer-icon" type="button" aria-label={t('mapExplorer.searchArea')} onClick={openSearch}>
         <Icon name="search" />
@@ -558,23 +573,18 @@ export const GlobeExplorer = () => {
           <ExplorerMap
             points={mapPoints}
             selectedId={selectedId}
+            placeId={listTitle === 'place' ? results[0]?.id || null : null}
             activeId={activeId}
             flight={flight}
             handleRef={mapHandle}
             onReady={() => setMapReady(true)}
-            onPick={(id) => select(id, false)}
-            onGroup={(ids) => {
-              setArea(ids, 'nearby');
-              // A group opens on the MAP (a split, a fan) as well as in the
-              // list: an expanded list would leave the fan under the heading.
-              setPanelSize((size) => (size === 'expanded' ? 'normal' : size));
-            }}
+            onPick={(id) => { openPlace(id); select(id, false); }}
+            onGroup={(ids) => openPlace(ids[0])}
             onUserMove={onUserMove}
             onError={() => notify(t('mapExplorer.groupFailed'))}
           />
         )}
         <div className="explorer-vignette" aria-hidden="true" />
-        <p className="explorer-dot-note">{t('mapExplorer.spreadNote')}</p>
         <header className="explorer-map-heading">
           <button className="explorer-country-switch" type="button" onClick={() => setCountryPicker(true)} disabled={!points}>
             <Icon name="globe" />
@@ -586,17 +596,18 @@ export const GlobeExplorer = () => {
             <span>{t('mapExplorer.world')}</span>
           </button>
         </header>
-        <div className="explorer-legend" role="list" aria-label={t('mapExplorer.legendLabel')} data-explorer-legend>
+        <div className="explorer-legend" role="group" aria-label={t('mapExplorer.legendLabel')} data-explorer-legend>
+          <button className="explorer-legend-item" aria-pressed={!genre} onClick={() => chooseGenre(null)}>{t('mapExplorer.allGenres')}</button>
           {GENRE_FAMILIES.map((family) => (
-            <span className="explorer-legend-item" role="listitem" key={family}>
+            <button className="explorer-legend-item" type="button" aria-pressed={genre === family} key={family} onClick={() => chooseGenre(genre === family ? null : family)}>
               <i style={{ background: pointColor(family) }} aria-hidden="true" />
               {t(`mapExplorer.families.${family}`)}
-            </span>
+            </button>
           ))}
-          <span className="explorer-legend-item" role="listitem">
+          <button className="explorer-legend-item" type="button" aria-pressed={genre === 'unknown'} onClick={() => chooseGenre(genre === 'unknown' ? null : 'unknown')}>
             <i style={{ background: pointColor(undefined) }} aria-hidden="true" />
             {t('mapExplorer.families.unknown')}
-          </span>
+          </button>
         </div>
         <div className="explorer-zoom">
           <button className="explorer-icon" type="button" aria-label={t('mapExplorer.zoomIn')} onClick={() => mapHandle.current?.zoomBy(0.8)}>
@@ -808,7 +819,7 @@ export const GlobeExplorer = () => {
                 const isActive = point.id === activeId;
                 return (
                   <div className="explorer-row" key={point.id} data-point-id={point.id} data-active={isActive || undefined}>
-                    <button className="explorer-row-name" type="button" aria-label={t('mapExplorer.showOnMap', { name })} onClick={() => select(point.id, true)}>
+                    <button className="explorer-row-name" type="button" aria-label={t('mapExplorer.showOnMap', { name })} onClick={() => select(point.id, listTitle !== 'place')}>
                       <StationArtwork station={station} size="sm" className="explorer-row-art" />
                       <span>
                         <strong>{name}</strong>

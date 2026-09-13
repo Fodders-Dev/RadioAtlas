@@ -192,6 +192,7 @@ test('calm globe: Лира is asked about the selected source in its own words',
   const row = page.locator('.explorer-row').first();
   const name = (await row.locator('strong').textContent())!.trim();
   await row.locator('.explorer-row-name').click();
+  await expect.poll(async () => Number(await page.locator('.explorer-map').getAttribute('data-zoom'))).toBeCloseTo(6.1, 1);
   await page.locator('[data-ask-lira]').click();
   await expect(page.locator('[data-chat-sheet]')).toBeVisible();
   await expect(page.locator('.chat-row').first()).toContainText(name);
@@ -204,6 +205,7 @@ test('calm globe: Лира is asked about the selected source in its own words',
   await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
   await expect(page.locator('[data-chat-sheet]')).toHaveCount(0);
   await expect(page.locator('[data-selected-station]')).toBeVisible();
+  await expect.poll(async () => Number(await page.locator('.explorer-map').getAttribute('data-zoom'))).toBeCloseTo(6.1, 1);
 });
 
 test('calm home: a country continues on the globe at the same place', async ({ page }) => {
@@ -235,9 +237,8 @@ test('calm globe @320 light: no overflow, 44px floors, compact card', async ({ p
   await page.screenshot({ path: '../../output/playwright/calm/globe-320-pastel.png' });
 });
 
-// Every station is visible at detail scale, including an entire 98-source
-// coordinate pile. One cluster tap reaches detail; browsing never plays.
-test('calm globe: one tap reveals all 98 coincident stations and individual dots select without playback', async ({ page }) => {
+// One geographic place opens all co-located streams without a zoom cascade.
+test('calm globe: one geographic dot opens all co-located streams; genre filtering and selection never play', async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
@@ -256,24 +257,29 @@ test('calm globe: one tap reveals all 98 coincident stations and individual dots
   await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
   await expect(map).toHaveAttribute('data-camera', 'idle');
   await page.waitForTimeout(800);
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Джаз, соул, блюз', exact: true }).click();
+  await expect(page.locator('[data-result-count]')).toHaveText('33 эфира');
   const box = (await page.locator('.explorer-map canvas').boundingBox())!;
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.click(cx, cy);
-  await expect(map).toHaveAttribute('data-detail', 'true');
-  await expect.poll(async () => Number(await map.getAttribute('data-visible-points'))).toBeGreaterThanOrEqual(98);
-  await expect(page.locator('.explorer-dot-note')).toBeVisible();
+  await expect(page.locator('.explorer-title strong')).toHaveText('Эфиры в этом месте');
+  await expect(page.locator('[data-result-count]')).toHaveText('33 эфира');
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Все жанры', exact: true }).click();
+  await expect(page.locator('[data-result-count]')).toHaveText('99 эфиров');
+  expect(Number(await map.getAttribute('data-zoom'))).toBeCloseTo(3.1, 1);
   expect(await audioSrc(page)).toBeNull();
-  await page.mouse.click(cx, cy);
-  const card = page.locator('[data-selected-station]');
-  await expect(card).toBeVisible();
-  const first = await card.getAttribute('data-selected-station');
-  await page.waitForTimeout(500);
-  await page.mouse.click(cx + 30, cy - 30);
-  await expect.poll(() => card.getAttribute('data-selected-station')).not.toBe(first);
+  // Every source is reachable in the same place, including the last page.
+  for (let i = 0; i < 4; i++) await page.locator('.explorer-load-more').click();
+  await expect(page.locator('.explorer-row')).toHaveCount(99);
+  await page.locator('.explorer-row-name').last().click();
+  await expect(page.locator('[data-selected-station]')).toHaveAttribute('data-selected-station', 'pile-97');
+  await page.locator('[data-back-to-list]').click();
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Джаз, соул, блюз', exact: true }).click();
+  await expect(page.locator('[data-result-count]')).toHaveText('33 эфира');
+  await expect(page.locator('.explorer-row')).toHaveCount(20);
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Все жанры', exact: true }).click();
+  await expect(page.locator('[data-result-count]')).toHaveText('99 эфиров');
   expect(await audioSrc(page)).toBeNull();
-  // A blank tap never folds the dots away again.
-  await page.mouse.click(box.x + 25, box.y + box.height - 50);
-  await expect.poll(async () => Number(await map.getAttribute('data-visible-points'))).toBeGreaterThanOrEqual(98);
 });
 // A sparse country: the catalogue knows stations there but none carries
 // coordinates (Mongolia: nine stations, not one located). The map draws

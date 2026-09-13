@@ -144,31 +144,20 @@ export const genreColorExpression = (): unknown[] => [
   NEUTRAL_POINT_COLOR
 ];
 
-// Display-only collision layout. Original coordinates stay on the station;
-// at neighbourhood scale every visible station gets a dot, including all
-// stations sharing a catalogue coordinate. A selected displaced dot gets a
-// single tether back to that coordinate, never a web of 98 crossing lines.
-export function spreadMapPoints<T extends { id: string; x: number; y: number }>(points: T[], width: number, height: number) {
-  const gap = Math.max(4, Math.min(22, Math.sqrt(width * height / Math.max(points.length * 5, 1))));
-  const used = new Set<string>();
-  const cols = Math.max(1, Math.floor((width - 24) / gap));
-  const rows = Math.max(1, Math.floor((height - 24) / gap));
-  return [...points].sort((a, b) => a.id.localeCompare(b.id)).map(point => {
-    const col = Math.max(0, Math.min(cols - 1, Math.round((point.x - 12) / gap)));
-    const row = Math.max(0, Math.min(rows - 1, Math.round((point.y - 12) / gap)));
-    let chosen = { x: col, y: row };
-    let found = false;
-    for (let r = 0; r < Math.max(cols, rows) && !found; r++) {
-      for (let dy = -r; dy <= r && !found; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const x = col + dx, y = row + dy;
-          if (x < 0 || x >= cols || y < 0 || y >= rows || used.has(`${x}:${y}`)) continue;
-          chosen = { x, y }; found = true; break;
-        }
-      }
-    }
-    used.add(`${chosen.x}:${chosen.y}`);
-    return { ...point, x: chosen.x * gap + 12, y: chosen.y * gap + 12, radius: Math.min(6, gap * .35) };
-  });
+// A place is an actual catalogue coordinate, never a screen-space offset.
+// Co-located streams share a place; nearby but distinct coordinates stay distinct.
+export type ExplorerPlace = ExplorerPoint & { ids: string[]; count: number };
+export function groupMapPlaces(points: ExplorerPoint[]): ExplorerPlace[] {
+  const places = new Map<string, ExplorerPlace>();
+  for (const point of points) {
+    const key = `${point.lon}:${point.lat}`;
+    const place = places.get(key);
+    if (place) {
+      place.ids.push(point.id);
+      place.count += 1;
+      // A mixed place has no single genre. Filtering reveals its matching streams.
+      if (place.genre !== point.genre) place.genre = undefined;
+    } else places.set(key, { ...point, ids: [point.id], count: 1 });
+  }
+  return [...places.values()];
 }
