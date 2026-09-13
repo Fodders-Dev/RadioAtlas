@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RadioAtlas · сначала музыка, затем открытие</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+  <div class="study"><span>Концепт Главной · сценарий без звука и AI</span><button id="layout" aria-pressed="false">Навигация: сбоку</button></div>
+  <header class="masthead"><a class="brand" href="#home" aria-label="RadioAtlas — главная"><span class="brand-mark">r<span>✳</span></span> RadioAtlas</a><span class="edition">МУЗЫКА ЗА ПРЕДЕЛАМИ ПРИВЫЧНОГО</span><button class="plain" data-action="about">О концепте ↗</button></header>
+  <nav class="dock" aria-label="Разделы концепта">
+    <button data-page="home" aria-current="page"><span aria-hidden="true">⌂</span><small>Главная</small></button>
+    <button data-page="explore"><span aria-hidden="true">◎</span><small>Открытия</small></button>
+    <button data-page="saved"><span aria-hidden="true">♡</span><small>Моё</small></button>
+    <button data-page="lira"><span aria-hidden="true">✧</span><small>Лира</small></button>
+  </nav>
+  <main id="main" tabindex="-1"></main>
+  <section class="player glass" aria-label="Демонстрационный плеер" hidden>
+    <button class="now" data-action="queue"><span class="mini-art">fip</span><span><strong id="station-name">FIP</strong><small id="station-state">Сценарий · без звука</small></span></button>
+    <button class="icon" id="toggle" aria-label="Пауза в сценарии">Ⅱ</button><button class="icon" data-action="next" aria-label="Следующая станция">→</button><button class="queue-button" data-action="queue">Очередь <span id="queue-count">3</span></button>
+  </section>
+  <dialog id="detail"><div class="dialog-header"><span id="dialog-kicker">RADIOATLAS</span><button class="icon" id="close" aria-label="Закрыть">×</button></div><div id="dialog-body"></div></dialog>
+  <div id="notice" role="status"></div>
+  <script src="/app.js"></script>
+</body></html>
