@@ -675,8 +675,16 @@ picks it over the reticle `GlobeScreen` only under `CALM_PREVIEW`.
 
 ## The calm preview is the whole A4 «Журнал», not only the Globe (2026-09-11)
 
-Under `?calm=1` the app renders the accepted A4 composition end to end, on the
-same state and backends as the default shell:
+⚠ Since 2026-09-14 the calm shell is the DEFAULT on the production build
+(`lib/calmPreview.ts` reads `import.meta.env.PROD`): radioatlas.ru opens the
+A4 composition, `?calm=0` / `?classic=1` opens the classic one. The dev
+server and the Playwright harness keep the classic default, so every
+classic spec still tests what it says; calm specs enter with `?calm=1`, and
+that flag also works in production. `calmPreview.test.ts` pins the contract.
+
+Under `?calm=1` (and by default in production) the app renders the accepted
+A4 composition end to end, on the same state and backends as the classic
+shell:
 
 - `lib/theme/defaults.ts` adds the light «journal» theme; `ThemeContext` uses
   it as the calm default only while the stored theme is still `classic`.
