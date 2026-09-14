@@ -51,7 +51,13 @@
 .calm-slide-stepper svg { width: 16px; height: 16px; }
 
 /* ---- the rail ----------------------------------------------------------- */
-.station-feed-overlay[data-feed-player='true'] .calm-slide-rail { position: absolute; right: 13px; top: auto; bottom: 168px; left: auto; transform: none; max-height: none; padding: 0; display: grid; gap: 8px; z-index: 4; }
+.station-feed-overlay[data-feed-player='true'] .calm-slide-rail { position: absolute; right: 13px; top: auto; bottom: 194px; left: auto; transform: none; height: auto; max-height: none; padding: 0; display: grid; grid-auto-rows: max-content; align-content: end; justify-items: center; gap: 6px; z-index: 4; }
+/* Captions: one word under every control, so the heart (the station) and
+   the bookmark (the track) read as two different saves. */
+.calm-rail-label { font-size: 9px; line-height: 1; letter-spacing: .3px; color: #fbe7cfd9; text-align: center; margin: -2px 0 4px; }
+.calm-side-action { display: grid; justify-items: center; gap: 3px; flex: 0 0 auto; }
+.calm-heart.is-on { color: #ffaf91; }
+.calm-heart.is-on svg { fill: #f18468; stroke: #ffbd94; }
 /* The whole column lives in the lower half, where a thumb is: it ends just
    above the bookmark and the volume, and its top stays under mid-screen even
    on a tall phone. */
@@ -102,7 +108,7 @@
   .calm-scene--vinyl .calm-scene-disc { top: 80px; left: 53px; width: 400px; height: 400px; }
   .calm-scene-disc i { left: 141px; top: 141px; }
   .calm-slide-story { left: 23px; right: 22px; gap: 17px; bottom: 56px; }
-  .station-feed-overlay[data-feed-player='true'] .calm-slide-rail { bottom: 176px; right: 16px; }
+  .station-feed-overlay[data-feed-player='true'] .calm-slide-rail { bottom: 202px; right: 16px; }
   .calm-slide-identity .station-feed-card-name { font-size: 42px; }
   .calm-slide-identity p { font-size: 11px; }
   .calm-slide-track strong { font-size: 20px; }
@@ -167,7 +173,7 @@
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-scroller { inset: auto; top: 50%; left: 24px; right: 352px; transform: translateY(-50%); width: auto; max-width: none; height: min(100vh - 48px, 640px); border-radius: 30px; overflow-y: auto; box-shadow: 0 30px 80px -30px #000c, inset 0 1px 0 #fff3; }
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-card { height: 100%; }
   .station-feed-overlay[data-feed-player='true'] .calm-slide-story { bottom: 44px; right: 24px; width: min(760px, calc(100% - 48px)); }
-  .station-feed-overlay[data-feed-player='true'] .calm-slide-rail { bottom: 150px; right: 22px; }
+  .station-feed-overlay[data-feed-player='true'] .calm-slide-rail { bottom: 182px; right: 22px; }
   .station-feed-overlay[data-feed-player='true'] .calm-swipe-hint { bottom: 16px; }
   .calm-feed-deck { position: absolute; top: 24px; right: 24px; bottom: 24px; width: 304px; display: flex; flex-direction: column; padding: 16px 6px 12px 14px; border-radius: 26px; background: #3a251f; color: #fff1e0; box-shadow: inset 0 1px 0 #fff2; }
   .calm-feed-deck h3 { margin: 0 0 8px 6px; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #e9c9a9; }

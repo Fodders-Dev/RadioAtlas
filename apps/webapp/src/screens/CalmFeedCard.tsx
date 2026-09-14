@@ -50,6 +50,7 @@ export type CalmFeedCardProps = {
   labels: {
     play: string; pause: string; like: string; unlike: string; save: string; saved: string;
     lira: string; tools: string; volume: string; place: string; nowPlaying: string; lastFind: string; noTrack: string; startToCatch: string;
+    railStation: string; railTrack: string; railVolume: string; railLira: string; railMore: string;
     onAir: string; pausedStatus: string; idleStatus: string; connecting: string; failed: string;
     prev: string; next: string; timer: string; hint: string; tab: string; liveMusic: string; queueEnd: string; queueContinue: string;
     sceneWords: Record<GenreFamily | 'unknown', string>;
@@ -131,18 +132,23 @@ export const CalmFeedCard = ({
           <button type="button" className="calm-slide-icon" onClick={() => onStep(-1)} disabled={!canStep.prev} aria-label={labels.prev} data-feed-action="prev" tabIndex={tab}><Chevron up /></button>
           <button type="button" className="calm-slide-icon" onClick={() => onStep(1)} disabled={!canStep.next} aria-label={labels.next} data-feed-action="next" tabIndex={tab}><Chevron /></button>
         </div>
-        <button type="button" className={`station-feed-action calm-rail-button ${favorite ? 'is-on' : ''}`.trim()} onClick={onToggleFavorite} aria-pressed={favorite} aria-label={`${favorite ? labels.unlike : labels.like}: ${name}`} data-feed-action="favorite" tabIndex={tab}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8" fill={favorite ? 'currentColor' : 'none'} /></svg>
+        <button type="button" className="station-feed-action calm-rail-button" onClick={onOpenTools} aria-label={labels.volume} data-feed-action="volume" tabIndex={tab}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM17 8a6 6 0 0 1 0 8M20 5a10 10 0 0 1 0 14" /></svg>
         </button>
+        <span className="calm-rail-label" aria-hidden="true">{labels.railVolume}</span>
         {aiEnabled ? (
-          <button type="button" className="station-feed-action calm-rail-button" onClick={onAskLira} aria-label={`${labels.lira}: ${name}`} data-feed-action="lira" tabIndex={tab}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" /></svg>
-            <span className="visually-hidden"><LiraMark /></span>
-          </button>
+          <>
+            <button type="button" className="station-feed-action calm-rail-button" onClick={onAskLira} aria-label={`${labels.lira}: ${name}`} data-feed-action="lira" tabIndex={tab}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" /></svg>
+              <span className="visually-hidden"><LiraMark /></span>
+            </button>
+            <span className="calm-rail-label" aria-hidden="true">{labels.railLira}</span>
+          </>
         ) : null}
         <button type="button" className="station-feed-action calm-rail-button" onClick={onOpenTools} aria-label={`${labels.tools}: ${name}`} data-feed-action="expand" tabIndex={tab}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h.01M12 12h.01M20 12h.01" /></svg>
         </button>
+        <span className="calm-rail-label" aria-hidden="true">{labels.railMore}</span>
       </div>
 
       <div ref={storyRef} className="calm-slide-story">
@@ -166,9 +172,12 @@ export const CalmFeedCard = ({
               <small>{isCurrent ? labels.noTrack : labels.startToCatch}</small>
             )}
           </div>
-          <button type="button" className="station-feed-action calm-round calm-feed-capture" onClick={onCapture} aria-label={capture.saved ? labels.saved : labels.save} aria-pressed={capture.saved} disabled={!capture.enabled} data-feed-action="capture" tabIndex={tab}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z" fill={capture.saved ? 'currentColor' : 'none'} /></svg>
-          </button>
+          <span className="calm-side-action">
+            <button type="button" className="station-feed-action calm-round calm-feed-capture" onClick={onCapture} aria-label={capture.saved ? labels.saved : labels.save} aria-pressed={capture.saved} disabled={!capture.enabled} data-feed-action="capture" tabIndex={tab}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z" fill={capture.saved ? 'currentColor' : 'none'} /></svg>
+            </button>
+            <span className="calm-rail-label" aria-hidden="true">{labels.railTrack}</span>
+          </span>
         </div>
         <div className="calm-slide-transport">
           <button
@@ -184,9 +193,12 @@ export const CalmFeedCard = ({
             <span>{isPlaying ? labels.pause : labels.play}</span>
             <FeedWaveform compact active={isPlaying} subscribe={subscribe} />
           </button>
-          <button type="button" className="calm-slide-icon calm-volume" onClick={onOpenTools} aria-label={labels.volume} data-feed-action="volume" tabIndex={tab}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM17 8a6 6 0 0 1 0 8M20 5a10 10 0 0 1 0 14" /></svg>
-          </button>
+          <span className="calm-side-action">
+            <button type="button" className={`calm-slide-icon calm-volume calm-heart ${favorite ? 'is-on' : ''}`.trim()} onClick={onToggleFavorite} aria-pressed={favorite} aria-label={`${favorite ? labels.unlike : labels.like}: ${name}`} data-feed-action="favorite" tabIndex={tab}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8" fill={favorite ? 'currentColor' : 'none'} /></svg>
+            </button>
+            <span className="calm-rail-label" aria-hidden="true">{labels.railStation}</span>
+          </span>
         </div>
       </div>
       {onContinue && !canStep.next

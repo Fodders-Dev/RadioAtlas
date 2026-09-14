@@ -1059,7 +1059,7 @@ export const StationFeed = () => {
     noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
     idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed'),
     prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint'),
-    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'), queueEnd: t('journal.queueEnd'), queueContinue: t('journal.queueContinue'),
+    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'), queueEnd: t('journal.queueEnd'), queueContinue: t('journal.queueContinue'), railStation: t('journal.railStation'), railTrack: t('journal.railTrack'), railVolume: t('journal.railVolume'), railLira: t('journal.railLira'), railMore: t('journal.railMore'),
     sceneWords: {
       pop: t('journal.sceneWords.pop'), rock: t('journal.sceneWords.rock'), electronic: t('journal.sceneWords.electronic'), jazz: t('journal.sceneWords.jazz'),
       classical: t('journal.sceneWords.classical'), chill: t('journal.sceneWords.chill'), hiphop: t('journal.sceneWords.hiphop'), world: t('journal.sceneWords.world'),
