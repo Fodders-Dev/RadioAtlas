@@ -159,6 +159,7 @@
    list of what comes next at the right — the width buys content, not air. */
 @media (min-width: 900px) {
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop { background: #2c1b16; }
+  :root .app-shell-v2[data-calm='true'][data-active-section='feed'] { background: #2c1b16; }
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-scroller { inset: auto; top: 50%; left: 24px; right: 352px; transform: translateY(-50%); width: auto; max-width: none; height: min(100vh - 48px, 640px); border-radius: 30px; overflow-y: auto; box-shadow: 0 30px 80px -30px #000c, inset 0 1px 0 #fff3; }
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-card { height: 100%; }
   .station-feed-overlay[data-feed-player='true'] .calm-slide-story { bottom: 44px; right: 90px; width: auto; }

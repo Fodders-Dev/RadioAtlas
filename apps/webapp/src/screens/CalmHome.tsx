@@ -51,7 +51,7 @@ type LiveFilter = 'all' | 'favorites' | 'recent' | GenreFamily;
 const LIVE_PAGE = 10;
 // A wider screen shows more of everything, not bigger blocks.
 const wideScreen = () => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches;
-const livePage = () => (wideScreen() ? 18 : LIVE_PAGE);
+const livePage = () => (wideScreen() ? 12 : LIVE_PAGE);
 
 type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; shown: number } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
@@ -198,17 +198,29 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       <div className="calm-home-lead">
         {/* The two ways to change the sound, drawn as doors: the Feed's own
             art and the Globe's poster. */}
+        {/* Where to go next — every direction named on its own poster: the
+            Feed and the Globe first, then the shelves that already exist. */}
         <section className="calm-section calm-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
-          <button className="calm-door calm-door-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}>
-            <span className="calm-door-art" aria-hidden="true"><i /></span>
-            <span className="calm-door-caption"><b>{t('journal.entryFeed')}</b><small>{t('journal.entryFeedCopy')}</small></span>
-            <Icon d={ARROW} />
-          </button>
-          <button className="calm-door calm-door-globe" data-calm-entry="globe" onClick={() => setActiveSection('globe')}>
-            <span className="calm-door-art" aria-hidden="true"><CalmPoster art="world" word={t('journal.entryGlobeWord')} /></span>
-            <span className="calm-door-caption"><b>{t('journal.entryGlobe')}</b><small>{t('journal.entryGlobeCopy')}</small></span>
-            <Icon d={ARROW} />
-          </button>
+          <div className="calm-doors-rail">
+            <button className="calm-door calm-door-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}>
+              <span className="calm-door-art" aria-hidden="true" /><b>{t('journal.dirFeed')}</b><small>{t('journal.dirFeedCopy')}</small>
+            </button>
+            <button className="calm-door" data-calm-entry="globe" onClick={() => setActiveSection('globe')}>
+              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="world" /></span><b>{t('journal.dirGlobe')}</b><small>{t('journal.dirGlobeCopy')}</small>
+            </button>
+            <button className="calm-door" data-calm-entry="moods" onClick={() => setAllStories(true)}>
+              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="jazz" /></span><b>{t('journal.dirMoods')}</b><small>{t('journal.dirMoodsCopy')}</small>
+            </button>
+            <button className="calm-door" data-calm-entry="countries" onClick={() => setCountryPicker(true)}>
+              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="road" /></span><b>{t('journal.dirCountries')}</b><small>{t('journal.dirCountriesCopy')}</small>
+            </button>
+            <button className="calm-door" data-calm-entry="genres" onClick={() => onSearch('')}>
+              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="groove" /></span><b>{t('journal.dirGenres')}</b><small>{t('journal.dirGenresCopy')}</small>
+            </button>
+            <button className="calm-door" data-calm-entry="mine" onClick={() => openLibrary('favorites')}>
+              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="focus" /></span><b>{t('journal.dirMine')}</b><small>{t('journal.dirMineCopy')}</small>
+            </button>
+          </div>
         </section>
 
         {ai && <div className="calm-welcome">
@@ -226,16 +238,15 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
             {liveChips.map((chip) => <button key={chip.id} className="calm-chip" aria-pressed={liveFilter === chip.id} data-calm-live-filter={chip.id} onClick={() => selectLive(chip.id)}>{chip.label} · {chip.count}</button>)}
           </div>
           <div className="calm-live-list">
-            {liveVisible.map((s, index) => {
+            {liveVisible.map((s) => {
               const current = listener?.stationuuid === s.stationuuid;
               const name = normalizeStationName(s.name);
               const family = stationGenreFamily(s);
               const meta = [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
               return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined}>
                 <button className="calm-live-open" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
-                  <span className="calm-live-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
                   <StationArtwork station={s} size="sm" className="calm-row-art" />
-                  <span><strong>{name}</strong><small>{meta}</small></span>
+                  <span><strong>{name}</strong><small>{current ? (player.isPlaying ? t('journal.nowOnAir') : t('journal.nowPaused')) : meta}</small></span>
                 </button>
                 <button className="calm-icon calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, liveVisible, 'home-live'); }} aria-label={current && player.isPlaying ? t('common.pause') : t('journal.playStation', { name })}>
                   {current && player.isPlaying ? <Icon d="M8 5h3v14H8zM13 5h3v14h-3z" /> : <Icon d="M7 4l12 8-12 8V4z" />}
