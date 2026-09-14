@@ -23,6 +23,8 @@ import { createHomeRecommendationFeed } from '../lib/homeProfile';
 import { formatCoordinatePair } from '../lib/localTime';
 import { buildStationFeed, isFeedStationEligible } from '../lib/stationFeed';
 import { normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
+import { localizedCountry } from '../lib/countryName';
+import { StationArtwork } from '../components/StationArtwork';
 import { prewarmStation } from '../lib/streamPrewarm';
 import {
   isStationHardHiddenByPlayability,
@@ -435,7 +437,7 @@ const FeedCard = ({
 };
 
 export const StationFeed = () => {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { summary } = useCatalog();
   const { player, playStation, queue, nowPlaying, nowPlayingStatus, shareStation, copyTrack, sleepTimer } = usePlayback();
   const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
@@ -1299,6 +1301,22 @@ export const StationFeed = () => {
           })
         )}
       </div>
+      {CALM_PREVIEW && visibleFeedStations.length > 1 ? (
+        <aside className="calm-feed-deck" aria-label={t('journal.feedDeck')}>
+          <h3>{queueMode ? t('journal.queueContext') : t('journal.feedDeck')}</h3>
+          <ol>
+            {visibleFeedStations.map((deckStation, deckIndex) => deckIndex > visibleIndex && deckIndex <= visibleIndex + 12 ? (
+              <li key={deckStation.stationuuid}>
+                <button type="button" onClick={() => stepBy(deckIndex - visibleIndex)} data-feed-deck-item={deckStation.stationuuid}>
+                  <span className="calm-feed-deck-index">{String(deckIndex + 1).padStart(2, '0')}</span>
+                  <StationArtwork station={deckStation} size="sm" className="calm-feed-deck-art" />
+                  <span className="calm-feed-deck-copy"><b>{normalizeStationName(deckStation.name)}</b><small>{localizedCountry(deckStation, locale)}</small></span>
+                </button>
+              </li>
+            ) : null)}
+          </ol>
+        </aside>
+      ) : null}
 
       {/* Fixed chrome occupying the band the cards stop short of, so the next card
           "peeks" without the snap unit ever being anything but one viewport —

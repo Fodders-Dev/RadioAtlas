@@ -124,13 +124,13 @@ export const CalmFeedCard = ({
         <button type="button" className={`calm-slide-icon calm-slide-timer ${timer.active ? 'is-on' : ''}`.trim()} onClick={timer.onOpen} aria-label={labels.timer} data-feed-action="timer" data-minutes={timer.active ? timer.label : ''} tabIndex={tab}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6M12 7v6l3 2M20 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0" /></svg>
         </button>
+      </div>
+
+      <div ref={railRef} className="station-feed-card-actions calm-slide-rail" aria-hidden={active ? undefined : 'true'}>
         <div className="calm-slide-stepper">
           <button type="button" className="calm-slide-icon" onClick={() => onStep(-1)} disabled={!canStep.prev} aria-label={labels.prev} data-feed-action="prev" tabIndex={tab}><Chevron up /></button>
           <button type="button" className="calm-slide-icon" onClick={() => onStep(1)} disabled={!canStep.next} aria-label={labels.next} data-feed-action="next" tabIndex={tab}><Chevron /></button>
         </div>
-      </div>
-
-      <div ref={railRef} className="station-feed-card-actions calm-slide-rail" aria-hidden={active ? undefined : 'true'}>
         <button type="button" className={`station-feed-action calm-rail-button ${favorite ? 'is-on' : ''}`.trim()} onClick={onToggleFavorite} aria-pressed={favorite} aria-label={`${favorite ? labels.unlike : labels.like}: ${name}`} data-feed-action="favorite" tabIndex={tab}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8" fill={favorite ? 'currentColor' : 'none'} /></svg>
         </button>

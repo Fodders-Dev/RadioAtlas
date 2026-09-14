@@ -408,7 +408,12 @@
   .app-shell-v2[data-calm='true'] .calm-home-columns { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: start; }
   .app-shell-v2[data-calm='true'] .calm-home-lead { position: sticky; top: 20px; }
   .app-shell-v2[data-calm='true'] .calm-doors { grid-template-columns: 1fr; }
-  .app-shell-v2[data-calm='true'] .calm-door { min-height: 190px; }
+  .app-shell-v2[data-calm='true'] .calm-door { min-height: 150px; }
+  .app-shell-v2[data-calm='true'] .calm-home-body .calm-story-rail { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .app-shell-v2[data-calm='true'] .calm-home-body .calm-story-rail .calm-story:nth-child(n + 5) { display: block; }
+  .app-shell-v2[data-calm='true'] .calm-home-body .calm-story-rail .calm-story:nth-child(n + 6) { display: none; }
+  .app-shell-v2[data-calm='true'] .calm-live-list { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 20px; }
+  :root .app-shell-v2[data-calm='true'] .nav-brand { display: none; }
   .app-shell-v2[data-calm='true'] .calm-air-line { max-width: 640px; }
   .app-shell-v2[data-calm='true'] .calm-home-lead .calm-section:first-child { margin-top: 0; }
   .app-shell-v2[data-calm='true'] .calm-home-body > .calm-section:first-child { margin-top: 0; }
@@ -540,4 +545,4 @@
 .calm-live-foot small { font-size: 11px; color: var(--calm-secondary); }
 .calm-more-live { min-height: 44px; padding: 0 16px; border-radius: 24px; border: 1px solid var(--calm-edge); background: var(--calm-glass); color: var(--calm-ink); font-size: 12px; font-weight: 650; box-shadow: inset 0 1px 1px var(--calm-glint); }
 @media (max-width: 350px) { .calm-doors { grid-template-columns: 1fr; } .calm-door { min-height: 140px; } .calm-live-chips { margin: 0 -16px 6px; padding: 2px 16px 4px; } }
-@media (min-width: 600px) { .calm-live-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } .calm-door { min-height: 200px; } }
+@media (min-width: 600px) { .calm-live-list { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; } .calm-door { min-height: 150px; } .calm-story-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; overflow: visible; } .calm-story-rail .calm-story { flex: none; width: auto; } .calm-story-rail .calm-story:nth-child(n + 5) { display: none; } }

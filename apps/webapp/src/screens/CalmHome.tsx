@@ -49,6 +49,9 @@ type Sheet =
 
 type LiveFilter = 'all' | 'favorites' | 'recent' | GenreFamily;
 const LIVE_PAGE = 10;
+// A wider screen shows more of everything, not bigger blocks.
+const wideScreen = () => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches;
+const livePage = () => (wideScreen() ? 18 : LIVE_PAGE);
 
 type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; shown: number } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
@@ -98,9 +101,9 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       // «Включай» plays the surface's own recommendation, so it is the first
       // visible starter — the listener sees what the button will start.
       starters: dedupe([station, ...leadStations, ...stations]).slice(0, 2),
-      countries: topCountries(pool, 3),
-      around: summary?.aroundTheWorld && summary.aroundTheWorld.stations.length ? { label: summary.aroundTheWorld.label, stations: summary.aroundTheWorld.stations.filter((s) => s.lastcheckok !== 0).slice(0, 3) } : null,
-      genres: calmGenreGroups(pool).slice(0, 8),
+      countries: topCountries(pool, wideScreen() ? 6 : 3),
+      around: summary?.aroundTheWorld && summary.aroundTheWorld.stations.length ? { label: summary.aroundTheWorld.label, stations: summary.aroundTheWorld.stations.filter((s) => s.lastcheckok !== 0).slice(0, wideScreen() ? 6 : 3) } : null,
+      genres: calmGenreGroups(pool).slice(0, wideScreen() ? 12 : 8),
       finds: trackHistory.slice(0, 2)
     };
   });
@@ -113,7 +116,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   // The choice: the visit's pool, the listener's own stations first, and the
   // quick narrowings that exist in it — never a chip that yields nothing.
   const [liveFilter, setLiveFilter] = useState<LiveFilter>(discovery.live?.filter ?? 'all');
-  const [liveShown, setLiveShown] = useState(discovery.live?.shown ?? LIVE_PAGE);
+  const [liveShown, setLiveShown] = useState(discovery.live?.shown ?? livePage());
   useEffect(() => { discovery.live = { filter: liveFilter, shown: liveShown }; }, [discovery, liveFilter, liveShown]);
   const own = useMemo(() => dedupe([...favorites, ...recent]).filter((s) => s.lastcheckok !== 0), [favorites, recent]);
   const liveAll = useMemo(() => dedupe([...own, ...visit.pool]), [own, visit.pool]);
@@ -134,7 +137,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     return liveAll.filter((s) => stationGenreFamily(s) === liveFilter);
   }, [favorites, liveAll, liveFilter, recent]);
   const liveVisible = liveList.slice(0, liveShown);
-  const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLiveShown(LIVE_PAGE); };
+  const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLiveShown(livePage()); };
 
   const listener = player.current ?? player.pending ?? null;
   const offer = listener ?? visit.station;
@@ -243,7 +246,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           <div className="calm-live-foot">
             <small>{t('journal.liveCount', { shown: String(liveVisible.length), total: String(liveList.length) })}</small>
             {liveVisible.length < liveList.length
-              ? <button className="calm-more-live" data-calm-live-more onClick={() => setLiveShown((n) => n + LIVE_PAGE)}>{t('journal.liveMore')}</button>
+              ? <button className="calm-more-live" data-calm-live-more onClick={() => setLiveShown((n) => n + livePage())}>{t('journal.liveMore')}</button>
               : <button className="calm-more-live" onClick={() => onSearch('')}>{t('journal.liveCatalog')}</button>}
           </div>
         </section>
