@@ -188,6 +188,91 @@ for (const width of [320, 390, 411]) for (const theme of ['journal', 'aurora-fie
   });
 }
 
+test('calm live rows play from the main control while info stays passive', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.goto('/?calm=1');
+  const row = page.locator('.calm-live-row').first();
+  const main = row.locator('.calm-live-open');
+  const info = row.locator('.calm-live-info');
+  await expect(main).toBeVisible();
+  await expect(info).toBeVisible();
+  const geometry = await row.evaluate((el) => {
+    const main = el.querySelector<HTMLElement>('.calm-live-open')!.getBoundingClientRect();
+    const info = el.querySelector<HTMLElement>('.calm-live-info')!.getBoundingClientRect();
+    return { mainWidth: main.width, mainHeight: main.height, infoWidth: info.width, infoHeight: info.height, scrollWidth: document.documentElement.scrollWidth, viewport: window.innerWidth };
+  });
+  expect(geometry.mainWidth).toBeGreaterThan(geometry.infoWidth);
+  expect(geometry.mainWidth).toBeGreaterThanOrEqual(44);
+  expect(geometry.mainHeight).toBeGreaterThanOrEqual(44);
+  expect(geometry.infoWidth).toBeGreaterThanOrEqual(44);
+  expect(geometry.infoHeight).toBeGreaterThanOrEqual(44);
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewport);
+
+  await main.press('Enter');
+  const dock = page.locator('[data-calm-player]');
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  await expect(page.locator('[data-calm-source]')).toHaveCount(0);
+  const source = await audioSrc(page);
+  await main.press('Space');
+  await expect(dock).toHaveAttribute('data-status', 'paused');
+  await expect(row.locator('.calm-live-copy small')).toHaveText('На паузе');
+  await main.press('Enter');
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  await info.click();
+  await expect(page.locator('[data-calm-source]')).toBeVisible();
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+  expect(await audioSrc(page)).toBe(source);
+  await page.locator('[data-calm-source]').getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(page.locator('[data-calm-source]')).toHaveCount(0);
+  await expect(dock).toHaveAttribute('data-status', 'playing');
+});
+
+test('calm live rows expose paused and buffering status without overstating the air', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+
+  // A pending play is the only state that earns the connecting caption.
+  await page.addInitScript(() => {
+    HTMLMediaElement.prototype.play = function () { return new Promise(() => {}); };
+  });
+  await page.goto('/?calm=1');
+  await page.locator('.calm-live-row').first().locator('.calm-live-open').click();
+  await expect(page.locator('.calm-live-row').first().locator('.calm-live-copy small')).toHaveText('ПОДКЛЮЧАЕМ');
+  await expect(page.locator('.calm-air-line')).toHaveAttribute('data-calm-air', 'buffering');
+  await expect(page.locator('.calm-air-now')).toHaveAttribute('aria-label', /ПОДКЛЮЧАЕМ/);
+});
+
+test('calm live rows expose a failed stream as retryable air', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.addInitScript(() => {
+    let attempts = 0;
+    HTMLMediaElement.prototype.play = function () {
+      attempts += 1;
+      (window as typeof window & { __calmPlayAttempts?: number }).__calmPlayAttempts = attempts;
+      if (attempts === 1) {
+        this.dispatchEvent(new Event('error'));
+        return Promise.reject(new Error('mock stream failure'));
+      }
+      this.setAttribute('data-ra-state', 'playing');
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    };
+  });
+  await page.goto('/?calm=1');
+  const row = page.locator('.calm-live-row').first();
+  await row.locator('.calm-live-open').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'error');
+  await expect(row.locator('.calm-live-copy small')).toHaveText('НЕ ПОДКЛЮЧИЛАСЬ');
+  await expect(page.locator('.calm-air-line')).toHaveAttribute('data-calm-air', 'error');
+  await expect(page.locator('.calm-air-now')).toHaveAttribute('aria-label', /НЕ ПОДКЛЮЧИЛАСЬ/);
+  await expect(row.locator('.calm-live-open')).toHaveAttribute('aria-label', /Повторить/);
+  await row.locator('.calm-live-open').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __calmPlayAttempts?: number }).__calmPlayAttempts)).toBe(2);
+});
+
 test('restored station opens the feed without starting playback, from the mini player and from the nav', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockStations(page); await installMediaMocks(page);

@@ -142,6 +142,26 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const listener = player.current ?? player.pending ?? null;
   const offer = listener ?? visit.station;
   const onAir = listener?.stationuuid === offer.stationuuid && player.isPlaying;
+  // Keep Home's status vocabulary aligned with the calm Feed. A pending
+  // restored station is idle/paused, while only the player's buffering state
+  // earns the connecting label; otherwise a failed or starting row reads as
+  // paused even though its next action is retry or resume.
+  const listenerStatus = !listener
+    ? 'idle'
+    : player.status === 'error'
+      ? 'error'
+      : player.isPlaying
+        ? 'playing'
+        : player.status === 'buffering'
+          ? 'buffering'
+          : 'paused';
+  const listenerStatusLabel = listenerStatus === 'error'
+    ? t('journal.feedFailed')
+    : listenerStatus === 'playing'
+      ? t('journal.nowOnAir')
+      : listenerStatus === 'buffering'
+        ? t('journal.feedConnecting')
+        : t('journal.nowPaused');
   const liveTrack = onAir && nowPlaying ? nowPlaying.trim() : '';
   const ai = isAiAssistantEnabled();
   const openGlobe = (country: string) => { setGlobeFocusRegionId(country); setActiveSection('globe'); };
@@ -174,11 +194,11 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
     {/* One line for the air: idle, the one button and what it starts; on air
         or paused, a status line — the mini player below is the control. */}
-    <div className={`calm-air-line ${listener ? 'is-loaded' : ''}`.trim()} data-calm-offer={offer.stationuuid} data-calm-air={onAir ? 'on' : listener ? 'paused' : 'idle'}>
+    <div className={`calm-air-line ${listener ? 'is-loaded' : ''}`.trim()} data-calm-offer={offer.stationuuid} data-calm-air={listenerStatus === 'playing' ? 'on' : listenerStatus}>
       {listener ? (
-        <button className="calm-air-now" onClick={() => onFeed(listener)} aria-label={t('journal.listening')}>
+        <button className="calm-air-now" onClick={() => onFeed(listener)} aria-label={`${listenerStatusLabel}: ${offerName} · ${t('calm.openFeedPlayer')}`}>
           <StationArtwork station={offer} size="sm" className="calm-air-art" />
-          <span><small>{onAir ? t('journal.nowOnAir') : t('journal.nowPaused')}</small><strong>{offerName}</strong>{liveTrack ? <em>{liveTrack}</em> : <em>{offerLine}</em>}</span>
+          <span><small>{listenerStatusLabel}</small><strong>{offerName}</strong>{liveTrack ? <em>{liveTrack}</em> : <em>{offerLine}</em>}</span>
           <Icon d={ARROW} />
         </button>
       ) : (
@@ -242,14 +262,22 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
               const current = listener?.stationuuid === s.stationuuid;
               const name = normalizeStationName(s.name);
               const family = stationGenreFamily(s);
-              const meta = [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
+              const meta = current
+                ? listenerStatusLabel
+                : [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
+              const actionLabel = current
+                ? `${player.status === 'error' ? t('dock.retry') : player.isPlaying ? t('common.pause') : t('common.play')}: ${name}`
+                : t('journal.playStation', { name });
               return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined}>
-                <button className="calm-live-open" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
+                <button className="calm-live-open calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, liveVisible, 'home-live'); }} aria-label={actionLabel}>
                   <StationArtwork station={s} size="sm" className="calm-row-art" />
-                  <span><strong>{name}</strong><small>{current ? (player.isPlaying ? t('journal.nowOnAir') : t('journal.nowPaused')) : meta}</small></span>
+                  <span className="calm-live-copy"><strong>{name}</strong><small>{meta}</small></span>
+                  <span className="calm-live-play-icon" aria-hidden="true">
+                    <Icon d={current && player.isPlaying ? 'M8 5h3v14H8zM13 5h3v14h-3z' : 'M7 4l12 8-12 8V4z'} />
+                  </span>
                 </button>
-                <button className="calm-icon calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, liveVisible, 'home-live'); }} aria-label={current && player.isPlaying ? t('common.pause') : t('journal.playStation', { name })}>
-                  {current && player.isPlaying ? <Icon d="M8 5h3v14H8zM13 5h3v14h-3z" /> : <Icon d="M7 4l12 8-12 8V4z" />}
+                <button className="calm-icon calm-live-info" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 10.5v5M12 7.5h.01" /></svg>
                 </button>
               </article>;
             })}

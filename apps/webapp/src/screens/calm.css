@@ -535,14 +535,16 @@
 .calm-live-row { position: relative; display: flex; align-items: center; gap: 4px; min-height: 66px; padding: 0 8px 0 12px; }
 .calm-live-row + .calm-live-row::before { content: ''; position: absolute; left: 76px; right: 12px; top: 0; height: 1px; background: color-mix(in srgb, var(--text) 10%, transparent); }
 .calm-live-row[data-current='true'] .calm-live-open strong { color: var(--accent); }
-.calm-live-open { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 64px; text-align: left; }
+.calm-live-open.calm-row-play { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; min-height: 70px; width: auto; height: auto; border-radius: 0; background: none; color: var(--calm-ink); text-align: left; }
 .calm-live-open .calm-row-art { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 13px; box-shadow: 0 2px 6px color-mix(in srgb, var(--text) 18%, transparent); }
-.calm-live-open > span { display: grid; gap: 3px; min-width: 0; }
+.calm-live-copy { display: grid; gap: 3px; min-width: 0; }
 .calm-live-open strong { font-size: 15px; line-height: 1.2; font-weight: 600; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calm-live-open small { font-size: 12.5px; color: var(--calm-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calm-live-row .calm-row-play { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.calm-live-row .calm-row-play svg { width: 18px; height: 18px; fill: currentColor; stroke: none; }
-.calm-live-row[data-current='true'] .calm-row-play { background: var(--accent); color: var(--accent-ink, #fff3e3); }
+.calm-live-play-icon { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; margin-inline-start: auto; border-radius: 50%; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.calm-live-play-icon svg { width: 22px; height: 22px; fill: currentColor; stroke: none; }
+.calm-live-row[data-current='true'] .calm-live-play-icon { background: var(--accent); color: var(--accent-ink, #fff3e3); }
+.calm-live-info { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; color: var(--calm-secondary); background: transparent; }
+.calm-live-info svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 .calm-live-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
 .calm-live-foot small { font-size: 11px; color: var(--calm-secondary); }
 .calm-more-live { min-height: 44px; padding: 0 16px; border-radius: 24px; border: 1px solid var(--calm-edge); background: var(--calm-glass); color: var(--calm-ink); font-size: 12px; font-weight: 650; box-shadow: inset 0 1px 1px var(--calm-glint); }
