@@ -157,7 +157,7 @@ test('the daily series survives a restart, because it cannot be re-earned', asyn
       assert.equal(hydrated[0]!.date, '2024-10-04', 'the date must be readable, not an epoch day');
 
       mod.bumpCounter('client_event:play_attempt');
-      await settle();
+      await mod.flushObservabilityStore();
       const written = JSON.parse(readFileSync(store, 'utf8'));
       assert.equal(Array.isArray(written.counterDays), true, 'the series must be persisted');
       assert.equal(written.counterDays.length, 2, "today must APPEND, not replace the history");

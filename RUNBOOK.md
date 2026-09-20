@@ -1,5 +1,18 @@
 # RUNBOOK
 
+## 2026-09-20 — release CI stopped on a persistence-test race
+
+The `fa67e2a` release was refused before server deployment: CI run
+`35533192651` failed the daily-series durability test (597/598 API tests).
+The test slept 400ms after scheduling a debounced asynchronous write, then
+read the old file before persistence completed. It now awaits the existing
+`flushObservabilityStore()` promise; the two-day assertion remains intact.
+No API runtime change. Focused durability 6/6, full API 598/598 with a temporary
+observability store, and root test typecheck passed. On this long-lived local
+checkout, the unisolated API contract run hit the metrics key ceiling; use a
+fresh temporary `OBSERVABILITY_STORE_PATH` for verification, not production data.
+Logs: `output/1c3-release-*.log`.
+
 ## Dev
 ```bash
 npm install
