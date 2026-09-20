@@ -209,6 +209,7 @@ export const Library = () => {
     openAccountSheet,
     setBotOptIn
   } = useSession();
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   // R1 (PR-A): after toggling opt-in we learn whether the user is reachable
   // (has started the bot). If opted-in but not reachable, we point them to it.
   const [botReachable, setBotReachable] = useState<boolean | null>(null);
@@ -258,7 +259,11 @@ export const Library = () => {
   // Drag-to-reorder the queue. The playing row is locked (#86 — never moved).
   const queueReorder = usePointerReorder(
     (from, to) => queue.reorderQueue(from, to),
-    { itemSelector: '[data-queue-row]', isLocked: (index) => index === queue.currentIndex }
+    {
+      itemSelector: '[data-queue-row]',
+      disabled: queueEditBlocked,
+      isLocked: (index) => queueEditBlocked || index === queue.currentIndex
+    }
   );
 
   useEffect(() => {
@@ -731,7 +736,6 @@ export const Library = () => {
       (stationId): stationId is string => Boolean(stationId)
     )
   );
-  const removalBlockedByPending = Boolean(player.pending && player.status === 'buffering');
   const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
   const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
@@ -1107,7 +1111,10 @@ export const Library = () => {
                       className="chip"
                       type="button"
                       onClick={() => queue.shuffleQueue()}
+                      disabled={queueEditBlocked}
                       aria-label={t('library.shuffleQueueAria')}
+                      aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                      title={queueEditBlocked ? t('queue.editPending') : undefined}
                     >
                       {t('library.shuffleQueue')}
                     </button>
@@ -1115,12 +1122,21 @@ export const Library = () => {
                   <button className="chip" type="button" onClick={beginSaveQueue}>
                     {t('library.saveQueueAsPlaylist')}
                   </button>
-                  <button className="chip" type="button" onClick={() => queue.clearQueue()}>
+                  <button
+                    className="chip"
+                    type="button"
+                    onClick={() => queue.clearQueue()}
+                    disabled={queueEditBlocked}
+                    aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                    title={queueEditBlocked ? t('queue.editPending') : undefined}
+                  >
                     {t('playlist.clearQueue')}
                   </button>
                 </div>
-                {removalBlockedByPending ? (
-                  <div className="section-subtitle" role="status">{t('queue.removePending')}</div>
+                {queueEditBlocked ? (
+                  <div id="queue-edit-pending-hint" className="section-subtitle" role="status">
+                    {t('queue.editPending')}
+                  </div>
                 ) : null}
 
                 <div className="playlist-list library-queue-list" ref={queueReorder.containerRef}>
@@ -1152,6 +1168,8 @@ export const Library = () => {
                             type="button"
                             className="library-queue-grip"
                             aria-label={t('library.reorderMode')}
+                            disabled={queueEditBlocked}
+                            title={queueEditBlocked ? t('queue.editPending') : undefined}
                             {...queueReorder.getHandleProps(index)}
                           >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1182,8 +1200,10 @@ export const Library = () => {
                                 type="button"
                                 className="icon-btn library-queue-move-btn"
                                 onClick={() => queue.moveAtIndex(index, -1)}
-                                disabled={index - 1 < 0 || index - 1 === queue.currentIndex}
+                                disabled={queueEditBlocked || index - 1 < 0 || index - 1 === queue.currentIndex}
                                 aria-label={t('library.moveUp')}
+                                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                                title={queueEditBlocked ? t('queue.editPending') : undefined}
                               >
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8l-6 6h12z" /></svg>
                               </button>
@@ -1191,8 +1211,10 @@ export const Library = () => {
                                 type="button"
                                 className="icon-btn library-queue-move-btn"
                                 onClick={() => queue.moveAtIndex(index, 1)}
-                                disabled={index + 1 >= queue.items.length || index + 1 === queue.currentIndex}
+                                disabled={queueEditBlocked || index + 1 >= queue.items.length || index + 1 === queue.currentIndex}
                                 aria-label={t('library.moveDown')}
+                                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                                title={queueEditBlocked ? t('queue.editPending') : undefined}
                               >
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16l6-6H6z" /></svg>
                               </button>
@@ -1205,16 +1227,16 @@ export const Library = () => {
                             className="chip"
                             type="button"
                             onClick={() => queue.removeAtIndex(index)}
-                            disabled={removalBlockedByPending || protectedFromRemoval}
+                            disabled={queueEditBlocked || protectedFromRemoval}
                             title={
-                              removalBlockedByPending
+                              queueEditBlocked
                                 ? t('queue.removePending')
                                 : protectedFromRemoval
                                   ? t('queue.removeProtected')
                                   : t('common.remove')
                             }
                             aria-label={`${
-                              removalBlockedByPending
+                              queueEditBlocked
                                 ? t('queue.removePending')
                                 : protectedFromRemoval
                                   ? t('queue.removeProtected')

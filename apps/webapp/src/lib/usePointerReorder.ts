@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 
 // Library-free drag-to-reorder for a vertical list, built on Pointer Events so it
 // works with mouse AND touch (Telegram WebView included). The drag lives on a
@@ -24,9 +24,9 @@ export type UsePointerReorderResult = {
 
 export const usePointerReorder = (
   onReorder: (from: number, to: number) => void,
-  options: { itemSelector: string; isLocked?: (index: number) => boolean } = { itemSelector: '[data-reorder-item]' }
+  options: { itemSelector: string; isLocked?: (index: number) => boolean; disabled?: boolean } = { itemSelector: '[data-reorder-item]' }
 ): UsePointerReorderResult => {
-  const { itemSelector, isLocked } = options;
+  const { itemSelector, isLocked, disabled = false } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -35,6 +35,7 @@ export const usePointerReorder = (
 
   const indexAtPointer = useCallback(
     (clientY: number): number | null => {
+      if (disabled) return null;
       const container = containerRef.current;
       if (!container) return null;
       const rows = Array.from(container.querySelectorAll<HTMLElement>(itemSelector));
@@ -47,7 +48,7 @@ export const usePointerReorder = (
       }
       return rows.length - 1;
     },
-    [itemSelector, isLocked]
+    [disabled, itemSelector, isLocked]
   );
 
   const reset = useCallback(() => {
@@ -57,11 +58,18 @@ export const usePointerReorder = (
     setOverIndex(null);
   }, []);
 
+  // A buffering transition can begin from another control while a pointer is
+  // held on this handle. Cancel the visual drag immediately, before the next
+  // pointer event, so a disabled queue cannot leave a stale dragging row.
+  useEffect(() => {
+    if (disabled) reset();
+  }, [disabled, reset]);
+
   const getHandleProps = useCallback(
     (index: number): PointerReorderHandleProps => ({
       style: { touchAction: 'none' },
       onPointerDown: (event) => {
-        if (isLocked?.(index)) return;
+        if (disabled || isLocked?.(index)) return;
         event.preventDefault();
         try {
           (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -75,6 +83,10 @@ export const usePointerReorder = (
       },
       onPointerMove: (event) => {
         if (draggingRef.current === null) return;
+        if (disabled || isLocked?.(draggingRef.current)) {
+          reset();
+          return;
+        }
         const target = indexAtPointer(event.clientY);
         if (target === null || target === overRef.current) return;
         overRef.current = target;
@@ -84,11 +96,13 @@ export const usePointerReorder = (
         const from = draggingRef.current;
         const to = overRef.current;
         reset();
-        if (from !== null && to !== null && from !== to) onReorder(from, to);
+        if (!disabled && from !== null && to !== null && from !== to && !isLocked?.(from)) {
+          onReorder(from, to);
+        }
       },
       onPointerCancel: () => reset()
     }),
-    [indexAtPointer, isLocked, onReorder, reset]
+    [disabled, indexAtPointer, isLocked, onReorder, reset]
   );
 
   return { containerRef, draggingIndex, overIndex, getHandleProps };

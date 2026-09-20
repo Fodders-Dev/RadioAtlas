@@ -117,6 +117,7 @@ export const MiniPlayerDock = () => {
     ? isStationHiddenFromRecommendations(current.stationuuid)
     : false;
   const queueCount = Math.max(queue.items.length, 0);
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   // "Dormant" = nothing is on air. The dock is the NOW-PLAYING bar, so with no
   // current station there is nothing to control and it renders nothing (see the
   // early return below). A queued-but-not-playing station does NOT keep it
@@ -532,6 +533,11 @@ export const MiniPlayerDock = () => {
                     </svg>
                   </button>
                 </div>
+                {queueEditBlocked ? (
+                  <div className="player-dock-tray-subtitle" role="status">
+                    {t('queue.editPending')}
+                  </div>
+                ) : null}
                 {queuePreview.length ? (
                   <div className="player-dock-queue-list">
                     {queuePreview.map((station, index) => {
@@ -573,8 +579,9 @@ export const MiniPlayerDock = () => {
                     className="chip"
                     type="button"
                     onClick={() => queue.shuffleQueue()}
-                    disabled={queue.items.length <= 1}
+                    disabled={queueEditBlocked || queue.items.length <= 1}
                     aria-label={t('library.shuffleQueueAria')}
+                    title={queueEditBlocked ? t('queue.editPending') : undefined}
                   >
                     {t('library.shuffleQueue')}
                   </button>

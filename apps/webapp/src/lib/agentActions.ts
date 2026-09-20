@@ -1,11 +1,14 @@
 import type { ChatActionReceipt, ChatActionRef } from './aiChat';
 
 type ResolvedStation = { stationuuid: string; url_resolved?: string };
+export type AgentEnqueueResult =
+  | boolean
+  | { added: false; reason: 'already_queued' | 'buffering' };
 
 export type AgentActionHandlers<TStation extends ResolvedStation> = {
   resolveStation: (stationuuid: string) => Promise<TStation | null>;
   play: (station: TStation) => void;
-  enqueue: (station: TStation) => boolean;
+  enqueue: (station: TStation) => AgentEnqueueResult;
   pause: () => void;
   isFavorite: (stationuuid: string) => boolean;
   toggleFavorite: (station: TStation) => void;
@@ -71,8 +74,14 @@ export const executeAgentActions = async <TStation extends ResolvedStation>(
         continue;
       }
       if (action.kind === 'enqueue') {
-        const added = handlers.enqueue(station);
-        receipts.push(receipt(action, index, added ? 'executed' : 'skipped', added ? undefined : 'already_queued'));
+        const result = handlers.enqueue(station);
+        const added = typeof result === 'boolean' ? result : result.added;
+        const detail = added
+          ? undefined
+          : typeof result === 'boolean'
+            ? 'already_queued'
+            : result.reason;
+        receipts.push(receipt(action, index, added ? 'executed' : 'skipped', detail));
         continue;
       }
       if (action.kind === 'set-favorite') {

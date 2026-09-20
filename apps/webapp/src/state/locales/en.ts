@@ -912,6 +912,7 @@ export const enDictionary = {
     "remove": "Remove from queue",
     "removeProtected": "Current broadcast stays in the queue",
     "removePending": "Wait for the broadcast to connect",
+    "editPending": "Wait for the current station to connect",
     "clearUpcoming": "Clear upcoming",
     "openLibrary": "Open queue"
   },

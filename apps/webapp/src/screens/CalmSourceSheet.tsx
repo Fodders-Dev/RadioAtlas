@@ -19,6 +19,7 @@ export function CalmSourceSheet({ station, onClose, onPlay }: { station: Station
   useEffect(() => { dialog.current?.showModal(); }, []);
   const current = (player.current ?? player.pending)?.stationuuid === station.stationuuid;
   const playing = current && player.isPlaying;
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const genre = stationGenreSlug(station);
   const tags = stationTags(station, '');
   const queued = queue.items.some((item) => item.stationuuid === station.stationuuid);
@@ -38,6 +39,7 @@ export function CalmSourceSheet({ station, onClose, onPlay }: { station: Station
     <button className="calm-primary calm-primary-wide" data-source-play onClick={() => { if (current && player.status !== 'error') { void player.toggle(); return; } onPlay(station); }}>
       <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span> {playing ? t('journal.sourcePause') : t('journal.sourcePlay')}
     </button>
+    {queueEditBlocked ? <p id="calm-source-queue-edit-pending" className="calm-footnote" role="status">{t('queue.editPending')}</p> : null}
     <div className="calm-sheet-rows">
       <button className="calm-sheet-row" aria-pressed={isFavorite(station.stationuuid)} onClick={() => toggleFavorite(station)} data-source-favorite>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.4 4.9 13.3a4.2 4.2 0 0 1 6-6l1.1 1.1 1.1-1.1a4.2 4.2 0 0 1 6 6L12 20.4Z" /></svg>
@@ -47,7 +49,13 @@ export function CalmSourceSheet({ station, onClose, onPlay }: { station: Station
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 2c-2.2 0-4 3.1-4 7s1.8 7 4 7 4-3.1 4-7-1.8-7-4-7ZM3 12h18" /></svg>
         <span>{t('journal.sourceOnMap')}</span><i aria-hidden="true">→</i>
       </button>
-      <button className="calm-sheet-row" onClick={() => { queue.enqueue(station); }}>
+      <button
+        className="calm-sheet-row"
+        onClick={() => { queue.enqueue(station); }}
+        disabled={queueEditBlocked}
+        title={queueEditBlocked ? t('queue.editPending') : undefined}
+        aria-describedby={queueEditBlocked ? 'calm-source-queue-edit-pending' : undefined}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M3 11h12M3 17h9M18 14l4 3-4 3z" /></svg>
         <span>{t(queued ? 'journal.sourceQueued' : 'journal.sourceQueue')}</span>
       </button>

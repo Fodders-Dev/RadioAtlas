@@ -17,6 +17,7 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
   const { setActiveSection, setLibraryTab } = useShell();
   useDialog(root, { isOpen: true, onClose });
   const hidden = isStationHiddenFromRecommendations(station.stationuuid);
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const openLibrary = (tab: 'queue' | 'tracks') => { onClose(); setLibraryTab(tab); setActiveSection('library'); };
 
   return createPortal(<div className="feed-player-tools" ref={root} role="dialog" aria-modal="true" aria-label={t('dock.more')}>
@@ -35,8 +36,16 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
         </section>
       ) : null}
       <label className="feed-tools-volume"><span>{t('dock.volume')} <output>{Math.round(player.volume * 100)}%</output></span><input aria-label={t('dock.volume')} type="range" min="0" max="1" step="0.01" value={player.volume} onChange={event => player.setVolume(Number(event.target.value))} /></label>
+      {queueEditBlocked ? <p id="feed-tools-queue-edit-pending" role="status" className="feed-tools-hint">{t('queue.editPending')}</p> : null}
       <div className="feed-tools-links">
-        <button onClick={() => queue.enqueue(station)}>{t('feed.addToQueue')} <span>＋</span></button>
+        <button
+          onClick={() => queue.enqueue(station)}
+          disabled={queueEditBlocked}
+          title={queueEditBlocked ? t('queue.editPending') : undefined}
+          aria-describedby={queueEditBlocked ? 'feed-tools-queue-edit-pending' : undefined}
+        >
+          {t('feed.addToQueue')} <span>＋</span>
+        </button>
         <button onClick={() => openLibrary('queue')}>{t('winamp.queue')} <span>{queue.items.length} ↗</span></button>
         <button onClick={() => openLibrary('tracks')}>{t('calm.finds')} <span>↗</span></button>
         {/* Recording (the bot's /record flow, 5/15/30 min, the file lands in the

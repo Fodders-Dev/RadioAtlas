@@ -918,6 +918,15 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  // Queue order is part of the pending play's completion snapshot. Keep edits
+  // out of that short buffering window so a successful station switch cannot
+  // restore stale order or cursor data over a listener's change. Paused,
+  // restored, and error states remain editable.
+  const queueEditBlocked = () => {
+    const runtimePlayer = playbackRuntimeRef.current.player;
+    return Boolean(runtimePlayer.pending && runtimePlayer.status === 'buffering');
+  };
+
   const resolveQueueSnapshot = (
     station: StationLite,
     options?: PlayStationOptions,
@@ -2593,7 +2602,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             (stationId): stationId is string => Boolean(stationId)
           )
         );
-        const pendingConnectionActive = runtimePlayer.pending && runtimePlayer.status === 'buffering';
+        const pendingConnectionActive = queueEditBlocked();
         if (pendingConnectionActive || protectedStationIds.has(target.stationuuid)) return;
 
         reportProductEvent(
@@ -2628,6 +2637,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         });
       },
       moveAtIndex: (index, direction) => {
+        if (queueEditBlocked()) return;
         const currentQueue = queueRef.current;
         const targetIndex = index + direction;
         if (
@@ -2664,6 +2674,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         );
       },
       reorderQueue: (from, to) => {
+        if (queueEditBlocked()) return;
         const currentQueue = queueRef.current;
         const reordered = reorderQueueItems(currentQueue.items, currentQueue.currentIndex, from, to);
         if (!reordered) return;
@@ -2687,6 +2698,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         );
       },
       shuffleQueue: () => {
+        if (queueEditBlocked()) return;
         const currentQueue = queueRef.current;
         // «Перемешать следующие» needs two stations ahead of the playing one
         // (the chip is hidden below that — this is the belt-and-braces guard).
@@ -2715,6 +2727,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         notify(t('library.shuffleQueueAnnounce'));
       },
       clearUpcoming: () => {
+        if (queueEditBlocked()) return;
         const currentQueue = queueRef.current;
         if (!currentQueue.items.length) return;
         if (currentQueue.currentIndex < 0) {
@@ -2760,6 +2773,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         );
       },
       clearQueue: () => {
+        if (queueEditBlocked()) return;
         updateQueue({
           ...queueRef.current,
           items: [],
@@ -2768,6 +2782,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         player.stop();
       },
       enqueue: (station) => {
+        if (queueEditBlocked()) return { added: false, reason: 'buffering' };
         const currentQueue = queueRef.current;
         const [incoming] = normalizeStations([station]);
         if (!incoming) return false;

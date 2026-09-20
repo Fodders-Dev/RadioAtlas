@@ -55,6 +55,28 @@ describe('executeAgentActions', () => {
     expect(toggleFavorite).not.toHaveBeenCalled();
   });
 
+  it('reports a buffering queue edit distinctly and continues the action batch', async () => {
+    const receipts = await executeAgentActions(
+      [
+        { actionId: 'run:1', kind: 'enqueue', stationuuid: station.stationuuid, permission: 'write' },
+        { actionId: 'run:2', kind: 'pause', permission: 'write' }
+      ],
+      {
+        resolveStation: async () => station,
+        play: vi.fn(),
+        enqueue: () => ({ added: false, reason: 'buffering' }),
+        pause: vi.fn(),
+        isFavorite: () => false,
+        toggleFavorite: vi.fn()
+      }
+    );
+
+    expect(receipts).toMatchObject([
+      { status: 'skipped', detail: 'buffering' },
+      { status: 'executed' }
+    ]);
+  });
+
   it('fails closed when write permission or station grounding is missing', async () => {
     const play = vi.fn();
     const receipts = await executeAgentActions(

@@ -469,7 +469,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
       (stationId): stationId is string => Boolean(stationId)
     )
   );
-  const removalBlockedByPending = Boolean(player.pending && player.status === 'buffering');
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
 
   const renderQueueItem = (station: StationLite, index: number) => {
     const absoluteIndex = Math.max(activeQueueIndex, 0) + index;
@@ -500,9 +500,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             className="full-player-queue-btn"
             type="button"
             onClick={() => queue.moveAtIndex(absoluteIndex, -1)}
-            disabled={!canMoveUp}
+            disabled={queueEditBlocked || !canMoveUp}
             data-queue-action="move-up"
             aria-label={`${t('queue.moveUp')}: ${normalizeStationName(station.name)}`}
+            aria-describedby={queueEditBlocked ? 'full-player-queue-edit-pending' : undefined}
+            title={queueEditBlocked ? t('queue.editPending') : undefined}
           >
             <Icon>{actionIcon.up}</Icon>
           </button>
@@ -510,9 +512,11 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             className="full-player-queue-btn"
             type="button"
             onClick={() => queue.moveAtIndex(absoluteIndex, 1)}
-            disabled={!canMoveDown}
+            disabled={queueEditBlocked || !canMoveDown}
             data-queue-action="move-down"
             aria-label={`${t('queue.moveDown')}: ${normalizeStationName(station.name)}`}
+            aria-describedby={queueEditBlocked ? 'full-player-queue-edit-pending' : undefined}
+            title={queueEditBlocked ? t('queue.editPending') : undefined}
           >
             <Icon>{actionIcon.down}</Icon>
           </button>
@@ -520,9 +524,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             className="full-player-queue-btn danger"
             type="button"
             onClick={() => queue.removeAtIndex(absoluteIndex)}
-            disabled={removalBlockedByPending || protectedFromRemoval}
+            disabled={queueEditBlocked || protectedFromRemoval}
             title={
-              removalBlockedByPending
+              queueEditBlocked
                 ? t('queue.removePending')
                 : protectedFromRemoval
                   ? t('queue.removeProtected')
@@ -530,7 +534,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             }
             data-queue-action="remove"
             aria-label={`${
-              removalBlockedByPending
+              queueEditBlocked
                 ? t('queue.removePending')
                 : protectedFromRemoval
                   ? t('queue.removeProtected')
@@ -762,7 +766,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           className="full-player-small-chip"
           type="button"
           onClick={queue.clearUpcoming}
-          disabled={activeQueueIndex < 0 || activeQueueIndex >= queue.items.length - 1}
+          disabled={queueEditBlocked || activeQueueIndex < 0 || activeQueueIndex >= queue.items.length - 1}
+          aria-describedby={queueEditBlocked ? 'full-player-queue-edit-pending' : undefined}
+          title={queueEditBlocked ? t('queue.editPending') : undefined}
         >
           {t('queue.clearUpcoming')}
         </button>
@@ -770,8 +776,10 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           {t('queue.openLibrary')}
         </button>
       </div>
-      {removalBlockedByPending ? (
-        <div className="full-player-empty" role="status">{t('queue.removePending')}</div>
+      {queueEditBlocked ? (
+        <div id="full-player-queue-edit-pending" className="full-player-empty" role="status">
+          {t('queue.editPending')}
+        </div>
       ) : null}
       <div className="full-player-queue-list">
         {queuePreview.length ? (

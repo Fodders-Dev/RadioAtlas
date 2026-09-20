@@ -63,6 +63,11 @@ const playCurrent = async (page: Page) => {
 const shuffleChip = (page: Page) =>
   page.getByRole('button', { name: /Перемешать следующие|Shuffle the upcoming/ });
 
+type PendingQueueProbe = {
+  blockedSlug: string;
+  resolve: (() => void) | null;
+};
+
 test.beforeEach(async ({ page }) => {
   await installMediaMocks(page);
   await mockStations(page);
@@ -106,6 +111,83 @@ test('shuffle reorders the queue without changing or restarting what plays', asy
   expect(after!.sourceLabel).toBe(before!.sourceLabel);
   // sanity: same member set, no station lost or duplicated.
   expect([...after!.order].sort()).toEqual([...before!.order].sort());
+});
+
+test('pending queue startup blocks order edits, then allows them after resolve', async ({ page }) => {
+  await playCurrent(page);
+  const target = stations[1];
+  const targetSlug = target.url_resolved.split('/').pop() as string;
+  const dragHandle = page
+    .locator('[data-queue-row]')
+    .filter({ hasText: stations[2].name })
+    .locator('.library-queue-grip');
+  await dragHandle.dispatchEvent('pointerdown', { pointerId: 41, clientY: 300, button: 0 });
+  await expect(
+    page.locator('[data-queue-row]').filter({ hasText: stations[2].name })
+  ).toHaveClass(/dragging/);
+  await page.evaluate((slug) => {
+    const probe: PendingQueueProbe = { blockedSlug: slug, resolve: null };
+    (window as unknown as { pendingQueueProbe: PendingQueueProbe }).pendingQueueProbe = probe;
+    const fallbackPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      if (probe.blockedSlug && this.src.includes(probe.blockedSlug)) {
+        this.setAttribute('data-ra-state', 'buffering');
+        return new Promise<void>((resolve) => {
+          probe.resolve = () => {
+            this.setAttribute('data-ra-state', 'playing');
+            this.dispatchEvent(new Event('playing'));
+            resolve();
+          };
+        });
+      }
+      return fallbackPlay.call(this);
+    };
+  }, targetSlug);
+
+  await page
+    .locator('[data-queue-row]')
+    .filter({ hasText: target.name })
+    .getByRole('button', { name: /Слушать|Play/ })
+    .click();
+  await expect(page.locator('audio.audio-hidden')).toHaveAttribute('src', new RegExp(targetSlug));
+  await expect(page.locator('audio.audio-hidden')).toHaveAttribute('data-ra-state', 'buffering');
+
+  const blockedMove = page
+    .locator('[data-queue-row]')
+    .filter({ hasText: stations[2].name })
+    .getByRole('button', { name: /Ниже|Move down/ });
+  await expect(blockedMove).toBeDisabled();
+  await expect(shuffleChip(page)).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Очистить очередь|Clear queue/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Сохранить как плейлист|Save as playlist/ })).toBeEnabled();
+  await expect(page.locator('.library-queue-shell [role="status"]')).toContainText(/Дождитесь подключения|Wait for the current station/);
+  await expect(dragHandle).toBeDisabled();
+  await expect(
+    page.locator('[data-queue-row]').filter({ hasText: stations[2].name })
+  ).not.toHaveClass(/dragging/);
+  await page.evaluate(() => {
+    const probe = (window as unknown as { pendingQueueProbe: PendingQueueProbe }).pendingQueueProbe;
+    if (!probe.resolve) throw new Error('pending queue play did not expose a resolver');
+    probe.resolve();
+    probe.resolve = null;
+  });
+  await expect
+    .poll(async () => (await readQueue(page))?.currentUuid)
+    .toBe(target.stationuuid);
+  await expect(page.locator('.library-queue-shell [role="status"]')).toHaveCount(0);
+  const resolvedMove = page
+    .locator('[data-queue-row]')
+    .filter({ hasText: stations[2].name })
+    .getByRole('button', { name: /Ниже|Move down/ });
+  await expect(resolvedMove).toBeEnabled();
+  await resolvedMove.click();
+  await expect.poll(async () => (await readQueue(page))?.order).toEqual([
+    stations[0].stationuuid,
+    stations[1].stationuuid,
+    stations[3].stationuuid,
+    stations[2].stationuuid,
+    ...stations.slice(4).map((station) => station.stationuuid)
+  ]);
 });
 
 test('the never-auto-switch guarantee (#86) holds on a SHUFFLED multi-item queue', async ({

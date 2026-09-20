@@ -912,6 +912,7 @@ export const ruDictionary = {
     "remove": "Убрать из очереди",
     "removeProtected": "Текущий эфир остаётся в очереди",
     "removePending": "Дождитесь подключения эфира",
+    "editPending": "Дождитесь подключения текущей станции",
     "clearUpcoming": "Очистить дальше",
     "openLibrary": "Открыть очередь"
   },

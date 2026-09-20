@@ -89,6 +89,9 @@ const actionFeedbackForReceipt = (receipt: ChatActionReceipt): ActionFeedbackSpe
   if (receipt.status === 'skipped' && receipt.detail === 'already_queued') {
     return { key: 'chat.actionAlreadyQueued', tone: 'neutral' };
   }
+  if (receipt.status === 'skipped' && receipt.detail === 'buffering') {
+    return { key: 'queue.editPending', tone: 'neutral' };
+  }
   if (receipt.status === 'skipped' && receipt.detail === 'already_in_desired_state') {
     return { key: 'chat.actionAlreadyDone', tone: 'neutral' };
   }

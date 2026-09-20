@@ -166,6 +166,8 @@ type FeedCardProps = {
   onTogglePlayback: () => void;
   onToggleFavorite: () => void;
   onEnqueue: () => void;
+  queueEditBlocked: boolean;
+  queueEditPendingLabel: string;
   onShare: () => void;
   onOpenPlayer: () => void;
   capture?: { enabled: boolean; saved: boolean; label: string; onCapture: () => void };
@@ -236,6 +238,8 @@ const FeedCard = ({
   onTogglePlayback,
   onToggleFavorite,
   onEnqueue,
+  queueEditBlocked,
+  queueEditPendingLabel,
   onShare,
   onOpenPlayer,
   capture,
@@ -383,7 +387,9 @@ const FeedCard = ({
           onClick={capture ? capture.onCapture : onEnqueue}
           aria-label={capture ? capture.label : `${labels.addToQueue}: ${station.name}`}
           aria-pressed={capture ? capture.saved : undefined}
-          disabled={capture ? !capture.enabled : undefined}
+          disabled={capture ? !capture.enabled : queueEditBlocked}
+          aria-describedby={!capture && queueEditBlocked ? `station-feed-queue-edit-pending-${station.stationuuid}` : undefined}
+          title={!capture && queueEditBlocked ? queueEditPendingLabel : undefined}
           data-feed-action={capture ? 'capture' : 'queue'}
           tabIndex={active ? undefined : -1}
         >
@@ -410,6 +416,12 @@ const FeedCard = ({
           {CALM_PREVIEW ? <span aria-hidden="true">•••</span> : <ExpandIcon />}
         </button>
       </div>
+
+      {!capture && queueEditBlocked ? (
+        <span id={`station-feed-queue-edit-pending-${station.stationuuid}`} className="visually-hidden">
+          {queueEditPendingLabel}
+        </span>
+      ) : null}
 
       <div className="station-feed-card-info" data-lines={optionalLines}>
         {/* «В ЭФИРЕ» means "this is what YOU are playing" — it is a player state,
@@ -440,6 +452,7 @@ export const StationFeed = () => {
   const { t, locale } = useLocale();
   const { summary } = useCatalog();
   const { player, playStation, queue, nowPlaying, nowPlayingStatus, shareStation, copyTrack, sleepTimer } = usePlayback();
+  const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
   const [timerOpen, setTimerOpen] = useState(false);
   const trustedTrack = resolveNowPlayingTrust({ station: player.current ?? player.pending, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track;
@@ -1302,6 +1315,8 @@ export const StationFeed = () => {
                     onTogglePlayback={() => handleTogglePlayback(station)}
                     onToggleFavorite={() => toggleFavorite(station)}
                     onEnqueue={() => queue.enqueue(station)}
+                    queueEditBlocked={queueEditBlocked}
+                    queueEditPendingLabel={t('queue.editPending')}
                     onShare={() => void shareStation(station)}
                     onOpenPlayer={() => handleOpenPlayer(station)}
                     capture={CALM_PREVIEW ? { enabled: isCurrent && Boolean(trustedTrack), saved: isCurrent && Boolean(trustedTrack && trackHistory.some(f => f.stationId === station.stationuuid && f.track === trustedTrack)), label: t('calm.save'), onCapture: () => { if (isCurrent && trustedTrack) void copyTrack(); } } : undefined}

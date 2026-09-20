@@ -115,6 +115,10 @@ export type StoredPlayerState = {
   layout: StoredWinampLayout;
 };
 
+export type QueueEnqueueResult =
+  | boolean
+  | { added: false; reason: 'already_queued' | 'buffering' };
+
 export type QueueState = QueueSnapshot & {
   playAtIndex: (index: number) => void;
   removeAtIndex: (index: number) => void;
@@ -127,8 +131,9 @@ export type QueueState = QueueSnapshot & {
   clearQueue: () => void;
   // Append-only: add a station to the END of the queue without touching the
   // playing station or currentIndex (the Discovery Feed «в очередь» action).
-  // Returns true when it was newly added, false when already queued.
-  enqueue: (station: Station | StationLite) => boolean;
+  // Returns true when newly added, false when already queued. Buffering may
+  // return a typed result so agent receipts can explain why the edit waited.
+  enqueue: (station: Station | StationLite) => QueueEnqueueResult;
 };
 
 export type WinampState = {
