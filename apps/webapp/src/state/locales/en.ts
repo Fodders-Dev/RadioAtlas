@@ -910,6 +910,8 @@ export const enDictionary = {
     "moveUp": "Move up",
     "moveDown": "Move down",
     "remove": "Remove from queue",
+    "removeProtected": "Current broadcast stays in the queue",
+    "removePending": "Wait for the broadcast to connect",
     "clearUpcoming": "Clear upcoming",
     "openLibrary": "Open queue"
   },

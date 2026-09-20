@@ -2578,7 +2578,24 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         const target = currentQueue.items[index];
         if (!target) return;
 
-        recordSessionEventForStation(target, 'hide', currentQueue.sourceId);
+        // Queue editing must never remove the station that owns the audio
+        // element. `currentIndex` can lag while a direct selection is still
+        // resolving, so protect the runtime's current and pending identities
+        // as well as the rendered player snapshot.
+        const runtimePlayer = playbackRuntimeRef.current.player;
+        const protectedStationIds = new Set(
+          [
+            currentQueue.items[currentQueue.currentIndex]?.stationuuid,
+            player.current?.stationuuid,
+            runtimePlayer.current?.stationuuid,
+            runtimePlayer.pending?.stationuuid
+          ].filter(
+            (stationId): stationId is string => Boolean(stationId)
+          )
+        );
+        const pendingConnectionActive = runtimePlayer.pending && runtimePlayer.status === 'buffering';
+        if (pendingConnectionActive || protectedStationIds.has(target.stationuuid)) return;
+
         reportProductEvent(
           'queue_remove',
           {
@@ -2594,43 +2611,20 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
         );
 
         const nextItems = currentQueue.items.filter((_, itemIndex) => itemIndex !== index);
-        if (!nextItems.length) {
-          updateQueue({
-            ...currentQueue,
-            items: [],
-            currentIndex: -1
-          });
-          if (player.current?.stationuuid === target.stationuuid) {
-            player.stop();
-          }
-          return;
-        }
-
-        if (index === currentQueue.currentIndex) {
-          const nextIndex = Math.min(index, nextItems.length - 1);
-          const nextStation = nextItems[nextIndex];
-          if (!nextStation) return;
-          const nextQueue: QueueSnapshot = {
-            ...currentQueue,
-            items: nextItems,
-            currentIndex: nextIndex
-          };
-          updateQueue(nextQueue);
-          void playStationInternal(nextStation, {
-            recordHistory: false,
-            addToRecent: false,
-            queueSnapshot: nextQueue
-          });
-          return;
-        }
-
+        // Removing a played item is allowed, but the audio identity stays
+        // selected. Only its persisted position shifts when an earlier item
+        // disappears; removing an upcoming item leaves it unchanged.
         updateQueue({
           ...currentQueue,
           items: nextItems,
           currentIndex:
-            index < currentQueue.currentIndex
-              ? Math.max(0, currentQueue.currentIndex - 1)
-            : currentQueue.currentIndex
+            nextItems.length === 0
+              ? -1
+              : currentQueue.currentIndex >= 0 && index < currentQueue.currentIndex
+                ? Math.max(0, currentQueue.currentIndex - 1)
+                : currentQueue.currentIndex >= nextItems.length
+                  ? nextItems.length - 1
+                  : currentQueue.currentIndex
         });
       },
       moveAtIndex: (index, direction) => {

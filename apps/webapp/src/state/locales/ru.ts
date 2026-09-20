@@ -910,6 +910,8 @@ export const ruDictionary = {
     "moveUp": "Выше",
     "moveDown": "Ниже",
     "remove": "Убрать из очереди",
+    "removeProtected": "Текущий эфир остаётся в очереди",
+    "removePending": "Дождитесь подключения эфира",
     "clearUpcoming": "Очистить дальше",
     "openLibrary": "Открыть очередь"
   },

@@ -722,6 +722,16 @@ export const Library = () => {
     (queue.currentIndex >= 0 ? queue.items[queue.currentIndex] : null) ??
     queue.items[0] ??
     null;
+  const protectedQueueStationIds = new Set(
+    [
+      player.current?.stationuuid,
+      player.pending?.stationuuid,
+      queue.items[queue.currentIndex]?.stationuuid
+    ].filter(
+      (stationId): stationId is string => Boolean(stationId)
+    )
+  );
+  const removalBlockedByPending = Boolean(player.pending && player.status === 'buffering');
   const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
   const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
@@ -1109,11 +1119,15 @@ export const Library = () => {
                     {t('playlist.clearQueue')}
                   </button>
                 </div>
+                {removalBlockedByPending ? (
+                  <div className="section-subtitle" role="status">{t('queue.removePending')}</div>
+                ) : null}
 
                 <div className="playlist-list library-queue-list" ref={queueReorder.containerRef}>
                   {queue.items.map((station, index) => {
                     const active =
                       index === queue.currentIndex && player.current?.stationuuid === station.stationuuid;
+                    const protectedFromRemoval = protectedQueueStationIds.has(station.stationuuid);
                     const nextUp = !active && index === Math.max(queue.currentIndex, 0) + 1;
                     const locked = index === queue.currentIndex;
                     const dragging = queueReorder.draggingIndex === index;
@@ -1187,7 +1201,26 @@ export const Library = () => {
                           <button className="chip" type="button" onClick={() => queue.playAtIndex(index)}>
                             {active && player.isPlaying ? t('playlist.playing') : t('common.play')}
                           </button>
-                          <button className="chip" type="button" onClick={() => queue.removeAtIndex(index)}>
+                          <button
+                            className="chip"
+                            type="button"
+                            onClick={() => queue.removeAtIndex(index)}
+                            disabled={removalBlockedByPending || protectedFromRemoval}
+                            title={
+                              removalBlockedByPending
+                                ? t('queue.removePending')
+                                : protectedFromRemoval
+                                  ? t('queue.removeProtected')
+                                  : t('common.remove')
+                            }
+                            aria-label={`${
+                              removalBlockedByPending
+                                ? t('queue.removePending')
+                                : protectedFromRemoval
+                                  ? t('queue.removeProtected')
+                                  : t('common.remove')
+                            }: ${normalizeStationName(station.name)}`}
+                          >
                             {t('common.remove')}
                           </button>
                         </div>

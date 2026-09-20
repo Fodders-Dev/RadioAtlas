@@ -460,9 +460,21 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     setQueueSheetTarget('recent');
   };
 
+  const protectedQueueStationIds = new Set(
+    [
+      player.current?.stationuuid,
+      player.pending?.stationuuid,
+      queue.items[queue.currentIndex]?.stationuuid
+    ].filter(
+      (stationId): stationId is string => Boolean(stationId)
+    )
+  );
+  const removalBlockedByPending = Boolean(player.pending && player.status === 'buffering');
+
   const renderQueueItem = (station: StationLite, index: number) => {
     const absoluteIndex = Math.max(activeQueueIndex, 0) + index;
     const active = current?.stationuuid === station.stationuuid;
+    const protectedFromRemoval = protectedQueueStationIds.has(station.stationuuid);
     const canMoveUp = !active && absoluteIndex > Math.max(activeQueueIndex + 1, 0);
     const canMoveDown = !active && absoluteIndex < queue.items.length - 1;
     return (
@@ -508,8 +520,22 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
             className="full-player-queue-btn danger"
             type="button"
             onClick={() => queue.removeAtIndex(absoluteIndex)}
+            disabled={removalBlockedByPending || protectedFromRemoval}
+            title={
+              removalBlockedByPending
+                ? t('queue.removePending')
+                : protectedFromRemoval
+                  ? t('queue.removeProtected')
+                  : t('queue.remove')
+            }
             data-queue-action="remove"
-            aria-label={`${t('queue.remove')}: ${normalizeStationName(station.name)}`}
+            aria-label={`${
+              removalBlockedByPending
+                ? t('queue.removePending')
+                : protectedFromRemoval
+                  ? t('queue.removeProtected')
+                  : t('queue.remove')
+            }: ${normalizeStationName(station.name)}`}
           >
             <Icon>{actionIcon.remove}</Icon>
           </button>
@@ -744,6 +770,9 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
           {t('queue.openLibrary')}
         </button>
       </div>
+      {removalBlockedByPending ? (
+        <div className="full-player-empty" role="status">{t('queue.removePending')}</div>
+      ) : null}
       <div className="full-player-queue-list">
         {queuePreview.length ? (
           queuePreview.map(renderQueueItem)

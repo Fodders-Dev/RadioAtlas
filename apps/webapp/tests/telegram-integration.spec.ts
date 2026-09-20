@@ -341,7 +341,12 @@ test('inside-telegram: queue row move/remove buttons do NOT fire HapticFeedback 
   const moveUp = page
     .locator('[data-queue-action="move-up"]:not([disabled])')
     .first();
-  const remove = page.locator('[data-queue-action="remove"]').first();
+  // The current station is intentionally protected from queue removal. Use a
+  // known upcoming row so this lock-in still exercises a real editable action.
+  const removableId = stations[1]!.stationuuid;
+  const remove = page.locator(
+    `[data-full-player-queue-item="${removableId}"] [data-queue-action="remove"]`
+  );
   if (await moveDown.isVisible().catch(() => false)) {
     await moveDown.click();
   }
@@ -349,10 +354,19 @@ test('inside-telegram: queue row move/remove buttons do NOT fire HapticFeedback 
     await moveUp.click();
   }
   if (await remove.isVisible().catch(() => false)) {
+    await expect(remove).toBeEnabled();
     await remove.click();
   }
 
-  await page.waitForTimeout(150);
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue.items.map(
+          (item: { stationuuid: string }) => item.stationuuid
+        )
+      )
+    )
+    .not.toContain(removableId);
   const after = await readTelegramSpyState(page);
   expect(after.impactOccurred.length).toBe(baselineHaptics);
 });

@@ -129,6 +129,48 @@ test('another headphone Next skips a hung station; duplicate Play cannot restart
   await expect(page.locator('.toast').filter({ hasText: 'В каталоге не нашлось рабочей станции' })).toHaveCount(0);
 });
 
+test('queue removal waits for a pending station, then allows that resolved history row', async ({ page }) => {
+  await setup(page, { queue: stations.slice(0, 3), queueCurrentIndex: 2 });
+  await page.evaluate(() => {
+    const probe = (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe;
+    probe.blocked = 'osaka';
+    probe.failure = 'hang';
+  });
+  await command(page, 'previoustrack');
+  await expect(audio(page)).toHaveAttribute('src', /osaka/);
+
+  await page.locator('.mobile-nav-item').getByText(/Моё|Library/).click();
+  await page.getByRole('tab', { name: /Очередь|Queue/ }).click();
+  const pendingRow = page.locator('[data-queue-row]').filter({ hasText: 'Osaka Nights' });
+  const pendingRemove = pendingRow.getByRole('button', {
+    name: /Дождитесь подключения эфира|Wait for the broadcast to connect/
+  });
+  await expect(pendingRemove).toBeDisabled();
+  const unrelatedPendingRemove = page
+    .locator('[data-queue-row]')
+    .filter({ hasText: 'Tokyo FM' })
+    .getByRole('button', { name: /Дождитесь подключения эфира|Wait for the broadcast to connect/ });
+  await expect(unrelatedPendingRemove).toBeDisabled();
+
+  await command(page, 'nexttrack');
+  await expect(audio(page)).toHaveAttribute('src', /kyoto/);
+  await expect
+    .poll(async () => page.locator('.calm-mini').getAttribute('data-status'))
+    .toBe('playing');
+  const resolvedRemove = page
+    .locator('[data-queue-row]')
+    .filter({ hasText: 'Osaka Nights' })
+    .getByRole('button', { name: /Убрать|Remove/ });
+  await expect(resolvedRemove).toBeEnabled();
+  await resolvedRemove.click();
+  await expect
+    .poll(async () => {
+      const queue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+      return queue.items.map((item: { stationuuid: string }) => item.stationuuid);
+    })
+    .toEqual([stations[0].stationuuid, stations[2].stationuuid]);
+});
+
 test('headphone Previous stays inside an explicitly selected queue before older history', async ({ page }) => {
   await setup(page, {
     queue: stations.slice(0, 3),

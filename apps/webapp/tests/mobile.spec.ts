@@ -2664,7 +2664,7 @@ test('mobile full player queue can play reorder remove and clear upcoming', asyn
   await expect(page.locator('[data-full-player-overlay] h1')).toContainText(secondUpcoming.name);
 });
 
-test('mobile full player removing current starts next or stops when queue is empty', async ({ page }) => {
+test('mobile full player removes played history without changing the selected station', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startSearchQueueAndOpenFullPlayer(page);
 
@@ -2675,7 +2675,7 @@ test('mobile full player removing current starts next or stops when queue is emp
   expect(next?.stationuuid).toBeTruthy();
 
   await page
-    .locator(`[data-full-player-queue-item="${current.stationuuid}"] .full-player-queue-btn.danger`)
+    .locator(`[data-full-player-queue-item="${next.stationuuid}"] .full-player-queue-main`)
     .click();
   await expect
     .poll(async () => {
@@ -2683,17 +2683,89 @@ test('mobile full player removing current starts next or stops when queue is emp
       return queue.items[queue.currentIndex]?.stationuuid;
     })
     .toBe(next.stationuuid);
-  await expect(page.locator('[data-full-player-overlay] h1')).toContainText(next.name);
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-full-player-queue]')).toHaveCount(0);
+  await page
+    .locator('[data-full-player-overlay]')
+    .getByRole('button', { name: /Пауза|Pause/ })
+    .click();
+  await expect(page.locator('.full-player-primary-btn')).toHaveAttribute(
+    'aria-label',
+    /Играть|Play|Слушать|Listen/
+  );
+  const audioBeforeRemoval = await page.locator('audio.audio-hidden').evaluate((element) => ({
+    src: element.getAttribute('src'),
+    paused: (element as HTMLAudioElement).paused
+  }));
+  await page
+    .locator('[data-full-player-overlay]')
+    .getByRole('button', { name: /^(Очередь|Queue)$/ })
+    .click();
+  await page
+    .locator('[data-full-player-queue]')
+    .getByRole('button', { name: /Открыть очередь|Open queue/ })
+    .click();
+  await expect(page.locator('.screen-library-v2')).toBeVisible();
+  const playedRow = page.locator('[data-queue-row]').filter({ hasText: current.name });
+  await playedRow.getByRole('button', { name: /Убрать|Remove/ }).click();
+  await expect
+    .poll(async () => {
+      const queue = await readStoredQueue(page);
+      return {
+        activeId: queue.items[queue.currentIndex]?.stationuuid,
+        containsRemoved: queue.items.some((item: { stationuuid: string }) => item.stationuuid === current.stationuuid),
+        currentIndex: queue.currentIndex
+      };
+    })
+    .toEqual({
+      activeId: next.stationuuid,
+      containsRemoved: false,
+      currentIndex: 0
+    });
   await expect
     .poll(async () =>
-      page
-        .locator(`[data-full-player-queue-item="${next.stationuuid}"]`)
-        .evaluate((node) => node.classList.contains('active'))
-        .catch(() => false)
+      page.locator('audio.audio-hidden').evaluate((element) => ({
+        src: element.getAttribute('src'),
+        paused: (element as HTMLAudioElement).paused
+      }))
     )
-    .toBe(true);
+    .toEqual(audioBeforeRemoval);
+  const appAfterPlayedRemoval = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('radio:app:v2') || '{}') as {
+      radioSessionEvents?: Array<{ stationId?: string; action?: string }>;
+    }
+  );
+  expect(
+    appAfterPlayedRemoval.radioSessionEvents?.some(
+      (event) => event.stationId === current.stationuuid && event.action === 'hide'
+    )
+  ).not.toBe(true);
 
-  await page.getByRole('button', { name: /Очистить дальше|Clear upcoming/ }).click();
+  const activeRow = page.locator(`[data-queue-row]`).filter({ hasText: next.name });
+  const activeRemove = activeRow.getByRole('button', {
+    name: /Текущий эфир остаётся в очереди|Current broadcast stays in the queue/
+  });
+  await expect(activeRemove).toBeDisabled();
+  const queueBeforeProtectedRemove = await readStoredQueue(page);
+  await expect.poll(async () => readStoredQueue(page)).toEqual(queueBeforeProtectedRemove);
+
+  let queueBeforeSingleton = await readStoredQueue(page);
+  while (queueBeforeSingleton.items.length > 1) {
+    const removeId = queueBeforeSingleton.items[queueBeforeSingleton.items.length - 1].stationuuid;
+    await page
+      .locator(`[data-queue-row]`)
+      .filter({ hasText: queueBeforeSingleton.items[queueBeforeSingleton.items.length - 1].name })
+      .getByRole('button', { name: /Убрать|Remove/ })
+      .click();
+    await expect
+      .poll(async () => {
+        const queue = await readStoredQueue(page);
+        return queue.items.some((item: { stationuuid: string }) => item.stationuuid === removeId);
+      })
+      .toBe(false);
+    queueBeforeSingleton = await readStoredQueue(page);
+  }
   await expect
     .poll(async () => {
       const queue = await readStoredQueue(page);
@@ -2710,19 +2782,41 @@ test('mobile full player removing current starts next or stops when queue is emp
     });
   const singleQueue = await readStoredQueue(page);
   const active = singleQueue.items[singleQueue.currentIndex];
-  await page
-    .locator(`[data-full-player-queue-item="${active.stationuuid}"] .full-player-queue-btn.danger`)
-    .click();
+  const singletonRemove = page
+    .locator(`[data-queue-row]`)
+    .filter({ hasText: active.name })
+    .getByRole('button', { name: /Текущий эфир остаётся в очереди|Current broadcast stays in the queue/ });
+  await expect(singletonRemove).toBeDisabled();
+  await expect.poll(async () => readStoredQueue(page)).toEqual(singleQueue);
+  await expect
+    .poll(async () =>
+      page.locator('audio.audio-hidden').evaluate((element) => ({
+        src: element.getAttribute('src'),
+        paused: (element as HTMLAudioElement).paused
+      }))
+    )
+    .toEqual(audioBeforeRemoval);
+});
+
+test('paused restored queue keeps played removal available', async ({ page }) => {
+  await seedRadioState(page, {
+    activeSection: 'library',
+    libraryTab: 'queue',
+    queue: stations.slice(0, 2),
+    queueCurrentIndex: 1
+  });
+  await page.goto('/?calm=1');
+  await expect(page.locator('.screen-library-v2')).toBeVisible();
+  const playedRow = page.locator('[data-queue-row]').filter({ hasText: 'Tokyo FM' });
+  const playedRemove = playedRow.getByRole('button', { name: /Убрать|Remove/ });
+  await expect(playedRemove).toBeEnabled();
+  await playedRemove.click();
   await expect
     .poll(async () => {
       const queue = await readStoredQueue(page);
-      return queue.items.length;
+      return queue.items.map((item: { stationuuid: string }) => item.stationuuid);
     })
-    .toBe(0);
-  await expect(page.locator('[data-full-player-overlay]')).toBeVisible();
-  await expect(page.locator('[data-full-player-overlay]')).toContainText(
-    /Станция не выбрана|No station selected/
-  );
+    .toEqual([stations[1].stationuuid]);
 });
 
 test('mobile full player opens library queue and station details', async ({ page }) => {
