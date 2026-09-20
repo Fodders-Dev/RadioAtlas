@@ -244,6 +244,8 @@ type SeedRadioStateOptions = {
   recent?: SeedStation[];
   playbackHistory?: SeedStation[];
   queue?: SeedStation[];
+  queueSourceId?: string | null;
+  queueSourceLabel?: string | null;
   /**
    * Which queue entry is the CURRENT one, if any.
    *
@@ -355,6 +357,8 @@ export const seedRadioState = async (
     playbackHistory = [],
     queue = [],
     queueCurrentIndex,
+    queueSourceId = queue.length ? 'seeded-home' : null,
+    queueSourceLabel = queue.length ? 'Seeded Home' : null,
     stationCache = [],
     collections = [],
     followedStations = [],
@@ -450,8 +454,8 @@ export const seedRadioState = async (
         queue: {
           items: queue,
           currentIndex: queueCurrentIndex ?? (queue.length ? 0 : -1),
-          sourceId: queue.length ? 'seeded-home' : null,
-          sourceLabel: queue.length ? 'Seeded Home' : null
+          sourceId: queueSourceId,
+          sourceLabel: queueSourceLabel
         },
         skin: {
           source: 'preset',

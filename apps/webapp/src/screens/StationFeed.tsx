@@ -477,15 +477,16 @@ export const StationFeed = () => {
   // Filter state is LOCAL to this screen — never Shell/Radio state. It resets per
   // open, and nothing outside the overlay re-renders when it changes.
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('picks');
-  // Under calm the listener's own queue IS the Feed's deck whenever there is
-  // one (Q-1 of docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md): the order of
-  // what they chose, at their real position, continued by swipes, the mini
-  // player and the headphones alike. The recommendation deck is the other
-  // context, chosen deliberately with a filter chip — never by opening.
-  // «Включай» snapshots the offer and two starters under `home-calm`; that is
-  // a start, not a chosen set, so it opens on the discovery deck (measured
-  // 13.09: a 2-card queue dead-ended the first swipe on a failing stream).
-  const personalQueue = CALM_PREVIEW && queue.items.length >= 3 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
+  // Under calm the listener's own explicitly sourced queue IS the Feed's deck
+  // whenever it is non-empty (Q-1 of docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md):
+  // the order of what they chose, at their real position, continued by swipes,
+  // the mini player and the headphones alike. The recommendation deck is the
+  // other context, chosen deliberately with a filter chip — never by opening.
+  // `home-calm` snapshots the offer and two starters; that is a start, not a
+  // chosen set, so it opens on the discovery deck. `discovery-feed` is already
+  // the Feed's own recommendation context. A queue without a source is kept
+  // out because its intent cannot be inferred.
+  const personalQueue = CALM_PREVIEW && queue.items.length > 0 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
   const [context, setContext] = useState<'queue' | 'discovery'>(() => (personalQueue ? 'queue' : 'discovery'));
   const queueMode = context === 'queue' && Boolean(personalQueue);
   // The calm Feed opens on the station, not on the chips; the toggle still opens them.
@@ -825,7 +826,16 @@ export const StationFeed = () => {
   useEffect(() => {
     if (kickstartedRef.current || visibleFeedStations.length === 0) return;
     kickstartedRef.current = true;
-    const { index, autoplayInitial } = resolveFeedEntry(visibleFeedStations, currentIdRef.current);
+    // A restored queue can be visible before the lazy playback runtime exposes
+    // current/pending. Its persisted index is still the authoritative opening
+    // card, so feed autoplay resolution gets that station as its current id.
+    const restoredQueueId = queueMode && personalQueue && personalQueue.currentIndex >= 0
+      ? personalQueue.items[personalQueue.currentIndex]?.stationuuid ?? null
+      : null;
+    const { index, autoplayInitial } = resolveFeedEntry(
+      visibleFeedStations,
+      currentIdRef.current ?? restoredQueueId
+    );
     setVisibleIndex(index);
     if (autoplayInitial) {
       settler.notify(index);
@@ -1123,10 +1133,12 @@ export const StationFeed = () => {
   // A chip tap is otherwise completely silent for a screen-reader user; focus
   // stays on the chip, so the result has to be announced — with a NOUN, because
   // a bare integer («Новое для тебя · 15») does not say 15 of what.
-  const statusLine = t('feed.filterStatus', {
-    filter: activeChipLabel,
-    count: String(feedStations.length)
-  });
+  const statusLine = queueMode && personalQueue
+    ? queueTab
+    : t('feed.filterStatus', {
+        filter: activeChipLabel,
+        count: String(feedStations.length)
+      });
 
   const nextStation = visibleFeedStations[visibleIndex + 1] ?? null;
   // A non-default filter that yields nothing but the pinned card is a dead end.

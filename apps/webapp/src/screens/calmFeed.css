@@ -164,6 +164,11 @@
 /* The end of a personal queue: the hint's place, a real button. */
 .calm-queue-end { pointer-events: auto; cursor: pointer; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid #ffebcc40; background: #6a453640; color: #ffe9cf; font: inherit; font-size: 11px; letter-spacing: .2px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .calm-queue-end b { color: #ffd2a8; font-weight: 700; }
+/* The continuation replaces the passive hint with a real 44px control. Keep
+   the story's transport above the same reserved band so the two targets never
+   overlap on the terminal queue card. */
+.station-feed-overlay[data-feed-player='true'] .calm-slide:has(.calm-queue-end) .calm-slide-story { bottom: 74px; }
+.station-feed-overlay[data-feed-player='true'] .calm-slide:has(.calm-queue-end) .calm-slide-rail { transform: translateY(-20px); }
 
 /* From 900px the Feed is a framed stage at the left of the column and a
    list of what comes next at the right — the width buys content, not air. */
@@ -173,6 +178,8 @@
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-scroller { inset: auto; top: 50%; left: 24px; right: 352px; transform: translateY(-50%); width: auto; max-width: none; height: min(100vh - 48px, 640px); border-radius: 30px; overflow-y: auto; box-shadow: 0 30px 80px -30px #000c, inset 0 1px 0 #fff3; }
   .station-feed-overlay[data-feed-player='true'].station-feed-overlay--desktop .station-feed-card { height: 100%; }
   .station-feed-overlay[data-feed-player='true'] .calm-slide-story { bottom: 44px; right: 24px; width: min(760px, calc(100% - 48px)); }
+  .station-feed-overlay[data-feed-player='true'] .calm-slide:has(.calm-queue-end) .calm-slide-story { bottom: 68px; }
+  .station-feed-overlay[data-feed-player='true'] .calm-slide:has(.calm-queue-end) .calm-slide-rail { transform: translateY(-24px); }
   .station-feed-overlay[data-feed-player='true'] .calm-slide-rail { bottom: 182px; right: 22px; }
   .station-feed-overlay[data-feed-player='true'] .calm-swipe-hint { bottom: 16px; }
   .calm-feed-deck { position: absolute; top: 24px; right: 24px; bottom: 24px; width: 304px; display: flex; flex-direction: column; padding: 16px 6px 12px 14px; border-radius: 26px; background: #3a251f; color: #fff1e0; box-shadow: inset 0 1px 0 #fff2; }
