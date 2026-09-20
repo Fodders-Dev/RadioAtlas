@@ -1778,14 +1778,46 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const playPrevious = () => {
+    const currentQueue = queueRef.current;
+    const committedIndexIsValid =
+      currentQueue.currentIndex >= 0 && currentQueue.currentIndex < currentQueue.items.length;
+    const pendingId = (playbackRuntimeRef.current.player.pending ?? playbackRuntimeRef.current.player.current)?.stationuuid;
+    const pendingIndex = pendingId
+      ? currentQueue.items.findIndex((station) => station.stationuuid === pendingId)
+      : -1;
+    const effectiveIndex = pendingIndex >= 0 ? pendingIndex : currentQueue.currentIndex;
+    const hasUsableSelectedQueue = Boolean(
+      currentQueue.sourceId && currentQueue.sourceId !== 'history' && committedIndexIsValid
+    );
+
+    // An explicitly selected queue owns Previous, including its first item.
+    // Pending is authoritative while a prior direction change is still
+    // buffering, but only when that station still belongs to this queue.
+    if (hasUsableSelectedQueue) {
+      if (effectiveIndex <= 0 || currentQueue.items.length <= 1) return;
+      const previousIndex = effectiveIndex - 1;
+      const previousStation = currentQueue.items[previousIndex];
+      if (!previousStation) return;
+      queueWalkRef.current += 1;
+      void playStationInternal(previousStation, {
+        recordHistory: false,
+        addToRecent: false,
+        queueSnapshot: {
+          ...currentQueue,
+          currentIndex: previousIndex
+        }
+      });
+      return;
+    }
+
     const playFromQueue = () => {
-      const currentQueue = queueRef.current;
       if (currentQueue.currentIndex <= 0 || currentQueue.items.length <= 1) {
         return false;
       }
       const previousIndex = currentQueue.currentIndex - 1;
       const previousStation = currentQueue.items[previousIndex];
       if (!previousStation) return false;
+      queueWalkRef.current += 1;
       const queueSnapshot: QueueSnapshot = {
         ...currentQueue,
         currentIndex: previousIndex
@@ -1809,7 +1841,6 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const currentQueue = queueRef.current;
     const queueIndex = currentQueue.items.findIndex(
       (item) => item.stationuuid === previousStation.stationuuid
     );
@@ -1824,6 +1855,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
             sourceLabel: t('radio.history')
           });
 
+    // A real history step also supersedes any earlier queue walk. Boundary
+    // no-ops return above without cancelling the current request.
+    queueWalkRef.current += 1;
     void playStationInternal(previousStation, {
       recordHistory: false,
       addToRecent: false,
@@ -1854,10 +1888,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
     const playFromQueue = async () => {
       const currentQueue = queueRef.current;
+      const committedIndexIsValid =
+        currentQueue.currentIndex >= 0 && currentQueue.currentIndex < currentQueue.items.length;
       if (
         currentQueue.items.length <= 0 ||
-        currentQueue.currentIndex < 0 ||
-        currentQueue.currentIndex >= currentQueue.items.length - 1
+        !committedIndexIsValid
       ) {
         return false;
       }
@@ -1869,7 +1904,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       const pendingIndex = pendingId
         ? currentQueue.items.findIndex((station) => station.stationuuid === pendingId)
         : -1;
-      const from = Math.max(currentQueue.currentIndex, pendingIndex) + 1;
+      const effectiveIndex = pendingIndex >= 0 ? pendingIndex : currentQueue.currentIndex;
+      if (effectiveIndex >= currentQueue.items.length - 1) return false;
+      const from = effectiveIndex + 1;
       const remaining = currentQueue.items.slice(from);
       const walk = (queueWalkRef.current += 1);
       // Same policy as playStationQueue, and the same reason: a supersede here

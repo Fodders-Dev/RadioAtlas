@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
 
 const queueState = (page: Page) => page.evaluate(() => {
   const raw = window.localStorage.getItem('radio:player:v2');
@@ -39,6 +39,7 @@ const setup = async (
   await page.goto('/?calm=1');
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card').first()).toBeVisible();
+  await waitForAnimationsToSettle(page, '.station-feed-card-content[data-focus="true"]');
 };
 
 const renderedStationIds = (page: Page) => page.locator('.station-feed-card').evaluateAll((cards) =>
@@ -85,7 +86,13 @@ for (const size of [1, 2] as const) {
   });
 }
 
-for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 }] as const) {
+for (const viewport of [
+  { width: 320, height: 700 },
+  { width: 390, height: 844 },
+  { width: 834, height: 1112 },
+  { width: 1024, height: 600 },
+  { width: 1280, height: 720 }
+] as const) {
   test(`queue continuation clears Play target at ${viewport.width}px`, async ({ page }) => {
     await setup(page, stations.slice(0, 2), 1, undefined, viewport);
     const geometry = await page.locator('.station-feed-card-content[data-focus="true"]').evaluate((card) => {
@@ -107,6 +114,56 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 
     expect(geometry.captureBottom).not.toBeNull();
     expect(geometry.continuationTop!).toBeGreaterThanOrEqual(geometry.railBottom! + 8);
     expect(geometry.continuationTop!).toBeGreaterThanOrEqual(geometry.captureBottom! + 8);
+  });
+}
+
+for (const viewport of [
+  { width: 320, height: 700 },
+  { width: 390, height: 844 },
+  { width: 834, height: 1112 },
+  { width: 1024, height: 600 },
+  { width: 1280, height: 720 }
+] as const) {
+  test(`enabled Calm rail controls receive real pointer clicks at ${viewport.width}px`, async ({ page }) => {
+    await setup(page, stations.slice(0, 3), 1, undefined, viewport);
+    const activeCard = () => page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])');
+    const rail = activeCard().locator('.calm-slide-rail');
+    const assertRailLayout = async () => {
+      const layout = await rail.evaluate((node) => {
+        const card = node.closest<HTMLElement>('.station-feed-card-content');
+        const topbar = card?.querySelector<HTMLElement>('.calm-slide-top')?.getBoundingClientRect();
+        const timer = card?.querySelector<HTMLElement>('.calm-slide-timer')?.getBoundingClientRect();
+        const buttons = Array.from(node.querySelectorAll<HTMLButtonElement>('button:not([disabled])')).map((button) => {
+          const rect = button.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return {
+            width: rect.width,
+            height: rect.height,
+            top: rect.top,
+            pointerHit: Boolean(hit && (hit === button || button.contains(hit)))
+          };
+        });
+        return {
+          headerBottom: topbar?.bottom ?? null,
+          timerBottom: timer?.bottom ?? null,
+          buttons
+        };
+      });
+      expect(layout.buttons.length).toBeGreaterThan(0);
+      expect(layout.buttons.every((button) => button.width >= 44 && button.height >= 44)).toBe(true);
+      expect(layout.buttons.every((button) => button.pointerHit)).toBe(true);
+      const clearance = Math.max(layout.headerBottom ?? 0, layout.timerBottom ?? 0) + 8;
+      expect(layout.buttons.every((button) => button.top >= clearance)).toBe(true);
+    };
+    await assertRailLayout();
+
+    await activeCard().locator('[data-feed-action="next"]').click();
+    await expect.poll(() => queueState(page).then((state) => state?.currentIndex)).toBe(2);
+    await expect(activeCard()).toHaveAttribute('data-feed-station', stations[2].stationuuid);
+    await assertRailLayout();
+    await activeCard().locator('[data-feed-action="prev"]').click();
+    await expect.poll(() => queueState(page).then((state) => state?.currentIndex)).toBe(1);
+    await expect(activeCard()).toHaveAttribute('data-feed-station', stations[1].stationuuid);
   });
 }
 
