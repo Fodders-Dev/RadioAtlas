@@ -126,6 +126,7 @@ export const GlobeExplorer = () => {
   const shelves = useRef(new Map<string, ShelfSnapshot>());
   const [pointsError, setPointsError] = useState(false);
   const [pointsAttempt, setPointsAttempt] = useState(0);
+  const unlocatedTriggerRef = useRef<HTMLButtonElement | null>(null);
   // An explicit request (a country tile on Home, «показать на карте») starts a
   // fresh journey; only a plain return to the tab restores the previous one.
   const restored = useRef(globeFocusRegionId || globeFocusStationId ? null : lastVisit);
@@ -153,6 +154,12 @@ export const GlobeExplorer = () => {
   const flownRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
   const queryRef = useRef<HTMLInputElement>(null);
+
+  const openCountrySheet = useCallback(() => setCountrySheet(true), []);
+  const closeCountrySheet = useCallback(() => {
+    setCountrySheet(false);
+    window.requestAnimationFrame(() => unlocatedTriggerRef.current?.focus({ preventScroll: true }));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -560,7 +567,7 @@ export const GlobeExplorer = () => {
           source="globe-country"
           onPlay={(station, playlist, sourceId) => playStation(station, { playlist, sourceId })}
           onSource={setSource}
-          onClose={() => setCountrySheet(false)}
+          onClose={closeCountrySheet}
         />
       )}
       {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(station) => playStation(station, { sourceId: 'globe-country' })} />}
@@ -782,8 +789,23 @@ export const GlobeExplorer = () => {
                 ) : null}
               </label>
             ) : null}
-            <div className="explorer-list-meta">
-              <span data-result-count>{listReady ? countLabel(results.length) : ''}</span>
+            <div className="explorer-list-meta" data-unlocated={unlocatedHere > 0 ? 'true' : undefined}>
+              <span className={unlocatedHere > 0 ? 'explorer-map-count' : undefined}>
+                {unlocatedHere > 0 ? <span>{t('mapExplorer.onMap')}: </span> : null}
+                <span data-result-count>{listReady ? countLabel(results.length) : ''}</span>
+              </span>
+              {unlocatedHere > 0 ? (
+                <button
+                  ref={unlocatedTriggerRef}
+                  className="explorer-text explorer-unlocated-action"
+                  type="button"
+                  onClick={openCountrySheet}
+                  data-unlocated-list
+                >
+                  <Icon name="list" />
+                  <span>{t('mapExplorer.unlocatedAction')}</span>
+                </button>
+              ) : null}
               {areaIds || scope === 'world' ? (
                 <button className="explorer-text" type="button" onClick={() => setCountryPicker(true)}>
                   <Icon name="globe" />
@@ -794,22 +816,14 @@ export const GlobeExplorer = () => {
             <div className="explorer-results" ref={listRef} tabIndex={0} aria-label={t('mapExplorer.listLabel')} data-explorer-results>
               {listReady && results.length === 0 ? (
                 <div className="explorer-empty">
-                  <p>{t('mapExplorer.empty')}</p>
+                  {unlocatedHere === 0 ? <p>{t('mapExplorer.empty')}</p> : null}
                   {query.trim() ? (
                     <button className="explorer-text" type="button" onClick={searchCatalogue}>
                       <Icon name="search" />
                       <span>{t('mapExplorer.searchCatalog')}</span>
                     </button>
                   ) : null}
-                  {unlocatedHere > 0 ? (
-                    <>
-                      <p>{t('mapExplorer.unlocated', { count: unlocatedHere })}</p>
-                      <button className="explorer-text" type="button" onClick={() => setCountrySheet(true)} data-unlocated-list>
-                        <Icon name="search" />
-                        <span>{t('mapExplorer.openList')}</span>
-                      </button>
-                    </>
-                  ) : null}
+                  {unlocatedHere > 0 ? <p>{t('mapExplorer.unlocated', { count: unlocatedHere })}</p> : null}
                   <button className="explorer-text" type="button" onClick={() => setCountryPicker(true)}>
                     <Icon name="globe" />
                     <span>{t('mapExplorer.pickCountry')}</span>
@@ -850,12 +864,6 @@ export const GlobeExplorer = () => {
                 <button className="explorer-load-more" type="button" onClick={() => setLimit((value) => value + PAGE)}>
                   <Icon name="down" />
                   <span>{t('mapExplorer.more')}</span>
-                </button>
-              ) : null}
-              {listReady && results.length > 0 && results.length <= limit && unlocatedHere > 0 ? (
-                <button className="explorer-load-more" type="button" onClick={() => setCountrySheet(true)} data-unlocated-list>
-                  <Icon name="search" />
-                  <span>{t('mapExplorer.unlocatedMore', { count: unlocatedHere })}</span>
                 </button>
               ) : null}
             </div>

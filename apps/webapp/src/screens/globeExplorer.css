@@ -95,8 +95,13 @@
 .explorer-search-field input:focus-visible { outline: 0; }
 .explorer-search-field:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
 .explorer-search-field .explorer-icon { height: 42px; border-radius: 12px; }
-.explorer-list-meta { display: flex; align-items: center; justify-content: space-between; flex: none; min-height: 20px; font-size: 10px; color: var(--calm-secondary, var(--muted)); }
+.explorer-list-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; min-height: 20px; font-size: 10px; color: var(--calm-secondary, var(--muted)); }
+.explorer-list-meta[data-unlocated='true'] { min-height: 44px; }
+.explorer-map-count { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; min-width: 0; font-size: 12px; line-height: 1.2; }
 .explorer-list-meta .explorer-text { min-height: 26px; padding: 0; font-size: 10px; gap: 4px; }
+.explorer-list-meta[data-unlocated='true'] .explorer-text { min-height: 44px; }
+  .explorer-list-meta .explorer-unlocated-action { flex: 0 1 auto; min-width: 0; max-width: 55%; padding: 0 9px; border: 1px solid var(--calm-edge, var(--border)); border-radius: 13px; background: color-mix(in srgb, var(--calm-glass, var(--bg)) 76%, transparent); color: var(--calm-ink, var(--text)); font-size: 12px; line-height: 1.15; text-align: left; white-space: normal; }
+  .explorer-list-meta .explorer-unlocated-action svg { color: var(--accent); }
 .explorer-list-meta .explorer-text svg { width: 13px; height: 13px; }
 .explorer-results { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .explorer-row { display: flex; gap: 4px; align-items: center; min-height: 52px; border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent); }

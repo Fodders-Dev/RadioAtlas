@@ -90,8 +90,8 @@ export const enDictionary = {
     stationUnavailable: 'Source details are temporarily unavailable.', groupFailed: 'Could not open the group. Zoom in with +.',
     noCoords: 'This source has no exact coordinates. Its country is open instead.', onMap: 'On the map',
     unlocated: 'Without exact coordinates: {count}. Not on the map, but in the catalogue.',
-    unlocatedMore: '{count} more without exact coordinates', openList: 'Open the list',
-    unlocatedKicker: 'Stations without exact coordinates', unlocatedCopy: 'These stations are in the catalogue but have no point on the map. They play just the same.'
+    unlocatedMore: '{count} more without exact coordinates', unlocatedAction: 'All stations in this country', openList: 'Open the list',
+    unlocatedKicker: 'All stations in this country', unlocatedCopy: 'The full country catalogue, including stations without a point on the map.'
   },
   // Calm Home in the A4 «Journal» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.

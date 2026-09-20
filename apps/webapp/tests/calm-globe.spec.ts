@@ -305,6 +305,147 @@ test('calm globe: one geographic dot opens all co-located streams; genre filteri
   await expect(page.locator('[data-result-count]')).toHaveText('99 эфиров');
   expect(await audioSrc(page)).toBeNull();
 });
+
+test('calm globe: country catalogue action is available before pagination and preserves the air', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const located = Array.from({ length: 41 }, (_, index) => ({
+    id: `mixed-located-${index}`,
+    lat: 52.52,
+    lon: 13.405,
+    country: 'Germany',
+    state: 'Berlin',
+    name: `Berlin Source ${index + 1}`
+  }));
+  const unlocated = [
+    { ...stations[4], stationuuid: 'mixed-unlocated-a', name: 'Unlocated A', country: 'Germany', state: '', geo_lat: null, geo_long: null },
+    { ...stations[4], stationuuid: 'mixed-unlocated-b', name: 'Unlocated B', country: 'Germany', state: '', geo_lat: null, geo_long: null }
+  ];
+  const locatedCatalog = located.map((point) => ({
+    ...stations[4], stationuuid: point.id, name: point.name, country: point.country, state: point.state,
+    geo_lat: point.lat, geo_long: point.lon
+  }));
+  await page.route('**/catalog/points**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ items: [...located, ...unlocated.map((station) => ({ id: station.stationuuid, country: station.country, name: station.name }))], mappedStations: located.length, totalStations: 43 })
+  }));
+  await page.route('**/catalog/search**', (route) => {
+    const url = new URL(route.request().url());
+    const items = url.searchParams.get('country') === 'Germany'
+      ? [...unlocated, ...locatedCatalog]
+      : stations;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items, total: items.length, nextCursor: null, facets: { countries: ['Japan', 'Germany', 'Brazil'], tags: [], languages: [] } })
+    });
+  });
+  await page.route('**/catalog/stations/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ item: locatedCatalog.find((station) => station.stationuuid === new URL(route.request().url()).pathname.split('/').pop()) || unlocated[0] })
+  }));
+  await openGlobe(page);
+  await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
+  await expect(page.locator('[data-result-count]')).toHaveText('41 эфир');
+  const allCountry = page.locator('.explorer-list-meta [data-unlocated-list]');
+  await expect(allCountry).toBeVisible();
+  await expect(page.locator('.explorer-load-more')).toBeVisible();
+
+  await page.locator('.explorer-row-play').first().click();
+  await expect.poll(() => audioSrc(page)).toBe(stations[4].url_resolved);
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const srcBeforeSheet = await audioSrc(page);
+  const results = page.locator('[data-explorer-results]');
+  await results.hover();
+  await page.mouse.wheel(0, 240);
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const scrollBeforeSheet = await results.evaluate((element) => element.scrollTop);
+  await allCountry.click();
+  const sheet = page.locator('[data-calm-browse="Germany"]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('Unlocated A');
+  expect(await audioSrc(page)).toBe(srcBeforeSheet);
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await sheet.getByRole('button', { name: /Закрыть|Close/ }).click();
+  await expect(allCountry).toBeFocused();
+  expect(await audioSrc(page)).toBe(srcBeforeSheet);
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBe(scrollBeforeSheet);
+
+  // Filtered, world and place scopes must not present the unfiltered country action.
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Джаз, соул, блюз', exact: true }).click();
+  await expect(page.locator('.explorer-list-meta [data-unlocated-list]')).toHaveCount(0);
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Все жанры', exact: true }).click();
+  await page.locator('.explorer-heading .explorer-icon').first().click();
+  await page.locator('.explorer-search-field input').fill('Berlin Source 1');
+  await expect(page.locator('.explorer-list-meta [data-unlocated-list]')).toHaveCount(0);
+  await page.locator('.explorer-search-field .explorer-icon').click();
+  await page.locator('.explorer-world').click();
+  await expect(page.locator('.explorer-list-meta [data-unlocated-list]')).toHaveCount(0);
+  await page.locator('.explorer-country-switch').click();
+  await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
+  const map = page.locator('.explorer-map canvas');
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-camera', 'idle');
+  const mapBox = (await map.boundingBox())!;
+  await page.mouse.click(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
+  await expect(page.locator('.explorer-title strong')).toHaveText('Эфиры в этом месте');
+  await expect(page.locator('.explorer-list-meta [data-unlocated-list]')).toHaveCount(0);
+  expect(await audioSrc(page)).toBe(srcBeforeSheet);
+
+  // The catalogue row itself remains an explicit play entry and carries the
+  // country queue into Feed; opening the queue sheet never plays by itself.
+  await page.locator('.explorer-country-switch').click();
+  await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
+  await expect(page.locator('.explorer-list-meta [data-unlocated-list]')).toBeVisible();
+  await page.locator('.explorer-list-meta [data-unlocated-list]').click();
+  const countrySheet = page.locator('[data-calm-browse="Germany"]');
+  await countrySheet.locator('[data-discovery-station]').first().click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('globe-country');
+  const persistedQueueIds = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid) || []);
+  expect(persistedQueueIds).toContain('mixed-unlocated-a');
+  await countrySheet.getByRole('button', { name: /Закрыть|Close/ }).click();
+  await page.locator('.calm-mini-info').click();
+  await expect(page.locator('[data-feed-player]')).toBeVisible();
+  await expect(page.locator('[data-feed-station="mixed-unlocated-a"]')).toBeVisible();
+});
+
+test('calm globe: country catalogue retry stays silent after a failed first page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  let searchAttempts = 0;
+  const unlocated = { ...stations[4], stationuuid: 'retry-unlocated', name: 'Retry Germany', country: 'Germany', state: '', geo_lat: null, geo_long: null };
+  await page.route('**/catalog/points**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ items: [{ id: 'retry-located', lat: 52.52, lon: 13.405, country: 'Germany', name: 'Located Germany' }, { id: unlocated.stationuuid, country: 'Germany', name: unlocated.name }], mappedStations: 1, totalStations: 2 })
+  }));
+  await page.route('**/catalog/search**', (route) => {
+    const country = new URL(route.request().url()).searchParams.get('country');
+    if (country === 'Germany' && searchAttempts++ === 0) {
+      return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'fixture failure' }) });
+    }
+    const items = country === 'Germany' ? [unlocated] : stations;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items, total: items.length, nextCursor: null, facets: { countries: ['Japan', 'Germany'], tags: [], languages: [] } })
+    });
+  });
+  await openGlobe(page);
+  const action = page.locator('.explorer-list-meta [data-unlocated-list]');
+  await action.click();
+  const sheet = page.locator('[data-calm-browse="Germany"]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[role="status"]')).toContainText('Не удалось загрузить');
+  await expect(sheet.getByRole('button', { name: /Повторить|Retry/ })).toBeVisible();
+  expect(await audioSrc(page), 'a failed catalogue page never starts sound').toBeNull();
+  await sheet.getByRole('button', { name: /Повторить|Retry/ }).click();
+  await expect(sheet.locator('[data-discovery-station]').first()).toContainText('Retry Germany');
+  expect(await audioSrc(page), 'retry remains browse-only').toBeNull();
+});
+
 // A sparse country: the catalogue knows stations there but none carries
 // coordinates (Mongolia: nine stations, not one located). The map draws
 // nothing invented; the list says how many exist and opens the real
@@ -344,9 +485,13 @@ test('calm globe: a country without located stations offers its catalogue list i
   await expect(page.locator('[data-result-count]')).toHaveText('0 эфиров');
   const empty = page.locator('.explorer-empty');
   await expect(empty).toContainText('Без точных координат: 2');
-  await empty.locator('[data-unlocated-list]').click();
+  const allCountry = page.locator('.explorer-list-meta [data-unlocated-list]');
+  await expect(allCountry).toBeVisible();
+  await allCountry.click();
   const sheet = page.locator('[data-calm-browse="Mongolia"]');
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('.calm-destination, .calm-station-row').first()).toContainText('Ulaanbaatar FM');
   expect(await audioSrc(page), 'opening the list never starts sound').toBeNull();
+  await sheet.getByRole('button', { name: /Закрыть|Close/ }).click();
+  await expect(allCountry).toBeFocused();
 });

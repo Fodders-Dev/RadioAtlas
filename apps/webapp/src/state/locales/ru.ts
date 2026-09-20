@@ -90,8 +90,8 @@ export const ruDictionary = {
     stationUnavailable: 'Сведения об источнике временно недоступны.', groupFailed: 'Не удалось раскрыть группу. Приблизь карту кнопкой +.',
     noCoords: 'У источника нет точных координат. Открыта его страна.', onMap: 'На карте',
     unlocated: 'Без точных координат: {count}. На карте их не показать, но они есть в каталоге.',
-    unlocatedMore: 'Ещё {count} без точных координат', openList: 'Открыть список',
-    unlocatedKicker: 'Эфиры без точных координат', unlocatedCopy: 'Эти станции есть в каталоге, но у них нет точки на карте. Играют так же.'
+    unlocatedMore: 'Ещё {count} без точных координат', unlocatedAction: 'Все эфиры страны', openList: 'Открыть список',
+    unlocatedKicker: 'Все эфиры страны', unlocatedCopy: 'Полный каталог страны, включая станции без точки на карте.'
   },
   // Calm Home in the A4 «Журнал» composition: stories over real catalogue
   // filters, real sources, countries on the globe, honest empty states.
