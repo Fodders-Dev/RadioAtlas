@@ -41,6 +41,12 @@
 .calm-slide-top { position: absolute; top: calc(12px + var(--shell-safe-top, env(safe-area-inset-top))); left: 22px; right: 13px; z-index: 5; display: flex; align-items: flex-start; justify-content: space-between; pointer-events: none; }
 .calm-slide-top > * { pointer-events: auto; }
 .calm-slide-tab { font-size: 13px; font-weight: 650; letter-spacing: .1px; border-bottom: 2px solid #ffe2b2; padding: 11px 0; }
+.calm-slide-queue { min-width: 0; max-width: calc(100% - 56px); min-height: 44px; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 7px; padding: 8px 0; text-align: left; }
+.calm-slide-queue > svg { width: 18px; height: 18px; flex: 0 0 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.calm-slide-queue-copy { min-width: 0; display: grid; gap: 2px; line-height: 1; }
+.calm-slide-queue-copy strong, .calm-slide-queue-copy small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calm-slide-queue-copy strong { font-size: 13px; font-weight: 650; }
+.calm-slide-queue-copy small { font-size: 11px; font-weight: 500; letter-spacing: .2px; color: #ecd5be; }
 .calm-slide-icon { width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: linear-gradient(130deg, #fff5, #fff1), #79503322; color: #fff5df; border: 1px solid #fff9; box-shadow: inset 0 1px 1px #fffe, inset 0 -1px 2px #b37d5730, 0 7px 20px #68482b18; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 .calm-slide-icon svg { width: 21px; height: 21px; }
 .calm-slide-timer { position: relative; }

@@ -52,9 +52,11 @@ export type CalmFeedCardProps = {
     lira: string; tools: string; volume: string; place: string; nowPlaying: string; lastFind: string; noTrack: string; startToCatch: string;
     railStation: string; railTrack: string; railVolume: string; railLira: string; railMore: string;
     onAir: string; pausedStatus: string; idleStatus: string; connecting: string; failed: string;
-    prev: string; next: string; timer: string; hint: string; tab: string; liveMusic: string; queueEnd: string; queueContinue: string;
+    prev: string; next: string; timer: string; hint: string; liveMusic: string; queueEnd: string; queueContinue: string;
     sceneWords: Record<GenreFamily | 'unknown', string>;
   };
+  queue: { label: string; source: string; ariaLabel: string };
+  onOpenQueue: () => void;
 };
 
 // The mock's four scene kinds, chosen by the station's genre family.
@@ -72,7 +74,7 @@ const Chevron = ({ up = false }: { up?: boolean }) => (
 
 export const CalmFeedCard = ({
   station, active, isCurrent, isPlaying, status, liveTrack, lastFind, favorite, aiEnabled, subscribe, capture, index,
-  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, onStep, canStep, timer, labels, onContinue
+  onTogglePlayback, onToggleFavorite, onCapture, onAskLira, onOpenPlace, onOpenTools, onStep, canStep, timer, labels, queue, onOpenQueue, onContinue
 }: CalmFeedCardProps) => {
   const railRef = useRef<HTMLDivElement>(null);
   const storyRef = useRef<HTMLDivElement>(null);
@@ -121,7 +123,20 @@ export const CalmFeedCard = ({
       <div className="calm-scene-shade" aria-hidden="true" />
 
       <div ref={topRef} className="calm-slide-top" aria-hidden={active ? undefined : 'true'}>
-        <span className="calm-slide-tab">{labels.tab}</span>
+        <button
+          type="button"
+          className="calm-slide-tab calm-slide-queue"
+          onClick={onOpenQueue}
+          aria-label={queue.ariaLabel}
+          data-feed-action="queue"
+          tabIndex={tab}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 12h16M4 18h10" /><path d="m16 8 4 4-4 4" /></svg>
+          <span className="calm-slide-queue-copy">
+            <strong>{queue.label}</strong>
+            <small>{queue.source}</small>
+          </span>
+        </button>
         <button type="button" className={`calm-slide-icon calm-slide-timer ${timer.active ? 'is-on' : ''}`.trim()} onClick={timer.onOpen} aria-label={labels.timer} data-feed-action="timer" data-minutes={timer.active ? timer.label : ''} tabIndex={tab}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6M12 7v6l3 2M20 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0" /></svg>
         </button>

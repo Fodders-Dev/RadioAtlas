@@ -475,7 +475,7 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId } = useShell();
+  const { setActiveSection, setLibraryTab, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId } = useShell();
   const isMobile = useMobileLayout();
 
   // The feed re-rolls on EVERY open: rerollFeedSeed runs from the «Лента» entry's
@@ -790,6 +790,14 @@ export const StationFeed = () => {
     setActiveSection('home');
   }, [settler, setActiveSection]);
 
+  const openQueue = useCallback(() => {
+    // Leave the pager quiet before changing sections: a settled swipe must not
+    // launch a station after the listener has deliberately opened the queue.
+    settler.cancel();
+    setLibraryTab('queue');
+    setActiveSection('library');
+  }, [setActiveSection, setLibraryTab, settler]);
+
   const resolveFeedReturnFocus = useCallback((): HTMLElement | null => {
     if (typeof document === 'undefined') return null;
     const candidates = document.querySelectorAll<HTMLElement>(
@@ -1082,7 +1090,7 @@ export const StationFeed = () => {
     noTrack: t('journal.feedNoTrack'), startToCatch: t('journal.feedStartToCatch'), onAir: t('journal.feedOnAir'), pausedStatus: t('journal.feedPaused'),
     idleStatus: t('journal.feedIdle'), connecting: t('journal.feedConnecting'), failed: t('journal.feedFailed'),
     prev: t('journal.feedPrev'), next: t('journal.feedNext'), timer: t('settings.sleepTimerLabel'), hint: t('journal.feedHint'),
-    volume: t('journal.feedVolume'), tab: t('journal.feedLabel'), liveMusic: t('journal.feedLiveMusic'), queueEnd: t('journal.queueEnd'), queueContinue: t('journal.queueContinue'), railStation: t('journal.railStation'), railTrack: t('journal.railTrack'), railVolume: t('journal.railVolume'), railLira: t('journal.railLira'), railMore: t('journal.railMore'),
+    volume: t('journal.feedVolume'), liveMusic: t('journal.feedLiveMusic'), queueEnd: t('journal.queueEnd'), queueContinue: t('journal.queueContinue'), railStation: t('journal.railStation'), railTrack: t('journal.railTrack'), railVolume: t('journal.railVolume'), railLira: t('journal.railLira'), railMore: t('journal.railMore'),
     sceneWords: {
       pop: t('journal.sceneWords.pop'), rock: t('journal.sceneWords.rock'), electronic: t('journal.sceneWords.electronic'), jazz: t('journal.sceneWords.jazz'),
       classical: t('journal.sceneWords.classical'), chill: t('journal.sceneWords.chill'), hiphop: t('journal.sceneWords.hiphop'), world: t('journal.sceneWords.world'),
@@ -1134,6 +1142,12 @@ export const StationFeed = () => {
   const queueTab = queueMode && personalQueue
     ? t('journal.queueTab', { label: personalQueue.sourceLabel || t('journal.queueContext'), index: String(visibleIndex + 1), total: String(personalQueue.items.length) })
     : personalQueue ? t('journal.discoverTab') : t('journal.feedLabel');
+  const queueButtonLabel = queueMode && personalQueue
+    ? t('journal.queueTab', { label: t('playlist.title'), index: String(visibleIndex + 1), total: String(personalQueue.items.length) })
+    : `${t('playlist.title')} · ${queue.items.length}`;
+  const queueButtonSource = queueMode && personalQueue
+    ? personalQueue.sourceLabel || t('radio.queueDefault')
+    : t('journal.queueDiscoverySource');
   const contextChips = personalQueue
     ? [{ id: 'queue', label: `${t('journal.queueContext')} · ${personalQueue.items.length}` }, ...chips]
     : chips;
@@ -1298,7 +1312,9 @@ export const StationFeed = () => {
                     onStep={(delta) => stepBy(delta)}
                     canStep={{ prev: index > 0, next: index < visibleFeedStations.length - 1 }}
                     timer={{ label: sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '', active: sleepTimer.active, onOpen: () => { settler.cancel(); setTimerOpen(true); } }}
-                    labels={{ ...calmLabels, tab: queueTab }}
+                    labels={calmLabels}
+                    queue={{ label: queueButtonLabel, source: queueButtonSource, ariaLabel: `${queueButtonLabel}: ${t('library.openQueueAction')}` }}
+                    onOpenQueue={openQueue}
                     onContinue={queueMode ? () => onContextChip('picks') : undefined}
                   />
                 ) : windowed ? (

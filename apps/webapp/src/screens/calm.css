@@ -246,6 +246,16 @@
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip { border: 1px solid var(--calm-line); background: var(--calm-surface); color: var(--calm-ink); box-shadow: none; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-tab-chip.active { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .section-title { font-size: 20px; letter-spacing: -.6px; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell > .library-section-head .section-title { color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell > .library-section-head .section-subtitle { color: var(--calm-secondary); }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell { scroll-margin-top: 16px; color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-now-card { background: var(--calm-surface); border-color: var(--calm-line); box-shadow: none; color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell > .library-section-head .section-subtitle { text-shadow: none; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-now-card .shell-kicker,
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-now-card .section-subtitle { color: var(--calm-secondary); text-shadow: none; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-now-card .section-title { color: var(--calm-ink); text-shadow: none; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-row .playlist-name { color: var(--calm-ink); text-shadow: none; }
+.app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-row .playlist-meta { color: var(--calm-secondary); text-shadow: none; }
 /* «Поиск» in the journal: same head, the catalogue's own cards on paper. */
 .app-shell-v2[data-calm='true'] .screen-search { padding-top: 0; }
 .app-shell-v2[data-calm='true'] .screen-search .glass-card { background: var(--calm-surface); border: 1px solid var(--calm-line); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 20px; }

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type Ref,
   type ReactNode
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -75,6 +76,7 @@ type LibraryTabPanelProps = {
   tabId: string;
   panelId: string;
   className: string;
+  panelRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 };
 
@@ -84,6 +86,7 @@ const LibraryTabPanel = ({
   tabId,
   panelId,
   className,
+  panelRef,
   children
 }: LibraryTabPanelProps) => {
   const active = activeTab === tab;
@@ -91,6 +94,7 @@ const LibraryTabPanel = ({
   return (
     <div
       className={active ? className : undefined}
+      ref={panelRef}
       id={panelId}
       role="tabpanel"
       aria-labelledby={tabId}
@@ -200,7 +204,7 @@ export const Library = () => {
     updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
-  const { setActiveSection, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
+  const { setActiveSection, setFeedEntryStation, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
     useShell();
   const {
     status: sessionStatus,
@@ -210,6 +214,12 @@ export const Library = () => {
     setBotOptIn
   } = useSession();
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
+  const queueReturnStation = player.current ?? player.pending;
+  const returnToPlayer = () => {
+    if (!queueReturnStation) return;
+    setFeedEntryStation(queueReturnStation);
+    setActiveSection('feed');
+  };
   // R1 (PR-A): after toggling opt-in we learn whether the user is reachable
   // (has started the bot). If opted-in but not reachable, we point them to it.
   const [botReachable, setBotReachable] = useState<boolean | null>(null);
@@ -253,6 +263,7 @@ export const Library = () => {
   const libraryTabRefs = useRef<
     Partial<Record<VisibleLibraryTab, HTMLButtonElement | null>>
   >({});
+  const queuePanelRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
@@ -478,6 +489,13 @@ export const Library = () => {
   const activeLibraryTab: VisibleLibraryTab = isVisibleLibraryTab(libraryTab)
     ? libraryTab
     : 'recent';
+  useEffect(() => {
+    if (!CALM_PREVIEW || activeLibraryTab !== 'queue') return;
+    const panel = queuePanelRef.current;
+    if (!panel) return;
+    panel.focus({ preventScroll: true });
+    panel.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, [activeLibraryTab]);
   const findsTabActive = activeLibraryTab === 'tracks';
   const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
   const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
@@ -1044,12 +1062,18 @@ export const Library = () => {
         tabId={libraryTabId('queue')}
         panelId={libraryPanelId('queue')}
         className="glass-card library-queue-shell"
+        panelRef={queuePanelRef}
       >
           <div className="library-section-head">
             <div>
               <div className="section-title">{t('playlist.title')}</div>
               <div className="section-subtitle">{queueSourceLabel}</div>
             </div>
+            {CALM_PREVIEW && queueReturnStation ? (
+              <button className="chip calm-library-queue-return" type="button" onClick={returnToPlayer}>
+                {t('library.openPlayerAction')}
+              </button>
+            ) : null}
           </div>
           {isSavingQueue ? (
             <form
