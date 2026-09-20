@@ -79,6 +79,10 @@ explicit allow-list of fields, never raw provider data.
 ## Commands
 
 Shared Codex/Claude workflow: read `.claude/rules/collaboration.md`.
+Owner's standing Codex preference (2026-09-20): Astra plans and independently
+reviews; delegate implementation to GPT-5.6 Luna in bounded tasks. Read the
+model-split section in that workflow before coding. Do not silently substitute
+Astra for routine implementation; this preference persists across sessions.
 Current checkout map and next slice: `docs/WORKING-SETUP.md`.
 
 These exist; do not invent others. **There is no linter or formatter in this

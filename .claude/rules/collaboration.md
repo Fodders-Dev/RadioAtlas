@@ -1,5 +1,24 @@
 # Shared workflow — Codex and Claude
 
+## Owner's Codex model split (2026-09-20)
+
+The owner explicitly requests GPT-6 Astra to plan, inspect and review, with
+GPT-5.6 Luna implementing code through subagents. Keep this workflow across
+sessions unless the owner changes it. This authorizes bounded Luna delegation;
+it does not authorize uncontrolled fan-out or deployment.
+
+- Astra reads current state, chooses scope and gives Luna precise file ownership,
+  expected behavior, preserved contracts and verification commands. Send only
+  relevant context rather than the full conversation to limit token cost.
+- Delegate implementation to `gpt-5.6-luna`. Astra may maintain plans/handoff
+  documents directly, but should not silently take over routine coding.
+- Astra independently reviews diffs, test evidence and rendered UI. Luna's
+  completion report is not verification or design approval. Return concrete
+  defects to Luna for correction.
+- One implementation owner per file; serialize shared browser-suite resources.
+  If Luna is unavailable, report that rather than silently changing this split.
+- Continue the standing review-before-publication rule for design work.
+
 Read this when starting or handing off project work. Tool/model names specific to
 one client do not become instructions to invent equivalent tools in another.
 
