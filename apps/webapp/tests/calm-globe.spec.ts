@@ -306,6 +306,91 @@ test('calm globe: one geographic dot opens all co-located streams; genre filteri
   expect(await audioSrc(page)).toBeNull();
 });
 
+test('calm globe: a dense place keeps its expanded list position across Feed and Globe', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const berlin = stations.find(s => s.stationuuid === 'uuid-berlin')!;
+  const pileIds = Array.from({ length: 98 }, (_, i) => `return-pile-${i}`);
+  await page.route('**/catalog/points**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    items: [
+      ...stations.map(s => ({ id: s.stationuuid, lat: s.geo_lat, lon: s.geo_long, country: s.country, name: s.name })),
+      ...pileIds.map((id) => ({ id, lat: berlin.geo_lat, lon: berlin.geo_long, country: 'Germany', name: id }))
+    ],
+    mappedStations: stations.length + pileIds.length,
+    totalStations: stations.length + pileIds.length
+  }) }));
+  await page.route('**/catalog/stations/**', route => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() || '');
+    const item = stations.find(s => s.stationuuid === id) || (pileIds.includes(id)
+      ? { ...berlin, stationuuid: id, name: id }
+      : null);
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ item }) });
+  });
+
+  await openGlobe(page);
+  await page.locator('.explorer-country-switch').click();
+  await page.locator('.calm-country-options button', { hasText: 'Germany' }).click();
+  await expect(page.locator('.explorer-title strong')).toHaveText('Germany');
+  const map = page.locator('.explorer-map');
+  await expect(map).toHaveAttribute('data-camera', 'idle');
+  const box = (await page.locator('.explorer-map canvas').boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('.explorer-title strong')).toHaveText('Эфиры в этом месте');
+  const results = page.locator('[data-explorer-results]');
+  for (let i = 0; i < 4; i++) await page.locator('.explorer-load-more').click();
+  await expect(page.locator('.explorer-row')).toHaveCount(99);
+  await expect.poll(() => page.locator('.explorer-row').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-point-id')))).toEqual(['uuid-berlin', ...pileIds]);
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Джаз, соул, блюз', exact: true }).click();
+  await expect(results).toHaveJSProperty('scrollTop', 0);
+  await page.locator('[data-explorer-legend]').getByRole('button', { name: 'Все жанры', exact: true }).click();
+  await expect(page.locator('.explorer-row')).toHaveCount(20);
+  for (let i = 0; i < 4; i++) await page.locator('.explorer-load-more').click();
+  await expect(page.locator('.explorer-row')).toHaveCount(99);
+  await results.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  const scrollBefore = await results.evaluate((element) => element.scrollTop);
+  expect(scrollBefore).toBeGreaterThan(0);
+  const last = page.locator('.explorer-row').last();
+  const lastId = await last.getAttribute('data-point-id');
+  const lastBox = await last.boundingBox();
+  const resultsBox = await results.boundingBox();
+  expect(lastBox).not.toBeNull();
+  expect(resultsBox).not.toBeNull();
+  expect(lastBox!.y + lastBox!.height).toBeLessThanOrEqual(resultsBox!.y + resultsBox!.height + 1);
+  await last.locator('.explorer-row-name').click();
+  await expect(page.locator('[data-selected-station]')).toHaveAttribute('data-selected-station', lastId!);
+  await page.locator('[data-selected-play]').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const beforeAudio = await audioSrc(page);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toMatchObject({
+    sourceId: 'globe-station',
+    currentIndex: 0,
+    items: [{ stationuuid: lastId }]
+  });
+  const beforeQueue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Лента', exact: true }).click();
+  await expect(page.locator('.station-feed-overlay')).toBeVisible();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Глобус', exact: true }).click();
+  await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.locator('[data-selected-station]')).toHaveAttribute('data-selected-station', lastId!);
+  await expect(page.locator('.explorer-map')).toHaveAttribute('data-camera', 'idle');
+  await page.locator('[data-back-to-list]').click();
+  await expect(page.locator('.explorer-title strong')).toHaveText('Эфиры в этом месте');
+  await expect(page.locator('.explorer-row')).toHaveCount(99);
+  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const scrollAfter = await results.evaluate((element) => element.scrollTop);
+  expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.locator('.explorer-row').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-point-id')))).toEqual(['uuid-berlin', ...pileIds]);
+  expect(await audioSrc(page)).toBe(beforeAudio);
+  await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(beforeQueue);
+});
+
 test('calm globe: country catalogue action is available before pagination and preserves the air', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);

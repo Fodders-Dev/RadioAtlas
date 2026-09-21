@@ -52,6 +52,8 @@ type Visit = {
   areaIds: string[] | null;
   listTitle: ListTitle;
   query: string;
+  limit: number;
+  scrollTop: number;
   selectedId: string | null;
   panelSize: PanelSize;
   genre: GenreFilter;
@@ -135,7 +137,7 @@ export const GlobeExplorer = () => {
   const [areaIds, setAreaIds] = useState<string[] | null>(restored.current?.areaIds || null);
   const [listTitle, setListTitle] = useState<ListTitle>(restored.current?.listTitle || null);
   const [query, setQuery] = useState(restored.current?.query || '');
-  const [limit, setLimit] = useState(PAGE);
+  const [limit, setLimit] = useState(restored.current?.limit ?? PAGE);
   const [selectedId, setSelectedId] = useState<string | null>(restored.current?.selectedId || null);
   const [panelSize, setPanelSize] = useState<PanelSize>(restored.current?.panelSize || 'normal');
   // Geography stays visible across country boundaries; filters are explicit.
@@ -153,7 +155,12 @@ export const GlobeExplorer = () => {
   const flightKey = useRef(0);
   const flownRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(restored.current?.scrollTop ?? 0);
   const queryRef = useRef<HTMLInputElement>(null);
+  const resetListPosition = () => {
+    scrollTopRef.current = 0;
+    if (listRef.current) listRef.current.scrollTop = 0;
+  };
 
   const openCountrySheet = useCallback(() => setCountrySheet(true), []);
   const closeCountrySheet = useCallback(() => {
@@ -232,6 +239,7 @@ export const GlobeExplorer = () => {
       setListTitle(null);
       setQuery('');
       setLimit(PAGE);
+      resetListPosition();
       setSelectedId(null);
       setPanelSize('normal');
       setMoved(false);
@@ -309,9 +317,22 @@ export const GlobeExplorer = () => {
 
   useEffect(
     () => () => {
-      lastVisit = { country, scope, areaIds, listTitle, query, selectedId, panelSize, genre, moved, camera: cameraRef.current };
+      lastVisit = {
+        country,
+        scope,
+        areaIds,
+        listTitle,
+        query,
+        limit,
+        scrollTop: scrollTopRef.current,
+        selectedId,
+        panelSize,
+        genre,
+        moved,
+        camera: cameraRef.current
+      };
     },
-    [country, scope, areaIds, listTitle, query, selectedId, panelSize, genre, moved]
+    [country, scope, areaIds, listTitle, query, limit, selectedId, panelSize, genre, moved]
   );
 
   const personalIds = useMemo(() => [...favorites, ...recent].map((station) => station.stationuuid), [favorites, recent]);
@@ -341,7 +362,7 @@ export const GlobeExplorer = () => {
   const genrePoints = useMemo(() => (points || []).filter(point => matchesGenre(point, genre)), [points, genre]);
   const mapPoints = query.trim() ? results : genrePoints;
   const chooseGenre = (next: typeof genre) => {
-    setGenre(next); setSelectedId(null); setLimit(PAGE);
+    setGenre(next); setSelectedId(null); setLimit(PAGE); resetListPosition();
   };
 
   const unlocatedHere = scope === 'country' && !areaIds && !genre && !query.trim() ? unlocated.get(country) || 0 : 0;
@@ -402,6 +423,7 @@ export const GlobeExplorer = () => {
     setSelectedId(null);
     setPanelSize('normal');
     setLimit(PAGE);
+    resetListPosition();
     setMoved(false);
   };
 
@@ -422,6 +444,7 @@ export const GlobeExplorer = () => {
     setSelectedId(null);
     setQuery('');
     setLimit(PAGE);
+    resetListPosition();
     setMoved(false);
     fly(WORLD, WORLD_ZOOM);
   };
@@ -495,6 +518,16 @@ export const GlobeExplorer = () => {
   // Until arrival has chosen a country the list has no subject yet: showing
   // «0 эфиров · ничего не найдено» for that half-second would be a lie.
   const listReady = Boolean(points && (scope !== 'country' || country));
+  useEffect(() => {
+    if (!listReady || selectedId || !listRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const list = listRef.current;
+      if (!list) return;
+      const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+      list.scrollTop = Math.min(scrollTopRef.current, maxScroll);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [listReady, results.length, limit, selectedId, country, scope, areaIds, query, genre]);
   const expanded = panelSize === 'expanded';
   const collapsed = panelSize === 'collapsed';
   const title =
@@ -772,6 +805,7 @@ export const GlobeExplorer = () => {
                   onChange={(event) => {
                     setQuery(event.target.value);
                     setLimit(PAGE);
+                    resetListPosition();
                   }}
                 />
                 {query ? (
@@ -781,6 +815,8 @@ export const GlobeExplorer = () => {
                     aria-label={t('mapExplorer.clearSearch')}
                     onClick={() => {
                       setQuery('');
+                      setLimit(PAGE);
+                      resetListPosition();
                       queryRef.current?.focus();
                     }}
                   >
@@ -813,7 +849,16 @@ export const GlobeExplorer = () => {
                 </button>
               ) : null}
             </div>
-            <div className="explorer-results" ref={listRef} tabIndex={0} aria-label={t('mapExplorer.listLabel')} data-explorer-results>
+            <div
+              className="explorer-results"
+              ref={listRef}
+              onScroll={(event) => {
+                scrollTopRef.current = event.currentTarget.scrollTop;
+              }}
+              tabIndex={0}
+              aria-label={t('mapExplorer.listLabel')}
+              data-explorer-results
+            >
               {listReady && results.length === 0 ? (
                 <div className="explorer-empty">
                   {unlocatedHere === 0 ? <p>{t('mapExplorer.empty')}</p> : null}
