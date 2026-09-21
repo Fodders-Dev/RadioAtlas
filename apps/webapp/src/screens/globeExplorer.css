@@ -8,6 +8,8 @@
   --explorer-panel-transition: 240ms ease;
   position: fixed;
   inset: 0;
+  width: auto;
+  max-width: none;
   z-index: 1;
   padding: 0;
   margin: 0;
@@ -38,7 +40,7 @@
 .explorer-map .maplibregl-ctrl-attrib a { color: inherit; }
 .explorer-vignette { position: absolute; inset: 0; background: linear-gradient(color-mix(in srgb, var(--bg) 78%, transparent), color-mix(in srgb, var(--bg) 26%, transparent) 12%, transparent 24%); pointer-events: none; }
 .explorer-map-error { position: absolute; inset: 0; display: grid; place-content: center; gap: 12px; text-align: center; padding: 24px; }
-.explorer-primary { min-height: 46px; padding: 0 20px; border-radius: 23px; background: var(--accent); color: var(--bg); font-weight: 700; }
+.explorer-map-error .explorer-primary { display: inline-flex; align-items: center; justify-content: center; min-width: 112px; min-height: 46px; padding: 0 20px; border: 1px solid var(--calm-edge, var(--border)); border-radius: 23px; background: var(--accent); color: var(--accent-ink, var(--bg)); box-shadow: inset 0 1px 0 var(--calm-glint, transparent), var(--calm-shadow, 0 6px 16px #0003); font-weight: 700; }
 
 /* Floating map controls: glass over imagery, 44px targets. */
 .explorer-glass, .explorer-country-switch, .explorer-world, .explorer-zoom .explorer-icon, .explorer-search-here {

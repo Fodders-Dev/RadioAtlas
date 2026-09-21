@@ -446,6 +446,174 @@ test('calm globe: country catalogue retry stays silent after a failed first page
   expect(await audioSrc(page), 'retry remains browse-only').toBeNull();
 });
 
+test('calm globe: an invalid points 200 shows retry, then recovers without touching the queue', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page);
+  await installMediaMocks(page);
+  await seedRadioState(page, {
+    queue: [stations[0], stations[1]],
+    queueCurrentIndex: 0,
+    queueSourceId: 'seeded-globe',
+    queueSourceLabel: 'Seeded Globe'
+  });
+  await page.route('https://*.api.radio-browser.info/**', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'fallback unavailable' }) })
+  );
+  let pointsRequests = 0;
+  let primaryRecovered = false;
+  await page.route('**/catalog/points**', (route) => {
+    pointsRequests += 1;
+    const payload = primaryRecovered ? JSON.parse(points()) : { items: [], mappedStations: 0, totalStations: 0 };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+  });
+  await page.goto('/?calm=1');
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  const explorer = page.locator('[data-globe-explorer]');
+  await expect(explorer).toBeVisible();
+  await expect(page.locator('.explorer-map-error')).toContainText(/Не удалось загрузить|Could not load/);
+  await expect(page.getByRole('button', { name: /Повторить|Retry/ })).toBeVisible();
+  expect(await audioSrc(page), 'invalid points never starts audio').toBeNull();
+  const queueBefore = await page.evaluate(() => localStorage.getItem('radio:player:v2'));
+  const countBeforeRetry = pointsRequests;
+
+  primaryRecovered = true;
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole('button', { name: /Повторить|Retry/ }).click();
+  await expect(explorer).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+  expect(await audioSrc(page), 'successful points retry remains browse-only').toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('radio:player:v2'))).toBe(queueBefore);
+  expect(pointsRequests).toBeGreaterThan(countBeforeRetry);
+});
+
+test('calm globe: a playing selection survives invalid points recovery after returning from Home', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page);
+  await installMediaMocks(page);
+  await seedRadioState(page);
+  await page.route('https://*.api.radio-browser.info/**', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'fallback unavailable' }) })
+  );
+  let primaryHealthy = true;
+  await page.route('**/catalog/points**', (route) => {
+    const payload = primaryHealthy ? JSON.parse(points()) : { items: [], mappedStations: 0, totalStations: 0 };
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+  });
+  await page.route('**/catalog/stations/**', (route) => {
+    const id = decodeURIComponent(route.request().url().split('/catalog/stations/')[1].split(/[?#]/)[0]);
+    const item = stations.find((station) => station.stationuuid === id) || null;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item }) });
+  });
+
+  await page.goto('/?calm=1');
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+
+  const row = page.locator('.explorer-row').first();
+  const selectedId = await row.getAttribute('data-point-id');
+  expect(selectedId).toBeTruthy();
+  const selectedFixture = stations.find((station) => station.stationuuid === selectedId)!;
+  await row.locator('.explorer-row-name').click();
+  const card = page.locator('[data-selected-station]');
+  await expect(card).toHaveAttribute('data-selected-station', selectedId!);
+  await card.locator('[data-selected-play]').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const playbackBefore = await page.evaluate(() => {
+    const audio = document.querySelector('audio') as HTMLAudioElement | null;
+    return { src: audio?.currentSrc || audio?.src || '', state: audio?.getAttribute('data-ra-state') || '' };
+  });
+  expect(playbackBefore.src).toBe(selectedFixture.url_resolved);
+  expect(playbackBefore.state).toBe('playing');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.length || 0)).toBeGreaterThan(0);
+  const queueBefore = await page.evaluate(() => {
+    const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue || {};
+    return { ids: (queue.items || []).map((item: { stationuuid: string }) => item.stationuuid), index: queue.currentIndex, sourceId: queue.sourceId, sourceLabel: queue.sourceLabel };
+  });
+
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Главная|Home/ }).click();
+  await expect(page.locator('[data-calm-home]')).toBeVisible();
+  primaryHealthy = false;
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('.explorer-map-error')).toContainText(/Не удалось загрузить|Could not load/);
+  await expect(page.getByRole('button', { name: /Повторить|Retry/ })).toBeVisible();
+  expect(await audioSrc(page)).toBe(playbackBefore.src);
+  await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
+  expect(await page.evaluate(() => {
+    const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue || {};
+    return { ids: (queue.items || []).map((item: { stationuuid: string }) => item.stationuuid), index: queue.currentIndex, sourceId: queue.sourceId, sourceLabel: queue.sourceLabel };
+  })).toEqual(queueBefore);
+
+  primaryHealthy = true;
+  await page.getByRole('button', { name: /Повторить|Retry/ }).click();
+  await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+  await expect.poll(() => page.locator('[data-selected-station]').getAttribute('data-selected-station')).toBe(selectedId);
+  await expect(page.locator('[data-selected-station]')).toContainText(selectedFixture.name);
+  await expect(page.locator('[data-selected-station]')).toContainText(selectedFixture.country);
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  expect(await audioSrc(page)).toBe(playbackBefore.src);
+  await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
+  expect(await page.evaluate(() => {
+    const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue || {};
+    return { ids: (queue.items || []).map((item: { stationuuid: string }) => item.stationuuid), index: queue.currentIndex, sourceId: queue.sourceId, sourceLabel: queue.sourceLabel };
+  })).toEqual(queueBefore);
+});
+
+test('calm globe: desktop frame and map canvas stay inside the viewport after resize', async ({ page }) => {
+  await start(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?calm=1');
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Глобус|Globe/ }).click();
+  await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+  await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+  for (const viewport of [
+    { width: 1024, height: 600 },
+    { width: 1280, height: 720 },
+    { width: 1440, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
+    await expect(page.locator('.explorer-map[data-globe-warmup="done"]')).toHaveCount(1, { timeout: 20_000 });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const stage = document.querySelector('.explorer-stage')?.getBoundingClientRect();
+            const canvas = document.querySelector('.explorer-map canvas')?.getBoundingClientRect();
+            return Boolean(stage && canvas && Math.abs(stage.width - canvas.width) < 2 && Math.abs(stage.height - canvas.height) < 2);
+          }),
+        { timeout: 10_000 }
+      )
+      .toBe(true);
+    const metrics = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const element = document.querySelector(selector)?.getBoundingClientRect();
+        return element ? { left: element.left, right: element.right, top: element.top, bottom: element.bottom } : null;
+      };
+      return {
+        screen: rect('.screen-globe-explorer'),
+        stage: rect('.explorer-stage'),
+        canvas: rect('.explorer-map canvas'),
+        controls: [...document.querySelectorAll<HTMLElement>('.explorer-map-heading, .explorer-zoom')].map((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+        })
+      };
+    });
+    expect(metrics.screen).not.toBeNull();
+    expect(metrics.stage).not.toBeNull();
+    expect(metrics.canvas).not.toBeNull();
+    expect(metrics.screen!.left).toBeGreaterThanOrEqual(0);
+    expect(metrics.screen!.right).toBeLessThanOrEqual(viewport.width);
+    expect(metrics.controls.every((box) => box.left >= 0 && box.right <= viewport.width)).toBe(true);
+    expect(Math.abs(metrics.canvas!.left - metrics.stage!.left)).toBeLessThan(2);
+    expect(Math.abs(metrics.canvas!.right - metrics.stage!.right)).toBeLessThan(2);
+    expect(Math.abs(metrics.canvas!.top - metrics.stage!.top)).toBeLessThan(2);
+    expect(Math.abs(metrics.canvas!.bottom - metrics.stage!.bottom)).toBeLessThan(2);
+  }
+});
+
 // A sparse country: the catalogue knows stations there but none carries
 // coordinates (Mongolia: nine stations, not one located). The map draws
 // nothing invented; the list says how many exist and opens the real

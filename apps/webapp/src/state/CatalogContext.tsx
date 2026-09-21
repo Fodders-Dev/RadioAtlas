@@ -89,12 +89,56 @@ const AREAS_CACHE_PREFIX = 'areas:v5';
 const POINTS_CACHE_KEY = 'points:v5';
 const POINTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MIN_GLOBE_MAPPED_STATIONS = 1400;
-// A non-empty payload must have at least this many items to be
-// considered usable. Below the threshold we treat the cache as
-// poisoned and refetch from the network.
+// Keep small emergency payloads from being persisted for 24 hours. This is a
+// cache-write policy, not a validity rule: a correct fixture/catalog with two
+// country-only stations is still usable by the map during this session.
 const MIN_GLOBE_POINTS_ITEMS = 5000;
 
 const loadFallbackCatalog = () => import('../lib/radioBrowserFallback');
+
+const isFiniteCoordinate = (value: unknown, min: number, max: number) =>
+  typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+
+const isUsableCatalogPoint = (value: unknown): value is CatalogPointsResponse['items'][number] => {
+  if (!value || typeof value !== 'object') return false;
+  const point = value as Record<string, unknown>;
+  if (typeof point.id !== 'string' || !point.id.trim()) return false;
+  return typeof point.country === 'string';
+};
+
+const hasUsablePointRegion = (value: CatalogPointsResponse['items'][number]) => {
+  if (value.country.trim()) return true;
+  if (isFiniteCoordinate(value.lat, -90, 90) && isFiniteCoordinate(value.lon, -180, 180)) return true;
+  const city = value.cityLocation;
+  return Boolean(
+    city &&
+      isFiniteCoordinate(city.lat, -90, 90) &&
+      isFiniteCoordinate(city.lon, -180, 180)
+  );
+};
+
+const isUsablePointsResponse = (value: unknown): value is CatalogPointsResponse => {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Record<string, unknown>;
+  const items = response.items;
+  const mappedStations = response.mappedStations;
+  const totalStations = response.totalStations;
+  if (
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    typeof mappedStations !== 'number' ||
+    typeof totalStations !== 'number' ||
+    !Number.isInteger(mappedStations) ||
+    !Number.isInteger(totalStations) ||
+    mappedStations < 0 ||
+    totalStations < items.length ||
+    mappedStations > totalStations ||
+    mappedStations > items.length
+  ) {
+    return false;
+  }
+  return items.every(isUsableCatalogPoint) && items.some(hasUsablePointRegion);
+};
 
 const toStationLite = (station: Station | StationLite): StationLite => ({
   stationuuid: station.stationuuid,
@@ -435,38 +479,40 @@ export const CatalogProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const fetchPoints = useCallback(async () => {
-    const cached = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY);
-    // Only honour the cache when it actually has stations in it.
-    // We've seen cases where a transient bad upstream response got
-    // cached as a 200 with `items: []` and stuck for the full 24 h
-    // TTL — refetching every visit afterward is much cheaper than
-    // shipping a coord-less globe.
-    if (cached && (cached.payload.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
-      return cached.payload;
-    }
-    let response: CatalogPointsResponse;
+    // Read once with allowExpired so a good expired snapshot survives long
+    // enough to cover an invalid 200 or a failed fallback. A normal read would
+    // delete that entry before the recovery branch could inspect it.
+    const cached = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY, {
+      allowExpired: true
+    });
+    const cachedPayload = cached && isUsablePointsResponse(cached.payload) ? cached.payload : null;
+    const cachedIsFresh = cached !== null && cached.expiresAt > Date.now();
+    if (cachedPayload && cachedIsFresh) return cachedPayload;
+
     try {
-      response = await requestJson<CatalogPointsResponse>('/catalog/points?schema=5');
-      // Same defence on the fresh response — never persist an empty
-      // payload, otherwise we'll just rewrite the same poison cache.
-      if ((response.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
+      const response = await requestJson<unknown>('/catalog/points?schema=5');
+      if (!isUsablePointsResponse(response)) {
+        throw new Error('Catalog points payload is invalid');
+      }
+      // Valid small responses serve the current session, but only the full
+      // catalogue earns a 24 h cache entry; this avoids pinning a temporary
+      // fallback while keeping small fixtures and country-only data usable.
+      if (response.items.length >= MIN_GLOBE_POINTS_ITEMS) {
         await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
       }
+      return response;
     } catch {
-      const stale = await readCatalogCache<CatalogPointsResponse>(POINTS_CACHE_KEY, {
-        allowExpired: true
-      });
-      if (stale && (stale.payload.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
-        response = stale.payload;
-      } else {
-        const fallback = await loadFallbackCatalog();
-        response = await fallback.listRadioBrowserFallbackPoints();
-        if ((response.items?.length ?? 0) >= MIN_GLOBE_POINTS_ITEMS) {
-          await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
-        }
+      if (cachedPayload) return cachedPayload;
+      const fallback = await loadFallbackCatalog();
+      const response = await fallback.listRadioBrowserFallbackPoints();
+      if (!isUsablePointsResponse(response)) {
+        throw new Error('Fallback points payload is invalid');
       }
+      if (response.items.length >= MIN_GLOBE_POINTS_ITEMS) {
+        await writeCatalogCache(POINTS_CACHE_KEY, response, POINTS_CACHE_TTL_MS);
+      }
+      return response;
     }
-    return response;
   }, [requestJson]);
 
   const fetchAreaStations = useCallback(

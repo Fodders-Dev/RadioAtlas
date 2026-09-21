@@ -353,7 +353,15 @@ const loadDataset = async (): Promise<FallbackDataset> => {
       }
     })();
   }
-  return datasetPromise;
+  const pending = datasetPromise;
+  try {
+    return await pending;
+  } catch (error) {
+    // A rejected shared promise would otherwise poison every later retry in
+    // the same tab. Let the next recovery attempt rebuild the dataset.
+    if (datasetPromise === pending) datasetPromise = null;
+    throw error;
+  }
 };
 
 const buildSpotlight = (
