@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark"><title>RadioAtlas · композиции</title>
+  <link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head>
+<body>
+  <header class="reviewbar" aria-label="Управление макетом"><span class="prototype-label">Макет композиции · без звука</span><div class="segmented" role="group" aria-label="Вариант композиции"><button class="variant-button selected" data-variant="a">A · Выбор рядом</button><button class="variant-button" data-variant="b">B · Эфир в центре</button></div><details class="review-options"><summary aria-label="Настройки макета">⚙</summary><label for="theme">Оформление</label><select id="theme"><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="aurora">Фон · Северное сияние</option><option value="sunrise">Фон · Рассвет</option></select><a class="real-globe" href="http://127.0.0.1:5184/?calm=1" target="_blank" rel="noopener">Открыть Глобус в приложении ↗</a></details></header>
+  <main id="app" data-variant="a">
+    <div class="layout">
+      <section class="primary" aria-live="polite"><div id="surface"></div></section>
+      <aside class="secondary" id="secondary"></aside>
+    </div>
+  </main>
+  <nav class="bottom-nav" aria-label="Разделы"><div class="dock-current"><button class="dock-open" data-dest="feed"><span class="dock-art" id="dock-art">R</span><span id="dock-name">Загрузка каталога</span></button><button class="dock-next" data-action="next" aria-label="Следующий эфир">↓</button></div><button data-dest="home" class="active"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10h-6v-7H9v7H3z"/></svg></span>Главная</button><a href="http://127.0.0.1:5184/?calm=1" target="_blank" rel="noopener"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span>Глобус</a><button data-dest="feed"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>Лента</button><button data-dest="lira"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/><circle cx="12" cy="12" r="4"/></svg></span>Лира</button><button data-dest="my"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8z"/></svg></span>Моё</button></nav>
+  <aside class="selected-dock" aria-label="Выбранная станция"><button class="selected-dock-open" data-dest="feed"><span id="mobile-dock-art" class="dock-art">R</span><span id="mobile-dock-name">Выбрать эфир</span></button><button class="selected-dock-next" data-action="next" aria-label="Следующий эфир">↓</button></aside>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="honest-dialog"><form method="dialog"><button class="dialog-close" aria-label="Закрыть">×</button><p class="eyebrow">Предпросмотр</p><h2 id="dialog-title"></h2><p id="dialog-copy"></p><button class="button primary-button">Понятно</button></form></dialog>
+</body>
+</html>
