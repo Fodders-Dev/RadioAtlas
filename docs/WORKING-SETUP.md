@@ -28,8 +28,20 @@ Samsung подключён, но ADB пока unauthorized. Следующий �
 iPhone по RUNBOOK, затем адресное исправление; Android/desktop не доказывают iOS.
 Финальный общий functional: 366 passed / 7 skipped (10.1 минуты), оба
 typecheck и build — exit 0. Логи `output/iphone-final-*.log`, исправленный
-общий unit — `output/diagnostics-unit-full-gate.log`. Кандидат готов к
-обычной публикации через обязательные CI gate; физический инцидент не закрыт.
+общий unit — `output/diagnostics-unit-full-gate.log`. Физический инцидент
+не закрыт: опубликован инструмент для проверки, а не исправление iPhone.
+Коммит `664a728`, CI `35688679842`: оба обязательных gate success,
+functional 366 passed / 7 skipped (13.1 минуты). Pixel job по-прежнему red:
+шесть expected/actual/diff PNG побайтово совпали с предыдущим выпуском 2C,
+актуальные изображения просмотрены. Отличия старого full-player — запись
+эфира и disabled удаление текущей строки; search-mobile снова упал на
+Page.captureScreenshot до сравнения. Артефакты `output/iphone-ci-pixels`.
+Deploy `35688679647` success. Серверный current:
+`664a72831fc20e5793bbfe28f14b7120c5a8db5b`, публичный health 200/ok:true,
+UI build stamp `664a728`. Root production smoke: Start → Stop → Copy →
+reload сохранил recording_started/recording_stopped; enabled:false,
+audio.paused:true. Временная production-вкладка закрыта. iPhone физически
+не проверен; Samsung без разрешения USB debugging не исследовался.
 
 **22.09 — этап 2 опубликован и проверен.** Production:
 `111eff238b69bea4c63a4b60a0359905de65053b` (2A/2B/2C вместе).
