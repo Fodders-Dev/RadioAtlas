@@ -192,7 +192,7 @@ test('calm live rows play from the main control while info stays passive', async
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
   await page.goto('/?calm=1');
-  const row = page.locator('.calm-live-row').first();
+  const row = page.locator('[data-calm-live-catalog] .calm-live-row').first();
   const main = row.locator('.calm-live-open');
   const info = row.locator('.calm-live-info');
   await expect(main).toBeVisible();
@@ -237,8 +237,8 @@ test('calm live rows expose paused and buffering status without overstating the 
     HTMLMediaElement.prototype.play = function () { return new Promise(() => {}); };
   });
   await page.goto('/?calm=1');
-  await page.locator('.calm-live-row').first().locator('.calm-live-open').click();
-  await expect(page.locator('.calm-live-row').first().locator('.calm-live-copy small')).toHaveText('ПОДКЛЮЧАЕМ');
+  await page.locator('[data-calm-live-catalog] .calm-live-row').first().locator('.calm-live-open').click();
+  await expect(page.locator('[data-calm-live-catalog] .calm-live-row').first().locator('.calm-live-copy small')).toHaveText('ПОДКЛЮЧАЕМ');
   await expect(page.locator('.calm-air-line')).toHaveAttribute('data-calm-air', 'buffering');
   await expect(page.locator('.calm-air-now')).toHaveAttribute('aria-label', /ПОДКЛЮЧАЕМ/);
 });
@@ -261,7 +261,7 @@ test('calm live rows expose a failed stream as retryable air', async ({ page }) 
     };
   });
   await page.goto('/?calm=1');
-  const row = page.locator('.calm-live-row').first();
+  const row = page.locator('[data-calm-live-catalog] .calm-live-row').first();
   await row.locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'error');
   await expect(row.locator('.calm-live-copy small')).toHaveText('НЕ ПОДКЛЮЧИЛАСЬ');
@@ -271,6 +271,45 @@ test('calm live rows expose a failed stream as retryable air', async ({ page }) 
   await row.locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __calmPlayAttempts?: number }).__calmPlayAttempts)).toBe(2);
+});
+
+test('Home shows four real choices before the catalog and plays them with the frozen first-page queue', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.goto('/?calm=1');
+
+  const choices = page.locator('[data-calm-quick-choices] .calm-live-short-row');
+  await expect(choices).toHaveCount(4);
+  const choiceIds = await choices.evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')));
+  expect(new Set(choiceIds).size).toBe(4);
+  for (const row of await choices.all()) {
+    await expect(row.locator('.calm-live-copy strong')).toBeVisible();
+    await expect(row.locator('.calm-live-copy small')).not.toBeEmpty();
+    await expect(row.locator('.calm-live-open')).toBeVisible();
+    await expect(row.locator('.calm-live-info')).toHaveCSS('width', '44px');
+  }
+
+  const order = await page.evaluate(() => {
+    const selectors = ['[data-calm-doors]', '[data-calm-quick-choices]', '[data-calm-stories]', '[data-calm-world]', '[data-calm-live-catalog]'];
+    return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
+  });
+  expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);
+  await expect(page.locator('[data-calm-entry]')).toHaveCount(2);
+
+  const catalog = page.locator('[data-calm-live-catalog]');
+  const expectedQueue = await catalog.locator('.calm-live-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')));
+  const filter = catalog.locator('[data-calm-live-filter]').nth(1);
+  await filter.click();
+  await expect(choices).toHaveCount(4);
+  expect(await choices.evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')))).toEqual(choiceIds);
+  await choices.first().locator('.calm-live-open').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('home-live');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid))).toEqual(expectedQueue);
+  await page.locator('[data-calm-entry="feed"]').click();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(page.locator('[data-calm-quick-choices] .calm-live-short-row')).toHaveCount(4);
+  expect(await page.locator('[data-calm-quick-choices] .calm-live-short-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')))).toEqual(choiceIds);
 });
 
 test('restored station opens the feed without starting playback, from the mini player and from the nav', async ({ page }) => {

@@ -21,12 +21,10 @@ import { CalmStoriesSheet } from './CalmStoriesSheet';
 import { CalmStationRow } from './CalmStationRow';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
 
-// Home, rebuilt around one start and a big open choice
-// (docs/DISCOVERY-DIRECTION-2026-09-13.md). The «now» card is the station the
-// button will start — or the one on air, with its live track — and the two
-// entries under it are the ways to change the sound: swipe the Feed, pick a
-// dot on the Globe. Then the choice: a grid of real stations with quick
-// narrowings and more on demand, the stories, the countries, the rest.
+// Home starts with one clear offer, two compact discovery entries, and four
+// real live choices; its full catalogue and deeper thematic/geographic
+// exploration continue below. The shortlist uses the same default queue
+// snapshot as the catalogue and never changes it while a visit is open.
 // Nothing here starts audio except an explicit Play; a Play from the grid
 // hands the grid to the queue, so the Feed continues exactly that set.
 
@@ -53,7 +51,7 @@ const LIVE_PAGE = 10;
 const wideScreen = () => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches;
 const livePage = () => (wideScreen() ? 12 : LIVE_PAGE);
 
-type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; shown: number } };
+type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; quickPlaylist?: StationLite[]; quickChoices?: StationLite[]; live?: { filter: LiveFilter; shown: number } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
 // loaded, so opening the Feed or the Globe and coming back lands where the
 // listener left. Public catalogue state only; a reload drops it.
@@ -174,6 +172,38 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const offerName = normalizeStationName(offer.name);
   const offerFamily = stationGenreFamily(offer);
   const offerLine = [localizedCountry(offer, locale), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ');
+  // A stable first page supplies both the four quick choices and their real
+  // queue. Filters below never silently change the meaning of this shortlist.
+  const [homeChoices] = useState(() => {
+    discovery.quickPlaylist ??= liveAll.slice(0, livePage());
+    discovery.quickChoices ??= discovery.quickPlaylist.filter((s) => s.stationuuid !== offer.stationuuid).slice(0, 4);
+    return { playlist: discovery.quickPlaylist, choices: discovery.quickChoices };
+  });
+  const homeLiveSnapshot = homeChoices.playlist;
+  const quickChoices = homeChoices.choices;
+  const renderLiveRow = (s: StationLite, playlist: StationLite[], compact = false) => {
+    const current = listener?.stationuuid === s.stationuuid;
+    const name = normalizeStationName(s.name);
+    const family = stationGenreFamily(s);
+    const meta = current
+      ? listenerStatusLabel
+      : [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
+    const actionLabel = current
+      ? `${player.status === 'error' ? t('dock.retry') : player.isPlaying ? t('common.pause') : t('common.play')}: ${name}`
+      : t('journal.playStation', { name });
+    return <article key={s.stationuuid} className={`calm-live-row${compact ? ' calm-live-short-row' : ''}`} data-calm-live-station={s.stationuuid} data-current={current || undefined} data-live-playing={current && player.isPlaying || undefined} data-genre-family={family || undefined}>
+      <button className="calm-live-open calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, playlist, 'home-live'); }} aria-label={actionLabel}>
+        <StationArtwork station={s} size="sm" className="calm-row-art" />
+        <span className="calm-live-copy"><strong>{name}</strong><small>{meta}</small></span>
+        <span className="calm-live-play-icon" aria-hidden="true">
+          <Icon d={current && player.isPlaying ? 'M8 5h3v14H8zM13 5h3v14h-3z' : 'M7 4l12 8-12 8V4z'} />
+        </span>
+      </button>
+      <button className="calm-icon calm-live-info" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 10.5v5M12 7.5h.01" /></svg>
+      </button>
+    </article>;
+  };
 
   return <div className="calm-home calm-journal" data-calm-home>
     {sheet?.kind === 'trail' && <CalmBrowseSheet title={sheet.title} kicker={t('journal.crossroads.kicker')} query={sheet.query} picks={sheet.picks} cache={discovery.shelves} source="home-trail" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
@@ -216,71 +246,41 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
     <div className="calm-home-columns">
       <div className="calm-home-lead">
-        {/* The two ways to change the sound, drawn as doors: the Feed's own
-            art and the Globe's poster. */}
-        {/* Where to go next — every direction named on its own poster: the
-            Feed and the Globe first, then the shelves that already exist. */}
         <section className="calm-section calm-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
           <div className="calm-doors-rail">
-            <button className="calm-door calm-door-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}>
-              <span className="calm-door-art" aria-hidden="true" /><b>{t('journal.dirFeed')}</b><small>{t('journal.dirFeedCopy')}</small>
-            </button>
-            <button className="calm-door" data-calm-entry="globe" onClick={() => setActiveSection('globe')}>
-              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="world" /></span><b>{t('journal.dirGlobe')}</b><small>{t('journal.dirGlobeCopy')}</small>
-            </button>
-            <button className="calm-door" data-calm-entry="moods" onClick={() => setAllStories(true)}>
-              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="jazz" /></span><b>{t('journal.dirMoods')}</b><small>{t('journal.dirMoodsCopy')}</small>
-            </button>
-            <button className="calm-door" data-calm-entry="countries" onClick={() => setCountryPicker(true)}>
-              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="road" /></span><b>{t('journal.dirCountries')}</b><small>{t('journal.dirCountriesCopy')}</small>
-            </button>
-            <button className="calm-door" data-calm-entry="genres" onClick={() => onSearch('')}>
-              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="groove" /></span><b>{t('journal.dirGenres')}</b><small>{t('journal.dirGenresCopy')}</small>
-            </button>
-            <button className="calm-door" data-calm-entry="mine" onClick={() => openLibrary('favorites')}>
-              <span className="calm-door-art" aria-hidden="true"><CalmPoster art="focus" /></span><b>{t('journal.dirMine')}</b><small>{t('journal.dirMineCopy')}</small>
-            </button>
+            <button className="calm-quick-entry calm-quick-entry-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}><Icon d={FEED_ICON} /><span>{t('journal.dirFeed')}</span><Icon d={ARROW} /></button>
+            <button className="calm-quick-entry calm-quick-entry-globe" data-calm-entry="globe" onClick={() => setActiveSection('globe')}><Icon d={GLOBE_ICON} /><span>{t('journal.dirGlobe')}</span><Icon d={ARROW} /></button>
           </div>
         </section>
-
-        {ai && <div className="calm-welcome">
-          <button className="calm-lira-line" onClick={() => requestChat()} data-calm-lira>
-            <span className="calm-lira-face" aria-hidden="true"><CalmLiraFace /></span>
-            <span><strong>{t('journal.liraName')}</strong><span>{t('journal.liraLine')}</span></span>
-          </button>
-        </div>}
+        {quickChoices.length > 0 && <section className="calm-section calm-quick-choices" data-calm-quick-choices>
+          <div className="calm-heading"><h2>{t('journal.startHere')}</h2></div>
+          <div className="calm-quick-grid">{quickChoices.map((s) => renderLiveRow(s, homeLiveSnapshot, true))}</div>
+        </section>}
+        {stories.length > 0 && <section className="calm-section calm-home-moods" data-calm-stories>
+          <div className="calm-heading"><h2>{t('journal.moods')}</h2><button className="calm-text" data-calm-stories-all onClick={() => setAllStories(true)}>{t('journal.moodsMore')} <Icon d={ARROW} /></button></div>
+          <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
+            <CalmPoster art={story.art} word={storyWord(story)} />
+            <span className="calm-story-caption"><span><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span></span>
+          </button>)}</div>
+        </section>}
       </div>
 
       <div className="calm-home-body">
-        <section className="calm-section calm-live" data-calm-live>
+        {visit.countries.length > 0 && <section className="calm-section calm-world" data-calm-world>
+          <div className="calm-heading"><h2>{t('journal.mapTitle')}</h2><button className="calm-text" onClick={() => setActiveSection('globe')}>{t('journal.mapAll')} <Icon d={ARROW} /></button></div>
+          <div className="calm-country-tiles">{visit.countries.map((country, index) => <button key={country} className={`calm-country-tile calm-country-tile-${index}`} data-calm-country-map={country} onClick={() => openGlobe(country)}>
+            <span aria-hidden="true">{countryCodeOf({ country }) || '↗'}</span><strong>{localizedCountry({ country }, locale)}</strong><small>{t('journal.exploreCountry')} <Icon d={ARROW} /></small>
+          </button>)}</div>
+          <button className="calm-text calm-all-countries" onClick={() => setCountryPicker(true)}>{t('calm.allCountries')} <Icon d={ARROW} /></button>
+        </section>}
+
+        <section className="calm-section calm-live" data-calm-live data-calm-live-catalog>
           <div className="calm-heading"><h2>{t('journal.liveTitle')}</h2><button className="calm-text" onClick={() => onSearch('')}>{t('journal.liveCatalog')} <Icon d={ARROW} /></button></div>
           <div className="calm-live-chips" role="group" aria-label={t('journal.liveTitle')}>
             {liveChips.map((chip) => <button key={chip.id} className="calm-chip" aria-pressed={liveFilter === chip.id} data-calm-live-filter={chip.id} onClick={() => selectLive(chip.id)}>{chip.label} · {chip.count}</button>)}
           </div>
           <div className="calm-live-list">
-            {liveVisible.map((s) => {
-              const current = listener?.stationuuid === s.stationuuid;
-              const name = normalizeStationName(s.name);
-              const family = stationGenreFamily(s);
-              const meta = current
-                ? listenerStatusLabel
-                : [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
-              const actionLabel = current
-                ? `${player.status === 'error' ? t('dock.retry') : player.isPlaying ? t('common.pause') : t('common.play')}: ${name}`
-                : t('journal.playStation', { name });
-              return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined}>
-                <button className="calm-live-open calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, liveVisible, 'home-live'); }} aria-label={actionLabel}>
-                  <StationArtwork station={s} size="sm" className="calm-row-art" />
-                  <span className="calm-live-copy"><strong>{name}</strong><small>{meta}</small></span>
-                  <span className="calm-live-play-icon" aria-hidden="true">
-                    <Icon d={current && player.isPlaying ? 'M8 5h3v14H8zM13 5h3v14h-3z' : 'M7 4l12 8-12 8V4z'} />
-                  </span>
-                </button>
-                <button className="calm-icon calm-live-info" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 10.5v5M12 7.5h.01" /></svg>
-                </button>
-              </article>;
-            })}
+            {liveVisible.map((s) => renderLiveRow(s, liveVisible))}
           </div>
           <div className="calm-live-foot">
             <small>{t('journal.liveCount', { shown: String(liveVisible.length), total: String(liveList.length) })}</small>
@@ -290,14 +290,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           </div>
         </section>
 
-        {visit.countries.length > 0 && <section className="calm-section calm-world" data-calm-world>
-          <div className="calm-heading"><h2>{t('journal.mapTitle')}</h2><button className="calm-text" onClick={() => setActiveSection('globe')}>{t('journal.mapAll')} <Icon d={ARROW} /></button></div>
-          <div className="calm-country-tiles">{visit.countries.map((country, index) => <button key={country} className={`calm-country-tile calm-country-tile-${index}`} data-calm-country-map={country} onClick={() => openGlobe(country)}>
-            <span aria-hidden="true">{countryCodeOf({ country }) || '↗'}</span><strong>{localizedCountry({ country }, locale)}</strong><small>{t('journal.exploreCountry')} <Icon d={ARROW} /></small>
-          </button>)}</div>
-          <button className="calm-text calm-all-countries" onClick={() => setCountryPicker(true)}>{t('calm.allCountries')} <Icon d={ARROW} /></button>
-        </section>}
-
         {visit.lead && <section className="calm-section calm-lead" data-calm-lead={visit.lead.id}>
           <button className="calm-story calm-story-lead" onClick={() => setSheet({ kind: 'story', story: visit.lead as CalmStory })}>
             <CalmPoster art={visit.lead.art} word={storyWord(visit.lead)} lead />
@@ -306,14 +298,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           {visit.starters.length > 0 && <div className="calm-starters"><span className="calm-eyebrow">{t('journal.startHere')}</span>
             <div className="calm-rows">{visit.starters.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.starters, 'home-starter')} onOpen={() => setSource(s)} />)}</div>
           </div>}
-        </section>}
-
-        {stories.length > 0 && <section className="calm-section" data-calm-stories>
-          <div className="calm-heading"><h2>{t('journal.moods')}</h2><button className="calm-text" data-calm-stories-all onClick={() => setAllStories(true)}>{t('journal.moodsMore')} <Icon d={ARROW} /></button></div>
-          <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
-            <CalmPoster art={story.art} word={storyWord(story)} />
-            <span className="calm-story-caption"><span><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span></span>
-          </button>)}</div>
         </section>}
 
         {visit.around && <section className="calm-section calm-country-issue" data-calm-around>
@@ -349,6 +333,12 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
               </article>;
             })}
           </>}
+          {ai && <div className="calm-welcome" data-calm-lira-context>
+            <button className="calm-lira-line" onClick={() => requestChat()} data-calm-lira>
+              <span className="calm-lira-face" aria-hidden="true"><CalmLiraFace /></span>
+              <span><strong>{t('journal.liraName')}</strong><span>{t('journal.liraLine')}</span></span>
+            </button>
+          </div>}
           <button className="calm-teaser calm-find" onClick={() => openLibrary('tracks')}>
             <Icon d="M6 3h12v18l-6-4-6 4V3Z" /><span><strong>{t('journal.teaserTitle')}</strong><small>{t('journal.teaserCopy')}</small></span><Icon d={ARROW} />
           </button>
