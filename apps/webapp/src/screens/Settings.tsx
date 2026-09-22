@@ -6,6 +6,15 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from '../lib/buildInfo';
 import { getTelegramWebApp, isInsideTelegramClient, openLinkOrFallback } from '../lib/telegram';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
+import {
+  copyPlaybackDiagnostics,
+  getPlaybackDiagnosticsReport,
+  getPlaybackDiagnosticsState,
+  playbackDiagnosticsIsPersisted,
+  startPlaybackDiagnostics,
+  stopPlaybackDiagnostics,
+  subscribePlaybackDiagnostics
+} from '../lib/playbackDiagnostics';
 
 type ClearAction = 'cache' | 'favorites' | 'recent';
 
@@ -28,6 +37,10 @@ export const Settings = () => {
   const { locale, setLocale, t } = useLocale();
   const [apiUrl, setApiUrl] = useState('');
   const [showDebug, setShowDebug] = useState(false);
+  const [diagnosticState, setDiagnosticState] = useState(getPlaybackDiagnosticsState);
+  const [diagnosticReport, setDiagnosticReport] = useState('');
+  const [diagnosticStatus, setDiagnosticStatus] = useState('');
+  const diagnosticReportRef = useRef<HTMLTextAreaElement | null>(null);
   const [pendingClearAction, setPendingClearAction] = useState<ClearAction | null>(null);
   const clearActionTriggerRefs = useRef<Partial<Record<ClearAction, HTMLButtonElement | null>>>({});
   const apiBase = getApiBase();
@@ -35,6 +48,28 @@ export const Settings = () => {
   useEffect(() => {
     setApiUrl(getApiBase() || '');
   }, []);
+
+  useEffect(() => subscribePlaybackDiagnostics(() => setDiagnosticState({ ...getPlaybackDiagnosticsState() })), []);
+
+  const refreshDiagnostics = () => setDiagnosticState({ ...getPlaybackDiagnosticsState() });
+  const handleStartDiagnostics = () => {
+    startPlaybackDiagnostics();
+    setDiagnosticReport('');
+    setDiagnosticStatus('');
+    refreshDiagnostics();
+  };
+  const handleStopDiagnostics = () => {
+    stopPlaybackDiagnostics();
+    setDiagnosticReport(getPlaybackDiagnosticsReport());
+    setDiagnosticStatus('');
+    refreshDiagnostics();
+  };
+  const handleCopyDiagnostics = async () => {
+    const copied = await copyPlaybackDiagnostics();
+    setDiagnosticReport(getPlaybackDiagnosticsReport());
+    setDiagnosticStatus(copied ? t('settings.diagnosticsCopied') : t('settings.diagnosticsCopyFallback'));
+    if (!copied) window.requestAnimationFrame(() => diagnosticReportRef.current?.focus());
+  };
 
   const handleSaveApi = () => {
     const value = apiUrl.trim();
@@ -402,6 +437,43 @@ export const Settings = () => {
               <div>
                 <strong>Built at:</strong> {new Date(BUILD_TIME).toLocaleString()}
               </div>
+              <div className="settings-actions" style={{ alignItems: 'center' }}>
+                <button
+                  className={`chip ${diagnosticState.enabled ? 'active' : ''}`}
+                  type="button"
+                  onClick={diagnosticState.enabled ? handleStopDiagnostics : handleStartDiagnostics}
+                >
+                  {diagnosticState.enabled ? t('settings.diagnosticsStop') : t('settings.diagnosticsStart')}
+                </button>
+                <button
+                  className="chip"
+                  type="button"
+                  onClick={() => void handleCopyDiagnostics()}
+                  disabled={!diagnosticState.entries.length}
+                >
+                  {t('settings.diagnosticsCopy')}
+                </button>
+              </div>
+              <div className="settings-desc">{t('settings.diagnosticsDescription')}</div>
+              <div className="settings-desc" aria-live="polite">
+                {diagnosticState.enabled
+                  ? `${t('settings.diagnosticsActive')} · ${playbackDiagnosticsIsPersisted() ? t('settings.diagnosticsSaved') : t('settings.diagnosticsSessionOnly')}`
+                  : diagnosticState.entries.length ? t('settings.diagnosticsStopped') : t('settings.diagnosticsInactive')}
+              </div>
+              {diagnosticStatus ? <div className="settings-desc" role="status">{diagnosticStatus}</div> : null}
+              {diagnosticState.entries.length > 0 && !diagnosticReport ? (
+                <div className="settings-desc">{t('settings.diagnosticsReportReady')}</div>
+              ) : null}
+              {diagnosticReport ? (
+                <textarea
+                  ref={diagnosticReportRef}
+                  className="settings-input"
+                  aria-label={t('settings.diagnosticsReport')}
+                  value={diagnosticReport}
+                  readOnly
+                  rows={8}
+                />
+              ) : null}
               <div
                 style={{
                   background: 'rgba(0,0,0,0.3)',

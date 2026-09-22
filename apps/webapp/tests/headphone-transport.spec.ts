@@ -297,3 +297,45 @@ test('headphone Previous cancels a hung Next back to the queue boundary', async 
     sourceId: 'seeded-home'
   });
 });
+
+test('opt-in playback diagnostics records OS commands and survives reload', async ({ page }) => {
+  await setup(page);
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
+  await page.locator('[data-calm-library] [data-calm-settings]').click();
+  const settings = page.locator('.settings-sheet');
+  await expect(settings).toBeVisible();
+  await settings.locator('summary').filter({ hasText: 'Для разработчиков' }).click();
+  await settings.getByRole('button', { name: 'Показать', exact: true }).click();
+  const start = settings.getByRole('button', { name: 'Начать на 20 минут', exact: true });
+  await expect(start).toBeVisible();
+  await start.click();
+  await expect(settings).toContainText('Диагностика включена');
+
+  // These are the callbacks registered by RadioContext, as the OS invokes them.
+  await command(page, 'pause');
+  await expect.poll(() => page.evaluate(() => {
+    const entries = JSON.parse(localStorage.getItem('radio:playback-diagnostics:v1') || '{}').entries || [];
+    const updates = entries.filter((entry: { event: string }) => entry.event === 'media_session_updated');
+    return updates.at(-1)?.snapshot?.paused ?? null;
+  })).toBe(true);
+  await command(page, 'play');
+  await expect
+    .poll(() => page.evaluate(() => {
+      const state = JSON.parse(localStorage.getItem('radio:playback-diagnostics:v1') || '{}');
+      return state.entries?.map((entry: { event: string }) => entry.event) || [];
+    }))
+    .toEqual(expect.arrayContaining(['recording_started', 'media_pause_command', 'media_play_command']));
+
+  await settings.getByRole('button', { name: 'Скопировать отчёт', exact: true }).click();
+  await expect(settings.locator('textarea[aria-label="Отчёт диагностики"]')).toContainText('media_play_command');
+
+  await page.reload();
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
+  await page.locator('[data-calm-library] [data-calm-settings]').click();
+  const reloadedSettings = page.locator('.settings-sheet');
+  await reloadedSettings.locator('summary').filter({ hasText: 'Для разработчиков' }).click();
+  await reloadedSettings.getByRole('button', { name: 'Показать', exact: true }).click();
+  await expect(reloadedSettings).toContainText('Сохранённый отчёт доступен');
+  await reloadedSettings.getByRole('button', { name: 'Скопировать отчёт', exact: true }).click();
+  await expect(reloadedSettings.locator('textarea[aria-label="Отчёт диагностики"]')).toContainText('media_pause_command');
+});

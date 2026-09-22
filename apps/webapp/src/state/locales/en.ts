@@ -984,7 +984,20 @@ export const enDictionary = {
     "diagnosticsTitle": "Diagnostics",
     "debugLabel": "Debug mode",
     "debugDesc": "Show logs and system information.",
-    "noLogs": "No logs yet..."
+    "noLogs": "No logs yet...",
+    "diagnosticsStart": "Start for 20 minutes",
+    "diagnosticsStop": "Stop recording",
+    "diagnosticsCopy": "Copy report",
+    "diagnosticsActive": "Diagnostics are on",
+    "diagnosticsSaved": "Will survive a restart",
+    "diagnosticsSessionOnly": "Only until this app closes",
+    "diagnosticsStopped": "Recording stopped",
+    "diagnosticsInactive": "Not recording",
+    "diagnosticsCopied": "Report copied",
+    "diagnosticsCopyFallback": "Clipboard unavailable — select the report text",
+    "diagnosticsReport": "Diagnostic report",
+    "diagnosticsDescription": "Record a sound-control failure. The log stays on this device and is never sent automatically.",
+    "diagnosticsReportReady": "Saved report available"
   },
   "discover": {
     "title": "Search and research",

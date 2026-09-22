@@ -20,6 +20,11 @@ import { normalizeStationName, toLite } from '../lib/stationUtils';
 import { useSleepTimer } from '../lib/sleepTimer';
 import { useOutputDeviceGuard } from '../lib/outputDeviceGuard';
 import {
+  initPlaybackDiagnostics,
+  recordMediaCommandDiagnostic,
+  recordMediaSessionUpdatedDiagnostic
+} from '../lib/playbackDiagnostics';
+import {
   recordSectionVisit,
   recordStationSignal
 } from '../lib/homeProfile';
@@ -546,6 +551,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     [trackHistory, cloudLibrary?.trackHistory]
   );
   const findSyncFailedRef = useRef(false);
+
+  useEffect(() => initPlaybackDiagnostics(), []);
 
   useEffect(() => {
     if (sessionStatus !== 'authenticated') {
@@ -2004,6 +2011,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!station) {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.playbackState = 'none';
+      recordMediaSessionUpdatedDiagnostic();
       return;
     }
 
@@ -2029,6 +2037,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       artwork
     });
     navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
+    recordMediaSessionUpdatedDiagnostic();
   }, [player.current, player.pending, player.isPlaying, nowPlaying]);
 
   // Transport action handlers. FIX 2a: expose next/prev ONLY for a multi-item
@@ -2038,22 +2047,27 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   // the single-item boundary, not on metadata ticks (FIX 4).
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.setActionHandler('play', () =>
-      mediaSessionActionsRef.current.resume()
-    );
-    navigator.mediaSession.setActionHandler('pause', () =>
-      mediaSessionActionsRef.current.pause()
-    );
-    navigator.mediaSession.setActionHandler('stop', () =>
-      mediaSessionActionsRef.current.stop()
-    );
+    navigator.mediaSession.setActionHandler('play', () => {
+      recordMediaCommandDiagnostic('media_play_command');
+      return mediaSessionActionsRef.current.resume();
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      recordMediaCommandDiagnostic('media_pause_command');
+      return mediaSessionActionsRef.current.pause();
+    });
+    navigator.mediaSession.setActionHandler('stop', () => {
+      recordMediaCommandDiagnostic('media_stop_command');
+      return mediaSessionActionsRef.current.stop();
+    });
     if (storedQueue.items.length > 1) {
-      navigator.mediaSession.setActionHandler('nexttrack', () =>
-        mediaSessionActionsRef.current.playNext()
-      );
-      navigator.mediaSession.setActionHandler('previoustrack', () =>
-        mediaSessionActionsRef.current.playPrevious()
-      );
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        recordMediaCommandDiagnostic('media_next_command');
+        return mediaSessionActionsRef.current.playNext();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        recordMediaCommandDiagnostic('media_previous_command');
+        return mediaSessionActionsRef.current.playPrevious();
+      });
     } else {
       navigator.mediaSession.setActionHandler('nexttrack', null);
       navigator.mediaSession.setActionHandler('previoustrack', null);

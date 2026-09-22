@@ -984,7 +984,20 @@ export const ruDictionary = {
     "diagnosticsTitle": "Диагностика",
     "debugLabel": "Режим отладки",
     "debugDesc": "Показывает логи и системную информацию.",
-    "noLogs": "Логов пока нет..."
+    "noLogs": "Логов пока нет...",
+    "diagnosticsStart": "Начать на 20 минут",
+    "diagnosticsStop": "Остановить запись",
+    "diagnosticsCopy": "Скопировать отчёт",
+    "diagnosticsActive": "Диагностика включена",
+    "diagnosticsSaved": "Сохранится после перезапуска",
+    "diagnosticsSessionOnly": "Только до закрытия приложения",
+    "diagnosticsStopped": "Запись остановлена",
+    "diagnosticsInactive": "Запись не ведётся",
+    "diagnosticsCopied": "Отчёт скопирован",
+    "diagnosticsCopyFallback": "Буфер недоступен — выделите текст отчёта",
+    "diagnosticsReport": "Отчёт диагностики",
+    "diagnosticsDescription": "Запишите сбой управления звуком. Журнал хранится на устройстве и не отправляется автоматически.",
+    "diagnosticsReportReady": "Сохранённый отчёт доступен"
   },
   "discover": {
     "title": "Поиск и ресерч",

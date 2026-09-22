@@ -374,6 +374,57 @@ before `goto`: `clock.install()` fakes `requestIdleCallback`, which the app uses
 to preload the playback runtime, so a pre-`goto` install deletes the code path
 under test.
 
+## iPhone interruption investigation (2026-09-22, not fixed yet)
+
+Owner reports iPhone 11, Home Screen app added via Chrome: after a call or
+background pause, the OS player no longer offers working RadioAtlas resume;
+car controls cannot resume until the app is opened. Exact iOS version and the
+runtime user agent are not yet captured. The browser used to add the icon does
+not prove the installed app's user agent or its audio graph mode.
+
+Baseline `headphone-transport.spec.ts` on `07d76ad`: 11 passed, exit 0. This
+harness invokes registered MediaSession callbacks itself; it cannot establish
+that iOS delivers a callback to a suspended Home Screen app. Ordinary pause
+does not clear our audio src or station metadata. Explicit stop does. Do not
+change stop into pause or add silent keepalive audio based on this report.
+
+WebKit reports [243258](https://bugs.webkit.org/show_bug.cgi?id=243258),
+[243256](https://bugs.webkit.org/show_bug.cgi?id=243256), and
+[261858](https://bugs.webkit.org/show_bug.cgi?id=261858) describe related loss
+of PWA/system media controls on older iOS versions. These are hypotheses,
+not confirmation of the owner's current cause. Apple's normal remote Web
+Inspector workflow requires a Mac; see
+[Inspecting iOS](https://developer.apple.com/documentation/safari-developer-tools/inspecting-ios).
+
+The opt-in recorder is under **Моё → Настройки → Для разработчиков →
+Диагностика → Показать → Начать на 20 минут**. It records up to 200 events
+locally, including received MediaSession commands, our metadata/playback-state
+updates, audio progress/state and lifecycle events. Export contains build/runtime
+information but no station IDs, names, track text or stream URLs. It never sends
+the report automatically. Expiry stops recording but retains the trace; a new
+recording replaces the previous one. If storage fails, the UI says the trace
+lasts only until the app closes. Do not interpret that case as durable evidence.
+Copy has a visible readonly-text fallback when the clipboard is unavailable.
+
+Device acceptance must distinguish these outcomes:
+
+- MediaSession play received, media time resumes: app transport works for this trial.
+- Play received, source stays present but time stalls/errors: inspect live-stream recovery.
+- No recorded Play until foregrounding: investigate delivery/suspension; absence alone
+  is not proof if storage or recording failed.
+- New `session_started` after returning: the provider initialized again; investigate
+  page recreation/remount rather than claiming background recovery. Development
+  StrictMode can initialize twice, so this alone does not prove an OS process kill.
+
+Reproduce while parked: start a trace, explicitly play a station, background
+the app, interrupt/pause, wait, press the actual car/headphone Play, then reopen
+and copy the trace without starting a new recording. Note the interruption and
+Play times and the exact iOS version from Settings separately (the UA may not
+expose that version). Compare the same station in a normal Safari tab separately.
+Android is an independent platform check, never evidence that iPhone passes.
+Connected Samsung ADB was detected but unauthorized; no device inspection has
+been performed until the owner approves its USB debugging prompt.
+
 ## iPhone background buffering: stale waiting timers (2026-09-08)
 
 24/7 Chiptune Radio (MP3 station `197e37b1-57ee-436c-a5d7-587716508893`)

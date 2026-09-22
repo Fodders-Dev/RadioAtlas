@@ -5,6 +5,7 @@ import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 import { decideCandidateSwitch } from './candidateSwitchGuard';
 import { reportClientEvent } from './observability';
+import { recordAudioDiagnostic } from './playbackDiagnostics';
 import { buildStationStreamTargets } from './stationStreams';
 import {
   buildCandidates,
@@ -443,6 +444,7 @@ export const useAudioPlayer = ({
   const candidateFailuresRef = useRef<PlaybackFailure[]>([]);
   const lastErrorRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioContextStateListenerRef = useRef<(() => void) | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const preampGainRef = useRef<GainNode | null>(null);
   const stereoPannerRef = useRef<StereoPannerNode | null>(null);
@@ -712,6 +714,14 @@ export const useAudioPlayer = ({
       }
 
       audioContextRef.current = context;
+      const onContextStateChange = () =>
+        recordAudioDiagnostic('audio_context_statechange', audio, context);
+      try {
+        context.addEventListener('statechange', onContextStateChange);
+        audioContextStateListenerRef.current = onContextStateChange;
+      } catch {
+        // Diagnostics must not prevent the audio graph from becoming active.
+      }
       mediaSourceRef.current = source;
       preampGainRef.current = preamp;
       stereoPannerRef.current = panner;
@@ -1128,7 +1138,11 @@ export const useAudioPlayer = ({
       });
     }
 
+    const handlePlay = () => {
+      recordAudioDiagnostic('audio_play', audio, audioContextRef.current);
+    };
     const handlePlaying = () => {
+      recordAudioDiagnostic('audio_playing', audio, audioContextRef.current);
       const requestedStation = requestedStationRef.current;
       candidateHasPlayedRef.current = true;
       lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
@@ -1170,6 +1184,7 @@ export const useAudioPlayer = ({
       }
     };
     const handlePause = () => {
+      recordAudioDiagnostic('audio_pause', audio, audioContextRef.current);
       // A headphone pause/resume need never produce visibilitychange. Bind a
       // fresh reconnect debt here while hidden, before the live socket expires.
       const station = requestedStationRef.current || currentRef.current;
@@ -1207,8 +1222,10 @@ export const useAudioPlayer = ({
         lastProgressRef.current = { time: now, at: Date.now() };
       }
       setCurrentTime(now);
+      recordAudioDiagnostic('audio_progress', audio, audioContextRef.current);
     };
-    const handleWaiting = () => {
+    const handleWaiting = (event?: Event) => {
+      recordAudioDiagnostic(event?.type === 'stalled' ? 'audio_stalled' : 'audio_waiting', audio, audioContextRef.current);
       // A manually paused element (user pause, sleep-timer, or headphone-unplug —
       // all call pause() without bumping the session or clearing the refs) can
       // still emit 'waiting'/'stalled' when its buffer goes idle. Without this
@@ -1297,6 +1314,7 @@ export const useAudioPlayer = ({
       pushEvent('audio: waiting');
     };
     const handleError = () => {
+      recordAudioDiagnostic('audio_error', audio, audioContextRef.current);
       // A startup failure reports both `error` and a rejected play() promise.
       // The pending play already owns the fallback loop. A second walk here
       // races it, can clear the station, and leave successful audio with no
@@ -1360,6 +1378,7 @@ export const useAudioPlayer = ({
       pushEvent('audio: error');
     };
     const handleEnded = () => {
+      recordAudioDiagnostic('audio_ended', audio, audioContextRef.current);
       const activeSession = playbackSessionRef.current;
       if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
@@ -1376,12 +1395,16 @@ export const useAudioPlayer = ({
       pushEvent('audio: ended');
     };
 
+    audio.addEventListener('play', handlePlay);
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('stalled', handleWaiting);
     audio.addEventListener('error', handleError);
+    const handleEmptied = () =>
+      recordAudioDiagnostic('audio_emptied', audio, audioContextRef.current);
+    audio.addEventListener('emptied', handleEmptied);
     audio.addEventListener('ended', handleEnded);
 
     // Silent-stall watchdog (see STALL_WATCHDOG_* above): catches streams that go
@@ -1558,12 +1581,14 @@ export const useAudioPlayer = ({
         }
       }
       audio.src = '';
+      audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('stalled', handleWaiting);
       audio.removeEventListener('error', handleError);
+      audio.removeEventListener('emptied', handleEmptied);
       audio.removeEventListener('ended', handleEnded);
       document.removeEventListener('visibilitychange', handleVisibility);
       document.removeEventListener('pointerdown', resumeAudioContext);
@@ -1584,6 +1609,10 @@ export const useAudioPlayer = ({
         visualizerFrameRef.current = null;
       }
       if (audioContextRef.current) {
+        if (audioContextStateListenerRef.current) {
+          audioContextRef.current.removeEventListener('statechange', audioContextStateListenerRef.current);
+          audioContextStateListenerRef.current = null;
+        }
         void audioContextRef.current.close().catch(() => {});
         audioContextRef.current = null;
       }
