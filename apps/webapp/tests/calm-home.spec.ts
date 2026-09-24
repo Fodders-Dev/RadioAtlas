@@ -288,9 +288,24 @@ test('Home shows four real choices before the catalog and plays them with the fr
     await expect(row.locator('.calm-live-open')).toBeVisible();
     await expect(row.locator('.calm-live-info')).toHaveCSS('width', '44px');
   }
+  const density = await page.evaluate(() => {
+    const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
+    const quick = document.querySelector('[data-calm-quick-choices]')!.getBoundingClientRect();
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-calm-quick-choices] .calm-live-short-row')].map(row => {
+      const box = row.getBoundingClientRect();
+      const name = row.querySelector('strong')!;
+      const meta = row.querySelector('small')!;
+      return { height: box.height, nameSize: parseFloat(getComputedStyle(name).fontSize), metaSize: parseFloat(getComputedStyle(meta).fontSize) };
+    });
+    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, quickTop: quick.top, rows };
+  });
+  // Cold start includes the explicit play/offer CTA; allow that restored-state offset while keeping moods near the first fold.
+  expect(density.moodArtBottom).toBeLessThanOrEqual(330);
+  expect(density.quickTop).toBeLessThan(430);
+  expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
   const order = await page.evaluate(() => {
-    const selectors = ['[data-calm-doors]', '[data-calm-quick-choices]', '[data-calm-stories]', '[data-calm-world]', '[data-calm-live-catalog]'];
+    const selectors = ['[data-calm-doors]', '[data-calm-stories]', '[data-calm-quick-choices]', '[data-calm-live-catalog]', '[data-calm-world]'];
     return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
   });
   expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);
@@ -310,6 +325,37 @@ test('Home shows four real choices before the catalog and plays them with the fr
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
   await expect(page.locator('[data-calm-quick-choices] .calm-live-short-row')).toHaveCount(4);
   expect(await page.locator('[data-calm-quick-choices] .calm-live-short-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')))).toEqual(choiceIds);
+});
+
+test('wide Home keeps the catalogue usable while discovery scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await start(page);
+  await page.goto('/?calm=1');
+
+  const panel = page.locator('.calm-home-radio');
+  const list = page.locator('[data-calm-live-catalog] .calm-live-list');
+  await expect(panel).toBeVisible();
+  // Scroll over discovery, outside the catalogue's own scrollable list.
+  // The country cards are already visible on the first fold, so merely
+  // asking to reveal them doesn't exercise sticky positioning.
+  await page.mouse.move(960, 380);
+  await page.mouse.wheel(0, 900);
+  await expect.poll(async () => (await panel.boundingBox())?.y).toBeLessThanOrEqual(24);
+  const geometry = await page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>('.calm-home-radio')!;
+    const list = document.querySelector<HTMLElement>('[data-calm-live-catalog] .calm-live-list')!;
+    const box = panel.getBoundingClientRect();
+    return { top: box.top, bottom: box.bottom, height: box.height, listHeight: list.clientHeight, listScrollHeight: list.scrollHeight, overflowY: getComputedStyle(list).overflowY };
+  });
+  expect(geometry.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.top).toBeLessThanOrEqual(24);
+  expect(geometry.bottom).toBeLessThanOrEqual(768);
+  expect(geometry.height).toBeLessThanOrEqual(618);
+  expect(geometry.listHeight).toBeGreaterThan(0);
+  expect(geometry.listScrollHeight).toBeGreaterThan(geometry.listHeight);
+  expect(geometry.overflowY).toBe('auto');
+  await list.evaluate(el => { el.scrollTop = 120; });
+  await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
 });
 
 test('restored station opens the feed without starting playback, from the mini player and from the nav', async ({ page }) => {

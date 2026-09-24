@@ -1,0 +1,94 @@
+/* Station identity cards are quiet, printed-label marks. The variables belong
+   only to StationArtwork; collections and regions keep their own palette. */
+.station-artwork.station-artwork-editorial[data-has-image='false'] {
+  border: 1px solid color-mix(in srgb, var(--station-artwork-ink) 16%, transparent);
+  background: var(--station-artwork-paper);
+  box-shadow: none;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: none;
+  opacity: 0.56;
+  transform: none;
+  pointer-events: none;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false'][data-artwork-pattern='editorial-0']::before {
+  inset: auto -18% 17% auto;
+  width: 67%;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--station-artwork-motif) 72%, transparent);
+  border-radius: 50%;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false'][data-artwork-pattern='editorial-1']::before {
+  inset: auto -21% 15% auto;
+  width: 76%;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--station-artwork-motif) 72%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--station-artwork-motif) 12%, transparent);
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false'][data-artwork-pattern='editorial-2']::before {
+  inset: auto 13% 17% auto;
+  width: 1px;
+  height: 55%;
+  background: var(--station-artwork-motif);
+  transform: rotate(28deg);
+  transform-origin: bottom;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false']::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  right: 13%;
+  bottom: 19%;
+  width: 26%;
+  height: 1px;
+  background: color-mix(in srgb, var(--station-artwork-motif) 74%, transparent);
+  pointer-events: none;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='false'] span {
+  z-index: 2;
+  display: block;
+  padding: 7px;
+  color: var(--station-artwork-ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-shadow: none;
+}
+
+.station-artwork.station-artwork-editorial.station-artwork-sm[data-has-image='false'] span,
+.station-artwork.station-artwork-editorial.station-artwork-dock[data-has-image='false'] span {
+  padding: 6px;
+  font-size: 14px;
+}
+
+.station-artwork.station-artwork-editorial.station-artwork-card[data-has-image='false'] span {
+  font-size: 19px;
+}
+
+.station-artwork.station-artwork-editorial.station-artwork-md[data-has-image='false'] span {
+  font-size: 16px;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='true'] {
+  border: 1px solid rgba(48, 43, 36, 0.12);
+  background: #807b72;
+  box-shadow: none;
+}
+
+.station-artwork.station-artwork-editorial[data-has-image='true'] img {
+  box-sizing: border-box;
+  padding: 8%;
+  object-fit: contain;
+}
