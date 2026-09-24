@@ -6,6 +6,7 @@ import { SettingsSheet } from './components/SettingsSheet';
 import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
+import { isFeedBrowseVisitCompatible } from './lib/feedBrowseVisit';
 import { isAiAssistantEnabled } from './lib/aiChat';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
@@ -354,13 +355,7 @@ const App = () => {
       const visit = getFeedBrowseVisit();
       const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
       const playbackQueueIds = queue.items.map((station) => station.stationuuid);
-      const canResume = Boolean(
-        visit &&
-        visit.playbackSourceId === queue.sourceId &&
-        visit.playbackStationId === currentStationId &&
-        visit.playbackQueueIds.length === playbackQueueIds.length &&
-        visit.playbackQueueIds.every((id, index) => id === playbackQueueIds[index])
-      );
+      const canResume = isFeedBrowseVisitCompatible(visit, queue.sourceId, currentStationId, playbackQueueIds);
       if (!canResume) {
         setFeedEntryStation(player.current ?? player.pending ?? null);
         rerollFeedSeed();

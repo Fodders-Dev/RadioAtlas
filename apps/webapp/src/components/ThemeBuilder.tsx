@@ -20,6 +20,7 @@ import type {
 import { useLocale } from '../state/LocaleContext';
 import { collectThemeAssetIds, useTheme } from '../state/ThemeContext';
 import { ThemePreviewSurface } from './ThemePreviewSurface';
+import { hydrateGradientDraft } from '../lib/theme/gradientDraft';
 
 type ThemeBuilderProps = {
   bundledThemes: RadioAtlasTheme[];
@@ -56,6 +57,11 @@ const DEFAULT_GRADIENT_STOPS: GradientStop[] = [
   { color: '#1d3f63', position: 52 },
   { color: '#080f1a', position: 100 }
 ];
+const INITIAL_GRADIENT_DRAFT = {
+  angle: 160,
+  stops: DEFAULT_GRADIENT_STOPS,
+  exactGradient: null
+};
 const composeGradient = (angle: number, stops: GradientStop[]) =>
   `linear-gradient(${Math.round(angle)}deg, ${stops
     .map((stop) => `${stop.color} ${Math.round(stop.position)}%`)
@@ -189,6 +195,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const [draftBackgroundThemeId, setDraftBackgroundThemeId] = useState('classic');
   const [draftGradientStops, setDraftGradientStops] = useState<GradientStop[]>(DEFAULT_GRADIENT_STOPS);
   const [draftGradientAngle, setDraftGradientAngle] = useState(160);
+  const [draftExactGradient, setDraftExactGradient] = useState<string | null>(null);
   const [draftPrint, setDraftPrint] = useState<DraftAsset | null>(null);
   const [draftFont, setDraftFont] = useState<ThemeFontLayer['family']>('system');
   const [draftIconStyle, setDraftIconStyle] = useState<ThemeIconStyle>('round');
@@ -210,6 +217,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const [gradientSheetOpen, setGradientSheetOpen] = useState(false);
   const [iconsSheetOpen, setIconsSheetOpen] = useState(false);
   const [decorSheetOpen, setDecorSheetOpen] = useState(false);
+  const skipSeedResetForId = useRef<string | null>(null);
   const identityRef = useRef<HTMLHeadingElement>(null);
   const colorRef = useRef<HTMLHeadingElement>(null);
   const fontRef = useRef<HTMLHeadingElement>(null);
@@ -226,6 +234,10 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   }, [isMobile]);
 
   useEffect(() => {
+    if (seedTheme && skipSeedResetForId.current === seedTheme.id) {
+      skipSeedResetForId.current = null;
+      return;
+    }
     setDraftName(
       seedTheme
         ? mode === 'edit'
@@ -249,8 +261,23 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     setDraftIconStyle(seedTheme?.layers.icons?.style ?? 'round');
     setDraftEmoji(seedTheme?.layers.emojiReactions?.[0]?.emoji ?? '✦');
     setDraftEmojiSlot(seedTheme?.layers.emojiReactions?.[0]?.slot ?? 'dockRight');
-    setDraftBackgroundMode(seedTheme?.layers.background?.kind === 'image' ? 'print' : 'bundled');
+    const seedBackground = seedTheme?.layers.background;
+    const seedHasCustomGradient = Boolean(
+      seedTheme &&
+        !seedTheme.builtin &&
+        seedBackground?.kind === 'gradient'
+    );
+    setDraftBackgroundMode(
+      seedBackground?.kind === 'image' ? 'print' : seedHasCustomGradient ? 'custom' : 'bundled'
+    );
     setDraftBackgroundThemeId(seedTheme?.builtin ? seedTheme.id : firstBundledThemeId);
+    const hydratedGradient =
+      seedHasCustomGradient && seedBackground?.kind === 'gradient'
+        ? hydrateGradientDraft(seedBackground.gradient, DEFAULT_GRADIENT_STOPS)
+        : INITIAL_GRADIENT_DRAFT;
+    setDraftGradientAngle(hydratedGradient.angle);
+    setDraftGradientStops(hydratedGradient.stops);
+    setDraftExactGradient(hydratedGradient.exactGradient);
     setDraftStickerSlot(seedTheme?.layers.stickers?.[0]?.slot ?? 'dockLeft');
     setDraftStickerScale(seedTheme?.layers.stickers?.[0]?.scale ?? 1);
     setDraftStickerX(seedTheme?.layers.stickers?.[0]?.x ?? 0);
@@ -293,6 +320,8 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   const draftBackground =
     bundledThemes.find((theme) => theme.id === draftBackgroundThemeId)?.layers.background ||
     bundledThemes[0]?.layers.background;
+  const composedGradient = composeGradient(draftGradientAngle, draftGradientStops);
+  const draftGradient = draftExactGradient ?? composedGradient;
   const draftIconLayer = useMemo<ThemeIconLayer>(() => {
     const seededIcons = seedTheme?.layers.icons || {};
     const nextIcons: ThemeIconLayer = {
@@ -311,7 +340,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       draftBackgroundMode === 'custom'
         ? {
             kind: 'gradient' as const,
-            gradient: composeGradient(draftGradientAngle, draftGradientStops)
+            gradient: draftGradient
           }
         : draftBackgroundMode === 'print' && draftPrint
         ? {
@@ -398,6 +427,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
     draftEmoji,
     draftEmojiSlot,
     draftFont,
+    draftGradient,
     draftGradientAngle,
     draftGradientStops,
     draftHue,
@@ -437,6 +467,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   };
 
   const updateGradientStop = (index: number, patch: Partial<GradientStop>) => {
+    setDraftExactGradient(null);
     setDraftGradientStops((prev) =>
       prev.map((stop, stopIndex) => (stopIndex === index ? { ...stop, ...patch } : stop))
     );
@@ -542,6 +573,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
         layers: draftTheme.layers
       });
       setBuilderState('saved');
+      if (savedTheme.id === seedTheme?.id) skipSeedResetForId.current = savedTheme.id;
       onSaved?.(savedTheme);
     } catch {
       setBuilderState('error');
@@ -556,7 +588,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
   // actually paint behind the shell.
   const collapsedSwatchBackground =
     draftBackgroundMode === 'custom'
-      ? composeGradient(draftGradientAngle, draftGradientStops)
+      ? draftGradient
       : draftBackgroundMode === 'print' && draftPrint
         ? `url(${JSON.stringify(draftPrint.url)}) center / cover`
         : draftBackground?.kind === 'gradient'
@@ -587,7 +619,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
       <span>{t('theme.gradientStops')}</span>
       <div
         className="theme-studio-gradient-preview"
-        style={{ background: composeGradient(draftGradientAngle, draftGradientStops) }}
+        style={{ background: draftGradient }}
       />
       {draftGradientStops.map((stop, index) => (
         <div className="theme-studio-gradient-stop" key={index}>
@@ -621,6 +653,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
           max={360}
           min={0}
           onChange={(event) => {
+            setDraftExactGradient(null);
             setDraftGradientAngle(Number(event.target.value));
             setBuilderState('idle');
           }}
@@ -951,7 +984,7 @@ export const ThemeBuilder = ({ bundledThemes, seedTheme, mode = 'create', onSave
               >
                 <span
                   className="theme-builder-gradient-trigger-strip"
-                  style={{ background: composeGradient(draftGradientAngle, draftGradientStops) }}
+                  style={{ background: draftGradient }}
                   aria-hidden="true"
                 />
                 <span className="theme-builder-gradient-trigger-label">

@@ -20,9 +20,14 @@ const audioSrc = (page: Page) => page.locator('audio').first().getAttribute('src
 // The journal cover rotates by day, so a story may be the lead or a rail card;
 // open it wherever it sits today.
 const openStory = async (page: Page, id: string) => {
+  await expect(page.locator('[data-calm-home]')).toBeVisible();
   const lead = page.locator(`[data-calm-lead="${id}"] .calm-story-lead`);
   if (await lead.count()) await lead.click();
-  else await page.locator(`[data-calm-story="${id}"]`).click();
+  else if (await page.locator(`[data-calm-story="${id}"]`).count()) await page.locator(`[data-calm-story="${id}"]`).click();
+  else {
+    await page.locator('[data-calm-stories-all]').click();
+    await page.locator(`[data-calm-story-all="${id}"]`).click();
+  }
 };
 
 // A catalogue big enough to page: 35 jazz stations in Germany, 35 electronic
@@ -146,11 +151,27 @@ for (const width of [320, 390, 411]) for (const theme of ['journal', 'aurora-fie
     await waitForAnimationsToSettle(page, '.app-screen-frame');
     const before = await layout(page);
     expect(before.width).toBeLessThanOrEqual(before.viewport);
-    // The recommendation «Включай» starts is the first visible starter row.
-    await expect(page.locator('.calm-starters .calm-station-row').first()).toHaveAttribute('data-station-row', before.offer!);
+    // The poster starts from its own tag-matched sources, not the general offer.
+    const leadId = await page.locator('[data-calm-lead]').getAttribute('data-calm-lead');
+    const storyRows = page.locator('.calm-starters .calm-station-row');
+    const storyIds = await storyRows.evaluateAll(rows => rows.map(row => row.getAttribute('data-station-row')));
+    const storyTags: Record<string, RegExp> = {
+      jazz: /^(jazz|acid jazz|smooth jazz|swing)$/i,
+      groove: /^(funk|soul|groove|disco)$/i,
+      world: /^(world|world music|traditional|folk)$/i
+    };
+    const pattern = storyTags[leadId || ''];
+    expect(pattern).toBeTruthy();
+    expect(storyIds.length).toBeGreaterThan(0);
+    expect(storyIds).not.toContain(before.offer);
+    expect(storyIds.every(id => stations.some(station => station.stationuuid === id && station.tags.split(',').some(tag => pattern.test(tag.trim()))))).toBe(true);
     await page.locator('.calm-primary').click();
     const dock = page.locator('[data-calm-player]');
     await expect(dock).toHaveAttribute('data-status', 'playing');
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid) || [])).not.toEqual([]);
+    const mainQueue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid) || []);
+    expect(mainQueue.length).toBeGreaterThan(0);
+    expect(new Set(mainQueue).size).toBe(mainQueue.length);
     await expect(dock.locator('.calm-capture')).toBeVisible();
     // This is a UI-state mock. It does not prove audio progression on iPhone.
     const source = await audioSrc(page);
@@ -273,16 +294,21 @@ test('calm live rows expose a failed stream as retryable air', async ({ page }) 
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __calmPlayAttempts?: number }).__calmPlayAttempts)).toBe(2);
 });
 
-test('Home shows four real choices before the catalog and plays them with the frozen first-page queue', async ({ page }) => {
+test('Home uses one paged station chooser and hands its exact pool to playback', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
   await page.goto('/?calm=1');
 
-  const choices = page.locator('[data-calm-quick-choices] .calm-live-short-row');
-  await expect(choices).toHaveCount(4);
-  const choiceIds = await choices.evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')));
-  expect(new Set(choiceIds).size).toBe(4);
-  for (const row of await choices.all()) {
+  const catalog = page.locator('[data-calm-live-catalog]');
+  const rows = catalog.locator('.calm-live-row');
+  await expect(page.locator('[data-calm-quick-choices]')).toHaveCount(0);
+  await expect(page.locator('[data-calm-live-catalog]')).toHaveCount(1);
+  await expect(rows).toHaveCount(4);
+  const mobileWidth = await page.evaluate(() => ({ inner: window.innerWidth, document: document.documentElement.scrollWidth }));
+  expect(mobileWidth.document).toBeLessThanOrEqual(mobileWidth.inner);
+  const initialIds = await rows.evaluateAll(items => items.map(row => row.getAttribute('data-calm-live-station')));
+  expect(new Set(initialIds).size).toBe(4);
+  for (const row of await rows.all()) {
     await expect(row.locator('.calm-live-copy strong')).toBeVisible();
     await expect(row.locator('.calm-live-copy small')).not.toBeEmpty();
     await expect(row.locator('.calm-live-open')).toBeVisible();
@@ -290,72 +316,58 @@ test('Home shows four real choices before the catalog and plays them with the fr
   }
   const density = await page.evaluate(() => {
     const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
-    const quick = document.querySelector('[data-calm-quick-choices]')!.getBoundingClientRect();
-    const rows = [...document.querySelectorAll<HTMLElement>('[data-calm-quick-choices] .calm-live-short-row')].map(row => {
+    const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-calm-live-catalog] .calm-live-row')].map(row => {
       const box = row.getBoundingClientRect();
       const name = row.querySelector('strong')!;
       const meta = row.querySelector('small')!;
       return { height: box.height, nameSize: parseFloat(getComputedStyle(name).fontSize), metaSize: parseFloat(getComputedStyle(meta).fontSize) };
     });
-    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, quickTop: quick.top, rows };
+    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, rows };
   });
   // Cold start includes the explicit play/offer CTA; allow that restored-state offset while keeping moods near the first fold.
   expect(density.moodArtBottom).toBeLessThanOrEqual(330);
-  expect(density.quickTop).toBeLessThan(430);
+  expect(density.chooserTop).toBeGreaterThan(density.moodArtBottom);
   expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
   const order = await page.evaluate(() => {
-    const selectors = ['[data-calm-doors]', '[data-calm-stories]', '[data-calm-quick-choices]', '[data-calm-live-catalog]', '[data-calm-world]'];
+    const selectors = ['[data-calm-doors]', '[data-calm-stories]', '[data-calm-live-catalog]', '[data-calm-world]'];
     return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
   });
   expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);
   await expect(page.locator('[data-calm-entry]')).toHaveCount(2);
 
-  const catalog = page.locator('[data-calm-live-catalog]');
-  const expectedQueue = await catalog.locator('.calm-live-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')));
-  const filter = catalog.locator('[data-calm-live-filter]').nth(1);
-  await filter.click();
-  await expect(choices).toHaveCount(4);
-  expect(await choices.evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')))).toEqual(choiceIds);
-  await choices.first().locator('.calm-live-open').click();
+  await catalog.locator('[data-calm-live-filter="all"]').click();
+  await expect(rows).toHaveCount(4);
+  await catalog.locator('[data-calm-live-more]').click();
+  await expect(rows).toHaveCount(8);
+  const expectedQueue = await rows.evaluateAll(items => items.map(row => row.getAttribute('data-calm-live-station')));
+  await rows.first().locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('home-live');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid))).toEqual(expectedQueue);
-  await page.locator('[data-calm-entry="feed"]').click();
-  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
-  await expect(page.locator('[data-calm-quick-choices] .calm-live-short-row')).toHaveCount(4);
-  expect(await page.locator('[data-calm-quick-choices] .calm-live-short-row').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')))).toEqual(choiceIds);
+  await expect(page.locator('[data-calm-entry="feed"]')).toBeVisible();
 });
 
-test('wide Home keeps the catalogue usable while discovery scrolls', async ({ page }) => {
+test('1024 Home gives mood and catalogue content a full-width first row', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await start(page);
+  await richCatalogue(page);
+  await seedRadioState(page, { stationCache: catalogue });
   await page.goto('/?calm=1');
 
   const panel = page.locator('.calm-home-radio');
   const list = page.locator('[data-calm-live-catalog] .calm-live-list');
   await expect(panel).toBeVisible();
-  // Scroll over discovery, outside the catalogue's own scrollable list.
-  // The country cards are already visible on the first fold, so merely
-  // asking to reveal them doesn't exercise sticky positioning.
-  await page.mouse.move(960, 380);
-  await page.mouse.wheel(0, 900);
-  await expect.poll(async () => (await panel.boundingBox())?.y).toBeLessThanOrEqual(24);
+  await expect(list.locator('.calm-live-row')).toHaveCount(12);
   const geometry = await page.evaluate(() => {
-    const panel = document.querySelector<HTMLElement>('.calm-home-radio')!;
+    const moods = document.querySelector<HTMLElement>('[data-calm-stories]')!.getBoundingClientRect();
+    const chooser = document.querySelector<HTMLElement>('[data-calm-live-catalog]')!.getBoundingClientRect();
     const list = document.querySelector<HTMLElement>('[data-calm-live-catalog] .calm-live-list')!;
-    const box = panel.getBoundingClientRect();
-    return { top: box.top, bottom: box.bottom, height: box.height, listHeight: list.clientHeight, listScrollHeight: list.scrollHeight, overflowY: getComputedStyle(list).overflowY };
+    return { moodsBottom: moods.bottom, chooserTop: chooser.top, width: document.documentElement.scrollWidth, viewport: window.innerWidth, listColumns: getComputedStyle(list).gridTemplateColumns };
   });
-  expect(geometry.top).toBeGreaterThanOrEqual(0);
-  expect(geometry.top).toBeLessThanOrEqual(24);
-  expect(geometry.bottom).toBeLessThanOrEqual(768);
-  expect(geometry.height).toBeLessThanOrEqual(618);
-  expect(geometry.listHeight).toBeGreaterThan(0);
-  expect(geometry.listScrollHeight).toBeGreaterThan(geometry.listHeight);
-  expect(geometry.overflowY).toBe('auto');
-  await list.evaluate(el => { el.scrollTop = 120; });
-  await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  expect(geometry.width).toBeLessThanOrEqual(geometry.viewport);
+  expect(geometry.chooserTop).toBeGreaterThan(geometry.moodsBottom);
+  expect(geometry.listColumns.split(' ').length).toBe(2);
 });
 
 test('restored station opens the feed without starting playback, from the mini player and from the nav', async ({ page }) => {
@@ -374,11 +386,56 @@ test('restored station opens the feed without starting playback, from the mini p
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'false');
   await expect(dock).toHaveCount(0);
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
-  // The nav's «Лента» is the same entry: the restored station, still silent.
-  await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Лента', exact: true }).click();
+  // Home's «Лента» door resumes the compatible paused visit, like the nav.
+  await page.locator('[data-calm-entry="feed"]').click();
   await expect(page.locator('.station-feed-card').first()).toHaveAttribute('data-feed-station', stations[0].stationuuid);
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'paused');
   expect(await page.locator('.calm-feed-status[data-status="playing"]').count()).toBe(0);
+});
+
+test('a story Play queue contains only sources for that story', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await richCatalogue(page);
+  await seedRadioState(page, { stationCache: catalogue });
+  await page.goto('/?calm=1');
+  await openStory(page, 'jazz');
+  const sheet = page.locator('[data-calm-browse="jazz"]');
+  const expected = new Set(everything.filter(station => station.tags.split(',').some(tag => /^(jazz|acid jazz|smooth jazz|swing)$/i.test(tag.trim()))).map(station => station.stationuuid));
+  await sheet.locator('.calm-station-row').first().locator('.calm-row-play').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.length || 0)).toBe(expected.size);
+  const queueIds = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid) || []);
+  expect([...queueIds].sort()).toEqual([...expected].sort());
+  expect(queueIds.every((id: string) => expected.has(id))).toBe(true);
+});
+
+test('station chooser page size follows the viewport and retains expanded pages', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await richCatalogue(page);
+  await seedRadioState(page, { stationCache: catalogue });
+  await page.goto('/?calm=1');
+  const rows = page.locator('[data-calm-live-catalog] .calm-live-row');
+  await expect(rows).toHaveCount(4);
+  await page.locator('[data-calm-live-more]').click();
+  await expect(rows).toHaveCount(8);
+  await page.setViewportSize({ width: 834, height: 1112 });
+  await expect(rows).toHaveCount(12);
+  const tablet = await page.evaluate(() => {
+    const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
+    const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
+    const name = document.querySelector<HTMLElement>('[data-calm-live-catalog] .calm-live-copy strong')!;
+    return { moodsRight: moods.right, chooserLeft: chooser.left, nameWidth: name.getBoundingClientRect().width };
+  });
+  expect(tablet.chooserLeft).toBeGreaterThan(tablet.moodsRight);
+  expect(tablet.nameWidth).toBeGreaterThanOrEqual(110);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(rows).toHaveCount(24);
+  const desktop = await page.evaluate(() => {
+    const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
+    const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
+    return { moodsRight: moods.right, chooserLeft: chooser.left };
+  });
+  expect(desktop.chooserLeft).toBeGreaterThan(desktop.moodsRight);
 });
 
 test('feed player captures, keeps the shared sleep timer and switches by deliberate paging', async ({ page }) => {

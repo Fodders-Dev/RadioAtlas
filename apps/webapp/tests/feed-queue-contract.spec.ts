@@ -86,6 +86,84 @@ const setupMiniQueue = async (
   await waitForAnimationsToSettle(page, '.station-feed-card-content[data-focus="true"]');
 };
 
+for (const sourceId of ['discovery-feed', 'home-calm', 'home-live'] as const) {
+  test(`cold paused ${sourceId} queue restores its late position without starting audio through viewport changes`, async ({ page }) => {
+    const queue = stations.slice(0, 8);
+    const currentIndex = 5;
+    const current = queue[currentIndex];
+    await setup(page, queue, currentIndex, sourceId, { width: 390, height: 844 });
+
+    const activeCard = () => page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])');
+    const assertRestoredPause = async () => {
+      await expect(activeCard())
+        .toHaveAttribute('data-feed-station', current.stationuuid);
+      await expect(activeCard().locator('.calm-feed-status')).toHaveAttribute('data-status', 'paused');
+      await expect.poll(() => queueState(page).then((state) => state?.currentIndex)).toBe(currentIndex);
+      expect(await playCalls(page)).toBe(0);
+    };
+
+    await assertRestoredPause();
+    for (const viewport of [
+      { width: 834, height: 1112 },
+      { width: 1024, height: 768 },
+      { width: 390, height: 844 }
+    ]) {
+      await page.setViewportSize(viewport);
+      await waitForAnimationsToSettle(page, '.station-feed-card-content[data-focus="true"]');
+      await page.waitForTimeout(300);
+      await assertRestoredPause();
+    }
+  });
+}
+
+test('portrait tablet shows a full-height paused card and selects real upcoming queue rows explicitly', async ({ page }) => {
+  const queue = stations.slice(0, 8);
+  const initialIndex = 3;
+  await setup(page, queue, initialIndex, 'favorites', { width: 834, height: 1112 });
+  const activeCard = () => page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])');
+  await expect(activeCard()).toHaveAttribute('data-feed-index', String(initialIndex));
+  await expect(activeCard()).toHaveAttribute('data-feed-station', queue[initialIndex].stationuuid);
+  await expect(activeCard().locator('.calm-feed-status')).toHaveAttribute('data-status', 'paused');
+  expect(await playCalls(page)).toBe(0);
+
+  const geometry = await page.evaluate(() => {
+    const scroller = document.querySelector<HTMLElement>('.station-feed-scroller');
+    const card = document.querySelector<HTMLElement>('.station-feed-card[data-feed-index="3"]');
+    const content = card?.querySelector<HTMLElement>('.station-feed-card-content');
+    const deck = document.querySelector<HTMLElement>('.calm-feed-deck');
+    const nav = document.querySelector<HTMLElement>('.app-navigation-mobile');
+    const rect = (node?: HTMLElement | null) => {
+      const value = node?.getBoundingClientRect();
+      return value ? { top: value.top, bottom: value.bottom, height: value.height } : null;
+    };
+    return {
+      scrollerClientHeight: scroller?.clientHeight ?? 0,
+      cardOffsetHeight: card?.offsetHeight ?? 0,
+      cardCssHeight: card ? getComputedStyle(card).height : '',
+      card: rect(card),
+      content: rect(content),
+      deck: rect(deck),
+      nav: rect(nav),
+      deckOverflowY: deck ? getComputedStyle(deck.querySelector('ol')!).overflowY : ''
+    };
+  });
+  expect(geometry.scrollerClientHeight).toBe(680);
+  expect(geometry.cardOffsetHeight).toBe(geometry.scrollerClientHeight);
+  expect(geometry.cardCssHeight).toBe('680px');
+  expect(geometry.content?.bottom).toBe(geometry.card?.bottom);
+  expect(geometry.deck?.top).toBeGreaterThanOrEqual(geometry.card!.bottom + 8);
+  expect(geometry.deckOverflowY).toBe('auto');
+  expect(geometry.deck?.bottom).toBeLessThanOrEqual(geometry.nav!.top - 8);
+
+  await page.locator(`[data-feed-deck-item="${queue[initialIndex + 1].stationuuid}"]`).click();
+  await expect.poll(() => queueState(page).then((state) => state?.currentIndex)).toBe(initialIndex + 1);
+  await expect(activeCard()).toHaveAttribute('data-feed-station', queue[initialIndex + 1].stationuuid);
+  await expect.poll(() => playCalls(page)).toBeGreaterThan(0);
+  await activeCard().locator('[data-feed-action="next"]').click();
+  await expect.poll(() => queueState(page).then((state) => state?.currentIndex)).toBe(initialIndex + 2);
+  await expect(activeCard()).toHaveAttribute('data-feed-station', queue[initialIndex + 2].stationuuid);
+});
+
 for (const [size, currentIndex] of [[1, 0], [2, 1], [4, 2]] as const) {
   test(`explicit calm queue of ${size} keeps order, position and truthful status`, async ({ page }) => {
     const queue = stations.slice(0, size);

@@ -7,13 +7,9 @@ import { FeedWaveform } from '../components/FeedWaveform';
 import { LiraMark } from '../components/LiraMark';
 import './calmFeed.css';
 
-// One station, one slide — the A4 «Журнал» Feed, composed exactly as the mock
-// (docs/prototypes/directions, `feedScene` + `.station-slide`): a drawn scene
-// behind (a big word, an orb, a ribbon or a disc, the warm palette), the tab
-// label and the sleep timer at the top, the stepper under it, the rail with
-// heart · Лира · more, and at the bottom the place, the station, the track
-// that is REALLY on air with its bookmark, «Слушать эфир» with the live
-// waveform and a separate button for volume and the rest, then the swipe hint.
+// One station, one slide — the A4 «Журнал» Feed. The warm scene remains a
+// bounded backdrop; place and station lead the card, with the live track and
+// playback grouped in the lower thumb zone.
 //
 // Nothing here is a demo: the word is the station's own genre family, the
 // edition is its real position in the deck, the track is the trusted title or
@@ -167,15 +163,17 @@ export const CalmFeedCard = ({
       </div>
 
       <div ref={storyRef} className="calm-slide-story">
-        <button type="button" className="calm-place-link" onClick={onOpenPlace} aria-label={`${labels.place}: ${country || name}`} data-feed-action="place" tabIndex={tab}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-6 5-6 13 0 18 6-5 6-13 0-18" /></svg>
-          <span>{country || place || name}</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
-        </button>
-        <div className="calm-slide-identity">
-          <span className="calm-feed-status calm-air-status" data-status={status}>{statusText}</span>
-          <h1 className="station-feed-card-name">{name}</h1>
-          <p>{[genres, place].filter(Boolean).join(' · ') || labels.liveMusic}</p>
+        <div className="calm-slide-heading">
+          <button type="button" className="calm-place-link" onClick={onOpenPlace} aria-label={`${labels.place}: ${country || name}`} data-feed-action="place" tabIndex={tab}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-6 5-6 13 0 18 6-5 6-13 0-18" /></svg>
+            <span>{country || place || name}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+          </button>
+          <div className="calm-slide-identity">
+            <span className="calm-feed-status calm-air-status" data-status={status}>{statusText}</span>
+            <h1 className="station-feed-card-name">{name}</h1>
+            <p>{[genres, place].filter(Boolean).join(' · ') || labels.liveMusic}</p>
+          </div>
         </div>
         <div className="calm-feed-track calm-slide-track" data-feed-track={liveTrack ? 'live' : lastFind ? 'find' : 'none'}>
           <div>

@@ -9,10 +9,10 @@ import { CalmStationRow } from './CalmStationRow';
 // A story or a country opened as a sheet: the poster, a few loaded sources to
 // start with, then the SAME query paged from the full catalogue («Ещё
 // станции»). Browsing never plays; ▶ on a row does.
-export function CalmBrowseSheet({ title, kicker, copy, art, word, query, picks, cache, source, onPlay, onSource, onClose }: {
+export function CalmBrowseSheet({ title, kicker, copy, art, word, query, picks, queue, cache, source, onPlay, onSource, onClose }: {
   title: string; kicker?: string; copy?: string; art?: PosterArt; word?: string;
   query: { country?: string; tag?: string; mood?: string; tagExact?: boolean };
-  picks: StationLite[]; cache: Map<string, ShelfSnapshot>; source: string;
+  picks: StationLite[]; queue?: StationLite[]; cache: Map<string, ShelfSnapshot>; source: string;
   onPlay: (station: StationLite, playlist: StationLite[], source: string) => void;
   onSource: (station: StationLite) => void;
   onClose: () => void;
@@ -28,7 +28,7 @@ export function CalmBrowseSheet({ title, kicker, copy, art, word, query, picks, 
     {copy && <p className="calm-browse-copy">{copy}</p>}
     {starters.length > 0 && <>
       <p className="calm-eyebrow">{t('journal.startHere')}</p>
-      <div className="calm-rows">{starters.map((station) => <CalmStationRow key={station.stationuuid} station={station} onPlay={() => onPlay(station, starters, source)} onOpen={() => onSource(station)} />)}</div>
+      <div className="calm-rows">{starters.map((station) => <CalmStationRow key={station.stationuuid} station={station} onPlay={() => onPlay(station, queue?.length ? queue : starters, source)} onOpen={() => onSource(station)} />)}</div>
       <h3 className="calm-continue-title">{t('journal.continueTitle')}</h3>
     </>}
     <CalmCatalogShelf cache={cache} query={query} initial={picks.slice(3)} source={source} onPlay={onPlay} rows autoLoad={picks.length === 0} />

@@ -510,6 +510,16 @@ export const StationFeed = () => {
   const personalQueue = CALM_PREVIEW && queue.items.length > 0 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
   const [context, setContext] = useState<'queue' | 'discovery'>(() => restoreVisit?.context ?? (personalQueue ? 'queue' : 'discovery'));
   const queueMode = context === 'queue' && Boolean(personalQueue);
+  // The audio runtime is lazy on a cold reload, while its persisted queue is
+  // available immediately. For the two Feed-owned queue sources, use their
+  // persisted current row as the listener station until current/pending hydrates;
+  // otherwise the initial settle can mistake that short gap for an idle opening
+  // and start discovery card zero over a paused station.
+  const restoredFeedStation = CALM_PREVIEW &&
+    (queue.sourceId === FEED_SOURCE_ID || queue.sourceId === 'home-calm') &&
+    queue.currentIndex >= 0
+    ? queue.items[queue.currentIndex] ?? null
+    : null;
   // The calm Feed opens on the station, not on the chips; the toggle still opens them.
   const [filtersOpen, setFiltersOpen] = useState(!CALM_PREVIEW);
 
@@ -564,11 +574,11 @@ export const StationFeed = () => {
       //     card, or we would autoplay a dead stream. Hence the asymmetric guard.
       // The calm Feed pins the listener's own station when nothing else was
       // handed in (a reload lands here with feedEntryStation already gone).
-      const entryCandidate = feedEntryStation ?? (CALM_PREVIEW ? player.current ?? player.pending : null);
+      const entryCandidate = feedEntryStation ?? (CALM_PREVIEW ? player.current ?? player.pending ?? restoredFeedStation : null);
       const pinCandidate =
         entryCandidate?.stationuuid && entryCandidate.url_resolved ? entryCandidate : null;
       const pinIsCurrent = Boolean(
-        pinCandidate && pinCandidate.stationuuid === (CALM_PREVIEW ? (player.current ?? player.pending) : player.current)?.stationuuid
+        pinCandidate && pinCandidate.stationuuid === (CALM_PREVIEW ? (player.current ?? player.pending ?? restoredFeedStation) : player.current)?.stationuuid
       );
       const pinIsLiveEnough = Boolean(
         pinCandidate &&
@@ -747,7 +757,7 @@ export const StationFeed = () => {
   // reading `current` alone made that open autoplay card 0 — a DIFFERENT station
   // than the one the listener had paused (#86). The legacy feed keeps its
   // `current`-only reading and its tested idle-open behaviour.
-  const listenerStation = CALM_PREVIEW ? (player.current ?? player.pending) : player.current;
+  const listenerStation = CALM_PREVIEW ? (player.current ?? player.pending ?? restoredFeedStation) : player.current;
   const currentIdRef = useRef(listenerStation?.stationuuid ?? null);
   currentIdRef.current = listenerStation?.stationuuid ?? null;
   const sourceLabel = t('feed.sourceLabel');
@@ -914,7 +924,7 @@ export const StationFeed = () => {
     // card, so feed autoplay resolution gets that station as its current id.
     const restoredQueueId = queueMode && personalQueue && personalQueue.currentIndex >= 0
       ? personalQueue.items[personalQueue.currentIndex]?.stationuuid ?? null
-      : null;
+      : restoredFeedStation?.stationuuid ?? null;
     const { index, autoplayInitial } = resolveFeedEntry(
       visibleFeedStations,
       currentIdRef.current ?? restoredQueueId
@@ -1433,9 +1443,9 @@ export const StationFeed = () => {
                   <CalmFeedCard
                     station={station}
                     active={active}
-                    isCurrent={(player.current ?? player.pending)?.stationuuid === station.stationuuid}
+                    isCurrent={listenerStation?.stationuuid === station.stationuuid}
                     isPlaying={isCurrent && player.isPlaying}
-                    status={cardStatus((player.current ?? player.pending)?.stationuuid === station.stationuuid)}
+                    status={cardStatus(listenerStation?.stationuuid === station.stationuuid)}
                     liveTrack={isCurrent && trustedTrack ? trustedTrack : null}
                     lastFind={!(isCurrent && trustedTrack) && lastTrack ? lastTrack : null}
                     favorite={isFavorite(station.stationuuid)}

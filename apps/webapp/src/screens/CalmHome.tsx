@@ -20,11 +20,10 @@ import { CalmSourceSheet } from './CalmSourceSheet';
 import { CalmStoriesSheet } from './CalmStoriesSheet';
 import { CalmStationRow } from './CalmStationRow';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
+import { isFeedBrowseVisitCompatible } from '../lib/feedBrowseVisit';
 
-// Home starts with one clear offer, two compact discovery entries, and four
-// real live choices; its full catalogue and deeper thematic/geographic
-// exploration continue below. The shortlist uses the same default queue
-// snapshot as the catalogue and never changes it while a visit is open.
+// Home starts with one clear offer and one size-paged live catalogue; deeper
+// thematic and geographic exploration follows. Browsing never changes audio.
 // Nothing here starts audio except an explicit Play; a Play from the grid
 // hands the grid to the queue, so the Feed continues exactly that set.
 
@@ -46,12 +45,9 @@ type Sheet =
   | null;
 
 type LiveFilter = 'all' | 'favorites' | 'recent' | GenreFamily;
-const LIVE_PAGE = 10;
-// A wider screen shows more of everything, not bigger blocks.
-const wideScreen = () => typeof window !== 'undefined' && window.matchMedia('(min-width: 600px)').matches;
-const livePage = () => (wideScreen() ? 12 : LIVE_PAGE);
+const livePage = () => typeof window === 'undefined' ? 4 : window.innerWidth >= 900 ? 12 : window.innerWidth >= 600 ? 6 : 4;
 
-type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; quickPlaylist?: StationLite[]; quickChoices?: StationLite[]; live?: { filter: LiveFilter; shown: number } };
+type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; pages: number } };
 // SPA-only visit memory: the scroll position and the pages a sheet already
 // loaded, so opening the Feed or the Globe and coming back lands where the
 // listener left. Public catalogue state only; a reload drops it.
@@ -73,9 +69,9 @@ const dedupe = (list: StationLite[]) => [...new Map(list.map((s) => [s.stationuu
 export function CalmHome({ station, stations, discoveryStations, moodRails, onPlay, onFeed, onSearch }: Props) {
   const { t, locale } = useLocale();
   const { summary } = useCatalog();
-  const { player, nowPlaying } = usePlayback();
+  const { player, nowPlaying, queue } = usePlayback();
   const { trackHistory, knownStations, favorites, recent, isStationHiddenFromRecommendations } = useLibrary();
-  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat } = useShell();
+  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat, getFeedBrowseVisit } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
   useLayoutEffect(() => {
     window.scrollTo({ top: discovery.scrollY || 0, behavior: 'instant' });
@@ -98,10 +94,11 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       lead,
       // «Включай» plays the surface's own recommendation, so it is the first
       // visible starter — the listener sees what the button will start.
-      starters: dedupe([station, ...leadStations, ...stations]).slice(0, 2),
-      countries: topCountries(pool, wideScreen() ? 6 : 3),
-      around: summary?.aroundTheWorld && summary.aroundTheWorld.stations.length ? { label: summary.aroundTheWorld.label, stations: summary.aroundTheWorld.stations.filter((s) => s.lastcheckok !== 0).slice(0, wideScreen() ? 6 : 3) } : null,
-      genres: calmGenreGroups(pool).slice(0, wideScreen() ? 12 : 8),
+      storySources: leadStations,
+      starters: leadStations.slice(0, typeof window !== 'undefined' && window.innerWidth >= 600 ? 3 : 2),
+      countries: topCountries(pool, typeof window !== 'undefined' && window.innerWidth >= 600 ? 6 : 3),
+      around: summary?.aroundTheWorld && summary.aroundTheWorld.stations.length ? { label: summary.aroundTheWorld.label, stations: summary.aroundTheWorld.stations.filter((s) => s.lastcheckok !== 0).slice(0, typeof window !== 'undefined' && window.innerWidth >= 600 ? 6 : 3) } : null,
+      genres: calmGenreGroups(pool).slice(0, typeof window !== 'undefined' && window.innerWidth >= 900 ? 12 : 8),
       finds: trackHistory.slice(0, 2)
     };
   });
@@ -113,29 +110,38 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
   // The choice: the visit's pool, the listener's own stations first, and the
   // quick narrowings that exist in it — never a chip that yields nothing.
+  const [pageSize, setPageSize] = useState(livePage);
+  useEffect(() => {
+    const onResize = () => setPageSize(livePage());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [liveFilter, setLiveFilter] = useState<LiveFilter>(discovery.live?.filter ?? 'all');
-  const [liveShown, setLiveShown] = useState(discovery.live?.shown ?? livePage());
-  useEffect(() => { discovery.live = { filter: liveFilter, shown: liveShown }; }, [discovery, liveFilter, liveShown]);
+  const [livePages, setLivePages] = useState(discovery.live?.pages ?? 1);
+  const liveShown = pageSize * livePages;
+  useEffect(() => { discovery.live = { filter: liveFilter, pages: livePages }; }, [discovery, liveFilter, livePages]);
   const own = useMemo(() => dedupe([...favorites, ...recent]).filter((s) => s.lastcheckok !== 0), [favorites, recent]);
   const liveAll = useMemo(() => dedupe([...own, ...visit.pool]), [own, visit.pool]);
   const liveChips = useMemo(() => {
     const families = new Map<GenreFamily, number>();
     liveAll.forEach((s) => { const family = stationGenreFamily(s); if (family) families.set(family, (families.get(family) ?? 0) + 1); });
     const chips: Array<{ id: LiveFilter; label: string; count: number }> = [{ id: 'all', label: t('journal.liveAll'), count: liveAll.length }];
-    if (favorites.length) chips.push({ id: 'favorites', label: t('journal.liveFavorites'), count: favorites.length });
-    if (recent.length) chips.push({ id: 'recent', label: t('journal.liveRecent'), count: recent.length });
+    const eligibleFavorites = dedupe(favorites).filter((s) => s.lastcheckok !== 0);
+    const eligibleRecent = dedupe(recent).filter((s) => s.lastcheckok !== 0);
+    if (eligibleFavorites.length) chips.push({ id: 'favorites', label: t('journal.liveFavorites'), count: eligibleFavorites.length });
+    if (eligibleRecent.length) chips.push({ id: 'recent', label: t('journal.liveRecent'), count: eligibleRecent.length });
     [...families.entries()].filter(([, count]) => count >= 3).sort((a, b) => b[1] - a[1]).slice(0, 5)
       .forEach(([family, count]) => chips.push({ id: family, label: t(`mapExplorer.families.${family}`), count }));
     return chips;
-  }, [favorites.length, liveAll, recent.length, t]);
+  }, [favorites, liveAll, recent, t]);
   const liveList = useMemo(() => {
-    if (liveFilter === 'favorites') return favorites.filter((s) => s.lastcheckok !== 0);
-    if (liveFilter === 'recent') return recent.filter((s) => s.lastcheckok !== 0);
+    if (liveFilter === 'favorites') return dedupe(favorites).filter((s) => s.lastcheckok !== 0);
+    if (liveFilter === 'recent') return dedupe(recent).filter((s) => s.lastcheckok !== 0);
     if (liveFilter === 'all') return liveAll;
     return liveAll.filter((s) => stationGenreFamily(s) === liveFilter);
   }, [favorites, liveAll, liveFilter, recent]);
   const liveVisible = liveList.slice(0, liveShown);
-  const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLiveShown(livePage()); };
+  const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLivePages(1); };
 
   const listener = player.current ?? player.pending ?? null;
   const offer = listener ?? visit.station;
@@ -172,16 +178,13 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const offerName = normalizeStationName(offer.name);
   const offerFamily = stationGenreFamily(offer);
   const offerLine = [localizedCountry(offer, locale), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ');
-  // A stable first page supplies both the four quick choices and their real
-  // queue. Filters below never silently change the meaning of this shortlist.
-  const [homeChoices] = useState(() => {
-    discovery.quickPlaylist ??= liveAll.slice(0, livePage());
-    discovery.quickChoices ??= discovery.quickPlaylist.filter((s) => s.stationuuid !== offer.stationuuid).slice(0, 4);
-    return { playlist: discovery.quickPlaylist, choices: discovery.quickChoices };
-  });
-  const homeLiveSnapshot = homeChoices.playlist;
-  const quickChoices = homeChoices.choices;
-  const renderLiveRow = (s: StationLite, playlist: StationLite[], compact = false) => {
+  const openBrowseFeed = () => {
+    const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
+    const queueIds = queue.items.map((item) => item.stationuuid);
+    if (isFeedBrowseVisitCompatible(getFeedBrowseVisit(), queue.sourceId, currentStationId, queueIds)) setActiveSection('feed');
+    else onFeed(listener ?? offer);
+  };
+  const renderLiveRow = (s: StationLite, playlist: StationLite[]) => {
     const current = listener?.stationuuid === s.stationuuid;
     const name = normalizeStationName(s.name);
     const family = stationGenreFamily(s);
@@ -191,7 +194,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     const actionLabel = current
       ? `${player.status === 'error' ? t('dock.retry') : player.isPlaying ? t('common.pause') : t('common.play')}: ${name}`
       : t('journal.playStation', { name });
-    return <article key={s.stationuuid} className={`calm-live-row${compact ? ' calm-live-short-row' : ''}`} data-calm-live-station={s.stationuuid} data-current={current || undefined} data-live-playing={current && player.isPlaying || undefined} data-genre-family={family || undefined}>
+    return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined} data-live-playing={current && player.isPlaying || undefined} data-genre-family={family || undefined}>
       <button className="calm-live-open calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, playlist, 'home-live'); }} aria-label={actionLabel}>
         <StationArtwork station={s} size="sm" className="calm-row-art" />
         <span className="calm-live-copy"><strong>{name}</strong><small>{meta}</small></span>
@@ -207,7 +210,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
   return <div className="calm-home calm-journal" data-calm-home>
     {sheet?.kind === 'trail' && <CalmBrowseSheet title={sheet.title} kicker={t('journal.crossroads.kicker')} query={sheet.query} picks={sheet.picks} cache={discovery.shelves} source="home-trail" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
-    {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} word={storyWord(sheet.story)} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
+    {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} word={storyWord(sheet.story)} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} queue={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'country' && <CalmBrowseSheet title={formatCountryLabel(sheet.country)} kicker={t('journal.mapTitle')} query={{ country: sheet.country }} picks={visit.pool.filter((s) => s.country.trim() === sheet.country)} cache={discovery.shelves} source="home-country" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'genre' && <CalmBrowseSheet title={t(`calm.directions.${sheet.id}.eyebrow`)} kicker={t('journal.genresTitle')} query={{ tag: sheet.query }} picks={sheet.stations} cache={discovery.shelves} source="home-genre" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(s) => onPlay(s, [s], 'home-source')} />}
@@ -246,11 +249,12 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
 
     <section className="calm-section calm-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
       <div className="calm-doors-rail">
-        <button className="calm-quick-entry calm-quick-entry-feed" data-calm-entry="feed" onClick={() => onFeed(listener ?? offer)}><Icon d={FEED_ICON} /><span>{t('journal.dirFeed')}</span><Icon d={ARROW} /></button>
+        <button className="calm-quick-entry calm-quick-entry-feed" data-calm-entry="feed" onClick={openBrowseFeed}><Icon d={FEED_ICON} /><span>{t('journal.dirFeed')}</span><Icon d={ARROW} /></button>
         <button className="calm-quick-entry calm-quick-entry-globe" data-calm-entry="globe" onClick={() => setActiveSection('globe')}><Icon d={GLOBE_ICON} /><span>{t('journal.dirGlobe')}</span><Icon d={ARROW} /></button>
       </div>
     </section>
 
+    <div className="calm-home-first-row">
     <div className="calm-home-intro">
       {stories.length > 0 && <section className="calm-section calm-home-moods" data-calm-stories>
           <div className="calm-heading"><h2>{t('journal.moods')}</h2><button className="calm-text" data-calm-stories-all onClick={() => setAllStories(true)}>{t('journal.moodsMore')} <Icon d={ARROW} /></button></div>
@@ -260,13 +264,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           </button>)}</div>
         </section>}
 
-      {quickChoices.length > 0 && <section className="calm-section calm-quick-choices" data-calm-quick-choices>
-        <div className="calm-heading"><h2>{t('journal.startHere')}</h2></div>
-        <div className="calm-quick-grid">{quickChoices.map((s) => renderLiveRow(s, homeLiveSnapshot, true))}</div>
-      </section>}
     </div>
-
-    <div className="calm-home-columns">
       <div className="calm-home-radio">
         <section className="calm-section calm-live" data-calm-live data-calm-live-catalog>
           <div className="calm-heading"><h2>{t('journal.liveTitle')}</h2><button className="calm-text" onClick={() => onSearch('')}>{t('journal.liveCatalog')} <Icon d={ARROW} /></button></div>
@@ -277,12 +275,13 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           <div className="calm-live-foot">
             <small>{t('journal.liveCount', { shown: String(liveVisible.length), total: String(liveList.length) })}</small>
             {liveVisible.length < liveList.length
-              ? <button className="calm-more-live" data-calm-live-more onClick={() => setLiveShown((n) => n + livePage())}>{t('journal.liveMore')}</button>
+              ? <button className="calm-more-live" data-calm-live-more onClick={() => setLivePages((pages) => pages + 1)}>{t('journal.liveMore')}</button>
               : <button className="calm-more-live" onClick={() => onSearch('')}>{t('journal.liveCatalog')}</button>}
           </div>
         </section>
       </div>
-      <div className="calm-home-discovery">
+    </div>
+    <div className="calm-home-discovery">
 
         {visit.countries.length > 0 && <section className="calm-section calm-world" data-calm-world>
           <div className="calm-heading"><h2>{t('journal.mapTitle')}</h2><button className="calm-text" onClick={() => setActiveSection('globe')}>{t('journal.mapAll')} <Icon d={ARROW} /></button></div>
@@ -297,8 +296,8 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
             <CalmPoster art={visit.lead.art} word={storyWord(visit.lead)} lead />
             <span className="calm-story-caption"><span><small>{storyKicker(visit.lead)}</small><strong>{storyTitle(visit.lead)}</strong></span><span>{t('journal.openStory')} <Icon d={ARROW} /></span></span>
           </button>
-          {visit.starters.length > 0 && <div className="calm-starters"><span className="calm-eyebrow">{t('journal.startHere')}</span>
-            <div className="calm-rows">{visit.starters.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.starters, 'home-starter')} onOpen={() => setSource(s)} />)}</div>
+          {visit.starters.length > 0 && <div className="calm-starters"><span className="calm-eyebrow">{t('journal.storySources')}</span>
+            <div className="calm-rows">{visit.starters.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.storySources, 'home-starter')} onOpen={() => setSource(s)} />)}</div>
           </div>}
         </section>}
 
@@ -346,15 +345,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
           </button>
         </section>
 
-        <section className="calm-section calm-community" data-calm-community>
-          <span className="calm-eyebrow">{t('journal.communityKicker')}</span>
-          <h3>{t('journal.communityTitle')}</h3>
-          <p>{t('journal.communityCopy')}</p>
-          <button className="calm-text" onClick={() => openLibrary('collections')}>{t('journal.communityAction')} <Icon d={ARROW} /></button>
-        </section>
       </div>
-
-
-    </div>
   </div>;
 }
