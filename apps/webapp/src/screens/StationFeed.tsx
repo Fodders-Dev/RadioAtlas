@@ -41,6 +41,7 @@ import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { ResolvedCoords } from '../lib/geoResolver';
 import { normalizeExposureLedger, type StationExposureLedger } from '../lib/stationExposure';
+import type { FeedBrowseVisit } from '../state/radio/types';
 import type { StationLite } from '../types';
 import type { VisualizerFrame } from '../lib/useAudioPlayer';
 import './stationFeed.css';
@@ -478,21 +479,25 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, setLibraryTab, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId } = useShell();
+  const { setActiveSection, setLibraryTab, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId, getFeedBrowseVisit, getFeedBrowseVisitGeneration, saveFeedBrowseVisit } = useShell();
+  const feedVisitGeneration = useRef(getFeedBrowseVisitGeneration()).current;
   const isMobile = useMobileLayout();
 
-  // The feed re-rolls on EVERY open: rerollFeedSeed runs from the «Лента» entry's
-  // onClick, so each open mints a new seed → a fresh personal-fresh mix, while
-  // Home's own sessionSeed (frozen per session) stays put.
+  // Explicit fresh entries reroll the Feed. Ordinary navigation returns use the
+  // provider's transient browse visit and keep the existing seed/deck.
   const seed = feedSeed;
   const effectiveTasteProfile = useMemo(
     () => withFavoriteTasteBoosts(tasteProfile, favorites),
     [favorites, tasteProfile]
   );
 
-  // Filter state is LOCAL to this screen — never Shell/Radio state. It resets per
-  // open, and nothing outside the overlay re-renders when it changes.
-  const [feedFilter, setFeedFilter] = useState<FeedFilter>('picks');
+  // A calm navigation return restores one transient browse visit. The snapshot
+  // is provider-scoped and is only consumed as initial UI state; playback remains
+  // owned by the shared player/queue.
+  const [restoreVisit] = useState<FeedBrowseVisit | null>(() => CALM_PREVIEW ? getFeedBrowseVisit() : null);
+  const restorePendingRef = useRef(restoreVisit?.visibleIndex ?? null);
+  const [useRestoredDeck, setUseRestoredDeck] = useState(Boolean(restoreVisit));
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>(() => restoreVisit?.filter ?? 'picks');
   // Under calm the listener's own explicitly sourced queue IS the Feed's deck
   // whenever it is non-empty (Q-1 of docs/CLAUDE-UI-COMPLETION-PLAN-2026-09-13.md):
   // the order of what they chose, at their real position, continued by swipes,
@@ -503,7 +508,7 @@ export const StationFeed = () => {
   // the Feed's own recommendation context. A queue without a source is kept
   // out because its intent cannot be inferred.
   const personalQueue = CALM_PREVIEW && queue.items.length > 0 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
-  const [context, setContext] = useState<'queue' | 'discovery'>(() => (personalQueue ? 'queue' : 'discovery'));
+  const [context, setContext] = useState<'queue' | 'discovery'>(() => restoreVisit?.context ?? (personalQueue ? 'queue' : 'discovery'));
   const queueMode = context === 'queue' && Boolean(personalQueue);
   // The calm Feed opens on the station, not on the chips; the toggle still opens them.
   const [filtersOpen, setFiltersOpen] = useState(!CALM_PREVIEW);
@@ -527,6 +532,7 @@ export const StationFeed = () => {
   // cheap memo below, and without the snapshot a chip tap would silently re-read
   // them and make a station you liked mid-session vanish from the deck.
   const baseDeck = useMemo(() => {
+    if (restoreVisit && useRestoredDeck) return null;
     const summaryPool = summary?.catalogPool ?? [];
     if (!summaryPool.length) {
       volatileRef.current = null;
@@ -641,7 +647,7 @@ export const StationFeed = () => {
     // handler that flips activeSection to 'feed', i.e. strictly before this
     // screen mounts, and never mutates while the feed is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary, seed, feedEntryStation]);
+  }, [summary, seed, feedEntryStation, restoreVisit, useRestoredDeck]);
 
   // `topVoted` was already fetched by the catalog and never read by the feed —
   // «Популярное» is the first consumer. Both fields are server-ranked
@@ -656,11 +662,16 @@ export const StationFeed = () => {
   // mid-session (the ledger is flushed on close, but React state could still
   // update from another surface).
   const filterAvailability = { popular: popularSource, exposure: baseDeck?.exposure };
-  const popularAvailable = isFeedFilterAvailable('popular', filterAvailability);
-  const freshAvailable = isFeedFilterAvailable('fresh', filterAvailability);
+  const popularAvailable = restoreVisit && useRestoredDeck
+    ? restoreVisit.availableFilters.includes('popular')
+    : isFeedFilterAvailable('popular', filterAvailability);
+  const freshAvailable = restoreVisit && useRestoredDeck
+    ? restoreVisit.availableFilters.includes('fresh')
+    : isFeedFilterAvailable('fresh', filterAvailability);
 
   // The CHEAP half: buildStationFeed only. This is what a chip tap recomputes.
   const feedStations = useMemo(() => {
+    if (restoreVisit && useRestoredDeck && feedFilter === restoreVisit.filter) return restoreVisit.stations;
     if (!baseDeck) return [];
     const sources = resolveFeedFilterSources({
       filter: feedFilter,
@@ -680,15 +691,19 @@ export const StationFeed = () => {
       // entry/current station whichever chip is active.
       pinFirst: baseDeck.pin
     });
-  }, [baseDeck, feedFilter, popularSource, seed, summary]);
+  }, [baseDeck, feedFilter, popularSource, seed, summary, restoreVisit, useRestoredDeck]);
 
-  const [visibleIndex, setVisibleIndex] = useState(0);
+  const [visibleIndex, setVisibleIndex] = useState(() => restoreVisit?.visibleIndex ?? 0);
   const visibleIndexRef = useRef(0);
   visibleIndexRef.current = visibleIndex;
-  const [visibleLimit, setVisibleLimit] = useState(FEED_INITIAL_VISIBLE);
+  const [visibleLimit, setVisibleLimit] = useState(() => restoreVisit?.visibleLimit ?? FEED_INITIAL_VISIBLE);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
   const kickstartedRef = useRef(false);
+  // On a restored visit the browser can report transient snap landings while
+  // the remounted scroll container is settling. Treat those as visual state,
+  // not as listener intent; the first deliberate pager action releases this.
+  const restoreAutoplayLockedRef = useRef(Boolean(restoreVisit));
   const queueItems = personalQueue?.items ?? null;
   const visibleFeedStations = useMemo(
     () => (queueMode && queueItems ? queueItems : feedStations.slice(0, Math.min(visibleLimit, feedStations.length))),
@@ -766,6 +781,19 @@ export const StationFeed = () => {
     []
   );
 
+  // Restore the saved snap position and mark it settled before the passive
+  // scroll/IntersectionObserver listeners attach. A return is not a swipe.
+  useLayoutEffect(() => {
+    if (restorePendingRef.current === null || visibleFeedStations.length === 0) return;
+    const index = Math.max(0, Math.min(visibleFeedStations.length - 1, restorePendingRef.current));
+    restorePendingRef.current = null;
+    kickstartedRef.current = true;
+    settler.cancel();
+    settler.seedPlayed(index);
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.scrollTop = index * scroller.clientHeight;
+  }, [visibleFeedStations, settler]);
+
   // Tear down any pending play when the feed closes/unmounts.
   useEffect(() => () => settler.cancel(), [settler]);
 
@@ -784,12 +812,13 @@ export const StationFeed = () => {
   // a re-run with nothing playing gives resolveFeedEntry autoplayInitial:true —
   // i.e. a chip tap would start a station. See handleSelectFilter below.
   useEffect(() => {
+    if (restoreVisit) return;
     setVisibleLimit(FEED_INITIAL_VISIBLE);
     setVisibleIndex(0);
     cardRefs.current = [];
     kickstartedRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seed]);
+  }, [seed, restoreVisit]);
 
   const handleClose = useCallback(() => {
     settler.cancel();
@@ -926,7 +955,8 @@ export const StationFeed = () => {
       const station = feedRef.current[landed];
       if (!station) return;
       setVisibleIndex(landed);
-      settler.notify(landed);
+      if (restoreAutoplayLockedRef.current) settler.seedPlayed(landed);
+      else settler.notify(landed);
       shownIdsRef.current.add(station.stationuuid);
     },
     [settler]
@@ -939,6 +969,15 @@ export const StationFeed = () => {
   useEffect(() => {
     const root = scrollerRef.current;
     if (!root || visibleFeedStations.length === 0) return undefined;
+    const releaseRestoreLock = () => {
+      if (!restoreAutoplayLockedRef.current) return;
+      restoreAutoplayLockedRef.current = false;
+    };
+    const releaseRestoreLockFromPointer = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('button, a, input, textarea, [role="button"]')) return;
+      releaseRestoreLock();
+    };
     let frame: number | null = null;
     const handleScroll = () => {
       if (frame !== null) return;
@@ -954,8 +993,15 @@ export const StationFeed = () => {
       });
     };
     root.addEventListener('scroll', handleScroll, { passive: true });
+    root.addEventListener('wheel', releaseRestoreLock, { passive: true });
+    root.addEventListener('touchmove', releaseRestoreLock, { passive: true });
+    root.addEventListener('pointerdown', releaseRestoreLockFromPointer, { passive: true });
     return () => {
       root.removeEventListener('scroll', handleScroll);
+      root.removeEventListener('wheel', releaseRestoreLock);
+      root.removeEventListener('touchstart', releaseRestoreLock);
+      root.removeEventListener('touchmove', releaseRestoreLock);
+      root.removeEventListener('pointerdown', releaseRestoreLockFromPointer);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
   }, [commitLandedIndex, visibleFeedStations.length]);
@@ -1016,28 +1062,32 @@ export const StationFeed = () => {
   const handleSelectFilter = useCallback(
     (next: FeedFilter) => {
       if (next === feedFilter) return;
+      restoreAutoplayLockedRef.current = false;
       settler.cancel();
       if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
       // Card 0 is pinFirst under every filter, so seeding index 0 is always
       // correct — and it is the ONLY thing that makes the new observer's
       // initial notify(0) a no-op.
       settler.seedPlayed(0);
+      if (restoreVisit) setUseRestoredDeck(false);
       setVisibleIndex(0);
       setVisibleLimit(FEED_INITIAL_VISIBLE);
       setFeedFilter(next);
     },
-    [feedFilter, settler]
+    [feedFilter, settler, restoreVisit]
   );
   const selectContext = useCallback(
     (next: 'queue' | 'discovery') => {
       if (next === context) return;
+      restoreAutoplayLockedRef.current = false;
       settler.cancel();
       kickstartedRef.current = false;
+      if (restoreVisit) setUseRestoredDeck(false);
       if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
       setVisibleIndex(0);
       setContext(next);
     },
-    [context, settler]
+    [context, settler, restoreVisit]
   );
 
   const playContext = () =>
@@ -1064,6 +1114,7 @@ export const StationFeed = () => {
   };
 
   const handleQueuePeekSelect = (station: StationLite, index: number) => {
+    restoreAutoplayLockedRef.current = false;
     settler.cancel();
     settler.seedPlayed(index);
     visibleIndexRef.current = index;
@@ -1104,6 +1155,7 @@ export const StationFeed = () => {
   const handleAdvance = () => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    restoreAutoplayLockedRef.current = false;
     scroller.scrollTop = (visibleIndex + 1) * scroller.clientHeight;
   };
 
@@ -1132,6 +1184,7 @@ export const StationFeed = () => {
     // Without this the browser ALSO scrolls the snap container whenever focus is
     // inside it, and one key press lands two cards away.
     event.preventDefault();
+    restoreAutoplayLockedRef.current = false;
     // Read the position from the scroller, not from `visibleIndex`: that state
     // lands via a rAF-throttled scroll handler, so a second key press within the
     // same frame would compute its step from a stale index.
@@ -1190,6 +1243,7 @@ export const StationFeed = () => {
   const stepBy = (delta: number) => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    restoreAutoplayLockedRef.current = false;
     const from = Math.round(scroller.scrollTop / scroller.clientHeight);
     const next = Math.max(0, Math.min(visibleFeedStations.length - 1, from + delta));
     scroller.scrollTop = next * scroller.clientHeight;
@@ -1205,6 +1259,24 @@ export const StationFeed = () => {
     ...(freshAvailable ? [{ id: 'fresh' as const, label: t('feed.filterFresh') }] : []),
     ...(popularAvailable ? [{ id: 'popular' as const, label: t('feed.filterPopular') }] : [])
   ];
+  const feedVisitToSaveRef = useRef<FeedBrowseVisit | null>(null);
+  feedVisitToSaveRef.current = CALM_PREVIEW ? {
+    generation: feedVisitGeneration,
+    seed,
+    filter: feedFilter,
+    context,
+    stations: queueMode && queueItems ? queueItems : feedStations,
+    visibleIndex,
+    visibleLimit,
+    availableFilters: chips.map((chip) => chip.id),
+    playbackSourceId: queue.sourceId,
+    playbackStationId: (player.current ?? player.pending)?.stationuuid ?? null,
+    playbackQueueIds: queue.items.map((station) => station.stationuuid)
+  } : null;
+  useEffect(() => () => {
+    const visit = feedVisitToSaveRef.current;
+    if (visit?.stations.length) saveFeedBrowseVisit(visit);
+  }, [saveFeedBrowseVisit]);
   const activeChip = chips.find((chip) => chip.id === feedFilter);
   const activeChipLabel = activeChip?.label ?? '';
   const queueTab = queueMode && personalQueue

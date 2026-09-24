@@ -204,7 +204,7 @@ export const Library = () => {
     updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
-  const { setActiveSection, setFeedEntryStation, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
+  const { setActiveSection, setFeedEntryStation, rerollFeedSeed, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
     useShell();
   const {
     status: sessionStatus,
@@ -218,6 +218,7 @@ export const Library = () => {
   const returnToPlayer = () => {
     if (!queueReturnStation) return;
     setFeedEntryStation(queueReturnStation);
+    rerollFeedSeed();
     setActiveSection('feed');
   };
   // R1 (PR-A): after toggling opt-in we learn whether the user is reachable

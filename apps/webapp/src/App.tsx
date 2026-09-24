@@ -89,7 +89,8 @@ const App = () => {
     chatRequest,
     clearChatRequest,
     setFeedEntryStation,
-    rerollFeedSeed
+    rerollFeedSeed,
+    getFeedBrowseVisit
   } = useShell();
   // «Лира» chat lives at the shell level so the central nav button opens it from
   // any screen. Gated on VITE_AI_ENABLED (same flag as the rest of the feature).
@@ -347,12 +348,23 @@ const App = () => {
       setChatOpen(false);
       clearChatRequest();
     }
-    // The calm nav has «Лента» as a destination: it opens on the station on air
-    // (or the one connecting), the same way the mini player expands into it, and
-    // never starts another stream by itself.
-    if (CALM_PREVIEW && section === 'feed') {
-      setFeedEntryStation(player.current ?? player.pending ?? null);
-      rerollFeedSeed();
+    // The calm nav is also the return path from Globe/Library. Resume a matching
+    // transient browse visit; only a fresh/invalid entry pins the current source.
+    if (CALM_PREVIEW && section === 'feed' && activeSection !== 'feed') {
+      const visit = getFeedBrowseVisit();
+      const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
+      const playbackQueueIds = queue.items.map((station) => station.stationuuid);
+      const canResume = Boolean(
+        visit &&
+        visit.playbackSourceId === queue.sourceId &&
+        visit.playbackStationId === currentStationId &&
+        visit.playbackQueueIds.length === playbackQueueIds.length &&
+        visit.playbackQueueIds.every((id, index) => id === playbackQueueIds[index])
+      );
+      if (!canResume) {
+        setFeedEntryStation(player.current ?? player.pending ?? null);
+        rerollFeedSeed();
+      }
     }
     setActiveSection(section);
   };

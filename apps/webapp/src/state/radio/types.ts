@@ -115,6 +115,21 @@ export type StoredPlayerState = {
   layout: StoredWinampLayout;
 };
 
+/** One transient visit to the Feed, kept only while this provider instance lives. */
+export type FeedBrowseVisit = {
+  generation: number;
+  seed: number;
+  filter: 'picks' | 'fresh' | 'popular';
+  context: 'queue' | 'discovery';
+  stations: StationLite[];
+  visibleIndex: number;
+  visibleLimit: number;
+  availableFilters: Array<'picks' | 'fresh' | 'popular'>;
+  playbackSourceId: string | null;
+  playbackStationId: string | null;
+  playbackQueueIds: string[];
+};
+
 export type QueueEnqueueResult =
   | boolean
   | { added: false; reason: 'already_queued' | 'buffering' };
@@ -263,6 +278,9 @@ export type ShellContextValue = {
   // so the feed mix is fresh each time, independent of the frozen Home seed.
   feedSeed: number;
   rerollFeedSeed: () => void;
+  saveFeedBrowseVisit: (visit: FeedBrowseVisit) => void;
+  getFeedBrowseVisit: () => FeedBrowseVisit | null;
+  getFeedBrowseVisitGeneration: () => number;
   // The station the «Лента» was opened FROM — the Home hero the user pulled down
   // (or tapped). StationFeed pins it as card 0 so the hero literally IS the first
   // feed card. TRANSIENT by design: `activeSection` IS persisted, so a reload

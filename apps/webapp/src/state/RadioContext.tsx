@@ -129,6 +129,7 @@ import type {
   PlayAttemptOutcome,
   PlayStationInternalOptions,
   PlayStationOptions,
+  FeedBrowseVisit,
   QueueSnapshot,
   QueueState,
   ShellContextValue,
@@ -319,13 +320,25 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     });
   // Discovery «Лента» open-seed. Separate from the Home sessionSeed (which is
   // frozen per session to keep the Home rails from reshuffling) so the feed can
-  // re-roll on EVERY open — a fresh personal-fresh mix each time — without
+  // re-roll on explicit fresh opens — without
   // disturbing Home. rerollFeedSeed is called from the «Лента» entry's onClick
   // (a user gesture, never an effect), so it is StrictMode-safe: one bump per
-  // real tap, no double-fire. Transient (not persisted): a reload naturally
+  // real tap, no double-fire. It also invalidates any saved browse visit.
+  // Transient (not persisted): a reload naturally
   // mints a new seed, which is the desired "fresh feed on open" behaviour.
   const [feedSeed, setFeedSeed] = useState(() => homeState.sessionSeed);
-  const rerollFeedSeed = useCallback(() => setFeedSeed(Date.now()), []);
+  const feedBrowseVisitRef = useRef<FeedBrowseVisit | null>(null);
+  const feedBrowseVisitGenerationRef = useRef(0);
+  const saveFeedBrowseVisit = useCallback((visit: FeedBrowseVisit) => {
+    if (visit.generation === feedBrowseVisitGenerationRef.current) feedBrowseVisitRef.current = visit;
+  }, []);
+  const getFeedBrowseVisit = useCallback(() => feedBrowseVisitRef.current, []);
+  const getFeedBrowseVisitGeneration = useCallback(() => feedBrowseVisitGenerationRef.current, []);
+  const rerollFeedSeed = useCallback(() => {
+    feedBrowseVisitGenerationRef.current += 1;
+    feedBrowseVisitRef.current = null;
+    setFeedSeed(Date.now());
+  }, []);
   // The Home hero the «Лента» was expanded FROM. Set in the same user-gesture
   // handler as rerollFeedSeed (never an effect) and read once by StationFeed,
   // which pins it as card 0 — that is what makes «свайпнул героя → он вырос в
@@ -3106,6 +3119,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       refreshHomeSurface,
       feedSeed,
       rerollFeedSeed,
+      saveFeedBrowseVisit,
+      getFeedBrowseVisit,
+      getFeedBrowseVisitGeneration,
       feedEntryStation,
       setFeedEntryStation,
       searchDraft,
@@ -3137,6 +3153,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       detailsOpen,
       feedEntryStation,
       feedSeed,
+      saveFeedBrowseVisit,
+      getFeedBrowseVisit,
+      getFeedBrowseVisitGeneration,
       globeFocusRegionId,
       globeFocusStationId,
       homeState,
