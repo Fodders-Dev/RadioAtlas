@@ -1,0 +1,309 @@
+.feed-queue-peek {
+  --feed-queue-line: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.feed-queue-peek-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 2px;
+  list-style: none;
+}
+
+.feed-queue-peek-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.feed-queue-peek-list li + li {
+  border-top: 1px solid var(--feed-queue-line);
+}
+
+.feed-queue-peek-row {
+  display: grid;
+  grid-template-columns: 28px 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.feed-queue-peek-row:hover,
+.feed-queue-peek-row:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+}
+
+.feed-queue-peek-row.is-current {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-raised));
+}
+
+.feed-queue-peek-row:focus-visible,
+.feed-queue-peek-edit:focus-visible,
+.feed-queue-peek-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.feed-queue-peek-index {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.feed-queue-peek-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+}
+
+.feed-queue-peek-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.feed-queue-peek-copy strong,
+.feed-queue-peek-copy small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feed-queue-peek-copy strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.feed-queue-peek-copy small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.feed-queue-peek-action {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.feed-queue-peek-position,
+.feed-queue-peek-empty {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.feed-queue-peek-previous {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  border-top: 1px solid var(--feed-queue-line);
+}
+
+.feed-queue-peek-previous-toggle {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feed-queue-peek-previous.is-open .feed-queue-peek-list {
+  margin-bottom: 6px;
+}
+
+.feed-queue-peek-edit {
+  flex: 0 0 auto;
+  min-height: 48px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .feed-queue-peek .bottom-sheet-card {
+    gap: 0;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 360px) {
+  .feed-queue-peek-list {
+    gap: 2px;
+    padding-inline: 0;
+  }
+
+  .feed-queue-peek-row {
+    grid-template-columns: 44px minmax(0, 1fr) 40px;
+    gap: 6px;
+    min-height: 56px;
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  .feed-queue-peek-index {
+    display: none;
+  }
+
+  .feed-queue-peek-action {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 0;
+  }
+
+  .feed-queue-peek-action::before {
+    color: currentColor;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .feed-queue-peek-action[data-feed-queue-intent='play']::before,
+  .feed-queue-peek-action[data-feed-queue-intent='resume']::before {
+    content: '▶';
+  }
+
+  .feed-queue-peek-action[data-feed-queue-intent='reveal']::before {
+    content: '↩';
+  }
+
+  .feed-queue-peek-action[data-feed-queue-intent='retry']::before {
+    content: '↻';
+  }
+}
+
+@media (min-width: 721px) {
+  .feed-queue-peek {
+    position: fixed;
+    z-index: 130;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+
+  .feed-queue-peek-scrim {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: color-mix(in srgb, var(--bg) 56%, transparent);
+    cursor: pointer;
+  }
+
+  .feed-queue-peek-panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    width: min(560px, 100%);
+    max-height: min(78dvh, 760px);
+    min-height: 0;
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 26px;
+    background: color-mix(in srgb, var(--surface-overlay-strong) 94%, var(--bg));
+    color: var(--text);
+    box-shadow: 0 24px 70px color-mix(in srgb, #000 28%, transparent);
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+  }
+
+  .feed-queue-peek-handle {
+    display: none;
+  }
+
+  .feed-queue-peek-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .feed-queue-peek-heading {
+    min-width: 0;
+  }
+
+  .feed-queue-peek-kicker {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .feed-queue-peek-title {
+    margin: 3px 0 0;
+    color: var(--text-strong);
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .feed-queue-peek-close {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .feed-queue-peek-close svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-queue-peek,
+  .feed-queue-peek * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}

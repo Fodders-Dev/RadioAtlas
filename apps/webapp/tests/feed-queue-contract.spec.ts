@@ -3,7 +3,7 @@ import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnima
 
 const queueState = (page: Page) => page.evaluate(() => {
   const raw = window.localStorage.getItem('radio:player:v2');
-  return raw ? JSON.parse(raw).queue as { items: Array<{ stationuuid: string }>; currentIndex: number } : null;
+  return raw ? JSON.parse(raw).queue as { items: Array<{ stationuuid: string }>; currentIndex: number; sourceId: string | null; sourceLabel: string | null } : null;
 });
 
 const playCalls = (page: Page) => page.evaluate(() =>
@@ -99,7 +99,7 @@ for (const [size, currentIndex] of [[1, 0], [2, 1], [4, 2]] as const) {
   });
 }
 
-test('Calm Feed queue entry opens the canonical queue and returns without changing playback', async ({ page }) => {
+test('Calm Feed queue entry opens a local chooser and keeps Library editing explicit', async ({ page }) => {
   const queue = stations.slice(0, 3);
   await setupMiniQueue(page, queue, 1, 'favorites');
   const activeCard = page.locator('.station-feed-card-content[data-focus="true"]');
@@ -117,14 +117,29 @@ test('Calm Feed queue entry opens the canonical queue and returns without changi
   await queueButton.focus();
   await page.keyboard.press('Enter');
 
-  const queuePanel = page.locator('.library-queue-shell');
-  await expect(queuePanel).toBeVisible();
-  await expect(queuePanel).toBeFocused();
-  await expect(page.getByRole('button', { name: 'К плееру', exact: true })).toBeVisible();
+  const chooser = page.getByRole('dialog', { name: 'Моя очередь' });
+  await expect(chooser).toBeVisible();
+  await expect(chooser.getByRole('heading', { name: 'Моя очередь' })).toBeVisible();
+  await expect(chooser.getByText('Место 2 из 3')).toBeVisible();
+  await expect(chooser.locator('[data-feed-queue-row]')).toHaveCount(2);
+  await expect(chooser.locator('[data-feed-queue-row]').first()).toHaveAttribute('data-feed-queue-row', queue[1].stationuuid);
+  const previousToggle = chooser.getByRole('button', { name: 'Ранее в наборе' });
+  await expect(previousToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(chooser.locator(`[data-feed-queue-row="${queue[0].stationuuid}"]`)).toHaveCount(0);
+  await previousToggle.focus();
+  await page.keyboard.press('Tab');
+  await expect(chooser.getByRole('button', { name: 'Редактировать очередь' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(chooser.locator('.feed-queue-peek-close')).toBeFocused();
   expect(await queueState(page)).toEqual(beforeQueue);
   expect(await audioState(page)).toEqual(beforeAudio);
   expect(await playCalls(page)).toBe(beforePlayCalls);
 
+  await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
+  const queuePanel = page.locator('.library-queue-shell');
+  await expect(queuePanel).toBeVisible();
+  await expect(queuePanel).toBeFocused();
+  await expect(page.getByRole('button', { name: 'К плееру', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'К плееру', exact: true }).click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])')).toHaveAttribute('data-feed-station', queue[1].stationuuid);
@@ -132,25 +147,119 @@ test('Calm Feed queue entry opens the canonical queue and returns without changi
   expect(await audioState(page)).toEqual(beforeAudio);
 });
 
-test('discovery queue entry reports the real queue count', async ({ page }) => {
+test('choosing an upcoming queue row plays through the same queue source and returns focus to that card', async ({ page }) => {
+  const queue = stations.slice(0, 3);
+  await setupMiniQueue(page, queue, 0, 'favorites');
+  const originalQueue = await queueState(page);
+  await page.locator('.station-feed-card-content[data-focus="true"] .calm-slide-queue').click();
+  const chooser = page.getByRole('dialog', { name: 'Моя очередь' });
+  await expect(chooser.locator('[data-feed-queue-row]')).toHaveCount(3);
+
+  await chooser.getByRole('button', { name: `Включить: ${queue[1].name}` }).click();
+  await expect(chooser).toHaveCount(0);
+  const selectedCard = page.locator(`.station-feed-card[data-feed-index="1"]`);
+  await expect(selectedCard).toHaveAttribute('data-feed-station', queue[1].stationuuid);
+  await expect(selectedCard.locator('[data-feed-action="queue"]')).toBeFocused();
+  await expect.poll(() => queueState(page)).toMatchObject({
+    currentIndex: 1,
+    sourceId: 'favorites',
+    sourceLabel: 'Избранное'
+  });
+  await expect.poll(() => queueState(page).then((state) => state?.items.map((item) => item.stationuuid))).toEqual(
+    originalQueue?.items.map((item) => item.stationuuid)
+  );
+  await expect.poll(() => playCalls(page)).toBeGreaterThan(0);
+});
+
+test('Escape closes the chooser and restores the trigger without moving the Feed or changing playback', async ({ page }) => {
+  await setupMiniQueue(page, stations.slice(0, 3), 1, 'favorites');
+  const trigger = page.locator('.station-feed-card-content[data-focus="true"] [data-feed-action="queue"]');
+  const beforeQueue = await queueState(page);
+  const beforeAudio = await audioState(page);
+  await trigger.click();
+  await expect(page.getByRole('dialog', { name: 'Моя очередь' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-feed-queue-peek]')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(await queueState(page)).toEqual(beforeQueue);
+  expect(await audioState(page)).toEqual(beforeAudio);
+});
+
+test('expanded history stays in one scroll body and keeps narrow rows usable', async ({ page }) => {
+  const queue = stations.map((station, index) => index === 7 ? { ...station, name: 'Mosaique FM' } : station);
+  await setupMiniQueue(page, queue, 6, 'favorites', { width: 320, height: 700 });
+  await page.locator('.station-feed-card-content[data-focus="true"] [data-feed-action="queue"]').click();
+  const chooser = page.getByRole('dialog', { name: 'Моя очередь' });
+  const body = chooser.locator('[data-feed-queue-peek-body]');
+  await chooser.getByRole('button', { name: 'Ранее в наборе' }).click();
+
+  const metrics = await body.evaluate((scrollBody) => {
+    const upcoming = scrollBody.querySelector<HTMLElement>('.feed-queue-peek-list');
+    const target = scrollBody.querySelector<HTMLElement>('[data-feed-queue-index="8"]');
+    const name = target?.querySelector<HTMLElement>('.feed-queue-peek-copy');
+    const action = target?.querySelector<HTMLElement>('.feed-queue-peek-action');
+    const targetRect = target?.getBoundingClientRect();
+    const actionRect = action?.getBoundingClientRect();
+    return {
+      overflowY: getComputedStyle(scrollBody).overflowY,
+      nestedScrollLists: Array.from(scrollBody.querySelectorAll<HTMLElement>('.feed-queue-peek-list')).filter((list) => {
+        const style = getComputedStyle(list);
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && list.scrollHeight > list.clientHeight;
+      }).length,
+      bodyScrolls: scrollBody.scrollHeight > scrollBody.clientHeight,
+      upcomingRowsHeight: upcoming?.getBoundingClientRect().height ?? 0,
+      nameWidth: name?.getBoundingClientRect().width ?? 0,
+      actionWithinRow: Boolean(targetRect && actionRect && actionRect.right <= targetRect.right && actionRect.left >= targetRect.left),
+      bodyHasHorizontalOverflow: scrollBody.scrollWidth > scrollBody.clientWidth
+    };
+  });
+  expect(metrics.overflowY).toBe('auto');
+  expect(metrics.nestedScrollLists).toBe(0);
+  expect(metrics.bodyScrolls).toBe(true);
+  expect(metrics.upcomingRowsHeight).toBeGreaterThanOrEqual(6 * 54);
+  expect(metrics.nameWidth).toBeGreaterThanOrEqual(90);
+  expect(metrics.actionWithinRow).toBe(true);
+  expect(metrics.bodyHasHorizontalOverflow).toBe(false);
+
+  const laterHistoryRow = chooser.locator('[data-feed-queue-row="uuid-saopaulo"]');
+  await laterHistoryRow.scrollIntoViewIfNeeded();
+  await expect(laterHistoryRow).toBeInViewport();
+  await laterHistoryRow.click();
+  await expect(chooser).toHaveCount(0);
+  await expect(page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])')).toHaveAttribute('data-feed-station', 'uuid-saopaulo');
+});
+
+test('discovery chooser names its deck and keeps the personal queue editor distinct', async ({ page }) => {
   await setup(page, stations.slice(0, 2), 1, 'home-calm');
   const discoveryButton = page.locator('.station-feed-card-content[data-focus="true"] .calm-slide-queue');
-  await expect(discoveryButton.locator('strong')).toHaveText('Очередь · 2');
+  await expect(discoveryButton.locator('strong')).toHaveText(/Открывать новое · \d+ из \d+/);
   await expect(discoveryButton.locator('small')).toHaveText('Новые эфиры');
-  await expect(discoveryButton.locator('strong')).not.toHaveText(/из/);
   await discoveryButton.click();
+  const chooser = page.getByRole('dialog', { name: 'Дальше в Ленте' });
+  await expect(chooser).toBeVisible();
+  await expect(chooser.getByRole('heading', { name: 'Дальше в Ленте' })).toBeVisible();
+  await expect(chooser.locator('.bottom-sheet-kicker')).toHaveText('Подборка');
+  expect(await chooser.locator('[data-feed-queue-row]').count()).toBeGreaterThan(1);
+  await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
   await expect(page.locator('.library-queue-shell')).toBeVisible();
   await expect(page.locator('[data-queue-row]')).toHaveCount(2);
   expect(await queueState(page)).toMatchObject({ items: stations.slice(0, 2), currentIndex: 1 });
 });
 
-test('a paused singleton opens its queue and returns without starting playback', async ({ page }) => {
+test('a paused singleton opens its chooser without starting playback', async ({ page }) => {
   await setupMiniQueue(page, [stations[0]], 0, 'favorites');
   expect(await playCalls(page)).toBe(0);
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'paused');
   const beforeQueue = await queueState(page);
   const beforeAudio = await audioState(page);
   await page.locator('.station-feed-card-content[data-focus="true"] .calm-slide-queue').click();
+  const chooser = page.getByRole('dialog', { name: 'Моя очередь' });
+  await expect(chooser).toBeVisible();
+  await expect(chooser.locator('[data-feed-queue-row]')).toHaveCount(1);
+  expect(await playCalls(page)).toBe(0);
+  expect(await queueState(page)).toEqual(beforeQueue);
+  expect(await audioState(page)).toEqual(beforeAudio);
+  await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
   await expect(page.locator('.library-queue-shell')).toBeVisible();
   await expect(page.getByRole('button', { name: 'К плееру', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'К плееру', exact: true }).click();
@@ -325,7 +434,7 @@ test('reopening a personal queue preserves its position and paused audio state',
 for (const sourceId of ['home-calm', 'discovery-feed', null] as const) {
   test(`source ${sourceId ?? 'none'} stays out of personal calm queue mode`, async ({ page }) => {
     await setup(page, stations.slice(0, 2), 1, sourceId);
-    await expect(page.locator('.calm-slide-queue').first().locator('strong')).toHaveText('Очередь · 2');
+    await expect(page.locator('.calm-slide-queue').first().locator('strong')).toHaveText(/Открывать новое · \d+ из \d+/);
     await expect(page.locator('.calm-slide-queue').first().locator('strong')).not.toHaveText(/из 2/);
     await expect(page.locator('.calm-slide-queue').first().locator('small')).toHaveText('Новые эфиры');
     await expect(page.locator('.calm-queue-end')).toHaveCount(0);

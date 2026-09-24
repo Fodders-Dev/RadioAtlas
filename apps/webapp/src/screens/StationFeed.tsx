@@ -16,6 +16,7 @@ import { CalmFeedCard } from './CalmFeedCard';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import { formatSleepRemaining } from '../lib/sleepTimer';
 import { CalmTimerSheet } from '../components/CalmTimerSheet';
+import { FeedQueuePeek } from './FeedQueuePeek';
 import { StationBackdrop } from '../components/StationBackdrop';
 import { createAutoplaySettler, resolveFeedEntry } from '../lib/feedAutoplay';
 import { isFeedFilterAvailable, resolveFeedFilterSources, type FeedFilter } from '../lib/feedFilters';
@@ -455,6 +456,8 @@ export const StationFeed = () => {
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
   const [timerOpen, setTimerOpen] = useState(false);
+  const [queuePeekOpen, setQueuePeekOpen] = useState(false);
+  const queuePeekOpenRef = useRef(false);
   const trustedTrack = resolveNowPlayingTrust({ station: player.current ?? player.pending, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track;
   const {
     knownStations,
@@ -680,6 +683,8 @@ export const StationFeed = () => {
   }, [baseDeck, feedFilter, popularSource, seed, summary]);
 
   const [visibleIndex, setVisibleIndex] = useState(0);
+  const visibleIndexRef = useRef(0);
+  visibleIndexRef.current = visibleIndex;
   const [visibleLimit, setVisibleLimit] = useState(FEED_INITIAL_VISIBLE);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLElement | null)[]>([]);
@@ -748,6 +753,7 @@ export const StationFeed = () => {
       createAutoplaySettler({
         settleMs: SETTLE_MS,
         onSettle: (index) => {
+          if (queuePeekOpenRef.current) return;
           const station = feedRef.current[index];
           if (!station) return;
           // Skip if this is ALREADY the current station — playing OR paused.
@@ -791,12 +797,39 @@ export const StationFeed = () => {
   }, [settler, setActiveSection]);
 
   const openQueue = useCallback(() => {
-    // Leave the pager quiet before changing sections: a settled swipe must not
-    // launch a station after the listener has deliberately opened the queue.
+    // Leave the pager quiet while the chooser is open. It must not turn the
+    // button press into a settled swipe or change the current station.
     settler.cancel();
+    if (CALM_PREVIEW) {
+      queuePeekOpenRef.current = true;
+      setQueuePeekOpen(true);
+      return;
+    }
     setLibraryTab('queue');
     setActiveSection('library');
   }, [setActiveSection, setLibraryTab, settler]);
+
+  const openLibraryQueue = useCallback(() => {
+    settler.cancel();
+    queuePeekOpenRef.current = false;
+    setQueuePeekOpen(false);
+    setLibraryTab('queue');
+    setActiveSection('library');
+  }, [setActiveSection, setLibraryTab, settler]);
+
+  const closeQueuePeek = useCallback(() => {
+    settler.cancel();
+    queuePeekOpenRef.current = false;
+    settler.seedPlayed(visibleIndexRef.current);
+    setQueuePeekOpen(false);
+  }, [settler]);
+
+  const restoreQueuePeekFocus = useCallback(() => {
+    if (typeof document === 'undefined') return null;
+    return document.querySelector<HTMLElement>(
+      `.station-feed-card[data-feed-index="${visibleIndexRef.current}"] [data-feed-action="queue"]`
+    );
+  }, []);
 
   const resolveFeedReturnFocus = useCallback((): HTMLElement | null => {
     if (typeof document === 'undefined') return null;
@@ -889,6 +922,7 @@ export const StationFeed = () => {
 
   const commitLandedIndex = useCallback(
     (landed: number) => {
+      if (queuePeekOpenRef.current) return;
       const station = feedRef.current[landed];
       if (!station) return;
       setVisibleIndex(landed);
@@ -1029,6 +1063,40 @@ export const StationFeed = () => {
     playStation(station, playContext());
   };
 
+  const handleQueuePeekSelect = (station: StationLite, index: number) => {
+    settler.cancel();
+    settler.seedPlayed(index);
+    visibleIndexRef.current = index;
+    setVisibleIndex(index);
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.scrollTop = index * scroller.clientHeight;
+
+    const onAirId = (player.current ?? player.pending)?.stationuuid;
+    const contextToPlay = playContext();
+    const samePlaybackContext =
+      queue.sourceId === contextToPlay.sourceId &&
+      queue.items.length === contextToPlay.playlist.length &&
+      queue.items.every((item, itemIndex) => item.stationuuid === contextToPlay.playlist[itemIndex]?.stationuuid);
+    if (onAirId !== station.stationuuid) {
+      // playContext carries the exact personal queue/source in queue mode and
+      // the active discovery deck identity in discovery mode.
+      playStation(station, contextToPlay);
+    } else if (player.isPlaying || player.status === 'buffering') {
+      // Reveal an already-playing station without restarting it, even when the
+      // visible Feed deck differs from the playback queue.
+    } else if (player.status === 'error' || !samePlaybackContext) {
+      // Retry errors, and explicitly adopt the displayed deck when a paused
+      // station was restored from a different snapshot/filter.
+      playStation(station, contextToPlay);
+    } else {
+      // The exact same paused playlist can resume through the player's existing
+      // queue transport without changing its source contract.
+      void player.toggle();
+    }
+    queuePeekOpenRef.current = false;
+    setQueuePeekOpen(false);
+  };
+
   // Advancing via the peek strip is a DELIBERATE advance, i.e. semantically a
   // swipe — so it goes through the normal scroll → settler path and is #86-legal.
   // It is also the first keyboard route through the pager. `auto`, not `smooth`:
@@ -1144,7 +1212,7 @@ export const StationFeed = () => {
     : personalQueue ? t('journal.discoverTab') : t('journal.feedLabel');
   const queueButtonLabel = queueMode && personalQueue
     ? t('journal.queueTab', { label: t('playlist.title'), index: String(visibleIndex + 1), total: String(personalQueue.items.length) })
-    : `${t('playlist.title')} · ${queue.items.length}`;
+    : t('journal.queueTab', { label: t('journal.discoverTab'), index: String(visibleFeedStations.length ? visibleIndex + 1 : 0), total: String(visibleFeedStations.length) });
   const queueButtonSource = queueMode && personalQueue
     ? personalQueue.sourceLabel || t('radio.queueDefault')
     : t('journal.queueDiscoverySource');
@@ -1313,7 +1381,7 @@ export const StationFeed = () => {
                     canStep={{ prev: index > 0, next: index < visibleFeedStations.length - 1 }}
                     timer={{ label: sleepTimer.active ? formatSleepRemaining(sleepTimer.remainingMs) : '', active: sleepTimer.active, onOpen: () => { settler.cancel(); setTimerOpen(true); } }}
                     labels={calmLabels}
-                    queue={{ label: queueButtonLabel, source: queueButtonSource, ariaLabel: `${queueButtonLabel}: ${t('library.openQueueAction')}` }}
+                    queue={{ label: queueButtonLabel, source: queueButtonSource, ariaLabel: `${queueButtonLabel}: ${t(queueMode ? 'library.openQueueAction' : 'journal.queuePeekOpenDeckAction')}` }}
                     onOpenQueue={openQueue}
                     onContinue={queueMode ? () => onContextChip('picks') : undefined}
                   />
@@ -1394,5 +1462,18 @@ export const StationFeed = () => {
     </div>
   );
 
-  return <>{createPortal(overlay, document.body)}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips: contextChips, active: activeContextChip, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); onContextChip(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
+  const peekPlaybackStatus = listenerStation ? cardStatus(true) : 'idle';
+  return <>{createPortal(overlay, document.body)}{queuePeekOpen && CALM_PREVIEW && <FeedQueuePeek
+    stations={visibleFeedStations}
+    activeIndex={visibleIndex}
+    currentStationId={(player.current ?? player.pending)?.stationuuid ?? null}
+    playbackStatus={peekPlaybackStatus}
+    sourceLabel={queueMode && personalQueue ? personalQueue.sourceLabel || t('journal.queueContext') : activeChipLabel}
+    queueMode={queueMode}
+    canEditQueue={queue.items.length > 0}
+    onClose={closeQueuePeek}
+    onSelect={handleQueuePeekSelect}
+    onEditQueue={openLibraryQueue}
+    restoreFocusTo={restoreQueuePeekFocus}
+  />}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips: contextChips, active: activeContextChip, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); onContextChip(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
 };
