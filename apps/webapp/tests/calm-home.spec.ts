@@ -96,7 +96,7 @@ test('crossroads combine country and sound, continue the same query, and preserv
   const requests = await richCatalogue(page);
   await seedRadioState(page);
   await page.goto('/?calm=1');
-  await page.locator('.calm-primary').click();
+  await page.locator('[data-stage-play]').click();
   const playing = await audioSrc(page);
   const crossroads = page.locator('[data-calm-crossroads]');
   await crossroads.scrollIntoViewIfNeeded();
@@ -165,7 +165,7 @@ for (const width of [320, 390, 411]) for (const theme of ['journal', 'aurora-fie
     expect(storyIds.length).toBeGreaterThan(0);
     expect(storyIds).not.toContain(before.offer);
     expect(storyIds.every(id => stations.some(station => station.stationuuid === id && station.tags.split(',').some(tag => pattern.test(tag.trim()))))).toBe(true);
-    await page.locator('.calm-primary').click();
+    await page.locator('[data-stage-play]').click();
     const dock = page.locator('[data-calm-player]');
     await expect(dock).toHaveAttribute('data-status', 'playing');
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid) || [])).not.toEqual([]);
@@ -260,8 +260,8 @@ test('calm live rows expose paused and buffering status without overstating the 
   await page.goto('/?calm=1');
   await page.locator('[data-calm-live-catalog] .calm-live-row').first().locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-live-catalog] .calm-live-row').first().locator('.calm-live-copy small')).toHaveText('ПОДКЛЮЧАЕМ');
-  await expect(page.locator('.calm-air-line')).toHaveAttribute('data-calm-air', 'buffering');
-  await expect(page.locator('.calm-air-now')).toHaveAttribute('aria-label', /ПОДКЛЮЧАЕМ/);
+  await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-air', 'buffering');
+  await expect(page.locator('[data-stage-play]')).toHaveAttribute('aria-disabled', 'true');
 });
 
 test('calm live rows expose a failed stream as retryable air', async ({ page }) => {
@@ -286,8 +286,8 @@ test('calm live rows expose a failed stream as retryable air', async ({ page }) 
   await row.locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'error');
   await expect(row.locator('.calm-live-copy small')).toHaveText('НЕ ПОДКЛЮЧИЛАСЬ');
-  await expect(page.locator('.calm-air-line')).toHaveAttribute('data-calm-air', 'error');
-  await expect(page.locator('.calm-air-now')).toHaveAttribute('aria-label', /НЕ ПОДКЛЮЧИЛАСЬ/);
+  await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-air', 'error');
+  await expect(page.locator('[data-stage-play]')).toHaveAttribute('aria-label', /Повторить/);
   await expect(row.locator('.calm-live-open')).toHaveAttribute('aria-label', /Повторить/);
   await row.locator('.calm-live-open').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
@@ -323,10 +323,14 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
       const meta = row.querySelector('small')!;
       return { height: box.height, nameSize: parseFloat(getComputedStyle(name).fontSize), metaSize: parseFloat(getComputedStyle(meta).fontSize) };
     });
-    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, rows };
+    const stage = document.querySelector<HTMLElement>('[data-calm-discovery-stage]')!.getBoundingClientRect();
+    const nav = document.querySelector<HTMLElement>('.app-navigation-mobile')!.getBoundingClientRect();
+    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, stageHeight: stage.height, stageBottom: stage.bottom, navTop: nav.top, rows };
   });
-  // Cold start includes the explicit play/offer CTA; allow that restored-state offset while keeping moods near the first fold.
-  expect(density.moodArtBottom).toBeLessThanOrEqual(330);
+  // The redesigned radio stage is the first useful Home action; all controls,
+  // including both destinations, stay compact above the floating navigation.
+  expect(density.stageHeight).toBeLessThanOrEqual(330);
+  expect(density.stageBottom).toBeLessThan(density.navTop);
   expect(density.chooserTop).toBeGreaterThan(density.moodArtBottom);
   expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
@@ -440,7 +444,7 @@ test('station chooser page size follows the viewport and retains expanded pages'
 
 test('feed player captures, keeps the shared sleep timer and switches by deliberate paging', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await start(page);
-  await page.goto('/?calm=1'); await page.locator('.calm-primary').click();
+  await page.goto('/?calm=1'); await page.locator('[data-stage-play]').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
   await page.locator('.calm-mini-info').click();
@@ -509,7 +513,7 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   await seedRadioState(page, { stationCache: catalogue });
   await page.goto('/?calm=1');
   await expect(page.locator('[data-calm-home]')).toBeVisible();
-  await page.locator('.calm-primary').click();
+  await page.locator('[data-stage-play]').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
 
@@ -573,7 +577,7 @@ test('a failed catalogue page shows a retry inside the story and keeps the air',
   await richCatalogue(page, { failFirstSearch: true });
   await seedRadioState(page, { stationCache: catalogue });
   await page.goto('/?calm=1');
-  await page.locator('.calm-primary').click();
+  await page.locator('[data-stage-play]').click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   const source = await audioSrc(page);
   await openStory(page, 'jazz');

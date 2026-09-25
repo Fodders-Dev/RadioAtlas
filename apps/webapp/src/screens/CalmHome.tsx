@@ -19,6 +19,7 @@ import { StationArtwork } from '../components/StationArtwork';
 import { CalmSourceSheet } from './CalmSourceSheet';
 import { CalmStoriesSheet } from './CalmStoriesSheet';
 import { CalmStationRow } from './CalmStationRow';
+import { CalmDiscoveryStage } from './CalmDiscoveryStage';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
 import { isFeedBrowseVisitCompatible } from '../lib/feedBrowseVisit';
 
@@ -61,15 +62,13 @@ const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
 );
 const ARROW = 'M5 12h14M14 7l5 5-5 5';
-const FEED_ICON = 'M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm3 6v6l5-3-5-3ZM12 1v2M12 21v2';
-const GLOBE_ICON = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c-2.5 2.5-3.5 5.5-3.5 9s1 6.5 3.5 9c2.5-2.5 3.5-5.5 3.5-9s-1-6.5-3.5-9ZM3 12h18';
 
 const dedupe = (list: StationLite[]) => [...new Map(list.map((s) => [s.stationuuid, s])).values()];
 
 export function CalmHome({ station, stations, discoveryStations, moodRails, onPlay, onFeed, onSearch }: Props) {
   const { t, locale } = useLocale();
   const { summary } = useCatalog();
-  const { player, nowPlaying, queue } = usePlayback();
+  const { player, nowPlaying, queue, playNext, playStation } = usePlayback();
   const { trackHistory, knownStations, favorites, recent, isStationHiddenFromRecommendations } = useLibrary();
   const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat, getFeedBrowseVisit } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
@@ -143,9 +142,9 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const liveVisible = liveList.slice(0, liveShown);
   const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLivePages(1); };
 
-  const listener = player.current ?? player.pending ?? null;
+  const listener = player.pending ?? player.current ?? null;
   const offer = listener ?? visit.station;
-  const onAir = listener?.stationuuid === offer.stationuuid && player.isPlaying;
+  const onAir = player.current?.stationuuid === offer.stationuuid && player.isPlaying && !player.pending;
   // Keep Home's status vocabulary aligned with the calm Feed. A pending
   // restored station is idle/paused, while only the player's buffering state
   // earns the connecting label; otherwise a failed or starting row reads as
@@ -154,11 +153,13 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     ? 'idle'
     : player.status === 'error'
       ? 'error'
-      : player.isPlaying
-        ? 'playing'
-        : player.status === 'buffering'
-          ? 'buffering'
-          : 'paused';
+      : listener && player.pending?.stationuuid === listener.stationuuid && player.status === 'buffering'
+        ? 'buffering'
+        : player.isPlaying && player.current?.stationuuid === listener.stationuuid
+          ? 'playing'
+          : player.status === 'buffering'
+            ? 'buffering'
+            : 'paused';
   const listenerStatusLabel = listenerStatus === 'error'
     ? t('journal.feedFailed')
     : listenerStatus === 'playing'
@@ -167,6 +168,23 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         ? t('journal.feedConnecting')
         : t('journal.nowPaused');
   const liveTrack = onAir && nowPlaying ? nowPlaying.trim() : '';
+  const queueIndex = listener ? queue.items.findIndex((item) => item.stationuuid === listener.stationuuid) : -1;
+  const queueOwnsListener = queueIndex >= 0;
+  const stageDeck = queueOwnsListener ? queue.items : visit.pool;
+  const stageIndex = queueOwnsListener ? queueIndex : Math.max(0, visit.pool.findIndex((item) => item.stationuuid === offer.stationuuid));
+  const stageNext = stageDeck.slice(stageIndex + 1, stageIndex + 4);
+  const stageHasNext = stageIndex >= 0 && stageIndex < stageDeck.length - 1;
+  const startHomeDeck = (selected = visit.station) => playStation(selected, {
+    playlist: visit.pool,
+    sourceId: 'home-calm',
+    sourceLabel: t('journal.stageQueue')
+  });
+  const openNewDeck = () => {
+    const activeId = offer.stationuuid;
+    const nextDeck = visit.pool.filter((item) => item.stationuuid !== activeId);
+    const first = nextDeck[0];
+    if (first) playStation(first, { playlist: nextDeck, sourceId: 'home-calm', sourceLabel: t('journal.stageQueue') });
+  };
   const ai = isAiAssistantEnabled();
   const openGlobe = (country: string) => { setGlobeFocusRegionId(country); setActiveSection('globe'); };
   const openLibrary = (tab: 'tracks' | 'collections' | 'favorites') => { setLibraryTab(tab); setActiveSection('library'); };
@@ -175,9 +193,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const storyCopy = (story: CalmStory) => t(`journal.stories.${story.copyKey}.copy`);
   const storyWord = (story: CalmStory) => t(`journal.stories.${story.copyKey}.poster`);
   const stories = useMemo(() => visit.stories.slice(1), [visit.stories]);
-  const offerName = normalizeStationName(offer.name);
   const offerFamily = stationGenreFamily(offer);
-  const offerLine = [localizedCountry(offer, locale), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ');
   const openBrowseFeed = () => {
     const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
     const queueIds = queue.items.map((item) => item.stationuuid);
@@ -186,20 +202,26 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   };
   const renderLiveRow = (s: StationLite, playlist: StationLite[]) => {
     const current = listener?.stationuuid === s.stationuuid;
+    const currentOnAir = current && player.current?.stationuuid === s.stationuuid && player.isPlaying && !player.pending;
     const name = normalizeStationName(s.name);
     const family = stationGenreFamily(s);
     const meta = current
       ? listenerStatusLabel
       : [localizedCountry(s, locale), family ? t(`mapExplorer.families.${family}`) : ''].filter(Boolean).join(' · ');
     const actionLabel = current
-      ? `${player.status === 'error' ? t('dock.retry') : player.isPlaying ? t('common.pause') : t('common.play')}: ${name}`
+      ? `${player.status === 'error' ? t('dock.retry') : currentOnAir ? t('common.pause') : t('common.play')}: ${name}`
       : t('journal.playStation', { name });
-    return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined} data-live-playing={current && player.isPlaying || undefined} data-genre-family={family || undefined}>
-      <button className="calm-live-open calm-row-play" onClick={() => { if (current && player.status !== 'error') void player.toggle(); else onPlay(s, playlist, 'home-live'); }} aria-label={actionLabel}>
+    return <article key={s.stationuuid} className="calm-live-row" data-calm-live-station={s.stationuuid} data-current={current || undefined} data-live-playing={currentOnAir || undefined} data-genre-family={family || undefined}>
+      <button className="calm-live-open calm-row-play" onClick={() => {
+        if (current && listenerStatus === 'buffering') return;
+        if (current && currentOnAir) void player.toggle();
+        else if (current && player.status !== 'error' && player.current?.stationuuid === s.stationuuid) void player.toggle();
+        else onPlay(s, playlist, 'home-live');
+      }} aria-label={actionLabel}>
         <StationArtwork station={s} size="sm" className="calm-row-art" />
         <span className="calm-live-copy"><strong>{name}</strong><small>{meta}</small></span>
         <span className="calm-live-play-icon" aria-hidden="true">
-          <Icon d={current && player.isPlaying ? 'M8 5h3v14H8zM13 5h3v14h-3z' : 'M7 4l12 8-12 8V4z'} />
+          <Icon d={currentOnAir ? 'M8 5h3v14H8zM13 5h3v14h-3z' : 'M7 4l12 8-12 8V4z'} />
         </span>
       </button>
       <button className="calm-icon calm-live-info" onClick={() => setSource(s)} aria-label={t('journal.sourceOpen', { name })}>
@@ -213,7 +235,11 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     {sheet?.kind === 'story' && <CalmBrowseSheet title={storyTitle(sheet.story)} kicker={storyKicker(sheet.story)} copy={storyCopy(sheet.story)} art={sheet.story.art} word={storyWord(sheet.story)} query={sheet.story.query} picks={storyStations(sheet.story, visit.pool, visit.rails)} queue={storyStations(sheet.story, visit.pool, visit.rails)} cache={discovery.shelves} source={`home-story-${sheet.story.id}`} onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'country' && <CalmBrowseSheet title={formatCountryLabel(sheet.country)} kicker={t('journal.mapTitle')} query={{ country: sheet.country }} picks={visit.pool.filter((s) => s.country.trim() === sheet.country)} cache={discovery.shelves} source="home-country" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
     {sheet?.kind === 'genre' && <CalmBrowseSheet title={t(`calm.directions.${sheet.id}.eyebrow`)} kicker={t('journal.genresTitle')} query={{ tag: sheet.query }} picks={sheet.stations} cache={discovery.shelves} source="home-genre" onPlay={onPlay} onSource={setSource} onClose={() => setSheet(null)} />}
-    {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(s) => onPlay(s, [s], 'home-source')} />}
+    {source && <CalmSourceSheet station={source} onClose={() => setSource(null)} onPlay={(s) => {
+      const queuedIndex = queue.items.findIndex((item) => item.stationuuid === s.stationuuid);
+      if (queuedIndex >= 0) queue.playAtIndex(queuedIndex);
+      else onPlay(s, [s], 'home-source');
+    }} />}
     {countryPicker && <CalmCountryPicker initial={visit.countries} selected="" onSelect={openGlobe} onClose={() => setCountryPicker(false)} />}
     {allStories && <CalmStoriesSheet stories={visit.stories} onSelect={(story) => setSheet({ kind: 'story', story })} onClose={() => setAllStories(false)} />}
 
@@ -225,34 +251,41 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       </div>
     </header>
 
-    {/* One line for the air: idle, the one button and what it starts; on air
-        or paused, a status line — the mini player below is the control. */}
-    <div className={`calm-air-line ${listener ? 'is-loaded' : ''}`.trim()} data-calm-offer={offer.stationuuid} data-calm-air={listenerStatus === 'playing' ? 'on' : listenerStatus}>
-      {listener ? (
-        <button className="calm-air-now" onClick={() => onFeed(listener)} aria-label={`${listenerStatusLabel}: ${offerName} · ${t('calm.openFeedPlayer')}`}>
-          <StationArtwork station={offer} size="sm" className="calm-air-art" />
-          <span><small>{listenerStatusLabel}</small><strong>{offerName}</strong>{liveTrack ? <em>{liveTrack}</em> : <em>{offerLine}</em>}</span>
-          <Icon d={ARROW} />
-        </button>
-      ) : (
-        <>
-          <button className="calm-primary" aria-label={`${t('journal.play')}: ${offerName}`} onClick={() => onPlay(offer, [offer, ...visit.starters], 'home-calm')}>
-            <span aria-hidden="true">▶</span>{t('journal.play')}
-          </button>
-          <button className="calm-air-offer" onClick={() => setSource(offer)} aria-label={t('journal.sourceOpen', { name: offerName })}>
-            <StationArtwork station={offer} size="sm" className="calm-air-art" />
-            <span><small>{t('journal.nowOffer')}</small><strong>{offerName}</strong><em>{offerLine}</em></span>
-          </button>
-        </>
-      )}
-    </div>
-
-    <section className="calm-section calm-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
-      <div className="calm-doors-rail">
-        <button className="calm-quick-entry calm-quick-entry-feed" data-calm-entry="feed" onClick={openBrowseFeed}><Icon d={FEED_ICON} /><span>{t('journal.dirFeed')}</span><Icon d={ARROW} /></button>
-        <button className="calm-quick-entry calm-quick-entry-globe" data-calm-entry="globe" onClick={() => setActiveSection('globe')}><Icon d={GLOBE_ICON} /><span>{t('journal.dirGlobe')}</span><Icon d={ARROW} /></button>
-      </div>
-    </section>
+    <CalmDiscoveryStage
+      station={offer}
+      status={listenerStatus}
+      statusLabel={listenerStatusLabel}
+      country={localizedCountry(offer, locale)}
+      details={[offer.state.trim(), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ')}
+      track={liveTrack}
+      hasListener={Boolean(listener)}
+      isPlaying={onAir}
+      canRetry={listenerStatus === 'error'}
+      nextStations={stageNext}
+      nextPosition={stageIndex + 1}
+      queueSource={queueOwnsListener ? queue.sourceLabel || '' : ''}
+      hasNext={stageHasNext}
+      canDiscover={visit.pool.some((item) => item.stationuuid !== offer.stationuuid)}
+      onPlay={() => {
+        if (listenerStatus === 'buffering') return;
+        if (onAir) { void player.toggle(); return; }
+        if (listenerStatus === 'error' && queueOwnsListener) { queue.playAtIndex(queueIndex); return; }
+        if (!listener || !queueOwnsListener) { startHomeDeck(listener ?? visit.station); return; }
+        void player.toggle();
+      }}
+      onNext={() => { if (stageHasNext) { if (queueOwnsListener) playNext(); else startHomeDeck(stageDeck[stageIndex + 1]); } else openNewDeck(); }}
+      onSelectNext={(station) => {
+        const index = queueOwnsListener
+          ? queue.items.findIndex((item) => item.stationuuid === station.stationuuid)
+          : visit.pool.findIndex((item) => item.stationuuid === station.stationuuid);
+        if (queueOwnsListener && index >= 0) queue.playAtIndex(index);
+        else if (index >= 0) startHomeDeck(visit.pool[index]);
+      }}
+      onDiscover={openNewDeck}
+      onSource={() => setSource(offer)}
+      onFeed={openBrowseFeed}
+      onGlobe={() => setActiveSection('globe')}
+    />
 
     <div className="calm-home-first-row">
     <div className="calm-home-intro">
