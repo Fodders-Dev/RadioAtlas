@@ -26,3 +26,23 @@ Final generation prompt:
 
 The rejected dark globe is not part of the retained asset set. Controls use
 actual CSS background sampling; the image itself is not evidence of Liquid Glass.
+
+## Wave Atlas, 2026-09-25
+
+New proposal responding to the owner's explicit request for more imagery,
+motion, and a recognizable experience. The earlier rejected globe mentioned
+above belongs to the September 11 history; these are separate new assets.
+Built-in `image_gen` generated all three from original prompts, without input
+images. Originals remain under Codex generated_images; project copies are WebP.
+These are decorative editorial illustrations, not station photographs, exact
+maps, actual listening rooms, live audio visualizations or real-time activity.
+
+| File | Size | Bytes | Purpose |
+| --- | --- | --- | --- |
+| `wave-atlas.webp` | 1280×853 | 158460 | Main listening-world illustration |
+| `jazz-room.webp` | 768×768 | 77074 | Jazz editorial cover |
+| `night-city.webp` | 768×768 | 75102 | Late-night editorial cover |
+
+Final prompt set: [wave-atlas-prompts.md](wave-atlas-prompts.md).
+WebP optimization preserves composition and aspect ratio; no image asset
+establishes the accuracy or availability of its associated catalogue stream.

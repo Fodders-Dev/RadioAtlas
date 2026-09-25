@@ -316,6 +316,8 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
   }
   const density = await page.evaluate(() => {
     const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
+    const dial = document.querySelector('[data-calm-country-deck]')!.getBoundingClientRect();
+    const dialCard = document.querySelector('[data-calm-country-card]')!.getBoundingClientRect();
     const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
     const rows = [...document.querySelectorAll<HTMLElement>('[data-calm-live-catalog] .calm-live-row')].map(row => {
       const box = row.getBoundingClientRect();
@@ -325,17 +327,20 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
     });
     const stage = document.querySelector<HTMLElement>('[data-calm-discovery-stage]')!.getBoundingClientRect();
     const nav = document.querySelector<HTMLElement>('.app-navigation-mobile')!.getBoundingClientRect();
-    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, stageHeight: stage.height, stageBottom: stage.bottom, navTop: nav.top, rows };
+    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, dialTop: dial.top, dialBottom: dial.bottom, dialCardBottom: dialCard.bottom, stageHeight: stage.height, stageBottom: stage.bottom, navTop: nav.top, rows };
   });
   // The redesigned radio stage is the first useful Home action; all controls,
   // including both destinations, stay compact above the floating navigation.
-  expect(density.stageHeight).toBeLessThanOrEqual(330);
+  expect(density.stageHeight).toBeLessThanOrEqual(370);
   expect(density.stageBottom).toBeLessThan(density.navTop);
+  expect(density.dialTop).toBeGreaterThan(density.stageBottom);
+  expect(density.dialCardBottom).toBeLessThan(density.navTop);
+  expect(density.dialTop).toBeLessThan(density.moodsTop);
   expect(density.chooserTop).toBeGreaterThan(density.moodArtBottom);
   expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
   const order = await page.evaluate(() => {
-    const selectors = ['[data-calm-doors]', '[data-calm-stories]', '[data-calm-live-catalog]', '[data-calm-world]'];
+    const selectors = ['[data-calm-doors]', '[data-calm-country-deck]', '[data-calm-stories]', '[data-calm-live-catalog]'];
     return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
   });
   expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);

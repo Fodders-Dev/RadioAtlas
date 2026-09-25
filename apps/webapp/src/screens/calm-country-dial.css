@@ -1,0 +1,34 @@
+.calm-country-dial { margin-top: 15px; }
+.calm-country-dial-head { display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 7px; margin-bottom: 8px; }
+.calm-country-dial-head > div { min-width: 0; }
+.calm-country-dial-head h2 { margin: 0; font-size: 19px; letter-spacing: -.045em; line-height: 1.2; }
+.calm-country-next { flex: 0 0 auto; min-height: 44px; padding: 0 14px !important; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--calm-edge)) !important; border-radius: 24px; background: color-mix(in srgb, var(--accent) 14%, var(--calm-solid)) !important; color: var(--calm-ink) !important; font-size: 14px; font-weight: 700; }
+.calm-country-rail { display: flex; gap: 8px; margin: 0 -20px; padding: 2px 20px 8px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scroll-padding-inline: 20px; scrollbar-width: none; touch-action: pan-x pan-y; }
+.calm-country-rail::-webkit-scrollbar { display: none; }
+.calm-country-card { position: relative; isolation: isolate; flex: 0 0 min(74vw, 300px); display: grid; grid-template-areas: 'code name name' 'code preview actions'; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-rows: 24px 44px; align-items: center; column-gap: 8px; row-gap: 3px; min-height: 92px; padding: 9px 9px 9px 11px; overflow: hidden; border: 1px solid var(--calm-edge); border-radius: 19px; background: linear-gradient(118deg, color-mix(in srgb, var(--accent) 13%, var(--calm-solid)), var(--calm-solid) 64%); box-shadow: inset 0 1px 0 var(--calm-glint), 0 8px 18px -18px color-mix(in srgb, var(--text) 48%, transparent); scroll-snap-align: start; transition: transform 150ms ease, border-color 150ms ease; }
+.calm-country-card::after { content: ''; position: absolute; z-index: -1; right: -21px; top: -27px; width: 94px; height: 128px; border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent); border-radius: 50%; box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent), 0 0 0 20px color-mix(in srgb, var(--accent) 5%, transparent); transform: rotate(-22deg); pointer-events: none; }
+.calm-country-code { grid-area: code; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 13px; background: color-mix(in srgb, var(--accent) 14%, var(--calm-solid)); color: var(--accent); font-size: 12px; font-weight: 780; letter-spacing: .04em; }
+.calm-country-card-copy { display: contents; }
+.calm-country-card-copy strong { grid-area: name; overflow: hidden; font-size: 14px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.calm-country-card-copy small { grid-area: preview; min-width: 0; overflow: hidden; color: var(--calm-secondary); font-size: 12px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.calm-country-card-actions { grid-area: actions; position: relative; z-index: 1; display: flex; gap: 3px; }
+.calm-country-card-actions button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 50%; }
+.calm-country-play { background: var(--accent) !important; color: var(--accent-ink, #fff7e8) !important; box-shadow: inset 0 1px 0 #fff5, 0 4px 9px color-mix(in srgb, var(--accent) 22%, transparent); }
+.calm-country-play span { margin-left: 2px; font-size: 13px; }
+.calm-country-map { border: 1px solid var(--calm-edge) !important; background: var(--calm-glass) !important; color: var(--calm-ink) !important; }
+.calm-country-map svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; }
+.calm-country-card-actions button:focus-visible, .calm-country-next:focus-visible, .calm-country-all:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.calm-country-all { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 0; color: var(--accent) !important; font-size: 14px; font-weight: 700; }
+.calm-country-all span { font-size: 15px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .calm-country-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 54%, var(--calm-edge)); } }
+@media (min-width: 600px) {
+  .calm-country-dial-head { flex-direction: row; align-items: end; }
+  .calm-country-next { width: auto; }
+}
+@media (min-width: 700px) {
+  .calm-country-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); margin: 0; padding: 2px 0 8px; overflow: visible; }
+  .calm-country-card { min-width: 0; flex-basis: auto; }
+}
+@media (max-width: 360px) { .calm-country-card { flex-basis: min(82vw, 290px); } }
+@media (max-width: 360px) { .calm-country-rail { margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; } }
+@media (prefers-reduced-motion: reduce) { .calm-country-card { transition: none; } }
