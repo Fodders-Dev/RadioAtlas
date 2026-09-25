@@ -183,6 +183,7 @@ test('an edited Library queue invalidates the saved Feed visit', async ({ page }
   await expect(page.getByRole('tablist', { name: 'Медиатека' })).toBeVisible();
   await page.getByRole('tab', { name: /Очередь/ }).click();
   await expect(page.locator('.library-queue-shell')).toBeVisible();
+  await page.getByRole('button', { name: 'Изменить', exact: true }).click();
   const queueBefore = await page.evaluate(() => {
     const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue;
     return { current: queue.items[queue.currentIndex].stationuuid, ids: queue.items.map((station: { stationuuid: string }) => station.stationuuid) };

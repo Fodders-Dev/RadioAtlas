@@ -141,6 +141,7 @@ test('queue removal waits for a pending station, then allows that resolved histo
 
   await page.locator('.mobile-nav-item').getByText(/Моё|Library/).click();
   await page.getByRole('tab', { name: /Очередь|Queue/ }).click();
+  await page.getByRole('button', { name: /Изменить|Edit/ }).click();
   const pendingRow = page.locator('[data-queue-row]').filter({ hasText: 'Osaka Nights' });
   const pendingRemove = pendingRow.getByRole('button', {
     name: /Дождитесь подключения эфира|Wait for the broadcast to connect/

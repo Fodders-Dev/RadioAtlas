@@ -11,6 +11,7 @@ import {
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
 import { RegionArtwork } from '../components/RegionArtwork';
+import { StationArtwork } from '../components/StationArtwork';
 import { StationTable } from '../components/StationTable';
 import { createLibraryDiscoveryFeed } from '../lib/discoveryFeed';
 import {
@@ -259,6 +260,9 @@ export const Library = () => {
   // Inline "search my library" filter (favorites + recent + collections +
   // follows). Empty query = the tabs render exactly as before.
   const [librarySearch, setLibrarySearch] = useState('');
+  const [queueEditMode, setQueueEditMode] = useState(false);
+  const [queueEarlierOpen, setQueueEarlierOpen] = useState(false);
+  const [queueToolsOpen, setQueueToolsOpen] = useState(false);
   const librarySearchInputRef = useRef<HTMLInputElement>(null);
   const libraryTabsId = useId();
   const libraryTabRefs = useRef<
@@ -756,6 +760,13 @@ export const Library = () => {
     )
   );
   const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
+  const calmQueue = CALM_PREVIEW && activeLibraryTab === 'queue';
+  const earlierQueueEntries = queue.items
+    .map((station, index) => ({ station, index }))
+    .filter(({ index }) => queue.currentIndex >= 0 && index < queue.currentIndex);
+  const visibleQueueEntries = queue.items
+    .map((station, index) => ({ station, index }))
+    .filter(({ index }) => queue.currentIndex < 0 || index >= queue.currentIndex);
   const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
   const playHistoryStation = (station: StationLite) => {
@@ -857,8 +868,202 @@ export const Library = () => {
     );
   };
 
+  const renderLibrarySearchAndActions = () => (
+    <>
+      <div className="library-search-bar">
+        <span className="library-search-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M10.5 4a6.5 6.5 0 1 0 4.05 11.58l4.44 4.44 1.41-1.41-4.44-4.44A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z" />
+          </svg>
+        </span>
+        <input
+          ref={librarySearchInputRef}
+          className="library-search-input"
+          type="search"
+          inputMode="search"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          placeholder={t('library.searchPlaceholder')}
+          aria-label={t('library.searchPlaceholder')}
+          value={librarySearch}
+          onChange={(event) => setLibrarySearch(event.target.value)}
+        />
+        {librarySearch ? (
+          <button
+            type="button"
+            className="library-search-clear"
+            aria-label={t('library.searchClear')}
+            onClick={() => {
+              setLibrarySearch('');
+              librarySearchInputRef.current?.focus();
+            }}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z" />
+            </svg>
+          </button>
+        ) : null}
+      </div>
+      {!librarySearchQuery ? (
+        <div className="library-header-actions library-quick-actions">
+          {libraryShuffleStations.length ? (
+            <button className="chip active" type="button" onClick={playLibraryShuffle}>
+              {t('library.shuffleLibrary')}
+            </button>
+          ) : null}
+          <button
+            className="chip"
+            type="button"
+            onClick={() => {
+              setLibraryTab('collections');
+              beginCreateCollection();
+            }}
+          >
+            {t('library.createCollection')}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+
+  const renderQueueRow = (station: StationLite, index: number) => {
+    const currentPlaybackMatches = player.current?.stationuuid === station.stationuuid;
+    const active =
+      (index === queue.currentIndex && currentPlaybackMatches) ||
+      (calmQueue && index === queue.currentIndex && !player.current);
+    const protectedFromRemoval = protectedQueueStationIds.has(station.stationuuid);
+    const nextUp = !active && index === Math.max(queue.currentIndex, 0) + 1;
+    const currentlyPlaying = player.isPlaying && currentPlaybackMatches;
+    const locked = index === queue.currentIndex;
+    const dragging = queueReorder.draggingIndex === index;
+    const dropTarget = queueReorder.draggingIndex !== null && queueReorder.overIndex === index && !dragging;
+    const showEditActions = !calmQueue || queueEditMode;
+
+    return (
+      <div
+        key={station.stationuuid}
+        data-queue-row
+        className={`playlist-row library-queue-row ${active ? 'active' : ''} ${dragging ? 'dragging' : ''} ${dropTarget ? 'drop-target' : ''}`}
+      >
+        {calmQueue ? (
+          <StationArtwork station={station} size="sm" className="calm-queue-artwork" />
+        ) : null}
+        {showEditActions ? (
+          locked ? (
+            <div className="library-queue-grip locked" aria-hidden="true">
+              <span className="playlist-order">{index + 1}</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="library-queue-grip"
+              aria-label={t('library.reorderMode')}
+              disabled={queueEditBlocked}
+              title={queueEditBlocked ? t('queue.editPending') : undefined}
+              {...queueReorder.getHandleProps(index)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="6" r="1.6" />
+                <circle cx="15" cy="6" r="1.6" />
+                <circle cx="9" cy="12" r="1.6" />
+                <circle cx="15" cy="12" r="1.6" />
+                <circle cx="9" cy="18" r="1.6" />
+                <circle cx="15" cy="18" r="1.6" />
+              </svg>
+            </button>
+          )
+        ) : null}
+        <div className="playlist-body library-queue-row-copy">
+          <div className="library-queue-row-head">
+            <div className="playlist-name">{normalizeStationName(station.name)}</div>
+            {active ? (
+              <span className={`library-status-pill ${currentlyPlaying ? 'active' : ''}`}>
+                {currentlyPlaying
+                  ? t('playlist.playing')
+                  : calmQueue
+                    ? t('calm.paused')
+                    : t('playlist.playing')}
+              </span>
+            ) : nextUp ? (
+              <span className="library-status-pill">{t('common.next')}</span>
+            ) : null}
+          </div>
+          <div className="playlist-meta">{stationLocation(station)}</div>
+        </div>
+        <div className="playlist-actions library-queue-row-actions">
+          {showEditActions && !locked ? (
+            <div className="library-queue-move" role="group" aria-label={t('library.reorderMode')}>
+              <button
+                type="button"
+                className="icon-btn library-queue-move-btn"
+                onClick={() => queue.moveAtIndex(index, -1)}
+                disabled={queueEditBlocked || index - 1 < 0 || index - 1 === queue.currentIndex}
+                aria-label={t('library.moveUp')}
+                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                title={queueEditBlocked ? t('queue.editPending') : undefined}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8l-6 6h12z" /></svg>
+              </button>
+              <button
+                type="button"
+                className="icon-btn library-queue-move-btn"
+                onClick={() => queue.moveAtIndex(index, 1)}
+                disabled={queueEditBlocked || index + 1 >= queue.items.length || index + 1 === queue.currentIndex}
+                aria-label={t('library.moveDown')}
+                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
+                title={queueEditBlocked ? t('queue.editPending') : undefined}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16l6-6H6z" /></svg>
+              </button>
+            </div>
+          ) : null}
+          <button
+            className={`chip ${calmQueue ? 'calm-queue-play-icon' : ''}`}
+            type="button"
+            onClick={() => queue.playAtIndex(index)}
+            aria-label={`${currentlyPlaying ? t('playlist.playing') : t('common.play')}: ${normalizeStationName(station.name)}`}
+          >
+            {calmQueue ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+            ) : active && player.isPlaying ? (
+              t('playlist.playing')
+            ) : (
+              t('common.play')
+            )}
+          </button>
+          {showEditActions ? (
+            <button
+              className="chip"
+              type="button"
+              onClick={() => queue.removeAtIndex(index)}
+              disabled={queueEditBlocked || protectedFromRemoval}
+              title={
+                queueEditBlocked
+                  ? t('queue.removePending')
+                  : protectedFromRemoval
+                    ? t('queue.removeProtected')
+                    : t('common.remove')
+              }
+              aria-label={`${
+                queueEditBlocked
+                  ? t('queue.removePending')
+                  : protectedFromRemoval
+                    ? t('queue.removeProtected')
+                    : t('common.remove')
+              }: ${normalizeStationName(station.name)}`}
+            >
+              {t('common.remove')}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <section className="screen screen-library-v2">
+    <section className={`screen screen-library-v2 ${calmQueue ? `calm-library-queue${librarySearch ? ' calm-library-queue-searching' : ''}` : ''}`}>
       {CALM_PREVIEW ? (
         <header className="calm-library-head" data-calm-library>
           <div className="calm-library-title">
@@ -882,7 +1087,7 @@ export const Library = () => {
           трек, станция» — is not something a listener should have to work out.
           The two queries are separate state on purpose: searching finds must
           never leave «Станции» silently filtered when you switch back. */}
-      {!findsTabActive ? (
+      {!findsTabActive && !calmQueue ? (
       <div className="library-search-bar">
         <span className="library-search-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -921,7 +1126,7 @@ export const Library = () => {
       </div>
       ) : null}
 
-      {!librarySearchQuery ? (
+      {!librarySearchQuery && !calmQueue ? (
         <div className="library-header-actions library-quick-actions">
           {libraryShuffleStations.length ? (
             <button className="chip active" type="button" onClick={playLibraryShuffle}>
@@ -939,6 +1144,13 @@ export const Library = () => {
             {t('library.createCollection')}
           </button>
         </div>
+      ) : null}
+
+      {!findsTabActive && calmQueue ? (
+        <details className="calm-queue-tools" open={queueToolsOpen || Boolean(librarySearch)} onToggle={(event) => setQueueToolsOpen(event.currentTarget.open)}>
+          <summary>{t('library.queueTools')}</summary>
+          {renderLibrarySearchAndActions()}
+        </details>
       ) : null}
 
       {librarySearchQuery && !findsTabActive ? (
@@ -1062,19 +1274,39 @@ export const Library = () => {
         tab="queue"
         tabId={libraryTabId('queue')}
         panelId={libraryPanelId('queue')}
-        className="glass-card library-queue-shell"
+        className={`glass-card library-queue-shell ${calmQueue ? 'calm-queue-shell' : ''}`}
         panelRef={queuePanelRef}
       >
           <div className="library-section-head">
             <div>
               <div className="section-title">{t('playlist.title')}</div>
-              <div className="section-subtitle">{queueSourceLabel}</div>
+              <div className="section-subtitle">
+                {calmQueue && queue.items.length
+                  ? t('library.queuePosition', {
+                      current: Math.max(queue.currentIndex + 1, 1),
+                      total: queue.items.length
+                    })
+                  : queueSourceLabel}
+                {calmQueue && queue.items.length ? ` · ${queueSourceLabel}` : ''}
+              </div>
             </div>
-            {CALM_PREVIEW && queueReturnStation ? (
-              <button className="chip calm-library-queue-return" type="button" onClick={returnToPlayer}>
-                {t('library.openPlayerAction')}
-              </button>
-            ) : null}
+            <div className="calm-queue-head-actions">
+              {calmQueue && queue.items.length ? (
+                <button
+                  className="chip calm-queue-edit-toggle"
+                  type="button"
+                  aria-pressed={queueEditMode}
+                  onClick={() => setQueueEditMode((editing) => !editing)}
+                >
+                  {queueEditMode ? t('library.queueDone') : t('library.queueEdit')}
+                </button>
+              ) : null}
+              {CALM_PREVIEW && queueReturnStation ? (
+                <button className="chip calm-library-queue-return" type="button" onClick={returnToPlayer}>
+                  {t('library.openPlayerAction')}
+                </button>
+              ) : null}
+            </div>
           </div>
           {isSavingQueue ? (
             <form
@@ -1102,7 +1334,7 @@ export const Library = () => {
           {queue.items.length ? (
             <div className="library-queue-layout">
               <div className="library-queue-main">
-                <div className="library-queue-now-card">
+                {!calmQueue ? <div className="library-queue-now-card">
                   <div className="shell-kicker">{player.current ? t('dock.liveNow') : t('common.resume')}</div>
                   <div className="section-title">
                     {normalizeStationName(queueLeadStation?.name) || t('library.returnToAirEmptyTitle')}
@@ -1128,9 +1360,17 @@ export const Library = () => {
                       </button>
                     ) : null}
                   </div>
-                </div>
+                </div> : null}
 
-                <div className="chip-row library-queue-actions">
+                {calmQueue && queue.items.length ? (
+                  <div className="calm-queue-primary-actions">
+                    {upcomingCount(queue) >= 2 ? <button className="chip" type="button" onClick={() => queue.shuffleQueue()} disabled={queueEditBlocked} aria-label={t('library.shuffleQueueAria')}>{t('library.shuffleQueue')}</button> : null}
+                    <button className="chip" type="button" onClick={beginSaveQueue}>{t('library.saveQueueAsPlaylist')}</button>
+                    {queueEditMode ? <button className="chip" type="button" onClick={() => { queue.clearQueue(); setQueueEditMode(false); }} disabled={queueEditBlocked} aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined} title={queueEditBlocked ? t('queue.editPending') : undefined}>{t('playlist.clearQueue')}</button> : null}
+                  </div>
+                ) : null}
+
+                {!calmQueue ? <div className="chip-row library-queue-actions">
                   {upcomingCount(queue) >= 2 ? (
                     <button
                       className="chip"
@@ -1157,123 +1397,28 @@ export const Library = () => {
                   >
                     {t('playlist.clearQueue')}
                   </button>
-                </div>
+                </div> : null}
                 {queueEditBlocked ? (
                   <div id="queue-edit-pending-hint" className="section-subtitle" role="status">
                     {t('queue.editPending')}
                   </div>
                 ) : null}
 
-                <div className="playlist-list library-queue-list" ref={queueReorder.containerRef}>
-                  {queue.items.map((station, index) => {
-                    const active =
-                      index === queue.currentIndex && player.current?.stationuuid === station.stationuuid;
-                    const protectedFromRemoval = protectedQueueStationIds.has(station.stationuuid);
-                    const nextUp = !active && index === Math.max(queue.currentIndex, 0) + 1;
-                    const locked = index === queue.currentIndex;
-                    const dragging = queueReorder.draggingIndex === index;
-                    const dropTarget =
-                      queueReorder.draggingIndex !== null &&
-                      queueReorder.overIndex === index &&
-                      !dragging;
-                    return (
-                      <div
-                        key={station.stationuuid}
-                        data-queue-row
-                        className={`playlist-row library-queue-row ${active ? 'active' : ''} ${
-                          dragging ? 'dragging' : ''
-                        } ${dropTarget ? 'drop-target' : ''}`}
-                      >
-                        {locked ? (
-                          <div className="library-queue-grip locked" aria-hidden="true">
-                            <span className="playlist-order">{index + 1}</span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="library-queue-grip"
-                            aria-label={t('library.reorderMode')}
-                            disabled={queueEditBlocked}
-                            title={queueEditBlocked ? t('queue.editPending') : undefined}
-                            {...queueReorder.getHandleProps(index)}
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <circle cx="9" cy="6" r="1.6" />
-                              <circle cx="15" cy="6" r="1.6" />
-                              <circle cx="9" cy="12" r="1.6" />
-                              <circle cx="15" cy="12" r="1.6" />
-                              <circle cx="9" cy="18" r="1.6" />
-                              <circle cx="15" cy="18" r="1.6" />
-                            </svg>
-                          </button>
-                        )}
-                        <div className="playlist-body library-queue-row-copy">
-                          <div className="library-queue-row-head">
-                            <div className="playlist-name">{normalizeStationName(station.name)}</div>
-                            {active ? (
-                              <span className="library-status-pill active">{t('playlist.playing')}</span>
-                            ) : nextUp ? (
-                              <span className="library-status-pill">{t('common.next')}</span>
-                            ) : null}
-                          </div>
-                          <div className="playlist-meta">{stationLocation(station)}</div>
-                        </div>
-                        <div className="playlist-actions library-queue-row-actions">
-                          {!locked ? (
-                            <div className="library-queue-move" role="group" aria-label={t('library.reorderMode')}>
-                              <button
-                                type="button"
-                                className="icon-btn library-queue-move-btn"
-                                onClick={() => queue.moveAtIndex(index, -1)}
-                                disabled={queueEditBlocked || index - 1 < 0 || index - 1 === queue.currentIndex}
-                                aria-label={t('library.moveUp')}
-                                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
-                                title={queueEditBlocked ? t('queue.editPending') : undefined}
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8l-6 6h12z" /></svg>
-                              </button>
-                              <button
-                                type="button"
-                                className="icon-btn library-queue-move-btn"
-                                onClick={() => queue.moveAtIndex(index, 1)}
-                                disabled={queueEditBlocked || index + 1 >= queue.items.length || index + 1 === queue.currentIndex}
-                                aria-label={t('library.moveDown')}
-                                aria-describedby={queueEditBlocked ? 'queue-edit-pending-hint' : undefined}
-                                title={queueEditBlocked ? t('queue.editPending') : undefined}
-                              >
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16l6-6H6z" /></svg>
-                              </button>
-                            </div>
-                          ) : null}
-                          <button className="chip" type="button" onClick={() => queue.playAtIndex(index)}>
-                            {active && player.isPlaying ? t('playlist.playing') : t('common.play')}
-                          </button>
-                          <button
-                            className="chip"
-                            type="button"
-                            onClick={() => queue.removeAtIndex(index)}
-                            disabled={queueEditBlocked || protectedFromRemoval}
-                            title={
-                              queueEditBlocked
-                                ? t('queue.removePending')
-                                : protectedFromRemoval
-                                  ? t('queue.removeProtected')
-                                  : t('common.remove')
-                            }
-                            aria-label={`${
-                              queueEditBlocked
-                                ? t('queue.removePending')
-                                : protectedFromRemoval
-                                  ? t('queue.removeProtected')
-                                  : t('common.remove')
-                            }: ${normalizeStationName(station.name)}`}
-                          >
-                            {t('common.remove')}
-                          </button>
-                        </div>
-                      </div>
-                    );
+                <div className={`playlist-list library-queue-list ${calmQueue ? `calm-queue-list${queueEditMode ? ' editing' : ''}` : ''}`} ref={queueReorder.containerRef}>
+                  {calmQueue && queueEditMode ? queue.items.map((station, index) => ({ station, index })).map(({ station, index }) => {
+                    return renderQueueRow(station, index);
+                  }) : (calmQueue ? visibleQueueEntries : queue.items.map((station, index) => ({ station, index }))).map(({ station, index }) => {
+                    return renderQueueRow(station, index);
                   })}
+                  {calmQueue && !queueEditMode && earlierQueueEntries.length ? (
+                    <details className="calm-queue-earlier" open={queueEarlierOpen} onToggle={(event) => setQueueEarlierOpen(event.currentTarget.open)}>
+                      <summary>{t('library.queueEarlier', { count: earlierQueueEntries.length })}</summary>
+                      <div className="calm-queue-earlier-rows">
+                        {earlierQueueEntries.map(({ station, index }) => renderQueueRow(station, index))}
+                      </div>
+                    </details>
+                  ) : null}
+                  {/* row renderer below preserves original queue indices in callbacks */}
                 </div>
               </div>
 

@@ -2807,6 +2807,7 @@ test('paused restored queue keeps played removal available', async ({ page }) =>
   });
   await page.goto('/?calm=1');
   await expect(page.locator('.screen-library-v2')).toBeVisible();
+  await page.getByRole('button', { name: /Изменить|Edit/ }).click();
   const playedRow = page.locator('[data-queue-row]').filter({ hasText: 'Tokyo FM' });
   const playedRemove = playedRow.getByRole('button', { name: /Убрать|Remove/ });
   await expect(playedRemove).toBeEnabled();
