@@ -38,6 +38,7 @@ import { useTasteCandidatePool } from '../lib/useTasteCandidatePool';
 import { AppScreenSkeleton } from '../components/AppScreenSkeleton';
 import { AirBlock } from '../components/AirBlock';
 import { CALM_PREVIEW } from '../lib/calmPreview';
+import { CalmHomeStartup } from './CalmHomeStartup';
 const CalmHome = lazy(() => import('./CalmHome').then(module => ({ default: module.CalmHome })));
 import { HomeHeroCard, HomeRail, HomeResumeStrip } from './homeCards';
 import './home.css';
@@ -1120,8 +1121,12 @@ export const Home = () => {
     ? [...hoistedRails, ...secondaryRailsBase.filter((module) => !hoistedIds.has(module.id))]
     : secondaryRailsBase;
 
-  if (CALM_PREVIEW && surfaceFeed?.hero.station) {
-    return <Suspense fallback={<AppScreenSkeleton section="home" scope="home-hero" />}><CalmHome station={surfaceFeed.hero.station}
+  if (CALM_PREVIEW) {
+    const calmStation = surfaceFeed?.hero.station;
+    if (!calmStation) {
+      return <CalmHomeStartup loading={summaryLoading} error={Boolean(summaryError)} onRetry={() => { void refreshSummary(Date.now(), { forceNetwork: true }); }} onSearch={() => openSearch('')} />;
+    }
+    return <Suspense fallback={<CalmHomeStartup loading error={false} onRetry={() => { void refreshSummary(Date.now(), { forceNetwork: true }); }} onSearch={() => openSearch('')} />}><CalmHome station={calmStation}
       stations={resumeModule?.stations.length ? resumeModule.stations : leadRail?.stations || []}
       discoveryStations={[...(summary?.aroundTheWorld?.stations || []), ...(summary?.countrySpotlight?.stations || []), ...(summary?.catalogPool || []), ...(summary?.moodRails || []).flatMap(rail => rail.stations), ...(summary?.trending || []), ...(summary?.topVoted || [])]}
       moodRails={summary?.moodRails || []}
