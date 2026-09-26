@@ -44,8 +44,20 @@ export function CalmDiscoveryStage({ station, status, statusLabel, country, deta
     <section className="calm-discovery-stage" data-calm-offer={station.stationuuid} data-calm-air={status === 'playing' ? 'on' : status} data-calm-discovery-stage data-stage-status={status} aria-label={t('journal.stageLabel')}>
       <div className="calm-stage-main">
         <div className="calm-stage-artwork" key={station.stationuuid} aria-hidden="true" data-stage-art={station.stationuuid} data-wave-arrival={waveOnStation || undefined}>
-          <img src="/images/calm/wave-atlas.webp" width="1280" height="853" {...{ fetchpriority: 'high' }} alt="" />
-          <i className="calm-stage-wave" />
+          <div className="calm-stage-cover" aria-hidden="true">
+            <svg className="calm-stage-dial" viewBox="0 0 240 240" role="presentation">
+              <circle className="calm-stage-dial-disc" cx="120" cy="120" r="104" />
+              <circle className="calm-stage-dial-ring" cx="120" cy="120" r="91" />
+              <circle className="calm-stage-dial-ring" cx="120" cy="120" r="82" />
+              <circle className="calm-stage-dial-ring" cx="120" cy="120" r="71" />
+              <circle className="calm-stage-dial-ring" cx="120" cy="120" r="61" />
+              <circle className="calm-stage-dial-label" cx="120" cy="120" r="40" />
+              <circle className="calm-stage-dial-label-ring" cx="120" cy="120" r="33" />
+              <circle className="calm-stage-dial-center" cx="120" cy="120" r="3.5" />
+              <path className="calm-stage-dial-arm" d="M195 43l-12 8-29 40m-4 5 4-5 6 5" />
+              <circle className="calm-stage-dial-pivot" cx="195" cy="43" r="5" />
+            </svg>
+          </div>
         </div>
         <div className="calm-stage-identity">
           <span className="calm-stage-eyebrow">{t('journal.waveEyebrow')}</span>

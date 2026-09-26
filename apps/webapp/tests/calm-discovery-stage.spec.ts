@@ -20,8 +20,8 @@ test('cold Play seeds the whole visible discovery set', async ({ page }) => {
     heading: getComputedStyle(el.querySelector('strong')!).color,
     source: getComputedStyle(el.querySelector('small')!).color
   }));
-  expect(stageColors.heading).toBe('rgb(255, 243, 221)');
-  expect(stageColors.source).toBe('rgb(223, 203, 179)');
+  expect(stageColors.heading).toBe('rgb(39, 59, 50)');
+  expect(stageColors.source).toBe('rgb(82, 103, 91)');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('home-calm');
   const queue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
   expect(queue.sourceId).toBe('home-calm');

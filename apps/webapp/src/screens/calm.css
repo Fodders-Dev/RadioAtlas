@@ -110,14 +110,14 @@
 .calm-poster-jazz { background: radial-gradient(ellipse at 0 0, #fff0b7, transparent 80%), linear-gradient(130deg, #e6bc74, #b87840); }
 .calm-poster-jazz .calm-poster-lines { position: absolute; right: 33px; top: -20px; width: 120px; height: 180px; border: 1px solid #55341c50; border-radius: 50%; transform: rotate(35deg); box-shadow: 0 0 0 14px #d493441c, 0 0 0 15px #55341c20, 0 0 0 28px #d493441c, 0 0 0 29px #55341c20; }
 .calm-poster-lead.calm-poster-jazz::after { content: ''; position: absolute; inset: 0; background: linear-gradient(102deg, #f9dfaeb8 0%, #edca8566 43%, transparent 62%); pointer-events: none; }
-.calm-poster-night { background: linear-gradient(125deg, #73647e, #cc938d); color: #ffe9d2; }
-.calm-poster-night .calm-poster-record { background: radial-gradient(circle at 30% 30%, #f6ce91, #ca89765e 60%, transparent 61%); width: 160px; height: 160px; right: -38px; bottom: -35px; box-shadow: none; }
+.calm-poster-night { background: linear-gradient(125deg, #526458, #788b76 62%, #ba9a72); color: #f7ecd6; }
+.calm-poster-night .calm-poster-record { background: radial-gradient(circle at 30% 30%, #f1d6a1, #d0a87155 60%, transparent 61%); width: 160px; height: 160px; right: -38px; bottom: -35px; box-shadow: none; }
 .calm-poster-night .calm-poster-record i, .calm-poster-world .calm-poster-record i, .calm-poster-groove .calm-poster-record i, .calm-poster-road .calm-poster-record i, .calm-poster-focus .calm-poster-record i { display: none; }
 .calm-poster-night .calm-poster-lines { position: absolute; inset: 40px -70px -110px 50px; border: 1px solid #f7d9c144; transform: rotate(-25deg); border-radius: 50%; box-shadow: 0 0 0 14px #f7d9c111, 0 0 0 15px #f7d9c122, 0 0 0 30px #f7d9c111, 0 0 0 31px #f7d9c122; }
 .calm-poster-groove { background: #ce6444; color: #ffda6d; }
 .calm-poster-groove .calm-poster-record { right: -25px; bottom: -80px; background: repeating-radial-gradient(circle, #e8b259 0 9px, #b84035 10px 18px); box-shadow: none; width: 200px; height: 200px; }
 .calm-poster-groove b { font-family: Arial, sans-serif; font-style: normal; font-weight: 900; font-size: 34px; letter-spacing: -2px; }
-.calm-poster-world { background: linear-gradient(140deg, #9da886, #d3c590); color: #293f34; }
+.calm-poster-world { background: linear-gradient(140deg, #b6c0a6, #d9c99d); color: #293f34; }
 .calm-poster-world .calm-poster-record { background: repeating-linear-gradient(0deg, transparent 0 17px, #2b5a3930 18px 19px), repeating-linear-gradient(90deg, transparent 0 17px, #2b5a3930 18px 19px); box-shadow: inset -20px -10px 30px #29442542; border: 1px solid #39593b44; }
 .calm-poster-road { background: linear-gradient(160deg, #3f4a5a, #a07862 70%, #e2b27a); color: #ffe7c9; }
 .calm-poster-road .calm-poster-record { background: repeating-linear-gradient(-30deg, transparent 0 14px, #ffe7c933 15px 17px); box-shadow: none; border-radius: 0; transform: rotate(0); right: -20px; bottom: -120px; width: 240px; height: 240px; }

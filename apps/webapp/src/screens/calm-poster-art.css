@@ -1,0 +1,9 @@
+.calm-poster-illustration { position: absolute; z-index: 1; right: -3%; bottom: -12%; width: 57%; height: 112%; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: .84; pointer-events: none; }
+.calm-poster-tonearm { width: 48%; right: -4%; bottom: -4%; fill: none; stroke: #be693c; stroke-width: 2; }
+.calm-poster-window { width: 55%; right: -2%; fill: none; stroke: #f5e3bd; stroke-width: 2; }
+.calm-poster-crescent { fill: #f3d4a0; stroke: none; }
+.calm-poster-meridians { fill: none; stroke: #3f5948; stroke-width: 1; }
+.calm-poster-orbit-dot { fill: #a64a32; stroke: none; }
+.calm-poster-lead .calm-poster-illustration { width: 51%; height: 95%; right: 5%; bottom: 1%; }
+.calm-poster-lead .calm-poster-tonearm { width: 45%; right: 1%; }
+.calm-poster-lead .calm-poster-window { width: 46%; }

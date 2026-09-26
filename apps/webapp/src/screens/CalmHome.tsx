@@ -70,11 +70,7 @@ const ARROW = 'M5 12h14M14 7l5 5-5 5';
 const dedupe = (list: StationLite[]) => [...new Map(list.map((s) => [s.stationuuid, s])).values()];
 
 const CalmHomePoster = ({ story, word, lead = false }: { story: CalmStory; word?: string; lead?: boolean }) => {
-  const image = story.art === 'jazz' ? '/images/calm/jazz-room.webp'
-    : story.art === 'night' ? '/images/calm/night-city.webp'
-      : story.art === 'world' ? '/images/calm/wave-atlas.webp' : '';
-  return <div className={`calm-home-poster${image ? ' has-photo' : ''}`}>
-    {image && <img src={image} alt="" loading="lazy" width="768" height="768" />}
+  return <div className="calm-home-poster">
     <CalmPoster art={story.art} word={word} lead={lead} />
   </div>;
 };

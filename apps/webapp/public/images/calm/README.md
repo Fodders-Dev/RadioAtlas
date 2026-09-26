@@ -29,6 +29,10 @@ actual CSS background sampling; the image itself is not evidence of Liquid Glass
 
 ## Wave Atlas, 2026-09-25
 
+**Rejected by the owner on 2026-09-26:** the miniature/fantasy illustrations do
+not fit the application's editorial visual language. Retained files document
+the proposal's provenance; they are not approved art-direction references.
+
 New proposal responding to the owner's explicit request for more imagery,
 motion, and a recognizable experience. The earlier rejected globe mentioned
 above belongs to the September 11 history; these are separate new assets.
