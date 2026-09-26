@@ -431,6 +431,7 @@ export const useAudioPlayer = ({
   const recoveryAuthorizedForRef = useRef<RecoveryDebt | null>(null);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
+  const getRequestedStation = useCallback(() => requestedStationRef.current, []);
   const candidatesRef = useRef<PlaybackCandidate[]>([]);
   const candidateIndexRef = useRef(0);
   const activeCandidateRef = useRef<PlaybackCandidate | null>(null);
@@ -2148,6 +2149,7 @@ export const useAudioPlayer = ({
       activeCandidate: PlaybackCandidate | null;
       recentFailures: PlaybackFailure[];
     },
+    getRequestedStation,
     setVolume,
     setBalance: (value: number) => setBalance(clampBalance(value)),
     setEqBand,

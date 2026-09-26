@@ -23,7 +23,7 @@ import { CalmDiscoveryStage } from './CalmDiscoveryStage';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
 import { isFeedBrowseVisitCompatible } from '../lib/feedBrowseVisit';
 import { buildCalmCountryDecks, type CalmCountryDeck } from './calmHomeStations';
-import { CalmCountryDial } from './CalmCountryDial';
+import { CalmWorldOverview } from './CalmWorldOverview';
 import './calm-home-wave.css';
 
 // Home starts with one clear offer and one size-paged live catalogue; deeper
@@ -226,8 +226,8 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     const first = nextDeck[0];
     if (first) playStation(first, { playlist: nextDeck, sourceId: 'home-calm', sourceLabel: t('journal.stageQueue') });
   };
-  const startCountryDeck = (deck: CalmCountryDeck) => {
-    const first = deck.stations[0];
+  const startCountryDeck = (deck: CalmCountryDeck, station?: StationLite) => {
+    const first = station && deck.stations.some((item) => item.stationuuid === station.stationuuid) ? station : deck.stations[0];
     if (!first) return;
     const sourceLabel = localizedCountry({ country: deck.country, countrycode: deck.countrycode }, locale);
     setWaveStationId(first.stationuuid);
@@ -348,14 +348,14 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       onFeed={openBrowseFeed}
       onGlobe={() => setActiveSection('globe')}
       waveOnStation={waveStationId === offer.stationuuid}
-    />
-
-    <CalmCountryDial
-      decks={countryDecks}
-      activeStation={offer}
-      onPlayCountry={startCountryDeck}
-      onMap={openGlobe}
-      onAllCountries={() => setCountryPicker(true)}
+      worldOverview={<CalmWorldOverview
+        decks={countryDecks}
+        activeStation={offer}
+      playingStationId={onAir ? player.current?.stationuuid ?? null : null}
+        onPlay={startCountryDeck}
+        onMap={openGlobe}
+        onAllCountries={() => setCountryPicker(true)}
+      />}
     />
 
     <div className="calm-home-first-row">

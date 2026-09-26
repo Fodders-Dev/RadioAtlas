@@ -1810,7 +1810,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     const currentQueue = queueRef.current;
     const committedIndexIsValid =
       currentQueue.currentIndex >= 0 && currentQueue.currentIndex < currentQueue.items.length;
-    const pendingId = (playbackRuntimeRef.current.player.pending ?? playbackRuntimeRef.current.player.current)?.stationuuid;
+    const transport = playbackRuntimeRef.current.player;
+    const pendingId = (transport.getRequestedStation() ?? transport.pending ?? transport.current)?.stationuuid;
     const pendingIndex = pendingId
       ? currentQueue.items.findIndex((station) => station.stationuuid === pendingId)
       : -1;
@@ -1929,7 +1930,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       // A second Next while a source is buffering skips THAT source, instead
       // of endlessly retrying it from the last successfully played index.
       const transport = playbackRuntimeRef.current.player;
-      const pendingId = (transport.pending ?? transport.current)?.stationuuid;
+      const pendingId = (transport.getRequestedStation() ?? transport.pending ?? transport.current)?.stationuuid;
       const pendingIndex = pendingId
         ? currentQueue.items.findIndex((station) => station.stationuuid === pendingId)
         : -1;

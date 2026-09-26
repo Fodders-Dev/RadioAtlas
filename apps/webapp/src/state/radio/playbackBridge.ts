@@ -38,6 +38,7 @@ export const createPlaybackPlayerPlaceholder = (): ReturnType<typeof useAudioPla
     activeCandidate: null,
     recentFailures: []
   },
+  getRequestedStation: () => null,
   setVolume: () => {},
   setBalance: () => {},
   setEqBand: () => {},

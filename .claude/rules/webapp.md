@@ -18,6 +18,12 @@ runtime, Theme Studio, Lite or the Full Player overlay — those are lazy on
 purpose and there are tests asserting it. React is bundled from our own origin;
 no CDN import may come back.
 
+Home's small atlas uses `src/assets/home-atlas.json`, generated from the existing
+`countries-110m.json` by `npm --workspace apps/webapp run build:home-atlas`.
+Keep the geometry in the lazy `CalmWorldMap` chunk; do not import the Globe or
+its coordinate resolver to draw this preview. Only plot real, finite catalogue
+coordinates. Browsing countries must not start audio or replace the queue.
+
 **That includes fonts, and for months it did not.** `index.html` carried a
 render-blocking stylesheet from a font CDN. Measured on the real bundle at
 390x844: a REFUSED request still paints in ~356 ms, but a HANGING one — no
@@ -73,6 +79,9 @@ that slot stays blank rather than falling back.
   prerequisite. Keep system metadata for `current ?? pending` during startup
   and failure. A repeated Next must account for the in-flight station, not
   only the last successful queue index.
+- For Next/Previous, read `player.getRequestedStation()` before the rendered
+  pending/current snapshot. The audio source can change before the runtime's
+  React effect publishes it; waiting for that render loses immediate commands.
 - `autoplay="false"` ENABLES HTML autoplay. Use `audio.autoplay = false`.
   Mocked media events must model `paused` too: a waiting event on a natively
   paused mock is not a rebuffering scenario. See headphone-transport.spec.ts.

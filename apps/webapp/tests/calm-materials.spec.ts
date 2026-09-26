@@ -19,6 +19,17 @@ for (const width of [320, 390]) {
       let homeNavigation: unknown;
       for (const section of ['Главная', 'Моё']) {
         await nav.getByRole('button', { name: section, exact: true }).click();
+        if (section === 'Главная') {
+          await expect(page.locator('.calm-atlas-map')).toBeVisible();
+          const colors = await page.locator('.calm-atlas').evaluate(el => ({
+            heading: getComputedStyle(el.querySelector('h2')!).color,
+            country: getComputedStyle(el.querySelector('h3')!).color,
+            station: getComputedStyle(el.querySelector('.calm-atlas-station-copy strong')!).color,
+            count: getComputedStyle(el.querySelector('.calm-atlas-selection small')!).color,
+            listen: getComputedStyle(el.querySelector('.calm-atlas-listen')!).color,
+          }));
+          expect(colors).toEqual({ heading: 'rgb(39, 59, 50)', country: 'rgb(39, 59, 50)', station: 'rgb(39, 59, 50)', count: 'rgb(82, 103, 91)', listen: 'rgb(255, 248, 233)' });
+        }
         await expect.poll(() => nav.evaluate(el =>
           el.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length
         )).toBe(0);

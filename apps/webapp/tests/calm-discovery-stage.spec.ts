@@ -58,8 +58,9 @@ test('country map is silent and explicit country Play installs that exact countr
   const listenerQueue = stations.slice(0, 4);
   await seedRadioState(page, { queue: listenerQueue, queueCurrentIndex: 0, stationCache: stations.slice(0, 8) });
   await page.goto('/?calm=1');
-  const card = page.locator('[data-calm-country-card]').filter({ has: page.locator('[data-calm-country-map="Japan"]') }).first();
-  const country = await card.getAttribute('data-calm-country');
+  await page.locator('[data-calm-country-rail="Japan"]').click();
+  const card = page.locator('[data-calm-atlas-country="Japan"]');
+  const country = await card.getAttribute('data-calm-atlas-country');
   const expectedIds = stations.slice(0, 4).map((station) => station.stationuuid);
   expect(country).toBe('Japan');
   const originalQueue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
@@ -69,8 +70,9 @@ test('country map is silent and explicit country Play installs that exact countr
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(originalQueue);
 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
-  const countryCard = page.locator('[data-calm-country-card]').filter({ has: page.locator('[data-calm-country-play]') }).filter({ has: page.locator('[data-calm-country-map="Japan"]') }).first();
-  await countryCard.locator('[data-calm-country-play]').click();
+  await page.locator('[data-calm-country-rail="Japan"]').click();
+  const countryCard = page.locator('[data-calm-atlas-country="Japan"]');
+  await countryCard.locator('[data-calm-country-play]').first().click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await expect.poll(() => page.evaluate(() => {
     const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue;
@@ -81,6 +83,55 @@ test('country map is silent and explicit country Play installs that exact countr
   await expect.poll(() => page.locator('[data-calm-discovery-stage]').getAttribute('data-calm-offer')).toBe(nextId);
 });
 
+test('named second country station installs the full exact deck at its selected index', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const japan = stations.slice(0, 4);
+  await seedRadioState(page, { queue: [stations[4]], queueCurrentIndex: 0, stationCache: [...japan, ...stations.slice(4, 8)] });
+  await page.goto('/?calm=1');
+  await page.locator('[data-calm-country-rail="Japan"]').click();
+  await page.locator('[data-calm-country-play]').nth(1).click();
+  await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-offer', japan[1].stationuuid);
+  await expect.poll(() => page.evaluate(() => {
+    const queue = JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue;
+    return { sourceId: queue?.sourceId, ids: queue?.items?.map((item: { stationuuid: string }) => item.stationuuid), index: queue?.currentIndex };
+  })).toEqual({ sourceId: 'home-country', ids: japan.map((station) => station.stationuuid), index: 1 });
+});
+
+test('atlas fits the viewport and preserves readable touch controls across widths', async ({ page }) => {
+  await start(page);
+  await seedRadioState(page);
+  await page.goto('/?calm=1');
+  for (const width of [320, 390, 834, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const stage = page.locator('[data-calm-discovery-stage]');
+    await expect(stage).toBeVisible();
+    const countryNext = page.locator('[data-calm-country-next]');
+    await expect(countryNext).toContainText('Другая страна');
+    const geometry = await page.evaluate(() => {
+      const stageEl = document.querySelector<HTMLElement>('[data-calm-discovery-stage]')!;
+      const name = document.querySelector<HTMLElement>('.calm-atlas-station-copy strong')!;
+      const play = document.querySelector<HTMLElement>('[data-stage-play]')!;
+      return {
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        stageHeight: stageEl.getBoundingClientRect().height,
+        nameFont: Number.parseFloat(getComputedStyle(name).fontSize),
+        playSize: Math.min(play.getBoundingClientRect().width, play.getBoundingClientRect().height),
+        countryNextSize: Math.min(document.querySelector<HTMLElement>('[data-calm-country-next]')!.getBoundingClientRect().width, document.querySelector<HTMLElement>('[data-calm-country-next]')!.getBoundingClientRect().height),
+      };
+    });
+    expect(geometry.overflow, `horizontal overflow at ${width}px`).toBe(false);
+    if (width <= 390) {
+      expect(geometry.stageHeight).toBeLessThanOrEqual(600);
+      expect(geometry.nameFont).toBeGreaterThanOrEqual(14);
+    } else {
+      expect(geometry.nameFont).toBeGreaterThanOrEqual(16);
+    }
+    expect(geometry.playSize).toBeGreaterThanOrEqual(44);
+    expect(geometry.countryNextSize).toBeGreaterThanOrEqual(44);
+  }
+});
+
 test('explicit country switch skips browsing and advances between the two fixture countries', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
@@ -89,6 +140,7 @@ test('explicit country switch skips browsing and advances between the two fixtur
   await seedRadioState(page, { queue: [japan[0]], queueCurrentIndex: 0, stationCache: [...japan, ...germany] });
   await page.goto('/?calm=1');
   const queueBeforeBrowse = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+  await page.locator('[data-calm-country-rail="Germany"]').click();
   await page.locator('[data-calm-country-map="Germany"]').click();
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'globe');
   expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') ?? null)).toBeNull();
@@ -123,7 +175,8 @@ test('retry after a country stream failure retains the exact country deck', asyn
     };
   });
   await page.goto('/?calm=1');
-  await page.locator('[data-calm-country-card]').filter({ has: page.locator('[data-calm-country-map="Germany"]') }).locator('[data-calm-country-play]').click();
+  await page.locator('[data-calm-country-rail="Germany"]').click();
+  await page.locator('[data-calm-country-play]').first().click();
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'error');
   await expect(page.locator('[data-stage-play]')).toHaveAttribute('aria-label', /Повторить/);
   await page.evaluate(() => { (window as typeof window & { __allowCountryRetry?: boolean }).__allowCountryRetry = true; });
@@ -140,11 +193,11 @@ test('country intent takes priority while its first station is buffering in the 
   const listenerQueue = stations.slice(4, 8);
   await seedRadioState(page, { queue: listenerQueue, queueCurrentIndex: 0, stationCache: stations.slice(0, 8) });
   await page.goto('/?calm=1');
-  const target = page.locator('[data-calm-country-card]').filter({ has: page.locator('[data-calm-country-play]') }).filter({ has: page.locator('[data-calm-country-map="Germany"]') }).first();
+  await page.locator('[data-calm-country-rail="Germany"]').click();
   const ids = stations.slice(4, 8).map((station) => station.stationuuid);
   expect(listenerQueue.map(station => station.stationuuid)).toContain(ids[0]);
   await page.evaluate(() => { HTMLMediaElement.prototype.play = function () { return new Promise(() => {}); }; });
-  await target.locator('[data-calm-country-play]').click();
+  await page.locator('[data-calm-country-play]').first().click();
   await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-air', 'buffering');
   await expect.poll(() => page.locator('[data-calm-discovery-stage]').getAttribute('data-calm-offer')).toBe(ids[0]);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('seeded-home');
@@ -170,10 +223,10 @@ test('long place and station names wrap at 320px and reduced motion stays still'
   await expect(stage).toBeVisible();
   await expect(stage).toHaveAttribute('data-calm-offer', longStation.stationuuid);
   await expect(page.locator('[data-stage-next]')).toHaveText(/Открывать новое/);
-  await expect(page.locator('.calm-stage-country')).toContainText(longStation.country);
+  await expect(page.locator('.calm-stage-eyebrow')).toContainText(longStation.country);
   await expect(page.locator('.calm-stage-station')).toContainText(longStation.name);
   const measured = await page.evaluate(() => {
-    const country = document.querySelector<HTMLElement>('.calm-stage-country')!.getBoundingClientRect();
+    const country = document.querySelector<HTMLElement>('.calm-stage-eyebrow')!.getBoundingClientRect();
     const station = document.querySelector<HTMLElement>('.calm-stage-station')!.getBoundingClientRect();
     const next = document.querySelector<HTMLElement>('[data-stage-next]')!;
     const nextBox = next.getBoundingClientRect();
@@ -181,20 +234,21 @@ test('long place and station names wrap at 320px and reduced motion stays still'
       width: document.documentElement.scrollWidth,
       viewport: document.documentElement.clientWidth,
       countryHeight: country.height,
+      countryText: document.querySelector<HTMLElement>('.calm-stage-eyebrow')!.innerText,
       stationHeight: station.height,
       nextWidth: nextBox.width,
       nextHeight: nextBox.height,
       nextWhiteSpace: getComputedStyle(next).whiteSpace,
-      countryAnimation: getComputedStyle(document.querySelector('.calm-stage-country')!).animationName
+      atlasTransition: getComputedStyle(document.querySelector('.calm-atlas-geometry')!).transitionDuration
     };
   });
   expect(measured.width).toBeLessThanOrEqual(measured.viewport);
-  expect(measured.countryHeight).toBeGreaterThan(44);
+  expect(measured.countryText).toBe(longStation.country.toUpperCase());
   expect(measured.stationHeight).toBeGreaterThan(17);
   expect(measured.nextWidth).toBeGreaterThanOrEqual(44);
   expect(measured.nextHeight).toBeGreaterThanOrEqual(44);
   expect(measured.nextWhiteSpace).toBe('normal');
-  expect(measured.countryAnimation).toBe('none');
+  expect(measured.atlasTransition).toBe('0s');
 });
 
 test('restored station stays paused through Globe and Feed navigation', async ({ page }) => {

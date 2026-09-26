@@ -331,16 +331,17 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
   });
   // The redesigned radio stage is the first useful Home action; all controls,
   // including both destinations, stay compact above the floating navigation.
-  expect(density.stageHeight).toBeLessThanOrEqual(370);
+  expect(density.stageHeight).toBeLessThanOrEqual(600);
   expect(density.stageBottom).toBeLessThan(density.navTop);
-  expect(density.dialTop).toBeGreaterThan(density.stageBottom);
+  expect(density.dialTop).toBeLessThan(density.stageBottom);
+  expect(density.dialBottom).toBeLessThanOrEqual(density.stageBottom + 1);
   expect(density.dialCardBottom).toBeLessThan(density.navTop);
   expect(density.dialTop).toBeLessThan(density.moodsTop);
   expect(density.chooserTop).toBeGreaterThan(density.moodArtBottom);
   expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
   const order = await page.evaluate(() => {
-    const selectors = ['[data-calm-doors]', '[data-calm-country-deck]', '[data-calm-stories]', '[data-calm-live-catalog]'];
+    const selectors = ['[data-calm-country-deck]', '[data-calm-doors]', '[data-calm-stories]', '[data-calm-live-catalog]'];
     return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
   });
   expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);

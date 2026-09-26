@@ -1,5 +1,6 @@
 import type { StationLite } from '../types';
 import { countryCodeOf } from '../lib/countryName';
+import { canonicalHomeCountryCode } from '../lib/homeAtlas';
 
 export type CalmCountryDeck = {
   key: string;
@@ -10,7 +11,7 @@ export type CalmCountryDeck = {
 
 const countryKey = (station: StationLite): string => {
   const rawCode = countryCodeOf(station);
-  const code = rawCode === 'UK' ? 'GB' : rawCode === 'FX' ? 'FR' : rawCode;
+  const code = canonicalHomeCountryCode(rawCode);
   if (code) return `country:${code}`;
   const name = station.country.trim().toLocaleLowerCase();
   return name ? `name:${name}` : '';
@@ -40,7 +41,7 @@ export const buildCalmCountryDecks = (pool: StationLite[]): CalmCountryDeck[] =>
     let group = groups.get(key);
     if (!group) {
       const rawCode = countryCodeOf(station) || '';
-      group = { key, country: station.country.trim(), countrycode: rawCode === 'UK' ? 'GB' : rawCode === 'FX' ? 'FR' : rawCode, stations: [] };
+      group = { key, country: station.country.trim(), countrycode: canonicalHomeCountryCode(rawCode) ?? '', stations: [] };
       if (!group.country) continue;
       groups.set(key, group);
     }
