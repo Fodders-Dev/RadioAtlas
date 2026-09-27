@@ -18,11 +18,11 @@ runtime, Theme Studio, Lite or the Full Player overlay — those are lazy on
 purpose and there are tests asserting it. React is bundled from our own origin;
 no CDN import may come back.
 
-Home's small atlas uses `src/assets/home-atlas.json`, generated from the existing
-`countries-110m.json` by `npm --workspace apps/webapp run build:home-atlas`.
-Keep the geometry in the lazy `CalmWorldMap` chunk; do not import the Globe or
-its coordinate resolver to draw this preview. Only plot real, finite catalogue
-coordinates. Browsing countries must not start audio or replace the queue.
+The owner rejected the Home mini-map on 2026-09-27. Keep geographic exploration
+in the full Globe; do not import its geometry or runtime into Home. Home cover
+gestures use the existing dock swipe classifier and the same queue commands as
+buttons. Visual transitions must never delay audio commands or claim vertical
+page scrolling. Browsing all countries must not start audio or replace the queue.
 
 **That includes fonts, and for months it did not.** `index.html` carried a
 render-blocking stylesheet from a font CDN. Measured on the real bundle at

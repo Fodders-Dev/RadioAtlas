@@ -316,8 +316,6 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
   }
   const density = await page.evaluate(() => {
     const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
-    const dial = document.querySelector('[data-calm-country-deck]')!.getBoundingClientRect();
-    const dialCard = document.querySelector('[data-calm-country-card]')!.getBoundingClientRect();
     const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
     const rows = [...document.querySelectorAll<HTMLElement>('[data-calm-live-catalog] .calm-live-row')].map(row => {
       const box = row.getBoundingClientRect();
@@ -327,25 +325,22 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
     });
     const stage = document.querySelector<HTMLElement>('[data-calm-discovery-stage]')!.getBoundingClientRect();
     const nav = document.querySelector<HTMLElement>('.app-navigation-mobile')!.getBoundingClientRect();
-    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, dialTop: dial.top, dialBottom: dial.bottom, dialCardBottom: dialCard.bottom, stageHeight: stage.height, stageBottom: stage.bottom, navTop: nav.top, rows };
+    return { moodsTop: moods.top, moodArtBottom: document.querySelector('[data-calm-stories] .calm-poster')!.getBoundingClientRect().bottom, chooserTop: chooser.top, stageHeight: stage.height, stageBottom: stage.bottom, navTop: nav.top, rows };
   });
   // The redesigned radio stage is the first useful Home action; all controls,
   // including both destinations, stay compact above the floating navigation.
-  expect(density.stageHeight).toBeLessThanOrEqual(600);
+  expect(density.stageHeight).toBeLessThanOrEqual(500);
   expect(density.stageBottom).toBeLessThan(density.navTop);
-  expect(density.dialTop).toBeLessThan(density.stageBottom);
-  expect(density.dialBottom).toBeLessThanOrEqual(density.stageBottom + 1);
-  expect(density.dialCardBottom).toBeLessThan(density.navTop);
-  expect(density.dialTop).toBeLessThan(density.moodsTop);
+  expect(density.moodsTop).toBeGreaterThan(density.stageBottom);
   expect(density.chooserTop).toBeGreaterThan(density.moodArtBottom);
   expect(density.rows.every(row => row.height <= 76 && row.nameSize >= 14 && row.metaSize >= 12)).toBe(true);
 
   const order = await page.evaluate(() => {
-    const selectors = ['[data-calm-country-deck]', '[data-calm-doors]', '[data-calm-stories]', '[data-calm-live-catalog]'];
+    const selectors = ['[data-calm-discovery-stage]', '[data-calm-stories]', '[data-calm-live-catalog]'];
     return selectors.map(selector => [...document.querySelectorAll('[data-calm-home] *')].findIndex(el => el.matches(selector)));
   });
   expect(order.every((position, index) => position >= 0 && (!index || position > order[index - 1]))).toBe(true);
-  await expect(page.locator('[data-calm-entry]')).toHaveCount(2);
+  await expect(page.locator('[data-calm-discovery-stage] [data-calm-entry]')).toHaveCount(0);
 
   await catalog.locator('[data-calm-live-filter="all"]').click();
   await expect(rows).toHaveCount(4);
@@ -356,7 +351,7 @@ test('Home uses one paged station chooser and hands its exact pool to playback',
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.sourceId)).toBe('home-live');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.map((station: { stationuuid: string }) => station.stationuuid))).toEqual(expectedQueue);
-  await expect(page.locator('[data-calm-entry="feed"]')).toBeVisible();
+  await expect(page.locator('.app-navigation-mobile').getByRole('button', { name: /Лента|Feed/ })).toBeVisible();
 });
 
 test('1024 Home gives mood and catalogue content a full-width first row', async ({ page }) => {
@@ -396,8 +391,8 @@ test('restored station opens the feed without starting playback, from the mini p
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-winamp-expanded', 'false');
   await expect(dock).toHaveCount(0);
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Главная', exact: true }).click();
-  // Home's «Лента» door resumes the compatible paused visit, like the nav.
-  await page.locator('[data-calm-entry="feed"]').click();
+  // The global «Лента» destination resumes the compatible paused visit.
+  await page.locator('.app-navigation-mobile').getByRole('button', { name: /Лента|Feed/ }).click();
   await expect(page.locator('.station-feed-card').first()).toHaveAttribute('data-feed-station', stations[0].stationuuid);
   await expect(page.locator('.station-feed-card-content[data-focus="true"] .calm-feed-status')).toHaveAttribute('data-status', 'paused');
   expect(await page.locator('.calm-feed-status[data-status="playing"]').count()).toBe(0);
@@ -431,21 +426,23 @@ test('station chooser page size follows the viewport and retains expanded pages'
   await page.setViewportSize({ width: 834, height: 1112 });
   await expect(rows).toHaveCount(12);
   const tablet = await page.evaluate(() => {
-    const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
     const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
     const name = document.querySelector<HTMLElement>('[data-calm-live-catalog] .calm-live-copy strong')!;
-    return { moodsRight: moods.right, chooserLeft: chooser.left, nameWidth: name.getBoundingClientRect().width };
+    const hero = document.querySelector('.calm-home-hero-row')!.getBoundingClientRect();
+    return { heroBottom: hero.bottom, chooserTop: chooser.top, chooserRight: chooser.right, nameWidth: name.getBoundingClientRect().width };
   });
-  expect(tablet.chooserLeft).toBeGreaterThan(tablet.moodsRight);
+  expect(tablet.chooserTop).toBeGreaterThanOrEqual(tablet.heroBottom - 1);
+  expect(tablet.chooserRight).toBeLessThanOrEqual(834);
   expect(tablet.nameWidth).toBeGreaterThanOrEqual(110);
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(rows).toHaveCount(24);
   const desktop = await page.evaluate(() => {
-    const moods = document.querySelector('[data-calm-stories]')!.getBoundingClientRect();
+    const hero = document.querySelector('.calm-home-hero-row')!.getBoundingClientRect();
     const chooser = document.querySelector('[data-calm-live-catalog]')!.getBoundingClientRect();
-    return { moodsRight: moods.right, chooserLeft: chooser.left };
+    return { heroBottom: hero.bottom, chooserTop: chooser.top, chooserRight: chooser.right };
   });
-  expect(desktop.chooserLeft).toBeGreaterThan(desktop.moodsRight);
+  expect(desktop.chooserTop).toBeGreaterThanOrEqual(desktop.heroBottom - 1);
+  expect(desktop.chooserRight).toBeLessThanOrEqual(1440);
 });
 
 test('feed player captures, keeps the shared sleep timer and switches by deliberate paging', async ({ page }) => {
@@ -572,9 +569,9 @@ test('journal Home: a story pages the real catalogue, a source opens on the Glob
   await page.locator('[data-calm-browse="electronic"]').getByRole('button', { name: 'Закрыть', exact: true }).click();
   // The country of the day continues on the Globe at the same place.
   await expect(page.locator('[data-calm-around]')).toContainText('Japan');
-  await page.locator('[data-calm-country-map]').first().click();
+  await page.locator('[data-calm-around] .calm-row-actions button').nth(1).click();
   await expect(page.locator('.app-shell-v2')).toHaveAttribute('data-active-section', 'globe');
-  await expect(page.locator('.explorer-title strong')).toHaveText('Germany', { timeout: 20_000 });
+  await expect(page.locator('.explorer-title strong')).toHaveText('Japan', { timeout: 20_000 });
   expect(await audioSrc(page)).toBe(source);
 });
 

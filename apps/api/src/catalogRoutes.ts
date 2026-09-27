@@ -1,4 +1,5 @@
 import type express from 'express';
+import { stationStoryResolver } from './catalog/stationStory.js';
 import {
   createCatalogService,
   MOOD_DEFINITIONS,
@@ -8,12 +9,18 @@ import {
   parseLimit,
   type CatalogDependencies
 } from './catalog/service.js';
+import type { StationStory } from './catalog/stationStory.js';
+
+type CatalogRouteDependencies = CatalogDependencies & {
+  stationStory?: { resolve: (station: { homepage: string; url: string; url_resolved: string }) => Promise<StationStory | null> };
+};
 
 export const registerCatalogRoutes = (
   app: express.Express,
-  dependencies: CatalogDependencies
+  dependencies: CatalogRouteDependencies
 ) => {
   const catalog = createCatalogService(dependencies);
+  const storyResolver = dependencies.stationStory || stationStoryResolver;
   const parseSeed = (value: unknown) => {
     if (typeof value !== 'string') return Date.now();
     const parsed = Math.floor(Number(value));
@@ -105,6 +112,23 @@ export const registerCatalogRoutes = (
       res.json({ item: await catalog.getStationById(req.params.id) });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : 'Catalog station failed' });
+    }
+  });
+
+  app.get('/catalog/stations/:id/story', async (req, res) => {
+    try {
+      const station = await catalog.getStationById(req.params.id);
+      if (!station) {
+        res.status(404).json({ error: 'Station not found' });
+        return;
+      }
+      const story = await storyResolver.resolve(station);
+      res.set('Cache-Control', story ? 'public, max-age=300' : 'public, max-age=60');
+      res.json({ story });
+    } catch {
+      // Editorial metadata is an optional enrichment. Catalog lookup errors
+      // are still surfaced, while provider errors resolve as story:null.
+      res.status(502).json({ error: 'Catalog station story failed' });
     }
   });
 

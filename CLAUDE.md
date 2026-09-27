@@ -101,7 +101,6 @@ npm run dev:local          # isolated local API + Vite, 4341 / 5184; Ctrl+C stop
 npm run dev:prototype      # standalone calm mock, 127.0.0.1:4179, no audio
 npm run build:prototype    # regenerate the portable single-file calm HTML
 npm run build              # api → bot → webapp                ~10s
-npm --workspace apps/webapp run build:home-atlas # regenerate lazy Home map from bundled Natural Earth data
 npm run seo:indexnow       # tell Yandex/Bing the station pages exist (manual)
 ```
 

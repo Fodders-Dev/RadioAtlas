@@ -62,9 +62,7 @@ export function CalmCrossroads({ memory, countries, onOpen, onPlay, onSource, on
   const title = `${t(`journal.crossroads.sounds.${tag}`)} · ${country ? localizedCountry({ country }, locale) : t('journal.crossroads.world')}`;
   return <section ref={host} className="calm-section calm-crossroads" data-calm-crossroads>
     <div className="calm-crossroads-cover">
-      <span className="calm-eyebrow">{t('journal.crossroads.kicker')}</span>
       <h2>{t('journal.crossroads.title')}</h2>
-      <p>{t('journal.crossroads.copy')}</p>
       <label>{t('journal.crossroads.destination')}
         <select value={country} onChange={e => { memory.country = e.target.value; setCountry(e.target.value); }}>
           <option value="">{t('journal.crossroads.world')}</option>

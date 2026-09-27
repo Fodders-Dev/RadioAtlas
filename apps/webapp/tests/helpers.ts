@@ -307,6 +307,7 @@ type MockStationsOptions = {
     vk?: boolean;
   };
   summaryHandler?: Parameters<Page['route']>[1];
+  catalogPool?: typeof stations;
 };
 
 const buildStationCache = (items: SeedStation[]) =>
@@ -691,7 +692,8 @@ export const mockStations = async (
       google: false,
       vk: false
     },
-    summaryHandler
+    summaryHandler,
+    catalogPool = stations.slice(0, 8)
   }: MockStationsOptions = {}
 ) => {
   const body = JSON.stringify(stations);
@@ -703,7 +705,7 @@ export const mockStations = async (
       languages: 3,
       genres: 8
     },
-    catalogPool: stations.slice(0, 8),
+    catalogPool,
     freshSignals: stations.slice(0, 6),
     searchLaunch: stations.slice(0, 6),
     sponsored: stations.slice(0, 2),

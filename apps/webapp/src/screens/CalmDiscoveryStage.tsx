@@ -1,7 +1,11 @@
+import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
-import type { ReactNode } from 'react';
 import { useLocale } from '../state/LocaleContext';
 import { normalizeStationName } from '../lib/stationUtils';
+import { stationGenreFamily, stationGenreSlug } from '../lib/stationGenre';
+import { StationArtwork } from '../components/StationArtwork';
+import { resolveStationStory, type StationStory } from '../lib/stationStory';
+import { useDockSwipe } from '../lib/useDockSwipe';
 import './calm-discovery-stage.css';
 
 type Status = 'idle' | 'playing' | 'paused' | 'buffering' | 'error';
@@ -13,67 +17,97 @@ type Props = {
   country: string;
   details: string;
   track: string;
-  hasListener: boolean;
   isPlaying: boolean;
   canRetry: boolean;
   nextStations: StationLite[];
-  queueSource: string;
   hasNext: boolean;
+  hasPrevious: boolean;
   canDiscover: boolean;
   onPlay: () => void;
   onNext: () => void;
+  onPrevious: () => void;
   onDiscover: () => void;
   onSource: () => void;
-  onFeed: () => void;
-  onGlobe: () => void;
-  waveOnStation?: boolean;
-  worldOverview: ReactNode;
 };
 
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>;
-const ARROW = 'M5 12h14M14 7l5 5-5 5';
-const FEED = 'M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm3 6v6l5-3-5-3ZM12 1v2M12 21v2';
-const GLOBE = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c-2.5 2.5-3.5 5.5-3.5 9s1 6.5 3.5 9c2.5-2.5 3.5-5.5 3.5-9s-1-6.5-3.5-9ZM3 12h18';
+const PREVIOUS = 'M18 5 7 12l11 7V5ZM5 5v14';
+const NEXT = 'M6 5l11 7-11 7V5ZM19 5v14';
+const INFO = 'M12 10.5v5M12 7.5h.01';
 
-export function CalmDiscoveryStage({ station, status, statusLabel, country, details, track, hasListener, isPlaying, canRetry, nextStations, queueSource, hasNext, canDiscover, onPlay, onNext, onDiscover, onSource, onFeed, onGlobe, waveOnStation, worldOverview }: Props) {
+export function CalmDiscoveryStage({ station, status, statusLabel, country, details, track, isPlaying, canRetry, nextStations, hasNext, hasPrevious, canDiscover, onPlay, onNext, onPrevious, onDiscover, onSource }: Props) {
   const { t } = useLocale();
+  const [resolvedStory, setResolvedStory] = useState<{ stationId: string; story: StationStory } | null>(null);
+  useEffect(() => {
+    const stationId = station.stationuuid;
+    const controller = new AbortController();
+    let live = true;
+    setResolvedStory(null);
+    void resolveStationStory(stationId, controller.signal).then((story) => {
+      if (live && story) setResolvedStory({ stationId, story });
+    }).catch(() => undefined);
+    return () => { live = false; controller.abort(); };
+  }, [station.stationuuid]);
   const name = normalizeStationName(station.name);
-  const playLabel = canRetry ? t('journal.stageRetry') : isPlaying ? t('common.pause') : hasListener ? t('common.play') : t('journal.play');
+  const playLabel = canRetry ? t('journal.stageRetry') : isPlaying ? t('common.pause') : t('common.play');
   const nextLabel = hasNext ? t('journal.stageNext') : t('journal.stageDiscover');
   const statusText = status === 'idle' ? t('journal.stageReady') : statusLabel;
+  const family = stationGenreFamily(station) ?? 'pop';
+  const genreSlug = stationGenreSlug(station);
+  const story = resolvedStory?.stationId === station.stationuuid ? resolvedStory.story : null;
+  const description = station.description?.trim() || story?.description || '';
+  const artists = story?.artists.slice(0, 3) ?? [];
+  const artworkStation = story?.artworkUrl && !station.stationArtwork?.trim()
+    ? { ...station, stationArtwork: story.artworkUrl }
+    : station;
+  const fallbackDetail = [genreSlug ? t(`genre.${genreSlug}`) : '', station.language?.split(',')[0]?.trim() || ''].filter(Boolean).join(' · ') || details;
+  const stackRef = useRef<HTMLDivElement>(null);
+  useDockSwipe(stackRef, (direction) => {
+    if (direction === 'next') {
+      if (hasNext) onNext();
+      else if (canDiscover) onDiscover();
+    } else if (hasPrevious) onPrevious();
+  }, hasNext || hasPrevious || canDiscover);
 
-  return <div className="calm-discovery-wrap">
-    <section className="calm-discovery-stage" data-calm-offer={station.stationuuid} data-calm-air={status === 'playing' ? 'on' : status} data-calm-discovery-stage data-stage-status={status} aria-label={t('journal.stageLabel')}>
-      <div className="calm-stage-main" data-wave-arrival={waveOnStation || undefined}>
-        <div className="calm-stage-identity">
-          <span className="calm-stage-eyebrow">{country || t('journal.stageWorldRadio')}</span>
-          <button className="calm-stage-station-row" onClick={onSource} aria-label={t('journal.sourceOpen', { name })}>
-            <span className="calm-stage-copy">
+  return <section className="calm-discovery-stage" data-calm-offer={station.stationuuid} data-calm-air={status === 'playing' ? 'on' : status} data-calm-discovery-stage data-stage-status={status} data-genre-family={family} aria-label={t('journal.stageLabel')}>
+    <div ref={stackRef} className="calm-stage-deck" data-stage-cover-stack role="group" aria-label={t('journal.sourceOpen', { name })}>
+      {nextStations.slice(0, 2).map((next, index) => <div key={next.stationuuid} className={`calm-stage-card-shadow calm-stage-card-shadow-${index + 1}`} aria-hidden="true">
+        <span className="calm-stage-shadow-art" />
+        <span className="calm-stage-shadow-name">{normalizeStationName(next.name)}</span>
+      </div>)}
+      <article className="calm-stage-card" data-calm-card-current>
+        <div className="calm-stage-art" aria-hidden="true">
+          <span className="calm-stage-art-disc" />
+          <span className="calm-stage-art-orbit" />
+          <span className="calm-stage-art-mark"><StationArtwork station={artworkStation} size="md" className="calm-stage-logo" priority /></span>
+          <span className="calm-stage-art-label">{genreSlug ? t(`genre.${genreSlug}`) : ''}</span>
+        </div>
+        <div className="calm-stage-card-body">
+          <div className="calm-stage-card-heading">
+            <div className="calm-stage-card-copy">
               <span className="calm-stage-status"><i aria-hidden="true" />{statusText}</span>
-              <span className="calm-stage-station" title={name}>{name}</span>
-              {track ? <span className="calm-stage-track">{track}</span> : details && <span className="calm-stage-details">{details}</span>}
-            </span>
-          </button>
+              <h2 className="calm-stage-station" title={name}>{name}</h2>
+              <span className="calm-stage-details">{country || fallbackDetail}</span>
+            </div>
+            <button className="calm-stage-info" data-dock-swipe-ignore type="button" onClick={onSource} aria-label={t('journal.sourceOpen', { name })} title={t('journal.sourceOpen', { name })}>
+              <Icon d={INFO} />
+            </button>
+          </div>
+          {(description || fallbackDetail) && <p className="calm-stage-description">{description || fallbackDetail}</p>}
+          {artists.length > 0 && <p className="calm-stage-artists"><span>{t('journal.stageStoryArtists')}</span> {artists.join(' · ')}</p>}
+          {track && <p className="calm-stage-track" title={track}>{track}</p>}
+          {story && <a className="calm-stage-source" data-dock-swipe-ignore href={story.sourceUrl} target="_blank" rel="noreferrer">{t('journal.stageStorySource', { source: story.sourceLabel })}</a>}
+          <div className="calm-stage-actions" data-dock-swipe-ignore>
+            <button className="calm-stage-prev" data-stage-previous type="button" onClick={onPrevious} disabled={!hasPrevious} aria-label={t('journal.feedPrev')}><Icon d={PREVIOUS} /></button>
+            <button className="calm-stage-play" data-stage-play type="button" onClick={onPlay} aria-disabled={status === 'buffering' || undefined} aria-label={`${playLabel}: ${name}`}>
+              <span aria-hidden="true">{canRetry ? '↻' : isPlaying ? 'Ⅱ' : '▶'}</span><span>{playLabel}</span>
+            </button>
+            <button className="calm-stage-next" data-stage-next type="button" onClick={hasNext ? onNext : onDiscover} disabled={!hasNext && !canDiscover} aria-label={`${nextLabel}${hasNext && nextStations[0] ? `: ${normalizeStationName(nextStations[0].name)}` : ''}`}>
+              <span>{nextLabel}</span><Icon d={NEXT} />
+            </button>
+          </div>
         </div>
-        <div className="calm-stage-actions">
-          <button className="calm-stage-play" data-stage-play onClick={onPlay} aria-disabled={status === 'buffering' || undefined} aria-label={`${playLabel}: ${name}`}>
-            <span aria-hidden="true">{canRetry ? '↻' : isPlaying ? 'Ⅱ' : '▶'}</span><span className="calm-stage-action-label">{playLabel}</span>
-          </button>
-          <button className="calm-stage-next" data-stage-next disabled={!hasNext && !canDiscover} onClick={hasNext ? onNext : onDiscover} aria-label={`${nextLabel}${hasNext && nextStations[0] ? `: ${normalizeStationName(nextStations[0].name)}` : ''}`}>
-            <span className="calm-stage-action-label">{nextLabel}</span><Icon d={ARROW} />
-          </button>
-        </div>
-      </div>
-      {worldOverview}
-      <aside className="calm-stage-upnext" aria-label={t('journal.stageUpNext')}>
-        <strong>{t('journal.stageUpNext')}</strong>
-        {nextStations.length ? <span>{nextStations.slice(0, 3).map((next) => normalizeStationName(next.name)).join(' · ')}</span> : <span>{t('journal.stageNoNext')}</span>}
-        {queueSource && <small>{queueSource}</small>}
-      </aside>
-      <nav className="calm-stage-doors" data-calm-doors aria-label={t('journal.doorsLabel')}>
-        <button className="calm-stage-door" data-calm-entry="feed" onClick={onFeed}><Icon d={FEED} /><span>{t('journal.dirFeed')}</span><Icon d={ARROW} /></button>
-        <button className="calm-stage-door" data-calm-entry="globe" onClick={onGlobe}><Icon d={GLOBE} /><span>{t('journal.dirGlobe')}</span><Icon d={ARROW} /></button>
-      </nav>
-    </section>
-  </div>;
+      </article>
+    </div>
+  </section>;
 }

@@ -10,7 +10,6 @@ import { calmGenreGroups } from '../lib/calmDiscoveries';
 import { stationGenreFamily, type GenreFamily } from '../lib/stationGenre';
 import type { ShelfSnapshot } from './CalmCatalogShelf';
 import { CalmBrowseSheet } from './CalmBrowseSheet';
-import { CalmCountryPicker } from './CalmCountryPicker';
 import { CalmPoster } from './CalmPoster';
 import { CalmCrossroads, type Crossroad } from './CalmCrossroads';
 import { localizedCountry } from '../lib/countryName';
@@ -21,9 +20,6 @@ import { CalmStoriesSheet } from './CalmStoriesSheet';
 import { CalmStationRow } from './CalmStationRow';
 import { CalmDiscoveryStage } from './CalmDiscoveryStage';
 import { buildStories, storyStations, topCountries, type CalmStory } from './calmStories';
-import { isFeedBrowseVisitCompatible } from '../lib/feedBrowseVisit';
-import { buildCalmCountryDecks, type CalmCountryDeck } from './calmHomeStations';
-import { CalmWorldOverview } from './CalmWorldOverview';
 import './calm-home-wave.css';
 
 // Home starts with one clear offer and one size-paged live catalogue; deeper
@@ -37,7 +33,6 @@ type Props = {
   discoveryStations: StationLite[];
   moodRails: CatalogMoodRail[];
   onPlay: (station: StationLite, playlist: StationLite[], source: string) => void;
-  onFeed: (station?: StationLite) => void;
   onSearch: (query: string) => void;
 };
 
@@ -49,7 +44,6 @@ type Sheet =
   | null;
 
 type LiveFilter = 'all' | 'favorites' | 'recent' | GenreFamily;
-type PendingCountryIntent = { stations: StationLite[]; sourceLabel: string; expectedStationId: string; previousExpectedStationId?: string; baseCurrentStationId: string | null; baseSourceId: string | null; baseStationIds: string[]; observedPending: boolean };
 const livePage = () => typeof window === 'undefined' ? 4 : window.innerWidth >= 900 ? 12 : window.innerWidth >= 600 ? 6 : 4;
 
 type DiscoveryVisit = { seed: number; scrollY?: number; shelves: Map<string, ShelfSnapshot>; crossroad: { country: string; tag: string; countries?: string[] }; live?: { filter: LiveFilter; pages: number } };
@@ -75,12 +69,12 @@ const CalmHomePoster = ({ story, word, lead = false }: { story: CalmStory; word?
   </div>;
 };
 
-export function CalmHome({ station, stations, discoveryStations, moodRails, onPlay, onFeed, onSearch }: Props) {
+export function CalmHome({ station, stations, discoveryStations, moodRails, onPlay, onSearch }: Props) {
   const { t, locale } = useLocale();
   const { summary } = useCatalog();
-  const { player, nowPlaying, queue, playNext, playStation } = usePlayback();
-  const { trackHistory, knownStations, favorites, recent, isStationHiddenFromRecommendations } = useLibrary();
-  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat, getFeedBrowseVisit } = useShell();
+  const { player, nowPlaying, queue, playNext, playPrevious, playStation } = usePlayback();
+  const { trackHistory, knownStations, favorites, recent, playbackHistory, isStationHiddenFromRecommendations } = useLibrary();
+  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
   useLayoutEffect(() => {
     window.scrollTo({ top: discovery.scrollY || 0, behavior: 'instant' });
@@ -113,10 +107,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   });
   const [sheet, setSheet] = useState<Sheet>(null);
   const [source, setSource] = useState<StationLite | null>(null);
-  const [countryPicker, setCountryPicker] = useState(false);
   const [allStories, setAllStories] = useState(false);
-  const [waveStationId, setWaveStationId] = useState('');
-  const [countryIntent, setCountryIntent] = useState<PendingCountryIntent | null>(null);
   useEffect(() => () => { discovery.scrollY = window.scrollY; }, [discovery]);
 
   // The choice: the visit's pool, the listener's own stations first, and the
@@ -130,7 +121,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const [liveFilter, setLiveFilter] = useState<LiveFilter>(discovery.live?.filter ?? 'all');
   const [livePages, setLivePages] = useState(discovery.live?.pages ?? 1);
   const liveShown = pageSize * livePages;
-  const countryDecks = useMemo(() => buildCalmCountryDecks(visit.pool), [visit.pool]);
   useEffect(() => { discovery.live = { filter: liveFilter, pages: livePages }; }, [discovery, liveFilter, livePages]);
   const own = useMemo(() => dedupe([...favorites, ...recent]).filter((s) => s.lastcheckok !== 0), [favorites, recent]);
   const liveAll = useMemo(() => dedupe([...own, ...visit.pool]), [own, visit.pool]);
@@ -155,32 +145,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const liveVisible = liveList.slice(0, liveShown);
   const selectLive = (id: LiveFilter) => { setLiveFilter(id); setLivePages(1); };
 
-  // During a Home country start, the shared queue commits only after the first
-  // stream succeeds. Keep its explicit snapshot authoritative while that play
-  // is pending so rapid Next stays inside the selected country.
-  const queueIds = queue.items.map((item) => item.stationuuid);
-  const queueMatchesCountryIntent = Boolean(countryIntent && queue.sourceId === 'home-country'
-    && queueIds.length === countryIntent.stations.length
-    && queueIds.every((id, index) => id === countryIntent.stations[index]?.stationuuid));
-  const baseQueueStillCurrent = countryIntent
-    && queue.sourceId === countryIntent.baseSourceId
-    && queueIds.length === countryIntent.baseStationIds.length
-    && queueIds.every((id, index) => id === countryIntent.baseStationIds[index]);
-  const authoritativeStationId = player.pending?.stationuuid ?? player.current?.stationuuid ?? null;
-  const countryIntentPending = Boolean(countryIntent && !queueMatchesCountryIntent && baseQueueStillCurrent
-    && (authoritativeStationId === countryIntent.expectedStationId
-      || authoritativeStationId === countryIntent.previousExpectedStationId
-      || (!countryIntent.observedPending && authoritativeStationId === countryIntent.baseCurrentStationId)));
-  useEffect(() => {
-    if (!countryIntent) return;
-    if (queueMatchesCountryIntent || !baseQueueStillCurrent) { setCountryIntent(null); return; }
-    if (player.pending?.stationuuid === countryIntent.expectedStationId && !countryIntent.observedPending) {
-      setCountryIntent({ ...countryIntent, observedPending: true });
-      return;
-    }
-    const authoritativeId = player.pending?.stationuuid ?? player.current?.stationuuid;
-    if (countryIntent.observedPending && authoritativeId !== countryIntent.expectedStationId) setCountryIntent(null);
-  }, [baseQueueStillCurrent, countryIntent, player.current?.stationuuid, player.pending?.stationuuid, queueMatchesCountryIntent]);
   const listener = player.pending ?? player.current ?? null;
   const offer = listener ?? visit.station;
   const onAir = player.current?.stationuuid === offer.stationuuid && player.isPlaying && !player.pending;
@@ -208,13 +172,18 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         : t('journal.nowPaused');
   const liveTrack = onAir && nowPlaying ? nowPlaying.trim() : '';
   const queueIndex = listener ? queue.items.findIndex((item) => item.stationuuid === listener.stationuuid) : -1;
-  const queueOwnsListener = !countryIntentPending && queueIndex >= 0;
-  const stageDeck = countryIntentPending && countryIntent ? countryIntent.stations : queueOwnsListener ? queue.items : visit.pool;
-  const stageIndex = countryIntentPending && countryIntent ? Math.max(0, stageDeck.findIndex((item) => item.stationuuid === countryIntent.expectedStationId))
-    : queueOwnsListener ? queueIndex
-      : Math.max(0, stageDeck.findIndex((item) => item.stationuuid === offer.stationuuid));
+  const queueOwnsListener = queueIndex >= 0;
+  const stageDeck = queueOwnsListener ? queue.items : visit.pool;
+  const stageIndex = queueOwnsListener ? queueIndex : Math.max(0, stageDeck.findIndex((item) => item.stationuuid === offer.stationuuid));
   const stageNext = stageDeck.slice(stageIndex + 1, stageIndex + 4);
   const stageHasNext = stageIndex >= 0 && stageIndex < stageDeck.length - 1;
+  const stagePrevious = stageIndex > 0;
+  const historyIndex = playbackHistory.map((item) => item.stationuuid).lastIndexOf(offer.stationuuid);
+  const canGoPrevious = queueOwnsListener && queue.sourceId !== 'history'
+      ? queueIndex > 0
+      : queueOwnsListener
+        ? historyIndex > 0
+        : stagePrevious;
   const startHomeDeck = (selected = visit.station) => playStation(selected, {
     playlist: visit.pool,
     sourceId: 'home-calm',
@@ -226,18 +195,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
     const first = nextDeck[0];
     if (first) playStation(first, { playlist: nextDeck, sourceId: 'home-calm', sourceLabel: t('journal.stageQueue') });
   };
-  const startCountryDeck = (deck: CalmCountryDeck, station?: StationLite) => {
-    const first = station && deck.stations.some((item) => item.stationuuid === station.stationuuid) ? station : deck.stations[0];
-    if (!first) return;
-    const sourceLabel = localizedCountry({ country: deck.country, countrycode: deck.countrycode }, locale);
-    setWaveStationId(first.stationuuid);
-    setCountryIntent({ stations: deck.stations, sourceLabel, expectedStationId: first.stationuuid, baseCurrentStationId: player.pending?.stationuuid ?? player.current?.stationuuid ?? null, baseSourceId: queue.sourceId, baseStationIds: queueIds, observedPending: false });
-    playStation(first, {
-      playlist: deck.stations,
-      sourceId: 'home-country',
-      sourceLabel
-    });
-  };
   const ai = isAiAssistantEnabled();
   const openGlobe = (country: string) => { setGlobeFocusRegionId(country); setActiveSection('globe'); };
   const openLibrary = (tab: 'tracks' | 'collections' | 'favorites') => { setLibraryTab(tab); setActiveSection('library'); };
@@ -247,12 +204,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const storyWord = (story: CalmStory) => t(`journal.stories.${story.copyKey}.poster`);
   const stories = useMemo(() => visit.stories.slice(1), [visit.stories]);
   const offerFamily = stationGenreFamily(offer);
-  const openBrowseFeed = () => {
-    const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
-    const queueIds = queue.items.map((item) => item.stationuuid);
-    if (isFeedBrowseVisitCompatible(getFeedBrowseVisit(), queue.sourceId, currentStationId, queueIds)) setActiveSection('feed');
-    else onFeed(listener ?? offer);
-  };
   const renderLiveRow = (s: StationLite, playlist: StationLite[]) => {
     const current = listener?.stationuuid === s.stationuuid;
     const currentOnAir = current && player.current?.stationuuid === s.stationuuid && player.isPlaying && !player.pending;
@@ -293,7 +244,6 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       if (queuedIndex >= 0) queue.playAtIndex(queuedIndex);
       else onPlay(s, [s], 'home-source');
     }} />}
-    {countryPicker && <CalmCountryPicker initial={visit.countries} selected="" onSelect={openGlobe} onClose={() => setCountryPicker(false)} />}
     {allStories && <CalmStoriesSheet stories={visit.stories} onSelect={(story) => setSheet({ kind: 'story', story })} onClose={() => setAllStories(false)} />}
 
     <header className="calm-journal-heading">
@@ -304,6 +254,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       </div>
     </header>
 
+    <div className="calm-home-hero-row">
     <CalmDiscoveryStage
       station={offer}
       status={listenerStatus}
@@ -311,23 +262,15 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       country={localizedCountry(offer, locale)}
       details={[offer.state.trim(), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ')}
       track={liveTrack}
-      hasListener={Boolean(listener)}
       isPlaying={onAir}
       canRetry={listenerStatus === 'error'}
       nextStations={stageNext}
-      queueSource={countryIntentPending && countryIntent ? countryIntent.sourceLabel : queueOwnsListener ? queue.sourceLabel || '' : ''}
       hasNext={stageHasNext}
+      hasPrevious={canGoPrevious}
       canDiscover={visit.pool.some((item) => item.stationuuid !== offer.stationuuid)}
       onPlay={() => {
         if (listenerStatus === 'buffering') return;
         if (onAir) { void player.toggle(); return; }
-        if (countryIntentPending && countryIntent) {
-          const selected = listener ?? countryIntent.stations.find((item) => item.stationuuid === countryIntent.expectedStationId);
-          if (!selected) return;
-          setCountryIntent({ ...countryIntent, expectedStationId: selected.stationuuid, observedPending: false });
-          playStation(selected, { playlist: countryIntent.stations, sourceId: 'home-country', sourceLabel: countryIntent.sourceLabel });
-          return;
-        }
         if (listenerStatus === 'error' && queueOwnsListener) { queue.playAtIndex(queueIndex); return; }
         if (!listener || !queueOwnsListener) { startHomeDeck(listener ?? visit.station); return; }
         void player.toggle();
@@ -335,40 +278,26 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       onNext={() => {
         if (!stageHasNext) { openNewDeck(); return; }
         if (queueOwnsListener) { playNext(); return; }
-        if (countryIntentPending && countryIntent) {
-          const next = stageDeck[stageIndex + 1];
-          setCountryIntent({ ...countryIntent, expectedStationId: next.stationuuid, previousExpectedStationId: countryIntent.expectedStationId, observedPending: false });
-          playStation(next, { playlist: countryIntent.stations, sourceId: 'home-country', sourceLabel: countryIntent.sourceLabel });
-          return;
-        }
         startHomeDeck(stageDeck[stageIndex + 1]);
+      }}
+      onPrevious={() => {
+        if (!canGoPrevious) return;
+        if (queueOwnsListener) playPrevious();
+        else startHomeDeck(stageDeck[stageIndex - 1]);
       }}
       onDiscover={openNewDeck}
       onSource={() => setSource(offer)}
-      onFeed={openBrowseFeed}
-      onGlobe={() => setActiveSection('globe')}
-      waveOnStation={waveStationId === offer.stationuuid}
-      worldOverview={<CalmWorldOverview
-        decks={countryDecks}
-        activeStation={offer}
-      playingStationId={onAir ? player.current?.stationuuid ?? null : null}
-        onPlay={startCountryDeck}
-        onMap={openGlobe}
-        onAllCountries={() => setCountryPicker(true)}
-      />}
     />
-
-    <div className="calm-home-first-row">
-    <div className="calm-home-intro">
       {stories.length > 0 && <section className="calm-section calm-home-moods" data-calm-stories>
           <div className="calm-heading"><h2>{t('journal.moods')}</h2><button className="calm-text" data-calm-stories-all onClick={() => setAllStories(true)}>{t('journal.moodsMore')} <Icon d={ARROW} /></button></div>
-          <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} onClick={() => setSheet({ kind: 'story', story })}>
+          <div className="calm-story-rail">{stories.map((story) => <button key={story.id} className="calm-story" data-calm-story={story.id} aria-label={storyTitle(story)} onClick={() => setSheet({ kind: 'story', story })}>
             <CalmHomePoster story={story} word={storyWord(story)} />
-            <span className="calm-story-caption"><span><small>{storyKicker(story)}</small><strong>{storyTitle(story)}</strong></span></span>
+            <span className="calm-story-open" aria-hidden="true"><Icon d="M9 18l6-6-6-6" /></span>
           </button>)}</div>
         </section>}
 
     </div>
+    <div className="calm-home-first-row">
       <div className="calm-home-radio">
         <section className="calm-section calm-live" data-calm-live data-calm-live-catalog>
           <div className="calm-heading"><h2>{t('journal.liveTitle')}</h2><button className="calm-text" onClick={() => onSearch('')}>{t('journal.liveCatalog')} <Icon d={ARROW} /></button></div>
@@ -398,7 +327,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         </section>}
 
         {visit.around && <section className="calm-section calm-country-issue" data-calm-around>
-          <div className="calm-heading"><div><h2>{t('journal.aroundTitle')}</h2><p className="calm-section-copy">{localizedCountry({ country: visit.around.label }, locale)} · {t('journal.aroundCopy')}</p></div></div>
+          <div className="calm-heading"><div><h2>{t('journal.aroundTitle')}</h2><small className="calm-around-country">{localizedCountry({ country: visit.around.label }, locale)}</small></div></div>
           <div className="calm-rows">{visit.around.stations.map((s) => <CalmStationRow key={s.stationuuid} station={s} onPlay={() => onPlay(s, visit.around!.stations, 'home-around')} onOpen={() => setSource(s)} />)}</div>
           <div className="calm-row-actions"><button className="calm-text" onClick={() => setSheet({ kind: 'country', country: visit.around!.label })}>{t('calm.moreStations')} <Icon d={ARROW} /></button><button className="calm-text" onClick={() => openGlobe(visit.around!.label)}>{t('journal.aroundMore')} <Icon d={ARROW} /></button></div>
         </section>}
@@ -408,13 +337,13 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         <section className="calm-section calm-detours" data-calm-detours>
           <div className="calm-heading"><div><span className="calm-eyebrow">{t('journal.detours.kicker')}</span><h2>{t('journal.detours.title')}</h2></div></div>
           <div className="calm-detour-grid">{['dub', 'afrobeat', 'bossa nova', 'experimental'].map((tag, index) => <button key={tag} className={`calm-detour calm-detour-${index}`} onClick={() => setSheet({ kind: 'trail', query: { tag, tagExact: true }, title: t(`journal.detours.names.${index}`), picks: visit.pool.filter(s => s.tags.split(',').some(value => value.trim().toLowerCase() === tag)) })}>
-            <span className="calm-detour-art" aria-hidden="true" /><small>{String(index + 1).padStart(2, '0')} / RADIOATLAS</small><strong>{t(`journal.detours.names.${index}`)}</strong><span>{t(`journal.detours.copy.${index}`)}</span><i aria-hidden="true">↗</i>
+            <span className="calm-detour-art" aria-hidden="true" /><strong>{t(`journal.detours.names.${index}`)}</strong><span>{t(`journal.detours.copy.${index}`)}</span><i aria-hidden="true">↗</i>
           </button>)}</div>
         </section>
 
         {visit.genres.length > 0 && <section className="calm-section" data-calm-genres>
           <div className="calm-heading"><h2>{t('journal.genresTitle')}</h2><button className="calm-text" onClick={() => onSearch('')}>{t('journal.genresAll')} <Icon d={ARROW} /></button></div>
-          <div className="calm-genre-grid">{visit.genres.map((group) => <button key={group.id} className="calm-genre-door" onClick={() => setSheet({ kind: 'genre', id: group.id, query: group.query, stations: group.stations })}><strong>{t(`journal.genreNames.${group.id}`)}</strong><small>{normalizeStationName(group.stations[0].name)}</small><span aria-hidden="true">↗</span></button>)}</div>
+          <div className="calm-genre-grid">{visit.genres.map((group) => <button key={group.id} className="calm-genre-door" onClick={() => setSheet({ kind: 'genre', id: group.id, query: group.query, stations: group.stations })}><strong>{t(`journal.genreNames.${group.id}`)}</strong><span aria-hidden="true">↗</span></button>)}</div>
         </section>}
 
         <section className="calm-section" data-calm-personal>

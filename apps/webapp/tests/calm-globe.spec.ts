@@ -235,10 +235,19 @@ test('calm globe: Лира is asked about the selected source in its own words',
 test('calm home: a country continues on the globe at the same place', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
+  await page.route('**/catalog/summary**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    generatedAt: Date.now(), counts: { stations: stations.length, countries: 3, languages: 3, genres: 8 },
+    catalogPool: stations, freshSignals: stations.slice(0, 6), searchLaunch: stations.slice(0, 6), sponsored: [],
+    countrySpotlight: { label: 'Japan', stations: stations.filter(s => s.country === 'Japan') },
+    genreSpotlight: { label: 'jpop', stations: stations.filter(s => s.country === 'Japan') },
+    aroundTheWorld: { label: 'Japan', stations: stations.filter(s => s.country === 'Japan') }
+  }) }));
   await page.goto('/?calm=1');
-  const link = page.locator('[data-calm-country-map]').first();
+  const around = page.locator('[data-calm-around]');
+  await around.scrollIntoViewIfNeeded();
+  const country = 'Japan';
+  const link = around.locator('.calm-row-actions').getByRole('button', { name: 'На карте', exact: true });
   await expect(link).toBeVisible();
-  const country = (await link.getAttribute('data-calm-country-map'))!;
   await link.click();
   await expect(page.locator('[data-globe-explorer]')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
   await expect(page.locator('.explorer-title strong')).toHaveText(country);

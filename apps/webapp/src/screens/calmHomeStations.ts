@@ -17,6 +17,8 @@ const countryKey = (station: StationLite): string => {
   return name ? `name:${name}` : '';
 };
 
+export const calmCountryDeckKey = countryKey;
+
 const hasPlayableUrl = (station: StationLite) => {
   const value = station.url_resolved?.trim();
   if (!value) return false;

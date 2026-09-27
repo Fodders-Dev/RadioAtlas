@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState } from './helpers';
 
 for (const width of [320, 390]) {
-  test(`calm surfaces use the selected theme and the spectrum stays inside Play at ${width}px`, async ({ page }) => {
+  test(`calm surfaces keep the station card readable in the selected theme at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await mockStations(page);
     await installMediaMocks(page);
@@ -20,15 +20,35 @@ for (const width of [320, 390]) {
       for (const section of ['Главная', 'Моё']) {
         await nav.getByRole('button', { name: section, exact: true }).click();
         if (section === 'Главная') {
-          await expect(page.locator('.calm-atlas-map')).toBeVisible();
-          const colors = await page.locator('.calm-atlas').evaluate(el => ({
-            heading: getComputedStyle(el.querySelector('h2')!).color,
-            country: getComputedStyle(el.querySelector('h3')!).color,
-            station: getComputedStyle(el.querySelector('.calm-atlas-station-copy strong')!).color,
-            count: getComputedStyle(el.querySelector('.calm-atlas-selection small')!).color,
-            listen: getComputedStyle(el.querySelector('.calm-atlas-listen')!).color,
+          const card = page.locator('[data-calm-discovery-stage]');
+          await expect(card.locator('[data-stage-cover-stack]')).toBeVisible();
+          await expect(card.locator('[data-stage-play]')).toBeVisible();
+          await expect(card.locator('[data-calm-entry]')).toHaveCount(0);
+          const colors = await card.evaluate(el => ({
+            ink: getComputedStyle(el).color,
+            title: getComputedStyle(el.querySelector('.calm-stage-station')!).color,
+            description: getComputedStyle(el.querySelector('.calm-stage-description')!).color,
+            info: getComputedStyle(el.querySelector('.calm-stage-info')!).color,
+            next: getComputedStyle(el.querySelector('.calm-stage-next')!).color,
+            nextIcon: getComputedStyle(el.querySelector('.calm-stage-next svg')!).stroke,
+            play: getComputedStyle(el.querySelector('[data-stage-play]')!).color,
+            playBackground: getComputedStyle(el.querySelector('[data-stage-play]')!).backgroundColor,
           }));
-          expect(colors).toEqual({ heading: 'rgb(39, 59, 50)', country: 'rgb(39, 59, 50)', station: 'rgb(39, 59, 50)', count: 'rgb(82, 103, 91)', listen: 'rgb(255, 248, 233)' });
+          expect(colors).toEqual({ ink: 'rgb(48, 47, 40)', title: 'rgb(48, 47, 40)', description: 'rgb(81, 79, 68)', info: 'rgb(48, 70, 57)', next: 'rgb(48, 70, 57)', nextIcon: 'rgb(48, 70, 57)', play: 'rgb(255, 248, 233)', playBackground: 'rgb(169, 71, 48)' });
+          if (theme === 'classic') {
+            const darkColors = await card.evaluate(el => {
+              const root = document.documentElement;
+              const prior = root.getAttribute('data-theme-mode');
+              root.setAttribute('data-theme-mode', 'dark');
+              const result = [
+                getComputedStyle(el.querySelector('.calm-stage-station')!).color,
+                getComputedStyle(el.querySelector('.calm-stage-description')!).color,
+              ];
+              if (prior) root.setAttribute('data-theme-mode', prior); else root.removeAttribute('data-theme-mode');
+              return result;
+            });
+            expect(darkColors).toEqual(['rgb(48, 47, 40)', 'rgb(81, 79, 68)']);
+          }
         }
         await expect.poll(() => nav.evaluate(el =>
           el.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length
@@ -66,8 +86,8 @@ for (const width of [320, 390]) {
       }
     }
     await nav.getByRole('button', { name: 'Главная', exact: true }).click();
-    await expect.poll(() => page.locator('.calm-lira-face img').evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
-    await page.getByRole('button', { name: /^Включай:/ }).click();
+    await expect(page.locator('.calm-stage-art-mark .station-artwork')).toBeVisible();
+    await page.locator('[data-stage-play]').click();
     await nav.getByRole('button', { name: 'Лента', exact: true }).click();
     const play = page.locator('.calm-slide[data-focus="true"] .calm-listen');
     await expect(play).toBeVisible();

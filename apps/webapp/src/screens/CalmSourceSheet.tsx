@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StationLite } from '../types';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useLocale } from '../state/LocaleContext';
@@ -6,17 +6,29 @@ import { isAiAssistantEnabled } from '../lib/aiChat';
 import { stationGenreSlug } from '../lib/stationGenre';
 import { formatCountryLabel, normalizeStationName, stationLocation, stationTags } from '../lib/stationUtils';
 import { StationArtwork } from '../components/StationArtwork';
+import { resolveStationStory, type StationStory } from '../lib/stationStory';
 
 // A source, not a player: what the catalogue knows about a station and the four
 // things a listener does with one — play it, keep it, put it on the map, ask
 // Лира about it. Opening this never changes the air.
 export function CalmSourceSheet({ station, onClose, onPlay }: { station: StationLite; onClose: () => void; onPlay: (station: StationLite) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [resolvedStory, setResolvedStory] = useState<{ stationId: string; story: StationStory } | null>(null);
   const { t } = useLocale();
   const { player, queue } = usePlayback();
   const { isFavorite, toggleFavorite } = useLibrary();
   const { setGlobeFocusStationId, setActiveSection, requestChat } = useShell();
   useEffect(() => { dialog.current?.showModal(); }, []);
+  useEffect(() => {
+    const stationId = station.stationuuid;
+    const controller = new AbortController();
+    let live = true;
+    setResolvedStory(null);
+    void resolveStationStory(stationId, controller.signal).then((story) => {
+      if (live && story) setResolvedStory({ stationId, story });
+    }).catch(() => undefined);
+    return () => { live = false; controller.abort(); };
+  }, [station.stationuuid]);
   const current = (player.current ?? player.pending)?.stationuuid === station.stationuuid;
   const playing = current && player.isPlaying;
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
@@ -26,16 +38,24 @@ export function CalmSourceSheet({ station, onClose, onPlay }: { station: Station
   const site = station.homepage && /^https?:/.test(station.homepage) ? station.homepage : null;
   const close = () => dialog.current?.close();
   const name = normalizeStationName(station.name);
+  const story = resolvedStory?.stationId === station.stationuuid ? resolvedStory.story : null;
+  const about = station.description?.trim() || story?.description || '';
+  const artworkStation = story?.artworkUrl && !station.stationArtwork?.trim()
+    ? { ...station, stationArtwork: story.artworkUrl }
+    : station;
 
   return <dialog ref={dialog} className="calm-sheet calm-source-sheet" aria-labelledby="calm-source-title" onClose={onClose} data-calm-source={station.stationuuid}>
     <div className="calm-sheet-handle" aria-hidden="true" />
     <div className="calm-sheet-head"><span className="calm-eyebrow">{t('journal.sourceKicker')} · {formatCountryLabel(station.country)}</span><button className="calm-icon" onClick={close} aria-label={t('common.close')}>×</button></div>
     <div className="calm-source-profile">
-      <StationArtwork station={station} size="card" className="calm-source-art" />
+      <StationArtwork station={artworkStation} size="card" className="calm-source-art" />
       <h2 id="calm-source-title">{name}</h2>
       <p>{[stationLocation(station), genre ? t(`genre.${genre}`) : '', station.language?.split(',')[0]?.trim()].filter(Boolean).join(' · ')}</p>
       <p className="calm-source-tags">{tags || t('journal.sourceGenres')}</p>
     </div>
+    {about && <p className="calm-source-story-description">{about}</p>}
+    {story?.artists.length ? <p className="calm-source-story-artists"><strong>{t('journal.stageStoryArtists')}</strong> {story.artists.slice(0, 3).join(' · ')}</p> : null}
+    {story?.sourceUrl && <a className="calm-source-story-link" href={story.sourceUrl} target="_blank" rel="noreferrer">{t('journal.stageStorySource', { source: story.sourceLabel })}</a>}
     <button className="calm-primary calm-primary-wide" data-source-play onClick={() => { if (current && player.status !== 'error') { void player.toggle(); return; } onPlay(station); }}>
       <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span> {playing ? t('journal.sourcePause') : t('journal.sourcePlay')}
     </button>
