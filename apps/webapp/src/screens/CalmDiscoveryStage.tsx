@@ -17,6 +17,7 @@ type Props = {
   country: string;
   details: string;
   track: string;
+  favorite: boolean;
   isPlaying: boolean;
   canRetry: boolean;
   nextStations: StationLite[];
@@ -26,6 +27,7 @@ type Props = {
   onPlay: () => void;
   onNext: () => void;
   onPrevious: () => void;
+  onToggleFavorite: () => void;
   onDiscover: () => void;
   onSource: () => void;
 };
@@ -34,8 +36,9 @@ const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" aria-hidden="tru
 const PREVIOUS = 'M18 5 7 12l11 7V5ZM5 5v14';
 const NEXT = 'M6 5l11 7-11 7V5ZM19 5v14';
 const INFO = 'M12 10.5v5M12 7.5h.01';
+const HEART = 'M12 21.2l-1.4-1.3C5.4 15.4 2 12.3 2 8.4 2 5.6 4.2 3.5 7 3.5c1.6 0 3.2.7 4.2 2 1-1.3 2.6-2 4.2-2 2.8 0 5 2.1 5 4.9 0 3.9-3.4 7-8.6 11.4z';
 
-export function CalmDiscoveryStage({ station, status, statusLabel, country, details, track, isPlaying, canRetry, nextStations, hasNext, hasPrevious, canDiscover, onPlay, onNext, onPrevious, onDiscover, onSource }: Props) {
+export function CalmDiscoveryStage({ station, status, statusLabel, country, details, track, favorite, isPlaying, canRetry, nextStations, hasNext, hasPrevious, canDiscover, onPlay, onNext, onPrevious, onToggleFavorite, onDiscover, onSource }: Props) {
   const { t } = useLocale();
   const [resolvedStory, setResolvedStory] = useState<{ stationId: string; story: StationStory } | null>(null);
   useEffect(() => {
@@ -82,6 +85,17 @@ export function CalmDiscoveryStage({ station, status, statusLabel, country, deta
           <span className="calm-stage-art-mark"><StationArtwork station={artworkStation} size="md" className="calm-stage-logo" priority /></span>
           <span className="calm-stage-art-label">{genreSlug ? t(`genre.${genreSlug}`) : ''}</span>
         </div>
+        <button
+          className="calm-stage-favorite"
+          data-stage-favorite
+          data-dock-swipe-ignore
+          type="button"
+          aria-pressed={favorite}
+          aria-label={t(favorite ? 'journal.stageUnfavorite' : 'journal.stageFavorite', { name })}
+          onClick={onToggleFavorite}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={HEART} fill={favorite ? 'currentColor' : 'none'} /></svg>
+        </button>
         <div className="calm-stage-card-body">
           <div className="calm-stage-card-heading">
             <div className="calm-stage-card-copy">

@@ -6,6 +6,7 @@ const start = async (page: Page, includeThirdCountry = false) => {
   await installMediaMocks(page);
 };
 const readQueue = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+const readFavoriteIds = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('radio:library:v2') || '{}').favorites?.map((item: { stationuuid: string }) => item.stationuuid) || []);
 const touchDrag = async (page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 8) => {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y }] });
@@ -40,6 +41,106 @@ test('cold Play seeds the whole visible discovery set', async ({ page }) => {
   const queueState = await readQueue(page);
   expect(queueState.items.length).toBeGreaterThan(3);
   expect(queueState.items[0].stationuuid).toBe(first);
+});
+
+test('Home card favorite saves the displayed station without changing playback or its queue', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.goto('/?calm=1');
+  const stage = page.locator('[data-calm-discovery-stage]');
+  const favorite = stage.locator('[data-stage-favorite]');
+  await expect(stage).toBeVisible();
+  const firstId = (await stage.getAttribute('data-calm-offer'))!;
+  const firstName = (await stage.locator('.calm-stage-station').textContent())!.trim();
+  await expect(favorite).toHaveAttribute('aria-pressed', 'false');
+  await expect(favorite).toHaveAttribute('aria-label', `Добавить станцию в избранное: ${firstName}`);
+  const quietQueue = await readQueue(page);
+  await favorite.click();
+  await expect(favorite).toHaveAttribute('aria-pressed', 'true');
+  await expect(favorite).toHaveAttribute('aria-label', `Убрать станцию из избранного: ${firstName}`);
+  await expect.poll(() => readFavoriteIds(page)).toContain(firstId);
+  expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') ?? null)).toBeNull();
+  expect(await readQueue(page)).toEqual(quietQueue);
+
+  await stage.locator('[data-stage-play]').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const playingSource = await page.locator('audio').first().getAttribute('src');
+  await expect.poll(async () => (await readQueue(page))?.items?.some((item: { stationuuid: string }) => item.stationuuid === firstId)).toBe(true);
+  const playingQueue = await readQueue(page);
+  expect(playingQueue.items[playingQueue.currentIndex].stationuuid).toBe(firstId);
+  for (const expectedPressed of ['false', 'true']) {
+    await favorite.click();
+    await expect(favorite).toHaveAttribute('aria-pressed', expectedPressed);
+    await expect(stage).toHaveAttribute('data-calm-offer', firstId);
+    expect(await page.locator('audio').first().getAttribute('src')).toBe(playingSource);
+    expect(await readQueue(page)).toEqual(playingQueue);
+  }
+
+  const nextId = playingQueue.items[playingQueue.currentIndex + 1]?.stationuuid;
+  expect(nextId, 'the Home queue must have another station to verify favorite isolation').toBeTruthy();
+  await stage.locator('[data-stage-next]').click();
+  await expect(stage).toHaveAttribute('data-calm-offer', nextId!);
+  await expect(favorite).toHaveAttribute('aria-pressed', 'false');
+
+  const favoriteBox = await favorite.boundingBox();
+  expect(favoriteBox, 'the favorite control must be measurable for the swipe exclusion check').not.toBeNull();
+  await page.mouse.move(favoriteBox!.x + favoriteBox!.width / 2, favoriteBox!.y + favoriteBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(favoriteBox!.x + favoriteBox!.width / 2 - 80, favoriteBox!.y + favoriteBox!.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(stage).toHaveAttribute('data-calm-offer', nextId!);
+  await expect(favorite).toHaveAttribute('aria-pressed', 'false');
+
+  await stage.locator('[data-stage-previous]').click();
+  await expect(stage).toHaveAttribute('data-calm-offer', firstId);
+  await expect(favorite).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => readFavoriteIds(page)).toContain(firstId);
+  const savedQueue = await readQueue(page);
+  await page.reload();
+  await expect(stage).toHaveAttribute('data-calm-offer', firstId);
+  await expect(favorite).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') ?? null)).toBeNull();
+  await expect.poll(() => readFavoriteIds(page)).toContain(firstId);
+  await favorite.click();
+  await expect(favorite).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => readFavoriteIds(page)).not.toContain(firstId);
+  expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') ?? null)).toBeNull();
+  expect(await readQueue(page)).toEqual(savedQueue);
+});
+
+test('Home favorite button keeps clear contrast in the selected theme', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  await page.goto('/?calm=1');
+  const favorite = page.locator('[data-stage-favorite]');
+  for (const theme of ['classic', 'neon', 'journal']) {
+    await page.locator('.calm-journal-heading').getByRole('button', { name: 'Оформление', exact: true }).click();
+    await page.locator(`[data-theme-card="${theme}"]`).click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    if (await favorite.getAttribute('aria-pressed') === 'true') {
+      await favorite.click();
+      await expect.poll(() => favorite.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 249, 235)');
+    }
+    const unselected = await favorite.evaluate((el) => ({
+      background: getComputedStyle(el).backgroundColor,
+      color: getComputedStyle(el).color,
+      stroke: getComputedStyle(el.querySelector('svg path')!).stroke,
+      box: el.getBoundingClientRect().toJSON()
+    }));
+    expect(unselected.background).toBe('rgb(255, 249, 235)');
+    expect(unselected.color).toBe('rgb(48, 70, 57)');
+    expect(unselected.stroke).toBe('rgb(48, 70, 57)');
+    expect(unselected.box.width).toBeGreaterThanOrEqual(44);
+    expect(unselected.box.height).toBeGreaterThanOrEqual(44);
+    await favorite.click();
+    await expect(favorite).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => favorite.evaluate((el) => ({
+      background: getComputedStyle(el).backgroundColor,
+      color: getComputedStyle(el).color,
+      stroke: getComputedStyle(el.querySelector('svg path')!).stroke
+    }))).toEqual({ background: 'rgb(169, 71, 48)', color: 'rgb(255, 248, 233)', stroke: 'rgb(255, 248, 233)' });
+  }
 });
 
 test('rapid Next advances from the station currently buffering in a personal queue', async ({ page }) => {
@@ -211,6 +312,8 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
       const previous = document.querySelector<HTMLElement>('[data-stage-previous]')!;
       const next = document.querySelector<HTMLElement>('[data-stage-next]')!;
       const cover = document.querySelector<HTMLElement>('.calm-stage-card')!;
+      const art = document.querySelector<HTMLElement>('.calm-stage-art')!.getBoundingClientRect();
+      const favorite = document.querySelector<HTMLElement>('[data-stage-favorite]')!.getBoundingClientRect();
       const actions = document.querySelector<HTMLElement>('.calm-stage-actions')!.getBoundingClientRect();
       const stageBox = stage.getBoundingClientRect();
       const nameBox = name.getBoundingClientRect();
@@ -222,6 +325,8 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
         nameSize: parseFloat(getComputedStyle(name).fontSize),
         playSize: Math.min(play.getBoundingClientRect().width, play.getBoundingClientRect().height),
         previousSize: Math.min(previous.getBoundingClientRect().width, previous.getBoundingClientRect().height),
+        favoriteSize: Math.min(favorite.width, favorite.height),
+        favoriteInArt: favorite.left >= art.left && favorite.top >= art.top && favorite.right <= art.right && favorite.bottom <= art.bottom,
         actionEdgeGap: stageBox.right - nextBox.right,
         cardControlGap: cardBox.right - nextBox.right,
         actionNameGap: actions.top - nameBox.bottom,
@@ -233,6 +338,8 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
     expect(geometry.nameSize).toBeGreaterThanOrEqual(width <= 390 ? 14 : 16);
     expect(geometry.playSize).toBeGreaterThanOrEqual(44);
     expect(geometry.previousSize).toBeGreaterThanOrEqual(44);
+    expect(geometry.favoriteSize).toBeGreaterThanOrEqual(44);
+    expect(geometry.favoriteInArt).toBe(true);
     expect(geometry.actionEdgeGap).toBeGreaterThanOrEqual(8);
     expect(geometry.cardControlGap).toBeGreaterThanOrEqual(8);
     expect(geometry.actionNameGap).toBeGreaterThanOrEqual(0);

@@ -73,7 +73,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const { t, locale } = useLocale();
   const { summary } = useCatalog();
   const { player, nowPlaying, queue, playNext, playPrevious, playStation } = usePlayback();
-  const { trackHistory, knownStations, favorites, recent, playbackHistory, isStationHiddenFromRecommendations } = useLibrary();
+  const { trackHistory, knownStations, favorites, recent, playbackHistory, isStationHiddenFromRecommendations, isFavorite, toggleFavorite } = useLibrary();
   const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
   useLayoutEffect(() => {
@@ -262,6 +262,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
       country={localizedCountry(offer, locale)}
       details={[offer.state.trim(), offerFamily ? t(`mapExplorer.families.${offerFamily}`) : ''].filter(Boolean).join(' · ')}
       track={liveTrack}
+      favorite={isFavorite(offer.stationuuid)}
       isPlaying={onAir}
       canRetry={listenerStatus === 'error'}
       nextStations={stageNext}
@@ -285,6 +286,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         if (queueOwnsListener) playPrevious();
         else startHomeDeck(stageDeck[stageIndex - 1]);
       }}
+      onToggleFavorite={() => toggleFavorite(offer)}
       onDiscover={openNewDeck}
       onSource={() => setSource(offer)}
     />
