@@ -220,6 +220,12 @@
   position: relative;
 }
 
+.player-dock .player-dock-track-button[role='button']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #7ef2d8) 78%, white 22%);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* The bookmark rides WITH the title it marks, at the title's weight and in the
    accent — that adjacency is what makes «this track → keep it» read as one
    thing. ♥ stays in the control group and keeps its own meaning: the heart

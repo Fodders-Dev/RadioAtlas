@@ -45,6 +45,86 @@ test('swipe LEFT on the dock advances the queue', async ({ page }) => {
   expect(after).not.toBe(before);
 });
 
+test('metadata arriving during a dock touch keeps the swipe target alive', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installTelegramShim(page);
+  await installMediaMocks(page);
+  await mockStations(page);
+
+  let releaseMetadata!: () => void;
+  const metadataGate = new Promise<void>((resolve) => { releaseMetadata = resolve; });
+  const metadataRequest = page.waitForRequest((request) => request.url().includes('/metadata?url='));
+  await page.route('**/metadata?url=**', async (route) => {
+    await metadataGate;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Mock Song', logs: ['test'], source: 'test' }) });
+  });
+
+  await seedRadioState(page, { queue: stations.slice(0, 3) });
+  await page.goto('/');
+  await playHomeStation(page, 'Tokyo FM');
+  await metadataRequest;
+  await expect(page.locator('.player-dock-bar')).toBeVisible();
+  const target = page.locator('.player-dock-track-button');
+  await expect(target).toHaveJSProperty('tagName', 'DIV');
+  const targetBox = (await target.boundingBox())!;
+  const start = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
+  const hit = await page.evaluate(({ x, y }) => {
+    const node = document.elementFromPoint(x, y)?.closest('.player-dock-track-button');
+    return node ? { tagName: node.tagName, className: node.className } : null;
+  }, start);
+  expect(hit).toEqual({ tagName: 'DIV', className: 'player-dock-track-button' });
+  const originalTrackNode = await target.elementHandle();
+  expect(originalTrackNode, 'the plain-text track row must be the real touch target').not.toBeNull();
+
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+    releaseMetadata();
+    await expect(page.locator('[data-capture-find]')).toBeVisible();
+    for (let index = 1; index <= 6; index += 1) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: start.x - (120 * index) / 6, y: start.y }]
+      });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    releaseMetadata();
+    await cdp.detach();
+  }
+
+  await expect.poll(() => originalTrackNode!.evaluate((node) => node.isConnected)).toBe(true);
+  await expect(page.locator('.player-dock-title')).toHaveText('Osaka Nights');
+  await expect(page.locator('audio').first()).toHaveAttribute('src', /osaka/);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:library:v2') || '{}').trackHistory?.length || 0)).toBe(0);
+});
+
+test('the active dock track supports Enter and Space exactly once each', async ({ page }) => {
+  await setup(page);
+
+  const track = page.locator('[data-capture-find]');
+  await expect(track).toHaveAttribute('role', 'button');
+  await expect(track).toHaveAttribute('tabindex', '0');
+  const audioSource = await page.locator('audio').first().getAttribute('src');
+  await track.evaluate((node) => {
+    node.addEventListener('click', () => {
+      const count = Number(document.documentElement.dataset.trackKeyboardClickCount || 0);
+      document.documentElement.dataset.trackKeyboardClickCount = String(count + 1);
+    });
+  });
+  await track.focus();
+
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.locator('html').getAttribute('data-track-keyboard-click-count')).toBe('1');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:library:v2') || '{}').trackHistory?.length || 0)).toBe(1);
+
+  await page.keyboard.press('Space');
+  await expect.poll(() => page.locator('html').getAttribute('data-track-keyboard-click-count')).toBe('2');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:library:v2') || '{}').trackHistory?.length || 0)).toBe(1);
+  await expect(page.locator('audio').first()).toHaveAttribute('src', audioSource!);
+});
+
 test('a VERTICAL scroll that starts on the dock never changes the station (#86)', async ({ page }) => {
   await setup(page);
   const before = await currentStation(page);

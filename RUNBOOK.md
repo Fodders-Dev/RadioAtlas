@@ -1,5 +1,23 @@
 # RUNBOOK
 
+## 2026-09-27 — station-card release stopped on a real dock swipe race
+
+Release `fbad6b5` was refused before deployment: CI run `36329910169`
+passed the fast gate but failed the legacy dock's left-swipe case (399 passed,
+7 skipped). The unchanged case reproduced locally in 1/12 repetitions at six
+workers. Event observations showed a touch starting on the plain track `div`
+and metadata replacing it with a `button` before the drag finished; subsequent
+touch events no longer bubbled through the dock.
+
+A controlled regression holds the metadata response until after native CDP
+touchstart. The old markup disconnects the original target. The fix keeps the
+track row and text span mounted, adding button semantics and keyboard actions
+only when a capturable track exists. The no-track state remains plain text.
+This changes neither the queue nor playback transport. Keep the original real
+touch, vertical-scroll and tap tests; do not replace them with synthetic clicks.
+Final verification and actual release are recorded in
+`docs/RELEASE-STATION-CARDS-2026-09-27.md`.
+
 ## 2026-09-20 — release CI stopped on a persistence-test race
 
 The `fa67e2a` release was refused before server deployment: CI run

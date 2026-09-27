@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
 import { triggerHaptic } from '../lib/telegram';
 import { useDockSwipe } from '../lib/useDockSwipe';
@@ -231,6 +231,21 @@ export const MiniPlayerDock = () => {
     : isLastHeard
       ? t('dock.lastHeardAria', { track: lastHeard!.track })
       : playbackState?.label || trackTitle;
+  const handleTrackKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!activeTrack) return;
+    if (event.key === 'Enter' && !event.repeat) {
+      event.preventDefault();
+      event.currentTarget.click();
+    } else if (event.key === ' ') {
+      event.preventDefault();
+    }
+  };
+  const handleTrackKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (activeTrack && event.key === ' ') {
+      event.preventDefault();
+      event.currentTarget.click();
+    }
+  };
   const volumePercent = Math.round(player.volume * 100);
   const isMuted = player.volume <= 0.01;
   const showMoreButton = Boolean(current) || queueCount > 0;
@@ -625,32 +640,25 @@ export const MiniPlayerDock = () => {
             captioned with something that is not a track teaches nothing, so the
             silent case is now plain text and the control simply is not there.
         */}
-        {activeTrack ? (
-          <button
-            className="player-dock-track-button active"
-            type="button"
-            data-capture-find="true"
-            data-last-heard={isLastHeard ? 'true' : undefined}
-            onClick={() => {
-              void copyTrack();
-            }}
-            aria-label={trackAriaLabel}
-            title={trackAriaLabel}
-          >
-            <span className="player-dock-track-button-text">{trackTitle}</span>
+        <div
+          className={`player-dock-track-button${activeTrack ? ' active' : ''}`}
+          role={activeTrack ? 'button' : undefined}
+          tabIndex={activeTrack ? 0 : undefined}
+          data-capture-find={activeTrack ? 'true' : undefined}
+          data-last-heard={isLastHeard ? 'true' : undefined}
+          onClick={activeTrack ? () => { void copyTrack(); } : undefined}
+          onKeyDown={activeTrack ? handleTrackKeyDown : undefined}
+          onKeyUp={activeTrack ? handleTrackKeyUp : undefined}
+          aria-label={activeTrack ? trackAriaLabel : undefined}
+          title={trackAriaLabel}
+        >
+          <span className="player-dock-track-button-text">{trackTitle}</span>
+          {activeTrack ? (
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M17 3H7a2 2 0 0 0-2 2v16l7-3.11L19 21V5a2 2 0 0 0-2-2Z" />
             </svg>
-          </button>
-        ) : (
-          <div
-            className="player-dock-track-button"
-            data-last-heard={isLastHeard ? 'true' : undefined}
-            title={trackAriaLabel}
-          >
-            <span className="player-dock-track-button-text">{trackTitle}</span>
-          </div>
-        )}
+          ) : null}
+        </div>
         <button
           className="player-dock-station"
           type="button"

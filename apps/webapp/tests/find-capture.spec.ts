@@ -283,5 +283,7 @@ test('a station that names nothing gets no control, not a dead one', async ({ pa
   // new listener that the action does not work.
   await expect(page.locator('.player-dock-track-button-text')).toBeVisible();
   await expect(page.locator('[data-capture-find]')).toHaveCount(0);
+  await expect(page.locator('.player-dock-track-button')).not.toHaveAttribute('role', 'button');
+  await expect(page.locator('.player-dock-track-button')).not.toHaveAttribute('tabindex', '0');
   await expect(page.locator('.player-dock-track-button:disabled')).toHaveCount(0);
 });
