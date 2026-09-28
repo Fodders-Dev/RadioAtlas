@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
 /**
  * «Находки» — the screen a find lives on after the air moved on.
@@ -52,13 +52,19 @@ const NOW = (() => {
 const openFinds = async (
   page: Page,
   finds: SeedFind[],
-  options: { viewport?: { width: number; height: number } } = {}
+  options: { viewport?: { width: number; height: number }; theme?: string; calm?: boolean } = {}
 ) => {
   await page.setViewportSize(options.viewport || { width: 390, height: 844 });
   await installMediaMocks(page);
   await mockStations(page);
   await seedRadioState(page, { activeSection: 'library', libraryTab: 'tracks', trackHistory: finds });
-  await page.goto('/?api=/api&glass=full');
+  if (options.theme) {
+    await page.addInitScript((themeId) => {
+      window.localStorage.setItem('radio:theme-current:v1', JSON.stringify(themeId));
+      window.localStorage.setItem('radio:theme-chosen:v1', 'true');
+    }, options.theme);
+  }
+  await page.goto(`/?api=/api&glass=full${options.calm ? '&calm=1' : ''}`);
   await expect(page.locator('.screen-library-v2')).toBeVisible({ timeout: 15_000 });
   // The tab strip may land on another tab; click through to «Находки» by its
   // NEW label, which also proves the rename shipped.
@@ -68,6 +74,213 @@ const openFinds = async (
 };
 
 const findRows = (page: Page) => page.locator('[data-find-row]');
+
+const findOverlayTextContrast = (page: Page) => page.locator('.finds-overlay-card').evaluate((card) => {
+  const rgb = (value: string): [number, number, number, number] => {
+    const values = value.match(/[\d.]+/g)?.map(Number) || [];
+    return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1];
+  };
+  const composite = (foreground: number[], background: number[]) => {
+    const alpha = foreground[3] ?? 1;
+    return [0, 1, 2].map((channel) => foreground[channel] * alpha + background[channel] * (1 - alpha));
+  };
+  const luminance = (color: number[]) => {
+    const channels = color.map((channel) => channel / 255).map((channel) =>
+      channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+    );
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  };
+  const probe = document.createElement('div');
+  probe.style.backgroundColor = 'var(--bg)';
+  document.body.append(probe);
+  const pageBackground = rgb(getComputedStyle(probe).backgroundColor);
+  probe.remove();
+  const cardStyle = getComputedStyle(card);
+  const background = composite(rgb(cardStyle.backgroundColor), pageBackground);
+  return Array.from(card.querySelectorAll<HTMLElement>(
+    '.finds-overlay-title, .finds-overlay-sub, .finds-overlay-item'
+  )).filter((element) => element.getClientRects().length > 0).map((element) => {
+    const foreground = composite(rgb(getComputedStyle(element).color), background);
+    const a = luminance(foreground);
+    const b = luminance(background);
+    return { text: element.innerText, contrast: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+  });
+});
+
+const resolveFindStation = async (page: Page, handler: Parameters<Page['route']>[1]) => {
+  await page.route('**/catalog/stations/**', handler);
+};
+
+const coldFind = (stationId = 'uuid-rio'): SeedFind => ({
+  id: 'cold-source-find', stationId, stationName: 'Saved name from the find',
+  track: 'A track worth returning for', timestamp: NOW - 60_000
+});
+
+test('a cold find opens its exact source without changing the queue or starting audio', async ({ page }) => {
+  const source = stations.find((station) => station.stationuuid === 'uuid-rio')!;
+  const queue = [stations[0], stations[1], stations[2]];
+  await installMediaMocks(page);
+  await mockStations(page);
+  await seedRadioState(page, { activeSection: 'library', libraryTab: 'tracks', queue, queueCurrentIndex: 0, trackHistory: [coldFind()] });
+  await page.goto('/?api=/api&glass=full');
+  await expect(page.locator('[data-finds-search]')).toBeVisible({ timeout: 15_000 });
+  await resolveFindStation(page, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ item: source })
+  }));
+  const play = page.locator('.player-dock-bar .dock-play-btn');
+  await play.click();
+  await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
+  const before = await page.evaluate(() => ({
+    queue: JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue,
+    finds: JSON.parse(localStorage.getItem('radio:library:v2') || '{}').trackHistory
+  }));
+  expect(before.queue.items).toHaveLength(3);
+  expect(before.finds).toHaveLength(1);
+  const playingBefore = await page.locator('audio').evaluate((audio) => ({ src: audio.getAttribute('src'), state: audio.getAttribute('data-ra-state') }));
+
+  await page.locator('[data-find-more]').click();
+  await page.locator('[data-find-open-source]').click();
+  const sheet = page.locator('[data-calm-source]');
+  await expect(sheet).toHaveAttribute('data-calm-source', 'uuid-rio');
+  await expect(sheet).toContainText('Rio Beats');
+  await expect(sheet.locator('[data-source-play]')).toBeVisible();
+
+  const after = await page.evaluate(() => ({
+    queue: JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue,
+    finds: JSON.parse(localStorage.getItem('radio:library:v2') || '{}').trackHistory,
+    audio: document.querySelector('audio')?.getAttribute('src') || null,
+    state: document.querySelector('audio')?.getAttribute('data-ra-state') ?? null
+  }));
+  expect(after.queue).toEqual(before.queue);
+  expect(after.finds).toEqual(before.finds);
+  expect({ src: after.audio, state: after.state }).toEqual(playingBefore);
+});
+
+test('a null source stays unavailable until the listener retries', async ({ page }) => {
+  await openFinds(page, [coldFind()]);
+  const source = stations.find((station) => station.stationuuid === 'uuid-rio')!;
+  let available = false;
+  await resolveFindStation(page, (route) => {
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item: available ? source : null }) });
+  });
+
+  await page.locator('[data-find-more]').click();
+  await page.locator('[data-find-open-source]').click();
+  await expect(page.getByText('Станция пока недоступна')).toBeVisible();
+  await expect(page.locator('[data-calm-source]')).toHaveCount(0);
+  available = true;
+  await page.locator('[data-find-source-retry]').click();
+  await expect(page.locator('[data-calm-source]')).toHaveAttribute('data-calm-source', 'uuid-rio');
+});
+
+test('a by-id response for the wrong UUID is rejected as unavailable', async ({ page }) => {
+  await openFinds(page, [coldFind()]);
+  await resolveFindStation(page, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ item: stations[0] })
+  }));
+
+  await page.locator('[data-find-more]').click();
+  await page.locator('[data-find-open-source]').click();
+  await expect(page.getByText('Станция пока недоступна')).toBeVisible();
+  await expect(page.locator('[data-calm-source]')).toHaveCount(0);
+});
+
+for (const { theme, mode } of [
+  { theme: 'pastel', mode: 'light' },
+  { theme: 'classic', mode: 'dark' }
+]) {
+  test(`${theme} Journal Finds menu keeps action and unavailable text at WCAG AA contrast`, async ({ page }) => {
+    await openFinds(page, [coldFind()], { theme, calm: true });
+    await expect(page.locator('html')).toHaveAttribute('data-theme-mode', mode);
+    await resolveFindStation(page, (route) => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify({ item: stations[0] })
+    }));
+    await page.locator('[data-find-more]').click();
+    await page.locator('[data-find-open-source]').click();
+    await expect(page.getByText('Станция пока недоступна')).toBeVisible();
+    const ratios = await findOverlayTextContrast(page);
+    expect(ratios.every((entry) => entry.contrast >= 4.5), JSON.stringify(ratios)).toBe(true);
+  });
+}
+
+test('closing a pending source lookup ignores its late response and restores menu focus', async ({ page }) => {
+  await openFinds(page, [coldFind()], { theme: 'pastel', calm: true });
+  const source = stations.find((station) => station.stationuuid === 'uuid-rio')!;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let requestSeen!: () => void;
+  const requested = new Promise<void>((resolve) => { requestSeen = resolve; });
+  await resolveFindStation(page, async (route) => {
+    requestSeen();
+    await held;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item: source }) });
+  });
+  const trigger = page.locator('[data-find-more]');
+  await trigger.click();
+  await page.locator('[data-find-open-source]').click();
+  await requested;
+  await expect(page.locator('[data-find-source-cancel]')).toBeVisible();
+  const loadingRatios = await findOverlayTextContrast(page);
+  expect(loadingRatios.every((entry) => entry.contrast >= 4.5), JSON.stringify(loadingRatios)).toBe(true);
+  await page.locator('[data-find-source-cancel]').click();
+  await expect(trigger).toBeFocused();
+  const lateResponse = page.waitForResponse((response) => response.url().includes('/catalog/stations/uuid-rio'));
+  release();
+  const response = await lateResponse;
+  await response.finished();
+  await page.locator('[data-finds-search]').evaluate((element) => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('[data-calm-source]').length)).toBe(0);
+  await expect(page.locator('[data-calm-source]')).toHaveCount(0);
+});
+
+test('Escape closes the source sheet to the same find and preserves query and scroll', async ({ page }) => {
+  const finds = makeFinds(36, NOW);
+  finds[35].stationId = 'uuid-rio';
+  await openFinds(page, finds);
+  const source = stations.find((station) => station.stationuuid === 'uuid-rio')!;
+  await resolveFindStation(page, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item: source }) }));
+  const search = page.locator('[data-finds-search]');
+  await search.fill('Track 35');
+  const row = page.locator('[data-find-row="find-35"]');
+  await search.fill('Track');
+  await row.scrollIntoViewIfNeeded();
+  const beforeScroll = await page.evaluate(() => window.scrollY);
+  expect(beforeScroll).toBeGreaterThan(0);
+  const trigger = row.locator('[data-find-more]');
+  await trigger.click();
+  await page.locator('[data-find-open-source]').click();
+  const sheet = page.locator('[data-calm-source]');
+  await expect(sheet).toHaveAttribute('data-calm-source', 'uuid-rio');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(search).toHaveValue('Track');
+  await expect(row).toBeVisible();
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - beforeScroll)).toBeLessThanOrEqual(8);
+});
+
+test('explicit source play uses the existing queue entry and keeps the queue', async ({ page }) => {
+  const target = stations.find((station) => station.stationuuid === 'uuid-rio')!;
+  const queue = [stations[0], target, stations[2]];
+  await installMediaMocks(page);
+  await mockStations(page);
+  await seedRadioState(page, {
+    activeSection: 'library', libraryTab: 'tracks', queue, queueCurrentIndex: 0,
+    trackHistory: [coldFind()]
+  });
+  await page.goto('/?api=/api&glass=full');
+  await expect(page.locator('[data-finds-search]')).toBeVisible({ timeout: 15_000 });
+  await resolveFindStation(page, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item: target }) }));
+  await page.locator('[data-find-more]').click();
+  await page.locator('[data-find-open-source]').click();
+  const sheet = page.locator('[data-calm-source="uuid-rio"]');
+  await expect(sheet).toHaveAttribute('data-calm-source', 'uuid-rio');
+  await sheet.locator('[data-source-play]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const player = JSON.parse(localStorage.getItem('radio:player:v2') || '{}');
+    return { index: player.queue?.currentIndex, ids: player.queue?.items?.map((item: { stationuuid: string }) => item.stationuuid) };
+  })).toEqual({ index: 1, ids: queue.map((station) => station.stationuuid) });
+});
 
 test('the tab is «Находки» and the list is not a scroller inside a scroller', async ({ page }) => {
   await openFinds(page, makeFinds(24, NOW));

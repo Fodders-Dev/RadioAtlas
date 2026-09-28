@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { buildMusicServiceLinks, type MusicServiceId } from '../lib/musicServiceLinks';
 import { filterFinds, groupFinds, monthGroupLabel, type FindGroup } from '../lib/findGroups';
@@ -6,7 +6,13 @@ import { readPreferredMusicService, writePreferredMusicService } from '../lib/pr
 import { openLinkOrFallback, triggerHaptic } from '../lib/telegram';
 import { useDialog } from '../lib/useDialog';
 import { useLocale } from '../state/LocaleContext';
+import { useCatalog } from '../state/CatalogContext';
+import { usePlayback } from '../state/RadioContext';
+import type { StationLite } from '../types';
 import type { TrackHistoryItem } from '../state/radio/types';
+
+const loadCalmSourceSheet = () => import('../screens/CalmSourceSheet');
+const CalmSourceSheet = lazy(() => loadCalmSourceSheet().then((module) => ({ default: module.CalmSourceSheet })));
 
 /**
  * «Находки» — the saved finds, and the screen that gives them a life after air.
@@ -103,6 +109,70 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
   const [menuFor, setMenuFor] = useState<TrackHistoryItem | null>(null);
   const [confirming, setConfirming] = useState<TrackHistoryItem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sourceStation, setSourceStation] = useState<StationLite | null>(null);
+  const [sourceLookup, setSourceLookup] = useState<'idle' | 'loading' | 'unavailable'>('idle');
+  const lookupSequence = useRef(0);
+  const moreTrigger = useRef<HTMLButtonElement | null>(null);
+  const { getStationById, fetchStationById } = useCatalog();
+  const { queue, player, playStation } = usePlayback();
+
+  useEffect(() => () => { lookupSequence.current += 1; }, []);
+  useEffect(() => {
+    if (!menuFor) {
+      lookupSequence.current += 1;
+      setSourceLookup('idle');
+    }
+  }, [menuFor]);
+
+  const closeFindMenu = () => {
+    lookupSequence.current += 1;
+    setSourceLookup('idle');
+    setMenuFor(null);
+  };
+
+  const openSourceFromFind = async (find: TrackHistoryItem) => {
+    const sequence = ++lookupSequence.current;
+    setSourceLookup('loading');
+    try {
+      const cached = getStationById(find.stationId);
+      const station = cached?.stationuuid === find.stationId
+        ? cached
+        : await fetchStationById(find.stationId);
+      if (sequence !== lookupSequence.current) return;
+      if (!station || station.stationuuid !== find.stationId) {
+        setSourceLookup('unavailable');
+        return;
+      }
+      // Keep the menu's visible loading/cancel state until the lazy source
+      // sheet code is ready. A cancelled lookup must not surface it later.
+      await loadCalmSourceSheet();
+      if (sequence !== lookupSequence.current) return;
+      setMenuFor(null);
+      setSourceLookup('idle');
+      setSourceStation(station);
+    } catch {
+      if (sequence === lookupSequence.current) setSourceLookup('unavailable');
+    }
+  };
+
+  const playSource = (station: StationLite) => {
+    const queuedIndex = queue.items.findIndex((item) => item.stationuuid === station.stationuuid);
+    if (queuedIndex >= 0) {
+      queue.playAtIndex(queuedIndex);
+    } else {
+      playStation(station, { sourceId: 'library-find-source' });
+    }
+  };
+
+  const closeSource = () => {
+    setSourceStation(null);
+    // Native dialog close can restore focus to its removed opener (the menu
+    // action). Return to the still-mounted row control after the sheet closes.
+    window.setTimeout(() => {
+      const trigger = moreTrigger.current;
+      if (trigger?.isConnected && !trigger.closest('[hidden]')) trigger.focus({ preventScroll: true });
+    }, 0);
+  };
 
   // Read once on mount rather than during render: `localStorage` can throw, and
   // a render that throws in a private window would take the whole tab down.
@@ -232,7 +302,12 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
         className="find-row-more"
         type="button"
         data-find-more
-        onClick={() => setMenuFor(find)}
+        onClick={(event) => {
+          moreTrigger.current = event.currentTarget;
+          lookupSequence.current += 1;
+          setSourceLookup('idle');
+          setMenuFor(find);
+        }}
         aria-label={t('finds.moreFor', { track: find.track })}
       >
         <KebabGlyph />
@@ -333,9 +408,38 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
           testid="finds-row-menu"
           title={menuFor.track}
           subtitle={`${menuFor.stationName} · ${rowTime(menuFor.timestamp, 'date')}`}
-          onClose={() => setMenuFor(null)}
+          onClose={closeFindMenu}
         >
           <div className="finds-overlay-list">
+            {menuFor.stationId ? (
+              <>
+                <button
+                  className="finds-overlay-item"
+                  type="button"
+                  data-find-open-source
+                  disabled={sourceLookup === 'loading'}
+                  onClick={() => void openSourceFromFind(menuFor)}
+                >
+                  {t('finds.openSource')}
+                </button>
+                {sourceLookup === 'loading' ? (
+                  <div className="finds-overlay-sub" role="status" aria-live="polite">{t('finds.sourceLoading')}</div>
+                ) : null}
+                {sourceLookup === 'unavailable' ? (
+                  <div className="finds-overlay-sub" role="status">
+                    <span>{t('finds.sourceUnavailable')}</span>
+                    <button className="finds-overlay-item" type="button" data-find-source-retry onClick={() => void openSourceFromFind(menuFor)}>
+                      {t('finds.sourceRetry')}
+                    </button>
+                  </div>
+                ) : null}
+                {sourceLookup === 'loading' ? (
+                  <button className="finds-overlay-item" type="button" data-find-source-cancel onClick={closeFindMenu}>
+                    {t('common.cancel')}
+                  </button>
+                ) : null}
+              </>
+            ) : null}
             <button
               className="finds-overlay-item"
               type="button"
@@ -374,6 +478,12 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
             </button>
           </div>
         </FindOverlay>
+      ) : null}
+
+      {sourceStation ? (
+        <Suspense fallback={null}>
+          <CalmSourceSheet station={sourceStation} onClose={closeSource} onPlay={playSource} />
+        </Suspense>
       ) : null}
 
       {confirming ? (

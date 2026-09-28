@@ -11692,6 +11692,16 @@ button.player-dock-status-pill:active {
   border: 1px solid var(--border);
 }
 
+/* This menu is portalled to document.body, outside the Journal shell that owns
+   its paper/ink variables. In a light theme the fixed navy card therefore kept
+   the light theme's dark ink and rendered dark-on-dark. Give the portal a solid
+   light surface and ink together; dark themes keep the existing navy material. */
+:root[data-theme-mode='light'] .finds-overlay-card {
+  background: var(--bg-2);
+  border-color: var(--theme-border);
+  color: var(--text);
+}
+
 .finds-overlay-head {
   padding: 15px 16px 8px;
 }
@@ -11707,6 +11717,10 @@ button.player-dock-status-pill:active {
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
+}
+
+:root[data-theme-mode='light'] .finds-overlay-sub {
+  color: var(--text);
 }
 
 .finds-overlay-list {
@@ -11735,6 +11749,10 @@ button.player-dock-status-pill:active {
   color: var(--danger);
 }
 
+:root[data-theme-mode='light'] .finds-overlay-item.danger {
+  color: #873027;
+}
+
 .finds-overlay-mono {
   width: 36px;
   height: 36px;
@@ -11747,6 +11765,11 @@ button.player-dock-status-pill:active {
   font-size: 12px;
   font-weight: 800;
   color: var(--accent-2);
+}
+
+:root[data-theme-mode='light'] .finds-overlay-mono {
+  color: var(--text);
+  border-color: var(--theme-border);
 }
 
 .finds-confirm-actions {
