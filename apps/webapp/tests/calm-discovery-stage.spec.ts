@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
 
 const start = async (page: Page, includeThirdCountry = false) => {
   await mockStations(page, includeThirdCountry ? { catalogPool: stations.slice(0, 12) } : undefined);
@@ -113,6 +113,8 @@ test('Home favorite button keeps clear contrast in the selected theme', async ({
   await start(page);
   await page.goto('/?calm=1');
   const favorite = page.locator('[data-stage-favorite]');
+  const previewTitle = page.locator('.calm-stage-preview-copy > strong').first();
+  await expect(previewTitle).toBeVisible();
   for (const theme of ['classic', 'neon', 'journal']) {
     await page.locator('.calm-journal-heading').getByRole('button', { name: 'Оформление', exact: true }).click();
     await page.locator(`[data-theme-card="${theme}"]`).click();
@@ -133,6 +135,7 @@ test('Home favorite button keeps clear contrast in the selected theme', async ({
     expect(unselected.stroke).toBe('rgb(48, 70, 57)');
     expect(unselected.box.width).toBeGreaterThanOrEqual(44);
     expect(unselected.box.height).toBeGreaterThanOrEqual(44);
+    await expect.poll(() => previewTitle.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(48, 47, 40)');
     await favorite.click();
     await expect(favorite).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => favorite.evaluate((el) => ({
@@ -297,13 +300,14 @@ test('the cover stack uses real touch for Next and leaves vertical page scroll a
   await expect.poll(() => stage.getAttribute('data-calm-offer')).toBe(queue[1].stationuuid);
 });
 
-test('Home stage fits phone and desktop widths with a readable cover and large controls', async ({ page }) => {
+test('Home stage keeps a portrait cover, real adjacent cards, and large controls at each width', async ({ page }) => {
   await start(page);
-  const listenerQueue = stations.slice(0, 3);
+  const listenerQueue = stations.slice(0, 4);
   await seedRadioState(page, { queue: listenerQueue, queueCurrentIndex: 1, stationCache: stations });
   await page.goto('/?calm=1');
   await expect(page.locator('[data-stage-previous]')).toBeVisible();
-  for (const width of [320, 390, 834, 1440]) {
+  await waitForAnimationsToSettle(page, '.calm-stage-card');
+  for (const width of [320, 390, 700, 834, 900, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const geometry = await page.evaluate(() => {
       const stage = document.querySelector<HTMLElement>('[data-calm-discovery-stage]')!;
@@ -316,11 +320,16 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
       const favorite = document.querySelector<HTMLElement>('[data-stage-favorite]')!.getBoundingClientRect();
       const actions = document.querySelector<HTMLElement>('.calm-stage-actions')!.getBoundingClientRect();
       const stageBox = stage.getBoundingClientRect();
+      const deck = document.querySelector<HTMLElement>('.calm-stage-deck')!;
+      const deckWidth = deck.getBoundingClientRect().width;
       const nameBox = name.getBoundingClientRect();
       const nextBox = next.getBoundingClientRect();
       const cardBox = cover.getBoundingClientRect();
       return {
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        stageWidth: stageBox.width,
+        stageLeft: stageBox.left,
+        stageRight: stageBox.right,
         stageHeight: stage.getBoundingClientRect().height,
         nameSize: parseFloat(getComputedStyle(name).fontSize),
         playSize: Math.min(play.getBoundingClientRect().width, play.getBoundingClientRect().height),
@@ -330,7 +339,21 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
         actionEdgeGap: stageBox.right - nextBox.right,
         cardControlGap: cardBox.right - nextBox.right,
         actionNameGap: actions.top - nameBox.bottom,
-        coverWidth: cover.getBoundingClientRect().width
+        coverWidth: cover.getBoundingClientRect().width,
+        coverHeight: cover.getBoundingClientRect().height,
+        deckWidth,
+        previewBoxes: [...document.querySelectorAll<HTMLElement>('[data-stage-preview]')]
+          .filter((preview) => getComputedStyle(preview).display !== 'none')
+          .map((preview) => {
+            const title = preview.querySelector<HTMLElement>('.calm-stage-preview-copy > strong');
+            const titleBox = title?.getBoundingClientRect();
+            const titleHit = titleBox && document.elementFromPoint(titleBox.left + titleBox.width / 2, titleBox.top + titleBox.height / 2);
+            return {
+              ...preview.getBoundingClientRect().toJSON(),
+              title: titleBox?.toJSON(),
+              titleVisible: !!title && !!titleHit && (title === titleHit || title.contains(titleHit))
+            };
+          })
       };
     });
     expect(geometry.overflow, 'horizontal overflow at ' + width + 'px').toBe(false);
@@ -344,6 +367,59 @@ test('Home stage fits phone and desktop widths with a readable cover and large c
     expect(geometry.cardControlGap).toBeGreaterThanOrEqual(8);
     expect(geometry.actionNameGap).toBeGreaterThanOrEqual(0);
     expect(geometry.coverWidth).toBeGreaterThanOrEqual(width === 320 ? 90 : 110);
+    expect(geometry.coverWidth).toBeLessThanOrEqual(340);
+    expect(geometry.coverHeight / geometry.coverWidth).toBeGreaterThan(1.2);
+    expect(geometry.previewBoxes.length).toBe(width <= 599 || geometry.deckWidth < 700 ? 1 : 2);
+    expect(geometry.previewBoxes.every((box) => box.left >= geometry.stageLeft - 1 && box.right <= geometry.stageRight + 1)).toBe(true);
+    expect(geometry.previewBoxes.every((box) => box.title && box.title.width > 0 && box.title.height > 0 && (width < 600 || box.titleVisible)), `preview title must remain exposed at ${width}px: ${JSON.stringify(geometry.previewBoxes)}`).toBe(true);
+    if (width >= 700) {
+      expect(geometry.previewBoxes[0]).toBeDefined();
+      expect(geometry.previewBoxes[0].width).toBeGreaterThanOrEqual(200);
+      expect(geometry.previewBoxes[0].height).toBeGreaterThanOrEqual(440);
+    }
+  }
+});
+
+test('a real adjacent preview selects its own station at the correct queue index', async ({ page }) => {
+  await page.setViewportSize({ width: 834, height: 900 });
+  await start(page);
+  const queue = stations.slice(0, 4);
+  await seedRadioState(page, { queue, queueCurrentIndex: 0, stationCache: queue });
+  await page.goto('/?calm=1');
+  const stage = page.locator('[data-calm-discovery-stage]');
+  const preview = page.locator(`[data-stage-preview="${queue[2].stationuuid}"]`);
+  await expect(preview).toBeVisible();
+  const previewBox = await preview.boundingBox();
+  if (!previewBox) throw new Error('Second real queue preview is not measurable');
+  await preview.click({ position: { x: previewBox.width - 34, y: previewBox.height * .72 } });
+  await expect(stage).toHaveAttribute('data-calm-offer', queue[2].stationuuid);
+  await expect(stage).toHaveAttribute('data-stage-turn', `${queue[2].stationuuid}:next`);
+  await expect.poll(async () => {
+    const currentQueue = await readQueue(page);
+    return { source: currentQueue.sourceId, index: currentQueue.currentIndex, ids: currentQueue.items.map((item: { stationuuid: string }) => item.stationuuid) };
+  }).toEqual({ source: 'seeded-home', index: 2, ids: queue.map((item) => item.stationuuid) });
+});
+
+test('favorite and info controls do not start a horizontal station swipe', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await start(page);
+  const queue = stations.slice(0, 3);
+  await seedRadioState(page, { queue, queueCurrentIndex: 0, stationCache: queue });
+  await page.goto('/?calm=1');
+  const stage = page.locator('[data-calm-discovery-stage]');
+  const stack = page.locator('[data-stage-cover-stack]');
+  const originalId = queue[0].stationuuid;
+  for (const selector of ['[data-stage-favorite]', '.calm-stage-info']) {
+    const control = stage.locator(selector);
+    const box = await control.boundingBox();
+    if (!box) throw new Error(`${selector} control is not measurable`);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2, { steps: 5 });
+    await expect(stack).not.toHaveAttribute('data-swipe-dx', /.+/);
+    await page.mouse.up();
+    await expect(stage).toHaveAttribute('data-calm-offer', originalId);
+    if (selector === '.calm-stage-info') await page.keyboard.press('Escape');
   }
 });
 
@@ -352,7 +428,8 @@ test('long station names fit at 320px and reduced motion stays still', async ({ 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await start(page);
   const longStation = { ...stations[0], stationuuid: 'fixture-long-radio', name: 'A Long Broadcast Name That Needs Two Lines', countrycode: '', country: 'United States of America and the Islands' };
-  await seedRadioState(page, { queue: [longStation], queueCurrentIndex: 0, stationCache: [longStation] });
+  const longQueue = [longStation, stations[1], stations[2]];
+  await seedRadioState(page, { queue: longQueue, queueCurrentIndex: 0, stationCache: longQueue });
   await page.goto('/?calm=1');
   const stage = page.locator('[data-calm-discovery-stage]');
   const stack = page.locator('[data-stage-cover-stack]');
@@ -386,6 +463,9 @@ test('long station names fit at 320px and reduced motion stays still', async ({ 
   expect(geometry.coverWidth).toBeGreaterThan(80);
   expect(duringDrag.transform).toBe(resting);
   expect(duringDrag.duration).toBe('0s');
+  await stage.locator('[data-stage-next]').click();
+  await expect(stage).not.toHaveAttribute('data-calm-offer', longStation.stationuuid);
+  expect(await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running').length)).toBe(0);
 });
 
 test('restored station stays paused through Globe and Feed navigation', async ({ page }) => {
@@ -425,14 +505,31 @@ test('station details Play keeps its position in the listener queue', async ({ p
   }).toEqual({ source: 'seeded-home', ids: listenerQueue.map((station) => station.stationuuid), index: 1 });
 });
 
-test('the end of a personal queue offers a deliberate new deck', async ({ page }) => {
+test('a personal queue end stays intact until the listener explicitly opens discovery', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
   await seedRadioState(page, { queue: [stations[0]], queueCurrentIndex: 0, stationCache: stations });
   await page.goto('/?calm=1');
   const before = stations[0].stationuuid;
-  await expect(page.locator('[data-stage-next]')).toBeEnabled();
-  await page.locator('[data-stage-next]').click();
+  const discovery = page.locator('[data-stage-discover]');
+  const queueBefore = await readQueue(page);
+  await expect(discovery).toBeVisible();
+  await expect(discovery).toHaveText('Открывать новое');
+  await expect(page.locator('[data-stage-preview]')).toHaveCount(0);
+  await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-offer', before);
+  expect(await readQueue(page)).toEqual(queueBefore);
+  const stack = page.locator('[data-stage-cover-stack]');
+  const box = await stack.boundingBox();
+  if (!box) throw new Error('End of queue card is not measurable');
+  const x = box.x + box.width * .5;
+  const y = box.y + box.height * .5;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 100, y, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator('[data-calm-discovery-stage]')).toHaveAttribute('data-calm-offer', before);
+  expect(await readQueue(page)).toEqual(queueBefore);
+  await discovery.click();
   await expect.poll(async () => (await readQueue(page)).sourceId).toBe('home-calm');
   await expect.poll(() => page.locator('[data-calm-discovery-stage]').getAttribute('data-calm-offer')).not.toBe(before);
 });

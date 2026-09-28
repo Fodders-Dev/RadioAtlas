@@ -19,7 +19,7 @@
 @media (min-width: 600px) { .calm-home-moods .calm-home-poster { height: 140px; } }
 @media (min-width: 900px) and (max-width: 1199px) { .calm-home-moods .calm-home-poster { height: 118px; } }
 @media (min-width: 760px) {
-  .app-shell-v2[data-calm='true'] .calm-home-hero-row { grid-template-columns: minmax(350px, 420px) minmax(0, 1fr); gap: 24px; }
+  .app-shell-v2[data-calm='true'] .calm-home-hero-row { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .app-shell-v2[data-calm='true'] .calm-home-hero-row .calm-story-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-shell-v2[data-calm='true'] .calm-home-hero-row .calm-story-rail .calm-story:nth-child(n + 7) { display: none; }
   .app-shell-v2[data-calm='true'] .calm-home-hero-row .calm-home-moods .calm-story { position: relative; display: block; height: clamp(110px, 15vw, 170px); overflow: hidden; }

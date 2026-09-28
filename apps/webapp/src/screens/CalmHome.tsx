@@ -281,6 +281,11 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
         if (queueOwnsListener) { playNext(); return; }
         startHomeDeck(stageDeck[stageIndex + 1]);
       }}
+      onSelectStation={(selected) => {
+        const selectedIndex = stageDeck.findIndex((item) => item.stationuuid === selected.stationuuid);
+        if (queueOwnsListener && selectedIndex >= 0) queue.playAtIndex(selectedIndex);
+        else startHomeDeck(selected);
+      }}
       onPrevious={() => {
         if (!canGoPrevious) return;
         if (queueOwnsListener) playPrevious();
