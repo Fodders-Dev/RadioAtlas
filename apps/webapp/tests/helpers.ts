@@ -227,6 +227,10 @@ const DEFAULT_HOME_SEED = 424242;
 
 type SeedStation = (typeof stations)[number];
 type SeedRadioStateOptions = {
+  // Make reloads retain state produced by the app while still giving a fresh
+  // browser context its fixture. Most legacy cases intentionally keep the
+  // unconditional seed; restart/persistence specs opt in explicitly.
+  seedOnlyIfAbsent?: boolean;
   activeSection?: 'home' | 'feed' | 'search' | 'globe' | 'library';
   libraryTab?: string;
   homeSessionSeed?: number;
@@ -365,7 +369,8 @@ export const seedRadioState = async (
     followedStations = [],
     followedRegions = [],
     trackHistory = [],
-    alerts = []
+    alerts = [],
+    seedOnlyIfAbsent = false
   }: SeedRadioStateOptions = {}
 ) => {
   const cachedStations = buildStationCache([
@@ -377,7 +382,8 @@ export const seedRadioState = async (
   ]);
 
   await page.addInitScript(
-    ({ appState, libraryState, playerState }) => {
+    ({ appState, libraryState, playerState, seedOnlyIfAbsent }) => {
+      if (seedOnlyIfAbsent && window.localStorage.getItem('radio:app:v2')) return;
       window.localStorage.setItem('radio:api-url', '/api');
       window.localStorage.setItem('radio:app:v2', JSON.stringify(appState));
       window.localStorage.setItem('radio:library:v2', JSON.stringify(libraryState));
@@ -470,7 +476,8 @@ export const seedRadioState = async (
             'playlist-window': true
           }
         }
-      }
+      },
+      seedOnlyIfAbsent
     }
   );
 };

@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { UserCollection } from '../domain/contracts';
 import { useDialog } from '../lib/useDialog';
 import { SLEEP_TIMER_PRESETS_MIN, formatSleepRemaining } from '../lib/sleepTimer';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
@@ -7,18 +8,38 @@ import { openStationRecording, recordingAvailable } from '../lib/telegram';
 import { useLocale } from '../state/LocaleContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import type { StationLite } from '../types';
+import { StationPlaylistDialog } from './StationPlaylistDialog';
 import './FeedPlayerTools.css';
 
 export function FeedPlayerTools({ station, onClose, filters }: { station: StationLite; onClose: () => void; filters?: { chips: Array<{ id: string; label: string }>; active: string; label: string; onSelect: (id: never) => void } }) {
   const root = useRef<HTMLDivElement>(null);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [playlistDraft, setPlaylistDraft] = useState('');
   const { t } = useLocale();
   const { player, queue, sleepTimer, startSleepTimer, cancelSleepTimer, openExternal, shareStation } = usePlayback();
-  const { isStationHiddenFromRecommendations, hideStationFromRecommendations, unhideStationFromRecommendations } = useLibrary();
-  const { setActiveSection, setLibraryTab } = useShell();
+  const { collections, addStationToCollection, addStationToNewCollection, isStationHiddenFromRecommendations, hideStationFromRecommendations, unhideStationFromRecommendations } = useLibrary();
+  const { setActiveSection, setLibraryTab, notify } = useShell();
   useDialog(root, { isOpen: true, onClose });
   const hidden = isStationHiddenFromRecommendations(station.stationuuid);
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const openLibrary = (tab: 'queue' | 'tracks') => { onClose(); setLibraryTab(tab); setActiveSection('library'); };
+  const openPlaylistPicker = () => { setPlaylistDraft(''); setPlaylistOpen(true); };
+  const addToPlaylist = (collection: UserCollection) => {
+    const current = collections.find((item) => item.id === collection.id);
+    if (!current || current.stationIds.includes(station.stationuuid) || current.stationIds.length >= 128) return;
+    addStationToCollection(collection.id, station);
+    notify(t('toast.stationAddedToPlaylist', { station: normalizeStationName(station.name), playlist: collection.name }));
+    setPlaylistOpen(false);
+    onClose();
+  };
+  const createPlaylist = () => {
+    const name = playlistDraft.trim().slice(0, 48);
+    if (!name) return;
+    addStationToNewCollection(name, station);
+    notify(t('toast.stationAddedToPlaylist', { station: normalizeStationName(station.name), playlist: name }));
+    setPlaylistOpen(false);
+    onClose();
+  };
 
   return createPortal(<div className="feed-player-tools" ref={root} role="dialog" aria-modal="true" aria-label={t('dock.more')}>
     <button className="feed-tools-scrim" data-dialog-backdrop aria-label={t('common.close')} onClick={onClose} />
@@ -46,6 +67,9 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
         >
           {t('feed.addToQueue')} <span>＋</span>
         </button>
+        <button onClick={openPlaylistPicker} data-feed-add-to-playlist>
+          {t('stationTable.addToPlaylist')} <span>＋</span>
+        </button>
         <button onClick={() => openLibrary('queue')}>{t('winamp.queue')} <span>{queue.items.length} ↗</span></button>
         <button onClick={() => openLibrary('tracks')}>{t('calm.finds')} <span>↗</span></button>
         {/* Recording (the bot's /record flow, 5/15/30 min, the file lands in the
@@ -64,5 +88,14 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
       <details className="feed-tools-details"><summary tabIndex={0}>{t('winamp.stationDetails')}</summary><p>{stationLocation(station)}</p>{station.description && <p>{station.description}</p>}<p>{station.tags}</p></details>
       <button className="feed-tools-row" aria-pressed={hidden} onClick={() => hidden ? unhideStationFromRecommendations(station) : hideStationFromRecommendations(station)}>{t(hidden ? 'calm.unhide' : 'calm.hide')}</button>
     </div>
+    {playlistOpen && <StationPlaylistDialog
+      station={station}
+      collections={collections}
+      draft={playlistDraft}
+      onDraftChange={setPlaylistDraft}
+      onClose={() => setPlaylistOpen(false)}
+      onAddToCollection={addToPlaylist}
+      onCreateCollection={createPlaylist}
+    />}
   </div>, document.body);
 }

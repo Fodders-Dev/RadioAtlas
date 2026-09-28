@@ -780,6 +780,7 @@ export const enDictionary = {
     "createCollectionPrompt": "Playlist name",
     "collectionEmpty": "This playlist is still empty.",
     "collectionCount": "Stations: {count}",
+    "collectionFull": "128 station limit",
     "addCurrentToCollection": "Add current",
     "collectionAdded": "Added {station} to {collection}",
     "collectionCreated": "Created {name}",
@@ -1410,6 +1411,7 @@ export const enDictionary = {
     "copyFailed": "Copy failed",
     "stationHidden": "{station} hidden from recommendations",
     "stationUnhidden": "{station} restored to recommendations",
-    "stationReportedBroken": "Thanks, marked {station} as problematic"
+    "stationReportedBroken": "Thanks, marked {station} as problematic",
+    "stationAddedToPlaylist": "Added {station} to {playlist}"
   }
 } satisfies DictionaryTree;

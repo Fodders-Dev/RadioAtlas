@@ -780,6 +780,7 @@ export const ruDictionary = {
     "createCollectionPrompt": "Название плейлиста",
     "collectionEmpty": "Этот плейлист пока пустой.",
     "collectionCount": "Станций: {count}",
+    "collectionFull": "Лимит 128 станций",
     "addCurrentToCollection": "Добавить текущее",
     "collectionAdded": "{station} добавлена в {collection}",
     "collectionCreated": "Плейлист создан: {name}",
@@ -1410,6 +1411,7 @@ export const ruDictionary = {
     "copyFailed": "Не удалось скопировать",
     "stationHidden": "{station} скрыта из рекомендаций",
     "stationUnhidden": "{station} вернулась в рекомендации",
-    "stationReportedBroken": "Спасибо, пометили {station} как проблемную"
+    "stationReportedBroken": "Спасибо, пометили {station} как проблемную",
+    "stationAddedToPlaylist": "«{station}» добавлена в «{playlist}»"
   }
 } satisfies DictionaryTree;
