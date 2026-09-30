@@ -129,6 +129,42 @@ test('AI disabled → warm fallback, ZERO DeepSeek calls', async () => {
   assert.deepEqual(result.stations, []);
 });
 
+test('relative discovery sends bounded catalogue source facts to the planner, never display strings or streams', async () => {
+  const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Лови.' });
+  await chatWithAssistant(ask('Найди похожее', {
+    nowPlaying: { stationUuid: 'uuid-jazz', stationName: 'Wrong station' }
+  }), makeDeps(fetchImpl));
+  const messages = JSON.stringify(calls[0]?.body.messages);
+  assert.match(messages, /CURRENT SOURCE/);
+  assert.match(messages, /Paris Jazz/);
+  assert.match(messages, /France/);
+  assert.match(messages, /jazz/);
+  assert.doesNotMatch(messages, /Wrong station|http:\/\/stream/);
+});
+
+test('ordinary conversation does not look up or inject the current station', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'Привет!' });
+  await chatWithAssistant(ask('привет', { nowPlaying: { stationUuid: 'uuid-jazz' } }), makeDeps(fetchImpl, {
+    tools: { ...stubTools, getStation: async () => { throw new Error('Unexpected lookup'); } }
+  }));
+  assert.doesNotMatch(JSON.stringify(calls[0]?.body.messages), /CURRENT SOURCE/);
+});
+
+test('a named genre from another country is not replaced with the current source genre', async () => {
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"rock"}}', '{"action":"final"}'] });
+  const result = await chatWithAssistant(ask('Найди рок из другой страны', {
+    nowPlaying: { stationUuid: 'uuid-jazz' }
+  }), makeDeps(fetchImpl, { tools: {
+    ...stubTools,
+    getStation: async () => { throw new Error('A named genre must not resolve current jazz'); },
+    searchStations: async (args) => {
+      assert.equal(args.relatedTo, undefined);
+      return [station({ stationuuid: 'rock-foreign', tags: ['rock'], country: 'Germany' })];
+    }
+  } }));
+  assert.equal(result.stations[0]?.stationuuid, 'rock-foreign');
+});
+
 test('smalltalk fast-path skips the planner — exactly one (compose) DeepSeek call', async () => {
   const { fetchImpl, calls } = makeFetch({ compose: 'Обожаю медленный джаз под дождь.' });
   const result = await chatWithAssistant(ask('что думаешь о джазе?'), makeDeps(fetchImpl));

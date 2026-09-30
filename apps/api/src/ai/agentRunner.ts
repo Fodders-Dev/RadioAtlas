@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { applyAssistantActionPolicy, verifyAgentResult } from './agentPolicy.js';
 import { chatWithAssistant } from './brain.js';
+import { wantsForeignSource } from './currentSourceDiscovery.js';
 import { buildFallbackResult } from './fallbacks.js';
 import type {
   AgentRoute,
@@ -327,12 +328,16 @@ export const runLiraAgent = async (
   const toolCalls: AgentToolTrace[] = [];
   const warnings: string[] = [];
   let steps = 1;
-  const directIntent = input.surface === 'miniapp'
+  const classifiedDirectIntent = input.surface === 'miniapp'
     ? classifyDirectActionIntent(
         input.userMessage,
         Boolean(input.nowPlaying?.stationUuid)
       )
     : null;
+  // A discovery request must not turn a negated queue/favourite clause into a
+  // direct write. Preserve the existing explicit pause transport command.
+  const directIntent = wantsForeignSource(input.userMessage, input.history) && classifiedDirectIntent?.kind !== 'pause'
+    ? null : classifiedDirectIntent;
   const route: AgentRoute = directIntent ? 'direct_action' : 'music_worker';
   steps += 1;
 

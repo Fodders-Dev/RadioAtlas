@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const apiRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -112,12 +115,16 @@ const getJson = async <T,>(path: string, init?: RequestInit) => {
 };
 
 test.before(async () => {
+  // A repeated local suite must not inherit counters/capacity from the API's
+  // shared persisted store. Keep the observability assertions intact.
+  const observabilityDir = await mkdtemp(join(tmpdir(), 'radioatlas-contract-observability-'));
   apiProcess = spawn(process.execPath, ['--import', 'tsx/esm', './src/index.ts'], {
     cwd: apiRoot,
     env: {
       ...process.env,
       PORT: String(port),
       ENABLE_TEST_AUTH_FIXTURES: '1',
+      OBSERVABILITY_STORE_PATH: join(observabilityDir, 'observability.json'),
       // T_audit_5: serve the bundled catalogue artifact directly — this is a
       // payload-SHAPE contract test, so it must not depend on the live Radio
       // Browser network (the cold first /catalog/summary was hanging on the

@@ -253,6 +253,9 @@ export type AgentRunSummary = {
 // --- Tool layer ------------------------------------------------------------
 export type SearchStationsArgs = {
   query: string;
+  // Internal trusted catalogue constraint. Not exposed in the model tool schema.
+  relatedTo?: { stationuuid: string; country: string; genres: string[] };
+  excludeStationIds?: string[];
   country?: string;
   language?: string;
   tag?: string;
