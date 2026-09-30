@@ -240,7 +240,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
     unhideStationFromRecommendations,
     isStationHiddenFromRecommendations
   } = useLibrary();
-  const { setActiveSection, setLibraryTab, winamp } = useShell();
+  const { openLibraryTab, winamp } = useShell();
   const rootRef = useRef<HTMLDivElement>(null);
   const recentPanelRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobilePlayerLayout();
@@ -445,8 +445,7 @@ export const FullPlayerOverlay = ({ onDetails }: FullPlayerOverlayProps) => {
   };
 
   const openLibraryQueue = () => {
-    setLibraryTab('queue');
-    setActiveSection('library');
+    openLibraryTab('queue');
     winamp.setExpanded(false);
   };
 

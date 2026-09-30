@@ -733,8 +733,6 @@ export const enDictionary = {
   "library": {
     "previewAll": "All",
     "previewEmpty": "Nothing here yet",
-    "previewVariant": "Layout option",
-    "previewExit": "Regular view",
     "calmKicker": "Collected by ear",
     "calmCounts": "Finds {finds} · Sources {favorites} · Collections {collections}",
     "kicker": "Personal space",

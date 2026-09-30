@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState } from './helpers';
 
 for (const width of [320, 390]) {
   test(`calm surfaces keep the station card readable in the selected theme at ${width}px`, async ({ page }) => {
@@ -78,6 +78,7 @@ for (const width of [320, 390]) {
           return painted !== 'none' && painted === getComputedStyle(document.body).backgroundImage;
         })).toBe(true);
         if (section === 'Моё') {
+          await openLibraryCategory(page, 'favorites');
           const ink = await page.locator('html').evaluate(el => (el as HTMLElement).style.getPropertyValue('--accent-ink'));
           // Empty-state links also carry .active, but deliberately use a pale
           // outlined material. Check the actual accent-filled controls.

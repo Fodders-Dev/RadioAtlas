@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState, stations } from './helpers';
 
 type HeadphoneProbe = {
   handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler | null>>;
@@ -140,7 +140,7 @@ test('queue removal waits for a pending station, then allows that resolved histo
   await expect(audio(page)).toHaveAttribute('src', /osaka/);
 
   await page.locator('.mobile-nav-item').getByText(/Моё|Library/).click();
-  await page.getByRole('tab', { name: /Очередь|Queue/ }).click();
+  await openLibraryCategory(page, 'queue');
   await page.getByRole('button', { name: /Изменить|Edit/ }).click();
   const pendingRow = page.locator('[data-queue-row]').filter({ hasText: 'Osaka Nights' });
   const pendingRemove = pendingRow.getByRole('button', {
@@ -302,7 +302,7 @@ test('headphone Previous cancels a hung Next back to the queue boundary', async 
 test('opt-in playback diagnostics records OS commands and survives reload', async ({ page }) => {
   await setup(page);
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
-  await page.locator('[data-calm-library] [data-calm-settings]').click();
+  await page.locator('.library-preview-header').getByRole('button', { name: 'Настройки', exact: true }).click();
   const settings = page.locator('.settings-sheet');
   await expect(settings).toBeVisible();
   await settings.locator('summary').filter({ hasText: 'Для разработчиков' }).click();
@@ -332,7 +332,7 @@ test('opt-in playback diagnostics records OS commands and survives reload', asyn
 
   await page.reload();
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
-  await page.locator('[data-calm-library] [data-calm-settings]').click();
+  await page.locator('.library-preview-header').getByRole('button', { name: 'Настройки', exact: true }).click();
   const reloadedSettings = page.locator('.settings-sheet');
   await reloadedSettings.locator('summary').filter({ hasText: 'Для разработчиков' }).click();
   await reloadedSettings.getByRole('button', { name: 'Показать', exact: true }).click();

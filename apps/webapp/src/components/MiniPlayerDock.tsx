@@ -65,7 +65,7 @@ export const MiniPlayerDock = () => {
     activeSection,
     setActiveSection,
     libraryTab,
-    setLibraryTab,
+    openLibraryTab: requestLibraryTab,
     setDetailsOpen,
     winamp
   } = useShell();
@@ -264,8 +264,7 @@ export const MiniPlayerDock = () => {
 
   const openLibraryTab = (tab: 'queue' | 'tracks' | 'history') => {
     setTrayMode(null);
-    setLibraryTab(tab);
-    setActiveSection('library');
+    requestLibraryTab(tab);
   };
 
   const openSearch = () => {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
 
 const SEEN = {
   'uuid-rio': { lastShownAt: Date.now() - 60_000, shownCount: 2 },
@@ -180,8 +180,7 @@ test('an edited Library queue invalidates the saved Feed visit', async ({ page }
   await page.locator('.station-feed-card[data-feed-index="4"] [data-feed-action="place"]').click();
   await expect(page.locator('[data-globe-explorer]')).toBeVisible();
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
-  await expect(page.getByRole('tablist', { name: 'Медиатека' })).toBeVisible();
-  await page.getByRole('tab', { name: /Очередь/ }).click();
+  await openLibraryCategory(page, 'queue');
   await expect(page.locator('.library-queue-shell')).toBeVisible();
   await page.getByRole('button', { name: 'Изменить', exact: true }).click();
   const queueBefore = await page.evaluate(() => {

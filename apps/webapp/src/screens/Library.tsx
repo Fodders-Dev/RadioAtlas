@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,7 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
-import { CollectionSleeve, LibraryCollectionPreview, type LibraryPreviewDesign } from './LibraryCollectionPreview';
+import { CollectionSleeve, LibraryCollectionHome } from './LibraryCollectionHome';
 import { RegionArtwork } from '../components/RegionArtwork';
 import { StationArtwork } from '../components/StationArtwork';
 import { StationTable } from '../components/StationTable';
@@ -39,13 +40,6 @@ type VisibleLibraryTab = (typeof TAB_ORDER)[number];
 const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
 const isVisibleLibraryTab = (tab: LibraryTab): tab is VisibleLibraryTab =>
   VISIBLE_LIBRARY_TABS.has(tab);
-
-const readLibraryPreviewDesign = (): LibraryPreviewDesign | null => {
-  if (typeof window === 'undefined') return null;
-  const params = new URLSearchParams(window.location.search);
-  const design = params.get('libraryDesign');
-  return params.get('calm') === '1' && (design === 'a' || design === 'b') ? design : null;
-};
 
 // Per-tab glyphs (Artem ask) — inline SVG in the AppNavigation style, tinted via
 // `fill: currentColor`. Favorites=heart, Queue=queue-list, Recent=clock,
@@ -218,7 +212,7 @@ export const Library = () => {
     updateNotificationPreference
   } = useLibrary();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
-  const { setActiveSection, setFeedEntryStation, rerollFeedSeed, libraryTab, setLibraryTab, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
+  const { setActiveSection, setFeedEntryStation, rerollFeedSeed, libraryTab, setLibraryTab, libraryEntryRequest, consumeLibraryEntryRequest, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
     useShell();
   const {
     status: sessionStatus,
@@ -249,8 +243,10 @@ export const Library = () => {
   );
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
-  const [libraryPreviewDesign, setLibraryPreviewDesign] = useState<LibraryPreviewDesign | null>(readLibraryPreviewDesign);
-  const [libraryPreviewSectionsOpen, setLibraryPreviewSectionsOpen] = useState(false);
+  const [libraryHomeOpen, setLibraryHomeOpen] = useState(CALM_PREVIEW);
+  const [queueFocusRequest, setQueueFocusRequest] = useState(0);
+  const lastLibraryEntryRequestRef = useRef(0);
+  const collectionDetailReturnHomeRef = useRef(false);
   const [collectionNameDraft, setCollectionNameDraft] = useState('');
   const [collectionRenameDraft, setCollectionRenameDraft] = useState('');
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
@@ -286,6 +282,7 @@ export const Library = () => {
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
+  const collectionBackButtonRef = useRef<HTMLButtonElement>(null);
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
   // Drag-to-reorder the queue. The playing row is locked (#86 — never moved).
   const queueReorder = usePointerReorder(
@@ -332,6 +329,13 @@ export const Library = () => {
         window.cancelAnimationFrame(innerFrame);
       }
     };
+  }, [selectedCollectionId]);
+
+  useLayoutEffect(() => {
+    if (!CALM_PREVIEW || selectedCollectionId === null) return;
+    const back = collectionBackButtonRef.current;
+    back?.closest('header')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    back?.focus({ preventScroll: true });
   }, [selectedCollectionId]);
 
   const compactRows = viewportWidth < 720;
@@ -509,17 +513,38 @@ export const Library = () => {
   const activeLibraryTab: VisibleLibraryTab = isVisibleLibraryTab(libraryTab)
     ? libraryTab
     : 'recent';
+  useLayoutEffect(() => {
+    const request = libraryEntryRequest;
+    if (!request || request.id <= lastLibraryEntryRequestRef.current) return;
+    lastLibraryEntryRequestRef.current = request.id;
+    setLibrarySearch('');
+    setSelectedCollectionId(null);
+    setIsCreatingCollection(false);
+    setCollectionNameDraft('');
+    setIsSavingQueue(false);
+    setQueueSaveDraft('');
+    setRenamingCollectionId(null);
+    setCollectionRenameDraft('');
+    setCollectionReorderMode(false);
+    setDetailActionsOpen(false);
+    setCollectionActionsId(null);
+    setDeleteArmedCollectionId(null);
+    setLibraryHomeOpen(CALM_PREVIEW && request.tab === null);
+    if (request.tab !== null) {
+      setLibraryTab(request.tab);
+      if (request.tab === 'queue') setQueueFocusRequest((value) => value + 1);
+    }
+    consumeLibraryEntryRequest(request.id);
+  }, [libraryEntryRequest, consumeLibraryEntryRequest, setLibraryTab]);
   useEffect(() => {
     if (!CALM_PREVIEW || activeLibraryTab !== 'queue') return;
     const panel = queuePanelRef.current;
     if (!panel) return;
     panel.focus({ preventScroll: true });
     panel.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, [activeLibraryTab]);
+  }, [activeLibraryTab, queueFocusRequest, libraryHomeOpen]);
   const findsTabActive = activeLibraryTab === 'tracks';
-  const showLibraryPreview = Boolean(
-    libraryPreviewDesign && !libraryPreviewSectionsOpen && !selectedCollection
-  );
+  const showLibraryHome = Boolean(CALM_PREVIEW && libraryHomeOpen && !selectedCollection);
   const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
   const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
   const handleLibraryTabKeyDown = (
@@ -604,12 +629,13 @@ export const Library = () => {
     cancelSaveQueue();
   };
   const openCollectionDetail = (collectionId: string) => {
+    collectionDetailReturnHomeRef.current = libraryHomeOpen;
     collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
     setSelectedCollectionId(collectionId);
-    if (libraryPreviewDesign) setLibraryTab('collections');
+    if (CALM_PREVIEW) setLibraryTab('collections');
   };
   const closeCollectionDetail = () => {
     pendingCollectionScrollRestoreRef.current = collectionScrollYRef.current;
@@ -617,26 +643,11 @@ export const Library = () => {
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
-    if (libraryPreviewDesign) setLibraryPreviewSectionsOpen(false);
+    if (CALM_PREVIEW && collectionDetailReturnHomeRef.current) setLibraryHomeOpen(true);
   };
-  const updateLibraryPreviewQuery = (design: LibraryPreviewDesign | null) => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (design) {
-        url.searchParams.set('calm', '1');
-        url.searchParams.set('libraryDesign', design);
-      } else {
-        url.searchParams.delete('libraryDesign');
-      }
-      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    }
-    setLibraryPreviewDesign(design);
-    setLibraryPreviewSectionsOpen(false);
-    setSelectedCollectionId(null);
-  };
-  const openPreviewSections = (tab: LibraryTab) => {
+  const openLibraryCategory = (tab: LibraryTab) => {
     setLibraryTab(tab);
-    setLibraryPreviewSectionsOpen(true);
+    setLibraryHomeOpen(false);
   };
   const startPreviewCreate = () => {
     beginCreateCollection();
@@ -1132,10 +1143,9 @@ export const Library = () => {
   );
 
   return (
-    <section className={`screen screen-library-v2 ${calmQueue ? `calm-library-queue${librarySearch ? ' calm-library-queue-searching' : ''}` : ''} ${libraryPreviewDesign ? `library-design-active library-design-${libraryPreviewDesign}${selectedCollection ? ' library-design-detail' : ''}` : ''}`}>
-      {showLibraryPreview ? (
-        <LibraryCollectionPreview
-          design={libraryPreviewDesign!}
+    <section className={`screen screen-library-v2 ${calmQueue ? `calm-library-queue${librarySearch ? ' calm-library-queue-searching' : ''}` : ''} ${CALM_PREVIEW ? `library-design-active library-design-a${selectedCollection ? ' library-design-detail' : ''}` : ''}`}>
+      {showLibraryHome ? (
+        <LibraryCollectionHome
           favorites={favorites}
           collections={collections}
           stationFor={(id) => stationMap.get(id)}
@@ -1151,63 +1161,34 @@ export const Library = () => {
           onSaveCreate={saveCollection}
           onCancelCreate={cancelCreateCollection}
           onAccount={openAccountSheet}
+          onSettings={() => setSettingsOpen(true)}
           onCreate={startPreviewCreate}
-          onExit={() => updateLibraryPreviewQuery(null)}
-          onChooseDesign={updateLibraryPreviewQuery}
-          onBrowse={openPreviewSections}
+          onBrowse={openLibraryCategory}
           onOpenCollection={openCollectionDetail}
           onPlayCollection={(collection) => playCollection(collection)}
           onShuffleCollection={(collection) => playCollection(collection, true)}
           onPlayFavorites={playFavoritesInOrder}
           onShuffleFavorites={playFavoritesShuffle}
           labels={{
-            title: t('nav.library'), search: t('library.searchPlaceholder'), account: t('account.title'),
+            title: t('nav.library'), search: t('library.searchPlaceholder'), account: t('account.title'), settings: t('nav.settings'),
             create: t('library.createCollection'), favorites: t('library.tabs.favorites'),
             favoritesEmpty: t('library.emptyFavoritesTitle'), playlists: t('library.tabs.collections'),
-            finds: t('library.tabs.tracks'), queue: t('library.tabs.queue'),
+            finds: t('library.tabs.tracks'), queue: t('library.tabs.queue'), recent: t('library.tabs.recent'),
             play: t('library.playCollection'), shuffle: t('library.shuffleCollection'),
-            open: t('library.openCollection'), all: t('library.previewAll'), regular: t('library.previewExit'), empty: t('library.previewEmpty'),
+            open: t('library.openCollection'), all: t('library.previewAll'), empty: t('library.previewEmpty'),
             stationCount: (count) => t('library.collectionCount', { count }),
             namePrompt: t('library.createCollectionPrompt'), save: t('common.save'), cancel: t('common.cancel'),
-            variant: t('library.previewVariant'),
-            tabFavorites: t('library.tabs.favorites'), tabCollections: t('library.tabs.collections'),
-            tabFinds: t('library.tabs.tracks'), tabRecent: t('library.tabs.recent'), tabQueue: t('library.tabs.queue')
           }}
         />
       ) : (
       <>
-      {libraryPreviewDesign ? (
-        <div className="library-preview-modebar">
-          <button type="button" onClick={() => {
-            setLibrarySearch('');
-            setSelectedCollectionId(null);
-            setLibraryPreviewSectionsOpen(false);
-            setIsCreatingCollection(false);
-          }}>{t('common.back')}</button>
-          <div role="group" aria-label={t('library.previewVariant')}>
-            <button type="button" className={libraryPreviewDesign === 'a' ? 'active' : ''} aria-pressed={libraryPreviewDesign === 'a'} onClick={() => updateLibraryPreviewQuery('a')}>A</button>
-            <button type="button" className={libraryPreviewDesign === 'b' ? 'active' : ''} aria-pressed={libraryPreviewDesign === 'b'} onClick={() => updateLibraryPreviewQuery('b')}>B</button>
-          </div>
-          <button type="button" onClick={() => updateLibraryPreviewQuery(null)}>{t('library.previewExit')}</button>
-        </div>
-      ) : null}
-      {CALM_PREVIEW && !libraryPreviewDesign ? (
-        <header className="calm-library-head" data-calm-library>
-          <div className="calm-library-title">
-            <span className="calm-eyebrow">{t('library.calmKicker')}</span>
-            <h1>{t('nav.library')}</h1>
-            <p className="calm-library-counts">{t('library.calmCounts', { finds: tabCounts.tracks, favorites: tabCounts.favorites, collections: tabCounts.collections })}</p>
-          </div>
-          <div className="calm-library-actions">
-            <button className="calm-icon calm-glass" type="button" aria-label={t('nav.settings')} onClick={() => setSettingsOpen(true)} data-calm-settings>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></svg>
-            </button>
-            <button className="calm-icon calm-glass" type="button" aria-label={t('account.title')} onClick={openAccountSheet} data-calm-account>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /></svg>
-            </button>
-          </div>
-        </header>
-      ) : null}
+      {CALM_PREVIEW && !selectedCollection ? <header className="calm-library-category-head">
+        <button type="button" onClick={() => { setLibrarySearch(''); setLibraryHomeOpen(true); }}>{t('common.back')}</button>
+        <h1>{t(`library.tabs.${activeLibraryTab}`)}</h1>
+      </header> : null}
+      {CALM_PREVIEW && selectedCollection ? <header className="calm-library-category-head">
+        <button ref={collectionBackButtonRef} type="button" onClick={closeCollectionDetail}>{t('common.back')}</button>
+      </header> : null}
       {/* ⚠ «Находки» brings its OWN permanent search, so the shared library
           search is not rendered on that tab. Two search fields stacked — one
           «Поиск по медиатеке» and directly beneath it «Поиск: исполнитель,
@@ -1253,7 +1234,7 @@ export const Library = () => {
       </div>
       ) : null}
 
-      {!librarySearchQuery && !calmQueue ? (
+      {!librarySearchQuery && !calmQueue && !selectedCollection ? (
         <div className="library-header-actions library-quick-actions">
           {libraryShuffleStations.length ? (
             <button className="chip active" type="button" onClick={playLibraryShuffle}>
@@ -1640,7 +1621,7 @@ export const Library = () => {
         tabId={libraryTabId('collections')}
         panelId={libraryPanelId('collections')}
         className="library-collections-stack"
-        panelRole={libraryPreviewDesign && selectedCollection ? 'region' : 'tabpanel'}
+        panelRole={CALM_PREVIEW && selectedCollection ? 'region' : 'tabpanel'}
         panelLabel={selectedCollection?.name}
       >
           {collectionNotice ? (
@@ -1653,13 +1634,13 @@ export const Library = () => {
             <div className="glass-card library-collection-detail" data-library-collection-detail>
               <div className="library-section-head">
                 <div className="library-collection-detail-title">
-                  {libraryPreviewDesign ? (
+                  {CALM_PREVIEW ? (
                     <CollectionSleeve collection={selectedCollection} stations={selectedCollectionStations} className="library-preview-artwork library-detail-sleeve" />
                   ) : (
                     <CollectionArtwork label={selectedCollection.name} stations={selectedCollectionStations} />
                   )}
                   <div>
-                  {!libraryPreviewDesign ? <button className="chip" type="button" onClick={closeCollectionDetail}>{t('common.back')}</button> : null}
+                  {!CALM_PREVIEW ? <button className="chip" type="button" onClick={closeCollectionDetail}>{t('common.back')}</button> : null}
                   {renamingCollectionId === selectedCollection.id ? (
                     <form
                       className="library-rename-collection-row"
@@ -1730,7 +1711,7 @@ export const Library = () => {
                           is room) render the same actions INLINE as chips instead —
                           otherwise the ungated sheet rendered unstyled and inerted the
                           whole app. */}
-                      {libraryPreviewDesign ? (
+                      {CALM_PREVIEW ? (
                         <details className="library-preview-detail-menu">
                           <summary className="chip">{t('library.more')}</summary>
                           <div className="library-preview-detail-menu-items">
@@ -1893,7 +1874,7 @@ export const Library = () => {
               )}
 
               {collectionAddCandidates.length ? (
-                libraryPreviewDesign ? (
+                CALM_PREVIEW ? (
                   <details className="library-collection-picker library-collection-picker-disclosure">
                     <summary className="library-collection-picker-head">{t('library.addFromLibrary')}</summary>
                     {renderCollectionAddCandidateList()}

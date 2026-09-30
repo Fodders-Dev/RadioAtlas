@@ -27,7 +27,7 @@ import { useLocale } from './state/LocaleContext';
 import { useCatalog } from './state/CatalogContext';
 import { usePlayback, useShell } from './state/RadioContext';
 import { useSession } from './state/SessionContext';
-import type { AppSection, LibraryTab } from './types';
+import type { AppSection } from './types';
 
 const HomeScreen = lazy(loadHomeScreen);
 const FeedScreen = lazy(loadFeedScreen);
@@ -80,7 +80,8 @@ const App = () => {
     activeSection,
     setActiveSection,
     playerPresentation,
-    setLibraryTab,
+    openLibraryTab,
+    openLibraryOverview,
     detailsOpen,
     setDetailsOpen,
     skinLabOpen,
@@ -326,10 +327,6 @@ const App = () => {
       ? nowPlaying || player.current.name || t('dock.liveNow')
       : t('app.catalogCount', { count: summary?.counts.stations || 0 });
 
-  const openLibraryTab = (tab: LibraryTab) => {
-    setLibraryTab(tab);
-    setActiveSection('library');
-  };
   const calmMiniVisible = CALM_PREVIEW && Boolean(player.current ?? player.pending) && activeSection !== 'feed' && !winamp.expanded;
   // Лира is a section: opening her from the Feed leaves the Feed the way the
   // nav does, so the mini player (the air's controls) is back on screen.
@@ -361,7 +358,8 @@ const App = () => {
         rerollFeedSeed();
       }
     }
-    setActiveSection(section);
+    if (section === 'library') openLibraryOverview();
+    else setActiveSection(section);
   };
   const handleBrandGesture = () => {
     const now = Date.now();

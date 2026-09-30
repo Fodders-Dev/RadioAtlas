@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState, stations } from './helpers';
 
 /**
  * «Находки» — the screen a find lives on after the air moved on.
@@ -66,6 +66,7 @@ const openFinds = async (
   }
   await page.goto(`/?api=/api&glass=full${options.calm ? '&calm=1' : ''}`);
   await expect(page.locator('.screen-library-v2')).toBeVisible({ timeout: 15_000 });
+  if (options.calm) await openLibraryCategory(page, 'tracks');
   // The tab strip may land on another tab; click through to «Находки» by its
   // NEW label, which also proves the rename shipped.
   const tab = page.getByRole('tab', { name: 'Находки' });

@@ -18,11 +18,11 @@ export function FeedPlayerTools({ station, onClose, filters }: { station: Statio
   const { t } = useLocale();
   const { player, queue, sleepTimer, startSleepTimer, cancelSleepTimer, openExternal, shareStation } = usePlayback();
   const { collections, addStationToCollection, addStationToNewCollection, isStationHiddenFromRecommendations, hideStationFromRecommendations, unhideStationFromRecommendations } = useLibrary();
-  const { setActiveSection, setLibraryTab, notify } = useShell();
+  const { openLibraryTab, notify } = useShell();
   useDialog(root, { isOpen: true, onClose });
   const hidden = isStationHiddenFromRecommendations(station.stationuuid);
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
-  const openLibrary = (tab: 'queue' | 'tracks') => { onClose(); setLibraryTab(tab); setActiveSection('library'); };
+  const openLibrary = (tab: 'queue' | 'tracks') => { onClose(); openLibraryTab(tab); };
   const openPlaylistPicker = () => { setPlaylistDraft(''); setPlaylistOpen(true); };
   const addToPlaylist = (collection: UserCollection) => {
     const current = collections.find((item) => item.id === collection.id);

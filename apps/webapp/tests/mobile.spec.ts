@@ -3,6 +3,7 @@ import {
   installMediaMocks,
   mockStations,
   playHomeStation,
+  openLibraryCategory,
   seedRadioState,
   stations
 } from './helpers';
@@ -2806,6 +2807,7 @@ test('paused restored queue keeps played removal available', async ({ page }) =>
     queueCurrentIndex: 1
   });
   await page.goto('/?calm=1');
+  await openLibraryCategory(page, 'queue');
   await expect(page.locator('.screen-library-v2')).toBeVisible();
   await page.getByRole('button', { name: /Изменить|Edit/ }).click();
   const playedRow = page.locator('[data-queue-row]').filter({ hasText: 'Tokyo FM' });

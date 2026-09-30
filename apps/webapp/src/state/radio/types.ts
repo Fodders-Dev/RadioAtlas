@@ -265,6 +265,10 @@ export type ShellContextValue = {
   winamp: WinampState;
   activeSection: AppSection;
   setActiveSection: (section: AppSection) => void;
+  libraryEntryRequest: { id: number; tab: LibraryTab | null } | null;
+  openLibraryTab: (tab: LibraryTab) => void;
+  openLibraryOverview: () => void;
+  consumeLibraryEntryRequest: (id: number) => void;
   playerPresentation: PlayerPresentation;
   setPlayerPresentation: (presentation: PlayerPresentation) => void;
   libraryTab: LibraryTab;

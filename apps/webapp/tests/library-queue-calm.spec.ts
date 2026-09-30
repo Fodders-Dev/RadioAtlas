@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState, stations } from './helpers';
 
 const readQueue = (page: Page) =>
   page.evaluate(() => {
@@ -43,6 +43,7 @@ test('calm queue starts with current and upcoming stations; earlier entries stay
     queueCurrentIndex: 3
   });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
 
   const rows = page.locator('.calm-queue-list > [data-queue-row]');
   await expect(rows.first()).toContainText(stations[3].name);
@@ -79,6 +80,7 @@ test('editing does not start audio, keeps the current row protected, and changes
     queueCurrentIndex: 3
   });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
   const before = await readQueue(page);
 
   await page.getByRole('button', { name: /Изменить|Edit/ }).click();
@@ -133,6 +135,7 @@ test('queue library search remains available while results replace the tabs, the
     queue: stations
   });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
 
   await page.getByText(/Поиск и плейлисты|Search and playlists/).click();
   const search = page.getByRole('searchbox', { name: /Поиск по медиатеке|Search your library/ });
@@ -151,6 +154,7 @@ test('empty calm Queue offers Search and Globe without edit tools or a tall empt
 }) => {
   await seedRadioState(page, { activeSection: 'library', libraryTab: 'queue' });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
 
   const emptyState = page.locator('.library-queue-empty-state');
   await expect(emptyState).toBeVisible();
@@ -176,6 +180,7 @@ test('saving from calm Queue makes a playlist without starting playback', async 
     queueCurrentIndex: 2
   });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
 
   await page.getByRole('button', { name: /Сохранить как плейлист|Save as playlist/ }).click();
   await page.locator('.library-save-queue-row input').fill('Calm queue');
@@ -199,6 +204,7 @@ test('tablet Queue layout has readable calm surfaces and no horizontal overflow'
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/?api=/api&calm=1');
+  await openLibraryCategory(page, 'queue');
 
   await expect(page.locator('.calm-queue-shell')).toBeVisible();
   await expect(page.locator('.library-queue-now-card')).toHaveCount(0);
@@ -333,7 +339,7 @@ test('tablet Queue layout has readable calm surfaces and no horizontal overflow'
       const commaAlpha = color.match(/,\s*([\d.]+)\s*\)$/);
       return Number(slashAlpha?.[1] ?? commaAlpha?.[1] ?? 1);
     };
-    const head = document.querySelector('.calm-library-head')!;
+    const head = document.querySelector('.calm-library-category-head')!;
     const shell = document.querySelector('.calm-queue-shell')!;
     const tools = document.querySelector('.calm-queue-tools')!;
     const inactiveTab = document.querySelector('.library-tab-chip:not(.active)')!;

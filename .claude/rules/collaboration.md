@@ -1,26 +1,27 @@
 # Shared workflow — Codex and Claude
 
-## Owner's Codex model split (updated 2026-09-22)
+## Owner's Codex workflow (updated 2026-09-30)
 
-The owner explicitly requests GPT-6 Astra to plan, inspect and review, with
-GPT-6 Luna implementing code through subagents. On 2026-09-22 the owner asked
-to try GPT-6 Luna instead of GPT-5.6 Luna. Keep this workflow across
-sessions unless the owner changes it. This authorizes bounded Luna delegation;
-it does not authorize uncontrolled fan-out or deployment.
+The owner adopted GPT-6.1 Sol as the main developer and coordinator, replacing
+the mandatory Astra-to-Luna split. Sol handles a bounded task end to end:
+inspect, plan, implement, test, review the diff and rendered result, document.
+This authorizes purposeful delegation; it does not authorize uncontrolled
+fan-out or deployment.
 
-- Astra reads current state, chooses scope and gives Luna precise file ownership,
-  expected behavior, preserved contracts and verification commands. Send only
-  relevant context rather than the full conversation to limit token cost.
-- Delegate implementation to `gpt-6-luna`. Start a new agent for the next bounded
-  coding task; an existing GPT-5.6 Luna agent does not change model automatically.
-  Astra may maintain plans/handoff
-  documents directly, but should not silently take over routine coding.
-- Astra independently reviews diffs, test evidence and rendered UI. Luna's
-  completion report is not verification or design approval. Return concrete
-  defects to Luna for correction.
-- One implementation owner per file; serialize shared browser-suite resources.
-  If Luna is unavailable, report that rather than silently changing this split.
-- Continue the standing review-before-publication rule for design work.
+- Use `gpt-6.1-sol` at High for ordinary multi-step development. Adjust effort
+  to the task rather than automatically using Extra High.
+- Use `gpt-6-luna` at Medium/High for small, clear tasks when delegation saves
+  work. Give file ownership, expected behavior, preserved contracts and checks;
+  send relevant context rather than the whole conversation.
+- Use `gpt-6-astra` for important product/architecture decisions, difficult
+  playback diagnosis or independent review of substantial changes. Do not
+  require a separate Astra turn for every small fix.
+- The main developer independently checks agent changes and rendered UI.
+  An agent report or green tests do not constitute design approval.
+- Keep one implementation owner per file and serialize shared browser suites.
+  Report model unavailability; do not silently substitute or expand scope.
+- Keep the standing review-before-publication rule for design work. Track state,
+  acceptance criteria and verification in the repository, not only chat history.
 
 Read this when starting or handing off project work. Tool/model names specific to
 one client do not become instructions to invent equivalent tools in another.

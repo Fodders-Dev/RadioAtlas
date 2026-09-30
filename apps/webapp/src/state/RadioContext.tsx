@@ -740,6 +740,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const activeSection = storedShellState.activeSection;
   const playerPresentation = storedShellState.playerPresentation;
   const libraryTab = storedShellState.libraryTab;
+  const [libraryEntryRequest, setLibraryEntryRequest] = useState<{ id: number; tab: LibraryTab | null } | null>(null);
+  const libraryEntryRequestIdRef = useRef(0);
   const detailsOpen = storedShellState.detailsOpen;
   const winampExpanded = playerPresentation === 'expanded';
 
@@ -1372,6 +1374,17 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
 
   const setLibraryTab = (tab: LibraryTab) =>
     setStoredShellState((prev) => (prev.libraryTab === tab ? prev : { ...prev, libraryTab: tab }));
+
+  const requestLibraryEntry = (tab: LibraryTab | null) => {
+    const id = ++libraryEntryRequestIdRef.current;
+    setLibraryEntryRequest({ id, tab });
+    if (tab !== null) setLibraryTab(tab);
+    setActiveSection('library');
+  };
+  const openLibraryTab = (tab: LibraryTab) => requestLibraryEntry(tab);
+  const openLibraryOverview = () => requestLibraryEntry(null);
+  const consumeLibraryEntryRequest = (id: number) =>
+    setLibraryEntryRequest((current) => current?.id === id ? null : current);
 
   const setDetailsOpen = (value: boolean) =>
     setStoredShellState((prev) => (prev.detailsOpen === value ? prev : { ...prev, detailsOpen: value }));
@@ -3109,6 +3122,10 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       winamp,
       activeSection,
       setActiveSection,
+      libraryEntryRequest,
+      openLibraryTab,
+      openLibraryOverview,
+      consumeLibraryEntryRequest,
       playerPresentation,
       setPlayerPresentation,
       libraryTab,
@@ -3160,6 +3177,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       globeFocusRegionId,
       globeFocusStationId,
       homeState,
+      libraryEntryRequest,
       libraryTab,
       rerollFeedSeed,
       openWebAppExternally,
@@ -3169,6 +3187,9 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       skinLabOpen,
       settingsOpen,
       setActiveSection,
+      openLibraryTab,
+      openLibraryOverview,
+      consumeLibraryEntryRequest,
       setDetailsOpen,
       setHomeSnapshot,
       setLibraryTab,

@@ -1,4 +1,23 @@
 import type { Page } from '@playwright/test';
+
+/** Follow the real overview/category UI in calm and the tab strip in classic. */
+export const openLibraryCategory = async (page: Page, tab: 'favorites' | 'queue' | 'recent' | 'tracks' | 'collections') => {
+  await page.locator('.screen-library-v2').waitFor({ state: 'visible' });
+  const home = page.locator('[data-library-home]');
+  if (await home.isVisible()) {
+    const destinations = {
+      favorites: '.library-preview-favorites .library-preview-section-head button',
+      queue: '.library-preview-queue',
+      recent: '.library-preview-recent',
+      tracks: '.library-preview-find',
+      collections: '.library-preview-playlists .library-preview-section-head button'
+    };
+    await home.locator(destinations[tab]).click();
+  } else {
+    const names = { favorites: 'Избранное', queue: 'Очередь', recent: 'Недавнее', tracks: 'Находки', collections: 'Плейлисты' };
+    await page.getByRole('tab', { name: names[tab] }).click();
+  }
+};
 import type { BehaviorProfile } from '../src/lib/homeProfile';
 import {
   DEFAULT_PLAYABILITY_PROFILE,

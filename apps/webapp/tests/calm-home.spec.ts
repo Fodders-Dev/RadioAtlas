@@ -643,23 +643,18 @@ test('journal shell: outline nav, «Ещё» opens all stories, «Моё» and �
   expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null), 'browsing never starts sound').toBeNull();
   await page.locator('[data-calm-browse="jazz"]').getByRole('button', { name: 'Закрыть', exact: true }).click();
 
-  // «Моё»: journal head with settings and account, no classic topbar, all five
-  // tabs with whole labels, the tab panels still there.
+  // «Моё»: personal overview with settings and account, then its real categories.
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
-  const libraryHead = page.locator('[data-calm-library]');
+  const libraryHead = page.locator('.library-preview-header');
   await expect(libraryHead).toBeVisible();
   await expect(libraryHead.locator('h1')).toHaveText('Моё');
   await expect(page.locator('.app-topbar-v2')).toBeHidden();
-  const labels = await page.locator('.library-tab-chip .library-tab-label').evaluateAll((els) =>
-    els.map((el) => [el.textContent, el.scrollWidth <= el.clientWidth + 1] as const)
-  );
-  expect(labels.map(([text]) => text)).toEqual(['Избранное', 'Очередь', 'Недавнее', 'Находки', 'Плейлисты']);
-  expect(labels.every(([, whole]) => whole), 'tab labels must not truncate').toBe(true);
-  await libraryHead.locator('[data-calm-settings]').click();
+  await expect(libraryHead.getByRole('button', { name: 'Аккаунт и синхронизация' })).toBeVisible();
+  await libraryHead.getByRole('button', { name: 'Настройки' }).click();
   await expect(page.locator('.settings-sheet')).toBeVisible();
   await page.locator('.settings-sheet-head .chip').click();
   await expect(page.locator('.settings-sheet')).toBeHidden();
-  await page.locator('.library-tab-chip', { hasText: 'Находки' }).click();
+  await page.locator('.library-preview-find').click();
   await expect(page.locator('[role="tabpanel"]').filter({ visible: true }).first()).toBeVisible();
 
   // «Поиск» from Home: the same head, a way back home, no classic topbar.

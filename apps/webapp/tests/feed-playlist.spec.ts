@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
+import { installMediaMocks, mockStations, openLibraryCategory, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
 
 type FeedMediaSessionProbe = {
   handlers: Partial<Record<MediaSessionAction, MediaSessionActionHandler>>;
@@ -166,14 +166,14 @@ test('Feed More adds its selected card to a playlist without changing the live p
   })).toContain(stationId);
 
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
-  await page.getByRole('tab', { name: /Плейлисты|Playlists/ }).click();
+  await openLibraryCategory(page, 'collections');
   const collectionCard = page.locator('.library-collection-card').filter({ hasText: 'Personal Mix' });
   await expect(collectionCard).toBeVisible();
   await collectionCard.locator('.library-collection-title-button').click();
   const detail = page.locator('.library-collection-detail');
   await expect(detail).toBeVisible();
-  await detail.getByRole('button', { name: /^Ещё$|^More$/ }).click();
-  const detailActions = page.locator('[data-library-sheet="collection-detail-actions"]');
+  const detailActions = detail.locator('.library-preview-detail-menu');
+  await detailActions.locator('summary').click();
   await expect(detailActions).toBeVisible();
   await detailActions.getByRole('button', { name: /Порядок|Reorder/ }).click();
   const targetRow = page.locator(`[data-library-collection-row][data-station-id="${stationId}"]`);
@@ -374,6 +374,7 @@ test('the StationTable row action still uses the shared playlist picker', async 
     collections: [{ id: 'table-mix', name: 'Table Mix', stationIds: [] }]
   });
   await page.goto('/?calm=1');
+  await openLibraryCategory(page, 'favorites');
   const row = page.locator('.screen-library-v2 [data-station-row]').first();
   await expect(row).toBeVisible();
   await row.locator('.station-compact-main').click();

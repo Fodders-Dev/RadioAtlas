@@ -479,7 +479,7 @@ export const StationFeed = () => {
     toggleFavorite,
     isFavorite
   } = useLibrary();
-  const { setActiveSection, setLibraryTab, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId, getFeedBrowseVisit, getFeedBrowseVisitGeneration, saveFeedBrowseVisit } = useShell();
+  const { setActiveSection, openLibraryTab, feedSeed, feedEntryStation, winamp, requestChat, setGlobeFocusStationId, getFeedBrowseVisit, getFeedBrowseVisitGeneration, saveFeedBrowseVisit } = useShell();
   const feedVisitGeneration = useRef(getFeedBrowseVisitGeneration()).current;
   const isMobile = useMobileLayout();
 
@@ -844,17 +844,15 @@ export const StationFeed = () => {
       setQueuePeekOpen(true);
       return;
     }
-    setLibraryTab('queue');
-    setActiveSection('library');
-  }, [setActiveSection, setLibraryTab, settler]);
+    openLibraryTab('queue');
+  }, [openLibraryTab, settler]);
 
   const openLibraryQueue = useCallback(() => {
     settler.cancel();
     queuePeekOpenRef.current = false;
     setQueuePeekOpen(false);
-    setLibraryTab('queue');
-    setActiveSection('library');
-  }, [setActiveSection, setLibraryTab, settler]);
+    openLibraryTab('queue');
+  }, [openLibraryTab, settler]);
 
   const closeQueuePeek = useCallback(() => {
     settler.cancel();

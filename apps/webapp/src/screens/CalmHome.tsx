@@ -74,7 +74,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   const { summary } = useCatalog();
   const { player, nowPlaying, queue, playNext, playPrevious, playStation } = usePlayback();
   const { trackHistory, knownStations, favorites, recent, playbackHistory, isStationHiddenFromRecommendations, isFavorite, toggleFavorite } = useLibrary();
-  const { setActiveSection, setLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat } = useShell();
+  const { setActiveSection, openLibraryTab, homeState, setGlobeFocusRegionId, setSkinLabOpen, requestChat } = useShell();
   const [discovery] = useState(() => resumeDiscovery(homeState.sessionSeed));
   useLayoutEffect(() => {
     window.scrollTo({ top: discovery.scrollY || 0, behavior: 'instant' });
@@ -197,7 +197,7 @@ export function CalmHome({ station, stations, discoveryStations, moodRails, onPl
   };
   const ai = isAiAssistantEnabled();
   const openGlobe = (country: string) => { setGlobeFocusRegionId(country); setActiveSection('globe'); };
-  const openLibrary = (tab: 'tracks' | 'collections' | 'favorites') => { setLibraryTab(tab); setActiveSection('library'); };
+  const openLibrary = (tab: 'tracks' | 'collections' | 'favorites') => openLibraryTab(tab);
   const storyTitle = (story: CalmStory) => t(`journal.stories.${story.copyKey}.title`);
   const storyKicker = (story: CalmStory) => t(`journal.stories.${story.copyKey}.kicker`);
   const storyCopy = (story: CalmStory) => t(`journal.stories.${story.copyKey}.copy`);
