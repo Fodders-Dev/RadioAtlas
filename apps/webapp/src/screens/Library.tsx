@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
+import { CollectionStationPicker } from '../components/CollectionStationPicker';
 import { CollectionSleeve, LibraryCollectionHome } from './LibraryCollectionHome';
 import { RegionArtwork } from '../components/RegionArtwork';
 import { StationArtwork } from '../components/StationArtwork';
@@ -243,6 +244,7 @@ export const Library = () => {
   );
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [stationPickerOpen, setStationPickerOpen] = useState(false);
   const [libraryHomeOpen, setLibraryHomeOpen] = useState(CALM_PREVIEW);
   const [queueFocusRequest, setQueueFocusRequest] = useState(0);
   const lastLibraryEntryRequestRef = useRef(0);
@@ -518,6 +520,7 @@ export const Library = () => {
     if (!request || request.id <= lastLibraryEntryRequestRef.current) return;
     lastLibraryEntryRequestRef.current = request.id;
     setLibrarySearch('');
+    setStationPickerOpen(false);
     setSelectedCollectionId(null);
     setIsCreatingCollection(false);
     setCollectionNameDraft('');
@@ -629,6 +632,7 @@ export const Library = () => {
     cancelSaveQueue();
   };
   const openCollectionDetail = (collectionId: string) => {
+    setStationPickerOpen(false);
     collectionDetailReturnHomeRef.current = libraryHomeOpen;
     collectionScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
     setCollectionReorderMode(false);
@@ -638,6 +642,7 @@ export const Library = () => {
     if (CALM_PREVIEW) setLibraryTab('collections');
   };
   const closeCollectionDetail = () => {
+    setStationPickerOpen(false);
     pendingCollectionScrollRestoreRef.current = collectionScrollYRef.current;
     setSelectedCollectionId(null);
     setCollectionReorderMode(false);
@@ -654,6 +659,15 @@ export const Library = () => {
   };
   const addCurrentToCollection = (collectionId: string, collectionName: string) => {
     if (!player.current) return;
+    const target = collections.find((collection) => collection.id === collectionId);
+    if (!target || target.stationIds.includes(player.current.stationuuid)) {
+      setCollectionNotice(t('library.collectionAlreadyHasStation'));
+      return;
+    }
+    if (target.stationIds.length >= 128) {
+      setCollectionNotice(t('library.collectionFull'));
+      return;
+    }
     addStationToCollection(collectionId, player.current);
     setCollectionNotice(
       t('library.collectionAdded', {
@@ -803,7 +817,8 @@ export const Library = () => {
     beginRenameCollection(collection);
   };
   const addStationsToCollection = () => {
-    setActiveSection('search');
+    if (CALM_PREVIEW && selectedCollection) setStationPickerOpen(true);
+    else setActiveSection('search');
   };
   const queueLeadStation =
     player.current ??
@@ -1129,6 +1144,7 @@ export const Library = () => {
           key={station.stationuuid}
           type="button"
           className="library-collection-picker-row"
+          disabled={Boolean(selectedCollection && selectedCollection.stationIds.length >= 128)}
           onClick={() => selectedCollection && addStationToCollection(selectedCollection.id, station)}
           aria-label={t('library.addStationToCollection', { station: normalizeStationName(station.name) })}
         >
@@ -1791,6 +1807,11 @@ export const Library = () => {
                 </div>
               </div>
 
+              {CALM_PREVIEW ? (
+                <button className="chip library-detail-add-stations" type="button" onClick={addStationsToCollection}>
+                  + {t('library.addStationsToCollection')}
+                </button>
+              ) : null}
               {selectedCollectionStations.length ? (
                 collectionReorderMode ? (
                   <div className="library-detail-station-list">
@@ -1857,9 +1878,9 @@ export const Library = () => {
                 <div className="empty-state library-empty-state">
                   <div className="section-subtitle">{t('library.collectionEmpty')}</div>
                   <div className="hero-chip-row">
-                    <button className="chip active" type="button" onClick={addStationsToCollection}>
+                    {!CALM_PREVIEW ? <button className="chip active" type="button" onClick={addStationsToCollection}>
                       {t('library.addStationsToCollection')}
-                    </button>
+                    </button> : null}
                     {player.current ? (
                       <button
                         className="chip"
@@ -1873,18 +1894,11 @@ export const Library = () => {
                 </div>
               )}
 
-              {collectionAddCandidates.length ? (
-                CALM_PREVIEW ? (
-                  <details className="library-collection-picker library-collection-picker-disclosure">
-                    <summary className="library-collection-picker-head">{t('library.addFromLibrary')}</summary>
-                    {renderCollectionAddCandidateList()}
-                  </details>
-                ) : (
+              {!CALM_PREVIEW && collectionAddCandidates.length ? (
                   <div className="library-collection-picker">
                     <div className="library-collection-picker-head">{t('library.addFromLibrary')}</div>
                     {renderCollectionAddCandidateList()}
                   </div>
-                )
               ) : null}
             </div>
           ) : (
@@ -2394,6 +2408,13 @@ export const Library = () => {
       ) : null}
       </>
       )}
+      {stationPickerOpen && selectedCollection ? <CollectionStationPicker
+        key={selectedCollection.id}
+        collection={selectedCollection}
+        suggestions={recentStations.length || favorites.length ? Array.from(new Map([...favorites, ...recentStations].map((station) => [station.stationuuid, station])).values()) : []}
+        onAdd={(station) => addStationToCollection(selectedCollection.id, station)}
+        onClose={() => setStationPickerOpen(false)}
+      /> : null}
     </section>
   );
 };

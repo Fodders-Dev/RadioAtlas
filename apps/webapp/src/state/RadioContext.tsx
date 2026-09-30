@@ -2425,7 +2425,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     rememberStations([lite]);
     setCollections((prev) =>
       prev.map((collection) =>
-        collection.id !== collectionId || collection.stationIds.includes(lite.stationuuid)
+        collection.id !== collectionId || collection.stationIds.includes(lite.stationuuid) || collection.stationIds.length >= 128
           ? collection
           : {
               ...collection,
