@@ -5,6 +5,7 @@
 
 import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
 import { placeMatchesQuery } from '../catalog/service.js';
+import { matchesForeignSource } from './currentSourceDiscovery.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -121,6 +122,22 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    if (args.relatedTo) {
+      // A home-country-heavy ranked page must not hide all foreign matches.
+      // Read the existing profiled catalogue, filter first, cap last.
+      const stations = await catalog.getCatalog('full');
+      const matches: VerifiedStationRef[] = [];
+      const seen = new Set<string>((args.excludeStationIds || []).slice(0, 128));
+      for (const station of stations) {
+        if (isTalkFormat(station) || seen.has(station.stationuuid)) continue;
+        const ref = toRef(station);
+        if (!matchesForeignSource(ref, args.relatedTo)) continue;
+        seen.add(ref.stationuuid);
+        matches.push(ref);
+        if (matches.length >= limit) break;
+      }
+      return matches;
+    }
     const wantsTalk = queryWantsTalk(args.query || '', args.tag);
     // When we'll drop talk/news rows, over-fetch so a genre query still returns a
     // full set of MUSIC stations after filtering (the main ranking is untouched —
