@@ -731,6 +731,10 @@ export const ruDictionary = {
     }
   },
   "library": {
+    "previewAll": "Все",
+    "previewEmpty": "Здесь пока пусто",
+    "previewVariant": "Вариант композиции",
+    "previewExit": "Обычный вид",
     "calmKicker": "Собрано на слух",
     "calmCounts": "Находки {finds} · Источники {favorites} · Подборки {collections}",
     "kicker": "Личное пространство",

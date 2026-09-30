@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
+import { CollectionSleeve, LibraryCollectionPreview, type LibraryPreviewDesign } from './LibraryCollectionPreview';
 import { RegionArtwork } from '../components/RegionArtwork';
 import { StationArtwork } from '../components/StationArtwork';
 import { StationTable } from '../components/StationTable';
@@ -38,6 +39,13 @@ type VisibleLibraryTab = (typeof TAB_ORDER)[number];
 const VISIBLE_LIBRARY_TABS = new Set<LibraryTab>(TAB_ORDER);
 const isVisibleLibraryTab = (tab: LibraryTab): tab is VisibleLibraryTab =>
   VISIBLE_LIBRARY_TABS.has(tab);
+
+const readLibraryPreviewDesign = (): LibraryPreviewDesign | null => {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const design = params.get('libraryDesign');
+  return params.get('calm') === '1' && (design === 'a' || design === 'b') ? design : null;
+};
 
 // Per-tab glyphs (Artem ask) — inline SVG in the AppNavigation style, tinted via
 // `fill: currentColor`. Favorites=heart, Queue=queue-list, Recent=clock,
@@ -78,6 +86,8 @@ type LibraryTabPanelProps = {
   panelId: string;
   className: string;
   panelRef?: Ref<HTMLDivElement>;
+  panelRole?: 'tabpanel' | 'region';
+  panelLabel?: string;
   children: ReactNode;
 };
 
@@ -88,6 +98,8 @@ const LibraryTabPanel = ({
   panelId,
   className,
   panelRef,
+  panelRole = 'tabpanel',
+  panelLabel,
   children
 }: LibraryTabPanelProps) => {
   const active = activeTab === tab;
@@ -97,8 +109,9 @@ const LibraryTabPanel = ({
       className={active ? className : undefined}
       ref={panelRef}
       id={panelId}
-      role="tabpanel"
-      aria-labelledby={tabId}
+      role={panelRole}
+      aria-labelledby={panelRole === 'tabpanel' ? tabId : undefined}
+      aria-label={panelRole === 'region' ? panelLabel : undefined}
       tabIndex={0}
       hidden={!active}
     >
@@ -236,6 +249,8 @@ export const Library = () => {
   );
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [libraryPreviewDesign, setLibraryPreviewDesign] = useState<LibraryPreviewDesign | null>(readLibraryPreviewDesign);
+  const [libraryPreviewSectionsOpen, setLibraryPreviewSectionsOpen] = useState(false);
   const [collectionNameDraft, setCollectionNameDraft] = useState('');
   const [collectionRenameDraft, setCollectionRenameDraft] = useState('');
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
@@ -502,6 +517,9 @@ export const Library = () => {
     panel.scrollIntoView({ behavior: 'auto', block: 'start' });
   }, [activeLibraryTab]);
   const findsTabActive = activeLibraryTab === 'tracks';
+  const showLibraryPreview = Boolean(
+    libraryPreviewDesign && !libraryPreviewSectionsOpen && !selectedCollection
+  );
   const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
   const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
   const handleLibraryTabKeyDown = (
@@ -591,6 +609,7 @@ export const Library = () => {
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
     setSelectedCollectionId(collectionId);
+    if (libraryPreviewDesign) setLibraryTab('collections');
   };
   const closeCollectionDetail = () => {
     pendingCollectionScrollRestoreRef.current = collectionScrollYRef.current;
@@ -598,6 +617,29 @@ export const Library = () => {
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
+    if (libraryPreviewDesign) setLibraryPreviewSectionsOpen(false);
+  };
+  const updateLibraryPreviewQuery = (design: LibraryPreviewDesign | null) => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (design) {
+        url.searchParams.set('calm', '1');
+        url.searchParams.set('libraryDesign', design);
+      } else {
+        url.searchParams.delete('libraryDesign');
+      }
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+    setLibraryPreviewDesign(design);
+    setLibraryPreviewSectionsOpen(false);
+    setSelectedCollectionId(null);
+  };
+  const openPreviewSections = (tab: LibraryTab) => {
+    setLibraryTab(tab);
+    setLibraryPreviewSectionsOpen(true);
+  };
+  const startPreviewCreate = () => {
+    beginCreateCollection();
   };
   const addCurrentToCollection = (collectionId: string, collectionName: string) => {
     if (!player.current) return;
@@ -696,6 +738,13 @@ export const Library = () => {
     if (!favorites.length) return;
     playStationQueue(shuffleForPlayback(favorites), {
       sourceId: 'favorites-shuffle',
+      sourceLabel: t('library.tabs.favorites')
+    });
+  };
+  const playFavoritesInOrder = () => {
+    if (!favorites.length) return;
+    playStationQueue(favorites, {
+      sourceId: 'favorites',
       sourceLabel: t('library.tabs.favorites')
     });
   };
@@ -1062,9 +1111,87 @@ export const Library = () => {
     );
   };
 
+  const renderCollectionAddCandidateList = () => (
+    <div className="library-collection-picker-list">
+      {collectionAddCandidates.map((station) => (
+        <button
+          key={station.stationuuid}
+          type="button"
+          className="library-collection-picker-row"
+          onClick={() => selectedCollection && addStationToCollection(selectedCollection.id, station)}
+          aria-label={t('library.addStationToCollection', { station: normalizeStationName(station.name) })}
+        >
+          <span className="library-collection-picker-copy">
+            <span className="library-collection-picker-name">{normalizeStationName(station.name)}</span>
+            <span className="library-collection-picker-meta">{stationLocation(station)}</span>
+          </span>
+          <span className="library-collection-picker-add" aria-hidden="true">+</span>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <section className={`screen screen-library-v2 ${calmQueue ? `calm-library-queue${librarySearch ? ' calm-library-queue-searching' : ''}` : ''}`}>
-      {CALM_PREVIEW ? (
+    <section className={`screen screen-library-v2 ${calmQueue ? `calm-library-queue${librarySearch ? ' calm-library-queue-searching' : ''}` : ''} ${libraryPreviewDesign ? `library-design-active library-design-${libraryPreviewDesign}${selectedCollection ? ' library-design-detail' : ''}` : ''}`}>
+      {showLibraryPreview ? (
+        <LibraryCollectionPreview
+          design={libraryPreviewDesign!}
+          favorites={favorites}
+          collections={collections}
+          stationFor={(id) => stationMap.get(id)}
+          finds={trackHistory}
+          queueCount={queue.items.length}
+          search={librarySearch}
+          searchResults={librarySearchResults.map((entry) => ({ station: entry.station, source: librarySearchSourceLabel(entry.source) }))}
+          createOpen={isCreatingCollection}
+          createName={collectionNameDraft}
+          onSearch={setLibrarySearch}
+          onPlaySearchStation={(station) => playStation(station, { sourceId: 'library-search', sourceLabel: t('library.searchResults') })}
+          onCreateName={setCollectionNameDraft}
+          onSaveCreate={saveCollection}
+          onCancelCreate={cancelCreateCollection}
+          onAccount={openAccountSheet}
+          onCreate={startPreviewCreate}
+          onExit={() => updateLibraryPreviewQuery(null)}
+          onChooseDesign={updateLibraryPreviewQuery}
+          onBrowse={openPreviewSections}
+          onOpenCollection={openCollectionDetail}
+          onPlayCollection={(collection) => playCollection(collection)}
+          onShuffleCollection={(collection) => playCollection(collection, true)}
+          onPlayFavorites={playFavoritesInOrder}
+          onShuffleFavorites={playFavoritesShuffle}
+          labels={{
+            title: t('nav.library'), search: t('library.searchPlaceholder'), account: t('account.title'),
+            create: t('library.createCollection'), favorites: t('library.tabs.favorites'),
+            favoritesEmpty: t('library.emptyFavoritesTitle'), playlists: t('library.tabs.collections'),
+            finds: t('library.tabs.tracks'), queue: t('library.tabs.queue'),
+            play: t('library.playCollection'), shuffle: t('library.shuffleCollection'),
+            open: t('library.openCollection'), all: t('library.previewAll'), regular: t('library.previewExit'), empty: t('library.previewEmpty'),
+            stationCount: (count) => t('library.collectionCount', { count }),
+            namePrompt: t('library.createCollectionPrompt'), save: t('common.save'), cancel: t('common.cancel'),
+            variant: t('library.previewVariant'),
+            tabFavorites: t('library.tabs.favorites'), tabCollections: t('library.tabs.collections'),
+            tabFinds: t('library.tabs.tracks'), tabRecent: t('library.tabs.recent'), tabQueue: t('library.tabs.queue')
+          }}
+        />
+      ) : (
+      <>
+      {libraryPreviewDesign ? (
+        <div className="library-preview-modebar">
+          <button type="button" onClick={() => {
+            setLibrarySearch('');
+            setSelectedCollectionId(null);
+            setLibraryPreviewSectionsOpen(false);
+            setIsCreatingCollection(false);
+          }}>{t('common.back')}</button>
+          <div role="group" aria-label={t('library.previewVariant')}>
+            <button type="button" className={libraryPreviewDesign === 'a' ? 'active' : ''} aria-pressed={libraryPreviewDesign === 'a'} onClick={() => updateLibraryPreviewQuery('a')}>A</button>
+            <button type="button" className={libraryPreviewDesign === 'b' ? 'active' : ''} aria-pressed={libraryPreviewDesign === 'b'} onClick={() => updateLibraryPreviewQuery('b')}>B</button>
+          </div>
+          <button type="button" onClick={() => updateLibraryPreviewQuery(null)}>{t('library.previewExit')}</button>
+        </div>
+      ) : null}
+      {CALM_PREVIEW && !libraryPreviewDesign ? (
         <header className="calm-library-head" data-calm-library>
           <div className="calm-library-title">
             <span className="calm-eyebrow">{t('library.calmKicker')}</span>
@@ -1513,6 +1640,8 @@ export const Library = () => {
         tabId={libraryTabId('collections')}
         panelId={libraryPanelId('collections')}
         className="library-collections-stack"
+        panelRole={libraryPreviewDesign && selectedCollection ? 'region' : 'tabpanel'}
+        panelLabel={selectedCollection?.name}
       >
           {collectionNotice ? (
             <div className="library-inline-toast" role="status">
@@ -1524,11 +1653,13 @@ export const Library = () => {
             <div className="glass-card library-collection-detail" data-library-collection-detail>
               <div className="library-section-head">
                 <div className="library-collection-detail-title">
-                  <CollectionArtwork label={selectedCollection.name} stations={selectedCollectionStations} />
+                  {libraryPreviewDesign ? (
+                    <CollectionSleeve collection={selectedCollection} stations={selectedCollectionStations} className="library-preview-artwork library-detail-sleeve" />
+                  ) : (
+                    <CollectionArtwork label={selectedCollection.name} stations={selectedCollectionStations} />
+                  )}
                   <div>
-                  <button className="chip" type="button" onClick={closeCollectionDetail}>
-                    {t('common.back')}
-                  </button>
+                  {!libraryPreviewDesign ? <button className="chip" type="button" onClick={closeCollectionDetail}>{t('common.back')}</button> : null}
                   {renamingCollectionId === selectedCollection.id ? (
                     <form
                       className="library-rename-collection-row"
@@ -1599,7 +1730,18 @@ export const Library = () => {
                           is room) render the same actions INLINE as chips instead —
                           otherwise the ungated sheet rendered unstyled and inerted the
                           whole app. */}
-                      {isMobileLayout ? (
+                      {libraryPreviewDesign ? (
+                        <details className="library-preview-detail-menu">
+                          <summary className="chip">{t('library.more')}</summary>
+                          <div className="library-preview-detail-menu-items">
+                            <button className="chip" type="button" onClick={() => beginRenameCollection(selectedCollection)}>{t('library.renameCollection')}</button>
+                            <button className={`chip ${selectedCollection.pinned ? 'active' : ''}`} type="button" onClick={() => toggleCollectionPinned(selectedCollection.id)}>{selectedCollection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}</button>
+                            {player.current ? <button className="chip" type="button" onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}>{t('library.addCurrentToCollection')}</button> : null}
+                            {selectedCollectionStations.length > 1 ? <button className={`chip ${collectionReorderMode ? 'active' : ''}`} type="button" onClick={() => setCollectionReorderMode((value) => !value)}>{collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}</button> : null}
+                            <button className={`chip library-delete-chip ${deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''}`} type="button" onClick={() => requestDeleteCollection(selectedCollection)}>{deleteArmedCollectionId === selectedCollection.id ? t('library.deleteCollectionConfirm') : t('library.deleteCollection')}</button>
+                          </div>
+                        </details>
+                      ) : isMobileLayout ? (
                         <button
                           className="chip"
                           type="button"
@@ -1751,26 +1893,17 @@ export const Library = () => {
               )}
 
               {collectionAddCandidates.length ? (
-                <div className="library-collection-picker">
-                  <div className="library-collection-picker-head">{t('library.addFromLibrary')}</div>
-                  <div className="library-collection-picker-list">
-                    {collectionAddCandidates.map((station) => (
-                      <button
-                        key={station.stationuuid}
-                        type="button"
-                        className="library-collection-picker-row"
-                        onClick={() => addStationToCollection(selectedCollection.id, station)}
-                        aria-label={t('library.addStationToCollection', { station: normalizeStationName(station.name) })}
-                      >
-                        <span className="library-collection-picker-copy">
-                          <span className="library-collection-picker-name">{normalizeStationName(station.name)}</span>
-                          <span className="library-collection-picker-meta">{stationLocation(station)}</span>
-                        </span>
-                        <span className="library-collection-picker-add" aria-hidden="true">+</span>
-                      </button>
-                    ))}
+                libraryPreviewDesign ? (
+                  <details className="library-collection-picker library-collection-picker-disclosure">
+                    <summary className="library-collection-picker-head">{t('library.addFromLibrary')}</summary>
+                    {renderCollectionAddCandidateList()}
+                  </details>
+                ) : (
+                  <div className="library-collection-picker">
+                    <div className="library-collection-picker-head">{t('library.addFromLibrary')}</div>
+                    {renderCollectionAddCandidateList()}
                   </div>
-                </div>
+                )
               ) : null}
             </div>
           ) : (
@@ -2278,6 +2411,8 @@ export const Library = () => {
           </div>
         </LibrarySheet>
       ) : null}
+      </>
+      )}
     </section>
   );
 };
