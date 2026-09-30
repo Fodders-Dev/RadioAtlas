@@ -82,8 +82,15 @@ test('Home card favorite saves the displayed station without changing playback o
   await expect(stage).toHaveAttribute('data-calm-offer', nextId!);
   await expect(favorite).toHaveAttribute('aria-pressed', 'false');
 
+  // The next card arrives with a finite translate/rotate animation. Measuring
+  // its heart mid-flight can start the coordinate drag on the card instead.
+  await waitForAnimationsToSettle(page, '.calm-stage-card');
   const favoriteBox = await favorite.boundingBox();
   expect(favoriteBox, 'the favorite control must be measurable for the swipe exclusion check').not.toBeNull();
+  expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('[data-stage-favorite]')), {
+    x: favoriteBox!.x + favoriteBox!.width / 2,
+    y: favoriteBox!.y + favoriteBox!.height / 2
+  }), 'the coordinate drag must start on the favorite control').toBe(true);
   await page.mouse.move(favoriteBox!.x + favoriteBox!.width / 2, favoriteBox!.y + favoriteBox!.height / 2);
   await page.mouse.down();
   await page.mouse.move(favoriteBox!.x + favoriteBox!.width / 2 - 80, favoriteBox!.y + favoriteBox!.height / 2, { steps: 5 });
