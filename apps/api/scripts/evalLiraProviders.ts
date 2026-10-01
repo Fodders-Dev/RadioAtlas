@@ -2,14 +2,13 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { runLiraAgent } from '../src/ai/agentRunner.js';
+import { CONTRACT_FIXTURES, createEvalTools, runOfflineLiraContracts } from './liraEvalContracts.js';
 import type {
   AiModelConfig,
   AiModelProvider,
   AssistantAction,
-  AssistantDeps,
   ChatInput,
-  ChatResult,
-  VerifiedStationRef
+  ChatResult
 } from '../src/ai/types.js';
 
 type EvalFixture = {
@@ -56,29 +55,6 @@ const PRICE_SOURCES = {
   deepseek: 'https://api-docs.deepseek.com/quick_start/pricing/',
   openai: 'https://openai.com/index/advancing-the-price-performance-frontier-with-gpt-5-6/'
 } as const;
-
-const station = (
-  stationuuid: string,
-  name: string,
-  country: string,
-  tags: string[]
-): VerifiedStationRef => ({
-  stationuuid,
-  name,
-  country,
-  tags,
-  favicon: '',
-  url_resolved: `https://streams.eval.invalid/${stationuuid}`
-});
-
-const EVAL_STATIONS = [
-  station('eval-jazz', 'Midnight Jazz', 'US', ['jazz', 'smooth jazz']),
-  station('eval-electronic', 'Electric Motion', 'DE', ['electronic', 'drum and bass']),
-  station('eval-synthwave', 'Neon Drive', 'US', ['synthwave', 'new wave']),
-  station('eval-ambient', 'Quiet Focus', 'IS', ['ambient', 'instrumental']),
-  station('eval-trance', 'Trance Miles', 'NL', ['trance', 'progressive']),
-  station('eval-rock', 'Guitar Signal', 'GB', ['rock', 'alternative'])
-];
 
 const FIXTURES: EvalFixture[] = [
   {
@@ -131,24 +107,7 @@ const numberEnv = (name: string, fallback: number) => {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 };
 
-const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-
-const evalTools: AssistantDeps['tools'] = {
-  searchStations: async ({ query, tag }) => {
-    const terms = normalize(`${query} ${tag || ''}`).split(/\s+/).filter(Boolean);
-    if (!terms.length) return [];
-    return EVAL_STATIONS.filter((item) => {
-      const haystack = normalize(`${item.name} ${item.tags.join(' ')}`);
-      return terms.some((term) => term.length > 2 && haystack.includes(term));
-    }).slice(0, 5);
-  },
-  getStation: async (id) => EVAL_STATIONS.find((item) => item.stationuuid === id) || null,
-  discoverTrending: async () => [{ id: 'eval', label: 'Eval', stations: EVAL_STATIONS.slice(0, 5) }],
-  matchStationsByArtistName: async (artist) => {
-    const normalized = normalize(artist);
-    return normalized.includes('robert miles') ? [EVAL_STATIONS[4]!] : [];
-  }
-};
+const evalTools = createEvalTools();
 
 const modelConfig = (provider: AiModelProvider): AiModelConfig =>
   provider === 'openai'
@@ -298,6 +257,9 @@ if (hasFlag('dry-run')) {
           prompt: input.userMessage,
           expectedActions,
           minStations
+        })),
+        offlineContracts: CONTRACT_FIXTURES.map(({ id, input, stationIds, action }) => ({
+          id, prompt: input.userMessage, expectedStationIds: stationIds, expectedAction: action
         }))
       },
       null,
@@ -308,10 +270,18 @@ if (hasFlag('dry-run')) {
 }
 
 if (missing.length) {
-  console.error(`Missing API key(s) for: ${missing.join(', ')}. Use --dry-run to validate the suite without calls.`);
+  console.error(`Missing API key(s) for: ${missing.join(', ')}. Use eval:lira:offline for free contracts, or --dry-run to list provider settings without calls.`);
   process.exit(2);
 }
 
+// These deterministic contracts must pass before spending on provider calls.
+// They remain separate from the six provider-scored prompts: otherwise adding
+// free, deterministic wins would inflate a model's apparent quality.
+const offlineContracts = await runOfflineLiraContracts();
+if (offlineContracts.passCount !== offlineContracts.total) {
+  console.error(JSON.stringify(offlineContracts, null, 2));
+  process.exit(1);
+}
 const reports: ProviderReport[] = [];
 for (const provider of providers) reports.push(await runProvider(provider, repeat));
 
@@ -319,6 +289,7 @@ const report = {
   generatedAt: new Date().toISOString(),
   note: 'Cost is an uncached estimate. Review reply quality manually before changing production.',
   repeat,
+  offlineContracts,
   reports
 };
 const output = `${JSON.stringify(report, null, 2)}\n`;

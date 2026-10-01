@@ -6,6 +6,20 @@ paths:
 
 # Working in apps/api
 
+## Lira evaluation boundaries
+
+`npm run eval:lira:offline` runs fixed catalogue contracts through the real
+agent and catalogue adapter. Its separate entry must never import dotenv,
+load provider credentials or contact a model; attempted model calls fail the
+contract. Expected UUIDs/actions are independent of the agent verifier, and
+catalogue-only cases must not produce external sources or service links.
+This is contract coverage, not a model-quality score.
+
+`eval:lira` remains the provider runner and requires an owner-agreed budget
+before billable calls. Its offline preflight must pass before those calls;
+keep the deterministic contract total separate from provider passRate.
+
+
 ## What may leave this process
 
 The API is the only process holding provider keys. The `/ai/chat` response body

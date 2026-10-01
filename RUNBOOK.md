@@ -229,14 +229,28 @@ curl -sS https://api.deepseek.com/user/balance \
 
 Automated provider eval:
 ```bash
-# No keys and no billable calls; validates fixtures, model names, and prices.
+# Actual offline contracts: no dotenv, credentials or billable calls.
+# --out resolves from apps/api (the npm workspace).
+npm run eval:lira:offline -- --out=../../output/lira-offline-contracts.json
+
+# Static provider-run planning only; this entry loads dotenv/config.
+# Does not run contracts or validate current provider prices/model availability.
 npm run eval:lira -- --dry-run
 
-# With DEEPSEEK_API_KEY + OPENAI_API_KEY in apps/api/.env:
+# Only after owner agrees a provider budget; existing API environment:
 npm run eval:lira -- --provider=both --repeat=3 --out=artifacts/lira-provider-eval.json
 ```
-The runner uses one fixed catalog and prompt suite, enforces action/station/
-verifier limits, and records every reply for human quality review. Cost is an
+The offline entry checks 17 deterministic scenarios with fixed expected UUIDs,
+actions and station facts through the real agent/catalogue adapter. It fails
+on unexpected model calls, external citations, service links or hidden writes.
+Its report explicitly says `modelQualityAssessed: false`.
+
+The provider runner requires that offline preflight to pass, then executes its
+six separate model prompts. The offline total never increases provider passRate.
+The fixture catalogue now respects country/tag constraints; comparisons with
+older provider reports must account for this change. These automatic checks
+are necessary contracts, not a human assessment of answer interest or truth.
+The runner records every reply for human quality review. Cost is an
 uncached estimate. Price defaults can be overridden with
 `LIRA_EVAL_{DEEPSEEK,OPENAI}_{INPUT,OUTPUT}_USD_PER_MTOK`; verify the linked
 provider price pages before a production decision.
