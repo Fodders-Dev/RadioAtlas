@@ -1,0 +1,78 @@
+{
+  "at": "2026-10-01T13:34:23.148Z",
+  "commit": "74d5034",
+  "htmlStatus": 200,
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-D24cwLkB.js",
+  "stateAsset": "/assets/radio-state-7atdp4Na.js",
+  "modelCalls": 0,
+  "modelCallsEvidence": "These exact requests use the deterministic two-genre path, guarded by offline model-call tests.",
+  "results": [
+    {
+      "question": "Найди одну фанк-станцию и одну эмбиент-станцию. Не включай.",
+      "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "elapsedMs": 313,
+      "distinctStreams": true,
+      "stations": [
+        {
+          "id": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "name": "BBC Radio 6 Music",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "blues",
+            "dance",
+            "electronic",
+            "funk",
+            "hip hop",
+            "house"
+          ]
+        },
+        {
+          "id": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station"
+        }
+      ]
+    },
+    {
+      "question": "Найди одну джазовую станцию и одну с эмбиентом из Японии. Не включай.",
+      "reply": "Джаз — «J-Club Club Bandstand» (Japan).\nЭмбиент (0 из 1) — подтверждённый источник не найден.\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "elapsedMs": 691,
+      "distinctStreams": true,
+      "stations": [
+        {
+          "id": "a36cb1a5-f9b5-4739-a86a-987d256b7d0e",
+          "name": "J-Club Club Bandstand",
+          "country": "Japan",
+          "tags": [
+            "jazz",
+            "1930s",
+            "1940s",
+            "big band",
+            "swing"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station"
+        }
+      ]
+    }
+  ]
+}
