@@ -1342,6 +1342,8 @@ export const enDictionary = {
     "promptThisStationQuery": "Tell me about {station} — what kind of broadcast is it, where from, and who is it for?",
     "promptSimilar": "More like this",
     "promptSimilarQuery": "Find stations that feel like {station}",
+    "promptForeign": "Similar abroad",
+    "promptForeignQuery": "Find similar stations from another country, don't play",
     "promptThisTrack": "What is this track?",
     "promptThisTrackQuery": "{track} is playing right now. Tell me about the track and the artist.",
     "promptMorning": "For the morning",

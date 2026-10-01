@@ -79,7 +79,7 @@ export function CalmSourceSheet({ station, onClose, onPlay }: { station: Station
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M3 11h12M3 17h9M18 14l4 3-4 3z" /></svg>
         <span>{t(queued ? 'journal.sourceQueued' : 'journal.sourceQueue')}</span>
       </button>
-      {isAiAssistantEnabled() && <button className="calm-sheet-row" onClick={() => { close(); requestChat(t('chat.promptThisStationQuery', { station: `${name} (${stationLocation(station) || formatCountryLabel(station.country)})` })); }}>
+      {isAiAssistantEnabled() && <button className="calm-sheet-row" onClick={() => { close(); requestChat('', station); }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 14 9l6.5 2-6.5 2-2 6.5-2-6.5L5.5 11 12 9l2-6.5Z" /></svg>
         <span>{t('journal.sourceLira')}</span><i aria-hidden="true">→</i>
       </button>}

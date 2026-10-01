@@ -473,9 +473,7 @@ export const GlobeExplorer = () => {
 
   const askLira = () => {
     if (!selectedStation) return;
-    const name = normalizeStationName(selectedStation.name);
-    const place = stationLocation(selectedStation);
-    requestChat(t('chat.promptThisStationQuery', { station: place ? `${name} (${place})` : name }));
+    requestChat('', selectedStation);
   };
 
   const searchCatalogue = () => {

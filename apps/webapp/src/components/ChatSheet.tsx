@@ -53,10 +53,8 @@ type ChatMessage = {
 type ChatSheetProps = {
   open: boolean;
   onClose: () => void;
-  // A question another screen asks on the listener's behalf (the calm Globe's
-  // «Лира» on a source). Sent once per `id` as the user's own turn; the reply is
-  // whatever the real assistant answers.
-  // An optional source supplies suggestions without submitting a message.
+  // Source entry points open with empty text and a station for suggestions.
+  // Only an explicitly supplied question is submitted, once per request id.
   prompt?: { text: string; id: number; station?: StationLite } | null;
 };
 
@@ -563,7 +561,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               </button>
             ) : null}
             {messages.length ? (
-              <button className="chat-history-btn" type="button" onClick={startFresh}>
+              <button className="chat-history-btn" type="button" onClick={startFresh} aria-label={t('chat.newChat')} title={t('chat.newChat')}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.72 12H7.72L7 9Zm2.08 2 .48 8h1.5l-.24-8H9.08Zm4.1 0-.24 8h1.5l.48-8h-1.74Z" />
                 </svg>
@@ -585,6 +583,16 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
             )}
           </div>
         </header>
+
+        {prompt?.station ? (
+          <div className="chat-context-source" data-chat-context-source={prompt.station.stationuuid}>
+            <StationArtwork station={prompt.station} className="chat-context-artwork" size="sm" />
+            <div className="chat-context-copy">
+              <span>{t('mapExplorer.selected')}</span>
+              <strong title={prompt.station.name}>{prompt.station.name}</strong>
+            </div>
+          </div>
+        ) : null}
 
         <div
           className={`chat-sheet-thread ${messages.length ? 'has-messages' : 'is-empty'}`}

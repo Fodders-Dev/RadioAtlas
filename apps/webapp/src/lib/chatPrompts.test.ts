@@ -47,6 +47,13 @@ describe('pickChatPrompts', () => {
     expect(without).not.toContain('ctx-track');
   });
 
+  it('offers foreign discovery for a selected source without embedding display names or requesting play', () => {
+    const foreign = pickChatPrompts({ seed: 0, hour: 14, station: 'Display name is not a lookup id' }).find(p => p.id === 'ctx-foreign');
+    expect(foreign?.queryKey).toBe('chat.promptForeignQuery');
+    expect(foreign?.params).toBeUndefined();
+    expect(ids({ seed: 0, hour: 14 })).not.toContain('ctx-foreign');
+  });
+
   it('spends at most two slots on the thing already playing', () => {
     // Otherwise every chip becomes one topic and the chat stops feeling open.
     for (let seed = 0; seed < 6; seed += 1) {

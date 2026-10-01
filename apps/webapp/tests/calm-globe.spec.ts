@@ -204,24 +204,32 @@ test('calm globe: country list, selection, explicit play, heart and find', async
   await page.screenshot({ path: '../../output/playwright/calm/globe-390.png' });
 });
 
-test('calm globe: Лира is asked about the selected source in its own words', async ({ page }) => {
+test('calm globe: Lira offers questions about the selected source without sending on open', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await start(page);
-  const posted: string[] = [];
+  const posted: Array<{ message: string; nowPlaying?: { stationUuid?: string } }> = [];
   await page.route('**/ai/chat**', async (route) => {
-    posted.push(String(route.request().postDataJSON()?.message ?? ''));
-    await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'ai disabled in e2e' }) });
+    posted.push(route.request().postDataJSON());
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ reply: 'Ответ на выбранный вопрос', stations: [] }) });
   });
   await openGlobe(page);
   const row = page.locator('.explorer-row').first();
   const name = (await row.locator('strong').textContent())!.trim();
   await row.locator('.explorer-row-name').click();
+  const selectedId = await page.locator('[data-selected-station]').getAttribute('data-selected-station');
   await expect.poll(async () => Number(await page.locator('.explorer-map').getAttribute('data-zoom'))).toBeCloseTo(6.1, 1);
   await page.locator('[data-ask-lira]').click();
   await expect(page.locator('[data-chat-sheet]')).toBeVisible();
-  await expect(page.locator('.chat-row').first()).toContainText(name);
+  const chat = page.locator('[data-chat-sheet]');
+  await expect(chat.locator('[data-chat-context-source]')).toHaveAttribute('data-chat-context-source', selectedId!);
+  await expect(chat.locator('[data-chat-context-source]')).toContainText(name);
+  await expect(chat.locator('.chat-row--user')).toHaveCount(0);
+  expect(posted).toHaveLength(0);
+  await chat.locator('[data-chat-prompts]').getByRole('button', { name: 'Что за станция?', exact: true }).click();
+  await expect(chat.locator('.chat-row--assistant')).toContainText('Ответ на выбранный вопрос');
   await expect.poll(() => posted.length).toBe(1);
-  expect(posted[0]).toContain(name);
+  expect(posted[0].message).toContain(name);
+  expect(posted[0].nowPlaying?.stationUuid).toBe(selectedId);
   expect(await audioSrc(page), 'asking never starts audio').toBeNull();
   // Лира is a section: the nav stays reachable, and choosing «Глобус» there
   // leaves her the way it leaves any screen — the selected source is intact.

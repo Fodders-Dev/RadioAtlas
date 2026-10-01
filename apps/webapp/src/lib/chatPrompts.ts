@@ -6,7 +6,7 @@
  * — owner: «хотелось бы, чтобы подсказки были разные, а не одни и те же».
  *
  * Three sources of variety, in priority order:
- *   1. WHAT IS PLAYING. If a station is on air, the most useful thing to ask is
+ *   1. THE SELECTED SOURCE (or what is playing). The most useful thing to ask is
  *      about it — and that chip cannot exist until there is something to ask
  *      about, so it is genuinely new each time the station changes.
  *   2. TIME OF DAY. «Что послушать под утро» at 07:00 and «Ночное» at 02:00.
@@ -42,7 +42,7 @@ const ICON = {
   note: 'M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Zm10-2a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z'
 } as const;
 
-/** Asked ABOUT the thing currently on air — only offered when it exists. */
+/** Asked ABOUT a selected source — only offered when it exists. */
 const contextPrompts = (station?: string, track?: string): ChatPromptSpec[] => {
   const out: ChatPromptSpec[] = [];
   if (track) {
@@ -63,11 +63,10 @@ const contextPrompts = (station?: string, track?: string): ChatPromptSpec[] => {
       path: ICON.tower
     });
     out.push({
-      id: 'ctx-similar',
-      labelKey: 'chat.promptSimilar',
-      queryKey: 'chat.promptSimilarQuery',
-      params: { station },
-      path: ICON.vinyl
+      id: 'ctx-foreign',
+      labelKey: 'chat.promptForeign',
+      queryKey: 'chat.promptForeignQuery',
+      path: ICON.globe
     });
   }
   return out;

@@ -1342,6 +1342,8 @@ export const ruDictionary = {
     "promptThisStationQuery": "Расскажи про станцию {station} — что это за эфир, откуда и кому зайдёт?",
     "promptSimilar": "Похожее на неё",
     "promptSimilarQuery": "Найди станции, похожие по духу на {station}",
+    "promptForeign": "Похожее за границей",
+    "promptForeignQuery": "Найди похожее из другой страны, не включай",
     "promptThisTrack": "Что за трек?",
     "promptThisTrackQuery": "Сейчас играет {track}. Расскажи про этот трек и исполнителя.",
     "promptMorning": "Под утро",
