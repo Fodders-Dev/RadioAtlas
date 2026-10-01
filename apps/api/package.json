@@ -11,7 +11,8 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "start": "node dist/index.js",
     "test": "tsx --test test/**/*.test.ts",
-    "eval:lira": "tsx scripts/evalLiraProviders.ts"
+    "eval:lira": "tsx scripts/evalLiraProviders.ts",
+    "eval:lira:offline": "tsx scripts/evalLiraOffline.ts"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

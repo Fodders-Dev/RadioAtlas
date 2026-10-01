@@ -94,6 +94,7 @@ npm run typecheck:test     # test sources (separate, load-bearing) ~11s
 npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
 npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
+npm run eval:lira:offline  # fixture-only Lira contracts; no dotenv, keys or model calls
 npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
 npm run test:webapp        # Playwright, all 283 specs                    ~7min
 npm run dev:webapp         # + npm run dev:api in a second terminal
