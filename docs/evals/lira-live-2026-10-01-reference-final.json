@@ -1,0 +1,171 @@
+{
+  "batch": "reference-final",
+  "at": "2026-10-01T10:19:20.317Z",
+  "code": "701c3dd+audit-reference-fix",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "preflight": {
+    "passed": 17,
+    "total": 17
+  },
+  "catalog": "production persisted snapshot, current catalogue adapter, profiles not applied",
+  "contextStation": {
+    "name": "FIP",
+    "id": "932eb148-e6f6-11e9-a96c-52543be04c81"
+  },
+  "runs": [
+    {
+      "id": "bridge",
+      "question": "Нравится этот трек. Подбери два радио, где я могу открыть что-нибудь в этом духе, и объясни разницу. Не включай.",
+      "ms": 9613,
+      "reply": "Khruangbin — это же тёплый, тягучий грув с психоделическим привкусом. Под такое настроение у меня есть две станции, и они реально разные по темпераменту.\n\n24-7 Psychedelic Rock — это ближе к мечтательной, обволакивающей стороне психоделии: мягче, атмосфернее, с ощущением медленного дрейфа. А Radio Caprice - HeavyPsych — та же психоделическая порода, но с утяжелением: 70-е, хард-роковая плотность, больше напора и гитарной массы. Первая — как тёплый вечер, вторая — как вечер с характером.",
+      "stations": [
+        {
+          "id": "0e0f2961-5c53-4c52-af70-eebe1b2af496",
+          "name": "24-7 Psychedelic Rock",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "psychedelic rock"
+          ]
+        },
+        {
+          "id": "277acce7-f1bb-47e8-a342-7b1d560b65d2",
+          "name": "Radio Caprice - HeavyPsych (heavy psychedelic rock)",
+          "country": "The Russian Federation",
+          "tags": [
+            "70s",
+            "hard rock",
+            "heavy",
+            "heavy psych",
+            "heavy psychedelic rock",
+            "heavy-psych"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "0e0f2961-5c53-4c52-af70-eebe1b2af496",
+          "actionId": "f50e6259-69cb-4712-b96d-5a20fcc05ab4:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 9188,
+        "completion": 375
+      },
+      "run": {
+        "runId": "f50e6259-69cb-4712-b96d-5a20fcc05ab4",
+        "taskId": "454427bb-75fd-4c3a-bab9-022592649f58",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 22
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 41
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 44
+          }
+        ],
+        "durationMs": 9613,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "bridge",
+      "question": "Хочу дальше от Khruangbin, но оставить грув. Только один эфир.",
+      "ms": 7061,
+      "reply": "Тогда ловлю тебя на слове «грув» и увожу в сторону фанка.\n\nFUNKY RADIO — Only Funk Music (60's 70's) — это как раз про кач, упругий бас и танцевальную пружину. Там и 60-е с их сырым, жирным звуком, и 70-е, где фанк уже расцвёл в диско-направлении. От Khruangbin далеко, а тело всё равно само начинает двигаться.",
+      "stations": [
+        {
+          "id": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "name": "FUNKY RADIO - Only Funk Music (60's 70's)",
+          "country": "The United States Of America",
+          "tags": [
+            "60s",
+            "70s",
+            "70s disco",
+            "80s",
+            "black",
+            "black music"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "actionId": "b29b78a0-9d26-45ba-b245-48102d8764b3:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 5029,
+        "completion": 260
+      },
+      "run": {
+        "runId": "b29b78a0-9d26-45ba-b245-48102d8764b3",
+        "taskId": "4d3b60f2-743c-4ca2-9195-bcf5fb02ca35",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 31
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 38
+          }
+        ],
+        "durationMs": 7057,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    }
+  ],
+  "ledger": {
+    "limitUsd": 3,
+    "modelUpperUsd": 0.26309711999999996,
+    "webReservedUsd": 0.4,
+    "unknownReservedUsd": 0,
+    "modelCalls": 94,
+    "webCalls": 4
+  }
+}

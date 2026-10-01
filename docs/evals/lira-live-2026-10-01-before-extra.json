@@ -1,0 +1,481 @@
+{
+  "batch": "before-extra",
+  "at": "2026-10-01T09:58:03.769Z",
+  "code": "701c3dd",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "preflight": {
+    "passed": 17,
+    "total": 17
+  },
+  "catalog": "production persisted snapshot, current catalogue adapter, profiles not applied",
+  "runs": [
+    {
+      "id": "bridge",
+      "question": "Нравится этот трек. Подбери два радио, где я могу открыть что-нибудь в этом духе, и объясни разницу. Не включай.",
+      "ms": 1,
+      "reply": "Я пока не вижу названия текущего трека. Напиши исполнителя и название песни — найду текст или разберу смысл без догадок.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "ae79a44a-49d5-4e34-a7e5-d8c1973c413f:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "ae79a44a-49d5-4e34-a7e5-d8c1973c413f",
+        "taskId": "f369c91e-6114-46ad-85e0-9092bbfc9081",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "bridge",
+      "question": "Хочу дальше от Khruangbin, но оставить грув. Только один эфир.",
+      "ms": 2294,
+      "reply": "Тогда лови что-то с тёплым, тягучим грувом — гитара, бас, немного психоделии и ощущение, будто едешь вдоль заката. Такой эфир хорошо заходит под вечер, когда не хочется резких смен настроения.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "71ac0ae4-5a2d-4f6c-9bb6-15279a7509a3:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 2031,
+        "completion": 71
+      },
+      "run": {
+        "runId": "71ac0ae4-5a2d-4f6c-9bb6-15279a7509a3",
+        "taskId": "0bc82948-2d30-4458-8abe-9927447ea526",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 2294,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "unknown-track",
+      "question": "Что сейчас за трек и о чём он?",
+      "ms": 2292,
+      "reply": "Слушай, а я не знаю, что у тебя сейчас играет — я же не слышу твой плеер. Скинь название трека или строчку из текста, и я с радостью разберу, о чём он.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "97ec62a8-9d23-4ad3-8b3b-969765750ba7:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 2219,
+        "completion": 58
+      },
+      "run": {
+        "runId": "97ec62a8-9d23-4ad3-8b3b-969765750ba7",
+        "taskId": "05f27cb2-bc51-496e-ac28-6e53b06358fb",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "web_search_factual",
+            "status": "completed",
+            "durationMs": 491
+          },
+          {
+            "name": "web_search_factual",
+            "status": "completed",
+            "durationMs": 140
+          }
+        ],
+        "durationMs": 2292,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "opinion",
+      "question": "Почему джаз нравится одним людям и раздражает других? Радио не предлагай.",
+      "ms": 6993,
+      "reply": "Тут всё дело в том, как устроен слух и что человек от музыки ждёт. Джаз — это во многом про свободу: импровизация, сбивки, разговоры инструментов между собой, когда мелодия может уйти в сторону и вернуться не сразу. Кому-то от этого кайф — живое дыхание, непредсказуемость, диалог. А кого-то это реально напрягает: мозгу хочется опоры, понятного припева, предсказуемой гармонии, а тут саксофон уводит куда-то в космос. Плюс многое зависит от того, с какого джаза человек начал знакомство: если с фри-джаза или сложного бибопа — легко решить, что это хаос. А если с мягкого вокала или лаунжевого трио — совсем другое впечатление.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "5ddf45c9-7a49-4a64-86b8-402b8e703444:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 4681,
+        "completion": 259
+      },
+      "run": {
+        "runId": "5ddf45c9-7a49-4a64-86b8-402b8e703444",
+        "taskId": "c1324c45-6226-463e-962f-7bde734367ec",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 40
+          }
+        ],
+        "durationMs": 6993,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "foreign",
+      "question": "Найди похожее на эту станцию, только из другой страны. Не включай.",
+      "ms": 1,
+      "reply": "Не вижу подтверждённой станции. Выбери источник и попроси похожее из другой страны.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "b9fe076f-2962-40d4-a3ba-eb25cd2375ec:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "b9fe076f-2962-40d4-a3ba-eb25cd2375ec",
+        "taskId": "39bc96cf-74a3-4181-924b-75ef1b279658",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "foreign",
+      "question": "Ещё два варианта, предыдущие не повторяй.",
+      "ms": 1781,
+      "reply": "Понял, предыдущие не трогаю. Скажи, под какое настроение или жанр искать: что-то тёплое и расслабленное, плотнее и ритмичнее или совсем неожиданное?",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "65f9758e-d597-4890-aa96-9dd6a1ef65b1:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 1991,
+        "completion": 56
+      },
+      "run": {
+        "runId": "65f9758e-d597-4890-aa96-9dd6a1ef65b1",
+        "taskId": "b67773ab-89e7-4baa-94a2-3188b4aca12b",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1781,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "focus",
+      "question": "Нужен фон для работы. Lo-fi заебал, хочется чего-то другого без вокала. Не включай.",
+      "ms": 7091,
+      "reply": "Поняла, без вокала и чтобы мозги не выносило. Есть отличный вариант — инструментальный хип-хоп, он как раз тот самый расслабленный грув, но без заезженных лоу-фай битов. Ещё можно глянуть в сторону инструментального джаза, если хочется чуть больше воздуха и живого звука.",
+      "stations": [
+        {
+          "id": "f0b1f357-8467-4eed-b2c8-5f33592111fd",
+          "name": "Instrumental Hits Radio",
+          "country": "Mexico",
+          "tags": [
+            "hits",
+            "instrumental",
+            "instrumental hits radio",
+            "nuevo leon"
+          ]
+        },
+        {
+          "id": "cc883873-ef4b-11e9-a96c-52543be04c81",
+          "name": "Radio Caprice - Instrumental Music",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental"
+          ]
+        },
+        {
+          "id": "96154a1e-0601-11e8-ae97-52543be04c81",
+          "name": "Total instrumental",
+          "country": "Germany",
+          "tags": [
+            "ambient",
+            "dance",
+            "electronic",
+            "instrumental"
+          ]
+        },
+        {
+          "id": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "name": "Instrumental Jazz",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental",
+            "jazz"
+          ]
+        },
+        {
+          "id": "e5a8aea3-4050-11e9-aa55-52543be04c81",
+          "name": "Radio Caprice - Instrumental Hip-hop",
+          "country": "The Russian Federation",
+          "tags": [
+            "hip-hop",
+            "hiphop",
+            "instrumental",
+            "instrumental hiphop"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "f0b1f357-8467-4eed-b2c8-5f33592111fd",
+          "actionId": "b19b81cb-5d60-4b69-b707-77400c503736:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 9624,
+        "completion": 266
+      },
+      "run": {
+        "runId": "b19b81cb-5d60-4b69-b707-77400c503736",
+        "taskId": "e7def5e8-6064-4a66-8cf9-067e7ae4de30",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 39
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 42
+          }
+        ],
+        "durationMs": 7091,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 1,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": true,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "impossible",
+      "question": "Хочу одновременно только инструментальную музыку и песни на русском. Подбери одну станцию.",
+      "ms": 8296,
+      "reply": "Слушай, тут есть нюанс: русскоязычные песни — это почти всегда вокал, а чисто инструментальные станции обычно без слов. Совместить «только инструментал» и «песни на русском» в одной станции не выйдет — это два разных мира.\n\nМогу предложить так: либо уютный инструментальный джаз, либо что-то спокойное инструментальное без вокала вообще. А если хочется именно русских песен — это уже отдельная история.",
+      "stations": [
+        {
+          "id": "1055f30a-bde4-46c7-a233-4668fcdc8781",
+          "name": "Relax FM Instrumental",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental"
+          ]
+        },
+        {
+          "id": "2fd84d74-eded-4d6d-99e2-e8e4b68c4044",
+          "name": "RadCap - Instrumental Metal",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental metal",
+            "metal",
+            "radio caprice"
+          ]
+        },
+        {
+          "id": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "name": "Instrumental Jazz",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental",
+            "jazz"
+          ]
+        },
+        {
+          "id": "19c656f5-3f70-465c-92fc-de29beb10626",
+          "name": "RadCap - Instrumental Hip Hop",
+          "country": "The Russian Federation",
+          "tags": [
+            "hip hop",
+            "instrumental",
+            "radio caprice"
+          ]
+        },
+        {
+          "id": "12d5d853-eee0-11e9-a96c-52543be04c81",
+          "name": "РАДИО КАФЕ - Radio CAFE",
+          "country": "The Russian Federation",
+          "tags": [
+            "amg",
+            "chillout",
+            "easy",
+            "gold",
+            "instrumental",
+            "pop"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "1055f30a-bde4-46c7-a233-4668fcdc8781",
+          "actionId": "41919a55-8107-46b6-9c26-92a4fbdbd309:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 8942,
+        "completion": 320
+      },
+      "run": {
+        "runId": "41919a55-8107-46b6-9c26-92a4fbdbd309",
+        "taskId": "8a289456-6594-45c8-80e5-965c61fbf6d7",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 19
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 23
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 19
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 41
+          }
+        ],
+        "durationMs": 8296,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    }
+  ],
+  "ledger": {
+    "limitUsd": 3,
+    "modelUpperUsd": 0.09805752,
+    "webReservedUsd": 0.2,
+    "unknownReservedUsd": 0,
+    "modelCalls": 36,
+    "webCalls": 2
+  }
+}

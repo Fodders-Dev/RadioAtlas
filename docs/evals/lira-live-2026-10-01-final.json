@@ -1,0 +1,308 @@
+{
+  "batch": "final",
+  "at": "2026-10-01T10:17:08.871Z",
+  "code": "701c3dd+audit-final",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "preflight": {
+    "passed": 17,
+    "total": 17
+  },
+  "catalog": "production persisted snapshot, current catalogue adapter, profiles not applied",
+  "contextStation": {
+    "name": "FIP",
+    "id": "932eb148-e6f6-11e9-a96c-52543be04c81"
+  },
+  "runs": [
+    {
+      "id": "bridge",
+      "question": "Нравится этот трек. Подбери два радио, где я могу открыть что-нибудь в этом духе, и объясни разницу. Не включай.",
+      "ms": 10120,
+      "reply": "Khruangbin — это тёплый, медитативный грув: гитара, пространство, лёгкая психоделия. Под такое настроение у меня есть два эмбиент-эфира, и они правда разные.\n\nRadio Caprice — Drone Ambient: глубже, темнее, тягучее. Это не про ритм, а про текстуру — длинные гудящие слои, в которые проваливаешься, как в тёплый туман.\n\nAmbient Sleeping Pill: мягче и светлее, ближе к медитации и расслаблению. Если хочется сохранить ту самую невесомость Khruangbin, но без грува — зайдёт идеально.",
+      "stations": [
+        {
+          "id": "961fa288-0601-11e8-ae97-52543be04c81",
+          "name": "Ambient Sleeping Pill",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "meditation",
+            "sleep"
+          ]
+        },
+        {
+          "id": "96466522-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Drone Ambient",
+          "country": "The Russian Federation",
+          "tags": [
+            "ambient",
+            "drone"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "961fa288-0601-11e8-ae97-52543be04c81",
+          "actionId": "09ebb8d8-6749-4bd8-add8-bb0b30ca74be:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 9124,
+        "completion": 387
+      },
+      "run": {
+        "runId": "09ebb8d8-6749-4bd8-add8-bb0b30ca74be",
+        "taskId": "959d3a9a-8ef0-42d5-8ea9-a9bddbea0d37",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 49
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 26
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 60
+          }
+        ],
+        "durationMs": 10120,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "bridge",
+      "question": "Хочу дальше от Khruangbin, но оставить грув. Только один эфир.",
+      "ms": 6414,
+      "reply": "Тогда бери SomaFM Groove Salad — там как раз groove в основе, но звучание уходит в более электронную, расслабленную сторону. Меньше гитарной психоделии, больше плавного бита и мягкой пульсации.",
+      "stations": [
+        {
+          "id": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "actionId": "79c010a4-f373-42c2-8eb9-38bbfc1cc3d7:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 7426,
+        "completion": 193
+      },
+      "run": {
+        "runId": "79c010a4-f373-42c2-8eb9-38bbfc1cc3d7",
+        "taskId": "659f3ae9-9ecf-41ab-8d92-444fe2c9526d",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 25
+          }
+        ],
+        "durationMs": 6413,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "record",
+      "question": "Запиши 20 секунд этого эфира и пришли файл сюда.",
+      "ms": 2,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "79e28bfe-dba0-4436-8217-a2d0c7a799b8:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "79e28bfe-dba0-4436-8217-a2d0c7a799b8",
+        "taskId": "44502c01-b0b0-4be2-a442-377c25cf687c",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 2,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "record",
+      "question": "То есть файл появится прямо в этом чате?",
+      "ms": 1,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "0da33ce5-90ab-452a-9c21-cd3b327b3960:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "0da33ce5-90ab-452a-9c21-cd3b327b3960",
+        "taskId": "7eac7d23-cb22-4eca-98fd-e082d78aad31",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "foreign",
+      "question": "Найди похожее на эту станцию, только из другой страны. Не включай.",
+      "ms": 2,
+      "reply": "В каталоге этой станции не хватает страны или музыкальных жанров. Могу поискать по жанру, который ты выберешь.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "954863c8-081f-45d0-aae4-48b3c89dcece:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "954863c8-081f-45d0-aae4-48b3c89dcece",
+        "taskId": "51150eac-16da-4dca-94dc-ec6707f215b4",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "get_station",
+            "status": "completed",
+            "durationMs": 0
+          }
+        ],
+        "durationMs": 2,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "foreign",
+      "question": "Ещё два варианта, предыдущие не повторяй.",
+      "ms": 1,
+      "reply": "В каталоге этой станции не хватает страны или музыкальных жанров. Могу поискать по жанру, который ты выберешь.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "95f42aa9-0080-48ad-8623-e0eb1d218065:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "95f42aa9-0080-48ad-8623-e0eb1d218065",
+        "taskId": "230f02e1-22b8-4bb0-8588-8c9db76966d6",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "get_station",
+            "status": "completed",
+            "durationMs": 0
+          }
+        ],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    }
+  ],
+  "ledger": {
+    "limitUsd": 3,
+    "modelUpperUsd": 0.2418160799999999,
+    "webReservedUsd": 0.4,
+    "unknownReservedUsd": 0,
+    "modelCalls": 86,
+    "webCalls": 4
+  }
+}
