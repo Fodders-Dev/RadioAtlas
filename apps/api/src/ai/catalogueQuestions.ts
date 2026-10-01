@@ -8,10 +8,9 @@ const affirmative = (text:string) => text
   .replace(/не\s+(?:подбирай|подбери|ищи|находи|предлагай|предложи|рекомендуй|включай|показывай)[^.!?;\n]*/gi,'');
 const label = (value: string, max = 110) => String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const tags = (station: VerifiedStationRef) => {
-  const genres = sourceGenres(station.tags);
   // Alphabetical catalogue tags often start with bitrate, location or decade.
-  // Musical genres are more useful than comparing "aac" and "128kbps".
-  return genres.length ? genres : [...new Set(station.tags.map(tag => label(tag, 40).toLowerCase()).filter(Boolean))].slice(0, 6);
+  // Unknown metadata is not a genre and cannot establish musical similarity.
+  return sourceGenres(station.tags);
 };
 const answer = (reply: string, stations: VerifiedStationRef[] = []): ChatResult => ({
   reply, stations, serviceLinks: [], sources: [], actions: [{ kind: 'none' }], usage: { prompt: 0, completion: 0 }

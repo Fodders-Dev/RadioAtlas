@@ -13,6 +13,7 @@ import {
   summarizeStationSlate
 } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
+import { createCatalogToolProvider } from '../src/ai/catalogToolProvider.js';
 import type {
   AssistantDeps,
   ChatInput,
@@ -2269,6 +2270,49 @@ test('OPINION GATE: a request wearing a question mark keeps its cards and is rep
  * shape end to end: a known exclusion names the id it applied, an unknown one
  * says so without the message being retained anywhere.
  */
+test('catalogue tag display cap never hides explicit exclusion evidence from the brain', async () => {
+  const rows = [
+    { stationuuid: 'excluded', name: 'Neon FM', country: 'France', tags: 'dance,deep house,electronic,hardcore,house,techno,trance', url_resolved: 'http://s/neon' },
+    { stationuuid: 'allowed', name: 'Soft FM', country: 'France', tags: 'electronic,house', url_resolved: 'http://s/soft' }
+  ];
+  const tools = createCatalogToolProvider({
+    search: async () => ({ items: rows }), getStationById: async () => null,
+    getSummary: async () => ({}), getCatalog: async () => rows
+  });
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"electronic"}}', '{"action":"final"}'],
+    compose: 'Soft FM — электронная музыка.'
+  });
+  const result = await chatWithAssistant(ask('Подбери электронную музыку без хардкора. Не включай.'), makeDeps(fetchImpl, { tools }));
+  assert.deepEqual(result.stations.map(s => s.stationuuid), ['allowed']);
+  assert.deepEqual(result.constraintFilter?.matchedIds, ['hardcore']);
+  assert.ok((result.constraintFilter?.removedCards || 0) > 0);
+  assert.ok(result.actions.every(action => action.kind !== 'play'));
+  const compose = calls.find(call => call.phase === 'compose');
+  assert.ok(compose);
+  assert.ok(!JSON.stringify(compose.body).includes('Neon FM'), 'discarded evidence must not reach the composer');
+});
+
+test('curated modern Russian search retains retro rejection beyond the display tag cap', async () => {
+  const rows = [
+    { stationuuid: 'retro-hidden', name: 'Neon FM', country: 'Russia', tags: 'dance,disco,electronic,house,pop,retro,russian pop', url_resolved: 'http://s/neon' },
+    ...['Alpha', 'Beta', 'Gamma'].map((name, index) => ({
+      stationuuid: `modern-${index}`, name, country: 'Russia', tags: 'russian pop', url_resolved: `http://s/modern-${index}`
+    }))
+  ];
+  const tools = createCatalogToolProvider({
+    search: async () => ({ items: rows }), getStationById: async () => null,
+    getSummary: async () => ({}), getCatalog: async () => rows
+  });
+  const { fetchImpl, calls } = makeFetch({ compose: 'Современная русская поп-музыка.' });
+  const result = await chatWithAssistant(ask('Найди современную русскую поп-музыку. Не включай.'), makeDeps(fetchImpl, { tools }));
+  assert.deepEqual(result.stations.map(station => station.stationuuid).sort(), ['modern-0', 'modern-1', 'modern-2']);
+  assert.ok(result.actions.every(action => action.kind !== 'play'));
+  const compose = calls.find(call => call.phase === 'compose');
+  assert.ok(compose);
+  assert.ok(!JSON.stringify(compose.body).includes('Neon FM'), 'curated rejection must happen before composition');
+});
+
 test('CONSTRAINT TELEMETRY: a known exclusion reports its id and what it removed', async () => {
   const { fetchImpl } = makeFetch({
     planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
