@@ -15,7 +15,7 @@ import { getProxiedAssetUrl } from '../lib/assetUrl';
 import { StationArtwork } from './StationArtwork';
 import type { StationLite } from '../types';
 import { localizedCountry } from '../lib/countryName';
-import { liraOpeningLine, liraOpeningPieces, liraOpeningStations } from '../lib/liraOpening';
+import { liraOpeningStations } from '../lib/liraOpening';
 import {
   postChatMessage,
   type ChatHistoryTurn,
@@ -34,6 +34,7 @@ import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import { LiraMark } from './LiraMark';
 import { CalmLiraFace } from './CalmLiraFace';
+import { LiraStudio } from './LiraStudio';
 import './ChatSheet.css';
 
 type ChatMessage = {
@@ -294,22 +295,6 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       </svg>
     </button>
   );
-  const openingLine = useMemo(
-    () =>
-      liraOpeningLine(
-        liraOpeningPieces(openingCards.map((card) => card.station), (genre) => t(`genre.${genre}`)),
-        {
-          first: (name) => t('journal.liraOpenFirst', { name }),
-          second: (name) => t('journal.liraOpenSecond', { name }),
-          genre: (genre) => t('journal.liraOpenGenre', { genre }),
-          askTwo: t('journal.liraOpenAsk'),
-          askOne: t('journal.liraOpenAskOne'),
-          empty: t('journal.liraOpening')
-        }
-      ),
-    [openingCards, t]
-  );
-
   // The field grows with the draft. Measure the controls rather than guessing
   // a bottom offset from the empty composer; include viewport/keyboard changes.
   useEffect(() => {
@@ -336,7 +321,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       delete html.dataset.calmChat;
       html.style.removeProperty('--lira-toast-bottom');
     };
-  }, [open]);
+  }, [open, welcomeVisible]);
 
   // Scroll so the newest turn STARTS at the top of the view, not so the thread
   // ends at the bottom. Pinning scrollTop to scrollHeight meant a long answer
@@ -517,6 +502,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       aria-labelledby={titleId}
       data-chat-sheet
       data-calm={CALM_PREVIEW ? 'true' : undefined}
+      data-lira-studio={CALM_PREVIEW && messages.length === 0 ? 'true' : undefined}
     >
       {CALM_PREVIEW ? null : (
         <button
@@ -602,13 +588,19 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           aria-relevant="additions"
         >
           {messages.length === 0 && CALM_PREVIEW ? (
-            <section className="chat-welcome chat-welcome--calm" aria-labelledby={`${titleId}-welcome`} data-chat-opening>
-              <div className="lira-opening">
-                <h2 id={`${titleId}-welcome`}>{t('journal.liraAsk')}</h2>
-              </div>
-              <p>{openingLine}</p>
-              {openingCards.length ? (
-                <div className="chat-station-list">
+            <section className="chat-welcome chat-welcome--calm" data-chat-opening>
+              <LiraStudio
+                prompts={quickPrompts}
+                onPrompt={(prompt, keyboardActivation) => {
+                  triggerSelectionHaptic();
+                  // This tile disappears on send. Keep keyboard users in the
+                  // chat without opening the mobile keyboard after a touch.
+                  if (keyboardActivation) composerRef.current?.focus({ preventScroll: true });
+                  void send(t(prompt.queryKey, prompt.params));
+                }}
+              >
+                {openingCards.length ? (
+                  <div className="chat-station-list">
                   {openingCards.map((card) => (
                     <div key={card.station.stationuuid} className="chat-station-item" data-chat-opening-card={card.station.stationuuid}>
                       <button
@@ -642,8 +634,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                       </button>
                     </div>
                   ))}
-                </div>
-              ) : null}
+                  </div>
+                ) : null}
+              </LiraStudio>
             </section>
           ) : messages.length === 0 ? (
             <section className="chat-welcome" aria-labelledby={`${titleId}-welcome`}>
@@ -843,7 +836,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           ) : null}
         </div>
 
-        {CALM_PREVIEW ? (
+        {CALM_PREVIEW && messages.length > 0 ? (
           <div className="chat-prompts-row" aria-label={t('chat.quickPrompts')} data-chat-prompts>
             {quickPrompts.map((prompt: ChatPromptSpec) => (
               <button

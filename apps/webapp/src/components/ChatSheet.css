@@ -1223,8 +1223,8 @@
 
 /* Thread and the opening: the question alone, then Лира's offer in ink. */
 .chat-sheet[data-calm='true'] .chat-sheet-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 21px 24px; }
-.chat-sheet[data-calm='true'] .chat-sheet-thread.is-empty { align-items: start; justify-content: start; padding-top: 4px; }
-.chat-sheet[data-calm='true'] .chat-welcome { margin: 0; max-width: none; }
+.chat-sheet[data-calm='true'] .chat-sheet-thread.is-empty { grid-template-columns: minmax(0, 1fr); align-items: start; justify-content: start; padding-top: 4px; }
+.chat-sheet[data-calm='true'] .chat-welcome { width: 100%; margin: 0; max-width: none; }
 .chat-sheet[data-calm='true'] .lira-opening { position: relative; text-align: left; padding: 6px 0 14px; }
 .chat-sheet[data-calm='true'] .lira-opening h2 { margin: 0 0 7px; font: italic 500 26px/1.08 Georgia, 'Times New Roman', serif; letter-spacing: -1px; color: var(--lira-ink); }
 .chat-sheet[data-calm='true'] .chat-welcome--calm > p { margin: 0 0 3px; font-size: 14px; line-height: 1.78; color: var(--lira-ink); }
@@ -1289,6 +1289,7 @@
    player's alone, there is no bar there. */
 @media (min-width: 900px) {
   .chat-sheet[data-calm='true'] { left: calc(var(--calm-dock-w, 92px) + 20px); --lira-gutter: max(28px, calc(50% - 370px)); }
+  .chat-sheet[data-calm='true'][data-lira-studio='true'] { --lira-gutter: max(28px, calc(50% - 480px)); }
   .chat-sheet[data-calm='true'] .chat-sheet-head { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
   .chat-sheet[data-calm='true'] .chat-sheet-thread { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }
   .chat-sheet[data-calm='true'] .chat-prompts-row { padding-left: var(--lira-gutter); padding-right: var(--lira-gutter); }

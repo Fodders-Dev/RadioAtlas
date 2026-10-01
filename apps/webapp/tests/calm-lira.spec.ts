@@ -73,9 +73,12 @@ test('Lira keeps a growing draft and real media-error toast above a shrinking vi
   expect(streamAttempts).toBeGreaterThan(0);
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'error');
   await expect(chat.locator('[data-chat-opening-card] .chat-station-note').first()).toHaveText('Выбранный источник');
-  const chips = chat.locator('[data-chat-prompts]');
+  // Welcome questions now live in the scrollable studio. Feedback belongs
+  // above the fixed composer; anchoring it above the first question would
+  // push it offscreen after scrolling or when the keyboard shrinks the view.
+  const controls = chat.locator('.chat-composer-glass');
   await expect.poll(async () => {
-    const notice = await toast.boundingBox(), prompts = await chips.boundingBox();
+    const notice = await toast.boundingBox(), prompts = await controls.boundingBox();
     expect(notice).not.toBeNull(); expect(prompts).not.toBeNull();
     return notice!.y + notice!.height <= prompts!.y - 4;
   }).toBe(true);
