@@ -260,6 +260,8 @@ export type SearchStationsArgs = {
   // Trusted counted-genre lane; exact catalogue tags are filtered before cap.
   // Never accepted from model tool arguments.
   requiredGenre?: string;
+  // Trusted current-source lane only. Full bounded evidence remains internal.
+  nearSource?: { stationuuid: string; url_resolved: string; tags: readonly string[] };
   excludeStationIds?: string[];
   country?: string;
   language?: string;

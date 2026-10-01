@@ -31,6 +31,8 @@ import { catalogueTagEvidence } from './catalogueTagEvidence.js';
 import { requestedCountry, matchesRequestedCountry, omitSharedCountrySuffix } from './requestedCountry.js';
 import { requestedGenreSlots } from './requestedGenreSlots.js';
 import { describeGenreSlots, selectGenreSlots } from './genreSlotSelection.js';
+import { requestedSourceAlternatives } from './requestedSourceAlternatives.js';
+import { describeNearSources, findNearSources } from './sourceAlternatives.js';
 import {
   effectiveSourceRequest, findForeignSources, knownSourceCountry, referencesCurrentSource,
   resolveCurrentSource, sourceFacts, sourceGenres, unsupportedSourceModifier, wantsForeignSource
@@ -1755,9 +1757,38 @@ export const chatWithAssistant = async (
   const systemPrompt = buildSystemPrompt(input.locale, surface);
   const history = trimHistory(input.history);
   const foreignSourceRequest = wantsForeignSource(userMessage, history);
-  const source = foreignSourceRequest || referencesCurrentSource(userMessage)
+  const effectiveSourceMessage = effectiveSourceRequest(userMessage, history);
+  // The existing foreign-source branch retains its contracts in this slice.
+  // Only explicit requests relative to the selected UUID enter the new lane.
+  const nearRequest = foreignSourceRequest ? undefined
+    : requestedSourceAlternatives(omitSharedCountrySuffix(effectiveSourceMessage));
+  const source = foreignSourceRequest || nearRequest || referencesCurrentSource(userMessage)
     ? await resolveCurrentSource(deps.tools, input.nowPlaying?.stationUuid)
     : null;
+  if (nearRequest) {
+    const english = /^en(?:-|$)/i.test(String(input.locale || ''));
+    const empty = (reply: string): ChatResult => ({reply, stations: [], serviceLinks: [], sources: [],
+      actions: [{kind:'none'}], usage:{prompt:0,completion:0}});
+    if (!source || !source.url_resolved) return empty(english
+      ? 'I cannot verify the selected station. Select one, then ask for a related source.'
+      : 'Не вижу подтверждённой выбранной станции. Выбери источник — тогда подберу близкий по жанрам.');
+    const override = effectiveSourceMessage !== userMessage ? requestedStationCount(userMessage) : undefined;
+    if (nearRequest.kind === 'clarify' || nearRequest.foreign || (override !== undefined && override > 3)) return empty(english
+      ? 'I can compare catalogue genres, but cannot confirm those extra conditions or acoustic contrast. Name the genre or direction you want to try.'
+      : 'Могу сопоставить жанры каталога, но дополнительные условия или контраст звучания подтвердить не могу. Назови жанр или направление, которое хочешь попробовать.');
+    const count = override ?? nearRequest.count;
+    const country = requestedCountry(effectiveSourceMessage);
+    const stations = await findNearSources(deps.tools, source, count, [
+      ...(input.userTaste?.hiddenStationIds || []), ...(input.userTaste?.negativeStationIds || []),
+      ...(input.userTaste?.lastRecommendedStationIds || [])
+    ], country);
+    return {
+      reply: describeNearSources(source, stations, count, english), stations,
+      serviceLinks: [], sources: [], actions: stations.length ? [{
+        kind: hasPlayIntent(userMessage) ? 'play' : 'open-station', stationuuid:stations[0]!.stationuuid
+      }] : [{kind:'none'}], usage:{prompt:0,completion:0}
+    };
+  }
   if (foreignSourceRequest) {
     const english = /^en(?:-|$)/i.test(String(input.locale || ''));
     const empty = (reply: string): ChatResult => ({
