@@ -53,6 +53,8 @@ export type UserTasteContext = {
   hiddenStationIds?: string[];
   negativeStationIds?: string[];
   lastRecommendedStationIds?: string[];
+  /** Exact latest assistant slate, separate from historical exclusions. */
+  lastSuggestedStationIds?: string[];
   stationScores?: Record<string, number>;
   tagScores?: Record<string, number>;
   countryScores?: Record<string, number>;

@@ -9,6 +9,10 @@ const SAFETY_ID_STORAGE_KEY = 'radio:lira-safety-id:v1';
 
 export type ChatRole = 'user' | 'assistant';
 
+export const latestSuggestedStationIds = (messages: ReadonlyArray<{role: ChatRole; stations?: Array<{stationuuid:string}>}>) =>
+  [...new Set((messages.slice().reverse().find(message=>message.role==='assistant')?.stations || [])
+    .map(station=>station.stationuuid).filter(Boolean))].slice(0,5);
+
 export type ChatStationRef = {
   stationuuid: string;
   name: string;
@@ -76,6 +80,7 @@ export type ChatUserTaste = {
   hiddenStationIds?: string[];
   negativeStationIds?: string[];
   lastRecommendedStationIds?: string[];
+  lastSuggestedStationIds?: string[];
   stationScores?: Record<string, number>;
   tagScores?: Record<string, number>;
   countryScores?: Record<string, number>;

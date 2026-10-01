@@ -210,6 +210,7 @@ export const parseUserTasteContext = (raw: unknown): UserTasteContext | undefine
   const hiddenStationIds = parseTasteIds(value.hiddenStationIds);
   const negativeStationIds = parseTasteIds(value.negativeStationIds);
   const lastRecommendedStationIds = parseTasteIds(value.lastRecommendedStationIds);
+  const lastSuggestedStationIds = parseTasteIds(value.lastSuggestedStationIds).slice(0, 5);
   const stationScores = parseStationScoreMap(value.stationScores);
   const tagScores = parseTasteScoreMap(value.tagScores);
   const countryScores = parseTasteScoreMap(value.countryScores);
@@ -220,6 +221,7 @@ export const parseUserTasteContext = (raw: unknown): UserTasteContext | undefine
     !hiddenStationIds.length &&
     !negativeStationIds.length &&
     !lastRecommendedStationIds.length &&
+    !lastSuggestedStationIds.length &&
     !Object.keys(stationScores).length &&
     !Object.keys(tagScores).length &&
     !Object.keys(countryScores).length &&
@@ -233,6 +235,7 @@ export const parseUserTasteContext = (raw: unknown): UserTasteContext | undefine
     hiddenStationIds,
     negativeStationIds,
     lastRecommendedStationIds,
+    lastSuggestedStationIds,
     stationScores,
     tagScores,
     countryScores,

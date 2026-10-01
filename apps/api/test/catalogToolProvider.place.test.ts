@@ -49,3 +49,17 @@ test('searchStations: without any located station the name matches are kept', as
   const out = await tools.searchStations({ query: 'Tokyo' });
   assert.deepEqual(out.map((s) => s.stationuuid), ['art']);
 });
+
+test('explicit country aliases constrain ranked search before cap',async()=>{
+  const rows:Row[]=[...Array.from({length:30},(_,i)=>({stationuuid:`fr-${i}`,name:'Jazz French',country:'France',tags:'jazz',url_resolved:'http://s/fr'})),
+    {stationuuid:'us',name:'Jazz US',country:'United States of America',tags:'jazz',url_resolved:'http://s/us'},
+    {stationuuid:'cz',name:'Jazz CZ',country:'Czech Republic',tags:'jazz',url_resolved:'http://s/cz'}];
+  const seen:string[]=[];
+  const tools=createCatalogToolProvider({...catalogOf(rows),search:async filters=>{
+    seen.push(filters.country);
+    return {items:rows.filter(row=>!filters.country || row.country===filters.country).slice(0,filters.limit)};
+  }});
+  assert.deepEqual((await tools.searchStations({query:'jazz',country:'United States',limit:1})).map(s=>s.stationuuid),['us']);
+  assert.deepEqual((await tools.searchStations({query:'jazz',country:'Czechia',limit:1})).map(s=>s.stationuuid),['cz']);
+  assert.deepEqual(seen,['United States of America','Czech Republic']);
+});

@@ -120,6 +120,49 @@ const ask = (text: string, extra: Partial<ChatInput> = {}): ChatInput => ({
   ...extra
 });
 
+test('country promise binds fallback search before ranking and overrides planner geography', async()=>{
+  const {fetchImpl,calls}=makeFetch({planner:['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz","country":"USA"}}','{"action":"final"}'],compose:'Японский джаз.'});
+  const seen:string[]=[];
+  const result=await chatWithAssistant(ask('Найди две станции из Японии с джазом. Не включай.'),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async args=>{seen.push(args.country || '');return [station({stationuuid:'jp',country:'Japan'}),station({stationuuid:'us',country:'United States'})];}}}));
+  assert.ok(seen.length>0);
+  assert.ok(seen.every(country=>country==='Japan'));
+  assert.deepEqual(result.stations.map(s=>s.stationuuid),['jp']);
+  assert.ok(calls.find(c=>c.phase==='compose')?.body.messages.some((m:any)=>m.content.includes('Обязательная страна станций: Japan')));
+  assert.ok(result.actions.every(a=>a.kind!=='play'));
+});
+test('country persists across another-one refinement and changes only on explicit new location',async()=>{
+  for(const [question,expected] of [['Дай ещё одну.','Japan'],['Теперь ещё две. Не включай.','Japan'],['Ещё две','Japan'],['Давай ещё одну, страну сохрани.','Japan'],['А теперь одну из Франции, с теми же жанрами. Не включай.','France']]) {
+    const {fetchImpl}=makeFetch({vibeTags:'jazz',compose:'Вот.'});
+    const seen:string[]=[];
+    const result=await chatWithAssistant(ask(question!,{history:[{role:'user',text:'Найди две станции из Японии с джазом. Не включай.'},{role:'assistant',text:'Вот два эфира.'}]}),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async args=>{seen.push(args.country || '');return [station({country:expected!})];}}}));
+    assert.ok(seen.length>0,question);
+    assert.ok(seen.every(country=>country===expected),JSON.stringify(seen));
+    assert.equal(result.stations.length,1);
+  }
+});
+test('country zero results cannot escape through trending or get_station',async()=>{
+  const {fetchImpl}=makeFetch({planner:['{"action":"use_tool","tool":"discover_trending","args":{}}','{"action":"use_tool","tool":"get_station","args":{"id":"uuid-jazz"}}','{"action":"final"}'],vibeTags:'jazz',compose:'Не нашла.'});
+  const r=await chatWithAssistant(ask('Найди радио из Японии. Не включай.'),makeDeps(fetchImpl));
+  assert.deepEqual(r.stations,[]);
+  assert.ok(r.actions.every(a=>a.kind!=='play'));
+});
+test('country survives four consecutive refinements within the bounded chat history',async()=>{
+  const {fetchImpl}=makeFetch({vibeTags:'jazz',compose:'Вот.'});
+  const seen:string[]=[];
+  const history:ChatInput['history']=[{role:'user',text:'Найди станции из Японии с джазом. Не включай.'},{role:'assistant',text:'Вот.'}];
+  for(let i=0;i<4;i++)history.push({role:'user',text:'Дай ещё одну.'},{role:'assistant',text:'Ещё.'});
+  await chatWithAssistant(ask('Дай ещё одну.',{history}),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async args=>{seen.push(args.country || '');return [station({country:'Japan'})];}}}));
+  assert.ok(seen.length>0);
+  assert.ok(seen.every(country=>country==='Japan'));
+});
+test('composer cannot promote a removed candidate in prose while cards show another',async()=>{
+  const {fetchImpl}=makeFetch({planner:['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}','{"action":"final"}'],compose:'Paris Jazz и Forbidden Metal — отличные варианты.'});
+  const r=await chatWithAssistant(ask('Подбери джаз без металла. Не включай.'),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async()=>[station(),station({stationuuid:'bad',name:'Forbidden Metal',tags:['metal']})]}}));
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['uuid-jazz']);
+  assert.doesNotMatch(r.reply,/Forbidden Metal/);
+  assert.match(r.reply,/Paris Jazz/);
+});
+
 test('live-audit: recording cannot claim a file was sent, including a follow-up', async () => {
   const { fetchImpl, calls } = makeFetch({ compose: 'Держи файл, я отправила.' });
   for (const input of [

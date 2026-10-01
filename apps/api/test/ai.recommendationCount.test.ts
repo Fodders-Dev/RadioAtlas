@@ -6,6 +6,9 @@ test('detects explicit station and recommendation quantities in Russian and Engl
   const cases: Array<[string, number]> = [
     ['Дай один необычный эфир. Не включай.', 1],
     ['Ещё два варианта', 2],
+    ['Дай ещё одну.',1],
+    ['Теперь ещё две. Не включай.',2],
+    ['А теперь одну из Франции, с теми же жанрами. Не включай.',1],
     ['Посоветуй две станции', 2],
     ['Only one station, please', 1],
     ['Покажи 2 радио', 2],
