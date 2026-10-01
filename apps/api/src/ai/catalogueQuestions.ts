@@ -2,7 +2,7 @@ import type { ChatInput, ChatResult, ToolProvider, VerifiedStationRef } from './
 import { hasPlayIntent } from './playbackIntent.js';
 import { sourceGenres } from './currentSourceDiscovery.js';
 
-const discovery = /(?:подб[еи]р|посовет|(?:по)?рекоменд|найд|поищ|переключ|предл[ао]г|\b(?:recommend|find|suggest|show|play)\b|(?:^|\s)(?:дай|покажи)(?:\s|$))/i;
+const discovery = /(?:подб[еи]р|посовет|(?:по)?рекоменд|найд|поищ|переключ|предл[ао]г|\b(?:recommend|find|suggest|show|play)\b|(?:^|\s)(?:дай|покажи|предложи(?:те)?)(?:\s|$))/i;
 const affirmative = (text:string) => text
   .replace(/(?:do\s+not|don['’]t)\s+(?:recommend|find|suggest|show|play)[^.!?;\n]*/gi, '')
   .replace(/не\s+(?:подбирай|подбери|ищи|находи|предлагай|предложи|рекомендуй|включай|показывай)[^.!?;\n]*/gi,'');
