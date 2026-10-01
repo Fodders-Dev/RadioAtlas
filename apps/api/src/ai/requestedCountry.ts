@@ -120,3 +120,15 @@ export const matchesRequestedCountry = (stationCountry: string, requested: strin
   const actual = canonicalize(stationCountry);
   return Boolean(actual && actual === canonicalize(requested));
 };
+
+// Only one shared trailing country clause can be removed for a closed grammar.
+// Per-slot countries, lists, negations and extra conditions remain unconsumed.
+export const omitSharedCountrySuffix = (message: string): string => {
+  const matches = [...message.matchAll(EN_LOCATION), ...message.matchAll(RU_LOCATION)];
+  if (matches.length !== 1 || !requestedCountry(message)) return message;
+  const match = matches[0]!;
+  const end = (match.index || 0) + match[0].length;
+  const tail = message.slice(end).replace(/не\s+включай|(?:do not|don't|don’t)\s+play/giu, '');
+  if (/[\p{L}\p{N}]/u.test(tail)) return message;
+  return message.slice(0, match.index) + ' ' + message.slice(end);
+};

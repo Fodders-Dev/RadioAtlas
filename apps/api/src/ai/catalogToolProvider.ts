@@ -7,6 +7,7 @@ import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
 import { placeMatchesQuery } from '../catalog/service.js';
 import { knownSourceCountry, matchesForeignSource, sourceGenres } from './currentSourceDiscovery.js';
 import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
+import { stationStreamIdentity } from './stationStreamIdentity.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -130,6 +131,29 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    if (args.requiredGenre) {
+      const genre = args.requiredGenre;
+      if (!sourceGenres([genre]).includes(genre)) return [];
+      const country = args.country ? knownSourceCountry(args.country) : '';
+      if (args.country && !country) return [];
+      const excluded = new Set((args.excludeStationIds || []).slice(0, 128));
+      const streams = new Set<string>();
+      const matches: VerifiedStationRef[] = [];
+      for (const station of await catalog.getCatalog('full')) {
+        if (!station.url_resolved || excluded.has(station.stationuuid) || isTalkFormat(station)) continue;
+        if (country && knownSourceCountry(station.country || '') !== country) continue;
+        // Match each tag separately: a six-genre summary is not exhaustive.
+        const evidence = parseCatalogueTagEvidence(station.tags);
+        if (!evidence.some(tag => sourceGenres([tag]).includes(genre))) continue;
+        const stream = stationStreamIdentity({url_resolved:station.url_resolved});
+        if (streams.has(stream)) continue;
+        streams.add(stream);
+        excluded.add(station.stationuuid);
+        matches.push(toRef(station));
+        if (matches.length >= limit) break;
+      }
+      return matches;
+    }
     if (args.relatedTo) {
       // A home-country-heavy ranked page must not hide all foreign matches.
       // Read the existing profiled catalogue, filter first, cap last.

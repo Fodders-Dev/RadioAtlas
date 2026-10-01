@@ -257,6 +257,9 @@ export type SearchStationsArgs = {
   query: string;
   // Internal trusted catalogue constraint. Not exposed in the model tool schema.
   relatedTo?: { stationuuid: string; country: string; genres: string[] };
+  // Trusted counted-genre lane; exact catalogue tags are filtered before cap.
+  // Never accepted from model tool arguments.
+  requiredGenre?: string;
   excludeStationIds?: string[];
   country?: string;
   language?: string;

@@ -28,7 +28,9 @@ import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
 import { answerCatalogueQuestion } from './catalogueQuestions.js';
 import { catalogueTagEvidence } from './catalogueTagEvidence.js';
-import { requestedCountry, matchesRequestedCountry } from './requestedCountry.js';
+import { requestedCountry, matchesRequestedCountry, omitSharedCountrySuffix } from './requestedCountry.js';
+import { requestedGenreSlots } from './requestedGenreSlots.js';
+import { describeGenreSlots, selectGenreSlots } from './genreSlotSelection.js';
 import {
   effectiveSourceRequest, findForeignSources, knownSourceCountry, referencesCurrentSource,
   resolveCurrentSource, sourceFacts, sourceGenres, unsupportedSourceModifier, wantsForeignSource
@@ -1856,6 +1858,32 @@ export const chatWithAssistant = async (
   }
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
+  const genreSlots = knowledgeQuestion ? undefined : requestedGenreSlots(omitSharedCountrySuffix(userMessage));
+  if (genreSlots) {
+    let removed = 0;
+    const selection = await selectGenreSlots(genreSlots, deps.tools, [
+      ...(input.userTaste?.hiddenStationIds || []),
+      ...(input.userTaste?.negativeStationIds || []),
+      ...(input.userTaste?.lastRecommendedStationIds || [])
+    ], rows => {
+      const filtered = applyExplicitStationExclusions([
+        { tool: 'counted_genre_selection', args: {}, found: rows.length > 0, stations: rows }
+      ], musicContextMessage);
+      removed += filtered.removed;
+      return filtered.observations[0]?.stations || [];
+    });
+    const stations = selection.flatMap(group => group.stations);
+    const clauses = explicitExclusionClauses(musicContextMessage).length;
+    const ids = explicitStationExclusionIds(musicContextMessage);
+    return {
+      reply: describeGenreSlots(selection, /^en(?:-|$)/i.test(input.locale || '')),
+      stations, serviceLinks: [], sources: [],
+      actions: stations.length ? [{ kind: hasPlayIntent(userMessage) ? 'play' : 'open-station', stationuuid: stations[0]!.stationuuid }] : [{kind:'none'}],
+      usage: {prompt:0, completion:0},
+      constraintFilter: {clauses, matchedIds:ids, removedCards:removed, unmatchedClause:clauses > 0 && !ids.length,
+        emptiedEverything:removed > 0 && !stations.length}
+    };
+  }
   const followupMusicIntent =
     !knowledgeQuestion &&
     isFollowupRecommendationIntent(userMessage) &&
