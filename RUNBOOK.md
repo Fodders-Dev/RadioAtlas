@@ -1,5 +1,29 @@
 # RUNBOOK
 
+## 2026-10-01 — NL radio upstream sockets exhausted TCP memory
+
+On NL (`rodnya-vps`), the RadioAtlas API still ran release `2096836`.
+Before mitigation: 959 API file descriptors (938 socket descriptors), TCP
+memory 177104 pages (~692 MiB), `tcp_mem` upper threshold 177012 pages,
+and available host RAM 189 MiB. Restarting **only** `radioatlas-api` reduced
+TCP memory to 30 pages and restored 2374 MiB available RAM. Bot and harvester
+remained stopped; neighbours and kernel limits were not changed.
+
+The pinned-agent response wrapper eagerly read live bodies without consumer
+backpressure. Cancelling its locked underlying stream failed, and graceful
+agent close waited for an infinite request. It now pulls one chunk on demand,
+cancels the owning reader, and destroys the agent on cancellation/error.
+Client disconnects also abort requests before headers; metadata probes abort
+unfinished bodies before removing their deadline. In-flight manifest work is
+client-owned (completed manifest caching remains), so one caller cannot abort
+another caller's fetch.
+
+Regression fixtures assert actual peer TCP closure, repeated cancellation,
+bounded producer backpressure, pre-header disconnection, and independent
+manifest callers. Five regressions fail on the old NL source and pass with
+the backport. Deployment and post-release observations are recorded in
+`docs/NL-TCP-INCIDENT-2026-10-01.md`.
+
 ## 2026-09-27 — station-card release stopped on a real dock swipe race
 
 Release `fbad6b5` was refused before deployment: CI run `36329910169`
