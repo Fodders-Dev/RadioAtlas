@@ -5,7 +5,8 @@
 
 import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
 import { placeMatchesQuery } from '../catalog/service.js';
-import { knownSourceCountry, matchesForeignSource } from './currentSourceDiscovery.js';
+import { knownSourceCountry, matchesForeignSource, sourceGenres } from './currentSourceDiscovery.js';
+import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -66,12 +67,14 @@ const MOOD_LABELS: Record<string, string> = {
   'mood-driving': 'Дорога'
 };
 
-const splitTags = (tags: string | null | undefined): string[] =>
-  String(tags || '')
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter((tag) => tag && tag.toLowerCase() !== 'no tags')
-    .slice(0, 6);
+const splitTags = (values: readonly string[]): string[] => {
+  const recognized: string[] = [];
+  const metadata: string[] = [];
+  for (const tag of values) {
+    (sourceGenres([tag]).length ? recognized : metadata).push(tag);
+  }
+  return [...recognized, ...metadata].slice(0, 6);
+};
 
 // Spoken-word / news / talk formats that pollute MUSIC recommendations (France
 // Info, BBC World Service, RTL surfaced for «что послушать сегодня?»). Matched on
@@ -104,14 +107,19 @@ const queryWantsTalk = (query: string, tag?: string): boolean =>
 
 const normalizePlace = (value?: string | null) => String(value || '').trim().toLowerCase();
 
-const toRef = (station: CatalogStationLite): VerifiedStationRef => ({
-  stationuuid: station.stationuuid,
-  name: station.name,
-  country: station.country || '',
-  tags: splitTags(station.tags),
-  favicon: station.favicon || '',
-  url_resolved: station.url_resolved || ''
-});
+const toRef = (station: CatalogStationLite): VerifiedStationRef => {
+  const fullTags = parseCatalogueTagEvidence(station.tags);
+  const ref: VerifiedStationRef = {
+    stationuuid: station.stationuuid,
+    name: station.name,
+    country: station.country || '',
+    tags: splitTags(fullTags),
+    favicon: station.favicon || '',
+    url_resolved: station.url_resolved || ''
+  };
+  registerCatalogueTagEvidence(ref, fullTags);
+  return ref;
+};
 
 const hashSeed = (seed: string | undefined): number => {
   let hash = 0;

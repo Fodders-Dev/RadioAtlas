@@ -27,6 +27,7 @@ import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
 import { answerCatalogueQuestion } from './catalogueQuestions.js';
+import { catalogueTagEvidence } from './catalogueTagEvidence.js';
 import { requestedCountry, matchesRequestedCountry } from './requestedCountry.js';
 import {
   effectiveSourceRequest, findForeignSources, knownSourceCountry, referencesCurrentSource,
@@ -1211,7 +1212,9 @@ const applyExplicitStationExclusions = (
   const filtered = observations.map((observation) => {
     if (!observation.stations?.length) return observation;
     const stations = observation.stations.filter((station) => {
-      const descriptor = [station.name, ...(station.tags || [])].join(' ').toLowerCase();
+      // Display tags are a six-item genre summary, not all the evidence needed
+      // to honour negative constraints. Keep raw catalogue evidence server-side.
+      const descriptor = [station.name, ...catalogueTagEvidence(station)].join(' ').toLowerCase();
       const excluded = active.some((constraint) => constraint.stationPattern.test(descriptor));
       if (excluded) removed += 1;
       return !excluded;
@@ -1955,7 +1958,7 @@ export const chatWithAssistant = async (
       if (preciseSearchPlan.stationReject && observation.stations?.length) {
         const rejected = preciseSearchPlan.stationReject;
         observation.stations = observation.stations.filter(
-          (station) => !rejected.test(`${station.name} ${(station.tags || []).join(' ')}`)
+          (station) => !rejected.test(`${station.name} ${catalogueTagEvidence(station).join(' ')}`)
         );
         observation.found = observation.stations.length > 0 || Boolean(observation.serviceLinks?.length);
       }

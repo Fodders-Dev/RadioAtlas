@@ -1,0 +1,55 @@
+{
+  "at": "2026-10-01T12:33:10.695Z",
+  "commit": "d388efc",
+  "htmlStatus": 200,
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-FU_2I48F.js",
+  "stateAsset": "/assets/radio-state-BnPDIcLP.js",
+  "modelCalls": 0,
+  "results": [
+    {
+      "question": "Что мои сохранённые треки говорят о вкусе?",
+      "reply": "Сохранённые треки в этот чат пока не передаются. Пришли 2–3 пары «исполнитель — трек»: можно найти общее между ними или взять один ориентиром для нового радио.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      }
+    },
+    {
+      "question": "Чем эти две отличаются? Не включай.",
+      "reply": "«FUNKY RADIO - Only Funk Music (60's 70's)» (The United States Of America) — disco, r&b, soul; «70s 80s Disco Funk ModernSoul Boogie» (The United States Of America) — funk. Общее: funk. Это ориентиры по формату: текущий эфир не слышу и не могу гарантировать, какой прямо сейчас подойдёт для работы.",
+      "stations": [
+        {
+          "id": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "name": "FUNKY RADIO - Only Funk Music (60's 70's)",
+          "country": "The United States Of America"
+        },
+        {
+          "id": "bafbd6cc-65e0-4af7-907b-dd1c425e8917",
+          "name": "70s 80s Disco Funk ModernSoul Boogie",
+          "country": "The United States Of America"
+        }
+      ],
+      "actions": [
+        {
+          "kind": "none",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      }
+    }
+  ],
+  "releaseSha": "d388efc3b04d30c9774f206d0d91e695fa562590"
+}

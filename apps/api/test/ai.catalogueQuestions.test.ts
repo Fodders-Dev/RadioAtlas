@@ -13,6 +13,18 @@ const tools: ToolProvider = {
 };
 const input = (text:string, extra:Partial<ChatInput>={}):ChatInput => ({surface:'miniapp',userMessage:text,...extra});
 
+test('metadata-only tags are not presented as genre differences or musical taste', async () => {
+  const rows = [{...funk, stationuuid:'x', tags:['128kbps','70er','black music']},
+    {...ambient, stationuuid:'y', tags:['128kbps','70er','city']}];
+  const metadataTools = {...tools, getStation:async (id:string)=>rows.find(row=>row.stationuuid===id) || null};
+  const comparison = await answerCatalogueQuestion(input('Чем эти две отличаются?',{userTaste:{lastSuggestedStationIds:['x','y']}}),metadataTools);
+  assert.deepEqual(comparison?.stations.map(row=>row.stationuuid),['x','y']);
+  assert.match(comparison!.reply,/без жанровых тегов/);
+  assert.doesNotMatch(comparison!.reply,/128kbps|70er|black music|Общее:/);
+  const taste = await answerCatalogueQuestion(input('Что общего у моих избранных станций?',{userTaste:{favoriteStationIds:['x','y']}}),metadataTools);
+  assert.doesNotMatch(taste!.reply,/128kbps|70er|black music|Общие теги:/);
+});
+
 test('comparison resolves the provided two IDs, uses actual differences and never writes',async()=>{
   lookupIds.length=0;
   const r = await answerCatalogueQuestion(input('Чем эти две станции отличаются? Не включай.',{userTaste:{lastSuggestedStationIds:['f','a'],lastRecommendedStationIds:['unrelated']}}),tools);

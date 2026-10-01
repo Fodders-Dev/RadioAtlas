@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createCatalogToolProvider, type CatalogServiceLike } from '../src/ai/catalogToolProvider.js';
+import { catalogueTagEvidence } from '../src/ai/catalogueTagEvidence.js';
 import { placeMatchesQuery } from '../src/catalog/service.js';
 
 type Row = {
@@ -62,4 +63,62 @@ test('explicit country aliases constrain ranked search before cap',async()=>{
   assert.deepEqual((await tools.searchStations({query:'jazz',country:'United States',limit:1})).map(s=>s.stationuuid),['us']);
   assert.deepEqual((await tools.searchStations({query:'jazz',country:'Czechia',limit:1})).map(s=>s.stationuuid),['cz']);
   assert.deepEqual(seen,['United States of America','Czech Republic']);
+});
+
+test('searchStations promotes recognized catalogue genres ahead of alphabetic metadata and caps six', async () => {
+  const row: Row = {
+    stationuuid: 'funky-disco', name: 'FUNKY RADIO', country: 'United States',
+    tags: '60s,70s,70s disco,80s,black,black music,funk,soul,disco,Funk', url_resolved: 'http://s/funky'
+  };
+  const tools = createCatalogToolProvider(catalogOf([row]));
+  const [station] = await tools.searchStations({ query: 'funk' });
+  assert.ok(station);
+  assert.deepEqual(station.tags, ['funk', 'soul', 'disco', '60s', '70s', '70s disco']);
+  assert.ok(station.tags.length <= 6);
+});
+
+test('getStation promotes recognized catalogue genres while retaining source labels', async () => {
+  const row: Row = {
+    stationuuid: 'funky-disco', name: 'FUNKY RADIO', country: 'United States',
+    tags: '60s,70s,70s disco,80s,black,black music,funk,soul,disco,FUNK', url_resolved: 'http://s/funky'
+  };
+  const tools = createCatalogToolProvider({ ...catalogOf([]), getStationById: async () => row });
+  const station = await tools.getStation('funky-disco');
+  assert.ok(station);
+  assert.deepEqual(station.tags, ['funk', 'soul', 'disco', '60s', '70s', '70s disco']);
+  assert.ok(station.tags.length <= 6);
+});
+
+test('tag parsing handles empty tags without inferring genres from station names', async () => {
+  const rows: Row[] = [
+    { stationuuid: 'empty', name: 'FUNK SOUL DISCO RADIO', tags: null, url_resolved: 'http://s/empty' },
+    { stationuuid: 'none', name: 'FUNK RADIO', tags: 'No tags', url_resolved: 'http://s/none' },
+    { stationuuid: 'unknown', name: 'FUNK SOUL DISCO', tags: '60s,80s,space disco', url_resolved: 'http://s/unknown' }
+  ];
+  const tools = createCatalogToolProvider({ ...catalogOf(rows), getStationById: async (id) => rows.find((row) => row.stationuuid === id) || null });
+  assert.deepEqual((await tools.searchStations({ query: 'radio' })).map((station) => station.tags), [[], [], ['60s', '80s', 'space disco']]);
+  assert.deepEqual((await tools.getStation('empty'))?.tags, []);
+  assert.deepEqual((await tools.getStation('none'))?.tags, []);
+  assert.deepEqual((await tools.getStation('unknown'))?.tags, ['60s', '80s', 'space disco']);
+});
+
+test('late exclusion tags stay private evidence while JSON exposes only six display tags', async () => {
+  const rawTags = ['60s', '70s', '70s disco', '80s', 'black', 'black music', 'funk', 'soul', 'disco', 'hardcore',
+    ...Array.from({ length: 90 }, (_, index) => `metadata-${index}`)].join(',');
+  const row: Row = {
+    stationuuid: 'evidence', name: 'FUNKY RADIO', tags: rawTags, url_resolved: 'http://s/evidence'
+  };
+  const tools = createCatalogToolProvider({ ...catalogOf([]), getStationById: async () => row });
+  const station = await tools.getStation('evidence');
+  assert.ok(station);
+  assert.deepEqual(station.tags, ['funk', 'soul', 'disco', '60s', '70s', '70s disco']);
+  assert.deepEqual(JSON.parse(JSON.stringify(station)), {
+    stationuuid: 'evidence', name: 'FUNKY RADIO', country: '',
+    tags: ['funk', 'soul', 'disco', '60s', '70s', '70s disco'], favicon: '', url_resolved: 'http://s/evidence'
+  });
+  const evidence = catalogueTagEvidence(station);
+  assert.ok(evidence.includes('hardcore'));
+  assert.equal(evidence.length, 80);
+  assert.ok(evidence.every((tag) => tag.length <= 80));
+  assert.ok(!Object.keys(station).some((key) => key.toLowerCase().includes('evidence')));
 });
