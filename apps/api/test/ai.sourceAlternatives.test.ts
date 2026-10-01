@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCatalogToolProvider } from '../src/ai/catalogToolProvider.js';
 import { runLiraAgent } from '../src/ai/agentRunner.js';
-import { createNearSourceScorer } from '../src/ai/sourceAlternatives.js';
+import { createNearSourceScorer, nearStationIdentity } from '../src/ai/sourceAlternatives.js';
 import type { ChatInput, ToolProvider } from '../src/ai/types.js';
 
 const row = (id:string, tags='funk,soul', country='France', url=`https://stream.invalid/${id}`) => ({
@@ -64,6 +64,20 @@ test('broad electronic alone is not a close relation to ambient',async()=>{
   assert.match(result.reply,/1 из 2/);
   const absent=await ask('Найди похожее.',[row('anchor','electronic'),row('broad','electronic')]);
   assert.deepEqual(absent.stations,[]); assert.equal(absent.actions[0]?.kind,'none');
+});
+
+test('codec variants cannot stand in for other stations; meaningful channel suffixes remain distinct',async()=>{
+  const anchor={...row('anchor','ambient,chillout,downtempo'),name:'SomaFM Groove Salad (128k MP3)'};
+  const variants=Array.from({length:12},(_,i)=>({...row(`codec-${i}`,'ambient,chillout,downtempo'),name:`Soma FM Groove Salad (${i+16}k AAC)`}));
+  const repeated=Array.from({length:12},(_,i)=>({...row(`other-${i}`,'ambient,chillout,downtempo'),name:`Other Radio (${i+16}k AAC)`}));
+  const classic={...row('classic','ambient,downtempo'),name:'SomaFM Groove Salad Classic (128k MP3)'};
+  const result=await ask('Найди три похожие станции. Не включай.',[anchor,...variants,...repeated,classic]);
+  assert.deepEqual(result.stations.map(row=>row.stationuuid),['other-0','classic']);
+  assert.match(result.reply,/2 из 3/);
+  assert.notEqual(nearStationIdentity(classic),nearStationIdentity(anchor));
+  assert.notEqual(nearStationIdentity({...anchor,country:'Japan'}),nearStationIdentity(anchor));
+  assert.equal(nearStationIdentity({...anchor,name:'Soma FM Groove Salad 320K AAC HLS'}),nearStationIdentity(anchor));
+  assert.notEqual(nearStationIdentity({...anchor,name:'SomaFM Groove Salad 2'}),nearStationIdentity(anchor));
 });
 
 test('exact known subgenre is specific evidence even if its umbrella is broad',async()=>{

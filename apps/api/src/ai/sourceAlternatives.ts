@@ -1,5 +1,5 @@
 import { catalogueTagEvidence } from './catalogueTagEvidence.js';
-import { sourceFacts, sourceGenres } from './currentSourceDiscovery.js';
+import { knownSourceCountry, sourceFacts, sourceGenres } from './currentSourceDiscovery.js';
 import { matchesRequestedCountry } from './requestedCountry.js';
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import type { ToolProvider, VerifiedStationRef } from './types.js';
@@ -28,7 +28,19 @@ const profile = (tags: readonly string[]) => {
   return { genres, subgenres, otherGenres };
 };
 
-export type NearSourceAnchor = { stationuuid: string; url_resolved: string; tags: readonly string[] };
+export type NearSourceAnchor = { stationuuid: string; url_resolved: string; tags: readonly string[]; name?: string; country?: string };
+const TECHNICAL_SUFFIX = /^(?:(?:\d+(?:\.\d+)?\s*(?:k|kbps|kb\/s|kbit\/s)|mp3|aac\+?|hls|flac|ogg|opus|stereo|hd)\s*)+$/i;
+// Only remove explicit codec/bitrate labels. Country and meaningful channel
+// suffixes (Classic, 2, Jazz...) remain part of the identity; no brand matching.
+export const nearStationIdentity = (row: {name?: string; country?: string}): string | undefined => {
+  const country = knownSourceCountry(row.country || '');
+  if (!country || !row.name) return undefined;
+  const name = normalize(row.name).replace(/\(([^()]*)\)|\[([^\[\]]*)\]/g,
+    (full, round: string | undefined, square: string | undefined) => TECHNICAL_SUFFIX.test((round ?? square ?? '').trim()) ? ' ' : full)
+    .replace(/\s+(?:(?:\d+(?:\.\d+)?\s*(?:k|kbps|kb\/s|kbit\/s)|mp3|aac\+?|hls|flac|ogg|opus|stereo|hd)\s*)+$/i, '')
+    .replace(/[\s\p{P}]+/gu, '');
+  return name.length >= 4 ? `${country}:${name}` : undefined;
+};
 export type NearSourceScore = { common: string[]; exactSubgenres: number; specificGenres: number; otherExtra: number; overlap: number; extra: number };
 export const createNearSourceScorer = (tags: readonly string[]) => {
   const anchor = profile(tags);
@@ -51,14 +63,15 @@ export const compareNearScores = (a: NearSourceScore, b: NearSourceScore): numbe
   b.exactSubgenres - a.exactSubgenres || b.specificGenres - a.specificGenres ||
   a.otherExtra - b.otherExtra || b.overlap - a.overlap || a.extra - b.extra;
 
-export const isDistinctNearSource = (row: Pick<VerifiedStationRef, 'stationuuid' | 'url_resolved'>, anchor: NearSourceAnchor): boolean =>
+export const isDistinctNearSource = (row: Pick<VerifiedStationRef, 'stationuuid' | 'url_resolved'> & {name?: string; country?: string}, anchor: NearSourceAnchor): boolean =>
   Boolean(row.stationuuid && row.stationuuid !== anchor.stationuuid && row.url_resolved && anchor.url_resolved &&
-    stationStreamIdentity(row) !== stationStreamIdentity(anchor));
+    stationStreamIdentity(row) !== stationStreamIdentity(anchor) &&
+    (!nearStationIdentity(anchor) || nearStationIdentity(row) !== nearStationIdentity(anchor)));
 
 export async function findNearSources(tools: ToolProvider, source: VerifiedStationRef, count: number,
   excludedIds: string[], country?: string): Promise<VerifiedStationRef[]> {
   const anchor: NearSourceAnchor = { stationuuid: source.stationuuid, url_resolved: source.url_resolved,
-    tags: catalogueTagEvidence(source) };
+    tags: catalogueTagEvidence(source), name:source.name, country:source.country };
   const excluded = new Set(excludedIds.slice(0, 128));
   const score = createNearSourceScorer(anchor.tags);
   const rows = await tools.searchStations({ query: '', nearSource: anchor, country,
@@ -69,11 +82,12 @@ export async function findNearSources(tools: ToolProvider, source: VerifiedStati
     const relation = score(catalogueTagEvidence(row));
     return relation ? [{ row, relation }] : [];
   }).sort((a, b) => compareNearScores(a.relation, b.relation));
-  const ids = new Set<string>(), streams = new Set<string>();
+  const ids = new Set<string>(), streams = new Set<string>(), identities = new Set<string>();
   return ranked.filter(({row}) => {
     const stream = stationStreamIdentity(row);
-    if (ids.has(row.stationuuid) || streams.has(stream)) return false;
-    ids.add(row.stationuuid); streams.add(stream); return true;
+    const identity = nearStationIdentity(row);
+    if (ids.has(row.stationuuid) || streams.has(stream) || (identity && identities.has(identity))) return false;
+    ids.add(row.stationuuid); streams.add(stream); if (identity) identities.add(identity); return true;
   }).slice(0, Math.max(1, Math.min(3, count))).map(({row}) => row);
 }
 
