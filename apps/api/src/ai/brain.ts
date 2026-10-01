@@ -26,6 +26,8 @@ import { buildFallbackResult } from './fallbacks.js';
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
+import { answerCatalogueQuestion } from './catalogueQuestions.js';
+import { requestedCountry, matchesRequestedCountry } from './requestedCountry.js';
 import {
   effectiveSourceRequest, findForeignSources, knownSourceCountry, referencesCurrentSource,
   resolveCurrentSource, sourceFacts, sourceGenres, unsupportedSourceModifier, wantsForeignSource
@@ -59,7 +61,7 @@ import type {
   WebSource
 } from './types.js';
 
-const MAX_HISTORY_TURNS = 8;
+const MAX_HISTORY_TURNS = 10;
 const PLANNER_MAX_TOKENS = 400;
 
 // Intent heuristics (RU). They never BLOCK a tool the planner wants — they only
@@ -332,11 +334,13 @@ export const isRejectRefreshIntent = (message: string): boolean => {
 };
 
 const isFollowupRecommendationIntent = (message: string): boolean =>
+  (!isKnowledgeQuestion(message) && /^(?:а\s+)?(?:(?:дай|давай|теперь|а\s+теперь)\s+)?ещ[её]\s+(?:одн[а-яё]*|дв[а-яё]*|три|четыре|пять|[1-5])(?:\s*(?:станци[а-яё]*|вариант[а-яё]*|эфир[а-яё]*))?(?:[.!?]|\s|$)/i.test(message.trim())) ||
+  (!isKnowledgeQuestion(message) && /(?:с\s+теми\s+же\s+жанр|жанры.{0,15}сохран|страну.{0,15}сохран|сохран[иь].{0,15}стран)/i.test(message)) ||
   (FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message)) ||
   isRejectRefreshIntent(message) ||
   (!isKnowledgeQuestion(message) && REJECT_REFRESH_TOKEN.test(message) &&
     /(?:не\s+то|а\s+теперь|ещ[её]|друго[ейё])/.test(message.toLowerCase()) &&
-    /(?:ритм|грув|вариант|эфир|сохрани.{0,20}огранич|подбери|посоветуй)/i.test(message));
+    /(?:ритм|грув|вариант|эфир|сохран[иь].{0,20}(?:огранич|стран)|страну.{0,15}сохран|подбери|посоветуй)/i.test(message));
 
 const recommendationContextMessage = (history: ChatTurn[], userMessage: string): string => {
   if (!isFollowupRecommendationIntent(userMessage)) return userMessage;
@@ -350,7 +354,7 @@ const recommendationContextMessage = (history: ChatTurn[], userMessage: string):
       (MUSIC_DESCRIPTOR.test(turn.text) && !MUSIC_DISLIKE.test(turn.text)) ||
       referenceAnchorQuery(turn.text) || isFollowupRecommendationIntent(turn.text))) break;
     recent.unshift(turn.text);
-    if (!isFollowupRecommendationIntent(turn.text) || recent.length >= 4) break;
+    if (!isFollowupRecommendationIntent(turn.text)) break;
   }
   return recent.length ? `${recent.join('\n')}\n${userMessage}` : userMessage;
 };
@@ -1723,6 +1727,9 @@ export const chatWithAssistant = async (
     };
   }
 
+  const catalogueAnswer = await answerCatalogueQuestion(input, deps.tools);
+  if (catalogueAnswer) return catalogueAnswer;
+
   // Enabled-gate: no key / disabled → warm fallback, never a hard error.
   if (!deps.model.enabled || !deps.model.apiKey || !userMessage) {
     return buildFallbackResult({ surface, now, reason: 'disabled' });
@@ -1819,6 +1826,31 @@ export const chatWithAssistant = async (
     });
   }
   const musicContextMessage = recommendationContextMessage(history, userMessage);
+  const countryScope = requestedCountry(musicContextMessage);
+  if (countryScope) {
+    // The planner may omit or change geography. Bind it before each ranked
+    // search, not after a global top-eight page has hidden the local matches.
+    // Every other lane is filtered too: artist hits and trending are not an
+    // escape hatch to silently offer another country.
+    const baseTools = deps.tools;
+    const local = (station: VerifiedStationRef) => matchesRequestedCountry(station.country, countryScope);
+    deps = { ...deps, tools: {
+      ...baseTools,
+      searchStations: async args => (await baseTools.searchStations({ ...args, country: countryScope })).filter(local),
+      getStation: async id => {
+        const station = await baseTools.getStation(id);
+        return station && local(station) ? station : null;
+      },
+      discoverTrending: async seed => (await baseTools.discoverTrending(seed)).map(rail => ({...rail, stations:rail.stations.filter(local)})),
+      ...(baseTools.resolveArtistStation ? {resolveArtistStation: async hit => {
+        const station = await baseTools.resolveArtistStation!(hit);
+        return station && local(station) ? station : null;
+      }} : {}),
+      ...(baseTools.matchStationsByArtistName ? {matchStationsByArtistName: async artist =>
+        (await baseTools.matchStationsByArtistName!(artist)).filter(local)} : {})
+    }};
+    transcript.push({role:'system', content:`Обязательная страна станций: ${countryScope}. Не заменяй её другой страной. Если карточек нет, скажи, что подходящий эфир в этой стране не найден; ссылки на музыкальные сервисы не являются местными радиостанциями.`});
+  }
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
   const followupMusicIntent =
@@ -2129,6 +2161,7 @@ export const chatWithAssistant = async (
   // curated, artist fallback and vibe backstop) and before deciding whether the
   // result is empty. This fixes contradictions such as saying «никакого DnB»
   // while rendering DnB&EDM as the first card.
+  const observedCandidates = observations.flatMap(observation=>observation.stations || []);
   const constraintResult = applyExplicitStationExclusions(observations, musicContextMessage);
   if (constraintResult.removed > 0) {
     observations.splice(0, observations.length, ...constraintResult.observations);
@@ -2334,8 +2367,27 @@ export const chatWithAssistant = async (
     };
   }
 
+  // A composer can still name a rejected candidate it saw during planning.
+  // If that happens, retain the verified final cards and replace only the
+  // contradictory prose with their actual catalogue genres. This is a narrow
+  // identity guard, not a claim to validate every musical adjective.
+  const nameKey = (name:string) => name.toLowerCase().replace(/\s*\([^)]*\)\s*$/,'').trim();
+  const selectedNames = stations.map(station => nameKey(station.name));
+  const wrongCandidate = observedCandidates.find(station => {
+    const name = nameKey(station.name);
+    return !selectedIds.has(station.stationuuid) && name.length >= 8 &&
+      !selectedNames.some(selected => selected.includes(name) || name.includes(selected)) &&
+      composed.content.toLowerCase().includes(name);
+  });
+  const groundedReply = wrongCandidate && stations.length
+    ? stations.map(station => {
+      const genres = sourceGenres(station.tags);
+      return `«${safeContextLabel(station.name,120)}» — ${genres.join(', ') || safeContextLabel(station.tags.join(', '),100)} (${safeContextLabel(station.country,60)}).`;
+    }).join(' ')
+    : composed.content;
+  if (wrongCandidate) deps.log('ai compose replaced: named a candidate outside the final slate');
   return {
-    reply: cleanText(composed.content, surface),
+    reply: cleanText(groundedReply, surface),
     stations,
     serviceLinks,
     sources,

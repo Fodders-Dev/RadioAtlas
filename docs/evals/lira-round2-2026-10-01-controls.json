@@ -1,0 +1,191 @@
+{
+  "batch": "controls",
+  "at": "2026-10-01T11:00:41.175Z",
+  "code": "round2-reviewed",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "preflight": {
+    "passed": 17,
+    "total": 17
+  },
+  "catalog": "production persisted snapshot, current catalogue adapter, profiles not applied",
+  "contextStation": {
+    "name": "FIP",
+    "id": "932eb148-e6f6-11e9-a96c-52543be04c81"
+  },
+  "runs": [
+    {
+      "id": "personal",
+      "question": "Что мои сохранённые треки говорят о моём вкусе?",
+      "ms": 2,
+      "reply": "Сохранённые треки в этот чат пока не передаются. Пришли 2–3 пары «исполнитель — трек»: можно найти общее между ними или взять один ориентиром для нового радио.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "b61ecc47-3ce6-41df-b28f-ec322b0c3a56:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "b61ecc47-3ce6-41df-b28f-ec322b0c3a56",
+        "taskId": "186582e7-661a-44fa-9a1e-5eff132f5c8b",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 2,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "personal",
+      "question": "А мои избранные станции ты сейчас видишь?",
+      "ms": 9,
+      "reply": "В этом запросе нет списка избранных станций. Не могу отличить пустое избранное от клиента, который его не передал.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "4983e8ee-2e61-4c24-ad93-fb761527aeba:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "4983e8ee-2e61-4c24-ad93-fb761527aeba",
+        "taskId": "870291dc-5799-41e0-8bdc-f11bb54e2bb7",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 9,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "promise",
+      "question": "Можешь гарантировать, что на этих станциях два часа не будет рекламы или ведущих?",
+      "ms": 1,
+      "reply": "Гарантировать отсутствие рекламы, ведущих или вокала в живом эфире не могу. Теги описывают формат, а не следующие два часа программы. Могу подобрать инструментальные варианты для пробы.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "7bb57a03-c3cb-4462-a76a-62f9491cff64:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "7bb57a03-c3cb-4462-a76a-62f9491cff64",
+        "taskId": "a1a31087-aa9a-43c0-99fc-6471f6b2e7e7",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "record",
+      "question": "Запиши 20 секунд этого эфира и пришли файл сюда.",
+      "ms": 1,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "f73c0cb1-7c91-4f1f-85e2-29fbbe2542cf:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "f73c0cb1-7c91-4f1f-85e2-29fbbe2542cf",
+        "taskId": "fc7e1187-6a7e-4c29-bc13-1a16ab896f3c",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 1,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "record",
+      "question": "То есть файл появится прямо в этом чате?",
+      "ms": 1,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "0b061e7e-fc6c-4cc7-81ca-6734643720cf:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "0b061e7e-fc6c-4cc7-81ca-6734643720cf",
+        "taskId": "eaf47b37-db52-4c55-b8f4-a22583c5fec5",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 0,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    }
+  ],
+  "ledger": {
+    "limitUsd": 3,
+    "modelUpperUsd": 0.2825209200000001,
+    "webReservedUsd": 0,
+    "unknownReservedUsd": 0,
+    "modelCalls": 98,
+    "webCalls": 0
+  }
+}

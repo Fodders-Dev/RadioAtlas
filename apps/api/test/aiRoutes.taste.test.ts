@@ -9,6 +9,7 @@ test('parseUserTasteContext normalizes and caps Mini App taste payloads', () => 
     hiddenStationIds: [' h1 '],
     negativeStationIds: [' n1 '],
     lastRecommendedStationIds: [' old1 ', 'old2'],
+    lastSuggestedStationIds: [' new1 ', 'new2','new2'],
     stationScores: {
       ' Station-A ': 12.34567,
       'Station-B': -99,
@@ -34,6 +35,7 @@ test('parseUserTasteContext normalizes and caps Mini App taste payloads', () => 
   assert.deepEqual(taste?.hiddenStationIds, ['h1']);
   assert.deepEqual(taste?.negativeStationIds, ['n1']);
   assert.deepEqual(taste?.lastRecommendedStationIds, ['old1', 'old2']);
+  assert.deepEqual(taste?.lastSuggestedStationIds, ['new1', 'new2']);
   assert.equal(taste?.stationScores?.['Station-A'], 12.3457);
   assert.equal(taste?.stationScores?.['Station-B'], -40);
   assert.equal(taste?.stationScores?.nope, undefined);

@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_STORAGE_KEY } from './apiBase';
-import { postChatMessage } from './aiChat';
+import { latestSuggestedStationIds, postChatMessage } from './aiChat';
+
+describe('last suggested slate',()=>{
+  it('does not mix a new single card with an earlier pair',()=>{
+    expect(latestSuggestedStationIds([{role:'assistant',stations:[{stationuuid:'a'},{stationuuid:'b'}]},{role:'user'},{role:'assistant',stations:[{stationuuid:'c'}]}])).toEqual(['c']);
+  });
+  it('clears the pair after a text-only answer instead of reviving old cards',()=>{
+    expect(latestSuggestedStationIds([{role:'assistant',stations:[{stationuuid:'a'},{stationuuid:'b'}]},{role:'assistant'}])).toEqual([]);
+  });
+});
 
 afterEach(() => {
   localStorage.clear();

@@ -5,7 +5,7 @@
 
 import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
 import { placeMatchesQuery } from '../catalog/service.js';
-import { matchesForeignSource } from './currentSourceDiscovery.js';
+import { knownSourceCountry, matchesForeignSource } from './currentSourceDiscovery.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -143,9 +143,18 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     // full set of MUSIC stations after filtering (the main ranking is untouched —
     // we just ask the same ranked search for more rows and post-filter here).
     const fetchLimit = wantsTalk ? limit : Math.min(24, limit * 3);
-    const response = await catalog.search({
+    const canonicalCountry = args.country && knownSourceCountry(args.country);
+    const countryLabels = canonicalCountry
+      ? [...new Set((await catalog.getCatalog('full'))
+        .filter(station => knownSourceCountry(station.country || '') === canonicalCountry)
+        .map(station => station.country || ''))].slice(0, 6)
+      : [args.country || ''];
+    // The catalogue stores legacy labels too (USA/Czech Republic). Resolve
+    // its actual labels before each country-filtered ranked search; filtering
+    // aliases after a global capped page cannot recover hidden local stations.
+    const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(country => catalog.search({
       q: args.query || '',
-      country: args.country || '',
+      country,
       language: args.language || '',
       tag: args.tag || '',
       continent: '',
@@ -154,8 +163,14 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
       // returns actual genre stations instead of the most-voted substring match.
       relevance: true
-    });
-    const items = (response.items || [])
+    })));
+    const seen = new Set<string>();
+    const items = searches.flatMap(response => response.items || [])
+      .filter(station => {
+        if (seen.has(station.stationuuid)) return false;
+        seen.add(station.stationuuid);
+        return !canonicalCountry || knownSourceCountry(station.country || '') === canonicalCountry;
+      })
       .filter((station) => station.url_resolved)
       .filter((station) => wantsTalk || !isTalkFormat(station));
     // Geography: when the query names a place and stations located there

@@ -17,6 +17,7 @@ import type { StationLite } from '../types';
 import { localizedCountry } from '../lib/countryName';
 import { liraOpeningLine, liraOpeningPieces, liraOpeningStations } from '../lib/liraOpening';
 import {
+  latestSuggestedStationIds,
   postChatMessage,
   type ChatHistoryTurn,
   type ChatActionReceipt,
@@ -189,6 +190,7 @@ const buildChatUserTaste = (
     .map((station) => station.stationuuid)
     .filter((stationId, index, all) => Boolean(stationId) && all.indexOf(stationId) === index)
     .slice(0, LAST_RECOMMENDED_ID_LIMIT);
+  const lastSuggestedStationIds = latestSuggestedStationIds(messages);
   const stationScores = compactScoreMap(effectiveTaste.stationScores);
   const tagScores = compactScoreMap(effectiveTaste.tagScores);
   const countryScores = compactScoreMap(effectiveTaste.countryScores);
@@ -212,6 +214,7 @@ const buildChatUserTaste = (
     hiddenStationIds,
     negativeStationIds,
     lastRecommendedStationIds,
+    lastSuggestedStationIds,
     stationScores,
     tagScores,
     countryScores,

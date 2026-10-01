@@ -8,7 +8,7 @@ const NUMBER_VALUES: ReadonlyArray<readonly [number, RegExp]> = [
 
 const NUMBER_TOKEN = /(?:^|[^\p{L}\p{N}])((?:\d+|one|two|three|four|five|один|одна|одно|одну|одного|одной|одном|одному|одним|одною|два|две|двух|двум|двумя|три|трёх|трех|трём|трем|тремя|четыре|четырёх|четырех|четырём|четырем|четырьмя|пять|пяти|пятью))(?![\p{L}\p{N}])/giu;
 const RECOMMENDATION_UNIT = /^(?:станци\p{L}*|station\p{L}*|радио|radio\p{L}*|эфир\p{L}*|вариант\p{L}*|option\p{L}*|recommendation\p{L}*|pick\p{L}*)$/iu;
-const REQUEST_VERB = /^(?:дай|дайте|предложи|предложите|подбери|подберите|порекомендуй|порекомендуйте|рекомендуй|recommend|suggest|give|show|find)$/iu;
+const REQUEST_VERB = /^(?:дай|дайте|давай|ещё|еще|теперь|предложи|предложите|подбери|подберите|порекомендуй|порекомендуйте|рекомендуй|recommend|suggest|give|show|find)$/iu;
 const EXCLUSIVE = /^(?:только|лишь|одну|один|одна|одно|one|just|only)$/iu;
 const NON_COUNT_CONTEXT = /^(?:на|в|за|через|до|после|около|for|in|after|before|час\p{L}*|минут\p{L}*|день|дня|дней|месяц\p{L}*|год\p{L}*|hour\p{L}*|minute\p{L}*|day\p{L}*|month\p{L}*|year\p{L}*|мая|июня|июля|августа|сентября|октября|ноября|декабря|января|февраля|марта|апреля)$/iu;
 const OTHER_MEDIA_UNIT = /^(?:трек\p{L}*|песн\p{L}*|альбом\p{L}*|композици\p{L}*|track\p{L}*|song\p{L}*|album\p{L}*|playlist\p{L}*)$/iu;
