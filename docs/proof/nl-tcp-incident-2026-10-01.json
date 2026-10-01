@@ -1,0 +1,371 @@
+{
+  "before": {
+    "apiPid": 282253,
+    "apiFdCount": 959,
+    "apiSocketFdCount": 938,
+    "apiRssKiB": 388344,
+    "apiSwapKiB": 183596,
+    "tcpMemoryPages": 177104,
+    "tcpUpperThresholdPages": 177012,
+    "hostAvailableMiB": 189
+  },
+  "afterRestart": {
+    "utc": "2026-10-01T23:37:53.754897+03:00",
+    "api": {
+      "pid": 1397261,
+      "fdCount": 26,
+      "status": "online",
+      "memory": {
+        "VmRSS": "336920 kB",
+        "VmSwap": "0 kB"
+      }
+    },
+    "hostMemory": {
+      "MemFree": "1969176 kB",
+      "MemAvailable": "2272920 kB",
+      "SwapFree": "1297000 kB"
+    },
+    "sockstat": "sockets: used 287\nTCP: inuse 23 orphan 0 tw 11 alloc 101 mem 3\nUDP: inuse 6 mem 7\nUDPLITE: inuse 0\nRAW: inuse 1\nFRAG: inuse 0 memory 0",
+    "processStates": [
+      {
+        "name": "radioatlas-api",
+        "status": "online"
+      },
+      {
+        "name": "radioatlas-bot",
+        "status": "stopped"
+      },
+      {
+        "name": "radioatlas-harvester",
+        "status": "stopped"
+      }
+    ]
+  },
+  "install": {
+    "installedUtc": "2026-10-01T23:41:48.821643+03:00",
+    "baseRelease": "2096836cc394d0e8f3263637554c17655972b069",
+    "sourceCommit": "4362b026a8de61da5f69073c909cfb24a387d4a7",
+    "bundleSha256": "49e72f9541100ac4cac3e110acc4b521d962c8a5ebde60747f5b6ae075fdf817",
+    "originalBundleSha256": "8ea3cec4faa0443c803d0088d43b9afbf81a883ed96996e204d396fefbf3bd8c",
+    "target": "/opt/RadioAtlas/releases/2096836cc394d0e8f3263637554c17655972b069/apps/api/dist/index.js",
+    "backup": "/opt/RadioAtlas/hotfixes/4362b026a8de61da5f69073c909cfb24a387d4a7/original-index.js",
+    "health": "ok"
+  },
+  "liveSmoke": {
+    "utc": "2026-10-01T23:42:39.920327+03:00",
+    "target": "https://ice1.somafm.com/groovesalad-128-mp3",
+    "before": {
+      "pid": 1412585,
+      "fds": 26
+    },
+    "checks": [
+      {
+        "iteration": 1,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.875
+      },
+      {
+        "iteration": 2,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.568
+      },
+      {
+        "iteration": 3,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.846
+      },
+      {
+        "iteration": 4,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.568
+      },
+      {
+        "iteration": 5,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.709
+      },
+      {
+        "iteration": 6,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.525
+      },
+      {
+        "iteration": 7,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.826
+      },
+      {
+        "iteration": 8,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.509
+      },
+      {
+        "iteration": 9,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.575
+      },
+      {
+        "iteration": 10,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.538
+      },
+      {
+        "iteration": 11,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.568
+      },
+      {
+        "iteration": 12,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.545
+      }
+    ],
+    "after": {
+      "pid": 1412585,
+      "fds": 26
+    },
+    "sockstat": "sockets: used 290\nTCP: inuse 26 orphan 0 tw 10 alloc 105 mem 5\nUDP: inuse 6 mem 7\nUDPLITE: inuse 0\nRAW: inuse 1\nFRAG: inuse 0 memory 0",
+    "health": {
+      "ok": true
+    }
+  },
+  "settled": {
+    "utc": "2026-10-01T23:44:35.048348+03:00",
+    "api": {
+      "pid": 1412585,
+      "fdCount": 26,
+      "status": "online",
+      "memory": {
+        "VmRSS": "343556 kB",
+        "VmSwap": "0 kB"
+      }
+    },
+    "hostMemory": {
+      "MemFree": "1938788 kB",
+      "MemAvailable": "2259920 kB",
+      "SwapFree": "1306728 kB"
+    },
+    "sockstat": "sockets: used 290\nTCP: inuse 26 orphan 0 tw 12 alloc 105 mem 3\nUDP: inuse 6 mem 7\nUDPLITE: inuse 0\nRAW: inuse 1\nFRAG: inuse 0 memory 0",
+    "processStates": [
+      {
+        "name": "radioatlas-api",
+        "status": "online"
+      },
+      {
+        "name": "radioatlas-bot",
+        "status": "stopped"
+      },
+      {
+        "name": "radioatlas-harvester",
+        "status": "stopped"
+      }
+    ]
+  },
+  "relaySmoke": {
+    "utc": "2026-10-01T23:49:20.102904+03:00",
+    "target": "https://ice1.somafm.com/groovesalad-128-mp3",
+    "before": {
+      "pid": 1935986,
+      "fds": 80
+    },
+    "checks": [
+      {
+        "iteration": 1,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.736
+      },
+      {
+        "iteration": 2,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.795
+      },
+      {
+        "iteration": 3,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.598
+      },
+      {
+        "iteration": 4,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.637
+      }
+    ],
+    "after": {
+      "pid": 1935986,
+      "fds": 80
+    },
+    "sockstat": "sockets: used 310\nTCP: inuse 58 orphan 0 tw 2 alloc 108 mem 15753\nUDP: inuse 4 mem 229\nUDPLITE: inuse 0\nRAW: inuse 0\nFRAG: inuse 0 memory 0",
+    "health": {
+      "ok": true
+    },
+    "proxyEndpoint": "RU 127.0.0.1:3399 -> SSH tunnel -> NL 127.0.0.1:3001"
+  },
+  "nlAfterRelay": {
+    "utc": "2026-10-01T23:49:20.924831+03:00",
+    "api": {
+      "pid": 1412585,
+      "fdCount": 26,
+      "status": "online",
+      "memory": {
+        "VmRSS": "345700 kB",
+        "VmSwap": "0 kB"
+      }
+    },
+    "hostMemory": {
+      "MemFree": "1920312 kB",
+      "MemAvailable": "2245560 kB",
+      "SwapFree": "1312104 kB"
+    },
+    "sockstat": "sockets: used 283\nTCP: inuse 22 orphan 0 tw 10 alloc 100 mem 3\nUDP: inuse 6 mem 7\nUDPLITE: inuse 0\nRAW: inuse 1\nFRAG: inuse 0 memory 0",
+    "processStates": [
+      {
+        "name": "radioatlas-api",
+        "status": "online"
+      },
+      {
+        "name": "radioatlas-bot",
+        "status": "stopped"
+      },
+      {
+        "name": "radioatlas-harvester",
+        "status": "stopped"
+      }
+    ]
+  },
+  "nlFinal": {
+    "utc": "2026-10-01T23:58:21.799388+03:00",
+    "api": {
+      "pid": 1412585,
+      "fdCount": 26,
+      "status": "online",
+      "memory": {
+        "VmRSS": "345964 kB",
+        "VmSwap": "0 kB"
+      }
+    },
+    "hostMemory": {
+      "MemFree": "1890088 kB",
+      "MemAvailable": "2224548 kB",
+      "SwapFree": "1319272 kB"
+    },
+    "sockstat": "sockets: used 284\nTCP: inuse 22 orphan 0 tw 20 alloc 99 mem 1\nUDP: inuse 6 mem 7\nUDPLITE: inuse 0\nRAW: inuse 1\nFRAG: inuse 0 memory 0",
+    "processStates": [
+      {
+        "name": "radioatlas-api",
+        "status": "online"
+      },
+      {
+        "name": "radioatlas-bot",
+        "status": "stopped"
+      },
+      {
+        "name": "radioatlas-harvester",
+        "status": "stopped"
+      }
+    ]
+  },
+  "ruPublicSmoke": {
+    "utc": "2026-10-01T23:58:20.597416+03:00",
+    "target": "https://ice1.somafm.com/groovesalad-128-mp3",
+    "before": {
+      "pid": 1938948,
+      "fds": 33
+    },
+    "checks": [
+      {
+        "iteration": 1,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.991
+      },
+      {
+        "iteration": 2,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.896
+      },
+      {
+        "iteration": 3,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.864
+      },
+      {
+        "iteration": 4,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.854
+      },
+      {
+        "iteration": 5,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.872
+      },
+      {
+        "iteration": 6,
+        "status": 200,
+        "bytes": 4096,
+        "seconds": 0.751
+      }
+    ],
+    "after": {
+      "pid": 1938948,
+      "fds": 39
+    },
+    "sockstat": "sockets: used 286\nTCP: inuse 41 orphan 1 tw 53 alloc 71 mem 1727\nUDP: inuse 4 mem 229\nUDPLITE: inuse 0\nRAW: inuse 0\nFRAG: inuse 0 memory 0",
+    "health": {
+      "ok": true
+    },
+    "observation": "6/6 public audio responses passed; aggregate-FD assertion at 2s failed (33->39). Later inventory showed 31 FDs, no station sockets; followup checks actual station peer below."
+  },
+  "ruPeerSmoke": {
+    "utc": "2026-10-02T00:01:09.993154+03:00",
+    "pid": 1938948,
+    "status": 200,
+    "bytes": 4096,
+    "before": {
+      "fdCount": 32,
+      "stationEstablished": 0
+    },
+    "whileListening": {
+      "fdCount": 32,
+      "stationEstablished": 1
+    },
+    "afterCancel": {
+      "fdCount": 30,
+      "stationEstablished": 0
+    },
+    "secondsToPeerClose": 0.005
+  },
+  "release": {
+    "ruCommit": "13b171563202747ee5d655a2193060db64b70a70",
+    "ci": 36923238515,
+    "requiredCiGates": "success",
+    "deploy": 36923238582,
+    "deployConclusion": "success",
+    "apiTests": 707,
+    "functionalPassed": 432,
+    "functionalSkipped": 7,
+    "webUnits": 900,
+    "pixelsPassed": 14,
+    "pixelsFailed": 4,
+    "pixelNote": "same four mismatches existed in previous release; client runtime and baselines unchanged"
+  }
+}
