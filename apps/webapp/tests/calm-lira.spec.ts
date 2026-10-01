@@ -1,6 +1,43 @@
 import { expect, test } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
+for (const width of [390, 834, 1440]) {
+  test(`Lira sends only the latest offered slate at ${width}px without playing`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 834 ? 1112 : width === 390 ? 844 : 900 });
+    await mockStations(page);
+    await installMediaMocks(page);
+    await seedRadioState(page, { stationCache: stations.slice(0, 3) });
+    const posted: Array<{ userTaste?: { lastSuggestedStationIds?: string[] } }> = [];
+    const offers = [stations.slice(0, 2), stations.slice(2, 3), [], []];
+    await page.route('**/ai/chat**', async route => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+        reply: `Fixture answer ${posted.length}`, stations: offers[posted.length - 1].map(row => ({ ...row, tags: row.tags.split(',') })),
+        actions: [{ kind: 'none' }]
+      }) });
+    });
+    await page.goto('/?calm=1');
+    await page.getByRole('button', { name: 'Лира', exact: true }).click();
+    const chat = page.locator('[data-chat-sheet]');
+    const send = async (question: string) => {
+      const answerIndex = posted.length + 1;
+      await chat.getByRole('textbox').fill(question);
+      await chat.getByRole('button', { name: 'Отправить', exact: true }).click();
+      await expect(chat.getByText(`Fixture answer ${answerIndex}`, { exact: true })).toBeVisible();
+    };
+    await send('Дай два эфира');
+    await send('Чем эти две отличаются? Не включай.');
+    expect(posted[1].userTaste?.lastSuggestedStationIds).toEqual(stations.slice(0, 2).map(row => row.stationuuid));
+    await page.screenshot({ path: `../../output/lira-release-pair-${width}.png` });
+    await send('Дай ещё одну');
+    expect(posted[2].userTaste?.lastSuggestedStationIds).toEqual([stations[2].stationuuid]);
+    await send('Что ещё умеешь?');
+    expect(posted[3].userTaste?.lastSuggestedStationIds ?? []).toEqual([]);
+    expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null)).toBeNull();
+  });
+}
+
+
 test('Feed opens Lira with source suggestions and sends only the chosen question', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockStations(page);

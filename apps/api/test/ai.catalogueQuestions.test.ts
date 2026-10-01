@@ -52,6 +52,8 @@ test('a failed favourite lookup does not invent a taste',async()=>{
 test('actual discovery and play requests continue into the recommender',async()=>{
   assert.equal(await answerCatalogueQuestion(input('Дай радио под мой вкус на основе моих избранных станций'),tools),undefined);
   assert.equal(await answerCatalogueQuestion(input('Подбирай радио под мой вкус на основе моих избранных станций'),tools),undefined);
+  assert.equal(await answerCatalogueQuestion(input('Предложи радио под мой вкус на основе моих избранных станций'),tools),undefined);
+  assert.equal(await answerCatalogueQuestion(input('Предложите радио по моим избранным станциям'),tools),undefined);
   assert.equal(await answerCatalogueQuestion(input('What do my favourites have in common? Play them.',{locale:'en'}),tools),undefined);
   assert.equal(await answerCatalogueQuestion(input('Show me stations matching my favourite music taste',{locale:'en'}),tools),undefined);
   assert.equal(await answerCatalogueQuestion(input('Подбери что-нибудь по моим избранным станциям'),tools),undefined);
@@ -59,6 +61,10 @@ test('actual discovery and play requests continue into the recommender',async()=
   assert.equal(await answerCatalogueQuestion(input('Почему джаз одним нравится, а другим нет?'),tools),undefined);
 });
 test('explicit no-discovery does not bypass safe questions and legacy flattened IDs cannot form a pair',async()=>{
+  const past=await answerCatalogueQuestion(input('Почему ты предложила эти две?',{userTaste:{lastSuggestedStationIds:['f','a']}}),tools);
+  assert.deepEqual(past?.stations.map(s=>s.stationuuid),['f','a']);
+  const negative=await answerCatalogueQuestion(input('Что мои избранные говорят о вкусе? Не предложи новые станции.'),tools);
+  assert.match(negative!.reply,/нет списка избранных/);
   const r=await answerCatalogueQuestion(input('Compare these two. Do not find new stations.',{locale:'en',userTaste:{lastSuggestedStationIds:['f','a']}}),tools);
   assert.equal(r?.stations.length,2);
   const old=await answerCatalogueQuestion(input('Чем эти две отличаются?',{userTaste:{lastRecommendedStationIds:['f','a'],lastSuggestedStationIds:['f']}}),tools);
