@@ -54,17 +54,24 @@ test('Feed → Globe view → nav Feed restores the exact discovery card silentl
   await page.getByRole('button', { name: 'Новое для тебя' }).click();
   await expect(page.locator('.station-feed-status')).toContainText('Новое для тебя');
   const scroller = page.locator('.station-feed-scroller');
-  await scroller.evaluate((element) => {
-    element.scrollTop = element.clientHeight * 4;
+  const freshDeck = await page.locator('.station-feed-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feed-station')));
+  // Cold deck ranking may precede lazy player hydration, so the persisted
+  // paused source can occupy any position. Landing on that source intentionally
+  // keeps it paused (#86); this scenario needs a DIFFERENT source to start.
+  const selectedIndex = freshDeck.findIndex((id, index) => index > 0 && index + 2 < freshDeck.length && id && id !== stations[4].stationuuid);
+  expect(selectedIndex).toBeGreaterThan(0);
+  await scroller.evaluate((element, index) => {
+    element.scrollTop = element.clientHeight * index;
     element.dispatchEvent(new Event('scroll', { bubbles: true }));
-  });
-  const focusedCard = page.locator('.station-feed-card[data-feed-index="4"] .station-feed-card-content[data-focus="true"]');
+  }, selectedIndex);
+  const focusedCard = page.locator(`.station-feed-card[data-feed-index="${selectedIndex}"] .station-feed-card-content[data-focus="true"]`);
   await expect(focusedCard).toBeVisible();
   await waitForAnimationsToSettle(page, '.station-feed-card-content[data-focus="true"]');
-  await expect.poll(() => scroller.evaluate((element) => Math.round(element.scrollTop / element.clientHeight))).toBe(4);
-  const selectedCard = page.locator('.station-feed-card[data-feed-index="4"]');
+  await expect.poll(() => scroller.evaluate((element) => Math.round(element.scrollTop / element.clientHeight))).toBe(selectedIndex);
+  const selectedCard = page.locator(`.station-feed-card[data-feed-index="${selectedIndex}"]`);
   await expect(selectedCard).toHaveAttribute('data-feed-station', /.+/);
   const selectedId = await selectedCard.getAttribute('data-feed-station');
+  expect(selectedId).not.toBe(stations[4].stationuuid);
   const deckBefore = await page.locator('.station-feed-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feed-station')));
   await expect(selectedCard.locator('.calm-feed-status')).toHaveAttribute('data-status', 'playing');
   await expect.poll(() => page.evaluate(() => {
@@ -89,9 +96,9 @@ test('Feed → Globe view → nav Feed restores the exact discovery card silentl
 
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-status')).toContainText('Новое для тебя');
-  await expect(page.locator('.station-feed-card[data-feed-index="4"]')).toHaveAttribute('data-feed-station', selectedId!);
+  await expect(page.locator(`.station-feed-card[data-feed-index="${selectedIndex}"]`)).toHaveAttribute('data-feed-station', selectedId!);
   expect(await page.locator('.station-feed-card').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feed-station')))).toEqual(deckBefore);
-  await expect.poll(() => scroller.evaluate((element) => Math.round(element.scrollTop / element.clientHeight))).toBe(4);
+  await expect.poll(() => scroller.evaluate((element) => Math.round(element.scrollTop / element.clientHeight))).toBe(selectedIndex);
   await page.locator('.station-feed-card-content[data-focus="true"] [data-feed-action="expand"]').click();
   await expect(page.locator('.feed-tools-filters [data-feed-filter="fresh"]')).toHaveAttribute('aria-pressed', 'true');
   const playsAfterReturn = await page.evaluate(() => (window as typeof window & { __returnFeedPlayCalls?: number }).__returnFeedPlayCalls ?? 0);
@@ -103,17 +110,17 @@ test('Feed → Globe view → nav Feed restores the exact discovery card silentl
   expect(await page.locator('audio').evaluate((audio) => ({ src: audio.getAttribute('src'), state: audio.getAttribute('data-ra-state') }))).toEqual(audioBefore);
 
   const playsBeforeNext = playsAfterReturn;
-  const nextId = deckBefore[5];
+  const nextId = deckBefore[selectedIndex + 1];
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Ещё' })).toBeHidden();
-  await page.locator('.station-feed-card[data-feed-index="4"] [data-feed-action="next"]').click();
+  await page.locator(`.station-feed-card[data-feed-index="${selectedIndex}"] [data-feed-action="next"]`).click();
   await expect.poll(() => page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('radio:player:v2') || '{}');
     return state.queue?.items?.[state.queue.currentIndex]?.stationuuid ?? null;
   })).toBe(nextId);
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __returnFeedPlayCalls?: number }).__returnFeedPlayCalls ?? 0)).toBe(playsBeforeNext + 1);
 
-  await page.locator(`.station-feed-card[data-feed-index="5"][data-feed-station="${nextId}"] [data-feed-action="place"]`).click();
+  await page.locator(`.station-feed-card[data-feed-index="${selectedIndex + 1}"][data-feed-station="${nextId}"] [data-feed-action="place"]`).click();
   await expect(page.locator('[data-globe-explorer]')).toBeVisible();
   await page.locator('.calm-mini-info').click();
   await expect(page.locator('.station-feed-card[data-feed-index="0"]')).toHaveAttribute('data-feed-station', nextId!);
@@ -121,7 +128,7 @@ test('Feed → Globe view → nav Feed restores the exact discovery card silentl
   await page.locator('.station-feed-card[data-feed-index="0"] [data-feed-action="place"]').click();
   await expect(page.locator('[data-globe-explorer]')).toBeVisible();
   await page.locator('.calm-mini-next').click();
-  const miniNextId = deckBefore[6];
+  const miniNextId = deckBefore[selectedIndex + 2];
   await expect.poll(() => page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('radio:player:v2') || '{}');
     return state.queue?.items?.[state.queue.currentIndex]?.stationuuid ?? null;

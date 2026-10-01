@@ -1,0 +1,72 @@
+{
+  "at": "2026-10-01T20:10:43.239Z",
+  "commit": "2236438",
+  "htmlStatus": 200,
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-C73PuakJ.js",
+  "stateAsset": "/assets/radio-state-CKUovV8C.js",
+  "modelCalls": 0,
+  "modelCallsEvidence": "Exact requests use the deterministic near-source/clarification paths guarded by no-model-call tests.",
+  "results": [
+    {
+      "question": "Найди две похожие станции. Не включай.",
+      "reply": "Ближе по жанрам каталога к «SomaFM Groove Salad (128k MP3)»:\n«Groove Salad 2 (256k MP3)» (The United States Of America) — общее: ambient, chillout, downtempo.\n«#1 Splash Spa» (Spain) — общее: ambient, chillout, downtempo.\nЭто связь по жанрам каталога; текущий эфир я не слышу.",
+      "elapsedMs": 2825,
+      "stations": [
+        {
+          "id": "7a5f6e60-af07-4dbf-a076-d8e079fb1439",
+          "name": "Groove Salad 2 (256k MP3)",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "lounge"
+          ]
+        },
+        {
+          "id": "29de6c98-0a96-4196-8b7f-1aeb32cbb6ca",
+          "name": "#1 Splash Spa",
+          "country": "Spain",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "ambient and relaxation music",
+            "ambiental",
+            "easy listening"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station"
+        }
+      ]
+    },
+    {
+      "question": "Найди одну похожую станцию из Японии. Не включай.",
+      "reply": "Ближе по жанрам каталога к «SomaFM Groove Salad (128k MP3)»:\nНашла 0 из 1; остальные места случайными станциями не заполняю.\nЭто связь по жанрам каталога; текущий эфир я не слышу.",
+      "elapsedMs": 1415,
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none"
+        }
+      ]
+    },
+    {
+      "question": "Найди похожее без вокала. Не включай.",
+      "reply": "Могу сопоставить жанры каталога, но дополнительные условия или контраст звучания подтвердить не могу. Назови жанр или направление, которое хочешь попробовать.",
+      "elapsedMs": 17,
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none"
+        }
+      ]
+    }
+  ]
+}

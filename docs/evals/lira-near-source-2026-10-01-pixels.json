@@ -1,0 +1,100 @@
+{
+  "commit": "22364381024fec5331dd3a705e05b9db08fb985a",
+  "comparedWith": "f5c7a19",
+  "ci": 36917316017,
+  "availableAttachments": [
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-expected.png",
+      "sameBytes": true,
+      "old": "data/e356b52307647a378fe2db52a1799bbd6152579b.png",
+      "new": "data/e356b52307647a378fe2db52a1799bbd6152579b.png"
+    },
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-actual.png",
+      "sameBytes": true,
+      "old": "data/affa6fa4a2a44f7fd5c5b75ce19123bea2bfecc2.png",
+      "new": "data/affa6fa4a2a44f7fd5c5b75ce19123bea2bfecc2.png"
+    },
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-diff.png",
+      "sameBytes": true,
+      "old": "data/4a8e4ad3b3ff582dc2032ead0e7bc10d83bcf0c8.png",
+      "new": "data/4a8e4ad3b3ff582dc2032ead0e7bc10d83bcf0c8.png"
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-expected.png",
+      "sameBytes": true,
+      "old": "data/23aadb6f4c7b800a49a5bb8ad2ab3e1ca46bb40a.png",
+      "new": "data/23aadb6f4c7b800a49a5bb8ad2ab3e1ca46bb40a.png"
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-actual.png",
+      "sameBytes": true,
+      "old": "data/b3915d723d3d07a87e7861a0598979958ff4100e.png",
+      "new": "data/b3915d723d3d07a87e7861a0598979958ff4100e.png"
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-diff.png",
+      "sameBytes": true,
+      "old": "data/4887ee2e1008362356320bbe57b43081084a842e.png",
+      "new": "data/4887ee2e1008362356320bbe57b43081084a842e.png"
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-expected.png",
+      "sameBytes": true,
+      "old": "data/d74364695dc18cc7d8539cc0603014dcd56fb13f.png",
+      "new": "data/d74364695dc18cc7d8539cc0603014dcd56fb13f.png"
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-actual.png",
+      "sameBytes": true,
+      "old": "data/1d26b3a0e758d53b84fd6ff1857d0aa6b4e278bd.png",
+      "new": "data/1d26b3a0e758d53b84fd6ff1857d0aa6b4e278bd.png"
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-diff.png",
+      "sameBytes": true,
+      "old": "data/f0571045810d7a8125c515d5023f2850cfa4bc2f.png",
+      "new": "data/f0571045810d7a8125c515d5023f2850cfa4bc2f.png"
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-expected.png",
+      "sameBytes": true,
+      "old": "data/80d5df22427329fd78a16ea4d892d10d1e33e1a3.png",
+      "new": "data/80d5df22427329fd78a16ea4d892d10d1e33e1a3.png"
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-actual.png",
+      "sameBytes": true,
+      "old": "data/fc324ffeb57b83ae0c7c63137fe2c4b5951ec1a1.png",
+      "new": "data/fc324ffeb57b83ae0c7c63137fe2c4b5951ec1a1.png"
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-diff.png",
+      "sameBytes": true,
+      "old": "data/bba8a655712666f2b364813874754fbee0c4ded0.png",
+      "new": "data/bba8a655712666f2b364813874754fbee0c4ded0.png"
+    }
+  ],
+  "remainingFailures": [
+    "search-screen baseline mismatch",
+    "full-player-overlay baseline mismatch",
+    "full-player-queue-sheet-mobile baseline mismatch",
+    "library-mobile-queue baseline mismatch",
+    "search-mobile-results captureScreenshot protocol error"
+  ],
+  "baselineUpdated": false,
+  "webappRuntimeChanged": false
+}

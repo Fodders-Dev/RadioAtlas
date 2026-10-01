@@ -1,0 +1,43 @@
+{
+  "catalogueRows": 66872,
+  "elapsedMs": 583,
+  "source": "SomaFM Groove Salad (128k MP3)",
+  "selected": [
+    {
+      "id": "7a5f6e60-af07-4dbf-a076-d8e079fb1439",
+      "name": "Groove Salad 2 (256k MP3)",
+      "country": "The United States Of America",
+      "tags": [
+        "ambient",
+        "chillout",
+        "downtempo",
+        "lounge"
+      ]
+    },
+    {
+      "id": "29de6c98-0a96-4196-8b7f-1aeb32cbb6ca",
+      "name": "#1 Splash Spa",
+      "country": "Spain",
+      "tags": [
+        "ambient",
+        "chillout",
+        "downtempo",
+        "ambient and relaxation music",
+        "ambiental",
+        "easy listening"
+      ]
+    },
+    {
+      "id": "e8878650-cd54-46b3-b835-6e44077fe1a8",
+      "name": "Chill Out Zone",
+      "country": "Italy",
+      "tags": [
+        "ambient",
+        "chillout",
+        "downtempo",
+        "psychill"
+      ]
+    }
+  ],
+  "modelCalls": 0
+}

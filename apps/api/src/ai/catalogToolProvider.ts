@@ -8,6 +8,7 @@ import { placeMatchesQuery } from '../catalog/service.js';
 import { knownSourceCountry, matchesForeignSource, sourceGenres } from './currentSourceDiscovery.js';
 import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
 import { stationStreamIdentity } from './stationStreamIdentity.js';
+import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -131,6 +132,36 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    if (args.nearSource) {
+      const anchor = args.nearSource;
+      const score = createNearSourceScorer(anchor.tags);
+      const country = args.country ? knownSourceCountry(args.country) : '';
+      if (args.country && !country) return [];
+      const excluded = new Set((args.excludeStationIds || []).slice(0, 128));
+      const best: Array<{station: CatalogStationLite; relation: NearSourceScore; stream: string; identity?: string}> = [];
+      // Rank the eligible full catalogue before the cap, retaining at most eight
+      // unique sources. Mirrors cannot consume the cap before a distinct result.
+      for (const station of await catalog.getCatalog('full')) {
+        if (!station.url_resolved || excluded.has(station.stationuuid) || isTalkFormat(station) ||
+            !isDistinctNearSource({stationuuid:station.stationuuid,url_resolved:station.url_resolved,
+              name:station.name,country:station.country || ''}, anchor) ||
+            (country && knownSourceCountry(station.country || '') !== country)) continue;
+        const relation = score(parseCatalogueTagEvidence(station.tags));
+        if (!relation) continue;
+        const stream = stationStreamIdentity({url_resolved:station.url_resolved});
+        const identity = nearStationIdentity({name:station.name,country:station.country || ''});
+        const duplicate = best.findIndex(item => item.stream === stream || item.station.stationuuid === station.stationuuid ||
+          (identity && item.identity === identity));
+        if (duplicate >= 0) {
+          if (compareNearScores(relation, best[duplicate]!.relation) >= 0) continue;
+          best.splice(duplicate, 1);
+        }
+        const position = best.findIndex(item => compareNearScores(relation, item.relation) < 0);
+        best.splice(position < 0 ? best.length : position, 0, {station, relation, stream, identity});
+        if (best.length > limit) best.pop();
+      }
+      return best.map(item => toRef(item.station));
+    }
     if (args.requiredGenre) {
       const genre = args.requiredGenre;
       if (!sourceGenres([genre]).includes(genre)) return [];

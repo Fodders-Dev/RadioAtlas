@@ -1,0 +1,34 @@
+{
+  "commit": "22364381024fec5331dd3a705e05b9db08fb985a",
+  "ciUrl": "https://github.com/Fodders-Dev/RadioAtlas/actions/runs/36917316017",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "visual baselines (reports, does not gate)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/Fodders-Dev/RadioAtlas/actions/runs/36917316017/job/110554390027"
+    },
+    {
+      "name": "browser suite (functional, gates)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Fodders-Dev/RadioAtlas/actions/runs/36917316017/job/110554390397"
+    },
+    {
+      "name": "types + fast tests",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/Fodders-Dev/RadioAtlas/actions/runs/36917316017/job/110554391106"
+    }
+  ],
+  "functionalPassed": 432,
+  "functionalSkipped": 7,
+  "webappUnitPassed": 900,
+  "apiPassed": 702,
+  "offlineContractsPassed": 21,
+  "offlineModelCalls": 0,
+  "pixelsPassed": 13,
+  "pixelsFailed": 5
+}

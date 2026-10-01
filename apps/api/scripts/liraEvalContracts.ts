@@ -79,6 +79,8 @@ const foreign = ['eval-jazz', 'eval-berlin', 'eval-tokyo'];
 const query = 'Найди похожее из другой страны, не включай';
 
 export const CONTRACT_FIXTURES: ContractFixture[] = [
+  { id: 'near-country', input: input('Найди одну похожую станцию из Японии. Не включай.'), stationIds: ['eval-tokyo'], action: 'open-station', replyIncludes:'общее: jazz' },
+  { id: 'near-unsupported-vocals', input: input('Найди похожее без вокала. Не включай.'), stationIds: [], action: 'none', replyIncludes:'дополнительные условия' },
   { id: 'two-genre-slots', input: input('Найди одну джазовую станцию и одну с эмбиентом. Не включай.'), stationIds: ['eval-jazz','eval-ambient'], action: 'open-station' },
   { id: 'two-genre-country-partial', input: input('Найди одну джазовую станцию и одну с эмбиентом из Японии. Не включай.'), stationIds: ['eval-tokyo'], action: 'open-station', replyIncludes:'не найден' },
   { id: 'foreign-no-play', input: input(query), stationIds: foreign, action: 'open-station' },

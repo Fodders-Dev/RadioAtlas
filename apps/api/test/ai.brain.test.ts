@@ -287,7 +287,7 @@ test('AI disabled → warm fallback, ZERO DeepSeek calls', async () => {
 
 test('relative discovery sends bounded catalogue source facts to the planner, never display strings or streams', async () => {
   const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], compose: 'Лови.' });
-  await chatWithAssistant(ask('Найди похожее', {
+  await chatWithAssistant(ask('Найди станцию как сейчас', {
     nowPlaying: { stationUuid: 'uuid-jazz', stationName: 'Wrong station' }
   }), makeDeps(fetchImpl));
   const messages = JSON.stringify(calls[0]?.body.messages);
