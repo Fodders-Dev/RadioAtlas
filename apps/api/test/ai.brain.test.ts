@@ -120,6 +120,118 @@ const ask = (text: string, extra: Partial<ChatInput> = {}): ChatInput => ({
   ...extra
 });
 
+test('live-audit: recording cannot claim a file was sent, including a follow-up', async () => {
+  const { fetchImpl, calls } = makeFetch({ compose: 'Держи файл, я отправила.' });
+  for (const input of [
+    ask('Запиши 20 секунд этого эфира и пришли файл сюда.'),
+    ask('То есть файл появится прямо в этом чате?', {history:[{role:'user',text:'Запиши 20 секунд эфира'}, {role:'assistant',text:'Запись доступна через бота.'}]}),
+    ask('Запиши текущий эфир', {surface:'telegram'})
+  ]) {
+    const result = await chatWithAssistant(input, makeDeps(fetchImpl));
+    assert.match(result.reply, /Telegram|\/record/i);
+    assert.doesNotMatch(result.reply, /отправила|держи файл|сейчас запишу/i);
+    assert.deepEqual(result.actions, [{kind:'none'}]);
+    assert.equal(result.stations.length, 0);
+  }
+  assert.equal(calls.length, 0, 'unsupported operation is never delegated to the model');
+});
+
+test('live-audit: explicit recommendation quantity bounds both cards and composer facts', async () => {
+  const pool = Array.from({length:5}, (_,i)=>station({stationuuid:`uuid-${i}`, name:`Jazz Channel ${i}`}));
+  const {fetchImpl, calls} = makeFetch({planner:['{"action":"final"}'], compose:'Первый эфир мягче.'});
+  const result = await chatWithAssistant(ask('Дай одну джазовую станцию. Не включай.'), makeDeps(fetchImpl, {
+    tools:{...stubTools,searchStations:async()=>pool}
+  }));
+  assert.equal(result.stations.length, 1);
+  assert.equal(result.actions[0]?.kind, 'open-station');
+  const facts = calls.find(c=>c.phase==='compose')?.body.messages.find((m:any)=>m.content.startsWith('Проверенные факты'))?.content;
+  const names = pool.filter(s=>String(facts).includes(s.name));
+  assert.deepEqual(names.map(s=>s.stationuuid),result.stations.map(s=>s.stationuuid), 'model sees the same final selection as the listener');
+});
+
+test('live-audit: a longer rejection refines the previous request and produces cards', async () => {
+  const {fetchImpl,calls} = makeFetch({planner:['{"action":"final"}'],vibeTags:'house',compose:'Лови ритм.'});
+  const result = await chatWithAssistant(ask('Не то. Хочу больше ритма, без металла и новостей. Один вариант.', {
+    history:[{role:'user',text:'Дай один необычный эфир. Не включай.'},{role:'assistant',text:'Держи эмбиент.'}]
+  }), makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async()=>[station({tags:['house']})]}}));
+  assert.equal(result.stations.length,1);
+  assert.notEqual(result.actions[0]?.kind,'play');
+  const text = calls.find(c=>c.phase==='vibe-tags')?.body.messages.find((m:any)=>m.role==='user')?.content;
+  assert.match(String(text),/необычный эфир/i);
+});
+
+test('live-audit: a third refinement preserves explicit exclusions from earlier turns', async () => {
+  const {fetchImpl} = makeFetch({planner:['{"action":"final"}'],vibeTags:'house',compose:'Другой грув.'});
+  const result = await chatWithAssistant(ask('А теперь что-нибудь совсем другое, но сохрани эти ограничения.', {
+    history:[{role:'user',text:'Дай один необычный эфир. Не включай.'},{role:'assistant',text:'Эмбиент.'},
+      {role:'user',text:'Не то. Хочу больше ритма, без металла и новостей. Один вариант.'},{role:'assistant',text:'Хаус.'}]
+  }),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async()=>[
+    station({stationuuid:'uuid-metal',name:'Metal Groove',tags:['metal']}),station({tags:['house']})
+  ]}}));
+  assert.equal(result.stations.length,1);
+  assert.equal(result.stations[0]?.stationuuid,'uuid-jazz');
+  assert.notEqual(result.actions[0]?.kind,'play');
+});
+
+test('live-audit: Russian recommendation prose does not infer a Russian artist', async () => {
+  const searched: Array<{language?:string; country?:string}> = [];
+  const {fetchImpl} = makeFetch({planner:['{"action":"final"}'],vibeTags:'jazz',compose:'Джазовый эфир.'});
+  const result = await chatWithAssistant(ask('Найди две станции из Японии с джазом или фанком. Не включай.'), makeDeps(fetchImpl, {
+    tools:{...stubTools, searchStations:async args=>{searched.push(args);return [station({country:'Japan'})];}}
+  }));
+  assert.ok(searched.length>0);
+  assert.ok(searched.every(args=>args.language !== 'russian'));
+  assert.equal(result.stations[0]?.country,'Japan');
+});
+
+test('live-audit: explain the difference between radio options is not song analysis', async () => {
+  const question = 'Нравится этот трек. Подбери два радио в этом духе и объясни разницу. Не включай.';
+  assert.equal(classifySongKnowledgeIntent(question).any,false);
+  assert.equal(classifySongKnowledgeIntent('Объясни смысл этого трека').meaning,true);
+  const {fetchImpl,calls} = makeFetch({planner:['{"action":"final"}'],vibeTags:'funk',compose:'Два направления грува.'});
+  const result = await chatWithAssistant(ask(question,{nowPlaying:{track:'Khruangbin — August 10'}}),makeDeps(fetchImpl));
+  assert.ok(result.stations.length>0);
+  assert.notEqual(result.actions[0]?.kind,'play');
+  assert.ok(calls.find(call=>call.phase==='planner')?.body.messages.some((m:any)=>m.content.includes('Khruangbin — August 10')));
+  assert.ok(calls.find(call=>call.phase==='vibe-tags')?.body.messages.some((m:any)=>m.content.includes('Khruangbin — August 10')));
+});
+
+test('live-audit: do not record still permits the separately requested playback', async () => {
+  const {fetchImpl} = makeFetch({planner:['{"action":"final"}'],vibeTags:'jazz',compose:'Джаз.'});
+  const result = await chatWithAssistant(ask('Не записывай эфир, включи джаз'),makeDeps(fetchImpl));
+  assert.equal(result.actions[0]?.kind,'play');
+  assert.ok(result.stations.length>0);
+});
+
+test('live-audit: fresh recommendation resets old count and exclusions before more', async () => {
+  const {fetchImpl} = makeFetch({planner:['{"action":"final"}'],vibeTags:'metal',compose:'Ещё металл.'});
+  const pool = Array.from({length:3},(_,i)=>station({stationuuid:`metal-${i}`,name:`Metal ${i}`,tags:['metal']}));
+  const result = await chatWithAssistant(ask('Ещё варианты', {history:[
+    {role:'user',text:'Дай один эфир без металла'}, {role:'assistant',text:'Держи джаз'},
+    {role:'user',text:'Теперь дай металл'}, {role:'assistant',text:'Держи металл'}
+  ]}),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async()=>pool}}));
+  assert.equal(result.stations.length,3,'old one-card/no-metal request does not leak into fresh metal request');
+});
+
+test('live-audit: a knowledge turn ends the prior recommendation suffix', async () => {
+  const {fetchImpl,calls} = makeFetch({planner:['{"action":"final"}'],vibeTags:'metal',compose:'Что ещё разобрать?'});
+  const result = await chatWithAssistant(ask('Ещё варианты',{history:[
+    {role:'user',text:'Дай один эфир без металла'},{role:'assistant',text:'Держи джаз'},
+    {role:'user',text:'Расскажи про историю джаза'},{role:'assistant',text:'Он развивался из нескольких традиций.'}
+  ]}),makeDeps(fetchImpl));
+  assert.equal(result.stations.length,0);
+  assert.ok(!calls.some(call=>call.phase==='vibe-tags'),'no stale music request re-injected after knowledge turn');
+});
+
+test('live-audit: a bare genre remains a recommendation anchor for more', async () => {
+  const {fetchImpl,calls} = makeFetch({planner:['{"action":"final"}'],vibeTags:'jazz',compose:'Ещё джаз.'});
+  const result = await chatWithAssistant(ask('Ещё варианты',{history:[
+    {role:'user',text:'джаз'},{role:'assistant',text:'Держи джаз.'}
+  ]}),makeDeps(fetchImpl));
+  assert.ok(result.stations.length>0);
+  assert.ok(calls.find(call=>call.phase==='vibe-tags')?.body.messages.some((m:any)=>m.role==='user' && m.content.includes('джаз')));
+});
+
 test('AI disabled → warm fallback, ZERO DeepSeek calls', async () => {
   const { fetchImpl, calls } = makeFetch({});
   const deps = makeDeps(fetchImpl, { model: deepseek({ enabled: false }) });
@@ -1236,7 +1348,7 @@ test('ANTI-FABRICATION: the composer is told NEVER to name a station that is not
   const guarded = compose!.body.messages.some(
     (m: any) =>
       typeof m.content === 'string' &&
-      m.content.includes('НИКОГДА не называй конкретную радиостанцию по имени')
+      m.content.includes('Называй ТОЛЬКО станции из этого списка')
   );
   assert.ok(guarded, 'the no-fabricated-station-names guard reached the composer');
 });

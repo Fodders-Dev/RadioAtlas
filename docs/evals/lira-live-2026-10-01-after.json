@@ -1,0 +1,1004 @@
+{
+  "batch": "after",
+  "at": "2026-10-01T10:12:21.727Z",
+  "code": "701c3dd+audit-fixes",
+  "provider": "deepseek",
+  "model": "deepseek-v4-pro",
+  "preflight": {
+    "passed": 17,
+    "total": 17
+  },
+  "catalog": "production persisted snapshot, current catalogue adapter, profiles not applied",
+  "contextStation": {
+    "name": "FIP",
+    "id": "932eb148-e6f6-11e9-a96c-52543be04c81"
+  },
+  "runs": [
+    {
+      "id": "discovery",
+      "question": "Дай один необычный, но не слишком странный эфир. Не включай.",
+      "ms": 5086,
+      "reply": "Держи вариант с мягким вайбом: эмбиент-волны, спокойный чилл и музыка для расслабления — как раз тот случай, когда эфир не давит, а просто дышит рядом.",
+      "stations": [
+        {
+          "id": "961aeb3b-0601-11e8-ae97-52543be04c81",
+          "name": "Ambient Modern",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "non-commercial",
+            "relaxation music",
+            "relaxing"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "961aeb3b-0601-11e8-ae97-52543be04c81",
+          "actionId": "b00ad0e2-9666-401f-8f6b-ac46a48c8958:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 4591,
+        "completion": 91
+      },
+      "run": {
+        "runId": "b00ad0e2-9666-401f-8f6b-ac46a48c8958",
+        "taskId": "9b8b08fb-75ec-4523-b9fd-352ac1db21f8",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 57
+          }
+        ],
+        "durationMs": 5086,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "discovery",
+      "question": "Не то. Хочу больше ритма, без металла и новостей. Один вариант.",
+      "ms": 3446,
+      "reply": "Тогда вот тебе голландский драм-н-бейс — плотный ритм, бас качает, и никакого металла. Станция Dutch Delite Drum and Bass как раз в этом духе: liquid dnb и нейрофанк, если захочешь уйти в более резкое звучание.",
+      "stations": [
+        {
+          "id": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "name": "Dutch Delite Drum and Bass",
+          "country": "The Netherlands",
+          "tags": [
+            "dnb",
+            "drum 'n' bass",
+            "drum and bass",
+            "drum&bass",
+            "liquid dnb",
+            "neurofunk"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "actionId": "84e9fb93-ffa7-401c-b66f-4dafa9eb116b:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 2627,
+        "completion": 80
+      },
+      "run": {
+        "runId": "84e9fb93-ffa7-401c-b66f-4dafa9eb116b",
+        "taskId": "84a149e1-b1c0-4bed-899f-9668ca9e5f52",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 35
+          }
+        ],
+        "durationMs": 3446,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 1,
+        "matchedIds": [
+          "news",
+          "metal"
+        ],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "discovery",
+      "question": "А теперь что-нибудь совсем другое, но сохрани эти ограничения.",
+      "ms": 2756,
+      "reply": "Если хочется ритма без металла и новостей, но совсем другого звучания — попробуй лаунж и даунтемпо. Тёплый грув, мягкие биты, идеально под вечер или под неспешную работу.",
+      "stations": [
+        {
+          "id": "2c68a091-c21b-49df-89db-4b4410a42430",
+          "name": "Uturn Radio - Drum And Bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "2c68a091-c21b-49df-89db-4b4410a42430",
+          "actionId": "a204d8c9-7039-435f-b5b6-ae9b58f60ca9:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 2704,
+        "completion": 66
+      },
+      "run": {
+        "runId": "a204d8c9-7039-435f-b5b6-ae9b58f60ca9",
+        "taskId": "fe3fb8e6-ce80-4095-b13e-9528d554f2aa",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 20
+          }
+        ],
+        "durationMs": 2756,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 1,
+        "matchedIds": [
+          "news",
+          "metal"
+        ],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "japan",
+      "question": "Найди две станции из Японии с джазом или фанком. Не включай.",
+      "ms": 6284,
+      "reply": "Слушай, с Японией тут не срослось — в моей проверенной подборке её нет. Зато есть джаз с характером: одна станция из Эфиопии, другая — мягкий американский смус-джаз. Обе карточки уже перед тобой, выбирай под настроение.",
+      "stations": [
+        {
+          "id": "7ba493cb-7be2-498b-8726-2403d972be14",
+          "name": "jazz",
+          "country": "Ethiopia",
+          "tags": [
+            "jazz"
+          ]
+        },
+        {
+          "id": "d28420a4-eccf-47a2-ace1-088c7e7cb7e0",
+          "name": "101 SMOOTH JAZZ",
+          "country": "The United States Of America",
+          "tags": [
+            "easy listening",
+            "jazz",
+            "smooth jazz"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "7ba493cb-7be2-498b-8726-2403d972be14",
+          "actionId": "f7bedf28-3754-4da2-a37a-ce2053066fc9:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 6746,
+        "completion": 230
+      },
+      "run": {
+        "runId": "f7bedf28-3754-4da2-a37a-ce2053066fc9",
+        "taskId": "d332ee44-3da7-417f-894b-70cc7cd2b8a0",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 31
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 61
+          }
+        ],
+        "durationMs": 6284,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "japan",
+      "question": "Почему выбрала именно эти две? Чем они отличаются?",
+      "ms": 2725,
+      "reply": "Смотри, я отталкивалась от того, что ты просила джаз или фанк, а Японии в моей проверенной коллекции не оказалось. Поэтому взяла две станции, которые точно есть в списке и дают разный характер.\n\nПервая — эфиопский джаз, он особенный: звучит тепло, с африканским грувом, немного винтажно и очень узнаваемо. Вторая — американский смус-джаз, он мягче, спокойнее, ближе к лаунжу. Обе про джаз, но одна — с характером и историей, другая — для расслабленного фона.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "edd37606-7495-4eb4-a688-8a2a8a8d1e7a:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 2191,
+        "completion": 152
+      },
+      "run": {
+        "runId": "edd37606-7495-4eb4-a688-8a2a8a8d1e7a",
+        "taskId": "1d6679a4-69f5-4332-80bd-84467435b105",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 2725,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "bridge",
+      "question": "Нравится этот трек. Подбери два радио, где я могу открыть что-нибудь в этом духе, и объясни разницу. Не включай.",
+      "ms": 7076,
+      "reply": "Слушай, с таким вайбом — ритмичным, электронным, немного клубным — я бы сразу смотрела в сторону танцпола. Первая станция — чистая электроника и дэнс, плотная и заводная, как хороший ночной сет. Вторая — это уже микс из чартов, ремиксов и диджей-подборок: там и хаус, и техно, и хиты из топов, звучит пёстрее и живее. Разница, по сути, в фокусе: одна держит тебя в электронном потоке, вторая тасует эпохи и жанры вокруг танцевальной основы.",
+      "stations": [
+        {
+          "id": "9611cf11-0601-11e8-ae97-52543be04c81",
+          "name": "electronic music club",
+          "country": "Germany",
+          "tags": [
+            "dance",
+            "electronic"
+          ]
+        },
+        {
+          "id": "02734cfa-5c5b-46f2-85c6-a5a654be7a24",
+          "name": "#TOP 200 DJ CHARTS - JUST MUSIC - DJ REMIX & CHARTS RADIO @ TikTok Charts, Electronic Music, EDM, House, Deep House, Dance Music, Techno & Hypertechno, Top40, Latin Charts, Reggaeton, Urban, HipHop, Club & Party Radio - & LIVE DJ SETS @ Festival Melodic House, Melodic Techno. Best 100 Lounge, Mixed Radio Station @ PartyHits / Schlager Remix Top 50",
+          "country": "Germany",
+          "tags": [
+            "#00s",
+            "#80",
+            "#top200",
+            "90's",
+            "90s",
+            "bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "9611cf11-0601-11e8-ae97-52543be04c81",
+          "actionId": "40470295-895b-4647-9d98-efedcf6f124d:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 7188,
+        "completion": 273
+      },
+      "run": {
+        "runId": "40470295-895b-4647-9d98-efedcf6f124d",
+        "taskId": "e35b0d1f-d09f-47df-9b4f-31a8211d0809",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 75
+          }
+        ],
+        "durationMs": 7076,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "bridge",
+      "question": "Хочу дальше от Khruangbin, но оставить грув. Только один эфир.",
+      "ms": 4623,
+      "reply": "Тогда тебе сюда — SomaFM Groove Salad: она как раз про groove, downtempo и chillout, с тёплым, тягучим грувом без резких скачков. Отличный фон, чтобы продолжить это настроение и не уходить в электронную плотность.",
+      "stations": [
+        {
+          "id": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "actionId": "9e2ac48e-aa08-46a3-ae80-e37df8368743:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 7411,
+        "completion": 195
+      },
+      "run": {
+        "runId": "9e2ac48e-aa08-46a3-ae80-e37df8368743",
+        "taskId": "5e2c0c22-a135-4a49-b798-5c76c3f9ab9b",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 30
+          }
+        ],
+        "durationMs": 4623,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "record",
+      "question": "Запиши 20 секунд этого эфира и пришли файл сюда.",
+      "ms": 0,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "c6c25569-7d1d-4aaf-be65-57d793446026:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "c6c25569-7d1d-4aaf-be65-57d793446026",
+        "taskId": "ef265e78-3175-4393-93c9-3941708aeeea",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 0,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "record",
+      "question": "То есть файл появится прямо в этом чате?",
+      "ms": 0,
+      "reply": "В этом чате запись не запускается и файл не появится. В Ленте открой «Ещё» → «Записать эфир», если этот пункт доступен: длительность выбирается в Telegram, файл приходит в чат с ботом.",
+      "stations": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "999fb542-04ee-43fc-aa8f-4ed86b0c6b9a:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 0,
+        "completion": 0
+      },
+      "run": {
+        "runId": "999fb542-04ee-43fc-aa8f-4ed86b0c6b9a",
+        "taskId": "7cd1ec37-1c63-4125-afb5-a250a0f584f8",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [],
+        "durationMs": 0,
+        "verifierPassed": true,
+        "warnings": []
+      }
+    },
+    {
+      "id": "taste",
+      "question": "Что мои сохранённые треки говорят о моём вкусе?",
+      "ms": 5278,
+      "reply": "Слушай, я бы с радостью заглянула в твою коллекцию, но сохранённые треки мне сейчас не видны — ты их мне не передавал. Так что гадать по пустоте не буду, это нечестно.\n\nЕсли хочешь, назови пару-тройку любимых вещей, и я скажу, каким ты мне видишься по ним. Или можем просто поболтать о том, что у тебя сейчас в наушниках.",
+      "stations": [
+        {
+          "id": "96394224-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Indie Pop Rocks! (128k AAC)",
+          "country": "The United States Of America",
+          "tags": [
+            "indie",
+            "indie pop",
+            "indie rock"
+          ]
+        },
+        {
+          "id": "08e9cef4-84cb-47d4-bbe3-30dcb2f9d743",
+          "name": "Oxygen Indie",
+          "country": "Hungary",
+          "tags": [
+            "alternative",
+            "indie",
+            "indie music",
+            "indie rock"
+          ]
+        },
+        {
+          "id": "e9faf170-dd65-422e-b76b-1167a6be7aad",
+          "name": "Indie X FM",
+          "country": "The United States Of America",
+          "tags": [
+            "alternative rock",
+            "alternative wave",
+            "edm",
+            "indie",
+            "indie pop",
+            "indie rock"
+          ]
+        },
+        {
+          "id": "51895bd4-f369-11e8-a471-52543be04c81",
+          "name": "- 0 N - Indie on Radio",
+          "country": "Germany",
+          "tags": [
+            "alternative",
+            "electro",
+            "hip hop",
+            "indie",
+            "rock"
+          ]
+        },
+        {
+          "id": "e25dbef6-533c-4d49-8c2f-b425eda28764",
+          "name": "Pinguin Indie",
+          "country": "The Netherlands",
+          "tags": [
+            "alternative",
+            "alternative / indie",
+            "indie",
+            "indie pop",
+            "indie rock"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96394224-0601-11e8-ae97-52543be04c81",
+          "actionId": "a9a9ed8f-63ec-407c-8b57-663d7e1c8058:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 4805,
+        "completion": 157
+      },
+      "run": {
+        "runId": "a9a9ed8f-63ec-407c-8b57-663d7e1c8058",
+        "taskId": "9d084ded-0e76-4225-a651-0fb440e79bcd",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 40
+          }
+        ],
+        "durationMs": 5278,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "taste",
+      "question": "А мои избранные станции ты сейчас видишь?",
+      "ms": 5128,
+      "reply": "Нет, избранные станции мне тоже не видны — я вижу только то, что ты сам называешь в разговоре. Так что твоя полка для меня пока закрыта, и подсматривать я не умею.\n\nЕсли расскажешь, что там у тебя в избранном, с удовольствием обсудим — или подберу что-то в тон.",
+      "stations": [
+        {
+          "id": "961fa288-0601-11e8-ae97-52543be04c81",
+          "name": "Ambient Sleeping Pill",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "meditation",
+            "sleep"
+          ]
+        },
+        {
+          "id": "c4ad50e6-da4d-49f2-abeb-8bbcb1ebfbdf",
+          "name": "Radio Caprice Industrial/Dark/Ritual Ambient",
+          "country": "The Russian Federation",
+          "tags": [
+            "ambient",
+            "drone",
+            "industrial"
+          ]
+        },
+        {
+          "id": "961aeb3b-0601-11e8-ae97-52543be04c81",
+          "name": "Ambient Modern",
+          "country": "The United States Of America",
+          "tags": [
+            "ambient",
+            "chillout",
+            "non-commercial",
+            "relaxation music",
+            "relaxing"
+          ]
+        },
+        {
+          "id": "d271b4e8-a298-4862-9f4b-025c110cedd9",
+          "name": "IBIZA CHILLOUT LOUNGE - Ambient, Deep House, Balearic, Smooth Jazz, Acoustic, Chill House, Lo-Fi, Chillwave, Dream Pop, Electro, Tropical House, Sunset Chill, Café del Mar, Soft Electronica, Slow House, Ambient, Relax, Easy Listening, Beach Vibes, Summer",
+          "country": "Germany",
+          "tags": [
+            "ambient",
+            "balearic",
+            "balearic house",
+            "beach",
+            "club dance",
+            "dance"
+          ]
+        },
+        {
+          "id": "9641191e-0601-11e8-ae97-52543be04c81",
+          "name": "Dark Ambient Radio (96k AAC+)",
+          "country": "Germany",
+          "tags": [
+            "ambient",
+            "dark",
+            "deep ambient"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "961fa288-0601-11e8-ae97-52543be04c81",
+          "actionId": "76d86b19-8337-43da-af12-691491c971c8:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 5121,
+        "completion": 166
+      },
+      "run": {
+        "runId": "76d86b19-8337-43da-af12-691491c971c8",
+        "taskId": "49c0e5ca-0e88-4cb3-a99c-f6aca2a91857",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 31
+          }
+        ],
+        "durationMs": 5128,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "guarantee",
+      "question": "Дай на два часа радио гарантированно без рекламы, ведущих и вокала. Не включай.",
+      "ms": 6372,
+      "reply": "Слушай, гарантию «два часа и ни одного слова» тебе не даст никто — я не слышу поток и не знаю, что там в конкретную минуту. Но по тегам это чисто инструментальная история: джаз, эмбиент, немного электроники. Из того, что реально есть, ближе всего Instrumental Jazz и Total instrumental — там по описанию ни вокала, ни болтовни, только музыка.",
+      "stations": [
+        {
+          "id": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "name": "Instrumental Jazz",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental",
+            "jazz"
+          ]
+        },
+        {
+          "id": "f0b1f357-8467-4eed-b2c8-5f33592111fd",
+          "name": "Instrumental Hits Radio",
+          "country": "Mexico",
+          "tags": [
+            "hits",
+            "instrumental",
+            "instrumental hits radio",
+            "nuevo leon"
+          ]
+        },
+        {
+          "id": "96154a1e-0601-11e8-ae97-52543be04c81",
+          "name": "Total instrumental",
+          "country": "Germany",
+          "tags": [
+            "ambient",
+            "dance",
+            "electronic",
+            "instrumental"
+          ]
+        },
+        {
+          "id": "cc883873-ef4b-11e9-a96c-52543be04c81",
+          "name": "Radio Caprice - Instrumental Music",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental"
+          ]
+        },
+        {
+          "id": "e5a8aea3-4050-11e9-aa55-52543be04c81",
+          "name": "Radio Caprice - Instrumental Hip-hop",
+          "country": "The Russian Federation",
+          "tags": [
+            "hip-hop",
+            "hiphop",
+            "instrumental",
+            "instrumental hiphop"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "actionId": "f3e5c1ca-f4ff-43bc-a1a3-1e3d93d6902c:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 9718,
+        "completion": 269
+      },
+      "run": {
+        "runId": "f3e5c1ca-f4ff-43bc-a1a3-1e3d93d6902c",
+        "taskId": "3d1f497b-7a75-4ac1-b4ea-eda19a2899f6",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 49
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 34
+          }
+        ],
+        "durationMs": 6372,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 1,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": true,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "focus",
+      "question": "Нужен фон для работы. Lo-fi заебал, хочется чего-то другого без вокала. Не включай.",
+      "ms": 6146,
+      "reply": "Поняла, lo-fi — в топку. Держи инструментал, но с другим характером: тут и мягкий джаз, и электроника с эмбиентом, и даже инструментальный хип-хоп, если захочется ритма поживее.",
+      "stations": [
+        {
+          "id": "f0b1f357-8467-4eed-b2c8-5f33592111fd",
+          "name": "Instrumental Hits Radio",
+          "country": "Mexico",
+          "tags": [
+            "hits",
+            "instrumental",
+            "instrumental hits radio",
+            "nuevo leon"
+          ]
+        },
+        {
+          "id": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "name": "Instrumental Jazz",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental",
+            "jazz"
+          ]
+        },
+        {
+          "id": "96154a1e-0601-11e8-ae97-52543be04c81",
+          "name": "Total instrumental",
+          "country": "Germany",
+          "tags": [
+            "ambient",
+            "dance",
+            "electronic",
+            "instrumental"
+          ]
+        },
+        {
+          "id": "e5a8aea3-4050-11e9-aa55-52543be04c81",
+          "name": "Radio Caprice - Instrumental Hip-hop",
+          "country": "The Russian Federation",
+          "tags": [
+            "hip-hop",
+            "hiphop",
+            "instrumental",
+            "instrumental hiphop"
+          ]
+        },
+        {
+          "id": "cc883873-ef4b-11e9-a96c-52543be04c81",
+          "name": "Radio Caprice - Instrumental Music",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "f0b1f357-8467-4eed-b2c8-5f33592111fd",
+          "actionId": "ecd1be1d-6675-45f1-b426-b85fd5bd6417:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 9734,
+        "completion": 221
+      },
+      "run": {
+        "runId": "ecd1be1d-6675-45f1-b426-b85fd5bd6417",
+        "taskId": "0ce66279-2f40-4eb1-8222-3e2fe4419667",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 29
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 41
+          }
+        ],
+        "durationMs": 6145,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 1,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": true,
+        "emptiedEverything": false
+      }
+    },
+    {
+      "id": "impossible",
+      "question": "Хочу одновременно только инструментальную музыку и песни на русском. Подбери одну станцию.",
+      "ms": 7370,
+      "reply": "Слушай, тут загвоздка: инструментал и песни на русском — это два разных полюса, и в моей подборке сейчас есть только чисто инструментальный джаз. Русскоязычного вокала в нём не будет.\n\nМогу предложить Instrumental Jazz — тёплый, живой, без слов. А если хочется именно русских песен, то это уже отдельная станция, и её у меня под рукой сейчас нет.",
+      "stations": [
+        {
+          "id": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "name": "Instrumental Jazz",
+          "country": "The Russian Federation",
+          "tags": [
+            "instrumental",
+            "jazz"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "518d02e0-9301-4358-bf25-4ed57372fd2d",
+          "actionId": "e9a5381f-c7ef-4284-b722-3d410cd615d2:1",
+          "permission": "read"
+        }
+      ],
+      "links": [],
+      "sources": [],
+      "usage": {
+        "prompt": 8821,
+        "completion": 304
+      },
+      "run": {
+        "runId": "e9a5381f-c7ef-4284-b722-3d410cd615d2",
+        "taskId": "e75e46f7-dce0-40c8-bfc1-1128ec64d98c",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "status": "completed",
+        "route": "music_worker",
+        "steps": 4,
+        "toolCalls": [
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 37
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 17
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 23
+          },
+          {
+            "name": "search_stations",
+            "status": "completed",
+            "durationMs": 45
+          }
+        ],
+        "durationMs": 7370,
+        "verifierPassed": true,
+        "warnings": []
+      },
+      "constraintFilter": {
+        "clauses": 0,
+        "matchedIds": [],
+        "removedCards": 0,
+        "unmatchedClause": false,
+        "emptiedEverything": false
+      }
+    }
+  ],
+  "ledger": {
+    "limitUsd": 3,
+    "modelUpperUsd": 0.2176732799999999,
+    "webReservedUsd": 0.4,
+    "unknownReservedUsd": 0,
+    "modelCalls": 78,
+    "webCalls": 4
+  }
+}

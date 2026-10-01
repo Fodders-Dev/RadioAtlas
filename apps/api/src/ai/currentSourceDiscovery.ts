@@ -59,7 +59,7 @@ export const matchesForeignSource = (station: VerifiedStationRef, anchor: Source
 
 const OTHER_COUNTRY = /друг(?:ой|ую|ая|ие|их)\s+стран|another\s+country|different\s+countr/i;
 const RELATIVE_SOURCE = /похож(?:ее|ую|ие|ую станцию)|в том же духе|как (?:эта|эта станция|сейчас)|так(?:ую|ое) же|similar (?:station|to this)|like this/i;
-const SHORT_FOLLOWUP = /^(?:давай|ещ[её]|ещ[её] варианты|другие|да|yes|more|go ahead)[.!?\s]*$/i;
+const SHORT_FOLLOWUP = /^(?:давай|ещ[её](?:\s+(?:один|два|две|три|четыре|пять|[1-5]))?(?:\s+(?:вариант[а-яё]*|станции|эфиры?))?(?:,?\s+предыдущие\s+не\s+повторяй)?|другие|да|yes|more|go ahead)[.!?\s]*$/i;
 
 export const wantsForeignSource = (message: string, history: ChatTurn[] = []): boolean => {
   const text = effectiveSourceRequest(message, history);
@@ -83,13 +83,14 @@ export const unsupportedSourceModifier = (message: string): boolean => {
   // Consume the supported request, not a denylist of all possible modifiers.
   // Any leftover semantic text is an extra condition we cannot silently drop.
   const remaining = normalize(message)
+    .replace(/на\s+(?:эту|текущую)\s+станцию/gi, ' ')
     .replace(/друг(?:ой|ую|ая|ие|их)\s+стран[а-яё]*|(?:another\s+country|different\s+countries|different\s+country)/gi, ' ')
     .replace(/похож(?:ее|ую|ие)|в том же духе|как (?:эта станция|сейчас)|так(?:ую|ое) же|similar(?:\s+to this)?|like this/gi, ' ')
     .replace(/не\s+(?:включ[а-яё]*|запуск[а-яё]*|проигрыв[а-яё]*)(?:\s+(?:ничего|пока|сейчас|автоматически))*/gi, ' ')
     .replace(/не\s+(?:добав[а-яё]*|сохран[а-яё]*)(?:\s+(?:эту|станцию|текущую))*\s+в\s+(?:очередь|избранное)/gi, ' ')
     .replace(/(?:do not|don['’]t|without)\s+(?:play|start|autoplay|sound)(?:\s+(?:it|yet|now))*/gi, ' ')
     .replace(/(?:do not|don['’]t)\s+(?:add|save)(?:\s+(?:this|station|it))*\s+(?:to|in)\s+(?:the\s+)?(?:queue|favorites)/gi, ' ')
-    .replace(/(?:^|[^\p{L}])(?:найди|подбери|посоветуй|покажи|хочу|включи|поставь|поищи|пожалуйста|мне|а|но|из|станцию|станции|радио|источники|find|recommend|show|play|please|me|a|some|stations?|radio|from|but)(?=$|[^\p{L}])/giu, ' ')
+    .replace(/(?:^|[^\p{L}])(?:найди|подбери|посоветуй|покажи|хочу|включи|поставь|поищи|пожалуйста|мне|а|но|из|только|станцию|станции|радио|источники|find|recommend|show|play|please|me|a|some|stations?|radio|from|but)(?=$|[^\p{L}])/giu, ' ')
     // Adjacent filler words may share the boundary consumed by the first pass.
     .replace(/(?:^|[^\p{L}])(?:мне|а|но|из|станцию|станции|радио|please|me|a|some|stations?|radio|from|but)(?=$|[^\p{L}])/giu, ' ');
   return /[\p{L}\p{N}]/u.test(remaining);
