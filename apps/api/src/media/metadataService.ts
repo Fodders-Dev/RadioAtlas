@@ -189,6 +189,9 @@ const fetchMetadataPayload = async (
           ? await readJsonWithLimit(response, options.fetchResponseLimitBytes)
           : await readTextWithLimit(response, options.fetchResponseLimitBytes);
       } finally {
+        // A non-ok or partially read body may still be a live radio response.
+        // Stop its transport before detaching the probe's deadline/signal.
+        abort.abort();
         cleanup();
       }
     } catch {

@@ -294,8 +294,15 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
       return;
     }
 
+    if (res.destroyed) return;
+    const clientAbort = new AbortController();
+    const abortClient = () => clientAbort.abort(new Error('stream client disconnected'));
+    res.once('close', abortClient);
     try {
-      const result = await guard.run(manifestKey, async () => {
+      // Each fetch belongs to this client's cancellation lifetime. Sharing an
+      // in-flight manifest would let one disconnected client abort another's
+      // response. Completed manifests still use the bounded cache above.
+      const result = await guard.run(null, async () => {
         const headers: Record<string, string> = {
           'User-Agent': options.userAgent
         };
@@ -309,7 +316,7 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
           try {
             const response = await fetchCandidate(
               candidate,
-              { headers },
+              { headers, signal: clientAbort.signal },
               // The speculative https:// upgrade carries a SHORT deadline of its
               // own; only the real target is worth the full upstream timeout.
               proxyTimeoutMs(options)
@@ -325,6 +332,7 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
             upstream = response;
             break;
           } catch (error) {
+            if (clientAbort.signal.aborted) throw error;
             // A failed upgrade is remembered per host, so the next station on
             // that server starts at plain-HTTP speed instead of paying the probe
             // again.
@@ -372,6 +380,11 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
           acceptRanges: upstream.headers.get('accept-ranges')
         } satisfies StreamLiveResult;
       });
+
+      if (clientAbort.signal.aborted || res.destroyed) {
+        if (result.kind === 'stream') await result.body.cancel().catch(() => {});
+        return;
+      }
 
       if (manifestKey && result.kind === 'manifest') {
         guard.setCached(manifestKey, result, result.cacheTtlMs);
@@ -437,6 +450,7 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
       );
       res.on('close', stopStallWatch);
     } catch (error) {
+      if (clientAbort.signal.aborted || res.destroyed) return;
       if (error instanceof MediaOverloadError) {
         res.setHeader('Retry-After', String(error.retryAfterSec));
         sendStreamFailure(res, 503, parsed.target, error.message, {
@@ -450,6 +464,8 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
         parsed.target,
         error instanceof Error ? error.message : 'stream upstream failed'
       );
+    } finally {
+      res.off('close', abortClient);
     }
   };
 };

@@ -405,7 +405,7 @@ const pickAddressByFamily = (
   );
 };
 
-// Per-request Agent. Caller MUST `await agent.close()` in finally so
+// Per-request Agent. Caller MUST dispose it after the response body settles so
 // pooled sockets drain after the fetch settles. Connection-pool reuse
 // across requests is intentionally NOT preserved — pinning correctness
 // trumps the marginal connection-reuse win for our single-shot media
@@ -492,7 +492,7 @@ const MAX_REDIRECT_HOPS = 5;
 const isRedirectStatus = (status: number) => status >= 300 && status < 400;
 
 // Cancelling the body settles the agent-disposal wrapper (wrapResponseWithAgentDisposal),
-// which is the ONLY thing that fires the pinned undici Agent's close(). Any caller that
+// which is the ONLY thing that disposes the pinned undici Agent. Any caller that
 // abandons a response without reading it must drain it, or it leaks a socket + Agent.
 export const drainResponseBody = async (response: Response) => {
   if (!response.body) return;
@@ -528,7 +528,7 @@ const guardedFetchWithRedirects = async (
       // Tear down the prior hop's agent BEFORE the next fetch so we
       // never hold two sockets open for the same request.
       if (currentAgent) {
-        await currentAgent.close().catch(() => {});
+        await currentAgent.destroy().catch(() => {});
       }
       currentAgent = agent;
 
@@ -539,7 +539,7 @@ const guardedFetchWithRedirects = async (
         ...(agent ? { dispatcher: agent } : {})
       });
       if (!isRedirectStatus(response.status)) {
-        // Final response — wrap so agent.close() fires when the body
+        // Final response — wrap so the agent is disposed when the body
         // settles. Transfer ownership; set currentAgent to null so
         // the outer finally doesn't double-close.
         const final = currentAgent
@@ -577,7 +577,7 @@ const guardedFetchWithRedirects = async (
     }
   } catch (error) {
     if (currentAgent) {
-      await currentAgent.close().catch(() => {});
+      await currentAgent.destroy().catch(() => {});
     }
     throw error;
   }
@@ -586,19 +586,24 @@ const guardedFetchWithRedirects = async (
 // Attaches agent disposal to the response body lifecycle. Response
 // instances are immutable (the body property is read-only) so we
 // build a fresh Response whose body is a pull-stream that proxies
-// the original body and fires agent.close() exactly once when the
-// caller has read (or cancelled) it. close() fires whether the
-// caller awaits arrayBuffer/text/json (full read to completion) or
-// cancels partway through.
+// the original body and disposes the agent exactly once when the
+// caller has read (or cancelled) it. Disposal is graceful at end of stream and
+// immediate on cancellation so a live radio socket cannot remain open. This
+// works whether the caller awaits arrayBuffer/text/json (full read to
+// completion) or cancels partway through.
 const wrapResponseWithAgentDisposal = (
   response: { body: ReadableStream | null; status: number; statusText: string; headers: Headers },
   agent: Agent
 ): Response => {
   let disposed = false;
-  const dispose = () => {
-    if (disposed) return;
+  let disposal: Promise<void> | undefined;
+  const dispose = (abrupt = false) => {
+    if (disposed) return disposal;
     disposed = true;
-    void agent.close().catch(() => {});
+    // Graceful close waits for active requests. A cancelled infinite radio
+    // request will never finish by itself, so it must destroy its transport.
+    disposal = (abrupt ? agent.destroy() : agent.close()).catch(() => {});
+    return disposal;
   };
   if (!response.body) {
     // No body to wait on — drop the agent now. The headers-only
@@ -607,29 +612,36 @@ const wrapResponseWithAgentDisposal = (
     dispose();
     return response as unknown as Response;
   }
-  const upstream = response.body;
+  const reader = response.body.getReader();
+  const release = () => {
+    try { reader.releaseLock(); } catch { /* a pending read owns the lock */ }
+  };
   const wrappedBody = new ReadableStream({
-    async start(controller) {
-      const reader = upstream.getReader();
+    async pull(controller) {
+      if (disposed) return;
       try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
+        const { value, done } = await reader.read();
+        if (disposed) return; // cancellation may race the pending read
+        if (done) {
+          controller.close();
+          release();
+          await dispose();
+        } else {
           controller.enqueue(value);
         }
-        controller.close();
       } catch (err) {
-        controller.error(err);
-      } finally {
-        reader.releaseLock();
-        dispose();
+        if (!disposed) {
+          controller.error(err);
+          release();
+          await dispose(true);
+        }
       }
     },
-    cancel() {
-      // Best-effort upstream cancel — if it throws (stream already
-      // closed), we still need to dispose the agent.
-      void upstream.cancel().catch(() => {});
-      dispose();
+    async cancel(reason) {
+      const closing = dispose(true);
+      // The reader, rather than its locked stream, owns cancellation.
+      try { await reader.cancel(reason); } catch { /* transport already gone */ }
+      finally { release(); await closing; }
     }
   });
   return new Response(wrappedBody, {
@@ -666,7 +678,7 @@ const runFetch = async (
       : (response as unknown as Response);
   } catch (error) {
     if (agent) {
-      await agent.close().catch(() => {});
+      await agent.destroy().catch(() => {});
     }
     throw error;
   }
@@ -680,7 +692,10 @@ export const fetchWithTimeout = async (
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await runFetch(url, init, controller.signal);
+    // Keep caller cancellation linked after headers too; the header deadline
+    // can end while a live body continues for hours.
+    const signal = init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal;
+    return await runFetch(url, init, signal);
   } finally {
     clearTimeout(timeout);
   }
