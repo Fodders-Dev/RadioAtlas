@@ -1,0 +1,61 @@
+{
+  "atUtc": "2026-10-02T10:58:32.426Z",
+  "expectedSha": "c8146a4",
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-DYjukvGQ.js",
+  "state": "radio-state-BljknPQo.js",
+  "publicBuildVerified": true,
+  "modelCalls": 0,
+  "modelCallsEvidence": "Two closed deterministic server branches; no action execution.",
+  "probes": [
+    {
+      "message": "Одна фанк и одна эмбиент. Не включай.",
+      "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "cards": [
+        {
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "name": "BBC Radio 6 Music",
+          "tags": [
+            "blues",
+            "dance",
+            "electronic",
+            "funk",
+            "hip hop",
+            "house"
+          ],
+          "country": "The United Kingdom Of Great Britain And Northern Ireland"
+        },
+        {
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ],
+          "country": "The United States Of America"
+        }
+      ],
+      "actions": [
+        "open-station"
+      ],
+      "status": "completed",
+      "elapsedMs": 422
+    },
+    {
+      "message": "Не предлагай другой стиль — фанк.",
+      "reply": "Хорошо, новую подборку станций не делаю.",
+      "cards": [],
+      "actions": [
+        "none"
+      ],
+      "status": "completed",
+      "elapsedMs": 50
+    }
+  ]
+}

@@ -4,13 +4,18 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
-**02.10 — релевантность/основания Лиры готовы к серверному выпуску.**
+**02.10 — релевантность/основания Лиры опубликованы: `c8146a4`.**
 784 API, оба typecheck/build, 21 offline contracts; ревью Astra.
 Закрытый $3 прогон: 28 реплик/57 calls, upper $0.19123368, reserved 0.
 Sonic→jungle→funk→«и?» даёт 3→2→1→1, house→deep house 2→2, без play.
 [Доказательства и ограничения](LIRA-RELEVANCE-2026-10-02.md).
-Следом same-SHA CI/deploy; затем семантика неоднозначных свободных просьб,
-не новая композиция. Lira Studio остаётся локальным и не входит в выпуск.
+Same-SHA CI `36996739879` и deploy `36996739692` successful: API 784,
+unit 900, functional 432/7. Public health/build SHA/RU symlink проверены;
+два бесплатных public smoke: жанровая пара без Play и отмена подбора.
+Pixel 13/5, все 12 PNG совпадают с предыдущим CI по SHA256.
+Следом [семантика неоднозначных свободных просьб](LIRA-NEXT-SEMANTICS-2026-10-02.md),
+не новая композиция. Paid ledger закрыт, новый прогон требует нового бюджета.
+Lira Studio остаётся локальным и не входит в выпуск.
 
 **02.10 — server-only `279842b` опубликован: названные карточки и зеркала.**
 750 API tests, оба typecheck, API build, 21 offline contracts; ревью Astra.

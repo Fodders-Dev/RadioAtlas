@@ -59,14 +59,18 @@
 
 ## Next: быстрый перебор живых эфиров (14.09.2026, направление DISCOVERY-DIRECTION)
 
-**02.10 — релевантность и проверенные основания Лиры готовы к выпуску.**
+**02.10 — релевантность и проверенные основания Лиры опубликованы: `c8146a4`.**
 Explicit style refinement/repair, собственный жанр до cap, зеркала и count,
 JSON выбор собственных признаков вместо свободных утверждений, честный underfill.
 784 API tests, оба typecheck/build, 21 offline contracts; независимое Astra review.
 Новый $3 ledger закрыт: 28 реплик/57 calls, upper $0.19123368, reserved 0.
 Refine 3→2→1→1, house→deep house 2→2; NoPlay/страна сохраняются.
 [Результат, сырые ответы и ограничения](docs/LIRA-RELEVANCE-2026-10-02.md).
-Следом exact-SHA CI/deploy. Далее — качество свободной семантики/уточнения,
+Same-SHA CI `36996739879` и deploy `36996739692` successful: API 784,
+webapp unit 900, functional 432/7. Public health, build SHA и RU symlink
+подтверждены; два бесплатных public smoke без model calls и запуска звука.
+Pixel 13/5: все 12 PNG побайтно совпадают с прошлым CI, эталоны не менялись.
+Далее — [качество свободной семантики/уточнения](docs/LIRA-NEXT-SEMANTICS-2026-10-02.md),
 различение справки и подбора; новый paid run только с новым бюджетом.
 Lira Studio не включать. Sonic→широкий EDM остаётся воспроизводимой границей.
 
