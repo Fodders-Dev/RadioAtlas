@@ -110,6 +110,15 @@ const queryWantsTalk = (query: string, tag?: string): boolean =>
 
 const normalizePlace = (value?: string | null) => String(value || '').trim().toLowerCase();
 
+// Keep regular-search card compaction aligned with collectVerifiedStations:
+// codec/bitrate suffixes and punctuation don't make a second visible station.
+const collectorStationNameKey = (name: string): string => name
+  .toLowerCase()
+  .replace(/(?:^|\s)[[(]?(?:hd|hq|opus|aac|mp3|ogg|flac|128k|192k|256k|320k)[)\]]?(?=\s|$)/g, ' ')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 const toRef = (station: CatalogStationLite): VerifiedStationRef => {
   const fullTags = parseCatalogueTagEvidence(station.tags);
   const ref: VerifiedStationRef = {
@@ -232,6 +241,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     const enoughCards = (rows: CatalogStationLite[]) => {
       const ids = new Set<string>();
       const streams = new Set<string>();
+      const names = new Set<string>();
       const identities = new Set<string>();
       const candidates = rows.filter(station => {
         if (!station.url_resolved || ids.has(station.stationuuid) || isExcluded(station) ||
@@ -239,10 +249,13 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
             (canonicalCountry && knownSourceCountry(station.country || '') !== canonicalCountry)) return false;
         ids.add(station.stationuuid);
         const stream = stationStreamIdentity({ url_resolved: station.url_resolved });
+        const name = collectorStationNameKey(station.name || '');
         const identity = nearStationIdentity({ name: station.name, country: station.country || '' });
-        if (streams.has(stream) || (identity && identities.has(identity))) return false;
+        if (streams.has(stream) || (name && names.has(name)) ||
+            (excludedIds.length && identity && identities.has(identity))) return false;
         streams.add(stream);
-        if (identity) identities.add(identity);
+        if (name) names.add(name);
+        if (excludedIds.length && identity) identities.add(identity);
         return true;
       });
       const hits = placeTerm ? candidates.filter(station => placeMatchesQuery(station, placeTerm)) : [];
@@ -296,19 +309,20 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
           return placeHits.some((hit) => normalizePlace(hit.country) === country);
         })
       : items;
-    if (excludedIds.length) {
-      const streams = new Set<string>();
-      const identities = new Set<string>();
-      return grounded.filter(station => {
-        const stream = stationStreamIdentity({ url_resolved: station.url_resolved || '' });
-        const identity = nearStationIdentity({ name: station.name, country: station.country || '' });
-        if (streams.has(stream) || (identity && identities.has(identity))) return false;
-        streams.add(stream);
-        if (identity) identities.add(identity);
-        return true;
-      }).slice(0, limit).map(toRef);
-    }
-    return grounded.slice(0, limit).map(toRef);
+    const streams = new Set<string>();
+    const names = new Set<string>();
+    const identities = new Set<string>();
+    return grounded.filter(station => {
+      const stream = stationStreamIdentity({ url_resolved: station.url_resolved || '' });
+      const name = collectorStationNameKey(station.name || '');
+      const identity = nearStationIdentity({ name: station.name, country: station.country || '' });
+      if (streams.has(stream) || (name && names.has(name)) ||
+          (excludedIds.length && identity && identities.has(identity))) return false;
+      streams.add(stream);
+      if (name) names.add(name);
+      if (excludedIds.length && identity) identities.add(identity);
+      return true;
+    }).slice(0, limit).map(toRef);
   },
   getStation: async (id) => {
     if (!id) return null;

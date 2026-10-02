@@ -146,3 +146,75 @@ test('relevance tag matching is word-aware — "soul" does not reward "Seoul"', 
   const ids = buildSearchResponse(stations, f({ q: 'soul', relevance: true })).items.map((s) => s.stationuuid);
   assert.equal(ids[0], 'soul');
 });
+
+test('tag-only relevance is seed-independent, relevance-first, quality-tied, and paginated', () => {
+  const stations = attachSearchIndex([
+    station({ stationuuid: 'exact-low', name: 'Channel A', tags: 'soul', lastcheckok: 1, votes: 1 }),
+    station({ stationuuid: 'multi-high', name: 'Channel B', tags: 'neo soul', lastcheckok: 1, votes: 1e12 }),
+    station({ stationuuid: 'partial-high', name: 'Channel C', tags: 'soulful', lastcheckok: 1, votes: 1e15 }),
+    station({ stationuuid: 'exact-high', name: 'Channel D', tags: 'soul', lastcheckok: 1, votes: 100 })
+  ]);
+  const base = { q: '', tag: 'soul', relevance: true, limit: 2, cursor: 0 };
+  const firstSeed = buildSearchResponse(stations, f({ ...base, seed: 11 }));
+  const anotherSeed = buildSearchResponse(stations, f({ ...base, seed: 42 }));
+  assert.deepEqual(firstSeed.items.map(row => row.stationuuid), ['exact-high', 'exact-low']);
+  assert.deepEqual(anotherSeed.items.map(row => row.stationuuid), ['exact-high', 'exact-low']);
+  assert.equal(firstSeed.nextCursor, '2');
+
+  const secondPage = buildSearchResponse(stations, f({ ...base, cursor: 2, seed: 999 }));
+  assert.deepEqual(secondPage.items.map(row => row.stationuuid), ['multi-high', 'partial-high']);
+  assert.equal(secondPage.nextCursor, null);
+});
+
+test('same-genre relevance stays ahead of popularity, while ordinary typed search stays quality-first', () => {
+  const stations = attachSearchIndex([
+    station({ stationuuid: 'exact-tag', name: 'Midnight Radio', tags: 'jazz', lastcheckok: 1,
+      bitrate: 128, codec: 'MP3', votes: 1 }),
+    station({ stationuuid: 'name-only', name: 'Jazz Forever', tags: 'pop', lastcheckok: 1,
+      bitrate: 128, codec: 'MP3', votes: 1e12 })
+  ]);
+  assert.deepEqual(
+    buildSearchResponse(stations, f({ q: 'jazz', relevance: true })).items.map(row => row.stationuuid),
+    ['exact-tag', 'name-only']
+  );
+  assert.deepEqual(
+    buildSearchResponse(stations, f({ q: 'jazz', relevance: false })).items.map(row => row.stationuuid),
+    ['name-only', 'exact-tag']
+  );
+});
+
+test('catalogue-confirmed failed stations sink below nonfailed stations across relevance tiers', () => {
+  const stations = attachSearchIndex([
+    station({ stationuuid: 'dead-exact', name: 'Midnight Radio', tags: 'jazz', lastcheckok: 0,
+      bitrate: 128, codec: 'MP3', votes: 1 }),
+    station({ stationuuid: 'live-keyword', name: 'Jazz Forever', tags: 'pop', lastcheckok: 1,
+      bitrate: 128, codec: 'MP3', votes: 1e12 }),
+    station({ stationuuid: 'unknown-keyword', name: 'Jazz Unknown', tags: 'pop', lastcheckok: undefined,
+      bitrate: 0, codec: '', votes: 1 })
+  ]);
+  const ids = buildSearchResponse(stations, f({ q: 'jazz', relevance: true })).items.map(row => row.stationuuid);
+  assert.deepEqual(ids, ['live-keyword', 'unknown-keyword', 'dead-exact']);
+});
+
+test('q and tag use their own evidence; Tokyo location still outranks a name-only match', () => {
+  const stations = attachSearchIndex([
+    station({ stationuuid: 'tokyo-station', name: 'Music Mix', country: 'Japan', state: 'Tokyo', tags: 'jazz',
+      lastcheckok: 1, votes: 1 }),
+    station({ stationuuid: 'tokyo-name', name: 'Radio Tokyo', country: 'Greece', tags: 'jazz',
+      lastcheckok: 1, votes: 1e12 })
+  ]);
+  const ids = buildSearchResponse(stations, f({ q: 'tokyo', tag: 'jazz', relevance: true })).items.map(row => row.stationuuid);
+  assert.deepEqual(ids, ['tokyo-station', 'tokyo-name']);
+});
+
+test('opt-in relevance with empty query and tag retains seeded browse behavior', () => {
+  const browse = attachSearchIndex(Array.from({ length: 16 }, (_, index) => station({
+    stationuuid: `empty-browse-${index}`, name: `Station ${index}`, tags: 'music',
+    lastcheckok: 1, bitrate: 128, codec: 'MP3', votes: 10, clickcount: 10
+  })));
+  const filters = f({ relevance: true, limit: 8, cursor: 0, seed: 11 });
+  assert.deepEqual(
+    buildSearchResponse(browse, filters).items.map(row => row.stationuuid),
+    buildSearchResponse(browse, { ...filters, relevance: false }).items.map(row => row.stationuuid)
+  );
+});

@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-02T10:30:48.512Z",
+  "scenario": "nonmusic",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-v3",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется вечером пиццы",
+      "reply": "Это сразу тёплый вечер: пицца, мягкий свет, и чтобы музыка не спорила с настроением. Под такое я бы включила что-то ненавязчивое, но с характером — соул или лёгкий джаз, чтобы жевалось вкуснее.\n\nСкажи, какое настроение у вечера — уютное, ленивое или хочется чуть огонька?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "cc1d0663-afec-40c8-824a-a841247d3ba2:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 4682,
+      "usage": {
+        "prompt": 4136,
+        "completion": 156
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "И — сырная корочка, бокс с сериалом и станция, под которую даже коробка открывается красивее. Давай подберём под твой вечер.\n\nТебе сейчас уютного фона или хочется, чтобы музыка чуть подталкивала — потанцевать у плиты, пока пицца греется?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "8a1c3872-4168-49fe-82ad-bb08dfc47c98:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 4391,
+      "usage": {
+        "prompt": 4358,
+        "completion": 142
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "944fac58-984e-46c6-b7dc-bef2e89b19cf",
+      "status": "settled",
+      "requestBytes": 10060,
+      "reserveUsd": 0.02264592,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Пользователь выражает желание поесть пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.00292908,
+      "httpStatus": 200,
+      "promptTokens": 2057,
+      "completionTokens": 54
+    },
+    {
+      "reservationId": "2174450e-6c73-4431-9d7b-bfdbea6f7aa7",
+      "status": "settled",
+      "requestBytes": 11334,
+      "reserveUsd": 0.0243276,
+      "responseContent": "О, это сразу тёплый вечер: пицца, мягкий свет, и чтобы музыка не спорила с настроением. Под такое я бы включила что-то ненавязчивое, но с характером — соул или лёгкий джаз, чтобы жевалось вкуснее.\n\nСкажи, какое настроение у вечера — уютное, ленивое или хочется чуть огонька?",
+      "actualUsd": 0.0031482,
+      "httpStatus": 200,
+      "promptTokens": 2079,
+      "completionTokens": 102
+    },
+    {
+      "reservationId": "7856f840-73aa-4263-81a7-f13577134144",
+      "status": "settled",
+      "requestBytes": 10659,
+      "reserveUsd": 0.0234366,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": null,\n  \"args\": {},\n  \"note\": \"Пользователь хочет пиццу, это не запрос на музыку. Отвечаю в разговорном ключе.\"\n}",
+      "actualUsd": 0.00310992,
+      "httpStatus": 200,
+      "promptTokens": 2173,
+      "completionTokens": 61
+    },
+    {
+      "reservationId": "83e19432-666b-4e34-b917-672aebdfb3e6",
+      "status": "settled",
+      "requestBytes": 11891,
+      "reserveUsd": 0.02506284,
+      "responseContent": "И — сырная корочка, бокс с сериалом и станция, под которую даже коробка открывается красивее. Давай подберём под твой вечер.\n\nТебе сейчас уютного фона или хочется, чтобы музыка чуть подталкивала — потанцевать у плиты, пока пицца греется?",
+      "actualUsd": 0.00320496,
+      "httpStatus": 200,
+      "promptTokens": 2185,
+      "completionTokens": 81
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

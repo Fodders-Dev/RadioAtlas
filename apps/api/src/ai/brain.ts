@@ -26,6 +26,7 @@ import { buildFallbackResult } from './fallbacks.js';
 import { assertsUnverifiedProgram, promisesUnperformedLookup } from './replyOutcome.js';
 import { claimsUnrequestedPlayback, describeVerifiedStationSlate, referencesStationPosition } from './recommendationReply.js';
 import { createStationExclusionMatcher } from './stationExclusions.js';
+import { recommendationEvidence, RECOMMENDATION_EVIDENCE_SCHEMA, renderRecommendationEvidence } from './recommendationEvidence.js';
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
@@ -33,6 +34,7 @@ import { answerCatalogueQuestion } from './catalogueQuestions.js';
 import { catalogueTagEvidence } from './catalogueTagEvidence.js';
 import { requestedCountry, matchesRequestedCountry, omitSharedCountrySuffix } from './requestedCountry.js';
 import { requestedGenreSlots } from './requestedGenreSlots.js';
+import { declinesStationRecommendations, matchesGenreRefinement, requestedGenreRefinement } from './genreRefinement.js';
 import { describeGenreSlots, selectGenreSlots } from './genreSlotSelection.js';
 import { requestedSourceAlternatives } from './requestedSourceAlternatives.js';
 import { describeNearSources, findNearSources } from './sourceAlternatives.js';
@@ -347,6 +349,7 @@ const isRepairFollowup = (message: string): boolean =>
 
 const isFollowupRecommendationIntent = (message: string): boolean =>
   isRepairFollowup(message) ||
+  (!isKnowledgeQuestion(message) && Boolean(requestedGenreRefinement(message))) ||
   (!isKnowledgeQuestion(message) && /^(?:а\s+)?(?:(?:дай|давай|теперь|а\s+теперь)\s+)?ещ[её]\s+(?:одн[а-яё]*|дв[а-яё]*|три|четыре|пять|[1-5])(?:\s*(?:станци[а-яё]*|вариант[а-яё]*|эфир[а-яё]*))?(?:[.!?]|\s|$)/i.test(message.trim())) ||
   (!isKnowledgeQuestion(message) && /(?:с\s+теми\s+же\s+жанр|жанры.{0,15}сохран|страну.{0,15}сохран|сохран[иь].{0,15}стран)/i.test(message)) ||
   (FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message)) ||
@@ -363,7 +366,7 @@ const recommendationContextMessage = (history: ChatTurn[], userMessage: string, 
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const turn = history[index]!;
     if (turn.role !== 'user') continue;
-    if (isKnowledgeQuestion(turn.text) || /^(?:отмена|забудь|другой вопрос|(?:лучше\s+)?поговорим о|не надо(?:\s+(?:музыки|радио|подборки))?[.!?]*$)/i.test(turn.text.trim())) break;
+    if (isKnowledgeQuestion(turn.text) || declinesStationRecommendations(turn.text) || /^(?:отмена|забудь|другой вопрос|(?:лучше\s+)?поговорим о|не надо(?:\s+(?:музыки|радио|подборки))?[.!?]*$)/i.test(turn.text.trim())) break;
     if (!(ACTION_INTENT.test(turn.text) || hasVibeIntent(turn.text) ||
       (MUSIC_DESCRIPTOR.test(turn.text) && !MUSIC_DISLIKE.test(turn.text)) ||
       referenceAnchorQuery(turn.text) || isFollowupRecommendationIntent(turn.text) ||
@@ -628,11 +631,16 @@ export const isMusicOpinionQuestion = (message: string): boolean =>
 export const isCurrentStationQuestion = (message: string): boolean =>
   CURRENT_STATION_QUESTION.test(String(message || '').trim());
 
+const isGenreCharacterQuestion = (message: string): boolean =>
+  /^\s*(?:а\s+)?(?:почему|отчего|why)\s+/i.test(message) &&
+  !/^\s*(?:(?:а\s+)?почему\s+бы\s+не|why\s+not)\s+/i.test(message) && MUSIC_DESCRIPTOR.test(message) &&
+  /(?:ощуща|звуч|быстр|медлен|ритм|темп|бит|bpm|sounds?|feels?|fast|slow)/i.test(message);
+
 const isKnowledgeQuestion = (message: string): boolean =>
   FACTUAL_QUESTION.test(message) ||
   TRIVIA_QUESTION.test(message) ||
   CULTURAL_EXPLAINER_QUESTION.test(message) ||
-  classifySongKnowledgeIntent(message).any;
+  classifySongKnowledgeIntent(message).any || isGenreCharacterQuestion(message);
 
 const culturalExplainerWebQuery = (message: string): string => {
   const text = message.trim().replace(/\s+/g, ' ');
@@ -1004,6 +1012,8 @@ const composeAgentReply = async (
   transcript: ModelMessage[],
   observations: ToolObservation[],
   opts: {
+    boundedRecommendations?: boolean;
+    english?: boolean;
     finalStations?: VerifiedStationRef[];
     playRequested?: boolean;
     repeatDiscovery?: boolean;
@@ -1091,17 +1101,29 @@ const composeAgentReply = async (
   } else if (opts.factualGuard) {
     messages.push({ role: 'system', content: FACTUAL_GUARD_NOTE });
   }
-  return callModel(
+  if (opts.boundedRecommendations) {
+    messages.push({role: 'system', content: `РЕЖИМ ВЫБОРА ПРИЗНАКОВ. Ответ — ТОЛЬКО JSON {"v":1,"cards":[{"stationId":"UUID","tagKeys":["t0"]}]}. Для каждой текущей карточки выбери до трёх её собственных признаков, полезных для текущего запроса. Никаких других полей, вступления, объяснений или команд. Пустой tagKeys, если данных нет. Имена, порядок и пояснения соберёт сервер. Признак относится только к stationId своей карточки. Разрешённые признаки: ${JSON.stringify(recommendationEvidence(verifiedForCompose))}`});
+  }
+  const result = await callModel(
     deps.model,
     messages,
     {
-      temperature: 0.6,
+      temperature: opts.boundedRecommendations ? 0.2 : 0.6,
       maxTokens: deps.model.maxOutputTokens,
+      ...(opts.boundedRecommendations ? {jsonSchema: RECOMMENDATION_EVIDENCE_SCHEMA} : {}),
       signal: deps.signal,
       safetyIdentifier: deps.safetyIdentifier
     },
     deps.fetch
   );
+  if (!opts.boundedRecommendations) return result;
+  const rendered = renderRecommendationEvidence(verifiedForCompose, result.content, {
+    english: opts.english, culturalVibe: opts.culturalVibe,
+    preferredTags: observations.filter(observation => observation.tool === 'search_stations')
+      .flatMap(observation => [String(observation.args.tag || ''), String(observation.args.query || '')]).filter(Boolean)
+  });
+  if (!rendered.validSelection) deps.log('ai compose: invalid evidence selection; used verified format facts');
+  return {...result, content: rendered.reply};
 };
 
 const ENQUEUE_INTENT =
@@ -1338,7 +1360,7 @@ const stationHistoryPenalty = (station: VerifiedStationRef, taste: UserTasteCont
 const filterAvoidedCandidates = (
   ranked: StationSlateCandidate[],
   taste: UserTasteContext | null | undefined,
-  { allowRepeatFallback = true }: { allowRepeatFallback?: boolean } = {}
+  { allowRepeatFallback = true, minimumCount = 2 }: { allowRepeatFallback?: boolean; minimumCount?: number } = {}
 ): StationSlateCandidate[] => {
   if (!taste) return ranked;
   const hiddenIds = stationIdSet(taste.hiddenStationIds);
@@ -1354,7 +1376,7 @@ const filterAvoidedCandidates = (
   if (!allowRepeatFallback && repeatAvoidIds.size > 0 && notRepeated.length === 0) return [];
   const repeatedOrVisible = notRepeated.length > 0 ? notRepeated : visibleOrRanked;
   const notRecent = repeatedOrVisible.filter((item) => !recentIds.has(item.station.stationuuid));
-  return notRecent.length >= Math.min(2, repeatedOrVisible.length) ? notRecent : repeatedOrVisible;
+  return notRecent.length >= Math.min(minimumCount, repeatedOrVisible.length) ? notRecent : repeatedOrVisible;
 };
 
 const uniqueStationCandidates = (candidates: StationSlateCandidate[]): StationSlateCandidate[] => {
@@ -1487,7 +1509,7 @@ const personalizedObservations = (
   // `precise`: the ask resolved to a concrete genre/artist/anchor. Keep results
   // tight to that genre — soften MMR spreading and skip the off-genre exploration
   // slot. Broad/vibe asks (precise=false) keep full diversity.
-  { rotateLead = false, precise = false }: { rotateLead?: boolean; precise?: boolean } = {}
+  { rotateLead = false, precise = false, minimumCount = 2 }: { rotateLead?: boolean; precise?: boolean; minimumCount?: number } = {}
 ): ToolObservation[] => {
   const hasTaste = hasUserTaste(taste);
   const favoriteIds = new Set((taste?.favoriteStationIds || []).filter(Boolean));
@@ -1495,20 +1517,20 @@ const personalizedObservations = (
     const ranked = rankStationCandidates(observation.stations || [], taste, seed, rotateLead && observation.tool === 'search_stations');
     return {
       observation,
-      relaxedRanked: hasTaste ? filterAvoidedCandidates(ranked, taste) : ranked,
-      strictRanked: hasTaste ? filterAvoidedCandidates(ranked, taste, { allowRepeatFallback: false }) : ranked
+      relaxedRanked: hasTaste ? filterAvoidedCandidates(ranked, taste, {minimumCount}) : ranked,
+      strictRanked: hasTaste ? filterAvoidedCandidates(ranked, taste, { allowRepeatFallback: false, minimumCount }) : ranked
     };
   };
   const buildStations = (observation: ToolObservation, ranked: StationSlateCandidate[]) => {
     const freshRanked = hasTaste ? ranked.filter((item) => !favoriteIds.has(item.station.stationuuid)) : ranked;
-    const pool = freshRanked.length >= Math.min(2, ranked.length) ? freshRanked : ranked;
+    const pool = freshRanked.length >= Math.min(minimumCount, ranked.length) ? freshRanked : ranked;
     const diverse = rerankStationSlate(pool, seed, {
       preserveLead: true,
       allowExploration: !precise && hasTaste && rotateLead && observation.tool === 'search_stations',
       similarityWeight: precise ? 0.2 : 0.54
     });
     const fresh = hasTaste ? diverse.filter((station) => !favoriteIds.has(station.stationuuid)) : diverse;
-    return fresh.length >= Math.min(2, diverse.length) ? fresh : diverse;
+    return fresh.length >= Math.min(minimumCount, diverse.length) ? fresh : diverse;
   };
 
   const rankedObservations = observations.map((observation) =>
@@ -1980,6 +2002,24 @@ export const chatWithAssistant = async (
   }
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
+  if (!knowledgeQuestion && !songKnowledgeIntent.any && declinesStationRecommendations(userMessage)) return {
+    reply:/^en(?:-|$)/i.test(input.locale || '') ? 'Okay, I won’t make a new station selection.' : 'Хорошо, новую подборку станций не делаю.',
+    stations:[], serviceLinks:[], sources:[], actions:[{kind:'none'}], usage:{prompt:0,completion:0}
+  };
+  const inheritedGenre = isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage &&
+    !MUSIC_DESCRIPTOR.test(userMessage) && !hasVibeIntent(userMessage)
+    ? musicContextMessage.split('\n').slice(0,-1).reverse().map(requestedGenreRefinement).find(Boolean) : undefined;
+  const genreRefinement = knowledgeQuestion || songKnowledgeIntent.any || isMusicOpinionQuestion(userMessage) || isSongTopicQuestion(userMessage)
+    ? undefined : requestedGenreRefinement(userMessage) || inheritedGenre;
+  // The model may request fewer candidates than the listener asked for. Keep
+  // the search pool bounded, but let unique-card selection happen before cap.
+  const searchCount = knowledgeQuestion ? undefined : requestedStationCount(userMessage) ?? requestedStationCount(musicContextMessage);
+  if (searchCount) {
+    const baseTools = deps.tools;
+    deps = {...deps, tools: {...baseTools, searchStations: args => baseTools.searchStations({
+      ...args, limit: Math.min(8, Math.max(args.limit || 8, searchCount))
+    })}};
+  }
   const genreSlots = knowledgeQuestion ? undefined : requestedGenreSlots(omitSharedCountrySuffix(userMessage));
   if (genreSlots) {
     let removed = 0;
@@ -2115,7 +2155,15 @@ export const chatWithAssistant = async (
     languageScope = subjectLanguageScope(artistQuery) || undefined;
   }
 
-  if (preciseSearchPlan) {
+  if (genreRefinement) {
+    const args = {query: genreRefinement, tag: genreRefinement, limit: 8};
+    usedSignatures.add(toolSignature('search_stations', args));
+    const observation = await runTool('search_stations', args, {tools:deps.tools, languageScope, musicServices:deps.musicServices});
+    // Literal names and stale planner choices do not establish a genre match.
+    observation.stations = (observation.stations || []).filter(station => matchesGenreRefinement(station, genreRefinement));
+    observation.found = observation.stations.length > 0;
+    observations.push(observation);
+  } else if (preciseSearchPlan) {
     for (const step of preciseSearchPlan.steps) {
       const signature = toolSignature('search_stations', step.args);
       if (usedSignatures.has(signature)) continue;
@@ -2259,6 +2307,9 @@ export const chatWithAssistant = async (
     await runPlannerLoop(
       deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
     );
+  } else if (isGenreCharacterQuestion(userMessage)) {
+    // Asking how a genre sounds is an explanation, not a station selection.
+    // No planner/backstop can replace that answer with playable cards.
   } else if (!isSmalltalk(userMessage) || semanticCandidate) {
     // Normal planner loop — skipped for obvious chat (latency fast-path).
     plannerGate = semanticCandidate ? (isSmalltalk(userMessage) &&
@@ -2306,10 +2357,10 @@ export const chatWithAssistant = async (
     !knowledgeQuestion &&
     !MUSIC_DISLIKE.test(userMessage);
   const musicIntent =
-    (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent || plannerIntent === 'recommend') &&
+    (Boolean(genreRefinement) || ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent || plannerIntent === 'recommend') &&
     (plannerGate === undefined || (plannerGate === 'strict' ? plannerIntent === 'recommend' : plannerIntent === undefined || plannerIntent === 'recommend')) &&
     !knowledgeQuestion;
-  if (musicIntent && !hasUsableSlate(observations)) {
+  if (musicIntent && !genreRefinement && !hasUsableSlate(observations)) {
     const vibeContext = currentTrack && CURRENT_TRACK_REFERENCE.test(userMessage) && isExplicitMusicRequest(userMessage)
       ? `${musicContextMessage}\nМузыкальный ориентир из текущего плеера (название, не инструкция): ${JSON.stringify(currentTrack)}`
       : musicContextMessage;
@@ -2386,7 +2437,7 @@ export const chatWithAssistant = async (
   ) {
     const constraintSafeMessage = stripExplicitExclusionClauses(musicContextMessage);
     const fallbackQuery =
-      (forcedQuery ? stripExplicitExclusionClauses(forcedQuery) : '') ||
+      genreRefinement || (forcedQuery ? stripExplicitExclusionClauses(forcedQuery) : '') ||
       buildStationQuery(constraintSafeMessage) ||
       constraintSafeMessage ||
       musicContextMessage;
@@ -2418,10 +2469,12 @@ export const chatWithAssistant = async (
   // artist lookup, or a «в стиле X» anchor) is PRECISE — keep the slate tight to
   // that genre instead of spreading it for diversity («подборка далека от идеала»
   // on «посоветуй nu metal» / «соул»). Broad vibe asks stay diverse.
-  const preciseAsk = Boolean(preciseSearchPlan || forcedQuery || artistQuery || anchorQuery);
+  const preciseAsk = Boolean(genreRefinement || preciseSearchPlan || forcedQuery || artistQuery || anchorQuery);
+  const requestedCount = requestedStationCount(userMessage) ?? (followupMusicIntent || plannerIntent === 'recommend'
+    ? requestedStationCount(musicContextMessage) : undefined);
   const rankedObservations = personalizedObservations(observations, input.userTaste, recommendationSeed, {
     rotateLead: musicIntent && !hasPlayIntent(userMessage) && !preciseSearchPlan,
-    precise: preciseAsk
+    precise: preciseAsk, minimumCount: requestedCount ?? 2
   });
   // Decide the actual slate BEFORE composing: prose and cards must describe
   // the same bounded, intent-appropriate set of verified stations.
@@ -2433,8 +2486,6 @@ export const chatWithAssistant = async (
   const answersAQuestion = cardGateReasons.length > 0;
   const explicitMusicRequest = isExplicitMusicRequest(userMessage);
   const dropCards = answersAQuestion && !explicitMusicRequest;
-  const requestedCount = requestedStationCount(userMessage) ?? (followupMusicIntent || plannerIntent === 'recommend'
-    ? requestedStationCount(musicContextMessage) : undefined);
   const collectedStations = collectVerifiedStations(rankedObservations);
   const stations = dropCards ? [] : collectedStations.slice(0, requestedCount ?? 5);
   const selectedIds = new Set(stations.map(station=>station.stationuuid));
@@ -2488,7 +2539,11 @@ export const chatWithAssistant = async (
     !songKnowledgeIntent.any &&
     collectVerifiedStations(groundedObservations).length === 0 &&
     sources.length === 0;
+  const boundedRecommendations = musicIntent && stations.length > 0 && !knowledgeQuestion && !songKnowledgeIntent.any &&
+    !culturalExplainerQuestion && composerSources.length === 0 && !artistObservation(groundedObservations);
   const composed = await composeAgentReply(deps, systemPrompt, transcript, groundedObservations, {
+    boundedRecommendations,
+    english: /^en(?:-|$)/i.test(input.locale || ''),
     finalStations: stations,
     playRequested: hasPlayIntent(userMessage),
     repeatDiscovery: isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage,
@@ -2511,6 +2566,7 @@ export const chatWithAssistant = async (
   noteModelError(modelErrors, composed);
   if (composed.error) deps.log(`ai compose error: ${composed.error}`);
 
+
   // A question about a SONG or a FACT deserves an answer, not a rack of
   // stations. The planner is free to call search_stations on any turn, and
   // whatever it happened to find used to be attached regardless of intent —
@@ -2532,6 +2588,17 @@ export const chatWithAssistant = async (
     deps.log(`ai dropped ${collectedStations.length} off-topic station card(s) from a knowledge answer`);
   }
   const serviceLinks = collectServiceLinks(groundedObservations);
+
+  // This text is already server-rendered from approved own evidence. Legacy
+  // prose/name guards can mistake a genre for an excluded station's name and
+  // restore arbitrary raw tags via their older fallback. Do not cross back.
+  if (boundedRecommendations) return {
+    reply: cleanText(`${composed.content}${requestedCount && stations.length < requestedCount
+      ? /^en(?:-|$)/i.test(input.locale || '') ? `\nOnly ${stations.length} of ${requestedCount} requested distinct sources found in this search.`
+        : `\nВ этом поиске нашла ${stations.length} из ${requestedCount} запрошенных разных источников.` : ''}`, surface), stations, serviceLinks, sources,
+    actions: deriveActions(stations, userMessage), usage, cardGate, constraintFilter, webSearchStatuses,
+    ...(modelErrors.length ? {modelErrors: [...modelErrors]} : {})
+  };
 
   // Compose failed / empty / off-voice → warm fallback (carrying any stations
   // we DID verify, so the answer is never a dead end).

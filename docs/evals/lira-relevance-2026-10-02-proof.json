@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-02",
+  "scope": "server only; no Lira Studio/client changes",
+  "localChecks": {
+    "apiBuildExit": 0,
+    "logHashes": {
+      "types": "38576736FAAA178FA9E69A9C89AA58AEEC058C8D8E7A942C08A2A440A0C9CADE",
+      "api": "EB8D1844E215C18591C1790134E41B9EF06D1F55FC447666E1ABDAFADFC589F3",
+      "build": "8347F4D342BA4217C0F65FA0B0668DB408145F72A7237524D033369153A5416D",
+      "test-types": "692E41B1EB3587D733F68446D35618AC58D3E2397BE6CA6E298350E2259955ED",
+      "offline": "7C1DCE051B2AE0C370DA19AACD6DA5D5FBB2A588295585120267D7F69D3C0FFE"
+    },
+    "apiTests": 784,
+    "testTypecheckExit": 0,
+    "sourceTypecheckExit": 0,
+    "offlineContracts": 21,
+    "offlineModelCalls": 0
+  },
+  "live": {
+    "bundleSha256": "DDF044DD849835EF689E5AE0174C4E09DF1C2E227E4830E8F6D85F612CEC66D0",
+    "upperUsd": 0.19123368,
+    "closed": true,
+    "reservedUsd": 0,
+    "limitation": "Bounded HTTP shadow catalogue (100 candidates/query), not production endpoint parity. Last code change after paid repeat: English why-not exemption.",
+    "turns": 28,
+    "calls": 57
+  },
+  "parent": "279842b3138e30d0c95c25e52d36c5252496896a",
+  "branch": "codex/lira-release-20261001",
+  "sources": {
+    "apps/api/src/ai/catalogToolProvider.ts": "BE7C9CDC234153508091C4811D1E9A1CF9FB6B7F262E095A1EFE8783E509CE6A",
+    "apps/api/src/catalog/service.ts": "EEA49A819C4D260803F0186C277EC185C76A482976B81B88787851CFD2271827",
+    "apps/api/src/ai/genreRefinement.ts": "5296BCAFC538A6F5481AA3674077EC8F7B5420683F05BABEACF1AFC50AAF1007",
+    "apps/api/src/ai/recommendationEvidence.ts": "9DE0F6A355536B5CCC16F537DA29250A60A35BBA154332F65470A703CC277C48",
+    "apps/api/src/ai/brain.ts": "C9494117D8257884ED1DD76638D9643C490C807A06EFA9AF01B0414A39DC877A"
+  }
+}

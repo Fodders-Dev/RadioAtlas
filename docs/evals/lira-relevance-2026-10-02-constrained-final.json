@@ -1,0 +1,178 @@
+{
+  "generatedAt": "2026-10-02T10:30:48.454Z",
+  "scenario": "constrained",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-v3",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic, только из России, без новостей. Один вариант. Не включай.",
+      "reply": "По тегам каталога:\n«Radio Caprice - Drum 'n' Bass [2]» — drum and bass (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "48c297d9-efe5-4984-b119-30bb1aba26fe:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 3391
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 52
+        }
+      ],
+      "runtimeMs": 9068,
+      "usage": {
+        "prompt": 7052,
+        "completion": 223
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "По тегам каталога:\n«DNB FM» — drum and bass, liquid (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "name": "DNB FM",
+          "country": "The Russian Federation",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "breaks",
+            "liquid"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "actionId": "201aaaf0-1f6a-4aa0-bde4-26e5880058eb:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 42
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        }
+      ],
+      "runtimeMs": 3467,
+      "usage": {
+        "prompt": 5027,
+        "completion": 103
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "044db179-4ece-492d-9670-682216f3763e",
+      "status": "settled",
+      "requestBytes": 10572,
+      "reserveUsd": 0.02332176,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"speedcore\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Ищу скоростную станцию в России\"\n}",
+      "actualUsd": 0.00310332,
+      "httpStatus": 200,
+      "promptTokens": 2132,
+      "completionTokens": 73
+    },
+    {
+      "reservationId": "09bbfd48-7a91-4483-8e46-ac15ee57897b",
+      "status": "settled",
+      "requestBytes": 10759,
+      "reserveUsd": 0.0235686,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Скоростной вайб Sonic → быстрый электронный жанр, ищем одну станцию в России\"\n}",
+      "actualUsd": 0.00322344,
+      "httpStatus": 200,
+      "promptTokens": 2166,
+      "completionTokens": 92
+    },
+    {
+      "reservationId": "04437e56-1645-4251-86ba-c7a56834d24c",
+      "status": "settled",
+      "requestBytes": 14712,
+      "reserveUsd": 0.02878656,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00386496,
+      "httpStatus": 200,
+      "promptTokens": 2754,
+      "completionTokens": 58
+    },
+    {
+      "reservationId": "004327cd-25f5-4e5c-b7e7-a2d4b0515e91",
+      "status": "settled",
+      "requestBytes": 10910,
+      "reserveUsd": 0.02376792,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Ищу одну российскую станцию в жанре drum and bass\"\n}",
+      "actualUsd": 0.0032142,
+      "httpStatus": 200,
+      "promptTokens": 2195,
+      "completionTokens": 80
+    },
+    {
+      "reservationId": "fce45a9a-f461-4586-8596-d9c2b298211d",
+      "status": "settled",
+      "requestBytes": 15223,
+      "reserveUsd": 0.02946108,
+      "responseContent": "           [2]» — drum and bass, The Russian Federation.",
+      "actualUsd": 0.00382932,
+      "httpStatus": 200,
+      "promptTokens": 2832,
+      "completionTokens": 23
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}
