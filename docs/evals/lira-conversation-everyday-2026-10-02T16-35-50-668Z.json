@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-10-02T16:35:50.669Z",
+  "scenario": "everyday",
+  "model": "deepseek-v4-pro",
+  "code": "f1772f7",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Завтра экзамен, волнуюсь",
+      "reply": "Понимаю тебя. Экзамены — это всегда как перед выходом на сцену: вроде всё знаешь, а внутри всё равно что-то дрожит.\n\nТы как готовишься — всё повторяешь или уже стараешься выдохнуть и лечь пораньше?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "5c17c8b2-f215-4260-a702-e5b6043c379b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3029,
+      "usage": {
+        "prompt": 2241,
+        "completion": 72
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну и что — волнение это нормально, оно даже помогает собраться. Главное, чтобы оно не съело тебя целиком.\n\nТы мне так и не сказала: зубришь до последнего или дашь себе вечером передышку?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "30809390-1f00-45ef-9179-c014394409c0:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1916,
+      "usage": {
+        "prompt": 2319,
+        "completion": 57
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "dce87102-2a53-4b96-b989-8a006cda2f17",
+      "status": "settled",
+      "requestBytes": 12291,
+      "reserveUsd": 0.02559084,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Понимаю тебя. Экзамены — это всегда как перед выходом на сцену: вроде всё знаешь, а внутри всё равно что-то дрожит.\n\nТы как готовишься — всё повторяешь или уже стараешься выдохнуть и лечь пораньше?",
+      "actualUsd": 0.00324324,
+      "httpStatus": 200,
+      "promptTokens": 2241,
+      "completionTokens": 72
+    },
+    {
+      "reservationId": "277e8595-1924-453a-b31b-096fee9b9725",
+      "status": "settled",
+      "requestBytes": 12716,
+      "reserveUsd": 0.02615184,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Ну и что — волнение это нормально, оно даже помогает собраться. Главное, чтобы оно не съело тебя целиком.\n\nТы мне так и не сказала: зубришь до последнего или дашь себе вечером передышку?",
+      "actualUsd": 0.0032868,
+      "httpStatus": 200,
+      "promptTokens": 2319,
+      "completionTokens": 57
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-conversation-20261002/ledger.json"
+}

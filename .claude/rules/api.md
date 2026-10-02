@@ -20,6 +20,15 @@ before billable calls. Its offline preflight must pass before those calls;
 keep the deterministic contract total separate from provider passRate.
 
 
+## Reply context
+
+Composer guidance separates accepted user intent from actual station lookup outcome.
+No station rows does not prove an attempted or failed search. Keep conversation and
+knowledge free from unsolicited selection/playback offers; assistant suggestions
+are not user consent. The bounded context stays internal and adds no model call.
+Cover changes through real brain message/tool/action fixtures; mocked prose does
+not establish provider quality.
+
 ## What may leave this process
 
 The API is the only process holding provider keys. The `/ai/chat` response body

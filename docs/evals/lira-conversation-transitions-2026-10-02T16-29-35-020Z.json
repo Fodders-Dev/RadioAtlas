@@ -1,0 +1,289 @@
+{
+  "generatedAt": "2026-10-02T16:29:35.021Z",
+  "scenario": "transitions",
+  "model": "deepseek-v4-pro",
+  "code": "ef0b829",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как Sonic, только из России. Два варианта, не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Drum 'n' Bass [2]» — drum and bass, electronic (The Russian Federation).\n«RadCap - Post Hardcore» — жанровых данных в каталоге не хватает (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "75c4cfbe-e419-4cf2-a581-05a3238e9058",
+          "name": "RadCap - Post Hardcore",
+          "country": "The Russian Federation",
+          "tags": [
+            "hardcore",
+            "post hardcore",
+            "radio caprice"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "583d899a-963e-4ee5-b293-9cc393fd7261:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 5860
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 195
+        }
+      ],
+      "runtimeMs": 10746,
+      "usage": {
+        "prompt": 5846,
+        "completion": 222
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "А вообще я сейчас хочу пиццы",
+      "reply": "Понимаю. Пицца — это отдельный вид счастья, особенно когда уже выбрал, с чем. Ты какую любишь?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "c53fefbc-f278-41aa-824b-0e8d2cdc1ba6:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3086,
+      "usage": {
+        "prompt": 5192,
+        "completion": 71
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "И всё, я просто за тебя порадовалась. Пицца — тема серьёзная: сыр тянется, корочка хрустит. Так какую берёшь?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "4309e711-e54b-429e-80a9-2e5545043438:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3264,
+      "usage": {
+        "prompt": 5261,
+        "completion": 82
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Почему drum and bass ощущается быстрым? Не включай радио.",
+      "reply": "Потому что в нём главный пульс — это ломаный ритм на высокой скорости: обычно 160–180 ударов в минуту, и бас не просто лежит внизу, а постоянно толкает вперёд. Плюс синкопы, резкие сбивки и плотные барабаны создают ощущение, что трек всё время бежит и не даёт расслабиться. Это не просто «быстро», а именно энергия движения.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "d30a176b-4984-4ac4-a8e1-8417da94b719:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3050,
+      "usage": {
+        "prompt": 2598,
+        "completion": 109
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Теперь house. Два варианта, не включай.",
+      "reply": "По тегам каталога:\n«Radio Caprice - Progressive House» — house, electronic (The Russian Federation).\n«House Music Radio» — house, deep house (The United Kingdom Of Great Britain And Northern Ireland).\nОбщее в тегах — house.",
+      "cards": [
+        {
+          "stationuuid": "9640449d-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Progressive House",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "house",
+            "progressive house"
+          ]
+        },
+        {
+          "stationuuid": "c58c0009-ad0d-4ed5-a208-a8e797885a75",
+          "name": "House Music Radio",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "deep house",
+            "house"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "9640449d-0601-11e8-ae97-52543be04c81",
+          "actionId": "8104995c-ac8d-4e7c-b0fc-faedb9c942f1:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 97
+        }
+      ],
+      "runtimeMs": 2115,
+      "usage": {
+        "prompt": 3208,
+        "completion": 52
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "7d234755-6bc0-4a9f-ae36-f339709b38ef",
+      "status": "settled",
+      "requestBytes": 15387,
+      "reserveUsd": 0.02967756,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"hardcore\"]\n  },\n  \"note\": \"Скоростной вайб Sonic → быстрые электронные жанры, ищем российские станции.\"\n}",
+      "actualUsd": 0.00428076,
+      "httpStatus": 200,
+      "promptTokens": 2877,
+      "completionTokens": 122
+    },
+    {
+      "reservationId": "52efaf04-5d24-453c-b390-f5ac0c46bff9",
+      "status": "settled",
+      "requestBytes": 15725,
+      "reserveUsd": 0.03012372,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"recommendation\",\"selection\":\"stations\"}. Рекомендуй только переданные станции и сохраняй их факты без изменений.",
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"75c4cfbe-e419-4cf2-a581-05a3238e9058\",\n      \"tagKeys\": []\n    }\n  ]\n}",
+      "actualUsd": 0.00431508,
+      "httpStatus": 200,
+      "promptTokens": 2969,
+      "completionTokens": 100
+    },
+    {
+      "reservationId": "eac18db2-587b-4d46-b6ce-043ca4a7d09f",
+      "status": "settled",
+      "requestBytes": 15158,
+      "reserveUsd": 0.02937528,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь хочет пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.003927,
+      "httpStatus": 200,
+      "promptTokens": 2858,
+      "completionTokens": 39
+    },
+    {
+      "reservationId": "3af447c2-0b37-4788-a3ee-295c9f983aec",
+      "status": "settled",
+      "requestBytes": 12847,
+      "reserveUsd": 0.02632476,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Ответь на последнюю тему пользователя. Не предполагай, что ему нужен саундтрек или станции. Твоё прежнее предложение музыки не означает согласия пользователя; короткое уточнение продолжает его тему. Не объясняй отсутствие результатов подбора, которого он не просил.",
+      "responseContent": "Понимаю. Пицца — это отдельный вид счастья, особенно когда уже выбрал, с чем. Ты какую любишь?",
+      "actualUsd": 0.0032076,
+      "httpStatus": 200,
+      "promptTokens": 2334,
+      "completionTokens": 32
+    },
+    {
+      "reservationId": "414c26b8-55e3-4be2-b81e-a26415390db6",
+      "status": "settled",
+      "requestBytes": 15345,
+      "reserveUsd": 0.02962212,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь хочет пиццу, музыкальный запрос отсутствует\"\n}",
+      "actualUsd": 0.00396396,
+      "httpStatus": 200,
+      "promptTokens": 2889,
+      "completionTokens": 38
+    },
+    {
+      "reservationId": "1248dc38-f336-4a2b-bc6a-f3352461a6c0",
+      "status": "settled",
+      "requestBytes": 13082,
+      "reserveUsd": 0.02663496,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Ответь на последнюю тему пользователя. Не предполагай, что ему нужен саундтрек или станции. Твоё прежнее предложение музыки не означает согласия пользователя; короткое уточнение продолжает его тему. Не объясняй отсутствие результатов подбора, которого он не просил.",
+      "responseContent": "И всё, я просто за тебя порадовалась. Пицца — тема серьёзная: сыр тянется, корочка хрустит. Так какую берёшь?",
+      "actualUsd": 0.00330528,
+      "httpStatus": 200,
+      "promptTokens": 2372,
+      "completionTokens": 44
+    },
+    {
+      "reservationId": "5f4a8d28-cbcc-430e-a3e7-be6600f9ed9f",
+      "status": "settled",
+      "requestBytes": 14272,
+      "reserveUsd": 0.02820576,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"knowledge\"}. Ответь на вопрос или дай объяснение без перехода к станциям. Различай отсутствие источников и неудачный поиск.",
+      "responseContent": "Потому что в нём главный пульс — это ломаный ритм на высокой скорости: обычно 160–180 ударов в минуту, и бас не просто лежит внизу, а постоянно толкает вперёд. Плюс синкопы, резкие сбивки и плотные барабаны создают ощущение, что трек всё время бежит и не даёт расслабиться. Это не просто «быстро», а именно энергия движения.",
+      "actualUsd": 0.003861,
+      "httpStatus": 200,
+      "promptTokens": 2598,
+      "completionTokens": 109
+    },
+    {
+      "reservationId": "2b6a5d9d-6ded-4e53-98d9-5193507a238c",
+      "status": "settled",
+      "requestBytes": 17058,
+      "reserveUsd": 0.03188328,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"recommendation\",\"selection\":\"stations\"}. Рекомендуй только переданные станции и сохраняй их факты без изменений.",
+      "responseContent": "                                                    ",
+      "actualUsd": 0.00444048,
+      "httpStatus": 200,
+      "promptTokens": 3208,
+      "completionTokens": 52
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-conversation-20261002/ledger.json"
+}
