@@ -23,6 +23,7 @@ import {
 } from './artistGenreFallback.js';
 import { callModel, type ModelMessage } from './modelClient.js';
 import { buildFallbackResult } from './fallbacks.js';
+import { buildReplyContext, renderReplyContextInstruction, type ReplyContext, type ReplyIntent } from './replyContext.js';
 import { assertsUnverifiedProgram, promisesUnperformedLookup } from './replyOutcome.js';
 import { claimsUnrequestedPlayback, describeVerifiedStationSlate, referencesStationPosition } from './recommendationReply.js';
 import { createStationExclusionMatcher } from './stationExclusions.js';
@@ -1060,6 +1061,7 @@ const composeAgentReply = async (
   transcript: ModelMessage[],
   observations: ToolObservation[],
   opts: {
+    replyContext: ReplyContext;
     boundedRecommendations?: boolean;
     english?: boolean;
     finalStations?: VerifiedStationRef[];
@@ -1077,7 +1079,7 @@ const composeAgentReply = async (
       translation: boolean;
       lyricsContentRead: boolean;
     };
-  } = {}
+  }
 ) => {
   const messages: ModelMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -1089,11 +1091,11 @@ const composeAgentReply = async (
       role: 'system',
       content: `Проверенные факты (бери станции — названия и id — ТОЛЬКО отсюда; ничего не выдумывай): ${JSON.stringify(
         factsForModel(observations, opts.finalStations)
-      )}. Называй ТОЛЬКО станции из этого списка. Можно коротко назвать найденную станцию и объяснить выбор по её подтверждённым тегам; для двух вариантов поясни реальную разницу. Не приписывай им программу, инструменты, отсутствие рекламы или текущий трек, которых нет в фактах. Карточки ниже — именно этот список: не обещай больше вариантов, не говори «сейчас подберу», если результата нет. Если станций нет, но есть ссылки на сервисы (hasServiceLinks=true), предложи этот доступный путь. Если нет ни станций, ни ссылок, честно скажи, что подобрать не удалось, без обещания уже готового эфира. Живой эфир нельзя гарантировать на два часа без рекламы, ведущих или вокала; теги — ориентир, а не гарантия программы.`
+      )}. Называй ТОЛЬКО станции из этого списка. Не приписывай им программу, инструменты, отсутствие рекламы или текущий трек, которых нет в фактах. Пустой список фактов сам по себе НЕ означает выполненный или неудачный поиск: назначение ответа и результат проверки указаны в REPLY CONTEXT. Не обещай будущий поиск как уже готовый результат. Живой эфир нельзя гарантировать на два часа без рекламы, ведущих или вокала; теги — ориентир, а не гарантия программы.`
     }
   ];
   const verifiedForCompose = opts.finalStations ?? collectVerifiedStations(observations);
-  if (verifiedForCompose.length > 0) {
+  if (opts.replyContext.intent === 'recommendation' && verifiedForCompose.length > 0) {
     const slateSummary = summarizeStationSlate(verifiedForCompose);
     messages.push({
       role: 'system',
@@ -1149,6 +1151,7 @@ const composeAgentReply = async (
   } else if (opts.factualGuard) {
     messages.push({ role: 'system', content: FACTUAL_GUARD_NOTE });
   }
+  messages.push({role:'system', content:`REPLY CONTEXT ${JSON.stringify(opts.replyContext)}. ${renderReplyContextInstruction(opts.replyContext)}`});
   if (opts.boundedRecommendations) {
     messages.push({role: 'system', content: `РЕЖИМ ВЫБОРА ПРИЗНАКОВ. Ответ — ТОЛЬКО JSON {"v":1,"cards":[{"stationId":"UUID","tagKeys":["t0"]}]}. Для каждой текущей карточки выбери до трёх её собственных признаков, полезных для текущего запроса. Никаких других полей, вступления, объяснений или команд. Пустой tagKeys, если данных нет. Имена, порядок и пояснения соберёт сервер. Признак относится только к stationId своей карточки. Разрешённые признаки: ${JSON.stringify(recommendationEvidence(verifiedForCompose))}`});
   }
@@ -2048,7 +2051,7 @@ export const chatWithAssistant = async (
       ...(baseTools.matchStationsByArtistName ? {matchStationsByArtistName: async artist =>
         (await baseTools.matchStationsByArtistName!(artist)).filter(local)} : {})
     }};
-    transcript.push({role:'system', content:`Обязательная страна станций: ${countryScope}. Не заменяй её другой страной. Если карточек нет, скажи, что подходящий эфир в этой стране не найден; ссылки на музыкальные сервисы не являются местными радиостанциями.`});
+    transcript.push({role:'system', content:`Обязательная страна станций: ${countryScope}. Применяй только при подборе станций, не заменяй её другой страной. Это ограничение поиска, не требование подбирать радио в разговоре или справке. Ссылки на музыкальные сервисы не являются местными радиостанциями. Отсутствие карточек не доказывает выполненный поиск.`});
   }
   const culturalExplainerQuestion = CULTURAL_EXPLAINER_QUESTION.test(userMessage);
   const knowledgeQuestion = isKnowledgeQuestion(userMessage);
@@ -2600,9 +2603,19 @@ export const chatWithAssistant = async (
     !songKnowledgeIntent.any &&
     collectVerifiedStations(groundedObservations).length === 0 &&
     sources.length === 0;
-  const boundedRecommendations = musicIntent && stations.length > 0 && !knowledgeQuestion && !songKnowledgeIntent.any &&
+  // Reuse accepted routing and the final card gate. No second intent model,
+  // topic-specific vocabulary, or intent inferred from assistant suggestions.
+  const replyIntent: ReplyIntent = dropCards || culturalExplainerQuestion || (plannerGate && plannerIntent === 'knowledge')
+    ? 'knowledge'
+    : plannerGate && plannerIntent === 'clarify' ? 'clarification'
+    : plannerGate && plannerIntent === 'chat' ? 'conversation'
+    : musicIntent || forcedQuery || stations.length > 0 ? 'recommendation' : 'conversation';
+  const replyContext = buildReplyContext({intent:replyIntent, observations:groundedObservations,
+    stationCount:stations.length, serviceLinkCount:collectServiceLinks(groundedObservations).length});
+  const boundedRecommendations = replyIntent === 'recommendation' && musicIntent && stations.length > 0 && !knowledgeQuestion && !songKnowledgeIntent.any &&
     !culturalExplainerQuestion && composerSources.length === 0 && !artistObservation(groundedObservations);
   const composed = await composeAgentReply(deps, systemPrompt, transcript, groundedObservations, {
+    replyContext,
     boundedRecommendations,
     english: /^en(?:-|$)/i.test(input.locale || ''),
     finalStations: stations,
@@ -2681,7 +2694,7 @@ export const chatWithAssistant = async (
   if ((plannerGate && plannerIntent === 'recommend' && !stations.length) || promisesUnperformedLookup(composed.content)) {
     deps.log('ai compose replaced: no verified recommendation or deferred lookup');
     return {
-      ...buildFallbackResult({ surface, now, reason: !stations.length && plannerIntent === 'recommend' ? 'no-matches' : 'unfinished', stations, serviceLinks, sources }),
+      ...buildFallbackResult({ surface, now, reason: replyContext.selection === 'empty' ? 'no-matches' : 'unfinished', stations, serviceLinks, sources }),
       actions: deriveActions(stations, userMessage),
       usage, cardGate, constraintFilter, webSearchStatuses,
       ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
