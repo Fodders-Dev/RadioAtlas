@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "stage": "lira-semantic-directions-live",
   "date": "2026-10-02",
-  "state": "reviewed-server-only-release-candidate",
+  "state": "published",
   "implementationSha": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
   "productionBase": "c8146a4f5c60a4c0152758d6ee53fd89da59ea91",
   "sourceSha256": {
@@ -90,5 +90,15 @@
     "Own tags do not guarantee current audio, BPM or exact fit to a metaphor.",
     "Genre negative matching uses catalogue token phrases, not a complete genre taxonomy.",
     "No physical audio/iPhone verification. Local Lira Studio is excluded."
-  ]
+  ],
+  "publication": {
+    "releaseSha": "35d53bfdb4698f2f46fd9fe2dcfe19b10a9b31e5",
+    "ciRun": 37012015164,
+    "deployRun": 37012015252,
+    "ciConclusion": "success",
+    "deployConclusion": "success",
+    "symlink": "/opt/RadioAtlas/releases/35d53bfdb4698f2f46fd9fe2dcfe19b10a9b31e5",
+    "publicSmoke": "lira-semantic-directions-2026-10-02-public-proof.json",
+    "modelCalls": 0
+  }
 }
