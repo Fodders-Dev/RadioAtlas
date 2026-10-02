@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { registerCatalogueTagEvidence } from '../src/ai/catalogueTagEvidence.js';
-import { balancedSemanticStations, matchesSemanticTag, parseSemanticSearch } from '../src/ai/semanticSearch.js';
+import { balancedSemanticStations, matchesSemanticTag, matchesSemanticExclusion, parseSemanticSearch } from '../src/ai/semanticSearch.js';
 import type { VerifiedStationRef } from '../src/ai/types.js';
 
 const station = (id: string, tags: string[] = [], name = id): VerifiedStationRef => ({
@@ -87,4 +87,38 @@ test('balancedSemanticStations transposes groups and reuses canonical station de
   const original = station('original', [], 'Same Station');
   assert.deepEqual(balancedSemanticStations([[original], [mirrored]]).map(row => row.stationuuid), ['original']);
   assert.deepEqual(balancedSemanticStations([[station('same')], [station('same')]]).map(row => row.stationuuid), ['same']);
+});
+
+test('direction coverage survives shared leads and hybrid-only second directions',()=>{
+  const shared=station('shared',['jazz','soul']);
+  const jazz=station('jazz',['jazz']);
+  const soul=station('soul',['soul']);
+  assert.deepEqual(balancedSemanticStations([[shared,jazz],[shared,soul]]).slice(0,2).map(s=>s.stationuuid),['shared','soul']);
+  assert.deepEqual(balancedSemanticStations([[shared,jazz],[shared]]).slice(0,2).map(s=>s.stationuuid),['jazz','shared']);
+  assert.deepEqual(balancedSemanticStations([[shared,jazz],[]]).slice(0,2).map(s=>s.stationuuid),['shared','jazz']);
+  const streamMirror={...station('stream-mirror'),url_resolved:shared.url_resolved + '#player'};
+  assert.deepEqual(balancedSemanticStations([[shared,jazz],[streamMirror,soul]]).slice(0,2).map(s=>s.stationuuid),['shared','soul']);
+});
+
+test('semantic exclusions are bounded, normalized and disjoint from positive directions',()=>{
+  assert.deepEqual(parseSemanticSearch({kind:'hypothesis',tags:['industrial'],excludeTags:[' Ambient ','downtempo']}),
+    {kind:'hypothesis',tags:['industrial'],excludeTags:['ambient','downtempo']});
+  for(const excludeTags of [['DnB'],['ambient','jazz','house'],['unsafe!'],undefined]) {
+    assert.equal(parseSemanticSearch({kind:'genre',tags:['drum and bass'],excludeTags}),undefined);
+  }
+});
+
+test('rejected rows cannot poison later stream identities during direction assignment or fill',()=>{
+  const a=station('a',[],'Same');
+  const b={...station('b',[],'Same'),url_resolved:'https://audio.example/shared'};
+  const c={...station('c',[],'Distinct'),url_resolved:b.url_resolved};
+  assert.deepEqual(balancedSemanticStations([[a],[b,c]]).slice(0,2).map(s=>s.stationuuid),['a','c']);
+  assert.deepEqual(balancedSemanticStations([[a,b,c],[]]).slice(0,2).map(s=>s.stationuuid),['a','c']);
+});
+
+test('negative genre evidence includes tagged substyles without using station names or partial words',()=>{
+  assert.equal(matchesSemanticExclusion(station('dark',['dark ambient']),'ambient'),true);
+  assert.equal(matchesSemanticExclusion(station('compound',['industrial ambient']),'ambient'),true);
+  assert.equal(matchesSemanticExclusion(station('partial',['ambiente']),'ambient'),false);
+  assert.equal(matchesSemanticExclusion(station('name',['industrial'],'Dark Ambient Radio'),'ambient'),false);
 });

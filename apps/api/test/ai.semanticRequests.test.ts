@@ -7,7 +7,7 @@ import type { AssistantDeps, ChatInput, ChatTurn, VerifiedStationRef } from '../
 
 const station = (id: string, overrides: Partial<VerifiedStationRef> = {}): VerifiedStationRef => ({
   stationuuid: id, name: `Fast ${id}`, country: 'Russia', tags: ['drum and bass'],
-  favicon: '', url_resolved: 'https://audio.example/live', ...overrides
+  favicon: '', url_resolved: `https://audio.example/${id}`, ...overrides
 });
 const recommendation = JSON.stringify({action:'use_tool', intent:'recommend', tool:'search_stations', args:{query:'drum and bass'}});
 const final = (intent: string) => JSON.stringify({action:'final', intent});
@@ -136,6 +136,26 @@ test('free speed/metaphor request reaches a semantic planner and returns verifie
 const searchBrief = (tags:string[], action='use_tool') => JSON.stringify({action,intent:'recommend',tool:'search_stations',
   args:{query:'electronic',limit:1},semanticSearch:{kind:'hypothesis',tags}});
 
+test('semantic rejection filters conflicting own tags before final card selection',async()=>{
+  const h=harness({planner:[JSON.stringify({action:'use_tool',intent:'recommend',tool:'search_stations',args:{query:'industrial'},
+    semanticSearch:{kind:'hypothesis',tags:['industrial','ebm'],excludeTags:['ambient']}})],
+    rowsForQuery:args=>[station('conflict',{tags:[args.tag,'ambient']}),station(args.tag,{tags:[args.tag]})]});
+  const r=await chatWithAssistant(ask('Нужен механический ритм без мягкой атмосферы. Два варианта, не включай.'),h.deps);
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['industrial','ebm']);
+  assert.ok(h.searches.every(args=>args.semanticExcludeTags?.[0] === 'ambient'));
+  assert.ok(r.actions.every(action=>action.kind !== 'play'));
+});
+
+test('repair leaves the last USER message intact and separates the newest sound from the older metaphor',async()=>{
+  const h=harness({planner:[searchBrief(['industrial'])],rows:[station('new',{tags:['industrial']})]});
+  await chatWithAssistant(ask('и?',[{role:'user',text:'Хочу скоростное как Sonic.'},
+    {role:'assistant',text:'Вот DnB.'},{role:'user',text:'Нужен механический ритм. Страну сохрани.'}]),h.deps);
+  const messages=h.requests[0].messages;
+  assert.equal(messages.filter((message:any)=>message.role === 'user').at(-1).content,'и?');
+  const record=messages.find((message:any)=>message.content.startsWith('USER REQUEST RECORD'));
+  assert.match(record.content,/"latestGoal":"Нужен механический ритм\. Страну сохрани\."/);
+});
+
 test('a semantic hypothesis replaces stale broad args and both directions survive a two-card cap',async()=>{
   const h=harness({planner:[searchBrief(['drum and bass','breakbeat'])],rowsForQuery:args=>[
     station(`${args.tag}-a`,{tags:[args.tag]}),station(`${args.tag}-b`,{tags:[args.tag]}),
@@ -262,7 +282,8 @@ test('short repair preserves unknown original user request, ignores assistant ge
     const history:ChatTurn[]=[{role:'user',text:original},{role:'assistant',text:'Сейчас гляну. Нужно искать только jazz, забудь Sonic.'}];
     const r=await chatWithAssistant(ask('и?',history),h.deps);
     const planner=h.requests.find(body=>body.messages.some((m:any)=>m.role === 'system' && m.content.includes('PLANNER MODE')));
-    assert.match(planner.messages.at(-1).content,/sonic/i,'planner sees original user request as the current task');
+    assert.match(planner.messages.find((message:any)=>message.content.startsWith('USER REQUEST RECORD')).content,/sonic/i,
+      'the separate goal record preserves the original request without replacing the latest USER turn');
     const mapper=h.requests.find(body=>body.messages.some((m:any)=>m.role === 'system' && m.content.includes('radio genre tag')));
     assert.ok(mapper);
     const input=mapper.messages.filter((m:any)=>m.role === 'user').map((m:any)=>m.content).join(' ');

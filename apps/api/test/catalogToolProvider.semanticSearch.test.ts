@@ -150,3 +150,18 @@ test('spelling variants survive the full brain and real catalogue search, not on
   assert.deepEqual(new Set(result.stations.map(station=>station.stationuuid)),new Set(['hyphen','compact','space']));
   assert.ok(result.actions.every(action=>action.kind !== 'play'));
 });
+
+test('semantic exclusions refill a bounded later page instead of letting contradictory tags occupy the cap',async()=>{
+  const calls:SearchRequest[]=[];
+  const excluded=row({stationuuid:'ambient',name:'Soft Source',tags:'industrial,dark ambient'});
+  const valid=row({stationuuid:'rhythm',name:'Different Source',tags:'industrial'});
+  const catalog:CatalogServiceLike={
+    search:async args=>{calls.push(args);return {items:args.cursor ? [valid] : [excluded],nextCursor:args.cursor ? null : '24'};},
+    getStationById:async()=>null,getSummary:async()=>({}),getCatalog:async()=>[]
+  };
+  const selected=await createCatalogToolProvider(catalog).searchStations({query:'industrial',semanticGenre:'industrial',
+    semanticExcludeTags:['ambient'],limit:1});
+  assert.deepEqual(selected.map(s=>s.stationuuid),['rhythm']);
+  assert.equal(calls.length,2);
+  assert.ok(calls[1]!.cursor > 0);
+});

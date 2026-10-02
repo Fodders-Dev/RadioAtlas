@@ -110,6 +110,7 @@ export const runTool = async (
      */
     languageScope?: string;
     semanticGenre?: string;
+    semanticExcludeTags?: readonly string[];
   }
 ): Promise<ToolObservation> => {
   const base = { tool, args };
@@ -128,6 +129,7 @@ export const runTool = async (
           language: language || scoped,
           tag: asOptionalString(args.tag),
           semanticGenre: ctx.semanticGenre,
+          semanticExcludeTags: ctx.semanticExcludeTags,
           limit: asLimit(args.limit)
         });
         return { ...base, found: stations.length > 0, stations };

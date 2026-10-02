@@ -10,7 +10,7 @@ import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catal
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
 import { createStationExclusionMatcher, type StationExclusionRow } from './stationExclusions.js';
-import { matchesSemanticTag, parseSemanticSearch, semanticTagSpellings } from './semanticSearch.js';
+import { matchesSemanticTag, matchesSemanticExclusion, parseSemanticSearch, semanticTagSpellings } from './semanticSearch.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -146,12 +146,15 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     const limit = Math.min(8, Math.max(1, args.limit || 8));
     const parsedSemantic = args.semanticGenre === undefined
       ? undefined
-      : parseSemanticSearch({kind:'genre',tags:[args.semanticGenre]});
+      : parseSemanticSearch({kind:'genre',tags:[args.semanticGenre],
+        ...(args.semanticExcludeTags ? {excludeTags:args.semanticExcludeTags} : {})});
     const semanticGenre = parsedSemantic?.tags[0];
     const semanticSpellings = semanticGenre ? semanticTagSpellings(semanticGenre) : [];
     const semanticSearch = semanticSpellings.length ? semanticGenre : undefined;
+    const semanticExclusions = parsedSemantic?.excludeTags || [];
     const matchesSemanticStation = (station: CatalogStationLite): boolean =>
-      !semanticSearch || semanticSpellings.some(spelling => matchesSemanticTag(toRef(station), spelling));
+      !semanticSearch || semanticSpellings.some(spelling => matchesSemanticTag(toRef(station), spelling)) &&
+        !semanticExclusions.some(tag=>matchesSemanticExclusion(toRef(station),tag));
     const excludedIds = args.excludeStationIds || [];
     const isExcluded = excludedIds.length
       ? await createStationExclusionMatcher(excludedIds, id => catalog.getStationById(id))
@@ -281,7 +284,8 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     // aliases after a global capped page cannot recover hidden local stations.
     const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(async country => {
       const pages: CatalogStationLite[] = [];
-      const maxPages = excludedIds.length ? 3 : 1;
+      const needsRefill = Boolean(excludedIds.length || semanticExclusions.length);
+      const maxPages = needsRefill ? 3 : 1;
       let cursor = 0;
       for (let page = 0; page < maxPages; page += 1) {
         const response = await catalog.search({
@@ -294,7 +298,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
           relevance: true
         });
         pages.push(...(response.items || []));
-        if (!excludedIds.length || response.nextCursor === null || enoughCards(pages)) break;
+        if (!needsRefill || response.nextCursor === null || enoughCards(pages)) break;
         cursor += fetchLimit;
       }
       return { items: pages };

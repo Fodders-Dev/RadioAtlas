@@ -36,7 +36,7 @@ import { requestedCountry, hasCountryScopeMention, matchesRequestedCountry, omit
 import { requestedGenreSlots } from './requestedGenreSlots.js';
 import { declinesStationRecommendations, matchesGenreRefinement, requestedGenreRefinement } from './genreRefinement.js';
 import { describeGenreSlots, selectGenreSlots } from './genreSlotSelection.js';
-import { balancedSemanticStations, matchesSemanticTag, type SemanticSearch } from './semanticSearch.js';
+import { balancedSemanticStations, matchesSemanticTag, matchesSemanticExclusion, type SemanticSearch } from './semanticSearch.js';
 import { requestedSourceAlternatives } from './requestedSourceAlternatives.js';
 import { describeNearSources, findNearSources } from './sourceAlternatives.js';
 import {
@@ -818,6 +818,8 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
     'Для жанрового поиска intent recommend добавь semanticSearch:{"kind":"genre"|"hypothesis","tags":["канонический английский тег", "необязательный второй тег"]}. genre — явно запрошенный пользователем жанр; hypothesis — твоя музыкальная гипотеза по образу/звучанию/контексту. Это НЕ доказательство текущего звука. Для конкретной станции, артиста или справки semanticSearch не нужен.',
     'На образную просьбу выдели отличительный характер звучания и предложи 1–2 конкретных стилистических направления, которые можно попробовать. Не подменяй быстрый/ломаный/механический/гитарный звук общим electronic, dance или pop только потому, что эти теги популярны. Общий жанр допустим, если именно его попросили. Если образ допускает разные трактовки — две гипотезы вместо одной уверенной догадки. Не обещай BPM, текущий трек или отсутствие речи/рекламы.',
     'Последняя содержательная USER-реплика меняет положительную музыкальную цель; прошлый жанр не обязательное ограничение. Страна и явные запреты сохраняются в продолжении, пока пользователь их не изменил. Реплики ассистента — не доказательство вкуса или найденных станций. На короткое «и?» продолжи последнюю USER-цель, включая её уточнения.',
+    'Если человек просит два РАЗНЫХ звучания, выбери по одному направлению для каждого, а не два синонима одного жанра. Число карточек не равно числу направлений. Проверь, что обе части просьбы отражены в tags. Не копируй ранний музыкальный образ после нового описания: latestGoal из USER REQUEST RECORD — текущая цель, в том числе на «и?».',
+    'Явно отвергнутый жанр или характер звучания можно отразить в semanticSearch.excludeTags: до двух английских жанровых тегов. Это только смысл реального пользовательского отрицания, не твои предпочтения. Например, отрицание спокойной атмосферы не должно давать ambient-станцию внутри industrial. Не выводи из этого гарантий текущего аудио, вокала или рекламы. Положительные tags и excludeTags не пересекаются.',
     'Всегда укажи intent текущей просьбы: recommend — подобрать музыку/станции; chat — разговор или немуззыкальное желание; knowledge — объяснить/проверить факт; clarify — необходимое уточнение без музыкальной зацепки. Желание само по себе НЕ запрос на музыку: «хочется пиццы» — chat, без поиска станций.',
     'Свободные описания звучания, метафоры, скорость, образы и культурные сравнения тоже могут просить музыку. Определи смысл по пользовательским репликам и контексту, а не только по известным жанрам. На короткое «и?» / «где варианты?» продолжи последнюю пользовательскую просьбу и её ограничения; НЕ начинай заново и не считай прежнее обещание ассистента доказательством найденных станций. Отмена или смена темы прекращает предыдущую просьбу.',
     '',
@@ -865,6 +867,7 @@ const planAgentStep = async (
       )}. Реши следующий шаг.`
     });
   }
+  messages.push({role:'system',content:'Твой ответ сейчас — полный JSON-план, не реплика пользователю. Для подбора по образу заполни semanticSearch для ВСЕЙ последней цели latestGoal. Две разные запрошенные звуковые сцены должны получить два разных подходящих жанровых направления, не два названия первого направления. На «и?» снова ищи по latestGoal и сохрани явные отрицания; не пересказывай предыдущий ответ. Не начинай ответ с пробелов или прозы. Верни один JSON-объект с action, intent и при жанровом подборе semanticSearch.'});
   const result = await callModel(
     deps.model,
     messages,
@@ -886,7 +889,8 @@ const planAgentStep = async (
             note: { type: 'string' },
             semanticSearch: {type:'object', additionalProperties:false, required:['kind','tags'], properties:{
               kind:{type:'string',enum:['genre','hypothesis']},
-              tags:{type:'array',minItems:1,maxItems:2,items:{type:'string',minLength:2,maxLength:40}}
+              tags:{type:'array',minItems:1,maxItems:2,items:{type:'string',minLength:2,maxLength:40}},
+              excludeTags:{type:'array',maxItems:2,items:{type:'string',minLength:2,maxLength:40}}
             }}
           },
           required: ['action']
@@ -946,10 +950,12 @@ const runPlannerLoop = async (
       executed = true;
       const observation = await runTool(tool, args, {
         languageScope, tools: deps.tools, musicServices: deps.musicServices, webSearch: deps.webSearch,
-        semanticGenre: search ? String(args.tag) : undefined
+        semanticGenre: search ? String(args.tag) : undefined,
+        semanticExcludeTags: search?.excludeTags
       });
       if (search) {
-        observation.stations = (observation.stations || []).filter(station=>matchesSemanticTag(station,String(args.tag)));
+        observation.stations = (observation.stations || []).filter(station=>matchesSemanticTag(station,String(args.tag)) &&
+          !search.excludeTags?.some(tag=>matchesSemanticExclusion(station,tag)));
         observation.found = observation.stations.length > 0;
       }
       observations.push(observation);
@@ -2101,15 +2107,10 @@ export const chatWithAssistant = async (
     (FOLLOWUP_RECOMMEND_INTENT.test(userMessage.trim()) || legacyMusicContext !== userMessage);
   const semanticCandidate = !knowledgeQuestion && !MUSIC_DISLIKE.test(userMessage) &&
     (isExplicitMusicRequest(userMessage) || musicContextMessage !== userMessage || answersMusicQuestion(history, userMessage));
-  // The short repair is not a fresh standalone task. Present the actual USER
-  // request/refinements as the planner's latest message, so it classifies that
-  // request rather than filling in a story around "и?". Composer and playback
-  // authorization still receive the current message, not this expanded input.
-  const currentUserIndex = transcript.map(message=>message.role).lastIndexOf('user');
-  const planningTranscript = musicContextMessage !== userMessage && isRepairFollowup(userMessage)
-    ? transcript.map((message,index)=>index === currentUserIndex
-      ? {...message,content:musicContextMessage} : message)
-    : [...transcript];
+  // Keep the newest USER turn intact. Concatenating old sound requests into
+  // the newest turn made a short repair revive the first musical metaphor.
+  // The separate bounded record below carries its actual current goal.
+  const planningTranscript = [...transcript];
   const userGoals = musicContextTurns.filter(turn=>!isPureContinuation(turn));
   // Do not turn old positive genres into constraints. Keep the listener's
   // newest sound request separate from earlier USER-only continuation data.
