@@ -24,6 +24,8 @@ import {
 import { callModel, type ModelMessage } from './modelClient.js';
 import { buildFallbackResult } from './fallbacks.js';
 import { assertsUnverifiedProgram, promisesUnperformedLookup } from './replyOutcome.js';
+import { claimsUnrequestedPlayback, describeVerifiedStationSlate, referencesStationPosition } from './recommendationReply.js';
+import { createStationExclusionMatcher } from './stationExclusions.js';
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
@@ -744,10 +746,11 @@ const noteModelError = (
 const artistObservation = (observations: ToolObservation[]): ToolObservation | undefined =>
   observations.find((obs) => obs.tool === 'find_stations_by_artist' && obs.artist);
 
-const factsForModel = (observations: ToolObservation[]) => {
+const factsForModel = (observations: ToolObservation[], finalStations?: VerifiedStationRef[]) => {
   const artistObs = artistObservation(observations);
   return {
-    stations: collectVerifiedStations(observations).map((station) => ({
+    stations: (finalStations ?? collectVerifiedStations(observations)).map((station, index) => ({
+      position: index + 1,
       id: station.stationuuid,
       name: station.name,
       country: station.country,
@@ -1001,6 +1004,9 @@ const composeAgentReply = async (
   transcript: ModelMessage[],
   observations: ToolObservation[],
   opts: {
+    finalStations?: VerifiedStationRef[];
+    playRequested?: boolean;
+    repeatDiscovery?: boolean;
     factualGuard?: boolean;
     culturalVibe?: boolean;
     culturalExplainer?: boolean;
@@ -1024,17 +1030,24 @@ const composeAgentReply = async (
       // below so a hostile page can never act as a system instruction.
       role: 'system',
       content: `Проверенные факты (бери станции — названия и id — ТОЛЬКО отсюда; ничего не выдумывай): ${JSON.stringify(
-        factsForModel(observations)
+        factsForModel(observations, opts.finalStations)
       )}. Называй ТОЛЬКО станции из этого списка. Можно коротко назвать найденную станцию и объяснить выбор по её подтверждённым тегам; для двух вариантов поясни реальную разницу. Не приписывай им программу, инструменты, отсутствие рекламы или текущий трек, которых нет в фактах. Карточки ниже — именно этот список: не обещай больше вариантов, не говори «сейчас подберу», если результата нет. Если станций нет, но есть ссылки на сервисы (hasServiceLinks=true), предложи этот доступный путь. Если нет ни станций, ни ссылок, честно скажи, что подобрать не удалось, без обещания уже готового эфира. Живой эфир нельзя гарантировать на два часа без рекламы, ведущих или вокала; теги — ориентир, а не гарантия программы.`
     }
   ];
-  const verifiedForCompose = collectVerifiedStations(observations);
+  const verifiedForCompose = opts.finalStations ?? collectVerifiedStations(observations);
   if (verifiedForCompose.length > 0) {
     const slateSummary = summarizeStationSlate(verifiedForCompose);
     messages.push({
       role: 'system',
       content: [
         'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки».',
+        'Каждое пояснение привязывай к ТОЧНОМУ НАЗВАНИЮ станции и только её собственным тегам. Не описывай варианты по порядку («первая», «вторая», «№2»): позиция меняется, название остаётся. Общий жанровый портрет подборки не является описанием каждой станции.',
+        opts.playRequested === false
+          ? 'Человек сейчас не просит запускать звук. Ты предлагаешь варианты, а не включаешь их: не пиши «врубаем», «включаю» или «уже играет».'
+          : 'Не утверждай, что действие клиента уже выполнено, если у тебя нет подтверждения его исполнения.',
+        opts.repeatDiscovery
+          ? 'Это продолжение музыкальной просьбы с НОВЫМИ карточками. Короткое «и?» не повод отправлять читать ответ выше. Объясни текущие варианты по названиям и их собственным тегам; прежние карточки не являются результатом этого шага.'
+          : '',
         slateSummary
           ? `Вот что РЕАЛЬНО в подборке (по тегам станций): ${slateSummary}. Оттолкнись от этой конкретики — назови жанр/эпоху/звучание живыми словами. Можно назвать подтверждённую станцию, но ничего не добавляй сверх её тегов.`
           : 'Коротко объясни, почему подборка попала в запрос.'
@@ -1893,6 +1906,53 @@ export const chatWithAssistant = async (
   }
   const legacyMusicContext = recommendationContextMessage(history, userMessage);
   const musicContextMessage = recommendationContextMessage(history, userMessage, true);
+  const repeatAnchors: VerifiedStationRef[] = [];
+  // Repeat discovery excludes confirmed mirrors as well as UUIDs. Resolve
+  // identities lazily, only if a station tool is actually used; a nonmusic
+  // repair must not cause catalogue lookups. This boundary also protects
+  // non-catalogue/custom providers. The real provider filters before its cap.
+  const repeatIds = [...new Set([
+    // Prioritize recent slates for the bounded mirror lookups. All explicit
+    // IDs remain hard exclusions, even when the lookup budget is exhausted.
+    ...(input.userTaste?.lastRecommendedStationIds || []),
+    ...(input.userTaste?.negativeStationIds || []),
+    ...(input.userTaste?.hiddenStationIds || [])
+  ])];
+  if (isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage && repeatIds.length) {
+    const baseTools = deps.tools;
+    let excluded: ReturnType<typeof createStationExclusionMatcher> | undefined;
+    const matcher = () => excluded ??= createStationExclusionMatcher(repeatIds, async id => {
+      const station = await baseTools.getStation(id);
+      // Only catalogue-confirmed previous rows can reject stale prose. Never
+      // infer station identities from the assistant's historical claims.
+      if (station?.stationuuid === id) repeatAnchors.push(station);
+      return station;
+    });
+    const filter = async (stations: VerifiedStationRef[]) => {
+      const blocked = await matcher();
+      return stations.filter(station => !blocked(station));
+    };
+    deps = {...deps, tools: {
+      ...baseTools,
+      searchStations: async args => filter(await baseTools.searchStations({...args,
+        excludeStationIds: [...new Set([...repeatIds, ...(args.excludeStationIds || [])])]})),
+      getStation: async id => {
+        const station = await baseTools.getStation(id);
+        return station && !(await matcher())(station) ? station : null;
+      },
+      discoverTrending: async seed => {
+        const rails = await baseTools.discoverTrending(seed);
+        const blocked = await matcher();
+        return rails.map(rail => ({...rail,stations:rail.stations.filter(station=>!blocked(station))}));
+      },
+      ...(baseTools.resolveArtistStation ? {resolveArtistStation: async hit => {
+        const station = await baseTools.resolveArtistStation!(hit);
+        return station && !(await matcher())(station) ? station : null;
+      }} : {}),
+      ...(baseTools.matchStationsByArtistName ? {matchStationsByArtistName: async artist =>
+        filter(await baseTools.matchStationsByArtistName!(artist, repeatIds))} : {})
+    }};
+  }
   const countryScope = requestedCountry(musicContextMessage);
   if (countryScope) {
     // The planner may omit or change geography. Bind it before each ranked
@@ -2429,6 +2489,9 @@ export const chatWithAssistant = async (
     collectVerifiedStations(groundedObservations).length === 0 &&
     sources.length === 0;
   const composed = await composeAgentReply(deps, systemPrompt, transcript, groundedObservations, {
+    finalStations: stations,
+    playRequested: hasPlayIntent(userMessage),
+    repeatDiscovery: isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage,
     factualGuard,
     culturalVibe: Boolean(culturalTags),
     culturalExplainer: culturalExplainerQuestion,
@@ -2501,21 +2564,25 @@ export const chatWithAssistant = async (
   // identity guard, not a claim to validate every musical adjective.
   const nameKey = (name:string) => name.toLowerCase().replace(/\s*\([^)]*\)\s*$/,'').trim();
   const selectedNames = stations.map(station => nameKey(station.name));
-  const wrongCandidate = observedCandidates.find(station => {
+  const wrongCandidate = [...observedCandidates, ...repeatAnchors].find(station => {
     const name = nameKey(station.name);
     return !selectedIds.has(station.stationuuid) && name.length >= 8 &&
       !selectedNames.some(selected => selected.includes(name) || name.includes(selected)) &&
       composed.content.toLowerCase().includes(name);
   });
   const unsupportedProgramClaim = musicIntent && stations.length > 0 && assertsUnverifiedProgram(composed.content);
-  const groundedReply = (wrongCandidate || unsupportedProgramClaim) && stations.length
-    ? stations.map(station => {
-      const genres = sourceGenres(station.tags);
-      return `«${safeContextLabel(station.name,120)}» — ${genres.join(', ') || safeContextLabel(station.tags.join(', '),100)} (${safeContextLabel(station.country,60)}).`;
-    }).join(' ') + (unsupportedProgramClaim ? ' Это ориентир по тегам каталога; отсутствие рекламы, ведущих или новостей в живом эфире гарантировать не могу.' : '')
+  const positionalClaim = musicIntent && stations.length > 0 && referencesStationPosition(composed.content);
+  const playbackClaim = musicIntent && stations.length > 0 && !hasPlayIntent(userMessage) && claimsUnrequestedPlayback(composed.content);
+  const genericRepeat = musicIntent && stations.length > 0 && isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage &&
+    !selectedNames.some(name => name.length > 0 && composed.content.toLowerCase().includes(name));
+  const groundedReply = (wrongCandidate || unsupportedProgramClaim || positionalClaim || playbackClaim || genericRepeat) && stations.length
+    ? describeVerifiedStationSlate(stations) + (unsupportedProgramClaim ? ' Это ориентир по тегам каталога; отсутствие рекламы, ведущих или новостей в живом эфире гарантировать не могу.' : '')
     : composed.content;
   if (wrongCandidate) deps.log('ai compose replaced: named a candidate outside the final slate');
   if (unsupportedProgramClaim) deps.log('ai compose replaced: unverified live programme absence claim');
+  if (positionalClaim) deps.log('ai compose replaced: positional station description');
+  if (playbackClaim) deps.log('ai compose replaced: playback claim without current permission');
+  if (genericRepeat) deps.log('ai compose replaced: repeat omitted current station explanations');
   return {
     reply: cleanText(groundedReply, surface),
     stations,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chatWithAssistant } from '../src/ai/brain.js';
 import { assertsUnverifiedProgram, promisesUnperformedLookup } from '../src/ai/replyOutcome.js';
+import { claimsUnrequestedPlayback, describeVerifiedStationSlate, referencesStationPosition } from '../src/ai/recommendationReply.js';
 import type { AssistantDeps, ChatInput, ChatTurn, VerifiedStationRef } from '../src/ai/types.js';
 
 const station = (id: string, overrides: Partial<VerifiedStationRef> = {}): VerifiedStationRef => ({
@@ -184,4 +185,114 @@ test('catalogue formats cannot become unsupported promises about live programme 
     assert.equal(r.stations.length,2);
   }
   for(const text of ['Не могу гарантировать, что эфир будет без новостей.','Теги — не гарантия отсутствия рекламы.','Станция «Радио без рекламы» найдена.']) assert.equal(assertsUnverifiedProgram(text),false,text);
+});
+
+test('positional genre descriptions are replaced with facts attached to their actual named cards',async()=>{
+  const rows = [station('a',{name:'House Window',tags:['house']}),
+    station('b',{name:'Trance Window',tags:['trance']}),station('c',{name:'Bass Window',tags:['drum and bass']})];
+  const h=harness({planner:[recommendation],rows,reply:'Вторая — drum and bass, а первая — trance.'});
+  const r=await chatWithAssistant(ask('Хочется скоростного как sonic'),h.deps);
+  assert.match(r.reply,/«House Window» — house/);
+  assert.match(r.reply,/«Trance Window» — trance/);
+  assert.match(r.reply,/«Bass Window» — drum and bass/);
+  assert.doesNotMatch(r.reply,/вторая|первая/i);
+  const compose=h.requests.at(-1);
+  const grounding=compose.messages.find((m:any)=>m.role === 'system' && m.content.startsWith('Проверенные факты'));
+  const facts=JSON.parse(grounding.content.slice(grounding.content.indexOf('{'),grounding.content.indexOf('}. Называй')+1));
+  assert.deepEqual(facts.stations.map((s:any)=>[s.id,s.position,s.tags]),r.stations.map((s,i)=>[s.stationuuid,i+1,s.tags]));
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+});
+
+test('NoPlay and short repairs cannot claim that their recommendation started playback',async()=>{
+  for(const input of [ask('Хочется скоростного как sonic. Не включай.'),
+    ask('и?',[{role:'user',text:'Включи скоростное как sonic'},{role:'assistant',text:'Сейчас найду.'}])]) {
+    const h=harness({planner:[recommendation],reply:'Врубаем Fast a — уже играет!'});
+    const r=await chatWithAssistant(input,h.deps);
+    assert.doesNotMatch(r.reply,/врубаем|уже играет/i);
+    assert.ok(r.stations.length > 0);
+    assert.ok(r.actions.every(a=>a.kind !== 'play'));
+  }
+});
+
+test('named musical prose and time expressions survive the narrow position/playback guards',()=>{
+  for(const text of ['«Первая станция» — джаз.','Во второй половине дня попробуй House Window.','Две станции с быстрым ритмом.','Trance Window — trance.']) {
+    assert.equal(referencesStationPosition(text),false,text);
+  }
+  for(const text of ['Вторая — drum and bass.','Вторая больше про drum and bass.','У второй более быстрый ритм.','На первом месте trance.','Третий звучит мягче.','Попробуй первую карточку.','The second station is house.','1. Быстрый вариант.']) {
+    assert.equal(referencesStationPosition(text),true,text);
+  }
+  assert.equal(claimsUnrequestedPlayback('Не буду включать. Выбери, что попробовать.'),false);
+  assert.equal(claimsUnrequestedPlayback('Можешь включить Fast a.'),false);
+  assert.equal(claimsUnrequestedPlayback('Врубаем Fast a.'),true);
+  assert.equal(describeVerifiedStationSlate([station('a',{name:'<b>Radio</b>',tags:[],country:''})]),'«Radio».');
+});
+
+test('a repeat removes confirmed mirrors from custom tools before they can complete the planner',async()=>{
+  const shown=station('shown',{name:'Intense Radio',country:'The Netherlands',url_resolved:'https://audio.example/intense'});
+  const mirror=station('mirror',{name:'Intense Radio (AAC)',country:'NL',url_resolved:'https://audio.example/intense-aac'});
+  const distinct=station('distinct',{name:'Intense Radio 2',country:'NL',url_resolved:'https://audio.example/second'});
+  const h=harness({planner:[recommendation,JSON.stringify({action:'use_tool',intent:'recommend',tool:'search_stations',args:{query:'breakbeat'}})]});
+  let lookups=0;
+  h.deps.tools.getStation=async id=>{lookups++;return id === 'shown' ? shown : null;};
+  h.deps.tools.searchStations=async args=>{h.searches.push(args);return args.query === 'breakbeat' ? [distinct] : [mirror];};
+  const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Вот варианты.'}]),
+    userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
+  assert.deepEqual(h.searches.map(args=>args.query),['drum and bass','breakbeat']);
+  assert.ok(h.searches.every(args=>args.excludeStationIds.includes('shown')));
+  assert.equal(lookups,1,'request-scoped matcher reused across retries');
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['distinct']);
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+});
+
+test('a nonmusic repair never resolves historical station identities',async()=>{
+  const h=harness({planner:[final('chat')]});
+  h.deps.tools.getStation=async()=>{throw new Error('must not look up music for pizza');};
+  const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется вечером пиццы'},{role:'assistant',text:'Приятного аппетита!'}]),
+    userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
+  assert.equal(r.stations.length,0);
+  assert.equal(h.searches.length,0);
+});
+
+test('large exclusion contexts cannot crowd out last recommendations or leak exact hidden IDs',async()=>{
+  const shown=station('shown',{name:'Intense Radio',country:'NL',url_resolved:'https://audio.example/intense'});
+  const mirror=station('mirror',{name:'Intense Radio AAC',country:'NL',url_resolved:'https://audio.example/aac'});
+  const hidden=station('hidden-129',{name:'Hidden source',url_resolved:'https://audio.example/hidden'});
+  const h=harness({planner:[recommendation,final('recommend')],rows:[mirror,hidden]});
+  const ids:string[]=[];
+  h.deps.tools.getStation=async id=>{ids.push(id);return id === 'shown' ? shown : null;};
+  const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Вот.'}]),
+    userTaste:{hiddenStationIds:Array.from({length:160},(_,i)=>`hidden-${i}`),
+      negativeStationIds:Array.from({length:80},(_,i)=>`negative-${i}`),lastRecommendedStationIds:['shown']}},h.deps);
+  assert.equal(r.stations.length,0);
+  assert.equal(ids[0],'shown');
+  assert.equal(ids.length,128);
+  assert.ok(h.searches.every(args=>args.excludeStationIds.includes('hidden-129')));
+});
+
+test('a repeat cannot describe the previous verified slate while showing different new cards',async()=>{
+  const previous=station('shown',{name:'Brokenbeats',url_resolved:'https://audio.example/shown'});
+  const current=station('fresh',{name:'HouseTime.FM',tags:['house'],url_resolved:'https://audio.example/fresh'});
+  const h=harness({planner:[recommendation],rows:[current],reply:'Вот они выше: Brokenbeats помягче и с воздухом.'});
+  h.deps.tools.getStation=async id=>id === 'shown' ? previous : null;
+  const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Brokenbeats подойдёт.'}]),
+    userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['fresh']);
+  assert.match(r.reply,/«HouseTime.FM» — house/);
+  assert.doesNotMatch(r.reply,/Brokenbeats|выше/);
+});
+
+test('short repairs explain the new cards instead of telling the listener to read the prior reply',async()=>{
+  const previous=station('shown',{name:'Brokenbeats',url_resolved:'https://audio.example/shown'});
+  const current=station('fresh',{name:'HouseTime.FM',tags:['house'],url_resolved:'https://audio.example/fresh'});
+  const h=harness({planner:[recommendation],rows:[current],reply:'А, ты про карточки — они как раз под сообщением, все три уже там.'});
+  h.deps.tools.getStation=async id=>id === 'shown' ? previous : null;
+  const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic. Поясни варианты.'},{role:'assistant',text:'Вот.'}]),
+    userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
+  assert.match(r.reply,/«HouseTime.FM» — house/);
+  assert.doesNotMatch(r.reply,/уже там/);
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+  h.deps.tools.getStation=async()=>null;
+  const withoutAnchor=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Вот.'}]),
+    userTaste:{lastRecommendedStationIds:['gone']}},h.deps);
+  assert.match(withoutAnchor.reply,/«HouseTime.FM» — house/,'fresh-card explanations survive a missing past row');
 });

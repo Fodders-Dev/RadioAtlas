@@ -116,3 +116,25 @@ test('matchStationsByArtistName: an EXPLICIT «Шура Каретный» still
   assert.equal(cards.length, 1);
   assert.equal(cards[0]?.stationuuid, 'shura-talk');
 });
+
+test('matchStationsByArtistName: confirmed mirrors are filtered before the five-card cap', async () => {
+  const anchor: Row = {
+    stationuuid: 'last-recommended', name: 'Daft Punk Radio', country: 'United States',
+    url_resolved: 'http://stream.test/daft-punk'
+  };
+  const mirrors: Row[] = Array.from({length: 5}, (_, index) => ({
+    stationuuid: `mirror-${index}`, name: `Daft Punk Radio MP3 ${index + 96}K`, country: 'USA',
+    url_resolved: `http://other.test/mirror-${index}`
+  }));
+  const catalog: CatalogServiceLike = {
+    search: async () => ({items: []}),
+    getStationById: async id => id === anchor.stationuuid ? anchor : null,
+    getSummary: async () => ({}),
+    getCatalog: async () => [...mirrors, {
+      stationuuid: 'classic-channel', name: 'Daft Punk Radio Classic', country: 'United States',
+      url_resolved: 'http://stream.test/classic'
+    }]
+  };
+  const cards = await createCatalogToolProvider(catalog).matchStationsByArtistName!('Daft Punk', [anchor.stationuuid]);
+  assert.deepEqual(cards.map(card => card.stationuuid), ['classic-channel']);
+});

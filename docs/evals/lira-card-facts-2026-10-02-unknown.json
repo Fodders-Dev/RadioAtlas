@@ -1,0 +1,274 @@
+{
+  "generatedAt": "2026-10-02T08:36:23.027Z",
+  "scenario": "unknown",
+  "model": "deepseek-v4-pro",
+  "code": "card-facts-final-degraded-guard",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется будто я несусь по неоновой трассе",
+      "reply": "Это настроение я знаю — когда город расплывается в огни, а в ушах должен быть тот самый синтовый пульс. Держи проверенный набор: Nightride FM — чистый outrun и retrowave, прямо саундтрек к ночной трассе. Если хочется погуще и с привкусом восьмидесятых, Radio Caprice — Retrowave добавит той самой электронной ностальгии. А Synthwave City FM — New подкинет свежего неона, если старый маршрут уже наизусть.",
+      "cards": [
+        {
+          "stationuuid": "12e458f2-cf9b-426a-8d18-7cb07c75b07c",
+          "name": "Nightride FM",
+          "country": "Germany",
+          "tags": [
+            "outrun",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "963f5372-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Retrowave",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "80s",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "74884688-e3a7-41f8-8105-bc249a37963e",
+          "name": "Yumi Co. Radio",
+          "country": "France",
+          "tags": [
+            "anime groove",
+            "animegroove",
+            "city pop",
+            "citypop",
+            "future funk",
+            "futurefunk"
+          ]
+        },
+        {
+          "stationuuid": "949419a7-b875-45d3-869c-6f4fb2d107a4",
+          "name": "Synthwave City FM - New",
+          "country": "The Netherlands",
+          "tags": []
+        },
+        {
+          "stationuuid": "77113a1f-0c93-46ea-9005-2546d33963fe",
+          "name": "HighFi Dream",
+          "country": "The United States Of America",
+          "tags": [
+            "electronic",
+            "synthpop",
+            "new wave",
+            "shoegaze",
+            "melodic house",
+            "alternative / indie"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "12e458f2-cf9b-426a-8d18-7cb07c75b07c",
+          "actionId": "c0edd169-9228-4f79-921b-8b5e0f84d0f3:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 58
+        }
+      ],
+      "runtimeMs": 4490,
+      "usage": {
+        "prompt": 4742,
+        "completion": 198
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну и вот тебе сразу три дорожки в одном настроении: Nightride FM — Datawave, если хочется глитчевого синтвейва и лёгкой цифровой шероховатости, Synthradio — чистый синтезаторный звук, как раз для ровного неонового драйва, и Laut.FM SynthPop — там нью-вейв и электропоп, если вдруг захочется чуть больше голоса и мелодии в этом полёте.",
+      "cards": [
+        {
+          "stationuuid": "f1174669-b7ad-4668-8369-db995e6ecc8d",
+          "name": "- NEUERSCHEINUNGEN - Radio Charts - DJ Charts - Club Charts - Top 100 - Top 40 Club - Pop, Hip-Hop, Dance, EDM, House, Techno, R&B, Trap, Reggaeton, Afrobeat, Indie-Pop, Tropical House, Future Bass, Electro Swing, Synthwave, Deep House, Progressive House, Vocal House, DJ Sets, Remix, Mashup, Dancefloor, Festival-Hits, Club-Hits, Nightlife, Underground.",
+          "country": "Germany",
+          "tags": [
+            "chillout",
+            "house",
+            "pop",
+            "soul",
+            "tech house",
+            "club"
+          ]
+        },
+        {
+          "stationuuid": "65479d00-dd6e-494e-93b0-a8607b846d12",
+          "name": "Nightride FM - Datawave",
+          "country": "Germany",
+          "tags": [
+            "glitchy synthwave",
+            "idm",
+            "retro computing"
+          ]
+        },
+        {
+          "stationuuid": "96394377-0601-11e8-ae97-52543be04c81",
+          "name": "Synthradio",
+          "country": "The Russian Federation",
+          "tags": [
+            "new wave",
+            "synth",
+            "synthesizer",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "e2f8a671-835a-4223-ad0f-33ac7aa9ed05",
+          "name": "DnB&EDM",
+          "country": "The United States Of America",
+          "tags": [
+            "dnb",
+            "drum & bass",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "house"
+          ]
+        },
+        {
+          "stationuuid": "964b33df-0601-11e8-ae97-52543be04c81",
+          "name": "Laut.FM SynthPop",
+          "country": "Germany",
+          "tags": [
+            "synthpop",
+            "ebm",
+            "electropop",
+            "futurepop",
+            "new wave",
+            "synthwave"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "f1174669-b7ad-4668-8369-db995e6ecc8d",
+          "actionId": "44d62105-5116-4f20-9ae3-213b0587867b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 87
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        }
+      ],
+      "runtimeMs": 4526,
+      "usage": {
+        "prompt": 5220,
+        "completion": 196
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "984e3407-b2e7-4a6b-821a-dce41e98110a",
+      "status": "settled",
+      "requestBytes": 10096,
+      "reserveUsd": 0.02269344,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"synthwave\",\n    \"limit\": 5\n  },\n  \"note\": \"Неоновая трасса → synthwave\"\n}",
+      "actualUsd": 0.00298452,
+      "httpStatus": 200,
+      "promptTokens": 2063,
+      "completionTokens": 66
+    },
+    {
+      "reservationId": "26b4b536-a84b-4729-8b9d-281c1cfb4ce4",
+      "status": "settled",
+      "requestBytes": 13927,
+      "reserveUsd": 0.02775036,
+      "responseContent": "О, это настроение я знаю — когда город расплывается в огни, а в ушах должен быть тот самый синтовый пульс. Держи проверенный набор: Nightride FM — чистый outrun и retrowave, прямо саундтрек к ночной трассе. Если хочется погуще и с привкусом восьмидесятых, Radio Caprice — Retrowave добавит той самой электронной ностальгии. А Synthwave City FM — New подкинет свежего неона, если старый маршрут уже наизусть.",
+      "actualUsd": 0.004059,
+      "httpStatus": 200,
+      "promptTokens": 2679,
+      "completionTokens": 132
+    },
+    {
+      "reservationId": "7a4c9678-c3d1-4420-84ac-b1701dfb72a6",
+      "status": "settled",
+      "requestBytes": 10915,
+      "reserveUsd": 0.02377452,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"synthwave\",\n    \"limit\": 5\n  },\n  \"note\": \"Продолжаю подбор станций под неоновую трассу, ищу synthwave\"\n}",
+      "actualUsd": 0.00323664,
+      "httpStatus": 200,
+      "promptTokens": 2215,
+      "completionTokens": 79
+    },
+    {
+      "reservationId": "4a09ece0-3416-4645-a213-ee7423eb76f7",
+      "status": "settled",
+      "requestBytes": 15474,
+      "reserveUsd": 0.0297924,
+      "responseContent": "Ну и вот тебе сразу три дорожки в одном настроении: Nightride FM — Datawave, если хочется глитчевого синтвейва и лёгкой цифровой шероховатости, Synthradio — чистый синтезаторный звук, как раз для ровного неонового драйва, и Laut.FM SynthPop — там нью-вейв и электропоп, если вдруг захочется чуть больше голоса и мелодии в этом полёте.",
+      "actualUsd": 0.00442992,
+      "httpStatus": 200,
+      "promptTokens": 3005,
+      "completionTokens": 117
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-card-facts-20261002/ledger.json"
+}

@@ -9,6 +9,7 @@ import { knownSourceCountry, matchesForeignSource, sourceGenres } from './curren
 import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
+import { createStationExclusionMatcher, type StationExclusionRow } from './stationExclusions.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -33,7 +34,7 @@ export type CatalogServiceLike = {
     limit: number;
     cursor: number;
     relevance?: boolean;
-  }) => Promise<{ items: CatalogStationLite[] }>;
+  }) => Promise<{ items: CatalogStationLite[]; nextCursor?: string | number | null }>;
   getStationById: (id: string) => Promise<CatalogStationLite | null>;
   getSummary: (seed: number) => Promise<{
     moodRails?: Array<{ id: string; stations: CatalogStationLite[] }>;
@@ -132,17 +133,20 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    const excludedIds = args.excludeStationIds || [];
+    const isExcluded = excludedIds.length
+      ? await createStationExclusionMatcher(excludedIds, id => catalog.getStationById(id))
+      : (_station: StationExclusionRow) => false;
     if (args.nearSource) {
       const anchor = args.nearSource;
       const score = createNearSourceScorer(anchor.tags);
       const country = args.country ? knownSourceCountry(args.country) : '';
       if (args.country && !country) return [];
-      const excluded = new Set((args.excludeStationIds || []).slice(0, 128));
       const best: Array<{station: CatalogStationLite; relation: NearSourceScore; stream: string; identity?: string}> = [];
       // Rank the eligible full catalogue before the cap, retaining at most eight
       // unique sources. Mirrors cannot consume the cap before a distinct result.
       for (const station of await catalog.getCatalog('full')) {
-        if (!station.url_resolved || excluded.has(station.stationuuid) || isTalkFormat(station) ||
+        if (!station.url_resolved || isExcluded(station) || isTalkFormat(station) ||
             !isDistinctNearSource({stationuuid:station.stationuuid,url_resolved:station.url_resolved,
               name:station.name,country:station.country || ''}, anchor) ||
             (country && knownSourceCountry(station.country || '') !== country)) continue;
@@ -167,19 +171,22 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       if (!sourceGenres([genre]).includes(genre)) return [];
       const country = args.country ? knownSourceCountry(args.country) : '';
       if (args.country && !country) return [];
-      const excluded = new Set((args.excludeStationIds || []).slice(0, 128));
       const streams = new Set<string>();
+      const identities = new Set<string>();
+      const seenIds = new Set(excludedIds.slice(0, 128));
       const matches: VerifiedStationRef[] = [];
       for (const station of await catalog.getCatalog('full')) {
-        if (!station.url_resolved || excluded.has(station.stationuuid) || isTalkFormat(station)) continue;
+        if (!station.url_resolved || seenIds.has(station.stationuuid) || isExcluded(station) || isTalkFormat(station)) continue;
         if (country && knownSourceCountry(station.country || '') !== country) continue;
         // Match each tag separately: a six-genre summary is not exhaustive.
         const evidence = parseCatalogueTagEvidence(station.tags);
         if (!evidence.some(tag => sourceGenres([tag]).includes(genre))) continue;
         const stream = stationStreamIdentity({url_resolved:station.url_resolved});
-        if (streams.has(stream)) continue;
+        const identity = nearStationIdentity({name:station.name,country:station.country || ''});
+        if (streams.has(stream) || (excludedIds.length && identity && identities.has(identity))) continue;
         streams.add(stream);
-        excluded.add(station.stationuuid);
+        if (excludedIds.length && identity) identities.add(identity);
+        seenIds.add(station.stationuuid);
         matches.push(toRef(station));
         if (matches.length >= limit) break;
       }
@@ -190,12 +197,21 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       // Read the existing profiled catalogue, filter first, cap last.
       const stations = await catalog.getCatalog('full');
       const matches: VerifiedStationRef[] = [];
-      const seen = new Set<string>((args.excludeStationIds || []).slice(0, 128));
+      const seen = new Set<string>();
+      const streams = new Set<string>();
+      const identities = new Set<string>();
       for (const station of stations) {
-        if (isTalkFormat(station) || seen.has(station.stationuuid)) continue;
+        if (isTalkFormat(station) || seen.has(station.stationuuid) || isExcluded(station)) continue;
         const ref = toRef(station);
         if (!matchesForeignSource(ref, args.relatedTo)) continue;
+        const stream = stationStreamIdentity(ref);
+        const identity = nearStationIdentity({name:station.name,country:station.country || ''});
+        if (excludedIds.length && (streams.has(stream) || (identity && identities.has(identity)))) continue;
         seen.add(ref.stationuuid);
+        if (excludedIds.length) {
+          streams.add(stream);
+          if (identity) identities.add(identity);
+        }
         matches.push(ref);
         if (matches.length >= limit) break;
       }
@@ -212,26 +228,57 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
         .filter(station => knownSourceCountry(station.country || '') === canonicalCountry)
         .map(station => station.country || ''))].slice(0, 6)
       : [args.country || ''];
+    const placeTerm = String(args.query || '').trim();
+    const enoughCards = (rows: CatalogStationLite[]) => {
+      const ids = new Set<string>();
+      const streams = new Set<string>();
+      const identities = new Set<string>();
+      const candidates = rows.filter(station => {
+        if (!station.url_resolved || ids.has(station.stationuuid) || isExcluded(station) ||
+            (!wantsTalk && isTalkFormat(station)) ||
+            (canonicalCountry && knownSourceCountry(station.country || '') !== canonicalCountry)) return false;
+        ids.add(station.stationuuid);
+        const stream = stationStreamIdentity({ url_resolved: station.url_resolved });
+        const identity = nearStationIdentity({ name: station.name, country: station.country || '' });
+        if (streams.has(stream) || (identity && identities.has(identity))) return false;
+        streams.add(stream);
+        if (identity) identities.add(identity);
+        return true;
+      });
+      const hits = placeTerm ? candidates.filter(station => placeMatchesQuery(station, placeTerm)) : [];
+      const grounded = hits.length
+        ? candidates.filter(station => placeMatchesQuery(station, placeTerm) ||
+            hits.some(hit => normalizePlace(hit.country) === normalizePlace(station.country)))
+        : candidates;
+      return grounded.length >= limit;
+    };
     // The catalogue stores legacy labels too (USA/Czech Republic). Resolve
     // its actual labels before each country-filtered ranked search; filtering
     // aliases after a global capped page cannot recover hidden local stations.
-    const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(country => catalog.search({
-      q: args.query || '',
-      country,
-      language: args.language || '',
-      tag: args.tag || '',
-      continent: '',
-      limit: fetchLimit,
-      cursor: 0,
-      // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
-      // returns actual genre stations instead of the most-voted substring match.
-      relevance: true
-    })));
+    const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(async country => {
+      const pages: CatalogStationLite[] = [];
+      const maxPages = excludedIds.length ? 3 : 1;
+      let cursor = 0;
+      for (let page = 0; page < maxPages; page += 1) {
+        const response = await catalog.search({
+          q: args.query || '', country, language: args.language || '', tag: args.tag || '',
+          continent: '', limit: fetchLimit, cursor,
+          // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
+          // returns actual genre stations instead of the most-voted substring match.
+          relevance: true
+        });
+        pages.push(...(response.items || []));
+        if (!excludedIds.length || response.nextCursor === null || enoughCards(pages)) break;
+        cursor += fetchLimit;
+      }
+      return { items: pages };
+    }));
     const seen = new Set<string>();
     const items = searches.flatMap(response => response.items || [])
       .filter(station => {
         if (seen.has(station.stationuuid)) return false;
         seen.add(station.stationuuid);
+        if (isExcluded(station)) return false;
         return !canonicalCountry || knownSourceCountry(station.country || '') === canonicalCountry;
       })
       .filter((station) => station.url_resolved)
@@ -241,7 +288,6 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     // another country is dropped — «Radio Art — Tokyo» (Greece) is not a
     // station from Tokyo. Same-country name matches stay (a «Tokyo FM» filed
     // without a state is still Japanese).
-    const placeTerm = String(args.query || '').trim();
     const placeHits = placeTerm ? items.filter((station) => placeMatchesQuery(station, placeTerm)) : [];
     const grounded = placeHits.length
       ? items.filter((station) => {
@@ -250,6 +296,18 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
           return placeHits.some((hit) => normalizePlace(hit.country) === country);
         })
       : items;
+    if (excludedIds.length) {
+      const streams = new Set<string>();
+      const identities = new Set<string>();
+      return grounded.filter(station => {
+        const stream = stationStreamIdentity({ url_resolved: station.url_resolved || '' });
+        const identity = nearStationIdentity({ name: station.name, country: station.country || '' });
+        if (streams.has(stream) || (identity && identities.has(identity))) return false;
+        streams.add(stream);
+        if (identity) identities.add(identity);
+        return true;
+      }).slice(0, limit).map(toRef);
+    }
     return grounded.slice(0, limit).map(toRef);
   },
   getStation: async (id) => {
@@ -275,9 +333,12 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
   // L3: catalog stations whose NAME (not tags) matches the artist by case-tolerant
   // token-prefix. Catalog order is already quality-ranked, so the first matches
   // are the strongest; cap to keep the card list tight.
-  matchStationsByArtistName: async (artist: string) => {
+  matchStationsByArtistName: async (artist: string, excludeStationIds: string[] = []) => {
     const artistNorm = normalizeArtist(artist);
     if (!artistNorm) return [];
+    const isArtistExcluded = excludeStationIds.length
+      ? await createStationExclusionMatcher(excludeStationIds, id => catalog.getStationById(id))
+      : (_station: StationExclusionRow) => false;
     // Name-collision guard. «Шура» (the singer) name-matched «Шура Каретный 18+
     // Радио» — a TALK station about a comedian — and, because that counted as a
     // verified hit, the artist path never fell back to the русская-эстрада
@@ -295,7 +356,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     const stations = await catalog.getCatalog('full');
     const out: VerifiedStationRef[] = [];
     for (const station of stations) {
-      if (!station.url_resolved) continue;
+      if (!station.url_resolved || isArtistExcluded(station)) continue;
       // artist is the KEY (every artist token must appear in the station NAME);
       // the name is the haystack. So «Linkin Park» matches «Linkin Park Radio».
       const stationNorm = normalizeArtist(station.name);

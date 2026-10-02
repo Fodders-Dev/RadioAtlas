@@ -1,0 +1,333 @@
+{
+  "generatedAt": "2026-10-02T08:32:45.296Z",
+  "scenario": "named",
+  "model": "deepseek-v4-pro",
+  "code": "card-facts-final",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Поясни каждый, но не включай.",
+      "reply": "Скорость — это по адресу. Держи три разных поворота драм-н-бейса, чтобы выбрать под настроение.\n\nBrokenbeats — мягче и глубже: атмосферный downtempo-оттенок, когда хочется скорости без звона в ушах.\n\nAtmospheric dnb s0urce — воздушный и просторный jungle-вайб, будто несёшься по ночному хайвею с открытым окном.\n\nBassdrive — чистая классика жанра, плотный и честный drum and bass без лишних сантиментов.",
+      "cards": [
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        },
+        {
+          "stationuuid": "960cc332-0601-11e8-ae97-52543be04c81",
+          "name": "Bassdrive",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "actionId": "cfd80d90-dc07-4b24-b968-a82ffc091b7e:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1059
+        }
+      ],
+      "runtimeMs": 5848,
+      "usage": {
+        "prompt": 4622,
+        "completion": 222
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Смотри, в карточках как раз три разных скорости одного жанра: HouseTime.FM — тут drum and bass вперемешку с deep house и edm, так что будет пожестче и потанцевальнее. ElectroDanceWorld Radio — тоже drum and bass, но в компании tech house и electro, звучит чуть более клубно и упруго. Radio Caprice — Drum 'n' Bass [2] — самый чистый вариант, только drum and bass, без соседей по плейлисту. Выбирай, какая из трёх больше тянет.",
+      "cards": [
+        {
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "name": "HouseTime.FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "drum and bass",
+            "edm",
+            "house",
+            "dubstep",
+            "electro"
+          ]
+        },
+        {
+          "stationuuid": "77330159-8780-443b-b4dd-bcb519b49011",
+          "name": "ElectroDanceWorld Radio",
+          "country": "Spain",
+          "tags": [
+            "dance",
+            "deep house",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "tech house"
+          ]
+        },
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "actionId": "29c2f66c-0da4-4aa9-9b33-0b1de718bafc:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 107
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        }
+      ],
+      "runtimeMs": 4350,
+      "usage": {
+        "prompt": 5045,
+        "completion": 209
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "ещё три",
+      "reply": "Тогда лови ещё три, тоже скоростные, но с разным характером.\n\nDNBRadio Main channel 192k — плотный и техничный: drum and bass, dubstep, neurofunk, tech step, когда хочется жёсткой скорости.\n\nNoise FM — EDM Radio — более танцевальный замес: dnb, dubstep, trance, electronic, так что будет пёстро и энергично.\n\njungletrain.net — 24/7 drum and bass — чистый нон-стоп drum and bass, без лишних жанров, для тех, кто хочет только скорость.",
+      "cards": [
+        {
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "name": "DNBRadio Main channel 192k",
+          "country": "Germany",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "dubstep",
+            "neurofunk",
+            "tech step"
+          ]
+        },
+        {
+          "stationuuid": "0adb24fb-a2fe-4a9b-97a4-bc82dfb1820c",
+          "name": "jungletrain.net - 24/7 drum and bass",
+          "country": "The Netherlands",
+          "tags": []
+        },
+        {
+          "stationuuid": "b78025cf-e68d-43f9-8e59-2a68ae84e7d7",
+          "name": "Noise FM - EDM Radio",
+          "country": "The Russian Federation",
+          "tags": [
+            "dance",
+            "dnb",
+            "drum and bass",
+            "electronic",
+            "trance",
+            "dubstep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "actionId": "a0fde87c-7157-4d49-88e2-63fc7d3ea66b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 93
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        }
+      ],
+      "runtimeMs": 7065,
+      "usage": {
+        "prompt": 5497,
+        "completion": 262
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "e8486fcb-9a2a-4b39-b73e-97cb50f7a6ea",
+      "status": "settled",
+      "requestBytes": 10149,
+      "reserveUsd": 0.0227634,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростной вайб как Sonic → быстрый электронный жанр drum and bass\"\n}",
+      "actualUsd": 0.0030558,
+      "httpStatus": 200,
+      "promptTokens": 2072,
+      "completionTokens": 81
+    },
+    {
+      "reservationId": "e4e1a494-f3bc-4dcb-bdbf-7f15ca832bab",
+      "status": "settled",
+      "requestBytes": 13513,
+      "reserveUsd": 0.02720388,
+      "responseContent": "Скорость — это по адресу. Держи три разных поворота драм-н-бейса, чтобы выбрать под настроение.\n\nBrokenbeats — мягче и глубже: атмосферный downtempo-оттенок, когда хочется скорости без звона в ушах.\n\nAtmospheric dnb s0urce — воздушный и просторный jungle-вайб, будто несёшься по ночному хайвею с открытым окном.\n\nBassdrive — чистая классика жанра, плотный и честный drum and bass без лишних сантиментов.",
+      "actualUsd": 0.00392436,
+      "httpStatus": 200,
+      "promptTokens": 2550,
+      "completionTokens": 141
+    },
+    {
+      "reservationId": "95c86afe-21d7-4fde-b1ff-9d3fcf046d4b",
+      "status": "settled",
+      "requestBytes": 11022,
+      "reserveUsd": 0.02391576,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Продолжаю подбор скоростных станций под вайб Sonic\"\n}",
+      "actualUsd": 0.00326172,
+      "httpStatus": 200,
+      "promptTokens": 2243,
+      "completionTokens": 76
+    },
+    {
+      "reservationId": "106d7eae-9296-4191-a8c7-f437ec37bb48",
+      "status": "settled",
+      "requestBytes": 14822,
+      "reserveUsd": 0.02893176,
+      "responseContent": "Смотри, в карточках как раз три разных скорости одного жанра: HouseTime.FM — тут drum and bass вперемешку с deep house и edm, так что будет пожестче и потанцевальнее. ElectroDanceWorld Radio — тоже drum and bass, но в компании tech house и electro, звучит чуть более клубно и упруго. Radio Caprice — Drum 'n' Bass [2] — самый чистый вариант, только drum and bass, без соседей по плейлисту. Выбирай, какая из трёх больше тянет.",
+      "actualUsd": 0.00422532,
+      "httpStatus": 200,
+      "promptTokens": 2802,
+      "completionTokens": 133
+    },
+    {
+      "reservationId": "803555a3-bdde-4950-8f3f-ab5990f47190",
+      "status": "settled",
+      "requestBytes": 11618,
+      "reserveUsd": 0.02470248,
+      "responseContent": "                                                                                                                   ",
+      "actualUsd": 0.00356928,
+      "httpStatus": 200,
+      "promptTokens": 2359,
+      "completionTokens": 115
+    },
+    {
+      "reservationId": "b237f0be-9334-41e3-8590-51ac2cc44c61",
+      "status": "settled",
+      "requestBytes": 1069,
+      "reserveUsd": 0.0107778,
+      "responseContent": "drum and bass, synthwave, eurodance",
+      "actualUsd": 0.00030624,
+      "httpStatus": 200,
+      "promptTokens": 199,
+      "completionTokens": 11
+    },
+    {
+      "reservationId": "8d1d82a2-0394-40d6-9a32-91d100440ee2",
+      "status": "settled",
+      "requestBytes": 15480,
+      "reserveUsd": 0.02980032,
+      "responseContent": "Тогда лови ещё три, тоже скоростные, но с разным характером.\n\nDNBRadio Main channel 192k — плотный и техничный: drum and bass, dubstep, neurofunk, tech step, когда хочется жёсткой скорости.\n\nNoise FM — EDM Radio — более танцевальный замес: dnb, dubstep, trance, electronic, так что будет пёстро и энергично.\n\njungletrain.net — 24/7 drum and bass — чистый нон-стоп drum and bass, без лишних жанров, для тех, кто хочет только скорость.",
+      "actualUsd": 0.00441804,
+      "httpStatus": 200,
+      "promptTokens": 2939,
+      "completionTokens": 136
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-card-facts-20261002/ledger.json"
+}

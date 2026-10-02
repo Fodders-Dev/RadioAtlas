@@ -4,14 +4,25 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
-**02.10 — Лира: Sonic/«и?» готовы к серверному выпуску, RU недоступен.**
+**02.10 — текущий server-only участок: названные карточки и зеркала.**
+750 API tests, оба typecheck, API build, 21 offline contracts; ревью Astra.
+15 живых реплик/36 calls, upper $0.10856736 из $3, ledger закрыт/reserved 0.
+3 → 3 → 3 новых источника для Sonic/«и?»/«ещё три», без play; факты
+привязаны к текущим названиям. Следом exact-SHA CI/deploy и public smoke.
+[Результат и ограничения](LIRA-CARD-FACTS-2026-10-02.md).
+Новый Studio не включать. Следующий продуктовый участок — релевантность
+ранжирования и проверенные основания пояснений, а не новая композиция.
+
+**02.10 — Лира: Sonic/«и?» опубликованы: `e50ccdb`.**
 Семантический planner gate, USER-context коротких repairs, grounded terminal
 fallbacks и узкий programme-claim guard; NoPlay сохраняется. 733 API tests,
 оба typecheck, API build, 21 offline contracts. Настоящий Pro прогон на NL:
 20 реплик/41 call, upper $0.12459744, отдельный $3 ledger закрыт.
-`77.91.113.109` не отвечает SSH/HTTPS с Windows и NL; uptime GitHub тоже timeout.
-**До production не дошло**: восстановить доступ к RU, затем same-SHA gates,
-server-only deploy и публичный smoke. Непоказанный Studio не включать.
+RU восстановлен владельцем после оплаты. Same-SHA CI `36981724987` и deploy
+`36981725011` successful; functional 432/7, unit 900, API 733. Public health,
+symlink и radio-state chunk SHA подтверждены, двухжанровый public smoke
+completed/2 cards/open-station/0 calls. Pixel 13/5, прежние несовпадения
+эталонов/capture errors, клиент не менялся. Непоказанный Studio не включать.
 [Отчёт с сырыми ответами и ограничениями](LIRA-SEMANTIC-REPAIR-2026-10-02.md).
 
 **01.10 — Лира: близкий источник готов к выпуску.** Выбранный UUID, реальные
