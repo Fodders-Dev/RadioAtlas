@@ -27,6 +27,7 @@ const noPlay=(r:Awaited<ReturnType<typeof chatWithAssistant>>)=>assert.ok(r.acti
 test('pizza and a short repair follow the human topic, not unsolicited assistant radio',async()=>{
   const h=harness();const r=await h.ask('и?',[{role:'user',text:'Хочется вечером пиццы'},{role:'assistant',text:'Хочешь джазовый саундтрек?'}]);
   assert.deepEqual(h.context().value,{intent:'conversation'});
+  assert.match(h.context().systems,/Не предлагай подбор, саундтрек или запуск музыки по своей инициативе/);
   assert.doesNotMatch(h.context().systems,/Если нет ни станций, ни ссылок, честно скажи, что подобрать не удалось/);
   assert.equal(h.searches.length,0);assert.equal(r.stations.length,0);noPlay(r);
 });

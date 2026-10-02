@@ -18,7 +18,7 @@ test('trusted non-recommendation intents ignore station rows and misleading obse
     }),
   ];
   const cases: Array<[ReplyIntent, string]> = [
-    ['conversation', 'последнюю тему'],
+    ['conversation', 'Не предлагай подбор, саундтрек или запуск'],
     ['clarification', 'один необходимый'],
     ['knowledge', 'без перехода к станциям'],
   ];
