@@ -1,0 +1,10 @@
+{
+  "hashDifferences": 0,
+  "currentCi": 37038965629,
+  "previousPngCount": 12,
+  "note": "Four existing baseline mismatches and existing Search screenshot capture error; baseline files unchanged.",
+  "newPngCount": 12,
+  "previousCi": 37036244673,
+  "failed": 5,
+  "passed": 13
+}

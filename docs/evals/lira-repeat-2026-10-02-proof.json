@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "stage": "lira-repeat-tool-budget",
-  "state": "reviewed-server-only-release-candidate",
+  "state": "published",
   "productionBase": "ce0c4d1",
   "sourceSha256": {
     "apps/api/src/ai/types.ts": "839733b50dc4b15b13f42a43f4b105dc0f17313d160e4233e2596cc53f7c122e",
@@ -56,5 +56,16 @@
     "Batch failure keeps all exact UUID exclusions; unresolved name/stream mirrors cannot be guaranteed.",
     "Existing runner concurrency accounting unchanged; new path sequential.",
     "Provider internal single lookups remain; one batch is not one catalogue read for whole turn."
-  ]
+  ],
+  "implementationSha": "e3199ea",
+  "publication": {
+    "releaseSha": "d8c27c273967aa83dcf56bde2ed9928cec12da3c",
+    "ciRun": 37038965629,
+    "deployRun": 37038965624,
+    "ciConclusion": "success",
+    "deployConclusion": "success",
+    "symlink": "/opt/RadioAtlas/releases/d8c27c273967aa83dcf56bde2ed9928cec12da3c",
+    "modelCalls": 0,
+    "publicSmoke": "lira-repeat-2026-10-02-public-proof.json"
+  }
 }

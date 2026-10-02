@@ -1,6 +1,6 @@
 # Лира: повторный выбор без истощения бюджета на прежних карточках
 
-02.10.2026. Реализовано и проверено локально, production ожидает same-SHA CI.
+02.10.2026. Серверный выпуск `d8c27c2` опубликован, same-SHA CI/deploy подтверждены.
 Серверный участок поверх `ce0c4d1`, без новой композиции и платного прогона.
 
 При пяти прежних карточках второе направление поиска не запускалось:
@@ -40,6 +40,18 @@ hard exclusions, failure и nonmusic laziness. Astra независимо про
 новых provider calls в этом участке не было.
 
 [Proof](evals/lira-repeat-2026-10-02-proof.json).
+
+## Подтверждение публикации
+
+Same-SHA CI 37038965629 и deploy 37038965624 успешны; публичный SHA/health
+и RU symlink подтверждены. Три бесплатных public chat smoke: жанровая пара
+без Play, отмена и повтор с пятью prior IDs (два реально полученных плюс три
+synthetic unresolved UUID). Повтор дал новые funk/ambient cards, без Play.
+Точная формулировка заранее проверена через runner: ноль model calls, один
+batch и два поиска. Публичный ответ не раскрывает tool traces; это не живой
+model rerun качества семантического ответа. [Public proof](evals/lira-repeat-2026-10-02-public-proof.json).
+Pixel: 13 passed / 5 прежних failures; все 12 PNG совпадают по SHA256 с CI
+предыдущего выпуска, эталоны не менялись. [Сравнение](evals/lira-repeat-2026-10-02-pixel-proof.json).
 
 ## Далее
 

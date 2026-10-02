@@ -1,0 +1,122 @@
+{
+  "atUtc": "2026-10-02T17:31:07.567Z",
+  "expectedSha": "d8c27c2",
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-CRa0QUmm.js",
+  "state": "radio-state-BrPGhGzC.js",
+  "publicBuildVerified": true,
+  "modelCalls": 0,
+  "modelCallsEvidence": "Exact requests use closed deterministic two-genre and cancellation branches. Repeat wording independently checked through actual runner: zero model calls, one batch plus two searches. Public response does not expose tool traces; no actions executed.",
+  "probes": [
+    {
+      "message": "Одна фанк и одна эмбиент. Не включай.",
+      "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "cards": [
+        {
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "name": "BBC Radio 6 Music",
+          "tags": [
+            "blues",
+            "dance",
+            "electronic",
+            "funk",
+            "hip hop",
+            "house"
+          ]
+        },
+        {
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "actionId": "22d3f77a-62aa-43c6-9071-aefbd1ebaa2b:1",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "runId": "22d3f77a-62aa-43c6-9071-aefbd1ebaa2b",
+        "status": "completed",
+        "route": "music_worker"
+      }
+    },
+    {
+      "message": "Не предлагай другой стиль — фанк",
+      "reply": "Хорошо, новую подборку станций не делаю.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "7b0bc481-5b1c-4a18-b739-99734c85da11:1",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "runId": "7b0bc481-5b1c-4a18-b739-99734c85da11",
+        "status": "completed",
+        "route": "music_worker"
+      }
+    },
+    {
+      "message": "Другой эфир с фанком и другой эфир с эмбиентом. Не включай.",
+      "priorIds": [
+        "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+        "960cf833-0601-11e8-ae97-52543be04c81",
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000003"
+      ],
+      "priorIdsEvidence": "Two catalogue-confirmed sources from first probe plus three synthetic unresolved UUIDs.",
+      "reply": "Фанк — «FM 80 FUNKY MUSIC» (France).\nЭмбиент — «Ambient Sleeping Pill» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "cards": [
+        {
+          "stationuuid": "e1d428c9-6896-4b27-ae75-e00e69e0ca7d",
+          "name": "FM 80 FUNKY MUSIC",
+          "tags": [
+            "disco",
+            "funk",
+            "pop",
+            "soul",
+            "80's",
+            "oldies"
+          ]
+        },
+        {
+          "stationuuid": "961fa288-0601-11e8-ae97-52543be04c81",
+          "name": "Ambient Sleeping Pill",
+          "tags": [
+            "ambient",
+            "meditation",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "e1d428c9-6896-4b27-ae75-e00e69e0ca7d",
+          "actionId": "de779c16-971d-48e3-853f-84bbf8bbae17:1",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "runId": "de779c16-971d-48e3-853f-84bbf8bbae17",
+        "status": "completed",
+        "route": "music_worker"
+      }
+    }
+  ]
+}
