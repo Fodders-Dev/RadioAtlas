@@ -344,11 +344,14 @@ export type WebSearchProvider = {
   ) => Promise<WebSearchOutcome>;
 };
 
+export type PlannerIntent = 'recommend' | 'chat' | 'knowledge' | 'clarify';
+
 export type PlannerDecision = {
   action: 'use_tool' | 'final';
   tool?: string;
   args?: Record<string, unknown>;
   note?: string;
+  intent?: PlannerIntent;
 };
 
 export type AssistantDeps = {

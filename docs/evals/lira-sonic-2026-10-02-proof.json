@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-02T07:10:09.0821449Z",
+  "sourceHashes": {
+    "apps/api/src/ai/types.ts": "ed1daae19a5d18f00be8265286da981f846f08e57d42ed3681073e5e4e258cf0",
+    "apps/api/src/ai/tools.ts": "6b8839eff5fd60456b6a373287ca44638abecbb9795c1b838f4f615fd4592167",
+    "apps/api/src/ai/fallbacks.ts": "0de3d46f9bcfd89c79bb2dbc4e6223d2cc621a24057227215883614158aba987",
+    "apps/api/src/ai/brain.ts": "0a0b41b461af550d8a048ee0159c702e3e31003bdbf7f1f50c5d50378da25044",
+    "apps/api/src/ai/replyOutcome.ts": "1e71b0aaca10b8f65df440a0c839ebaedc332e5967ff0434dd92cc50c4de9d05"
+  },
+  "finalLiveBundleSha256": "aa4697345ec0a65bbbaa995344c327fbab5613bd84562adf4336f2d98bf9a9c5",
+  "host": "NL",
+  "targetModel": "deepseek-v4-pro",
+  "perModelTimeoutSec": 8,
+  "overallRuntimeMs": 18000,
+  "liveReports": [
+    "lira-sonic-2026-10-02-country.json",
+    "lira-sonic-2026-10-02-before.json",
+    "lira-sonic-2026-10-02-nonmusic.json",
+    "lira-sonic-2026-10-02-final.json",
+    "lira-sonic-2026-10-02-country-final.json",
+    "lira-sonic-2026-10-02-unknown.json",
+    "lira-sonic-2026-10-02-intermediate.json",
+    "lira-sonic-2026-10-02-after.json"
+  ],
+  "production": "RU inaccessible from Windows, NL and GitHub; not deployed",
+  "verified": {
+    "testTypes": "passed",
+    "apiBuild": "passed",
+    "apiTests": 733,
+    "offlineModelCalls": 0,
+    "sourceTypes": "passed",
+    "offlineContracts": 21,
+    "focusedTests": 151,
+    "astraReview": "no blockers after fixes"
+  }
+}

@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-10-02T06:55:22.131Z",
+  "scenario": "constrained",
+  "model": "deepseek-v4-pro",
+  "code": "semantic-repair-final-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic, только из России, без новостей. Один вариант. Не включай.",
+      "reply": "Если хочется скорости и драйва, то вот тебе русский вариант — танцевальный электронный поток, который несётся без остановок и лишней болтовни.",
+      "cards": [
+        {
+          "stationuuid": "d847db37-5f89-48a5-be32-b10e5406f0e6",
+          "name": "Mixadance FM",
+          "country": "The Russian Federation",
+          "tags": [
+            "dance",
+            "electronic",
+            "house",
+            "electro",
+            "music"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "d847db37-5f89-48a5-be32-b10e5406f0e6",
+          "actionId": "6c9059dc-a837-4c1b-865f-92f39a01bf4f:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1476
+        }
+      ],
+      "runtimeMs": 4751,
+      "usage": {
+        "prompt": 4505,
+        "completion": 116
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Radio Caprice — Drum 'n' Bass: чистый скоростной бит, ломаный ритм и плотный электронный грув. Российская станция, без новостных вставок — только поток, под который хорошо мчаться.",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "e3e8f6d3-a77a-4166-8149-c7e503b749e1:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 17
+        }
+      ],
+      "runtimeMs": 3385,
+      "usage": {
+        "prompt": 4650,
+        "completion": 136
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "8ce528f4-67a9-4c00-b47f-a0d882715f8b",
+      "status": "settled",
+      "requestBytes": 10572,
+      "reserveUsd": 0.02332176,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"electronic\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Ищу быструю электронную станцию в России\"\n}",
+      "actualUsd": 0.00311124,
+      "httpStatus": 200,
+      "promptTokens": 2132,
+      "completionTokens": 75
+    },
+    {
+      "reservationId": "da5deb04-ac3a-4f7b-a482-3b6bd00557b0",
+      "status": "settled",
+      "requestBytes": 12952,
+      "reserveUsd": 0.02646336,
+      "responseContent": "Если хочется скорости и драйва, то вот тебе русский вариант — танцевальный электронный поток, который несётся без остановок и лишней болтовни.",
+      "actualUsd": 0.00329472,
+      "httpStatus": 200,
+      "promptTokens": 2373,
+      "completionTokens": 41
+    },
+    {
+      "reservationId": "7ba70793-285c-4450-99e1-db9c440ef140",
+      "status": "settled",
+      "requestBytes": 11056,
+      "reserveUsd": 0.02396064,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Ищу одну быструю российскую станцию без новостей\"\n}",
+      "actualUsd": 0.0032274,
+      "httpStatus": 200,
+      "promptTokens": 2205,
+      "completionTokens": 80
+    },
+    {
+      "reservationId": "abebfe5d-b912-492d-8ae8-c8e388a025f3",
+      "status": "settled",
+      "requestBytes": 13342,
+      "reserveUsd": 0.02697816,
+      "responseContent": "Radio Caprice — Drum 'n' Bass: чистый скоростной бит, ломаный ритм и плотный электронный грув. Российская станция, без новостных вставок — только поток, под который хорошо мчаться.",
+      "actualUsd": 0.00344916,
+      "httpStatus": 200,
+      "promptTokens": 2445,
+      "completionTokens": 56
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}

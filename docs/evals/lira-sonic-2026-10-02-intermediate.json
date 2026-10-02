@@ -1,0 +1,205 @@
+{
+  "generatedAt": "2026-10-02T06:49:02.872Z",
+  "scenario": "exact",
+  "model": "deepseek-v4-pro",
+  "code": "reviewed-working-fix-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Привет! Как дела?",
+      "reply": "Привет-привет! У меня всё отлично — эфир ловится, настроение тёплое. А ты как? Слушаешь что-нибудь сейчас или просто заглянул поболтать?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "2e396717-6a0c-4f26-bbce-2db5e986a132:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1886,
+      "usage": {
+        "prompt": 2076,
+        "completion": 53
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Хочется скоростного как sonic",
+      "reply": "Сразу в темп! Тогда держи подборку с плотным, быстрым звуком — тут drum and bass и не только, как раз чтобы разогнаться как Соник.\n\nСмотри, что нашлось: Brokenbeats — атмосферный, но с хорошим драйвом, Atmospheric dnb s0urce — если хочется погрузиться в глубокий dnb-саунд, и Bassdrive — классика жанра, чистая скорость.",
+      "cards": [
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        },
+        {
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "name": "HouseTime.FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "drum and bass",
+            "edm",
+            "house",
+            "dubstep",
+            "electro"
+          ]
+        },
+        {
+          "stationuuid": "960cc332-0601-11e8-ae97-52543be04c81",
+          "name": "Bassdrive",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "77330159-8780-443b-b4dd-bcb519b49011",
+          "name": "ElectroDanceWorld Radio",
+          "country": "Spain",
+          "tags": [
+            "dance",
+            "deep house",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "tech house"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "actionId": "813cf6a2-822c-457d-9805-3164ad6809f9:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 715
+        }
+      ],
+      "runtimeMs": 4972,
+      "usage": {
+        "prompt": 4685,
+        "completion": 185
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ах, тебе ещё! Держи, не жадничаю: DnB Radio — ровный, мощный поток для разгона, и JungleTrain — если хочется добавить старой школы и ломаных ритмов. Этого хватит, чтобы уши засвистели?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "261de570-2aa3-4b09-a97d-10e485e44536:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3715,
+      "usage": {
+        "prompt": 4480,
+        "completion": 99
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "ceb19d66-a1e4-48c4-bc01-079f5ec68c61",
+      "status": "settled",
+      "requestBytes": 11324,
+      "reserveUsd": 0.0243144,
+      "actualUsd": 0.0029502,
+      "httpStatus": 200,
+      "promptTokens": 2076,
+      "completionTokens": 53
+    },
+    {
+      "reservationId": "c98a4b69-f29d-4a54-8ef1-b98f62795362",
+      "status": "settled",
+      "requestBytes": 10410,
+      "reserveUsd": 0.02310792,
+      "actualUsd": 0.00311388,
+      "httpStatus": 200,
+      "promptTokens": 2119,
+      "completionTokens": 80
+    },
+    {
+      "reservationId": "f1a709b6-8838-41bc-bac0-c5e9c2e52edd",
+      "status": "settled",
+      "requestBytes": 13410,
+      "reserveUsd": 0.02706792,
+      "actualUsd": 0.00380292,
+      "httpStatus": 200,
+      "promptTokens": 2566,
+      "completionTokens": 105
+    },
+    {
+      "reservationId": "33d3b8f2-fb29-431d-81e6-8f3cac77b0f6",
+      "status": "settled",
+      "requestBytes": 11005,
+      "reserveUsd": 0.02389332,
+      "actualUsd": 0.00305316,
+      "httpStatus": 200,
+      "promptTokens": 2229,
+      "completionTokens": 28
+    },
+    {
+      "reservationId": "375d3edf-c4fc-434b-b0e4-94eb8ad4b6e0",
+      "status": "settled",
+      "requestBytes": 12279,
+      "reserveUsd": 0.025575,
+      "actualUsd": 0.00325248,
+      "httpStatus": 200,
+      "promptTokens": 2251,
+      "completionTokens": 71
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}
