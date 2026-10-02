@@ -1,0 +1,17 @@
+{
+  "expectedShortSha": "279842b",
+  "stateHasSha": true,
+  "entry": "/assets/index-ChpEJs6M.js",
+  "cards": 2,
+  "atUtc": "2026-10-02T09:06:40.9636241Z",
+  "status": "completed",
+  "healthOk": true,
+  "stateChunk": "radio-state-CdCYkM3t.js",
+  "actions": [
+    "open-station"
+  ],
+  "releaseSha": "279842b3138e30d0c95c25e52d36c5252496896a",
+  "ciRun": 36985977939,
+  "deployRun": 36985977943,
+  "symlink": "/opt/RadioAtlas/releases/279842b3138e30d0c95c25e52d36c5252496896a"
+}

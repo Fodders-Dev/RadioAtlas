@@ -4,14 +4,20 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
-**02.10 — текущий server-only участок: названные карточки и зеркала.**
+**02.10 — server-only `279842b` опубликован: названные карточки и зеркала.**
 750 API tests, оба typecheck, API build, 21 offline contracts; ревью Astra.
 15 живых реплик/36 calls, upper $0.10856736 из $3, ledger закрыт/reserved 0.
 3 → 3 → 3 новых источника для Sonic/«и?»/«ещё три», без play; факты
-привязаны к текущим названиям. Следом exact-SHA CI/deploy и public smoke.
+привязаны к текущим названиям. Same-SHA CI `36985977939` и deploy
+`36985977943` successful; API 750, unit 900, functional 432/7.
+Public health, symlink и client radio-state SHA подтверждены; free smoke
+двух жанров completed/2 cards/open-station. Pixel 13/5 — прежние четыре
+эталона и capture error Search, client/baselines не менялись.
 [Результат и ограничения](LIRA-CARD-FACTS-2026-10-02.md).
 Новый Studio не включать. Следующий продуктовый участок — релевантность
-ранжирования и проверенные основания пояснений, а не новая композиция.
+ранжирования и проверенные основания пояснений, а не новая композиция:
+[следующий бриф](LIRA-NEXT-RELEVANCE-2026-10-02.md). Paid ledger закрыт;
+новые платные вызовы требуют нового бюджета. Физический звук не проверялся.
 
 **02.10 — Лира: Sonic/«и?» опубликованы: `e50ccdb`.**
 Семантический planner gate, USER-context коротких repairs, grounded terminal

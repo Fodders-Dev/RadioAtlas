@@ -1,0 +1,50 @@
+{
+  "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+  "stations": [
+    {
+      "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+      "name": "BBC Radio 6 Music",
+      "country": "The United Kingdom Of Great Britain And Northern Ireland",
+      "tags": [
+        "blues",
+        "dance",
+        "electronic",
+        "funk",
+        "hip hop",
+        "house"
+      ],
+      "favicon": "https://de8as167a043l.cloudfront.net/styles/images/logosplus/120x120xBBCR6.png",
+      "url_resolved": "http://as-hls-ww-live.akamaized.net/pool_81827798/live/ww/bbc_6music/bbc_6music.isml/bbc_6music-audio%3d320000.norewind.m3u8"
+    },
+    {
+      "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+      "name": "SomaFM Groove Salad (128k MP3)",
+      "country": "The United States Of America",
+      "tags": [
+        "ambient",
+        "chillout",
+        "downtempo",
+        "groove",
+        "lounge",
+        "sleep"
+      ],
+      "favicon": "https://somafm.com/img3/groovesalad-400.jpg",
+      "url_resolved": "https://ice6.somafm.com/groovesalad-128-mp3"
+    }
+  ],
+  "serviceLinks": [],
+  "sources": [],
+  "actions": [
+    {
+      "kind": "open-station",
+      "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+      "actionId": "a3458c62-4a94-41a1-acc8-9d6b1288fd0e:1",
+      "permission": "read"
+    }
+  ],
+  "run": {
+    "runId": "a3458c62-4a94-41a1-acc8-9d6b1288fd0e",
+    "status": "completed",
+    "route": "music_worker"
+  }
+}

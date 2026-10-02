@@ -75,4 +75,22 @@ Harness запускает настоящий brain на RU с настояще�
 
 Сырые ответы и ledger: `docs/evals/lira-card-facts-2026-10-02-*.json`.
 Хэши реализации/последнего bundle и локальные проверки: соседний proof JSON.
-Публикация и exact-SHA CI отмечаются в PLAN/WORKING-SETUP после завершения.
+## Публикация подтверждена
+
+Серверный коммит `279842b3138e30d0c95c25e52d36c5252496896a` опубликован.
+CI `36985977939`: оба typecheck, API 750, bot 94, webapp unit 900,
+scripts 81, functional **432 passed / 7 skipped** — обязательные gates зелёные.
+Deploy `36985977943` successful. RU `/opt/RadioAtlas/current` указывает
+на exact SHA. 02.10 в 09:06 UTC public health ok, `/assets/index-ChpEJs6M.js`
+ссылается на `radio-state-CdCYkM3t.js` с `279842b`. Бесплатный публичный
+POST /api/ai/chat для двух жанров: completed, две карточки, open-station.
+Эта закрытая ветка имеет нулевой model usage по коду; не новый платный диалог.
+
+Pixel reporting **13/5**: четыре прежних несовпадения (Search, full player,
+mobile queue, mobile library) и mobile Search capture error, те же тесты,
+что в предыдущем CI. Клиент и эталоны в данном diff не менялись. Визуальную
+приёмку или новый дизайн этот отчёт не подтверждает.
+
+Public proof/smoke сохранены рядом с сырыми ответами. В рабочем checkout
+серверный коммит интегрирован как `d14295b`; его непоказанный Studio остаётся
+локальным. [Следующий конкретный бриф](LIRA-NEXT-RELEVANCE-2026-10-02.md).
