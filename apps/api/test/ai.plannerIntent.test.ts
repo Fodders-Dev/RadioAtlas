@@ -69,3 +69,12 @@ test('extracts a valid intent from the existing fenced-JSON format', () => {
 test('invalid action still becomes final without inventing an intent', () => {
   assert.deepEqual(parse({ action: 'recommend', note: 'plain text' }), { action: 'final', note: 'plain text' });
 });
+
+test('semantic brief is accepted only for an explicit recommendation search or final',()=>{
+  const semanticSearch = {kind:'hypothesis',tags:['drum and bass','breakbeat']};
+  for(const action of ['use_tool','final']) assert.deepEqual(parse({action,intent:'recommend',tool:'search_stations',semanticSearch}).semanticSearch,semanticSearch);
+  for(const intent of ['knowledge','chat','clarify',undefined]) assert.equal(parse({action:'use_tool',tool:'search_stations',intent,semanticSearch}).semanticSearch,undefined);
+  for(const tool of ['get_station','find_stations_by_artist','admin_override']) assert.equal(parse({action:'use_tool',tool,intent:'recommend',semanticSearch}).semanticSearch,undefined);
+  assert.equal(parse({action:'invalid',intent:'recommend',semanticSearch}).semanticSearch,undefined);
+  assert.equal(parse({action:'final',intent:'recommend',semanticSearch:{...semanticSearch,tags:['jazz','<script>']}}).semanticSearch,undefined);
+});

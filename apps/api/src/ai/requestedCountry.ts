@@ -70,6 +70,11 @@ const NEGATED_LOCATION = /(?:не\s+(?:из|в|по|from|in)\s+|not\s+(?:from|in
 const LIST_JOIN = /^(?:\s|,|;|\band\b|\bor\b|\bи\b|\bили\b|\/|\bvs\.?\b|\bversus\b|\bfrom\b|\bin\b|из|в|по)*$/iu;
 type Match = { start: number; end: number; country: string };
 
+// An ambiguous list or a negated country is not an absent location. A caller
+// continuing a dialogue must not silently revive an older single-country scope.
+export const hasCountryScopeMention = (message: string): boolean =>
+  [...message.matchAll(EN_LOCATION), ...message.matchAll(RU_LOCATION)].length > 0;
+
 export const requestedCountry = (message: string): string | undefined => {
   const matches: Match[] = [];
   for (const match of message.matchAll(EN_LOCATION)) {

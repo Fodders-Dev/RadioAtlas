@@ -260,6 +260,9 @@ export type SearchStationsArgs = {
   // Trusted counted-genre lane; exact catalogue tags are filtered before cap.
   // Never accepted from model tool arguments.
   requiredGenre?: string;
+  // Validated semantic search only; spellings matched before the ranked cap.
+  semanticGenre?: string;
+  semanticExcludeTags?: readonly string[];
   // Trusted current-source lane only. Full bounded evidence remains internal.
   nearSource?: { stationuuid: string; url_resolved: string; tags: readonly string[]; name?: string; country?: string };
   excludeStationIds?: string[];
@@ -352,6 +355,7 @@ export type PlannerDecision = {
   args?: Record<string, unknown>;
   note?: string;
   intent?: PlannerIntent;
+  semanticSearch?: import('./semanticSearch.js').SemanticSearch;
 };
 
 export type AssistantDeps = {

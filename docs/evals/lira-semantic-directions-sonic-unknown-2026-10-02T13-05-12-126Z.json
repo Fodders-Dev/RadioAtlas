@@ -1,0 +1,288 @@
+{
+  "generatedAt": "2026-10-02T13:05:12.127Z",
+  "scenario": "unknown",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется будто я несусь по неоновой трассе",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Retrowave» — synthwave, 80s, electronic (The Russian Federation).\n«Nightride FM» — synthwave (Australia).\n«HighFi Dream» — synthwave, electronic, synthpop (The United States Of America).\n«Sanctuary Radio (Retro 80s Channel)» — 80s, retro music (The United States Of America).\n«Magic City Radio WATA-DB» — synthwave, 80's, pop (The United States Of America).",
+      "cards": [
+        {
+          "stationuuid": "963f5372-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Retrowave",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "80s",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "c231b693-d82c-4c05-9d93-a1349aee540c",
+          "name": "Nightride FM",
+          "country": "Australia",
+          "tags": [
+            "outrun",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "77113a1f-0c93-46ea-9005-2546d33963fe",
+          "name": "HighFi Dream",
+          "country": "The United States Of America",
+          "tags": [
+            "electronic",
+            "synthpop",
+            "new wave",
+            "shoegaze",
+            "melodic house",
+            "alternative / indie"
+          ]
+        },
+        {
+          "stationuuid": "9265f88b-3773-40f1-8f3a-7d0ab236d067",
+          "name": "Sanctuary Radio (Retro 80s Channel)",
+          "country": "The United States Of America",
+          "tags": [
+            "80s radio",
+            "all 80s",
+            "new wave",
+            "retro music",
+            "retrowave"
+          ]
+        },
+        {
+          "stationuuid": "c0e1c177-8de3-46e5-8feb-842c996bbcd8",
+          "name": "Magic City Radio WATA-DB",
+          "country": "The United States Of America",
+          "tags": [
+            "80's",
+            "chillsynth",
+            "spacesynth",
+            "synth-pop",
+            "synthwave"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "963f5372-0601-11e8-ae97-52543be04c81",
+          "actionId": "db6550ac-8ccb-4127-a160-6327d33d129c:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 181
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 43
+        }
+      ],
+      "runtimeMs": 4875,
+      "usage": {
+        "prompt": 6027,
+        "completion": 358
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Yumi Co. Radio» — synthwave (France).\n«Retrowave.One Radio» — synthwave, 80s (The Russian Federation).\n«Luxury Lounge Radio - Chillwave, Retrowave, Synthwave» — synthwave, chillout, lounge (The Russian Federation).\n«Esoterica Radio S5» — synthwave, electronic dance music, rock (Bosnia And Herzegovina).\n«Chaos FM» — synthwave, african, ambient (The United Kingdom Of Great Britain And Northern Ireland).\nОбщее в тегах — synthwave.",
+      "cards": [
+        {
+          "stationuuid": "74884688-e3a7-41f8-8105-bc249a37963e",
+          "name": "Yumi Co. Radio",
+          "country": "France",
+          "tags": [
+            "anime groove",
+            "animegroove",
+            "city pop",
+            "citypop",
+            "future funk",
+            "futurefunk"
+          ]
+        },
+        {
+          "stationuuid": "1bc73ef8-343a-4eb9-876b-9949c225f09c",
+          "name": "Retrowave.One Radio",
+          "country": "The Russian Federation",
+          "tags": [
+            "80s",
+            "chillsynth",
+            "cyberpunk",
+            "darksynth",
+            "outrun",
+            "retrowave"
+          ]
+        },
+        {
+          "stationuuid": "989d12b8-fa4e-4cdd-b76f-6aad635175b0",
+          "name": "Luxury Lounge Radio - Chillwave, Retrowave, Synthwave",
+          "country": "The Russian Federation",
+          "tags": [
+            "chillout",
+            "chillwave",
+            "lounge",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "d71c5650-1792-4de3-8ce3-32fad008c669",
+          "name": "Esoterica Radio S5",
+          "country": "Bosnia And Herzegovina",
+          "tags": [
+            "rock",
+            "darksynth",
+            "electro industrial darkwave ebm futurepop synthpop goth",
+            "electronic dance music",
+            "electronic rock",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "88c7b82a-392c-4ea8-b0f9-89496ec9df55",
+          "name": "Chaos FM",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "ambient",
+            "blues",
+            "chillout",
+            "country",
+            "dnb",
+            "funk"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "74884688-e3a7-41f8-8105-bc249a37963e",
+          "actionId": "503c920e-7cf6-4f1a-9df5-ba5235cc0b23:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 133
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 12
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 10
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 20
+        }
+      ],
+      "runtimeMs": 4636,
+      "usage": {
+        "prompt": 6507,
+        "completion": 234
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "502bffad-21a8-42af-ab44-ad720ed9eb48",
+      "status": "settled",
+      "requestBytes": 14639,
+      "reserveUsd": 0.0286902,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"synthwave\",\n    \"limit\": 5\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"synthwave\", \"retrowave\"]\n  },\n  \"note\": \"Неоновая трасса → synthwave/retrowave\"\n}",
+      "actualUsd": 0.00404712,
+      "httpStatus": 200,
+      "promptTokens": 2769,
+      "completionTokens": 99
+    },
+    {
+      "reservationId": "d6777d8b-fe30-4f5c-9cb6-3f5911156858",
+      "status": "settled",
+      "requestBytes": 16074,
+      "reserveUsd": 0.0305844,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"963f5372-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    },\n    {\n      \"stationId\": \"c231b693-d82c-4c05-9d93-a1349aee540c\",\n      \"tagKeys\": [\"t0\"]\n    },\n    {\n      \"stationId\": \"77113a1f-0c93-46ea-9005-2546d33963fe\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    },\n    {\n      \"stationId\": \"9265f88b-3773-40f1-8f3a-7d0ab236d067\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"c0e1c177-8de3-46e5-8feb-842c996bbcd8\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    }\n  ]\n}",
+      "actualUsd": 0.0053262,
+      "httpStatus": 200,
+      "promptTokens": 3258,
+      "completionTokens": 259
+    },
+    {
+      "reservationId": "db3ed47f-b42f-4899-b25a-277a7483a673",
+      "status": "settled",
+      "requestBytes": 15211,
+      "reserveUsd": 0.02944524,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"synthwave\",\n    \"limit\": 5\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"synthwave\", \"retrowave\"]\n  },\n  \"note\": \"Продолжаю подбор по образу неоновой трассы\"\n}",
+      "actualUsd": 0.00422796,
+      "httpStatus": 200,
+      "promptTokens": 2897,
+      "completionTokens": 102
+    },
+    {
+      "reservationId": "905355d8-2ab5-4ef3-b583-c007cd9f9794",
+      "status": "settled",
+      "requestBytes": 17668,
+      "reserveUsd": 0.03268848,
+      "responseContent": "                                                                                                                                    ",
+      "actualUsd": 0.00528792,
+      "httpStatus": 200,
+      "promptTokens": 3610,
+      "completionTokens": 132
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

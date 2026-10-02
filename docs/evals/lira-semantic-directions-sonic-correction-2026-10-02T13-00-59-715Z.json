@@ -1,0 +1,284 @@
+{
+  "generatedAt": "2026-10-02T13:00:59.715Z",
+  "scenario": "correction",
+  "model": "deepseek-v4-pro",
+  "code": "d1df6a6-live-fixes-2",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как Sonic, только из России, без новостей. Два варианта, не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Drum 'n' Bass [2]» — drum and bass, electronic (The Russian Federation).\n«Atm.Fm» — breakbeat (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "96453752-0601-11e8-ae97-52543be04c81",
+          "name": "Atm.Fm",
+          "country": "The Russian Federation",
+          "tags": [
+            "atmospheric",
+            "breakbeat",
+            "breaks",
+            "multilingual",
+            "progressive"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "52737a48-0895-43e0-9896-0601f9478a5b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 5754
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 192
+        }
+      ],
+      "runtimeMs": 16524,
+      "usage": {
+        "prompt": 5718,
+        "completion": 233
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Нужен рваный механический ритм без мягкой атмосферы. Страну сохрани. Не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Industrial Music [2]» — industrial (The Russian Federation).\n«Radio Caprice - Breakcore» — electronic, idm (The Russian Federation).\nОбщее в тегах — electronic.",
+      "cards": [
+        {
+          "stationuuid": "c678fd49-688e-4a7f-acb2-559ba99a793f",
+          "name": "Radio Caprice - Industrial Music [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "industrial",
+            "industrial music",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "f19cda07-f0f8-4880-bc09-4fed1611c0a9",
+          "name": "Radio Caprice - Breakcore",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "breakcore",
+            "idm"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c678fd49-688e-4a7f-acb2-559ba99a793f",
+          "actionId": "179588e6-d512-4f14-bcaa-37babb9bba3b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 182
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 14
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 185
+        }
+      ],
+      "runtimeMs": 11414,
+      "usage": {
+        "prompt": 6004,
+        "completion": 235
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«drumfunk.ru» — жанровых данных в каталоге не хватает (The Russian Federation).\nВ этом поиске нашла 1 из 2 запрошенных разных источников.",
+      "cards": [
+        {
+          "stationuuid": "0b98e78b-06e9-4dbf-a1d2-0b22ebba686a",
+          "name": "drumfunk.ru",
+          "country": "The Russian Federation",
+          "tags": [
+            "breakcore"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "0b98e78b-06e9-4dbf-a1d2-0b22ebba686a",
+          "actionId": "6887c339-a798-4680-acef-57b482519cd0:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 310
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 17
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 10
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 248
+        }
+      ],
+      "runtimeMs": 9981,
+      "usage": {
+        "prompt": 5981,
+        "completion": 175
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "a32b89b7-0344-42d6-92a4-26e730cf6138",
+      "status": "settled",
+      "requestBytes": 15277,
+      "reserveUsd": 0.02953236,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"breakbeat\"]\n  },\n  \"note\": \"Скоростной Sonic-вайб → быстрые ломаные ритмы, ищем DnB/брейкбит в России.\"\n}",
+      "actualUsd": 0.00429924,
+      "httpStatus": 200,
+      "promptTokens": 2864,
+      "completionTokens": 131
+    },
+    {
+      "reservationId": "72e7cf57-bbad-49c6-8eea-eae0ebbfa28b",
+      "status": "settled",
+      "requestBytes": 15050,
+      "reserveUsd": 0.02923272,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"96453752-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.0041712,
+      "httpStatus": 200,
+      "promptTokens": 2854,
+      "completionTokens": 102
+    },
+    {
+      "reservationId": "2bfccf0e-8135-41e1-aa01-0988835d230c",
+      "status": "settled",
+      "requestBytes": 15957,
+      "reserveUsd": 0.03042996,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"industrial\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"industrial\", \"breakcore\"],\n    \"excludeTags\": [\"ambient\", \"chillout\"]\n  },\n  \"note\": \"Рваный механический ритм без мягкой атмосферы → industrial/breakcore, исключаем ambient/chillout\"\n}",
+      "actualUsd": 0.00447348,
+      "httpStatus": 200,
+      "promptTokens": 2990,
+      "completionTokens": 133
+    },
+    {
+      "reservationId": "56e0fcf0-3373-45f2-b331-f7fa48cddf56",
+      "status": "settled",
+      "requestBytes": 16010,
+      "reserveUsd": 0.03049992,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"c678fd49-688e-4a7f-acb2-559ba99a793f\",\n      \"tagKeys\": [\"t1\"]\n    },\n    {\n      \"stationId\": \"f19cda07-f0f8-4880-bc09-4fed1611c0a9\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.0043824,
+      "httpStatus": 200,
+      "promptTokens": 3014,
+      "completionTokens": 102
+    },
+    {
+      "reservationId": "39dbf176-1c0f-43c9-a5e5-e1e70a0cc450",
+      "status": "settled",
+      "requestBytes": 16260,
+      "reserveUsd": 0.03082992,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"industrial\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"industrial\", \"breakcore\"],\n    \"excludeTags\": [\"ambient\", \"chillout\"]\n  },\n  \"note\": \"Продолжаю последнюю цель: рваный механический ритм без мягкой атмосферы, Россия.\"\n}",
+      "actualUsd": 0.00453816,
+      "httpStatus": 200,
+      "promptTokens": 3045,
+      "completionTokens": 131
+    },
+    {
+      "reservationId": "ef061963-fe58-4c06-9fbf-ab28a00419e3",
+      "status": "settled",
+      "requestBytes": 15839,
+      "reserveUsd": 0.0302742,
+      "responseContent": "                [2]» — industrial (The Russian Federation).\n«Radio Caprice - Breakcore» — electronic, idm (The Russian Federation).",
+      "actualUsd": 0.00404976,
+      "httpStatus": 200,
+      "promptTokens": 2936,
+      "completionTokens": 44
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

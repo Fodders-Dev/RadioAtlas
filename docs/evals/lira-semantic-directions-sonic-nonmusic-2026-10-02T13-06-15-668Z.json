@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-02T13:06:15.669Z",
+  "scenario": "nonmusic",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется вечером пиццы",
+      "reply": "Это уже настроение! Пицца вечером — почти ритуал. Под неё я бы включила что-нибудь тёплое, немного расслабленное, но с характером. Джаз, соул, лёгкий фанк или ламповый инди — чтобы жевать под музыку и смотреть в окно.\n\nХочешь, подберу пару станций под такой вечер? Или расскажи, какая пицца — от этого, честно, зависит саундтрек.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "b50fadbe-9c70-4e93-ac3a-4d9ae4e4b45a:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 4422,
+      "usage": {
+        "prompt": 4830,
+        "completion": 168
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ах, ты ждёшь уже готовый эфир, а я тут про пиццу расспрашиваю. Поняла, исправляюсь.\n\nСейчас у меня под рукой нет проверенных станций, которые я могла бы тебе предложить. Не хочу выдумывать названия и обещать то, чего нет. Но могу подсказать, куда глянуть: на музыкальных сервисах легко найти плейлисты в духе «вечер с пиццей», «ламповый джаз» или «итальянский вайб». Если хочешь, помогу с направлением — просто скажи, какое настроение ближе.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "8bf6ba4b-bcf2-4465-94e5-9fe85acea077:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 4554,
+      "usage": {
+        "prompt": 5079,
+        "completion": 215
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "e2126361-6048-4d50-afda-ab25ec76e351",
+      "status": "settled",
+      "requestBytes": 14531,
+      "reserveUsd": 0.02854764,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь выражает желание поесть пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.00380556,
+      "httpStatus": 200,
+      "promptTokens": 2751,
+      "completionTokens": 44
+    },
+    {
+      "reservationId": "85b1d166-66a1-4b15-9d5b-e412c310ac48",
+      "status": "settled",
+      "requestBytes": 11334,
+      "reserveUsd": 0.0243276,
+      "responseContent": "О, это уже настроение! Пицца вечером — почти ритуал. Под неё я бы включила что-нибудь тёплое, немного расслабленное, но с характером. Джаз, соул, лёгкий фанк или ламповый инди — чтобы жевать под музыку и смотреть в окно.\n\nХочешь, подберу пару станций под такой вечер? Или расскажи, какая пицца — от этого, честно, зависит саундтрек.",
+      "actualUsd": 0.00323532,
+      "httpStatus": 200,
+      "promptTokens": 2079,
+      "completionTokens": 124
+    },
+    {
+      "reservationId": "b2e6fef7-841c-4a61-8ef1-7f2ebf6787eb",
+      "status": "settled",
+      "requestBytes": 15155,
+      "reserveUsd": 0.02937132,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь не просил музыку, а выразил желание поесть пиццу. Уточняю, нужен ли подбор станций.\"\n}",
+      "actualUsd": 0.00402072,
+      "httpStatus": 200,
+      "promptTokens": 2872,
+      "completionTokens": 58
+    },
+    {
+      "reservationId": "b052e0b5-a51c-4c50-8b07-7819a1c4a03d",
+      "status": "settled",
+      "requestBytes": 11995,
+      "reserveUsd": 0.02520012,
+      "responseContent": "Ах, ты ждёшь уже готовый эфир, а я тут про пиццу расспрашиваю. Поняла, исправляюсь.\n\nСейчас у меня под рукой нет проверенных станций, которые я могла бы тебе предложить. Не хочу выдумывать названия и обещать то, чего нет. Но могу подсказать, куда глянуть: на музыкальных сервисах легко найти плейлисты в духе «вечер с пиццей», «ламповый джаз» или «итальянский вайб». Если хочешь, помогу с направлением — просто скажи, какое настроение ближе.",
+      "actualUsd": 0.00353496,
+      "httpStatus": 200,
+      "promptTokens": 2207,
+      "completionTokens": 157
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

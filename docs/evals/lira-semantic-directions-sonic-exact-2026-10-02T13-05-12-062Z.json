@@ -1,0 +1,309 @@
+{
+  "generatedAt": "2026-10-02T13:05:12.063Z",
+  "scenario": "exact",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Привет! Как дела?",
+      "reply": "Привет! У меня всё отлично — как раз поймала настроение поболтать и послушать что-нибудь под вечер. А ты как, в каком состоянии сегодня?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "2f2f1edc-4262-41a9-8f0e-b43254750f39:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1666,
+      "usage": {
+        "prompt": 2076,
+        "completion": 45
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Хочется скоростного как sonic",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Brokenbeats» — drum and bass (Ukraine).\n«674FM» — drum and bass, alternative, breakbeat (Germany).\n«DnBRadio.com - Main Channel (DE Mirror)» — drum and bass, liquid dnb (Germany).\n«UPFront Radio» — drum and bass, breakbeat (The United Kingdom Of Great Britain And Northern Ireland).\n«DNBRadio - 24-7 Live Dj Mixes - All Flavors of DnB via @dnbradio» — drum and bass (The United States Of America).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "b4671436-5606-44ff-9b76-032fa5670be0",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "drum 'n' bass"
+          ]
+        },
+        {
+          "stationuuid": "9623284b-0601-11e8-ae97-52543be04c81",
+          "name": "674FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "disco",
+            "drum and bass",
+            "electronica",
+            "funk",
+            "hiphop"
+          ]
+        },
+        {
+          "stationuuid": "58050eda-5141-414a-bd8a-5bf6d9327da7",
+          "name": "DnBRadio.com - Main Channel (DE Mirror)",
+          "country": "Germany",
+          "tags": [
+            "dnb",
+            "drum & bass",
+            "drum and bass",
+            "drum 'n' bass",
+            "drum n bass",
+            "drum&bass"
+          ]
+        },
+        {
+          "stationuuid": "0d864825-dd0d-4dff-9fcc-7662fd9de1f3",
+          "name": "UPFront Radio",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "drum and bass",
+            "house",
+            "breakbeat",
+            "music"
+          ]
+        },
+        {
+          "stationuuid": "0a895c8d-4b0d-4b64-a06c-005bb5f4fde0",
+          "name": "DNBRadio - 24-7 Live Dj Mixes - All Flavors of DnB via @dnbradio",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "b4671436-5606-44ff-9b76-032fa5670be0",
+          "actionId": "5dfbaca5-bc91-4bf7-b311-e583bd6ca17c:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 300
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 70
+        }
+      ],
+      "runtimeMs": 4558,
+      "usage": {
+        "prompt": 6215,
+        "completion": 163
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«mosthighradio» — drum and bass (The United Kingdom Of Great Britain And Northern Ireland).\n«Chunt FM» — drum and bass, ambient, disco (The United Kingdom Of Great Britain And Northern Ireland).\n«Distinct Energy» — drum and bass, downtempo (The United Kingdom Of Great Britain And Northern Ireland).\n«Flex FM 101.4» — drum and bass, dance (The United Kingdom Of Great Britain And Northern Ireland).\n«fsr:: fullspectrumradio.com :: dnb.dubstep.bass» — drum and bass (Canada).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "6648d3b1-7730-4949-90cc-4145279dbaae",
+          "name": "mosthighradio",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "drum 'n' bass",
+            "drumn bass"
+          ]
+        },
+        {
+          "stationuuid": "02ec5302-9dc4-42f7-9801-2278c06c1073",
+          "name": "Chunt FM",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "ambient",
+            "disco",
+            "drum and bass",
+            "house",
+            "soul",
+            "techno"
+          ]
+        },
+        {
+          "stationuuid": "e4ec2f5f-3dbc-49da-b0b7-276f9b6c2b8e",
+          "name": "Distinct Energy",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "techno",
+            "trance",
+            "dub",
+            "dubstep"
+          ]
+        },
+        {
+          "stationuuid": "0a885695-4f50-4676-8fab-0e7dff0e4fa9",
+          "name": "Flex FM 101.4",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "dance",
+            "drum and bass",
+            "edm",
+            "garage",
+            "uk"
+          ]
+        },
+        {
+          "stationuuid": "f7c5d86d-f31d-422b-b138-4c9f0690539b",
+          "name": "fsr:: fullspectrumradio.com :: dnb.dubstep.bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "6648d3b1-7730-4949-90cc-4145279dbaae",
+          "actionId": "f45c7038-dcfe-49d0-af70-f92025600c42:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 355
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 14
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 20
+        }
+      ],
+      "runtimeMs": 5042,
+      "usage": {
+        "prompt": 6633,
+        "completion": 210
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "9088581c-5483-4c07-80fc-3b34a9389e15",
+      "status": "settled",
+      "requestBytes": 11324,
+      "reserveUsd": 0.0243144,
+      "responseContent": "Привет! У меня всё отлично — как раз поймала настроение поболтать и послушать что-нибудь под вечер. А ты как, в каком состоянии сегодня?",
+      "actualUsd": 0.00291852,
+      "httpStatus": 200,
+      "promptTokens": 2076,
+      "completionTokens": 45
+    },
+    {
+      "reservationId": "12a874c2-f6a8-4dc0-b69a-74a17710da80",
+      "status": "settled",
+      "requestBytes": 14900,
+      "reserveUsd": 0.02903472,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"breakbeat\"]\n  },\n  \"note\": \"Скоростной вайб как у Соника — быстрый ритм, драйв.\"\n}",
+      "actualUsd": 0.00414744,
+      "httpStatus": 200,
+      "promptTokens": 2803,
+      "completionTokens": 113
+    },
+    {
+      "reservationId": "02d7cc3e-503d-4a18-8751-7602f53c7cb9",
+      "status": "settled",
+      "requestBytes": 16710,
+      "reserveUsd": 0.03142392,
+      "responseContent": "                                                  ",
+      "actualUsd": 0.00470184,
+      "httpStatus": 200,
+      "promptTokens": 3412,
+      "completionTokens": 50
+    },
+    {
+      "reservationId": "ba517933-e2e6-4cbb-8920-3cef95e41276",
+      "status": "settled",
+      "requestBytes": 15567,
+      "reserveUsd": 0.02991516,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"breakbeat\"]\n  },\n  \"note\": \"Продолжаю подбор по последней цели: скоростное как sonic → drum and bass/breakbeat\"\n}",
+      "actualUsd": 0.00435732,
+      "httpStatus": 200,
+      "promptTokens": 2959,
+      "completionTokens": 114
+    },
+    {
+      "reservationId": "2e59838e-eafd-49fb-b36f-9bcfc6ea0635",
+      "status": "settled",
+      "requestBytes": 17936,
+      "reserveUsd": 0.03304224,
+      "responseContent": "                                                                                                ",
+      "actualUsd": 0.00522984,
+      "httpStatus": 200,
+      "promptTokens": 3674,
+      "completionTokens": 96
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

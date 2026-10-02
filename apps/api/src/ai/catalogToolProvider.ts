@@ -10,6 +10,7 @@ import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catal
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
 import { createStationExclusionMatcher, type StationExclusionRow } from './stationExclusions.js';
+import { matchesSemanticTag, matchesSemanticExclusion, parseSemanticSearch, semanticTagSpellings } from './semanticSearch.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
 // The handful of station fields the brain needs, as the catalogService returns
@@ -30,6 +31,7 @@ export type CatalogServiceLike = {
     country: string;
     language: string;
     tag: string;
+    tagAliases?: readonly string[];
     continent: string;
     limit: number;
     cursor: number;
@@ -142,6 +144,17 @@ const hashSeed = (seed: string | undefined): number => {
 export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProvider => ({
   searchStations: async (args) => {
     const limit = Math.min(8, Math.max(1, args.limit || 8));
+    const parsedSemantic = args.semanticGenre === undefined
+      ? undefined
+      : parseSemanticSearch({kind:'genre',tags:[args.semanticGenre],
+        ...(args.semanticExcludeTags ? {excludeTags:args.semanticExcludeTags} : {})});
+    const semanticGenre = parsedSemantic?.tags[0];
+    const semanticSpellings = semanticGenre ? semanticTagSpellings(semanticGenre) : [];
+    const semanticSearch = semanticSpellings.length ? semanticGenre : undefined;
+    const semanticExclusions = parsedSemantic?.excludeTags || [];
+    const matchesSemanticStation = (station: CatalogStationLite): boolean =>
+      !semanticSearch || semanticSpellings.some(spelling => matchesSemanticTag(toRef(station), spelling)) &&
+        !semanticExclusions.some(tag=>matchesSemanticExclusion(toRef(station),tag));
     const excludedIds = args.excludeStationIds || [];
     const isExcluded = excludedIds.length
       ? await createStationExclusionMatcher(excludedIds, id => catalog.getStationById(id))
@@ -226,7 +239,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       }
       return matches;
     }
-    const wantsTalk = queryWantsTalk(args.query || '', args.tag);
+    const wantsTalk = semanticSearch ? false : queryWantsTalk(args.query || '', args.tag);
     // When we'll drop talk/news rows, over-fetch so a genre query still returns a
     // full set of MUSIC stations after filtering (the main ranking is untouched —
     // we just ask the same ranked search for more rows and post-filter here).
@@ -237,7 +250,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
         .filter(station => knownSourceCountry(station.country || '') === canonicalCountry)
         .map(station => station.country || ''))].slice(0, 6)
       : [args.country || ''];
-    const placeTerm = String(args.query || '').trim();
+    const placeTerm = semanticSearch ? '' : String(args.query || '').trim();
     const enoughCards = (rows: CatalogStationLite[]) => {
       const ids = new Set<string>();
       const streams = new Set<string>();
@@ -245,6 +258,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
       const identities = new Set<string>();
       const candidates = rows.filter(station => {
         if (!station.url_resolved || ids.has(station.stationuuid) || isExcluded(station) ||
+            !matchesSemanticStation(station) ||
             (!wantsTalk && isTalkFormat(station)) ||
             (canonicalCountry && knownSourceCountry(station.country || '') !== canonicalCountry)) return false;
         ids.add(station.stationuuid);
@@ -270,18 +284,21 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     // aliases after a global capped page cannot recover hidden local stations.
     const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(async country => {
       const pages: CatalogStationLite[] = [];
-      const maxPages = excludedIds.length ? 3 : 1;
+      const needsRefill = Boolean(excludedIds.length || semanticExclusions.length);
+      const maxPages = needsRefill ? 3 : 1;
       let cursor = 0;
       for (let page = 0; page < maxPages; page += 1) {
         const response = await catalog.search({
-          q: args.query || '', country, language: args.language || '', tag: args.tag || '',
+          q: semanticSearch ? '' : args.query || '', country, language: args.language || '',
+          tag: semanticSearch || args.tag || '',
+          ...(semanticSearch ? {tagAliases:semanticSpellings} : {}),
           continent: '', limit: fetchLimit, cursor,
           // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
           // returns actual genre stations instead of the most-voted substring match.
           relevance: true
         });
         pages.push(...(response.items || []));
-        if (!excludedIds.length || response.nextCursor === null || enoughCards(pages)) break;
+        if (!needsRefill || response.nextCursor === null || enoughCards(pages)) break;
         cursor += fetchLimit;
       }
       return { items: pages };
@@ -289,6 +306,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     const seen = new Set<string>();
     const items = searches.flatMap(response => response.items || [])
       .filter(station => {
+        if (!matchesSemanticStation(station)) return false;
         if (seen.has(station.stationuuid)) return false;
         seen.add(station.stationuuid);
         if (isExcluded(station)) return false;

@@ -9,6 +9,10 @@ type Evidence = { key: string; label: string; genre: string };
 type CardEvidence = { stationId: string; evidence: Evidence[] };
 const MAX_PROJECTED_TAGS = 12;
 const DNB_STYLES = new Set(['liquid dnb', 'liquid drum and bass', 'neurofunk', 'tech step']);
+const REVIEWED_FORMAT_GENRES = new Map([
+  ['breakbeat', 'breakbeat'], ['breaks', 'breakbeat'], ['breakcore', 'breakcore'],
+  ['industrial', 'industrial'], ['industrial music', 'industrial'], ['industrial techno', 'industrial techno'], ['ebm', 'ebm']
+]);
 
 // Only the existing closed format vocabulary may become explanatory text.
 // Arbitrary broadcaster metadata (including "no ads") is not proof of a claim.
@@ -17,10 +21,11 @@ const approvedEvidence = (station: VerifiedStationRef): Evidence[] => {
   for (const raw of catalogueTagEvidence(station).slice(0, 80)) {
     const normalized = normalizeGenreTag(raw).replace(/^the /, '').replace(/ (radio|fm|station)$/, '');
     const label = normalizeRefinementGenre(normalized);
-    const genre = DNB_STYLES.has(label) ? 'drum and bass' : sourceGenres([raw])[0];
+    const reviewedFormat = REVIEWED_FORMAT_GENRES.get(label);
+    const genre = DNB_STYLES.has(label) ? 'drum and bass' : reviewedFormat || sourceGenres([raw])[0];
     const family = stationGenreFamily(label);
     if (!family && !genre) continue;
-    const safeLabel = family || DNB_STYLES.has(label) ? label : genre!;
+    const safeLabel = reviewedFormat || (family || DNB_STYLES.has(label) ? label : genre!);
     if (safeLabel && !labels.has(safeLabel)) labels.set(safeLabel, genre || safeLabel);
   }
   return [...labels].map(([label, genre], index) => ({key: `t${index}`, label, genre}));

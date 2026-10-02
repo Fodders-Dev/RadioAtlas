@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-10-02T13:08:41.717Z",
+  "scenario": "finalmechanical",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Нужен рваный механический ритм без мягкой атмосферы, только из России. Два варианта, не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Industrial Music [2]» — industrial, electronic (The Russian Federation).\n«Radio Caprice - Techno» — techno (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "c678fd49-688e-4a7f-acb2-559ba99a793f",
+          "name": "Radio Caprice - Industrial Music [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "industrial",
+            "industrial music",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "e11fd7ec-e1c0-4077-9281-190d381f44ec",
+          "name": "Radio Caprice - Techno",
+          "country": "The Russian Federation",
+          "tags": [
+            "techno"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c678fd49-688e-4a7f-acb2-559ba99a793f",
+          "actionId": "13aa5c88-34f7-44f2-9a92-b51bc5f144b8:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 4018
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 264
+        }
+      ],
+      "runtimeMs": 8698,
+      "usage": {
+        "prompt": 5705,
+        "completion": 226
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "2aa4121e-9217-4109-a382-56db4dc178dc",
+      "status": "settled",
+      "requestBytes": 15340,
+      "reserveUsd": 0.02961552,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"industrial techno\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"industrial\", \"techno\"],\n    \"excludeTags\": [\"ambient\", \"chillout\"]\n  },\n  \"note\": \"Рваный механический ритм без мягкой атмосферы\"\n}",
+      "actualUsd": 0.00427944,
+      "httpStatus": 200,
+      "promptTokens": 2876,
+      "completionTokens": 122
+    },
+    {
+      "reservationId": "701c074d-8c87-465d-88a6-fdd6d05a851e",
+      "status": "settled",
+      "requestBytes": 15002,
+      "reserveUsd": 0.02916936,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"c678fd49-688e-4a7f-acb2-559ba99a793f\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"e11fd7ec-e1c0-4077-9281-190d381f44ec\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00414612,
+      "httpStatus": 200,
+      "promptTokens": 2829,
+      "completionTokens": 104
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}
