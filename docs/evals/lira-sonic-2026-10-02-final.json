@@ -1,0 +1,301 @@
+{
+  "generatedAt": "2026-10-02T07:01:26.472Z",
+  "scenario": "exact",
+  "model": "deepseek-v4-pro",
+  "code": "final-with-programme-guard-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Привет! Как дела?",
+      "reply": "Привет! У меня всё отлично — музыка играет, город шумит, настроение тёплое. А ты как? Что сегодня по душе: поболтать или сразу что-нибудь включить?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "a3851bcd-7c62-4601-8e30-b0a1a0851c89:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1510,
+      "usage": {
+        "prompt": 2076,
+        "completion": 51
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Хочется скоростного как sonic",
+      "reply": "Это по адресу! Скоростной драм-н-бейс сейчас отлично зайдёт — как раз есть пара станций с быстрыми брейкбитами и плотным басом. Тут и классика жанра, и более атмосферные штуки, если захочешь чуть разбавить скорость глубиной.",
+      "cards": [
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        },
+        {
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "name": "HouseTime.FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "drum and bass",
+            "edm",
+            "house",
+            "dubstep",
+            "electro"
+          ]
+        },
+        {
+          "stationuuid": "77330159-8780-443b-b4dd-bcb519b49011",
+          "name": "ElectroDanceWorld Radio",
+          "country": "Spain",
+          "tags": [
+            "dance",
+            "deep house",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "tech house"
+          ]
+        },
+        {
+          "stationuuid": "960cc332-0601-11e8-ae97-52543be04c81",
+          "name": "Bassdrive",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "actionId": "3ae1eb78-a838-49fb-9412-d166ef4f14e1:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 7163
+        }
+      ],
+      "runtimeMs": 11536,
+      "usage": {
+        "prompt": 4681,
+        "completion": 161
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Вот, держи. Первая — чистый драйв, вторая — с нейрофанком и дабстепом, если хочется ещё жёстче.",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "0adb24fb-a2fe-4a9b-97a4-bc82dfb1820c",
+          "name": "jungletrain.net - 24/7 drum and bass",
+          "country": "The Netherlands",
+          "tags": []
+        },
+        {
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "name": "DNBRadio Main channel 192k",
+          "country": "Germany",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "dubstep",
+            "neurofunk",
+            "tech step"
+          ]
+        },
+        {
+          "stationuuid": "963f5372-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Retrowave",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "80s",
+            "retrowave",
+            "synthwave"
+          ]
+        },
+        {
+          "stationuuid": "12e458f2-cf9b-426a-8d18-7cb07c75b07c",
+          "name": "Nightride FM",
+          "country": "Germany",
+          "tags": [
+            "outrun",
+            "retrowave",
+            "synthwave"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "bfbacf8b-c8f9-4ebd-8994-47df4dc11e1e:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 19
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 17
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 15
+        }
+      ],
+      "runtimeMs": 5130,
+      "usage": {
+        "prompt": 7563,
+        "completion": 205
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "0d266f9c-b56f-4ed9-8790-f4458e9b1dfd",
+      "status": "settled",
+      "requestBytes": 11324,
+      "reserveUsd": 0.0243144,
+      "responseContent": "Привет! У меня всё отлично — музыка играет, город шумит, настроение тёплое. А ты как? Что сегодня по душе: поболтать или сразу что-нибудь включить?",
+      "actualUsd": 0.00294228,
+      "httpStatus": 200,
+      "promptTokens": 2076,
+      "completionTokens": 51
+    },
+    {
+      "reservationId": "c9b747ea-5638-46ed-b177-b43106e58851",
+      "status": "settled",
+      "requestBytes": 10427,
+      "reserveUsd": 0.02313036,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"note\": \"Скоростной вайб как у Соника — быстрый электронный жанр\"\n}",
+      "actualUsd": 0.00311124,
+      "httpStatus": 200,
+      "promptTokens": 2117,
+      "completionTokens": 80
+    },
+    {
+      "reservationId": "1b6bc1fb-70d7-4169-a486-16a1ddb67f87",
+      "status": "settled",
+      "requestBytes": 13427,
+      "reserveUsd": 0.02709036,
+      "responseContent": "О, это по адресу! Скоростной драм-н-бейс сейчас отлично зайдёт — как раз есть пара станций с быстрыми брейкбитами и плотным басом. Тут и классика жанра, и более атмосферные штуки, если захочешь чуть разбавить скорость глубиной.",
+      "actualUsd": 0.00370524,
+      "httpStatus": 200,
+      "promptTokens": 2564,
+      "completionTokens": 81
+    },
+    {
+      "reservationId": "ec41b496-dabd-4af8-b31a-e704ffa2c31a",
+      "status": "settled",
+      "requestBytes": 10954,
+      "reserveUsd": 0.023826,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"note\": \"Ищу скоростные станции в духе Sonic — драм-н-бейс\"\n}",
+      "actualUsd": 0.00323136,
+      "httpStatus": 200,
+      "promptTokens": 2211,
+      "completionTokens": 79
+    },
+    {
+      "reservationId": "83b9c0aa-953a-40c5-8c3f-d7b3c97bfffe",
+      "status": "settled",
+      "requestBytes": 11904,
+      "reserveUsd": 0.02508,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"note\": \"Пользователь хочет скоростную музыку как Sonic — ищем станции drum and bass\"\n}",
+      "actualUsd": 0.00360096,
+      "httpStatus": 200,
+      "promptTokens": 2491,
+      "completionTokens": 79
+    },
+    {
+      "reservationId": "45dbc9fa-09f1-4262-b148-58ccc5fdda70",
+      "status": "settled",
+      "requestBytes": 975,
+      "reserveUsd": 0.01065372,
+      "responseContent": "drum and bass, synthwave",
+      "actualUsd": 0.00026664,
+      "httpStatus": 200,
+      "promptTokens": 181,
+      "completionTokens": 7
+    },
+    {
+      "reservationId": "6bd1f03a-3bdd-4c7b-a7b9-9d25f40108f0",
+      "status": "settled",
+      "requestBytes": 13974,
+      "reserveUsd": 0.0278124,
+      "responseContent": "Вот, держи. Первая — чистый драйв, вторая — с нейрофанком и дабстепом, если хочется ещё жёстче.",
+      "actualUsd": 0.003696,
+      "httpStatus": 200,
+      "promptTokens": 2680,
+      "completionTokens": 40
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}

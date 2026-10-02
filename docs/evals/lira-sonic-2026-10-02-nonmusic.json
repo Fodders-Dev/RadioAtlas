@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-02T06:55:14.535Z",
+  "scenario": "nonmusic",
+  "model": "deepseek-v4-pro",
+  "code": "semantic-repair-final-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется вечером пиццы",
+      "reply": "Пицца вечером — это святое. А к ней нужен правильный саундтрек: тёплый, чуть ленивый, чтобы жевать и улыбаться. Что по настроению — джаз под свечи, лёгкий фанк или что-то совсем расслабленное под сериальчик?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "a3f96535-cef2-4502-8092-aa3e2268092a:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3692,
+      "usage": {
+        "prompt": 4136,
+        "completion": 134
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну а чего тянуть? Вечер, пицца, музыка — собираем идеальный комплект. Скажи, какая ты сегодня: хочешь потанцевать на кухне, уютно посидеть с бокалом или просто фон, чтобы не мешало болтать?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "15d65da7-034c-43d6-957b-a32f5f1873d6:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3409,
+      "usage": {
+        "prompt": 4318,
+        "completion": 127
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "8b367dca-33bc-483f-8f75-f8908109995e",
+      "status": "settled",
+      "requestBytes": 10060,
+      "reserveUsd": 0.02264592,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Пользователь выражает желание поесть пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.00292908,
+      "httpStatus": 200,
+      "promptTokens": 2057,
+      "completionTokens": 54
+    },
+    {
+      "reservationId": "73c0325a-8348-408f-98ec-dd623d0792cb",
+      "status": "settled",
+      "requestBytes": 11334,
+      "reserveUsd": 0.0243276,
+      "responseContent": "Пицца вечером — это святое. А к ней нужен правильный саундтрек: тёплый, чуть ленивый, чтобы жевать и улыбаться. Что по настроению — джаз под свечи, лёгкий фанк или что-то совсем расслабленное под сериальчик?",
+      "actualUsd": 0.00306108,
+      "httpStatus": 200,
+      "promptTokens": 2079,
+      "completionTokens": 80
+    },
+    {
+      "reservationId": "80e1fb1b-53f2-4627-bd38-2418ebc9060d",
+      "status": "settled",
+      "requestBytes": 10544,
+      "reserveUsd": 0.0232848,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Пользователь хочет пиццу, это не запрос на музыку. Отвечаю в разговорном ключе.\"\n}",
+      "actualUsd": 0.00307956,
+      "httpStatus": 200,
+      "promptTokens": 2153,
+      "completionTokens": 60
+    },
+    {
+      "reservationId": "a250161b-b97e-489d-8b5f-1857af60b997",
+      "status": "settled",
+      "requestBytes": 11776,
+      "reserveUsd": 0.02491104,
+      "responseContent": "Ну а чего тянуть? Вечер, пицца, музыка — собираем идеальный комплект. Скажи, какая ты сегодня: хочешь потанцевать на кухне, уютно посидеть с бокалом или просто фон, чтобы не мешало болтать?",
+      "actualUsd": 0.00312312,
+      "httpStatus": 200,
+      "promptTokens": 2165,
+      "completionTokens": 67
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}

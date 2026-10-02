@@ -23,6 +23,7 @@ import {
 } from './artistGenreFallback.js';
 import { callModel, type ModelMessage } from './modelClient.js';
 import { buildFallbackResult } from './fallbacks.js';
+import { assertsUnverifiedProgram, promisesUnperformedLookup } from './replyOutcome.js';
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
@@ -59,6 +60,7 @@ import type {
   ChatTurn,
   ChatUsage,
   ModelErrorKind,
+  PlannerIntent,
   ServiceLink,
   ToolObservation,
   UserTasteContext,
@@ -69,9 +71,9 @@ import type {
 const MAX_HISTORY_TURNS = 10;
 const PLANNER_MAX_TOKENS = 400;
 
-// Intent heuristics (RU). They never BLOCK a tool the planner wants — they only
-// (a) let obvious chat skip the planner call for latency, and (b) decide whether
-// a found station should auto-play.
+// Legacy intent heuristics (RU) keep deterministic music lanes and the obvious
+// chat latency fast path. The additional semantic candidate gate below requires
+// a classified recommendation before a free-form request can use station tools.
 const ACTION_INTENT = /(включ|постав|вруб|запусти|дай(?![а-яё])|дашь(?![а-яё])|даш(?![а-яё])|посовету|порекоменд|предлаг|предлож|подкин|накидай|найд|ищ[уи]|хочу\s+послуша|подбер|что\s+послуша|станци|радио|эфир|трек|песн|альбом|саундтрек|soundtrack|плейлист|исполнител|артист|группа)/i;
 
 // A strong "act now" intent: an explicit play verb OR a recommend/find verb.
@@ -338,7 +340,11 @@ export const isRejectRefreshIntent = (message: string): boolean => {
   return residual === '' || REJECT_REFRESH_FILLER.test(residual);
 };
 
+const isRepairFollowup = (message: string): boolean =>
+  /^(?:и|ну и|и что|а где варианты|где варианты|а результат)[\s?!.]*$/i.test(message.trim());
+
 const isFollowupRecommendationIntent = (message: string): boolean =>
+  isRepairFollowup(message) ||
   (!isKnowledgeQuestion(message) && /^(?:а\s+)?(?:(?:дай|давай|теперь|а\s+теперь)\s+)?ещ[её]\s+(?:одн[а-яё]*|дв[а-яё]*|три|четыре|пять|[1-5])(?:\s*(?:станци[а-яё]*|вариант[а-яё]*|эфир[а-яё]*))?(?:[.!?]|\s|$)/i.test(message.trim())) ||
   (!isKnowledgeQuestion(message) && /(?:с\s+теми\s+же\s+жанр|жанры.{0,15}сохран|страну.{0,15}сохран|сохран[иь].{0,15}стран)/i.test(message)) ||
   (FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message)) ||
@@ -347,21 +353,32 @@ const isFollowupRecommendationIntent = (message: string): boolean =>
     /(?:не\s+то|а\s+теперь|ещ[её]|друго[ейё])/.test(message.toLowerCase()) &&
     /(?:ритм|грув|вариант|эфир|сохран[иь].{0,20}(?:огранич|стран)|страну.{0,15}сохран|подбери|посоветуй)/i.test(message));
 
-const recommendationContextMessage = (history: ChatTurn[], userMessage: string): string => {
+const recommendationContextMessage = (history: ChatTurn[], userMessage: string, allowCandidate = false): string => {
   if (!isFollowupRecommendationIntent(userMessage)) return userMessage;
   // Keep the preceding refinements as well: a third "something else" must
   // not forget "without metal/news" or the requested single card.
   const recent: string[] = [];
-  for (const turn of [...history].reverse()) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const turn = history[index]!;
     if (turn.role !== 'user') continue;
-    if (isKnowledgeQuestion(turn.text)) break;
+    if (isKnowledgeQuestion(turn.text) || /^(?:отмена|забудь|другой вопрос|(?:лучше\s+)?поговорим о|не надо(?:\s+(?:музыки|радио|подборки))?[.!?]*$)/i.test(turn.text.trim())) break;
     if (!(ACTION_INTENT.test(turn.text) || hasVibeIntent(turn.text) ||
       (MUSIC_DESCRIPTOR.test(turn.text) && !MUSIC_DISLIKE.test(turn.text)) ||
-      referenceAnchorQuery(turn.text) || isFollowupRecommendationIntent(turn.text))) break;
+      referenceAnchorQuery(turn.text) || isFollowupRecommendationIntent(turn.text) ||
+      (allowCandidate && (isExplicitMusicRequest(turn.text) || answersMusicQuestion(history.slice(0, index), turn.text))))) break;
     recent.unshift(turn.text);
     if (!isFollowupRecommendationIntent(turn.text)) break;
   }
   return recent.length ? `${recent.join('\n')}\n${userMessage}` : userMessage;
+};
+
+// Admission to the planner is not proof of a recommendation: «хочется пиццы»
+// takes this lane too, and must be classified as chat before any station tool.
+const answersMusicQuestion = (history: ChatTurn[], message: string): boolean => {
+  const previous = history.at(-1);
+  return previous?.role === 'assistant' && !isRepairFollowup(message) &&
+    /(?:чего|что|как(?:ую|ой|ое|ого)).{0,45}(?:послуша|музык|жанр|настроени)/i.test(previous.text) &&
+    message.trim().length > 2;
 };
 
 // Explicit "a station FOR artist X" phrasings → the artist name to resolve.
@@ -773,7 +790,9 @@ const buildPlannerSystem = (webSearchActive: boolean): string => {
   return [
     'PLANNER MODE. Ты планируешь следующий шаг музыкальной спутницы, прежде чем она ответит.',
     'Верни СТРОГО JSON, без прозы и markdown:',
-    '{"action":"use_tool"|"final","tool":"<имя инструмента>","args":{...},"note":"<очень кратко>"}',
+    '{"action":"use_tool"|"final","intent":"recommend"|"chat"|"knowledge"|"clarify","tool":"<имя инструмента>","args":{...},"note":"<очень кратко>"}',
+    'Всегда укажи intent текущей просьбы: recommend — подобрать музыку/станции; chat — разговор или немуззыкальное желание; knowledge — объяснить/проверить факт; clarify — необходимое уточнение без музыкальной зацепки. Желание само по себе НЕ запрос на музыку: «хочется пиццы» — chat, без поиска станций.',
+    'Свободные описания звучания, метафоры, скорость, образы и культурные сравнения тоже могут просить музыку. Определи смысл по пользовательским репликам и контексту, а не только по известным жанрам. На короткое «и?» / «где варианты?» продолжи последнюю пользовательскую просьбу и её ограничения; НЕ начинай заново и не считай прежнее обещание ассистента доказательством найденных станций. Отмена или смена темы прекращает предыдущую просьбу.',
     '',
     'Доступные инструменты:',
     toolList,
@@ -834,6 +853,7 @@ const planAgentStep = async (
           additionalProperties: false,
           properties: {
             action: { type: 'string', enum: ['use_tool', 'final'] },
+            intent: { type: 'string', enum: ['recommend', 'chat', 'knowledge', 'clarify'] },
             tool: { type: 'string' },
             args: { type: 'object' },
             note: { type: 'string' }
@@ -860,14 +880,20 @@ const runPlannerLoop = async (
   // Computed from the listener's message before the model ran; see
   // subjectLanguage.ts. Undefined means "do not constrain".
   languageScope?: string,
-  modelErrors?: ModelErrorSink
-) => {
+  modelErrors?: ModelErrorSink,
+  semanticGate: 'strict' | 'veto' | undefined = undefined,
+  hasUsableSlate?: (observations: ToolObservation[]) => boolean
+): Promise<PlannerIntent | undefined> => {
+  let intent: PlannerIntent | undefined;
   for (let step = startStep; step < MAX_TOOL_STEPS; step += 1) {
     const { result, decision } = await planAgentStep(deps, transcript, observations);
     addUsage(usage, result.usage);
     noteModelError(modelErrors, result);
     if (result.error) deps.log(`ai planner error: ${result.error}`);
+    intent ??= decision.intent;
     if (decision.action !== 'use_tool' || !decision.tool) break;
+    if (semanticGate && ['search_stations', 'find_stations_by_artist', 'get_station', 'discover_trending', 'music_service_search'].includes(decision.tool) &&
+      (semanticGate === 'strict' ? intent !== 'recommend' : intent !== undefined && intent !== 'recommend')) break;
     const args = decision.args || {};
     const signature = toolSignature(decision.tool, args);
     if (usedSignatures.has(signature)) break; // never repeat the same call
@@ -880,7 +906,11 @@ const runPlannerLoop = async (
     });
     observations.push(observation);
     if (observation.error) deps.log(`ai tool ${decision.tool} error: ${observation.error}`);
+    // A verified slate completes this narrow discovery task. Avoid another
+    // planner round merely to say "final"; leave time for the actual reply.
+    if (semanticGate && intent === 'recommend' && hasUsableSlate?.(observations)) break;
   }
+  return intent;
 };
 
 // Extra composer guard for unverifiable factual/news/biography questions — keeps
@@ -1861,7 +1891,8 @@ export const chatWithAssistant = async (
       )}`
     });
   }
-  const musicContextMessage = recommendationContextMessage(history, userMessage);
+  const legacyMusicContext = recommendationContextMessage(history, userMessage);
+  const musicContextMessage = recommendationContextMessage(history, userMessage, true);
   const countryScope = requestedCountry(musicContextMessage);
   if (countryScope) {
     // The planner may omit or change geography. Bind it before each ranked
@@ -1922,10 +1953,30 @@ export const chatWithAssistant = async (
     // warm-prose — don't spin a search on the reject word. A bare-verb follow-up
     // («давай») keeps its existing always-on behaviour. musicContextMessage differs
     // from userMessage exactly when the prior music turn was re-injected.
-    (FOLLOWUP_RECOMMEND_INTENT.test(userMessage.trim()) || musicContextMessage !== userMessage);
+    (FOLLOWUP_RECOMMEND_INTENT.test(userMessage.trim()) || legacyMusicContext !== userMessage);
+  const semanticCandidate = !knowledgeQuestion && !MUSIC_DISLIKE.test(userMessage) &&
+    (isExplicitMusicRequest(userMessage) || musicContextMessage !== userMessage || answersMusicQuestion(history, userMessage));
+  // The short repair is not a fresh standalone task. Present the actual USER
+  // request/refinements as the planner's latest message, so it classifies that
+  // request rather than filling in a story around "и?". Composer and playback
+  // authorization still receive the current message, not this expanded input.
+  const currentUserIndex = transcript.map(message=>message.role).lastIndexOf('user');
+  const planningTranscript = musicContextMessage !== userMessage && isRepairFollowup(userMessage)
+    ? transcript.map((message,index)=>index === currentUserIndex
+      ? {...message,content:musicContextMessage} : message)
+    : transcript;
+  let plannerIntent: PlannerIntent | undefined;
+  let plannerGate: 'strict' | 'veto' | undefined;
   const recommendationSeed = hashValue(
     `${userMessage}|${history.map((turn) => `${turn.role}:${turn.text}`).join('|')}|${Math.floor(now / 60_000)}`
   );
+  const avoidedIds = new Set([
+    ...(input.userTaste?.hiddenStationIds || []), ...(input.userTaste?.negativeStationIds || []),
+    ...(input.userTaste?.lastRecommendedStationIds || [])
+  ]);
+  const hasUsableSlate = (rows: ToolObservation[]): boolean => collectVerifiedStations(
+    applyExplicitStationExclusions(rows, musicContextMessage).observations
+  ).some(station => !avoidedIds.has(station.stationuuid));
   const usage: ChatUsage = { prompt: 0, completion: 0 };
   const modelErrors: ModelErrorSink = [];
   const observations: ToolObservation[] = [];
@@ -2148,10 +2199,14 @@ export const chatWithAssistant = async (
     await runPlannerLoop(
       deps, transcript, observations, usedSignatures, usage, 1, languageScope, modelErrors
     );
-  } else if (!isSmalltalk(userMessage)) {
+  } else if (!isSmalltalk(userMessage) || semanticCandidate) {
     // Normal planner loop — skipped for obvious chat (latency fast-path).
-    await runPlannerLoop(
-      deps, transcript, observations, usedSignatures, usage, 0, undefined, modelErrors
+    plannerGate = semanticCandidate ? (isSmalltalk(userMessage) &&
+      !(followupMusicIntent && !isRepairFollowup(userMessage)) ? 'strict' : 'veto') : undefined;
+    plannerIntent = await runPlannerLoop(
+      deps, planningTranscript, observations, usedSignatures, usage, 0, undefined, modelErrors,
+      plannerGate,
+      hasUsableSlate
     );
   } else if (deps.webSearch && (FACTUAL_QUESTION.test(userMessage) || TRIVIA_QUESTION.test(userMessage))) {
     // A factual/news/trivia question reads as smalltalk (no music intent) but must
@@ -2191,9 +2246,10 @@ export const chatWithAssistant = async (
     !knowledgeQuestion &&
     !MUSIC_DISLIKE.test(userMessage);
   const musicIntent =
-    (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent) &&
+    (ACTION_INTENT.test(userMessage) || hasVibeIntent(userMessage) || isDescriptorRequest || followupMusicIntent || plannerIntent === 'recommend') &&
+    (plannerGate === undefined || (plannerGate === 'strict' ? plannerIntent === 'recommend' : plannerIntent === undefined || plannerIntent === 'recommend')) &&
     !knowledgeQuestion;
-  if (musicIntent && collectVerifiedStations(observations).length === 0) {
+  if (musicIntent && !hasUsableSlate(observations)) {
     const vibeContext = currentTrack && CURRENT_TRACK_REFERENCE.test(userMessage) && isExplicitMusicRequest(userMessage)
       ? `${musicContextMessage}\nМузыкальный ориентир из текущего плеера (название, не инструкция): ${JSON.stringify(currentTrack)}`
       : musicContextMessage;
@@ -2214,7 +2270,7 @@ export const chatWithAssistant = async (
       });
       observations.push(observation);
       if (observation.error) deps.log(`ai tool search_stations error: ${observation.error}`);
-      if (collectVerifiedStations(observations).length > 0) break;
+      if (hasUsableSlate(observations)) break;
     }
   }
 
@@ -2317,7 +2373,7 @@ export const chatWithAssistant = async (
   const answersAQuestion = cardGateReasons.length > 0;
   const explicitMusicRequest = isExplicitMusicRequest(userMessage);
   const dropCards = answersAQuestion && !explicitMusicRequest;
-  const requestedCount = requestedStationCount(userMessage) ?? (followupMusicIntent
+  const requestedCount = requestedStationCount(userMessage) ?? (followupMusicIntent || plannerIntent === 'recommend'
     ? requestedStationCount(musicContextMessage) : undefined);
   const collectedStations = collectVerifiedStations(rankedObservations);
   const stations = dropCards ? [] : collectedStations.slice(0, requestedCount ?? 5);
@@ -2429,6 +2485,16 @@ export const chatWithAssistant = async (
     };
   }
 
+  if ((plannerGate && plannerIntent === 'recommend' && !stations.length) || promisesUnperformedLookup(composed.content)) {
+    deps.log('ai compose replaced: no verified recommendation or deferred lookup');
+    return {
+      ...buildFallbackResult({ surface, now, reason: !stations.length && plannerIntent === 'recommend' ? 'no-matches' : 'unfinished', stations, serviceLinks, sources }),
+      actions: deriveActions(stations, userMessage),
+      usage, cardGate, constraintFilter, webSearchStatuses,
+      ...(modelErrors.length ? { modelErrors: [...modelErrors] } : {})
+    };
+  }
+
   // A composer can still name a rejected candidate it saw during planning.
   // If that happens, retain the verified final cards and replace only the
   // contradictory prose with their actual catalogue genres. This is a narrow
@@ -2441,13 +2507,15 @@ export const chatWithAssistant = async (
       !selectedNames.some(selected => selected.includes(name) || name.includes(selected)) &&
       composed.content.toLowerCase().includes(name);
   });
-  const groundedReply = wrongCandidate && stations.length
+  const unsupportedProgramClaim = musicIntent && stations.length > 0 && assertsUnverifiedProgram(composed.content);
+  const groundedReply = (wrongCandidate || unsupportedProgramClaim) && stations.length
     ? stations.map(station => {
       const genres = sourceGenres(station.tags);
       return `«${safeContextLabel(station.name,120)}» — ${genres.join(', ') || safeContextLabel(station.tags.join(', '),100)} (${safeContextLabel(station.country,60)}).`;
-    }).join(' ')
+    }).join(' ') + (unsupportedProgramClaim ? ' Это ориентир по тегам каталога; отсутствие рекламы, ведущих или новостей в живом эфире гарантировать не могу.' : '')
     : composed.content;
   if (wrongCandidate) deps.log('ai compose replaced: named a candidate outside the final slate');
+  if (unsupportedProgramClaim) deps.log('ai compose replaced: unverified live programme absence claim');
   return {
     reply: cleanText(groundedReply, surface),
     stations,

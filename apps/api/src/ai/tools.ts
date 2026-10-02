@@ -8,6 +8,7 @@ import { buildServiceSearchLinks } from './musicLinks.js';
 import type {
   MusicService,
   PlannerDecision,
+  PlannerIntent,
   ToolObservation,
   ToolProvider,
   WebSearchProvider
@@ -220,13 +221,19 @@ export const extractJsonObject = (text: string): Record<string, unknown> | null 
 export const parsePlannerDecision = (text: string): PlannerDecision => {
   const parsed = extractJsonObject(text);
   if (!parsed) return { action: 'final' };
+  const intent: PlannerIntent | undefined =
+    parsed.intent === 'recommend' || parsed.intent === 'chat' || parsed.intent === 'knowledge' || parsed.intent === 'clarify'
+      ? parsed.intent
+      : undefined;
+  const withIntent = <T extends PlannerDecision>(decision: T): T | (T & { intent: PlannerIntent }) =>
+    intent === undefined ? decision : { ...decision, intent };
   const action = parsed.action === 'use_tool' ? 'use_tool' : 'final';
-  if (action === 'final') return { action: 'final', note: asOptionalString(parsed.note) };
+  if (action === 'final') return withIntent({ action: 'final', note: asOptionalString(parsed.note) });
   const tool = asString(parsed.tool);
-  if (!TOOL_NAMES.includes(tool)) return { action: 'final', note: asOptionalString(parsed.note) };
+  if (!TOOL_NAMES.includes(tool)) return withIntent({ action: 'final', note: asOptionalString(parsed.note) });
   const args =
     parsed.args && typeof parsed.args === 'object'
       ? (parsed.args as Record<string, unknown>)
       : {};
-  return { action: 'use_tool', tool, args, note: asOptionalString(parsed.note) };
+  return withIntent({ action: 'use_tool', tool, args, note: asOptionalString(parsed.note) });
 };

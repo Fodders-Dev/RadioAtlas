@@ -1,0 +1,281 @@
+{
+  "generatedAt": "2026-10-02T06:54:53.315Z",
+  "scenario": "exact",
+  "model": "deepseek-v4-pro",
+  "code": "semantic-repair-final-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Привет! Как дела?",
+      "reply": "Привет-привет! У меня всё отлично — настраиваю волну и ловлю настроение. А ты как?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "3e8f1448-c516-4f18-9807-513298c523c0:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1368,
+      "usage": {
+        "prompt": 2076,
+        "completion": 31
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Хочется скоростного как sonic",
+      "reply": "Ахах, поняла! Энергия, драйв и чтобы уши в трубочку. Тогда держи карточки — тут как раз электроника, транс и клубный пульс.",
+      "cards": [
+        {
+          "stationuuid": "962cc6df-0601-11e8-ae97-52543be04c81",
+          "name": "Dance Wave!",
+          "country": "Hungary",
+          "tags": [
+            "club dance electronic house trance"
+          ]
+        },
+        {
+          "stationuuid": "af6f51b1-0ca9-11ea-a87e-52543be04c81",
+          "name": "Intense Radio - We love Dance 256K",
+          "country": "The Netherlands",
+          "tags": [
+            "dance",
+            "electronic",
+            "house",
+            "techno",
+            "trance",
+            "clubhouse"
+          ]
+        },
+        {
+          "stationuuid": "342a0e53-ab9b-11e9-88f4-52543be04c81",
+          "name": "TranceBase.FM - AAC HD 256k",
+          "country": "Germany",
+          "tags": [
+            "electronic",
+            "techno",
+            "trance"
+          ]
+        },
+        {
+          "stationuuid": "b5455fcb-e07e-11e9-a8ba-52543be04c81",
+          "name": "Trance Athena",
+          "country": "Greece",
+          "tags": [
+            "electronic",
+            "trance",
+            "melodic trance",
+            "music",
+            "uplifting trance"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "962cc6df-0601-11e8-ae97-52543be04c81",
+          "actionId": "8e0cf28f-26ca-4d3c-8cfb-c7a36d52db43:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 670
+        }
+      ],
+      "runtimeMs": 4252,
+      "usage": {
+        "prompt": 4603,
+        "completion": 117
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "И вот они, твои скоростные. Тут и классический drum and bass, и клубный хаус, и танцевальная электроника — выбирай, от чего ноги сами заходят.",
+      "cards": [
+        {
+          "stationuuid": "963c00ab-0601-11e8-ae97-52543be04c81",
+          "name": "Intense Radio - We love Dance 256K",
+          "country": "The Netherlands",
+          "tags": [
+            "dance",
+            "electronic",
+            "house",
+            "techno",
+            "trance",
+            "clubhouse"
+          ]
+        },
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "960cc332-0601-11e8-ae97-52543be04c81",
+          "name": "Bassdrive",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "name": "HouseTime.FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "drum and bass",
+            "edm",
+            "house",
+            "dubstep",
+            "electro"
+          ]
+        },
+        {
+          "stationuuid": "77330159-8780-443b-b4dd-bcb519b49011",
+          "name": "ElectroDanceWorld Radio",
+          "country": "Spain",
+          "tags": [
+            "dance",
+            "deep house",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "tech house"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "963c00ab-0601-11e8-ae97-52543be04c81",
+          "actionId": "d0d2892c-7e03-4fca-baec-7ae79e81c3a9:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 41
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 21
+        }
+      ],
+      "runtimeMs": 5426,
+      "usage": {
+        "prompt": 7220,
+        "completion": 207
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "d9bc7572-a604-4f2b-8785-3dc9c3715f38",
+      "status": "settled",
+      "requestBytes": 11324,
+      "reserveUsd": 0.0243144,
+      "responseContent": "Привет-привет! У меня всё отлично — настраиваю волну и ловлю настроение. А ты как?",
+      "actualUsd": 0.00286308,
+      "httpStatus": 200,
+      "promptTokens": 2076,
+      "completionTokens": 31
+    },
+    {
+      "reservationId": "fc870b99-7e54-453d-9589-87bed1e28eef",
+      "status": "settled",
+      "requestBytes": 10311,
+      "reserveUsd": 0.02297724,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"electronic\",\n    \"limit\": 5\n  },\n  \"note\": \"Скоростной вайб как Sonic → быстрая электроника\"\n}",
+      "actualUsd": 0.00305316,
+      "httpStatus": 200,
+      "promptTokens": 2097,
+      "completionTokens": 72
+    },
+    {
+      "reservationId": "a7cae35a-9136-4031-8181-a90ec197d62f",
+      "status": "settled",
+      "requestBytes": 13199,
+      "reserveUsd": 0.0267894,
+      "responseContent": "Ахах, поняла! Энергия, драйв и чтобы уши в трубочку. Тогда держи карточки — тут как раз электроника, транс и клубный пульс.",
+      "actualUsd": 0.00348612,
+      "httpStatus": 200,
+      "promptTokens": 2506,
+      "completionTokens": 45
+    },
+    {
+      "reservationId": "e0c910c4-5364-45cd-a550-cbe9f92d975b",
+      "status": "settled",
+      "requestBytes": 10650,
+      "reserveUsd": 0.02342472,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"electronic\",\n    \"limit\": 5\n  },\n  \"note\": \"Продолжаю подбор скоростной электроники под вайб Sonic\"\n}",
+      "actualUsd": 0.00313632,
+      "httpStatus": 200,
+      "promptTokens": 2157,
+      "completionTokens": 73
+    },
+    {
+      "reservationId": "3daebb58-3b01-4134-b2fb-23cc54285f13",
+      "status": "settled",
+      "requestBytes": 11652,
+      "reserveUsd": 0.02474736,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 5\n  },\n  \"note\": \"Продолжаю подбор под скоростной вайб Sonic: ищу drum and bass как более быстрый жанр.\"\n}",
+      "actualUsd": 0.00359172,
+      "httpStatus": 200,
+      "promptTokens": 2457,
+      "completionTokens": 88
+    },
+    {
+      "reservationId": "6394f513-84ca-4784-90cf-c57a338049de",
+      "status": "settled",
+      "requestBytes": 13654,
+      "reserveUsd": 0.02739,
+      "responseContent": "И вот они, твои скоростные. Тут и классический drum and bass, и клубный хаус, и танцевальная электроника — выбирай, от чего ноги сами заходят.",
+      "actualUsd": 0.00362208,
+      "httpStatus": 200,
+      "promptTokens": 2606,
+      "completionTokens": 46
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}

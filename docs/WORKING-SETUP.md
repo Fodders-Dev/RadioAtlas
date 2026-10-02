@@ -1,8 +1,18 @@
 # RadioAtlas: рабочая схема Codex + Claude
 
-Обновлено 01.10.2026. Это короткая передача текущей работы, не новый источник
+Обновлено 02.10.2026. Это короткая передача текущей работы, не новый источник
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
+
+**02.10 — Лира: Sonic/«и?» готовы к серверному выпуску, RU недоступен.**
+Семантический planner gate, USER-context коротких repairs, grounded terminal
+fallbacks и узкий programme-claim guard; NoPlay сохраняется. 733 API tests,
+оба typecheck, API build, 21 offline contracts. Настоящий Pro прогон на NL:
+20 реплик/41 call, upper $0.12459744, отдельный $3 ledger закрыт.
+`77.91.113.109` не отвечает SSH/HTTPS с Windows и NL; uptime GitHub тоже timeout.
+**До production не дошло**: восстановить доступ к RU, затем same-SHA gates,
+server-only deploy и публичный smoke. Непоказанный Studio не включать.
+[Отчёт с сырыми ответами и ограничениями](LIRA-SEMANTIC-REPAIR-2026-10-02.md).
 
 **01.10 — Лира: близкий источник готов к выпуску.** Выбранный UUID, реальные
 общие жанры, 1–3 других источника, ранжирование до cap и общая страна. 702 API

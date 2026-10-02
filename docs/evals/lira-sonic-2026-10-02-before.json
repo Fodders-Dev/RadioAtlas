@@ -1,0 +1,124 @@
+{
+  "generatedAt": "2026-10-02T06:47:48.168Z",
+  "scenario": "exact",
+  "model": "deepseek-v4-pro",
+  "code": "13b1715-baseline-on-NL",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Привет! Как дела?",
+      "reply": "Привет! Да всё в порядке, сижу, перебираю эфиры под вечер, как будто пластинки в коробке. А ты как, с чем заглянул?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "d236bb33-cf6b-4de6-a91b-b67ad0af913d:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1613,
+      "usage": {
+        "prompt": 2076,
+        "completion": 43
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Хочется скоростного как sonic",
+      "reply": "Сразу Sonic — уважаю! Значит, нужен драйв, чтобы аж кроссовки дымились. А тебе какого именно: электронный разгон, гитарный перегруз или что-то вроде саундтрека из самой игры?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "5e3d57d1-f86b-4a94-a0fe-2406e224ba3a:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 2004,
+      "usage": {
+        "prompt": 2131,
+        "completion": 64
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну смотри, если хочется именно скоростного — давай электронику с плотным битом и ощущением, что бежишь по неоновому городу. Или гитарный панк, где с первых секунд как с обрыва. Что ближе?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "0ca617ef-f510-4a1e-a329-f80317f9e6e0:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 1909,
+      "usage": {
+        "prompt": 2200,
+        "completion": 64
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "6bf85b34-cb25-4e3a-acf2-87988be6a325",
+      "status": "settled",
+      "requestBytes": 11324,
+      "reserveUsd": 0.0243144,
+      "actualUsd": 0.0029106,
+      "httpStatus": 200,
+      "promptTokens": 2076,
+      "completionTokens": 43
+    },
+    {
+      "reservationId": "9bd5b0d3-2c0d-403f-a67d-19ef357fcdf1",
+      "status": "settled",
+      "requestBytes": 11640,
+      "reserveUsd": 0.02473152,
+      "actualUsd": 0.00306636,
+      "httpStatus": 200,
+      "promptTokens": 2131,
+      "completionTokens": 64
+    },
+    {
+      "reservationId": "cf6aaba7-612f-4a6f-8204-2671d8f590cc",
+      "status": "settled",
+      "requestBytes": 12017,
+      "reserveUsd": 0.02522916,
+      "actualUsd": 0.00315744,
+      "httpStatus": 200,
+      "promptTokens": 2200,
+      "completionTokens": 64
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-sonic-20261002/ledger.json"
+}
