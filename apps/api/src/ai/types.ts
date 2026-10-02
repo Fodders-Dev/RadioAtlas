@@ -307,7 +307,7 @@ export type ToolProvider = {
   //  - matchStationsByArtistName: L3 — catalog stations whose NAME matches the
   //    artist (token-prefix, NOT tags), ranked, capped.
   resolveArtistStation?: (hit: CuratedArtistHit) => Promise<VerifiedStationRef | null>;
-  matchStationsByArtistName?: (artist: string) => Promise<VerifiedStationRef[]>;
+  matchStationsByArtistName?: (artist: string, excludeStationIds?: string[]) => Promise<VerifiedStationRef[]>;
 };
 
 // One result of running a tool, fed back into the planner/composer as the

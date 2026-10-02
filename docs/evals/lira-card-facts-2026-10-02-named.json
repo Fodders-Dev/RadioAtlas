@@ -1,0 +1,344 @@
+{
+  "generatedAt": "2026-10-02T08:25:05.005Z",
+  "scenario": "named",
+  "model": "deepseek-v4-pro",
+  "code": "card-facts-after-1",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Поясни каждый, но не включай.",
+      "reply": "Скорость — это по адресу: drum and bass как раз про то самое «беги, пока играет». Из проверенного могу дать три.\n\nBrokenbeats — украинская станция, в тегах downtempo, drum and bass и atmospheric. То есть не сплошной ураган: есть и разгон, и воздушные передышки.\n\nBassdrive — американская, чистокровный drum and bass. Самый прямой кандидат под «скоростного sonic»: плотный бит, драйв, без лишних церемоний.\n\nAtmospheric dnb s0urce — румынская, drum and bass с jungle. Тут к скорости добавляется фактура: рваные брейки, глубина, немного старой школы в настроении.",
+      "cards": [
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "960cc332-0601-11e8-ae97-52543be04c81",
+          "name": "Bassdrive",
+          "country": "The United States Of America",
+          "tags": [
+            "drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "actionId": "af7a392d-d03c-4188-ba8a-508a252c86d7:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 55
+        }
+      ],
+      "runtimeMs": 5477,
+      "usage": {
+        "prompt": 4621,
+        "completion": 249
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ты просил три варианта с пояснениями — вот они, выше. Brokenbeats помягче и с воздухом, Bassdrive самый прямой по драм-н-бейсу, Atmospheric dnb s0urce — с джанглом и фактурой. Если что-то из этого не то, скажи, куда крутить: жёстче, мрачнее, мелодичнее.",
+      "cards": [
+        {
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "name": "HouseTime.FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "drum and bass",
+            "edm",
+            "house",
+            "dubstep",
+            "electro"
+          ]
+        },
+        {
+          "stationuuid": "77330159-8780-443b-b4dd-bcb519b49011",
+          "name": "ElectroDanceWorld Radio",
+          "country": "Spain",
+          "tags": [
+            "dance",
+            "deep house",
+            "drum and bass",
+            "edm",
+            "electronic",
+            "tech house"
+          ]
+        },
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "960ed525-0601-11e8-ae97-52543be04c81",
+          "actionId": "1369cda1-bc07-40a5-9cc4-39635a709aa5:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 74
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 12
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        }
+      ],
+      "runtimeMs": 5601,
+      "usage": {
+        "prompt": 5247,
+        "completion": 188
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "ещё три",
+      "reply": "Держи ещё три, тоже всё из проверенного.\n\nDNBRadio Main channel 192k — немецкая, в тегах drum and bass, dubstep, neurofunk и tech step. Это самый техничный вариант: злой, плотный, с нейро-звуком.\n\nNoise FM — EDM Radio — российская, но в тегах dance, dnb, drum and bass, trance и dubstep. То есть разгон шире: от драм-н-бейса до транса и танцевального EDM.\n\njungletrain.net — 24/7 drum and bass — нидерландская, без подробных тегов, но название говорит само за себя: круглосуточный драм-н-бейс с джангловым характером.",
+      "cards": [
+        {
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "name": "DNBRadio Main channel 192k",
+          "country": "Germany",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "dubstep",
+            "neurofunk",
+            "tech step"
+          ]
+        },
+        {
+          "stationuuid": "0adb24fb-a2fe-4a9b-97a4-bc82dfb1820c",
+          "name": "jungletrain.net - 24/7 drum and bass",
+          "country": "The Netherlands",
+          "tags": []
+        },
+        {
+          "stationuuid": "b78025cf-e68d-43f9-8e59-2a68ae84e7d7",
+          "name": "Noise FM - EDM Radio",
+          "country": "The Russian Federation",
+          "tags": [
+            "dance",
+            "dnb",
+            "drum and bass",
+            "electronic",
+            "trance",
+            "dubstep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "actionId": "7cf73283-a396-4762-8b0b-9a2b4861b20e:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1042
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        }
+      ],
+      "runtimeMs": 6595,
+      "usage": {
+        "prompt": 5425,
+        "completion": 207
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "1e5beeb6-5165-4d67-9b3a-e8b5a6d16eb4",
+      "status": "settled",
+      "requestBytes": 10149,
+      "reserveUsd": 0.0227634,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростная музыка как Sonic → drum and bass\"\n}",
+      "actualUsd": 0.0030162,
+      "httpStatus": 200,
+      "promptTokens": 2072,
+      "completionTokens": 71
+    },
+    {
+      "reservationId": "82209ee9-aebe-41ae-9ff6-037ebbf60a4b",
+      "status": "settled",
+      "requestBytes": 13512,
+      "reserveUsd": 0.02720256,
+      "responseContent": "Скорость — это по адресу: drum and bass как раз про то самое «беги, пока играет». Из проверенного могу дать три.\n\nBrokenbeats — украинская станция, в тегах downtempo, drum and bass и atmospheric. То есть не сплошной ураган: есть и разгон, и воздушные передышки.\n\nBassdrive — американская, чистокровный drum and bass. Самый прямой кандидат под «скоростного sonic»: плотный бит, драйв, без лишних церемоний.\n\nAtmospheric dnb s0urce — румынская, drum and bass с jungle. Тут к скорости добавляется фактура: рваные брейки, глубина, немного старой школы в настроении.",
+      "actualUsd": 0.00406956,
+      "httpStatus": 200,
+      "promptTokens": 2549,
+      "completionTokens": 178
+    },
+    {
+      "reservationId": "fabbd715-325a-4836-930b-94343cb6ff47",
+      "status": "settled",
+      "requestBytes": 11253,
+      "reserveUsd": 0.02422068,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"recommend\",\n  \"note\": \"Пользователь просит три варианта скоростной музыки, как Sonic, с пояснениями, но без включения. Уже даны три станции drum and bass. Продолжаю с теми же вариантами, так как запрос не изменился.\"\n}",
+      "actualUsd": 0.00333828,
+      "httpStatus": 200,
+      "promptTokens": 2280,
+      "completionTokens": 83
+    },
+    {
+      "reservationId": "e60ad716-582b-48f8-93b7-7f6c167bab75",
+      "status": "settled",
+      "requestBytes": 1054,
+      "reserveUsd": 0.010758,
+      "responseContent": "drum and bass, synthwave, eurodance",
+      "actualUsd": 0.00030228,
+      "httpStatus": 200,
+      "promptTokens": 196,
+      "completionTokens": 11
+    },
+    {
+      "reservationId": "1e6e23fb-1c32-4a68-b880-f43285e5554c",
+      "status": "settled",
+      "requestBytes": 14639,
+      "reserveUsd": 0.0286902,
+      "responseContent": "Ты просил три варианта с пояснениями — вот они, выше. Brokenbeats помягче и с воздухом, Bassdrive самый прямой по драм-н-бейсу, Atmospheric dnb s0urce — с джанглом и фактурой. Если что-то из этого не то, скажи, куда крутить: жёстче, мрачнее, мелодичнее.",
+      "actualUsd": 0.00402996,
+      "httpStatus": 200,
+      "promptTokens": 2771,
+      "completionTokens": 94
+    },
+    {
+      "reservationId": "329838f1-be3f-4c41-b7fa-ed3534b122c1",
+      "status": "settled",
+      "requestBytes": 11613,
+      "reserveUsd": 0.02469588,
+      "responseContent": "                      ",
+      "actualUsd": 0.00319836,
+      "httpStatus": 200,
+      "promptTokens": 2357,
+      "completionTokens": 22
+    },
+    {
+      "reservationId": "f655c76f-88c8-4c6b-99d9-0437981128a4",
+      "status": "settled",
+      "requestBytes": 1069,
+      "reserveUsd": 0.0107778,
+      "responseContent": "drum and bass, synthwave, eurodance",
+      "actualUsd": 0.00030624,
+      "httpStatus": 200,
+      "promptTokens": 199,
+      "completionTokens": 11
+    },
+    {
+      "reservationId": "333fd5bc-f6fe-45c1-b264-80ed6b909261",
+      "status": "settled",
+      "requestBytes": 15061,
+      "reserveUsd": 0.02924724,
+      "responseContent": "Держи ещё три, тоже всё из проверенного.\n\nDNBRadio Main channel 192k — немецкая, в тегах drum and bass, dubstep, neurofunk и tech step. Это самый техничный вариант: злой, плотный, с нейро-звуком.\n\nNoise FM — EDM Radio — российская, но в тегах dance, dnb, drum and bass, trance и dubstep. То есть разгон шире: от драм-н-бейса до транса и танцевального EDM.\n\njungletrain.net — 24/7 drum and bass — нидерландская, без подробных тегов, но название говорит само за себя: круглосуточный драм-н-бейс с джангловым характером.",
+      "actualUsd": 0.00447612,
+      "httpStatus": 200,
+      "promptTokens": 2869,
+      "completionTokens": 174
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-card-facts-20261002/ledger.json"
+}

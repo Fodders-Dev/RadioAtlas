@@ -1,0 +1,64 @@
+{
+  "limits": [
+    "No client changes, browser dialogue or physical audio verification",
+    "Final named live run precedes only degraded missing-anchor guard; covered by unit tests",
+    "Model ranking and broad programme claims remain imperfect"
+  ],
+  "paid": {
+    "budgetUsd": 3,
+    "turns": 15,
+    "calls": 36,
+    "closed": true,
+    "upperUsd": 0.10856736,
+    "reservedUsd": 0
+  },
+  "hashes": [
+    {
+      "sha256": "76f603713d50c088e19132b8d32051968cac333c65c92c5007ac6fd7b208196d",
+      "path": "apps/api/src/ai/brain.ts"
+    },
+    {
+      "sha256": "98388ca8e53e39f602643da670b94783244ca65ba56eaf249dcfc6ba5c1eb587",
+      "path": "apps/api/src/ai/catalogToolProvider.ts"
+    },
+    {
+      "sha256": "f884f233752282a033c5eba8ff59e6f4e8a8f8892a7b2ebefbd6603ae1186565",
+      "path": "apps/api/src/ai/types.ts"
+    },
+    {
+      "sha256": "34ad08b1a8e96f3adc3f5ce50cb7e6a3cdbfa7f22ec3f5cf5c5d06beef27ed35",
+      "path": "apps/api/src/ai/recommendationReply.ts"
+    },
+    {
+      "sha256": "bbc86f55fbac7da32104c3247c9bf3f945e2fd09357c968725147b56122e22de",
+      "path": "apps/api/src/ai/stationExclusions.ts"
+    },
+    {
+      "sha256": "557fab92eaaf28c9d74e35788b722f0ec0009c2b5ed544dfc2ae5adcd6c5afa7",
+      "path": "apps/api/test/ai.semanticRequests.test.ts"
+    },
+    {
+      "sha256": "5d9efd27f4dc88a5e1261bd960a8d3b7cea3c1a61717c9840335fedc756198a5",
+      "path": "apps/api/test/catalogToolProvider.artist.test.ts"
+    },
+    {
+      "sha256": "311365a2485d10178081a6c483d60272d310d743c59466e10e87b238d4ccf025",
+      "path": "apps/api/test/catalogToolProvider.exclusions.test.ts"
+    },
+    {
+      "sha256": "37bb17679a5730c55cab4506e2567832ae9b4688f53e1702399e81258ad0db15",
+      "path": "output/lira-card-facts-live.mjs"
+    }
+  ],
+  "baseSha": "e50ccdb47d96ecbc8681c943c7b27853706d4633",
+  "checks": {
+    "sourceTypecheck": 0,
+    "offlineModelCalls": 0,
+    "offlineExit": 0,
+    "offlineContracts": 21,
+    "apiTests": 750,
+    "apiBuild": 0,
+    "testTypecheck": 0,
+    "apiExit": 0
+  }
+}

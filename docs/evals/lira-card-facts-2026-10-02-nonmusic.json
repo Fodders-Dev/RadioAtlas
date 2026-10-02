@@ -1,0 +1,118 @@
+{
+  "generatedAt": "2026-10-02T08:36:32.883Z",
+  "scenario": "nonmusic",
+  "model": "deepseek-v4-pro",
+  "code": "card-facts-final-degraded-guard",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется вечером пиццы",
+      "reply": "Ммм, вечер с пиццей — это уже маленький план. А под неё что включим? Что-нибудь тёплое и ленивое, или наоборот — чтобы хотелось танцевать у духовки?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "efdbc92f-f159-4e13-8b2d-abcd92d55349:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3360,
+      "usage": {
+        "prompt": 4136,
+        "completion": 110
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну так я жду твой настрой! Пицца уже почти в кадре, осталось решить, под что её есть. Тёплый джаз, лёгкий фанк или что-то совсем чилловое под вечер?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "39837831-a4bd-4f99-9dfc-0c625591a046:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3483,
+      "usage": {
+        "prompt": 4270,
+        "completion": 119
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "6b0bb5e9-3bce-4998-b994-b4d5d6919a95",
+      "status": "settled",
+      "requestBytes": 10060,
+      "reserveUsd": 0.02264592,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Пользователь выражает желание поесть пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.00292908,
+      "httpStatus": 200,
+      "promptTokens": 2057,
+      "completionTokens": 54
+    },
+    {
+      "reservationId": "69013683-2391-446e-9048-f25a94459e9f",
+      "status": "settled",
+      "requestBytes": 11334,
+      "reserveUsd": 0.0243276,
+      "responseContent": "Ммм, вечер с пиццей — это уже маленький план. А под неё что включим? Что-нибудь тёплое и ленивое, или наоборот — чтобы хотелось танцевать у духовки?",
+      "actualUsd": 0.00296604,
+      "httpStatus": 200,
+      "promptTokens": 2079,
+      "completionTokens": 56
+    },
+    {
+      "reservationId": "669c079b-d16d-4c7d-a6a2-9c62524fff6a",
+      "status": "settled",
+      "requestBytes": 10435,
+      "reserveUsd": 0.02314092,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Пользователь хочет пиццу, это не запрос на музыку. Отвечаю в разговорном ключе.\"\n}",
+      "actualUsd": 0.00304788,
+      "httpStatus": 200,
+      "promptTokens": 2129,
+      "completionTokens": 60
+    },
+    {
+      "reservationId": "5b16cf06-d346-4bed-9928-ca559af16888",
+      "status": "settled",
+      "requestBytes": 11667,
+      "reserveUsd": 0.02476716,
+      "responseContent": "Ну так я жду твой настрой! Пицца уже почти в кадре, осталось решить, под что её есть. Тёплый джаз, лёгкий фанк или что-то совсем чилловое под вечер?",
+      "actualUsd": 0.00305976,
+      "httpStatus": 200,
+      "promptTokens": 2141,
+      "completionTokens": 59
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-card-facts-20261002/ledger.json"
+}
