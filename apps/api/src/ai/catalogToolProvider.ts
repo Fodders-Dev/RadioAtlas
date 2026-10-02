@@ -9,7 +9,7 @@ import { knownSourceCountry, matchesForeignSource, sourceGenres } from './curren
 import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
-import { createStationExclusionMatcher, type StationExclusionRow } from './stationExclusions.js';
+import { createStationExclusionMatcher, MAX_EXCLUDED_IDS, type StationExclusionRow } from './stationExclusions.js';
 import { matchesSemanticTag, matchesSemanticExclusion, parseSemanticSearch, semanticTagSpellings } from './semanticSearch.js';
 import type { CuratedArtistHit, ToolProvider, TrendingRail, VerifiedStationRef } from './types.js';
 
@@ -346,6 +346,24 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     if (!id) return null;
     const station = await catalog.getStationById(id);
     return station && station.url_resolved ? toRef(station) : null;
+  },
+  getStationsByIds: async (ids) => {
+    const boundedIds = [...new Set(ids.filter(id => typeof id === 'string' && id.trim().length > 0))]
+      .slice(0, MAX_EXCLUDED_IDS);
+    if (!boundedIds.length) return [];
+    const wanted = new Set(boundedIds);
+    const stations = await catalog.getCatalog('full');
+    const byId = new Map<string, CatalogStationLite>();
+    for (const station of stations) {
+      if (wanted.has(station.stationuuid) && station.url_resolved && !byId.has(station.stationuuid)) {
+        byId.set(station.stationuuid, station);
+        if (byId.size === wanted.size) break;
+      }
+    }
+    return boundedIds.flatMap(id => {
+      const station = byId.get(id);
+      return station ? [toRef(station)] : [];
+    });
   },
   // L1 card fetch: locate the LIVE catalog row for a curated artist hit so the
   // card carries the real (overlay-resolved) uuid + stream, not the fallback id.

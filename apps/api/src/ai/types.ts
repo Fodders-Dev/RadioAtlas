@@ -303,6 +303,8 @@ export type CuratedArtistHit = {
 export type ToolProvider = {
   searchStations: (args: SearchStationsArgs) => Promise<VerifiedStationRef[]>;
   getStation: (id: string) => Promise<VerifiedStationRef | null>;
+  /** Internal bounded batch lookup used to resolve repeat-exclusion anchors. */
+  getStationsByIds?: (ids: string[]) => Promise<VerifiedStationRef[]>;
   discoverTrending: (seed?: string) => Promise<TrendingRail[]>;
   // Artist-search seam (find_stations_by_artist). Optional so existing stub
   // providers/tests stay valid; when absent the tool falls straight to L4 links.

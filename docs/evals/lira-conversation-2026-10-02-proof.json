@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "stage": "lira-reply-context",
-  "state": "reviewed-server-only-release-candidate",
+  "state": "published",
   "implementationSha": "abbd431",
   "productionBase": "35d53bf",
   "sourceSha256": {
@@ -80,5 +80,15 @@
     "Previous-card mirror lookups can exhaust tool budget before second direction.",
     "Live runner uses bounded loopback public catalogue shadow retrieval, not full production/profile/browser parity.",
     "No physical device/audio or new UI composition verification."
-  ]
+  ],
+  "publication": {
+    "releaseSha": "ce0c4d13eb05e5ba040dcc63f3852aa1ef968f4b",
+    "ciRun": 37036244673,
+    "deployRun": 37036244607,
+    "ciConclusion": "success",
+    "deployConclusion": "success",
+    "symlink": "/opt/RadioAtlas/releases/ce0c4d13eb05e5ba040dcc63f3852aa1ef968f4b",
+    "modelCalls": 0,
+    "publicSmoke": "lira-conversation-2026-10-02-public-proof.json"
+  }
 }

@@ -193,3 +193,13 @@ The catalogue refresh is the heaviest moment the process has and the VPS is
 oversubscribed. Before changing anything on that path, read the "Catalogue
 refresh memory" section of `RUNBOOK.md` — the peak, the plateau and the two
 rejected optimisations are already measured there.
+
+## Repeat-exclusion budget
+
+The optional internal getStationsByIds capability resolves at most the existing
+128 mirror anchors in one metered operation from the in-process catalogue. Keep
+all explicit UUID exclusions even after missing/failed resolution. Never turn
+batch failure into an unbounded serial fallback or raise the six-call runner
+limit to cover duplicate work. Nonmusic replies must not resolve anchors.
+Provider-internal before-cap filtering still runs; do not claim one total
+catalogue read for the entire turn.

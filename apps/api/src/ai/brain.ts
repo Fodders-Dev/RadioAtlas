@@ -26,7 +26,13 @@ import { buildFallbackResult } from './fallbacks.js';
 import { buildReplyContext, renderReplyContextInstruction, type ReplyContext, type ReplyIntent } from './replyContext.js';
 import { assertsUnverifiedProgram, promisesUnperformedLookup } from './replyOutcome.js';
 import { claimsUnrequestedPlayback, describeVerifiedStationSlate, referencesStationPosition } from './recommendationReply.js';
-import { createStationExclusionMatcher } from './stationExclusions.js';
+import {
+  confirmedStationExclusionRows,
+  createStationExclusionMatcher,
+  createStationExclusionMatcherFromRows,
+  MAX_EXCLUDED_IDS,
+  type StationExclusionRow
+} from './stationExclusions.js';
 import { recommendationEvidence, RECOMMENDATION_EVIDENCE_SCHEMA, renderRecommendationEvidence } from './recommendationEvidence.js';
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
@@ -1994,14 +2000,28 @@ export const chatWithAssistant = async (
   ])];
   if (isFollowupRecommendationIntent(userMessage) && musicContextMessage !== userMessage && repeatIds.length) {
     const baseTools = deps.tools;
-    let excluded: ReturnType<typeof createStationExclusionMatcher> | undefined;
-    const matcher = () => excluded ??= createStationExclusionMatcher(repeatIds, async id => {
-      const station = await baseTools.getStation(id);
-      // Only catalogue-confirmed previous rows can reject stale prose. Never
-      // infer station identities from the assistant's historical claims.
-      if (station?.stationuuid === id) repeatAnchors.push(station);
-      return station;
-    });
+    let excluded: Promise<(row: StationExclusionRow) => boolean> | undefined;
+    const matcher = () => excluded ??= (async () => {
+      if (baseTools.getStationsByIds) {
+        let rows: VerifiedStationRef[] = [];
+        try {
+          rows = await baseTools.getStationsByIds(repeatIds.slice(0, MAX_EXCLUDED_IDS));
+        } catch {
+          // Batch failure must not fan out into individually metered lookups.
+          // The matcher still keeps every explicit UUID as a hard exclusion.
+        }
+        const anchors = confirmedStationExclusionRows(repeatIds, rows);
+        repeatAnchors.push(...anchors);
+        return createStationExclusionMatcherFromRows(repeatIds, anchors);
+      }
+      return createStationExclusionMatcher(repeatIds, async id => {
+        const station = await baseTools.getStation(id);
+        // Only catalogue-confirmed previous rows can reject stale prose. Never
+        // infer station identities from the assistant's historical claims.
+        if (station?.stationuuid === id) repeatAnchors.push(station);
+        return station;
+      });
+    })();
     const filter = async (stations: VerifiedStationRef[]) => {
       const blocked = await matcher();
       return stations.filter(station => !blocked(station));
