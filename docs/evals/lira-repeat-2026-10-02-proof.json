@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "stage": "lira-repeat-tool-budget",
+  "state": "reviewed-server-only-release-candidate",
+  "productionBase": "ce0c4d1",
+  "sourceSha256": {
+    "apps/api/src/ai/types.ts": "839733b50dc4b15b13f42a43f4b105dc0f17313d160e4233e2596cc53f7c122e",
+    "apps/api/src/ai/catalogToolProvider.ts": "a6dcaa6ad128c85a43bd3ce5f05842fea2113ce3def6a05d2f55c13766f565c7",
+    "apps/api/src/ai/agentRunner.ts": "5e6b561098eb831ca3ac9907df0e04944a14d798c8b8cb2eace49e8ab270b985",
+    "apps/api/src/ai/brain.ts": "d7a8ec74a47132c722816bcf4662a41aa3edfdf5e9b2ee179bf90b05320870b8",
+    "apps/api/src/ai/stationExclusions.ts": "7ad482250b4e4a24a7d2f2e598f5ed686dffdbfef7f0dc7d0bb16757c429e04e",
+    "apps/api/test/ai.repeatBudget.test.ts": "1f04b285434fa0b216898cb31de5345aa91c6f77e746497187d3370bf7d81881"
+  },
+  "checks": {
+    "allWorkspaceTypecheck": 0,
+    "allWorkspaceTestTypecheck": 0,
+    "api": {
+      "exitCode": 0,
+      "passed": 829,
+      "failed": 0
+    },
+    "build": 0,
+    "offline": {
+      "exitCode": 0,
+      "passed": 21,
+      "modelCalls": 0
+    }
+  },
+  "fixture": {
+    "actualRunner": true,
+    "productionCatalogProvider": true,
+    "priorIds": 5,
+    "plannedAndExecutedDirections": [
+      "industrial",
+      "breakbeat"
+    ],
+    "toolCalls": 3,
+    "maxToolCalls": 6,
+    "batchFullCatalogReads": 1,
+    "fixtureFullCatalogReadsTotal": 3,
+    "fixtureProviderInternalSingleReads": 10,
+    "country": "Russia",
+    "noPlay": true
+  },
+  "paid": {
+    "modelCalls": 0,
+    "newCampaignOpened": false
+  },
+  "review": {
+    "reviewer": "gpt-6-astra",
+    "verdict": "no blocking defect in final source or five new tests"
+  },
+  "limits": [
+    "Fixture responses do not establish live model prose quality or live audio.",
+    "Custom providers without optional batch keep serial fallback.",
+    "Batch failure keeps all exact UUID exclusions; unresolved name/stream mirrors cannot be guaranteed.",
+    "Existing runner concurrency accounting unchanged; new path sequential.",
+    "Provider internal single lookups remain; one batch is not one catalogue read for whole turn."
+  ]
+}

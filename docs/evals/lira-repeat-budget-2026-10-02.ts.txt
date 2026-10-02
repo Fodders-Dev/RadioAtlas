@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { runLiraAgent } from '../apps/api/src/ai/agentRunner.js';
+import type { AssistantDeps, ChatInput, VerifiedStationRef } from '../apps/api/src/ai/types.js';
+
+async function main() {
+const outputJson = resolve('output/lira-repeat-budget-diagnosis.json');
+const outputLog = resolve('output/lira-repeat-budget-diagnosis.log');
+const plannedDirections = ['industrial', 'breakbeat'];
+const priorIds = ['prior-uuid', 'prior-stream', 'prior-name', 'prior-four', 'prior-five'];
+const station = (id: string, overrides: Partial<VerifiedStationRef> = {}): VerifiedStationRef => ({
+  stationuuid: id,
+  name: `Station ${id}`,
+  country: 'RU',
+  tags: ['industrial'],
+  favicon: '',
+  url_resolved: `https://radio.invalid/${id}`,
+  ...overrides
+});
+const anchors: Record<string, VerifiedStationRef> = {
+  'prior-uuid': station('prior-uuid', { name: 'UUID Anchor', url_resolved: 'https://radio.invalid/uuid' }),
+  'prior-stream': station('prior-stream', { name: 'Stream Anchor', url_resolved: 'https://radio.invalid/shared?channel=a#old' }),
+  'prior-name': station('prior-name', { name: 'Turbo Radio AAC', country: 'NL', url_resolved: 'https://radio.invalid/name-anchor' }),
+  'prior-four': station('prior-four', { name: 'Fourth Anchor' }),
+  'prior-five': station('prior-five', { name: 'Fifth Anchor' })
+};
+const industrialRows = [
+  station('prior-uuid', { name: 'UUID Anchor', url_resolved: 'https://radio.invalid/uuid' }),
+  station('mirror-stream', { name: 'Different Stream Label', url_resolved: 'https://radio.invalid/shared?channel=a#player' }),
+  station('mirror-name', { name: 'Turbo Radio (128 kbps)', country: 'NL' }),
+  station('industrial-fresh', { name: 'Industrial Fresh', tags: ['industrial'] })
+];
+const breakbeatRows = [station('breakbeat-fresh', { name: 'Breakbeat Fresh', tags: ['breakbeat'] })];
+const executedQueries: string[] = [];
+const lookupIds: string[] = [];
+const modelFetchRequests: Array<{ url: string; systemText: string }> = [];
+const logs: string[] = [];
+const plannerPayload = JSON.stringify({
+  action: 'use_tool',
+  intent: 'recommend',
+  tool: 'search_stations',
+  args: { query: 'industrial' },
+  semanticSearch: { kind: 'hypothesis', tags: plannedDirections }
+});
+
+const input: ChatInput = {
+  userMessage: 'и?',
+  history: [
+    { role: 'user', text: 'Подбери энергичное радио.' },
+    { role: 'assistant', text: 'Вот предыдущие варианты.' }
+  ],
+  surface: 'miniapp',
+  locale: 'ru',
+  userTaste: { lastRecommendedStationIds: priorIds }
+};
+const deps: AssistantDeps = {
+  model: {
+    provider: 'deepseek', enabled: true, apiKey: 'fixture-only',
+    baseUrl: 'https://fixture.invalid/v1', model: 'fixture',
+    maxOutputTokens: 1000, timeoutSec: 5
+  },
+  musicServices: [],
+  now: () => 1_800_000_000_000,
+  log: message => logs.push(message),
+  tools: {
+    getStation: async id => {
+      lookupIds.push(id);
+      return anchors[id] ?? null;
+    },
+    searchStations: async args => {
+      executedQueries.push(args.query);
+      return args.query === 'industrial' ? industrialRows : args.query === 'breakbeat' ? breakbeatRows : [];
+    },
+    discoverTrending: async () => []
+  },
+  fetch: (async (url, init) => {
+    const body = JSON.parse(String(init?.body ?? '{}')) as { messages?: Array<{ role: string; content: string }> };
+    const systemText = (body.messages ?? []).filter(m => m.role === 'system').map(m => m.content).join('\n');
+    modelFetchRequests.push({ url: String(url), systemText });
+    const content = systemText.includes('PLANNER MODE') ? plannerPayload : 'Нашла проверенные станции по вашему запросу.';
+    return new Response(JSON.stringify({
+      choices: [{ message: { content } }],
+      usage: { prompt_tokens: 11, completion_tokens: 7 }
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch
+};
+
+const result = await runLiraAgent(input, deps);
+const calls = result.agentRun?.toolCalls ?? [];
+const report = {
+  diagnosis: 'five serial prior-station resolutions consume the six-call agent tool budget before semantic direction two',
+  configuredToolCallLimit: 6,
+  plannedDirections,
+  executedSearchQueries: executedQueries,
+  lookupIds,
+  toolCalls: calls,
+  returnedStations: result.stations.map(s => ({ stationuuid: s.stationuuid, name: s.name, tags: s.tags, url_resolved: s.url_resolved })),
+  modelFetchCount: modelFetchRequests.length,
+  modelFetchWasFixtureOnly: modelFetchRequests.every(request => request.url.startsWith('https://fixture.invalid/')),
+  warnings: result.agentRun?.warnings,
+  runStatus: result.agentRun?.status,
+  verifierPassed: result.agentRun?.verifierPassed
+};
+
+// These assertions encode the current failure mode while exercising the actual
+// runLiraAgent instrumentation and its configured six-call cap.
+assert.deepEqual(plannedDirections, ['industrial', 'breakbeat']);
+assert.deepEqual(lookupIds, priorIds);
+assert.deepEqual(executedQueries, ['industrial'], 'second planned direction must be blocked before the provider search executes');
+assert.equal(calls.length, 6);
+assert.deepEqual(calls.map(call => call.name), [
+  'search_stations', 'get_station', 'get_station', 'get_station', 'get_station', 'get_station'
+]);
+assert.deepEqual(result.stations.map(s => s.stationuuid), ['industrial-fresh']);
+assert.equal(modelFetchRequests.length > 0, true);
+assert.equal(report.modelFetchWasFixtureOnly, true);
+assert.ok(!result.stations.some(s => ['prior-uuid', 'mirror-stream', 'mirror-name'].includes(s.stationuuid)));
+assert.ok(result.agentRun?.warnings.includes('max_tool_calls_reached'));
+
+await writeFile(outputJson, JSON.stringify(report, null, 2) + '\n', 'utf8');
+await writeFile(outputLog, [
+  'PASS: reproduced expected current budget failure with runLiraAgent and the real six-call instrumentation.',
+  `Planned directions: ${plannedDirections.join(', ')}`,
+  `Executed searches: ${executedQueries.join(', ')}`,
+  `Tool trace: ${calls.map(call => call.name).join(' -> ')}`,
+  `Returned cards: ${result.stations.map(s => s.stationuuid).join(', ')}`,
+  `Fake model requests: ${modelFetchRequests.length}; all used fixture.invalid. No real fetch/provider/model call occurred.`
+].join('\n') + '\n', 'utf8');
+process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });
+
+
+

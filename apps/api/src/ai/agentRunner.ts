@@ -143,6 +143,10 @@ const instrumentTools = (
   searchStations: (args) =>
     instrumentCall('search_stations', traces, () => tools.searchStations(args)),
   getStation: (id) => instrumentCall('get_station', traces, () => tools.getStation(id)),
+  ...(tools.getStationsByIds ? {
+    getStationsByIds: (ids: string[]) =>
+      instrumentCall('get_stations_by_ids', traces, () => tools.getStationsByIds!(ids))
+  } : {}),
   discoverTrending: (seed) =>
     instrumentCall('discover_trending', traces, () => tools.discoverTrending(seed)),
   ...(tools.resolveArtistStation

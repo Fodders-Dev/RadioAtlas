@@ -1,0 +1,67 @@
+{
+  "diagnosis": "five serial prior-station resolutions consume the six-call agent tool budget before semantic direction two",
+  "configuredToolCallLimit": 6,
+  "plannedDirections": [
+    "industrial",
+    "breakbeat"
+  ],
+  "executedSearchQueries": [
+    "industrial"
+  ],
+  "lookupIds": [
+    "prior-uuid",
+    "prior-stream",
+    "prior-name",
+    "prior-four",
+    "prior-five"
+  ],
+  "toolCalls": [
+    {
+      "name": "search_stations",
+      "status": "completed",
+      "durationMs": 0
+    },
+    {
+      "name": "get_station",
+      "status": "completed",
+      "durationMs": 0
+    },
+    {
+      "name": "get_station",
+      "status": "completed",
+      "durationMs": 0
+    },
+    {
+      "name": "get_station",
+      "status": "completed",
+      "durationMs": 0
+    },
+    {
+      "name": "get_station",
+      "status": "completed",
+      "durationMs": 0
+    },
+    {
+      "name": "get_station",
+      "status": "completed",
+      "durationMs": 0
+    }
+  ],
+  "returnedStations": [
+    {
+      "stationuuid": "industrial-fresh",
+      "name": "Industrial Fresh",
+      "tags": [
+        "industrial"
+      ],
+      "url_resolved": "https://radio.invalid/industrial-fresh"
+    }
+  ],
+  "modelFetchCount": 2,
+  "modelFetchWasFixtureOnly": true,
+  "warnings": [
+    "max_tool_calls_reached"
+  ],
+  "runStatus": "completed",
+  "verifierPassed": true
+}
